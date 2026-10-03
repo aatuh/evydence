@@ -21,11 +21,14 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/aatuh/evydence/internal/platform/jsonbounds"
+	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, redaction.Error(err))
 		var exitErr interface{ ExitCode() int }
 		if errors.As(err, &exitErr) {
 			os.Exit(exitErr.ExitCode())
@@ -422,8 +425,12 @@ func evidenceBundleSigningKeyIDs(bundle offlineEvidenceBundle) []string {
 }
 
 const (
-	customerPackageSchemaVersion = "customer-security-package.v2.0.0"
-	maxCustomerPackageFileBytes  = int64(10 << 20)
+	customerPackageSchemaVersion       = "customer-security-package.v2.0.0"
+	maxCustomerPackageFileBytes        = int64(10 << 20)
+	maxCustomerPackageArchiveBytes     = int64(32 << 20)
+	maxCustomerPackageExpandedBytes    = int64(40 << 20)
+	maxCustomerPackageArchiveEntries   = 16
+	maxCustomerPackageCompressionRatio = uint64(100)
 )
 
 type customerPackageVerifyResult struct {
@@ -659,6 +666,16 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 	if err != nil {
 		return customerPackageArchiveFiles{}, err
 	}
+	info, err := os.Lstat(cleaned)
+	if err != nil {
+		return customerPackageArchiveFiles{}, err
+	}
+	if !info.Mode().IsRegular() {
+		return customerPackageArchiveFiles{}, errors.New("customer package archive must be a regular file")
+	}
+	if info.Size() > maxCustomerPackageArchiveBytes {
+		return customerPackageArchiveFiles{}, errors.New("customer package archive is too large")
+	}
 	// #nosec G304 -- this CLI intentionally reads a local operator-specified ZIP archive and never extracts entries to disk.
 	reader, err := zip.OpenReader(cleaned)
 	if err != nil {
@@ -669,7 +686,14 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 	}()
 	files := customerPackageArchiveFiles{}
 	seenEntries := map[string]bool{}
+	var expandedBytes uint64
+	if len(reader.File) == 0 || len(reader.File) > maxCustomerPackageArchiveEntries {
+		return customerPackageArchiveFiles{}, errors.New("customer package archive has an invalid entry count")
+	}
 	for _, file := range reader.File {
+		if file.Mode()&os.ModeSymlink != 0 || file.FileInfo().IsDir() || !file.Mode().IsRegular() {
+			return customerPackageArchiveFiles{}, fmt.Errorf("customer package archive contains unsafe archive entry %s", file.Name)
+		}
 		if err := validateCustomerPackageArchiveEntryName(file.Name); err != nil {
 			return customerPackageArchiveFiles{}, err
 		}
@@ -680,6 +704,13 @@ func readCustomerPackageArchive(path string) (customerPackageArchiveFiles, error
 			return customerPackageArchiveFiles{}, fmt.Errorf("customer package archive duplicate archive entry %s", file.Name)
 		}
 		seenEntries[file.Name] = true
+		if file.UncompressedSize64 > uint64(maxCustomerPackageFileBytes) || file.UncompressedSize64 > uint64(maxCustomerPackageExpandedBytes)-expandedBytes {
+			return customerPackageArchiveFiles{}, fmt.Errorf("customer package archive entry %s is too large", file.Name)
+		}
+		expandedBytes += file.UncompressedSize64
+		if file.UncompressedSize64 > 0 && (file.CompressedSize64 == 0 || file.UncompressedSize64 > file.CompressedSize64*maxCustomerPackageCompressionRatio) {
+			return customerPackageArchiveFiles{}, fmt.Errorf("customer package archive entry %s exceeds compression ratio limit", file.Name)
+		}
 		switch file.Name {
 		case "manifest.json":
 			files.Manifest, err = readZIPFileLimited(file)
@@ -873,70 +904,11 @@ func decodeCustomerPackageJSONObject(body []byte, target *map[string]any) error 
 }
 
 func rejectDuplicateCustomerPackageJSONKeys(body []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
-		return err
-	}
-	if _, err := decoder.Token(); err != io.EOF {
-		if err == nil {
-			return errors.New("customer package JSON contains trailing data")
+	if err := jsonbounds.Validate(body, jsonbounds.DefaultLimits()); err != nil {
+		if errors.Is(err, jsonbounds.ErrDuplicateObjectKey) {
+			return errors.New("customer package JSON contains duplicate JSON key")
 		}
-		return err
-	}
-	return nil
-}
-
-func rejectDuplicateCustomerPackageJSONValue(decoder *json.Decoder) error {
-	token, err := decoder.Token()
-	if err != nil {
-		return err
-	}
-	delimiter, isDelimiter := token.(json.Delim)
-	if !isDelimiter {
-		return nil
-	}
-	switch delimiter {
-	case '{':
-		keys := map[string]struct{}{}
-		for decoder.More() {
-			token, err := decoder.Token()
-			if err != nil {
-				return err
-			}
-			key, ok := token.(string)
-			if !ok {
-				return errors.New("customer package JSON object key is invalid")
-			}
-			if _, exists := keys[key]; exists {
-				return errors.New("customer package JSON contains duplicate JSON key")
-			}
-			keys[key] = struct{}{}
-			if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
-				return err
-			}
-		}
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		if token != json.Delim('}') {
-			return errors.New("customer package JSON object is invalid")
-		}
-	case '[':
-		for decoder.More() {
-			if err := rejectDuplicateCustomerPackageJSONValue(decoder); err != nil {
-				return err
-			}
-		}
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		if token != json.Delim(']') {
-			return errors.New("customer package JSON array is invalid")
-		}
-	default:
-		return errors.New("customer package JSON contains an unexpected delimiter")
+		return errors.New("customer package JSON violates structural safety limits")
 	}
 	return nil
 }
@@ -2041,6 +2013,9 @@ func verifyReleaseArtifactManifest(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := rejectDuplicateJSONKeys(body, "release signature"); err != nil {
+		return err
+	}
 	if err := json.Unmarshal(body, &signature); err != nil {
 		return errors.New("release signature is not valid JSON")
 	}
@@ -2167,8 +2142,13 @@ func verifyReleaseArtifactFiles(manifestPath string, _ []byte) error {
 	if err != nil {
 		return err
 	}
+	if err := rejectDuplicateJSONKeys(body, "release manifest"); err != nil {
+		return err
+	}
 	var manifest struct {
-		Artifacts []struct {
+		SchemaVersion string `json:"schema_version"`
+		GeneratedAt   string `json:"generated_at"`
+		Artifacts     []struct {
 			Path   string `json:"path"`
 			Digest string `json:"digest"`
 			Size   int64  `json:"size"`
@@ -2180,9 +2160,30 @@ func verifyReleaseArtifactFiles(manifestPath string, _ []byte) error {
 	if len(manifest.Artifacts) == 0 {
 		return errors.New("release manifest has no artifacts")
 	}
+	if manifest.SchemaVersion != "evydence-release-artifacts.v1.0.0" {
+		return errors.New("release manifest schema_version is unsupported")
+	}
+	if _, err := time.Parse(time.RFC3339, manifest.GeneratedAt); err != nil {
+		return errors.New("release manifest generated_at must be RFC3339")
+	}
 	baseDir := filepath.Dir(filepath.Clean(manifestPath))
+	seenPaths := map[string]bool{}
 	for _, artifact := range manifest.Artifacts {
+		if filepath.Base(artifact.Path) != artifact.Path || artifact.Path == "." || strings.TrimSpace(artifact.Path) == "" || seenPaths[artifact.Path] {
+			return fmt.Errorf("release manifest contains unsafe or duplicate artifact path %s", artifact.Path)
+		}
+		seenPaths[artifact.Path] = true
+		if !validSHA256Digest(artifact.Digest) || artifact.Size < 0 {
+			return fmt.Errorf("release manifest has invalid artifact metadata for %s", artifact.Path)
+		}
 		path := filepath.Join(baseDir, artifact.Path)
+		info, err := os.Lstat(path)
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("release artifact must be a regular file: %s", artifact.Path)
+		}
 		digest, err := hashFile(path)
 		if err != nil {
 			return err
@@ -2190,13 +2191,19 @@ func verifyReleaseArtifactFiles(manifestPath string, _ []byte) error {
 		if digest != artifact.Digest {
 			return fmt.Errorf("artifact digest mismatch for %s", artifact.Path)
 		}
-		info, err := os.Stat(path)
-		if err != nil {
-			return err
-		}
 		if info.Size() != artifact.Size {
 			return fmt.Errorf("artifact size mismatch for %s", artifact.Path)
 		}
+	}
+	return nil
+}
+
+func rejectDuplicateJSONKeys(body []byte, label string) error {
+	if err := rejectDuplicateCustomerPackageJSONKeys(body); err != nil {
+		if strings.Contains(err.Error(), "duplicate JSON key") {
+			return fmt.Errorf("%s contains duplicate JSON key", label)
+		}
+		return fmt.Errorf("%s is not valid JSON", label)
 	}
 	return nil
 }

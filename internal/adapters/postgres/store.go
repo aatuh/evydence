@@ -824,7 +824,9 @@ func (s *Store) loadRelationalAuditChain(ctx context.Context, state *app.Persist
 func (s *Store) loadRelationalSigning(ctx context.Context, state *app.PersistedState, loaded *bool) error {
 	keyRows, err := s.pool.Query(ctx, `
 		SELECT id, tenant_id, kid, algorithm, status, public_key,
-		       encrypted_private_key, created_at, revoked_at
+		       public_key_fingerprint, version, provider, valid_from, valid_until,
+		       encrypted_private_key, created_at, revoked_at, revocation_reason,
+		       revocation_semantics, historical_validity_policy, compromised_at
 		FROM signing_keys
 	`)
 	if err != nil {
@@ -834,11 +836,13 @@ func (s *Store) loadRelationalSigning(ctx context.Context, state *app.PersistedS
 	for keyRows.Next() {
 		var key domain.SigningKey
 		var private []byte
-		var revokedAt sql.NullTime
-		if err := keyRows.Scan(&key.ID, &key.TenantID, &key.KID, &key.Algorithm, &key.Status, &key.PublicKey, &private, &key.CreatedAt, &revokedAt); err != nil {
+		var validUntil, revokedAt, compromisedAt sql.NullTime
+		if err := keyRows.Scan(&key.ID, &key.TenantID, &key.KID, &key.Algorithm, &key.Status, &key.PublicKey, &key.PublicKeyFingerprint, &key.Version, &key.Provider, &key.ValidFrom, &validUntil, &private, &key.CreatedAt, &revokedAt, &key.RevocationReason, &key.RevocationSemantics, &key.HistoricalValidityPolicy, &compromisedAt); err != nil {
 			return fmt.Errorf("scan relational signing key: %w", err)
 		}
+		key.ValidUntil = nullableSQLTime(validUntil)
 		key.RevokedAt = nullableSQLTime(revokedAt)
+		key.CompromisedAt = nullableSQLTime(compromisedAt)
 		state.SigningKeys[key.ID] = key
 		if len(private) != 0 {
 			state.SigningKeyPrivate[key.ID] = append([]byte(nil), private...)
@@ -932,7 +936,7 @@ func (s *Store) loadRelationalSBOMs(ctx context.Context, state *app.PersistedSta
 }
 
 func (s *Store) loadRelationalScans(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at FROM vulnerability_scans`)
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref, summary, findings, created_at FROM vulnerability_scans`)
 	if err != nil {
 		return fmt.Errorf("load relational vulnerability scans: %w", err)
 	}
@@ -941,7 +945,7 @@ func (s *Store) loadRelationalScans(ctx context.Context, state *app.PersistedSta
 		var scan domain.VulnerabilityScan
 		var releaseID sql.NullString
 		var summary, findings []byte
-		if err := rows.Scan(&scan.ID, &scan.TenantID, &scan.EvidenceID, &releaseID, &scan.Scanner, &scan.TargetRef, &summary, &findings, &scan.CreatedAt); err != nil {
+		if err := rows.Scan(&scan.ID, &scan.TenantID, &scan.EvidenceID, &releaseID, &scan.Scanner, &scan.Adapter, &scan.AdapterVersion, &scan.SourceSchema, &scan.TargetRef, &summary, &findings, &scan.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational vulnerability scan: %w", err)
 		}
 		scan.ReleaseID = nullableSQLString(releaseID)
@@ -1251,7 +1255,7 @@ func (s *Store) loadRelationalRiskDecisions(ctx context.Context, state *app.Pers
 		       status, justification, impact_statement, action_statement,
 		       customer_visible, internal_notes, source, evidence_id, evidence_ids, supporting_refs, vex_document_id,
 		       supersedes, superseded_by, approved_by, reviewed_at, review_due_at, schema_version, created_at
-		FROM vulnerability_decisions
+		FROM vulnerability_decision_projection
 	`)
 	if err != nil {
 		return fmt.Errorf("load relational vulnerability decisions: %w", err)
@@ -1964,15 +1968,25 @@ func (s *Store) loadRelationalWaiversApprovalsTrust(ctx context.Context, state *
 		return err
 	}
 
-	trustRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at FROM dsse_trust_roots`)
+	trustRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims, status, schema_version, created_at FROM dsse_trust_roots`)
 	if err != nil {
 		return fmt.Errorf("load relational dsse trust roots: %w", err)
 	}
 	defer trustRows.Close()
 	for trustRows.Next() {
 		var root domain.DSSETrustRoot
-		if err := trustRows.Scan(&root.ID, &root.TenantID, &root.Name, &root.KeyID, &root.Algorithm, &root.PublicKey, &root.Status, &root.SchemaVersion, &root.CreatedAt); err != nil {
+		var predicateTypes, builderIDs, requiredClaims []byte
+		if err := trustRows.Scan(&root.ID, &root.TenantID, &root.Name, &root.KeyID, &root.Algorithm, &root.PublicKey, &predicateTypes, &builderIDs, &requiredClaims, &root.Status, &root.SchemaVersion, &root.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational dsse trust root: %w", err)
+		}
+		if err := decodeJSON(predicateTypes, &root.AllowedPredicateTypes); err != nil {
+			return fmt.Errorf("decode relational DSSE root predicate policy: %w", err)
+		}
+		if err := decodeJSON(builderIDs, &root.ExpectedBuilderIDs); err != nil {
+			return fmt.Errorf("decode relational DSSE root builder policy: %w", err)
+		}
+		if err := decodeJSON(requiredClaims, &root.RequiredClaims); err != nil {
+			return fmt.Errorf("decode relational DSSE root required claims: %w", err)
 		}
 		state.DSSETrustRoots[root.ID] = root
 		*loaded = true
@@ -2002,16 +2016,16 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 		return err
 	}
 
-	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, result, checks, assurance_profile, limitations, schema_version, created_at FROM cosign_verifications`)
+	cosignRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, artifact_id, container_image_id, artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index, certificate_identity, certificate_issuer, verifier_library_version, trust_root_version, verification_mode, result, checks, assurance_profile, limitations, schema_version, created_at FROM cosign_verifications`)
 	if err != nil {
 		return fmt.Errorf("load relational cosign verifications: %w", err)
 	}
 	defer cosignRows.Close()
 	for cosignRows.Next() {
 		var verification domain.CosignVerification
-		var artifactID, imageID, rekorUUID, rekorLogIndex, certIdentity, certIssuer sql.NullString
+		var artifactID, imageID, rekorUUID, rekorLogIndex, certIdentity, certIssuer, libraryVersion, trustRootVersion, verificationMode sql.NullString
 		var checks, profile []byte
-		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
+		if err := cosignRows.Scan(&verification.ID, &verification.TenantID, &artifactID, &imageID, &verification.ArtifactSignatureID, &verification.SubjectDigest, &rekorUUID, &rekorLogIndex, &certIdentity, &certIssuer, &libraryVersion, &trustRootVersion, &verificationMode, &verification.Result, &checks, &profile, &verification.Limitations, &verification.SchemaVersion, &verification.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational cosign verification: %w", err)
 		}
 		verification.ArtifactID = nullableSQLString(artifactID)
@@ -2020,6 +2034,9 @@ func (s *Store) loadRelationalIntegrityProviderRows(ctx context.Context, state *
 		verification.RekorLogIndex = nullableSQLString(rekorLogIndex)
 		verification.CertificateIdentity = nullableSQLString(certIdentity)
 		verification.CertificateIssuer = nullableSQLString(certIssuer)
+		verification.VerifierLibraryVersion = nullableSQLString(libraryVersion)
+		verification.TrustRootVersion = nullableSQLString(trustRootVersion)
+		verification.VerificationMode = nullableSQLString(verificationMode)
 		if err := decodeJSON(checks, &verification.Checks); err != nil {
 			return fmt.Errorf("decode relational cosign checks: %w", err)
 		}
@@ -2633,19 +2650,20 @@ func (s *Store) loadRelationalFutureExtensionRows(ctx context.Context, state *ap
 		return err
 	}
 
-	signingRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_id, subject_type, subject_id, payload_hash, signature_ref, result, checks, schema_version, created_at FROM signing_operations`)
+	signingRows, err := s.pool.Query(ctx, `SELECT id, tenant_id, provider_id, subject_type, subject_id, payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks, schema_version, created_at FROM signing_operations`)
 	if err != nil {
 		return fmt.Errorf("load relational signing operations: %w", err)
 	}
 	defer signingRows.Close()
 	for signingRows.Next() {
 		var operation domain.SigningOperation
-		var signatureRef sql.NullString
+		var signatureRef, providerRequestID sql.NullString
 		var checks []byte
-		if err := signingRows.Scan(&operation.ID, &operation.TenantID, &operation.ProviderID, &operation.SubjectType, &operation.SubjectID, &operation.PayloadHash, &signatureRef, &operation.Result, &checks, &operation.SchemaVersion, &operation.CreatedAt); err != nil {
+		if err := signingRows.Scan(&operation.ID, &operation.TenantID, &operation.ProviderID, &operation.SubjectType, &operation.SubjectID, &operation.PayloadHash, &operation.CanonicalPayloadHash, &operation.RequestID, &providerRequestID, &signatureRef, &operation.Result, &checks, &operation.SchemaVersion, &operation.CreatedAt); err != nil {
 			return fmt.Errorf("scan relational signing operation: %w", err)
 		}
 		operation.SignatureRef = nullableSQLString(signatureRef)
+		operation.ProviderRequestID = nullableSQLString(providerRequestID)
 		if err := decodeJSON(checks, &operation.Checks); err != nil {
 			return fmt.Errorf("decode relational signing operation checks: %w", err)
 		}
@@ -2709,6 +2727,9 @@ func (s *Store) saveState(ctx context.Context, state app.PersistedState, writeSn
 		return nil, fmt.Errorf("begin save ledger state transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockPersistedStateProjectionMutations(ctx, tx, state); err != nil {
+		return nil, err
+	}
 	state, err = reconcileAuditChainSequences(ctx, tx, state)
 	if err != nil {
 		return nil, err
@@ -2778,6 +2799,9 @@ func (s *Store) applyCriticalMutation(ctx context.Context, mutation app.Critical
 		return nil, fmt.Errorf("begin critical mutation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockCriticalProjectionMutation(ctx, tx, mutation); err != nil {
+		return nil, err
+	}
 	state := criticalMutationState(mutation)
 	state, err = reconcileAuditChainSequences(ctx, tx, state)
 	if err != nil {
@@ -2827,8 +2851,22 @@ func (s *Store) applyReleaseLedgerMutation(ctx context.Context, mutation app.Rel
 		return nil, fmt.Errorf("begin release ledger mutation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	chain, err := applyReleaseLedgerMutationTx(ctx, tx, mutation)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit release ledger mutation transaction: %w", err)
+	}
+	return chain, nil
+}
+
+func applyReleaseLedgerMutationTx(ctx context.Context, tx pgx.Tx, mutation app.ReleaseLedgerMutation) (map[string][]domain.AuditChainEntry, error) {
+	if err := lockWorkerProjectionMutation(ctx, tx, mutation); err != nil {
+		return nil, err
+	}
 	state := releaseLedgerMutationState(mutation)
-	state, err = reconcileAuditChainSequences(ctx, tx, state)
+	state, err := reconcileAuditChainSequences(ctx, tx, state)
 	if err != nil {
 		return nil, err
 	}
@@ -2851,9 +2889,6 @@ func (s *Store) applyReleaseLedgerMutation(ctx context.Context, mutation app.Rel
 	}
 	if err := syncAuditSequenceRows(ctx, tx, state); err != nil {
 		return nil, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit release ledger mutation transaction: %w", err)
 	}
 	return state.Chain, nil
 }
@@ -2948,6 +2983,9 @@ func releaseLedgerMutationState(mutation app.ReleaseLedgerMutation) app.Persiste
 	}
 	for _, report := range mutation.VEXImportReports {
 		state.VEXImportReports[report.ID] = report
+	}
+	for _, attestation := range mutation.BuildAttestations {
+		state.BuildAttestations[attestation.ID] = attestation
 	}
 	for _, decision := range mutation.VulnerabilityDecisions {
 		state.Decisions[decision.ID] = decision
@@ -3246,18 +3284,33 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		if len(private) == 0 {
 			private = key.Private
 		}
+		validFrom := key.ValidFrom
+		if validFrom.IsZero() {
+			validFrom = key.CreatedAt
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO signing_keys (
 				id, tenant_id, kid, algorithm, status, public_key,
-				encrypted_private_key, created_at, revoked_at
+				public_key_fingerprint, version, provider, valid_from, valid_until,
+				encrypted_private_key, created_at, revoked_at, revocation_reason,
+				revocation_semantics, historical_validity_policy, compromised_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, GREATEST($8, 1), COALESCE(NULLIF($9, ''), 'local_ed25519'), $10, $11, $12, $13, $14, $15, $16, COALESCE(NULLIF($17, ''), 'preserve'), $18)
 			ON CONFLICT (id) DO UPDATE SET
 				status = EXCLUDED.status,
 				public_key = EXCLUDED.public_key,
+				public_key_fingerprint = EXCLUDED.public_key_fingerprint,
+				version = EXCLUDED.version,
+				provider = EXCLUDED.provider,
+				valid_from = EXCLUDED.valid_from,
+				valid_until = EXCLUDED.valid_until,
 				encrypted_private_key = EXCLUDED.encrypted_private_key,
-				revoked_at = EXCLUDED.revoked_at
-		`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, nullableBytes(private), nonZeroTime(key.CreatedAt), nullableTime(key.RevokedAt)); err != nil {
+				revoked_at = EXCLUDED.revoked_at,
+				revocation_reason = EXCLUDED.revocation_reason,
+				revocation_semantics = EXCLUDED.revocation_semantics,
+				historical_validity_policy = EXCLUDED.historical_validity_policy,
+				compromised_at = EXCLUDED.compromised_at
+		`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, key.PublicKeyFingerprint, key.Version, key.Provider, validFrom, nullableTime(key.ValidUntil), nullableBytes(private), nonZeroTime(key.CreatedAt), nullableTime(key.RevokedAt), key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, nullableTime(key.CompromisedAt)); err != nil {
 			return fmt.Errorf("upsert signing key row: %w", err)
 		}
 	}
@@ -3322,7 +3375,10 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 				spec_version, component_count, components, created_at
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			ON CONFLICT (id) DO UPDATE SET components = EXCLUDED.components, component_count = EXCLUDED.component_count
+			ON CONFLICT (id) DO UPDATE SET
+				spec_version = EXCLUDED.spec_version,
+				components = EXCLUDED.components,
+				component_count = EXCLUDED.component_count
 		`, sbom.ID, sbom.TenantID, sbom.EvidenceID, nullableString(sbom.ReleaseID), nullableString(sbom.ArtifactID), sbom.Format, sbom.SpecVersion, sbom.ComponentCount, components, nonZeroTime(sbom.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert sbom row: %w", err)
 		}
@@ -3341,12 +3397,19 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO vulnerability_scans (
-				id, tenant_id, evidence_id, release_id, scanner, target_ref,
+				id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref,
 				summary, findings, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET summary = EXCLUDED.summary, findings = EXCLUDED.findings
-		`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.TargetRef, summary, findings, nonZeroTime(scan.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO UPDATE SET
+				scanner = EXCLUDED.scanner,
+				target_ref = EXCLUDED.target_ref,
+				adapter = EXCLUDED.adapter,
+				adapter_version = EXCLUDED.adapter_version,
+				source_schema = EXCLUDED.source_schema,
+				summary = EXCLUDED.summary,
+				findings = EXCLUDED.findings
+		`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.Adapter, scan.AdapterVersion, scan.SourceSchema, scan.TargetRef, summary, findings, nonZeroTime(scan.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert vulnerability scan row: %w", err)
 		}
 	}
@@ -3373,18 +3436,8 @@ func syncReleaseLedgerCore(ctx context.Context, tx pgx.Tx, state app.PersistedSt
 		if policy.ID == "" || policy.TenantID == "" || policy.ReleaseID == "" {
 			continue
 		}
-		checks, err := json.Marshal(policy.Checks)
-		if err != nil {
-			return fmt.Errorf("encode policy checks: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO policy_evaluations (
-				id, tenant_id, release_id, result, policy_set, checks, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
-		`, policy.ID, policy.TenantID, policy.ReleaseID, policy.Result, policy.PolicySet, checks, nonZeroTime(policy.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert policy evaluation row: %w", err)
+		if err := importPolicyEvaluationRow(ctx, tx, policy); err != nil {
+			return err
 		}
 	}
 	for _, bundle := range state.Bundles {
@@ -3533,6 +3586,7 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 				payload_ref = EXCLUDED.payload_ref,
 				payload_hash = EXCLUDED.payload_hash,
 				payload_size = EXCLUDED.payload_size,
+				payload_type = EXCLUDED.payload_type,
 				predicate_type = EXCLUDED.predicate_type,
 				subject_digests = EXCLUDED.subject_digests,
 				builder_id = EXCLUDED.builder_id,
@@ -3619,76 +3673,26 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 			return fmt.Errorf("upsert vex import report row: %w", err)
 		}
 	}
-	for _, decision := range state.Decisions {
+	for _, decision := range orderedVulnerabilityDecisions(state.Decisions) {
 		if decision.ID == "" || decision.TenantID == "" || decision.FindingID == "" || decision.ScanID == "" {
 			continue
 		}
-		supportingRefs := decision.SupportingRefs
-		if supportingRefs == nil {
-			supportingRefs = []domain.SubjectRef{}
+		// A supersession records the successor's supplied timestamp, or the
+		// current import time when none is supplied; never the predecessor's age.
+		var supersessionTime time.Time
+		if successor, ok := state.Decisions[decision.SupersededBy]; ok {
+			supersessionTime = successor.CreatedAt
 		}
-		supportingRefsJSON, err := json.Marshal(supportingRefs)
-		if err != nil {
-			return fmt.Errorf("encode vulnerability decision supporting refs: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO vulnerability_decisions (
-				id, tenant_id, finding_id, scan_id, release_id, vulnerability,
-				component, sbom_id, sbom_component_purl, sbom_component_name,
-				status, justification, impact_statement, action_statement,
-				customer_visible, internal_notes, source, evidence_id, evidence_ids, supporting_refs, vex_document_id,
-				supersedes, superseded_by, approved_by, reviewed_at, review_due_at, schema_version, created_at
-			)
-			VALUES (
-				$1, $2, $3, $4, $5, $6,
-				$7, $8, $9, $10,
-				$11, $12, $13, $14,
-				$15, $16, $17, $18, $19, $20,
-				$21, $22, $23, $24, $25, $26, $27, $28
-			)
-			ON CONFLICT (id) DO UPDATE SET
-				superseded_by = EXCLUDED.superseded_by,
-				approved_by = EXCLUDED.approved_by,
-				reviewed_at = COALESCE(vulnerability_decisions.reviewed_at, EXCLUDED.reviewed_at),
-				review_due_at = COALESCE(vulnerability_decisions.review_due_at, EXCLUDED.review_due_at),
-				sbom_id = COALESCE(NULLIF(vulnerability_decisions.sbom_id, ''), EXCLUDED.sbom_id),
-				sbom_component_purl = COALESCE(NULLIF(vulnerability_decisions.sbom_component_purl, ''), EXCLUDED.sbom_component_purl),
-				sbom_component_name = COALESCE(NULLIF(vulnerability_decisions.sbom_component_name, ''), EXCLUDED.sbom_component_name),
-				customer_visible = vulnerability_decisions.customer_visible OR EXCLUDED.customer_visible,
-				internal_notes = COALESCE(NULLIF(vulnerability_decisions.internal_notes, ''), EXCLUDED.internal_notes),
-				evidence_ids = CASE
-					WHEN cardinality(vulnerability_decisions.evidence_ids) = 0 THEN EXCLUDED.evidence_ids
-					ELSE vulnerability_decisions.evidence_ids
-				END,
-				supporting_refs = CASE
-					WHEN vulnerability_decisions.supporting_refs = '[]'::jsonb THEN EXCLUDED.supporting_refs
-					ELSE vulnerability_decisions.supporting_refs
-				END
-		`, decision.ID, decision.TenantID, decision.FindingID, decision.ScanID, nullableString(decision.ReleaseID), decision.Vulnerability,
-			nullableString(decision.Component), nullableString(decision.SBOMID), nullableString(decision.SBOMComponentPURL), nullableString(decision.SBOMComponentName),
-			decision.Status, decision.Justification, nullableString(decision.ImpactStatement), nullableString(decision.ActionStatement),
-			decision.CustomerVisible, nullableString(decision.InternalNotes), decision.Source, nullableString(decision.EvidenceID), textArray(decision.EvidenceIDs), supportingRefsJSON, nullableString(decision.VEXDocumentID), nullableString(decision.Supersedes), nullableString(decision.SupersededBy),
-			nullableString(decision.ApprovedBy), nullableTime(decision.ReviewedAt), nullableTime(decision.ReviewDueAt), decision.SchemaVersion, nonZeroTime(decision.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert vulnerability decision row: %w", err)
+		if err := importDecisionRow(ctx, tx, decision, supersessionTime); err != nil {
+			return err
 		}
 	}
 	for _, exception := range state.Exceptions {
 		if exception.ID == "" || exception.TenantID == "" || exception.ReleaseID == "" {
 			continue
 		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO exceptions (
-				id, tenant_id, release_id, finding_id, control_id, reason,
-				owner, expires_at, approved, approved_by, approved_at, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-			ON CONFLICT (id) DO UPDATE SET
-				approved = EXCLUDED.approved,
-				approved_by = EXCLUDED.approved_by,
-				approved_at = EXCLUDED.approved_at
-		`, exception.ID, exception.TenantID, exception.ReleaseID, nullableString(exception.FindingID), nullableString(exception.ControlID), exception.Reason,
-			exception.Owner, exception.ExpiresAt, exception.Approved, nullableString(exception.ApprovedBy), nullableTime(exception.ApprovedAt), nonZeroTime(exception.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert exception row: %w", err)
+		if err := importExceptionRow(ctx, tx, exception); err != nil {
+			return err
 		}
 	}
 	for _, framework := range state.ControlFrameworks {
@@ -3767,6 +3771,22 @@ func syncRiskBuildControlRows(ctx context.Context, tx pgx.Tx, state app.Persiste
 		}
 	}
 	return nil
+}
+
+func orderedVulnerabilityDecisions(values map[string]domain.VulnerabilityDecision) []domain.VulnerabilityDecision {
+	result := make([]domain.VulnerabilityDecision, 0, len(values))
+	for _, decision := range values {
+		result = append(result, decision)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		leftSuperseded := strings.TrimSpace(result[i].SupersededBy) != ""
+		rightSuperseded := strings.TrimSpace(result[j].SupersededBy) != ""
+		if leftSuperseded != rightSuperseded {
+			return leftSuperseded
+		}
+		return result[i].ID < result[j].ID
+	})
+	return result
 }
 
 func syncSourceDeploymentLifecycleRows(ctx context.Context, tx pgx.Tx, state app.PersistedState) error {
@@ -4098,39 +4118,16 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if diff.ID == "" || diff.TenantID == "" || diff.BaseSBOMID == "" || diff.TargetSBOMID == "" {
 			continue
 		}
-		document, err := json.Marshal(diff)
-		if err != nil {
-			return fmt.Errorf("encode sbom diff document: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO sbom_diffs (
-				id, tenant_id, base_sbom_id, target_sbom_id, release_id,
-				document, schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			ON CONFLICT (id) DO UPDATE SET document = EXCLUDED.document
-		`, diff.ID, diff.TenantID, diff.BaseSBOMID, diff.TargetSBOMID, nullableString(diff.ReleaseID),
-			document, diff.SchemaVersion, nonZeroTime(diff.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert sbom diff row: %w", err)
+		if err := importSBOMDiffRow(ctx, tx, diff); err != nil {
+			return err
 		}
 	}
 	for _, change := range state.DependencyChanges {
 		if change.ID == "" || change.TenantID == "" || change.SBOMDiffID == "" {
 			continue
 		}
-		component, err := json.Marshal(change.Component)
-		if err != nil {
-			return fmt.Errorf("encode dependency component: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO dependency_changes (
-				id, tenant_id, sbom_diff_id, change_type, component,
-				schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (id) DO UPDATE SET component = EXCLUDED.component
-		`, change.ID, change.TenantID, change.SBOMDiffID, change.ChangeType, component, change.SchemaVersion, nonZeroTime(change.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert dependency change row: %w", err)
+		if err := importDependencyChangeRow(ctx, tx, change); err != nil {
+			return err
 		}
 	}
 	for _, record := range state.VulnerabilityWorkflow {
@@ -4152,80 +4149,32 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if diff.ID == "" || diff.TenantID == "" || diff.BaseContractID == "" || diff.TargetContractID == "" {
 			continue
 		}
-		document, err := json.Marshal(diff)
-		if err != nil {
-			return fmt.Errorf("encode contract diff document: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO contract_diffs (
-				id, tenant_id, base_contract_id, target_contract_id, product_id,
-				release_id, result, document, schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, document = EXCLUDED.document
-		`, diff.ID, diff.TenantID, diff.BaseContractID, diff.TargetContractID, diff.ProductID,
-			nullableString(diff.ReleaseID), diff.Result, document, diff.SchemaVersion, nonZeroTime(diff.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert contract diff row: %w", err)
+		if err := importContractDiffRow(ctx, tx, diff); err != nil {
+			return err
 		}
 	}
 	for _, policy := range state.CustomPolicies {
 		if policy.ID == "" || policy.TenantID == "" {
 			continue
 		}
-		rules, err := json.Marshal(policy.Rules)
-		if err != nil {
-			return fmt.Errorf("encode custom policy rules: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO custom_policies (
-				id, tenant_id, name, version, description, rules,
-				schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description, rules = EXCLUDED.rules
-		`, policy.ID, policy.TenantID, policy.Name, policy.Version, nullableString(policy.Description), rules, policy.SchemaVersion, nonZeroTime(policy.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert custom policy row: %w", err)
+		if err := importCustomPolicyRow(ctx, tx, policy); err != nil {
+			return err
 		}
 	}
 	for _, evaluation := range state.CustomPolicyEvaluations {
 		if evaluation.ID == "" || evaluation.TenantID == "" || evaluation.PolicyID == "" {
 			continue
 		}
-		checks, err := json.Marshal(evaluation.Checks)
-		if err != nil {
-			return fmt.Errorf("encode custom policy checks: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO custom_policy_evaluations (
-				id, tenant_id, policy_id, release_id, result, checks,
-				input_hash, schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks
-		`, evaluation.ID, evaluation.TenantID, evaluation.PolicyID, evaluation.ReleaseID, evaluation.Result, checks, evaluation.InputHash, evaluation.SchemaVersion, nonZeroTime(evaluation.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert custom policy evaluation row: %w", err)
+		if err := importCustomPolicyEvaluationRow(ctx, tx, evaluation); err != nil {
+			return err
 		}
 	}
 	for _, waiver := range state.Waivers {
 		if waiver.ID == "" || waiver.TenantID == "" || waiver.ScopeID == "" {
 			continue
 		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO waivers (
-				id, tenant_id, scope_type, scope_id, control_id, policy_id,
-				owner, risk, reason, expires_at, approved, approved_by,
-				approved_at, supersedes, superseded_by, schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-			ON CONFLICT (id) DO UPDATE SET
-				approved = EXCLUDED.approved,
-				approved_by = EXCLUDED.approved_by,
-				approved_at = EXCLUDED.approved_at,
-				superseded_by = EXCLUDED.superseded_by
-		`, waiver.ID, waiver.TenantID, waiver.ScopeType, waiver.ScopeID, nullableString(waiver.ControlID), nullableString(waiver.PolicyID),
-			waiver.Owner, waiver.Risk, waiver.Reason, waiver.ExpiresAt, waiver.Approved, nullableString(waiver.ApprovedBy),
-			nullableTime(waiver.ApprovedAt), nullableString(waiver.Supersedes), nullableString(waiver.SupersededBy), waiver.SchemaVersion, nonZeroTime(waiver.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert waiver row: %w", err)
+		if err := importWaiverRow(ctx, tx, waiver); err != nil {
+			return err
 		}
 	}
 	for _, approval := range state.Approvals {
@@ -4248,14 +4197,26 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if root.ID == "" || root.TenantID == "" || root.KeyID == "" {
 			continue
 		}
+		predicateTypes, err := json.Marshal(root.AllowedPredicateTypes)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root predicate policy: %w", err)
+		}
+		builderIDs, err := json.Marshal(root.ExpectedBuilderIDs)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root builder policy: %w", err)
+		}
+		requiredClaims, err := json.Marshal(root.RequiredClaims)
+		if err != nil {
+			return fmt.Errorf("encode DSSE root required claims: %w", err)
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO dsse_trust_roots (
-				id, tenant_id, name, key_id, algorithm, public_key, status,
-				schema_version, created_at
+				id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types,
+				expected_builder_ids, required_claims, status, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, public_key = EXCLUDED.public_key
-		`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, root.Status, root.SchemaVersion, nonZeroTime(root.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			ON CONFLICT (id) DO NOTHING
+		`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, predicateTypes, builderIDs, requiredClaims, root.Status, root.SchemaVersion, nonZeroTime(root.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert dsse trust root row: %w", err)
 		}
 	}
@@ -4303,16 +4264,16 @@ func syncIntegrityProviderRows(ctx context.Context, tx pgx.Tx, state app.Persist
 			INSERT INTO cosign_verifications (
 				id, tenant_id, artifact_id, container_image_id,
 				artifact_signature_id, subject_digest, rekor_uuid, rekor_log_index,
-				certificate_identity, certificate_issuer, result, checks, assurance_profile, limitations,
-				schema_version, created_at
+				certificate_identity, certificate_issuer, verifier_library_version, trust_root_version, verification_mode,
+				result, checks, assurance_profile, limitations, schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+			ON CONFLICT (id) DO UPDATE SET verifier_library_version = EXCLUDED.verifier_library_version, trust_root_version = EXCLUDED.trust_root_version, verification_mode = EXCLUDED.verification_mode, result = EXCLUDED.result, checks = EXCLUDED.checks, assurance_profile = EXCLUDED.assurance_profile, limitations = EXCLUDED.limitations, schema_version = EXCLUDED.schema_version
 		`, verification.ID, verification.TenantID, nullableString(verification.ArtifactID), nullableString(verification.ContainerImageID),
 			verification.ArtifactSignatureID, verification.SubjectDigest, nullableString(verification.RekorUUID),
 			nullableString(verification.RekorLogIndex), nullableString(verification.CertificateIdentity),
-			nullableString(verification.CertificateIssuer), verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion,
-			nonZeroTime(verification.CreatedAt)); err != nil {
+			nullableString(verification.CertificateIssuer), nullableString(verification.VerifierLibraryVersion), nullableString(verification.TrustRootVersion), nullableString(verification.VerificationMode),
+			verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, nonZeroTime(verification.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert cosign verification row: %w", err)
 		}
 	}
@@ -4887,12 +4848,12 @@ func syncFutureExtensionRows(ctx context.Context, tx pgx.Tx, state app.Persisted
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO signing_operations (
 				id, tenant_id, provider_id, subject_type, subject_id,
-				payload_hash, signature_ref, result, checks,
+				payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks,
 				schema_version, created_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-			ON CONFLICT (id) DO UPDATE SET signature_ref = EXCLUDED.signature_ref, result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
-		`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, nullableString(operation.SignatureRef), operation.Result, checks, operation.SchemaVersion, nonZeroTime(operation.CreatedAt)); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			ON CONFLICT (id) DO UPDATE SET canonical_payload_hash = EXCLUDED.canonical_payload_hash, request_id = EXCLUDED.request_id, provider_request_id = EXCLUDED.provider_request_id, signature_ref = EXCLUDED.signature_ref, result = EXCLUDED.result, checks = EXCLUDED.checks, schema_version = EXCLUDED.schema_version
+		`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.CanonicalPayloadHash, operation.RequestID, nullableString(operation.ProviderRequestID), nullableString(operation.SignatureRef), operation.Result, checks, operation.SchemaVersion, nonZeroTime(operation.CreatedAt)); err != nil {
 			return fmt.Errorf("upsert signing operation row: %w", err)
 		}
 	}

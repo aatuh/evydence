@@ -5,12 +5,35 @@ import (
 	"io"
 	"time"
 
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
 type Store interface {
 	LoadState(context.Context) (PersistedState, bool, error)
 	SaveState(context.Context, PersistedState) error
+}
+
+// WorkerProjectionStore exposes the tenant-scoped records that background
+// workers may append or hydrate after an API process has loaded its local read
+// model. Implementations must return one consistent database snapshot and must
+// constrain every query by tenant ID.
+type WorkerProjectionStore interface {
+	LoadWorkerProjection(context.Context, string) (WorkerProjection, error)
+}
+
+type WorkerProjection struct {
+	ParserNormalizations   []domain.EvidenceItem
+	SBOMs                  []domain.SBOM
+	Scans                  []domain.VulnerabilityScan
+	Contracts              []domain.OpenAPIContract
+	VEXDocuments           []domain.VEXDocument
+	VEXImportReports       []domain.VEXImportReport
+	BuildAttestations      []domain.BuildAttestation
+	VulnerabilityDecisions []domain.VulnerabilityDecision
+	AuditChainEntries      []domain.AuditChainEntry
 }
 
 type CriticalMutationStore interface {
@@ -23,6 +46,42 @@ type ReleaseLedgerMutationStore interface {
 
 type RelationalStateStore interface {
 	SaveRelationalState(context.Context, PersistedState) error
+}
+
+// EvidencePageStore is the bounded, index-oriented read port used for large
+// evidence collections. Authorization remains in Ledger; adapters receive a
+// tenant-bound request only after scope policy has been evaluated.
+type EvidencePageStore interface {
+	ListEvidencePage(context.Context, EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error)
+	SearchEvidencePage(context.Context, EvidenceSearchPageRequest) (appquery.Result[domain.EvidenceItem], error)
+}
+
+// EvidenceVisibility is evaluated before a row can contribute to a page.
+// Implementations must keep result memory bounded and use one consistent
+// storage snapshot across any internal keyset batches.
+type EvidenceVisibility func(domain.EvidenceItem) (bool, error)
+
+// EvidenceVisiblePageStore supports granular human grants without materializing
+// all tenant evidence in the application. The caller owns authorization policy;
+// the adapter owns tenant filtering, snapshot consistency, and pagination.
+type EvidenceVisiblePageStore interface {
+	ListEvidencePageVisible(context.Context, EvidencePageRequest, EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error)
+	SearchEvidencePageVisible(context.Context, EvidenceSearchPageRequest, EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error)
+}
+
+type EvidencePageRequest struct {
+	TenantID  string
+	ReleaseID string
+	Type      string
+	Page      appquery.PageRequest
+	After     *appquery.SortKey
+}
+
+type EvidenceSearchPageRequest struct {
+	TenantID string
+	Filter   EvidenceSearchInput
+	Page     appquery.PageRequest
+	After    *appquery.SortKey
 }
 
 // AuditChainRelationalStateStore atomically reconciles audit-chain append
@@ -42,6 +101,14 @@ type AuditChainReleaseLedgerMutationStore interface {
 type ObjectStore interface {
 	Put(context.Context, Object) error
 	Get(context.Context, string) (Object, error)
+}
+
+// BoundedObjectReader limits payload bytes while reading, independently of
+// database or provider size declarations. It rejects oversize without returning
+// partial data, and preserves tenant/key/metadata/digest integrity validation.
+// A positive, non-overflowing maximum is required; there is no unbounded fallback.
+type BoundedObjectReader interface {
+	GetBounded(context.Context, string, int64) (Object, error)
 }
 
 const PayloadLifecycleVersion = "object-payload.v1"
@@ -93,16 +160,9 @@ type ObjectPayloadLifecycleStore interface {
 	MarkObjectPayloadOrphaned(context.Context, ObjectPayload) error
 }
 
-// ReadinessCheck is a bounded, process-level dependency probe. Check must
-// honor its context and must not return raw credentials, URLs, paths, tenant
-// data, or provider responses in FailureDetail; public readiness never emits
-// either the returned error or FailureDetail.
-type ReadinessCheck struct {
-	Name          string
-	Timeout       time.Duration
-	FailureDetail string
-	Check         func(context.Context) error
-}
+// ReadinessCheck is retained as a compatibility alias for the focused
+// operations readiness service's bounded process probe.
+type ReadinessCheck = operationsquery.ReadinessCheck
 
 type ObjectRetentionVerifier interface {
 	VerifyObjectRetention(context.Context, ObjectRetentionRequest) (ObjectRetentionResult, error)
@@ -122,6 +182,41 @@ type ProviderIdentityValidator interface {
 
 type TransparencyProofFetcher interface {
 	FetchTransparencyProof(context.Context, TransparencyProofRequest) (TransparencyProofResult, error)
+}
+
+type CosignVerificationMode string
+
+const (
+	CosignVerificationModeKeyless CosignVerificationMode = "keyless"
+	CosignVerificationModeKey     CosignVerificationMode = "key"
+)
+
+// CosignVerificationRequest carries only the immutable bundle bytes and
+// caller-supplied policy inputs. Trust material belongs to the configured
+// verifier and must never be accepted from an API caller or stored receipt.
+type CosignVerificationRequest struct {
+	Bundle           []byte
+	ArtifactDigest   string
+	ExpectedIdentity string
+	ExpectedIssuer   string
+	Mode             CosignVerificationMode
+	Offline          bool
+}
+
+// CosignVerificationReceipt is safe to persist and return to authorized
+// callers. It deliberately excludes bundles, certificate bytes, key material,
+// endpoints, and verifier-internal error strings.
+type CosignVerificationReceipt struct {
+	LibraryVersion      string
+	TrustRootVersion    string
+	CertificateIdentity string
+	CertificateIssuer   string
+	Checks              []domain.VerifyCheck
+	Limitations         []string
+}
+
+type CosignPolicyVerifier interface {
+	VerifyCosign(context.Context, CosignVerificationRequest) (CosignVerificationReceipt, error)
 }
 
 type Outbox interface {
@@ -155,27 +250,30 @@ type UnitOfWork interface {
 // expose bounded contexts rather than PersistedState so application services
 // cannot accidentally perform a whole-ledger write.
 type Repositories struct {
-	Identity       IdentityRepository
-	ReleaseCatalog ReleaseCatalogRepository
-	Evidence       EvidenceRepository
-	Decisions      DecisionRepository
-	Audit          AuditRepository
-	Idempotency    IdempotencyRepository
-	Outbox         OutboxRepository
-	Payloads       ObjectPayloadRepository
-	Controls       ControlRepository
-	Governance     GovernanceRepository
-	Builds         BuildRepository
-	SupplyChain    SupplyChainRepository
-	Source         SourceRepository
-	Deployments    DeploymentRepository
-	Packages       PackageRepository
-	Risk           RiskRepository
-	Signatures     SignatureRepository
-	Integrity      IntegrityRepository
-	Verification   VerificationRepository
-	Enterprise     EnterpriseRepository
-	Future         FutureExtensionsRepository
+	WorkerProjection       WorkerProjectionStore
+	Identity               IdentityRepository
+	ReleaseCatalog         ReleaseCatalogRepository
+	Evidence               EvidenceRepository
+	Decisions              DecisionRepository
+	Audit                  AuditRepository
+	Idempotency            IdempotencyRepository
+	Outbox                 OutboxRepository
+	OutboxReplay           OutboxReplayRepository
+	Payloads               ObjectPayloadRepository
+	Controls               ControlRepository
+	Governance             GovernanceRepository
+	Builds                 BuildRepository
+	SupplyChain            SupplyChainRepository
+	Source                 SourceRepository
+	Deployments            DeploymentRepository
+	Packages               PackageRepository
+	Risk                   RiskRepository
+	Signatures             SignatureRepository
+	Integrity              IntegrityRepository
+	Verification           VerificationRepository
+	PolicyEvaluationReader riskapp.PolicyEvaluationReader
+	Enterprise             EnterpriseRepository
+	Future                 FutureExtensionsRepository
 }
 
 type IdentityRepository interface {
@@ -188,8 +286,9 @@ type IdentityRepository interface {
 	DeactivateHumanUser(context.Context, domain.HumanUser) error
 	InsertRoleBinding(context.Context, domain.RoleBinding) error
 	InsertSSOProvider(context.Context, domain.SSOProvider) error
-	UpdateSSOProviderTrustMaterial(context.Context, domain.SSOProvider) error
+	CompareAndSwapSSOProviderTrustMaterial(context.Context, domain.SSOProvider, domain.SSOProvider) error
 	InsertUserIdentityLink(context.Context, domain.UserIdentityLink) error
+	ValidateSSOExchangeState(context.Context, SSOExchangeSnapshot) error
 	InsertProviderVerification(context.Context, domain.ProviderVerification) error
 	InsertSSOSession(context.Context, domain.SSOSession) error
 	ValidateActiveSSOSession(context.Context, domain.SSOSession, time.Time) error
@@ -198,7 +297,34 @@ type IdentityRepository interface {
 	UpdateCustomerPortalAccess(context.Context, domain.CustomerPortalAccess, domain.CustomerPortalAccess) error
 }
 
+// SSOExchangeSnapshot captures the mutable persisted identity state used to
+// decide an SSO credential exchange. It deliberately excludes the raw
+// credential and the generated session secret.
+//
+// Repository validation must compare the requested identity-link presence,
+// including absence, and keep the compared rows or ranges stable through the
+// surrounding unit-of-work commit. UserGrants are compared as a set.
+type SSOExchangeSnapshot struct {
+	Provider          domain.SSOProvider
+	Subject           string
+	IdentityLink      domain.UserIdentityLink
+	IdentityLinkFound bool
+	User              domain.HumanUser
+	UserLoaded        bool
+	UserFound         bool
+	UserGrants        []domain.ResourceGrant
+	UserGrantsLoaded  bool
+}
+
 type ReleaseCatalogRepository interface {
+	GetArtifact(context.Context, string, string) (domain.Artifact, error)
+	ArtifactByDigest(context.Context, string, string) (domain.Artifact, bool, error)
+	ProductBySlug(context.Context, string, string) (domain.Product, bool, error)
+	GetProduct(context.Context, string, string) (domain.Product, error)
+	GetProject(context.Context, string, string) (domain.Project, error)
+	GetRelease(context.Context, string, string) (domain.Release, error)
+	GetReleaseForUpdate(context.Context, string, string) (domain.Release, error)
+	ReleaseByVersion(context.Context, string, string, string) (domain.Release, bool, error)
 	InsertProduct(context.Context, domain.Product) error
 	InsertProject(context.Context, domain.Project) error
 	InsertRelease(context.Context, domain.Release) error
@@ -209,8 +335,20 @@ type ReleaseCatalogRepository interface {
 }
 
 type EvidenceRepository interface {
+	// Transaction-scoped getters read tenant-owned durable rows. Implementations
+	// keep the returned evidence link/scope and parsed projections stable through
+	// the surrounding unit of work so authorization and derived writes cannot
+	// race a concurrent process.
+	ValidateEvidenceScope(context.Context, string, string, string, string, string, string) error
+	GetEvidence(context.Context, string, string) (domain.EvidenceItem, error)
+	GetSBOM(context.Context, string, string) (domain.SBOM, error)
+	GetOpenAPIContract(context.Context, string, string) (domain.OpenAPIContract, error)
 	InsertEvidence(context.Context, domain.EvidenceItem) error
-	UpdateEvidenceLinks(context.Context, domain.EvidenceItem) error
+	// CompareAndSwapEvidenceLinks updates only product/release/related-reference
+	// links when the expected prior product, project, release, build, deployment,
+	// and related-reference state still matches. Nil and empty reference slices
+	// both represent no links.
+	CompareAndSwapEvidenceLinks(context.Context, domain.EvidenceItem, domain.EvidenceItem) error
 	RecordSupersession(context.Context, domain.EvidenceItem, domain.EvidenceItem) error
 	AppendLifecycle(context.Context, domain.EvidenceLifecycleEvent) error
 	InsertSBOM(context.Context, domain.SBOM) error
@@ -243,6 +381,12 @@ type OutboxRepository interface {
 	Enqueue(context.Context, OutboxJob) error
 }
 
+// OutboxReplayRepository requeues a terminal job and appends its audit record
+// within the same unit of work as the caller's idempotency completion.
+type OutboxReplayRepository interface {
+	ReplayTerminalJob(context.Context, string, string) (OutboxReplay, error)
+}
+
 // ObjectPayloadRepository records a staged object in the same transaction as
 // the domain object and its finalization outbox job.
 type ObjectPayloadRepository interface {
@@ -262,7 +406,6 @@ type GovernanceRepository interface {
 	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 	InsertLegalHold(context.Context, domain.LegalHold) error
 	InsertRetentionOverride(context.Context, domain.RetentionOverride) error
-	InsertDSSETrustRoot(context.Context, domain.DSSETrustRoot) error
 }
 
 type BuildRepository interface {
@@ -291,6 +434,9 @@ type DeploymentRepository interface {
 }
 
 type PackageRepository interface {
+	GetCustomReportTemplate(context.Context, string, string) (domain.CustomReportTemplate, error)
+	GetCustomerSecurityPackageForUpdate(context.Context, string, string) (domain.CustomerSecurityPackage, error)
+	InsertRedactionProfile(context.Context, domain.RedactionProfile) error
 	InsertReleaseBundle(context.Context, domain.ReleaseBundle) error
 	InsertEvidenceBundle(context.Context, domain.EvidenceBundle) error
 	InsertCustomerSecurityPackage(context.Context, domain.CustomerSecurityPackage) error
@@ -323,6 +469,7 @@ type SignatureRepository interface {
 }
 
 type IntegrityRepository interface {
+	InsertDSSETrustRoot(context.Context, domain.DSSETrustRoot) error
 	InsertCosignVerification(context.Context, domain.CosignVerification) error
 	InsertSigningProvider(context.Context, domain.SigningProvider) error
 	InsertObjectRetentionPolicy(context.Context, domain.ObjectRetentionPolicy) error
@@ -359,20 +506,31 @@ type FutureExtensionsRepository interface {
 }
 
 type SigningRequest struct {
-	TenantID     string
-	ProviderID   string
-	ProviderType string
-	KeyRef       string
-	SubjectType  string
-	SubjectID    string
-	PayloadHash  string
+	Profile              string
+	TenantID             string
+	ProviderID           string
+	ProviderType         string
+	ExpectedProviderType string
+	KeyRef               string
+	SubjectType          string
+	SubjectID            string
+	PayloadHash          string
+	CanonicalPayloadHash string
+	RequestID            string
+	Nonce                string
 }
 
 type SigningResult struct {
-	Signature string
-	KeyID     string
-	Algorithm string
-	Checks    []domain.VerifyCheck
+	Signature            string
+	KeyID                string
+	Algorithm            string
+	ProviderID           string
+	ProviderType         string
+	KeyRef               string
+	CanonicalPayloadHash string
+	RequestID            string
+	ProviderRequestID    string
+	Checks               []domain.VerifyCheck
 }
 
 type OIDCDiscoveryRequest struct {
@@ -545,6 +703,10 @@ type PersistedState struct {
 }
 
 func AppendPersistedChainEntry(state *PersistedState, now time.Time, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef string) (domain.AuditChainEntry, error) {
+	return appendPersistedChainEntryWithID(state, newID("ace"), now, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef)
+}
+
+func appendPersistedChainEntryWithID(state *PersistedState, id string, now time.Time, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef string) (domain.AuditChainEntry, error) {
 	if state.Chain == nil {
 		state.Chain = map[string][]domain.AuditChainEntry{}
 	}
@@ -554,7 +716,7 @@ func AppendPersistedChainEntry(state *PersistedState, now time.Time, tenantID, e
 		previous = entries[len(entries)-1].EntryHash
 	}
 	entry := domain.AuditChainEntry{
-		ID:                newID("ace"),
+		ID:                id,
 		TenantID:          tenantID,
 		Sequence:          int64(len(entries) + 1),
 		EntryType:         entryType,
@@ -645,6 +807,7 @@ type ReleaseLedgerMutation struct {
 	Contracts              []domain.OpenAPIContract
 	VEXDocuments           []domain.VEXDocument
 	VEXImportReports       []domain.VEXImportReport
+	BuildAttestations      []domain.BuildAttestation
 	VulnerabilityDecisions []domain.VulnerabilityDecision
 	AuditChainEntries      []domain.AuditChainEntry
 	OutboxJobs             []OutboxJob

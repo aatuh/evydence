@@ -1,0 +1,1 @@
+{"scanner":"trivy","target_ref":"pkg:oci/example@sha256:111","release_id":"rel_test","source_schema":"trivy-json.v1","payload":{"Results":[{"Target":"image","Vulnerabilities":[{"VulnerabilityID":"CVE-2026-0002","PkgIdentifier":{"PURL":"pkg:apk/alpine/demo@1.0.0"},"Severity":"CRITICAL","Status":"affected","FixedVersion":"1.0.2"}]}]}}

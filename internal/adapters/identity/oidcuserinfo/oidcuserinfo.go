@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/httpclient"
 )
 
 const defaultTimeout = 10 * time.Second
@@ -24,7 +24,8 @@ type Config struct {
 }
 
 type Validator struct {
-	client                    *http.Client
+	baseClient                *http.Client
+	timeout                   time.Duration
 	allowInsecureForLocalhost bool
 }
 
@@ -39,15 +40,11 @@ func New(cfg Config) *Validator {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	client := cfg.Client
-	if client == nil {
-		client = &http.Client{Timeout: timeout}
-	}
-	return &Validator{client: client, allowInsecureForLocalhost: cfg.AllowInsecureForLocalhost}
+	return &Validator{baseClient: cfg.Client, timeout: timeout, allowInsecureForLocalhost: cfg.AllowInsecureForLocalhost}
 }
 
 func (v *Validator) ValidateProviderIdentity(ctx context.Context, req app.ProviderIdentityValidationRequest) (app.ProviderIdentityValidationResult, error) {
-	if v == nil || v.client == nil {
+	if v == nil {
 		return app.ProviderIdentityValidationResult{}, app.ErrValidation
 	}
 	if strings.TrimSpace(req.ProviderType) != "oidc" || strings.TrimSpace(req.Subject) == "" || strings.TrimSpace(req.AccessToken) == "" || len(strings.TrimSpace(req.AccessToken)) > 16*1024 {
@@ -57,17 +54,30 @@ func (v *Validator) ValidateProviderIdentity(ctx context.Context, req app.Provid
 	if err != nil {
 		return failed("oidc_issuer_url"), app.ErrValidation
 	}
+	client, err := httpclient.New(httpclient.Config{
+		Timeout:                   v.timeout,
+		MaxResponseBytes:          1 << 20,
+		AllowedHosts:              []string{issuer.Hostname()},
+		AllowInsecureForLocalhost: v.allowInsecureForLocalhost,
+		Client:                    v.baseClient,
+	})
+	if err != nil {
+		return failed("oidc_issuer_url"), app.ErrValidation
+	}
 	discoveryURL := issuer.JoinPath(".well-known", "openid-configuration").String()
 	var discovery discoveryDocument
-	if err := v.getJSON(ctx, discoveryURL, "", &discovery); err != nil {
+	if err := v.getJSON(ctx, client, discoveryURL, "", &discovery); err != nil {
 		return failed("oidc_discovery_fetch"), app.ErrVerificationFailed
 	}
 	userInfoURL, err := validateURL(discovery.UserInfoEndpoint, v.allowInsecureForLocalhost)
 	if err != nil {
 		return failed("oidc_userinfo_endpoint"), app.ErrVerificationFailed
 	}
+	if !sameOrigin(issuer, userInfoURL) {
+		return failed("oidc_userinfo_endpoint"), app.ErrVerificationFailed
+	}
 	var info userInfoDocument
-	if err := v.getJSON(ctx, userInfoURL.String(), req.AccessToken, &info); err != nil {
+	if err := v.getJSON(ctx, client, userInfoURL.String(), req.AccessToken, &info); err != nil {
 		return failed("oidc_userinfo_fetch"), app.ErrVerificationFailed
 	}
 	subject, _ := info["sub"].(string)
@@ -94,7 +104,7 @@ func (v *Validator) ValidateProviderIdentity(ctx context.Context, req app.Provid
 	return app.ProviderIdentityValidationResult{Checks: checks, Groups: groups, Limitations: limitations()}, nil
 }
 
-func (v *Validator) getJSON(ctx context.Context, endpoint, bearerToken string, target any) error {
+func (v *Validator) getJSON(ctx context.Context, client *http.Client, endpoint, bearerToken string, target any) error {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return err
@@ -103,7 +113,7 @@ func (v *Validator) getJSON(ctx context.Context, endpoint, bearerToken string, t
 	if bearerToken != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+bearerToken)
 	}
-	resp, err := v.client.Do(httpReq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return errors.New("provider request failed")
 	}
@@ -137,8 +147,11 @@ func localhostHost(host string) bool {
 	if host == "localhost" {
 		return true
 	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return strings.HasPrefix(host, "127.") || host == "::1"
+}
+
+func sameOrigin(left, right *url.URL) bool {
+	return left != nil && right != nil && strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Host, right.Host)
 }
 
 func groupsFromUserInfo(info userInfoDocument, claim string) []string {

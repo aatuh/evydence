@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 )
 
 type contextRecordingStore struct {
@@ -18,6 +20,69 @@ type contextRecordingStore struct {
 	state   PersistedState
 	ok      bool
 	loadErr error
+}
+
+type evidencePageStoreSpy struct {
+	contextRecordingStore
+	requests       []EvidencePageRequest
+	searchRequests []EvidenceSearchPageRequest
+	result         appquery.Result[domain.EvidenceItem]
+}
+
+type visibleEvidencePageStoreSpy struct {
+	evidencePageStoreSpy
+	items           []domain.EvidenceItem
+	visibleLists    int
+	visibleSearches int
+	override        *appquery.Result[domain.EvidenceItem]
+}
+
+func (s *visibleEvidencePageStoreSpy) ListEvidencePageVisible(_ context.Context, request EvidencePageRequest, visible EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	s.visibleLists++
+	s.requests = append(s.requests, request)
+	if s.override != nil {
+		return *s.override, nil
+	}
+	return s.pageVisible(request.TenantID, request.Page, request.After, visible)
+}
+
+func (s *visibleEvidencePageStoreSpy) SearchEvidencePageVisible(_ context.Context, request EvidenceSearchPageRequest, visible EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	s.visibleSearches++
+	s.searchRequests = append(s.searchRequests, request)
+	if s.override != nil {
+		return *s.override, nil
+	}
+	return s.pageVisible(request.TenantID, request.Page, request.After, visible)
+}
+
+func (s *visibleEvidencePageStoreSpy) pageVisible(tenantID string, page appquery.PageRequest, after *appquery.SortKey, visible EvidenceVisibility) (appquery.Result[domain.EvidenceItem], error) {
+	items := make([]domain.EvidenceItem, 0, len(s.items))
+	for _, item := range s.items {
+		if item.TenantID != tenantID {
+			continue
+		}
+		allowed, err := visible(item)
+		if err != nil {
+			return appquery.Result[domain.EvidenceItem]{}, err
+		}
+		if allowed {
+			items = append(items, item)
+		}
+	}
+	return appquery.Page(items, page, after, func(item domain.EvidenceItem, sort appquery.Sort) appquery.SortKey {
+		return appquery.RecordSortKey(item.ID, item.CreatedAt, sort)
+	})
+}
+
+func (s *evidencePageStoreSpy) ListEvidencePage(_ context.Context, request EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error) {
+	s.requests = append(s.requests, request)
+	return s.result, nil
+}
+
+func (s *evidencePageStoreSpy) SearchEvidencePage(_ context.Context, request EvidenceSearchPageRequest) (appquery.Result[domain.EvidenceItem], error) {
+	s.searchRequests = append(s.searchRequests, request)
+	s.requests = append(s.requests, EvidencePageRequest{TenantID: request.TenantID, Page: request.Page, After: request.After})
+	return s.result, nil
 }
 
 func (s *contextRecordingStore) LoadState(ctx context.Context) (PersistedState, bool, error) {
@@ -100,6 +165,238 @@ func TestNewLedgerWithContextReturnsLoadFailure(t *testing.T) {
 	}
 }
 
+func TestListEvidencePageUsesPersistencePortOnlyForTenantWideActor(t *testing.T) {
+	item := domain.EvidenceItem{ID: "ev_page", TenantID: "ten_page", ProductID: "prod_page", Type: "build", CreatedAt: time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)}
+	store := &evidencePageStoreSpy{
+		contextRecordingStore: contextRecordingStore{state: PersistedState{
+			Products: map[string]domain.Product{"prod_page": {ID: "prod_page", TenantID: "ten_page"}},
+			Evidence: map[string]domain.EvidenceItem{"ev_page": item},
+		}, ok: true},
+		result: appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{item}},
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	request := EvidencePageRequest{Page: appquery.PageRequest{PageSize: 50, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}}
+	apiKeyActor := domain.Actor{TenantID: "ten_page", KeyID: "key_page", Scopes: []string{ScopeEvidenceRead}}
+	page, err := ledger.ListEvidencePage(context.Background(), apiKeyActor, request)
+	if err != nil || len(page.Items) != 1 || len(store.requests) != 1 || store.requests[0].TenantID != apiKeyActor.TenantID {
+		t.Fatalf("persistence page=%#v requests=%#v err=%v", page, store.requests, err)
+	}
+
+	store.requests = nil
+	humanActor := domain.Actor{
+		TenantID: "ten_page", UserID: "usr_page", Scopes: []string{ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_page", Scopes: []string{ScopeEvidenceRead}}},
+	}
+	page, err = ledger.ListEvidencePage(context.Background(), humanActor, request)
+	if err != nil || len(page.Items) != 1 || len(store.requests) != 0 {
+		t.Fatalf("granular human page=%#v requests=%#v err=%v", page, store.requests, err)
+	}
+}
+
+func TestSearchEvidencePageUsesPersistencePortAndPreservesGranularAuthorization(t *testing.T) {
+	createdAt := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	matching := domain.EvidenceItem{ID: "ev_matching", TenantID: "ten_search", ProductID: "prod_search", Type: "build", Tags: []string{"release"}, CreatedAt: createdAt}
+	nonMatching := domain.EvidenceItem{ID: "ev_nonmatching", TenantID: "ten_search", ProductID: "prod_search", Type: "build", Tags: []string{"other"}, CreatedAt: createdAt.Add(time.Second)}
+	store := &evidencePageStoreSpy{
+		contextRecordingStore: contextRecordingStore{state: PersistedState{
+			Evidence: map[string]domain.EvidenceItem{matching.ID: matching, nonMatching.ID: nonMatching},
+		}, ok: true},
+		result: appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{matching}},
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	request := EvidenceSearchPageRequest{
+		Filter: EvidenceSearchInput{Tag: "release", Limit: 999},
+		Page:   appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Descending},
+	}
+	apiKeyActor := domain.Actor{TenantID: "ten_search", KeyID: "key_search", Scopes: []string{ScopeEvidenceRead}}
+	page, err := ledger.SearchEvidencePage(context.Background(), apiKeyActor, request)
+	if err != nil || len(page.Items) != 1 || len(store.searchRequests) != 1 {
+		t.Fatalf("persistence search page=%#v requests=%#v err=%v", page, store.searchRequests, err)
+	}
+	if got := store.searchRequests[0]; got.TenantID != apiKeyActor.TenantID || got.Filter.Limit != 0 {
+		t.Fatalf("persistence search request=%#v, want tenant-bound request without legacy limit", got)
+	}
+
+	store.requests = nil
+	store.searchRequests = nil
+	humanActor := domain.Actor{
+		TenantID: "ten_search", UserID: "usr_search", Scopes: []string{ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_search", Scopes: []string{ScopeEvidenceRead}}},
+	}
+	page, err = ledger.SearchEvidencePage(context.Background(), humanActor, request)
+	if err != nil || len(store.searchRequests) != 0 || len(page.Items) != 1 || page.Items[0].ID != matching.ID {
+		t.Fatalf("granular human search page=%#v persistence requests=%#v err=%v", page, store.searchRequests, err)
+	}
+}
+
+func TestEvidencePagesUseVisibleDatabasePortForRestrictedHuman(t *testing.T) {
+	createdAt := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	items := []domain.EvidenceItem{
+		{ID: "ev_hidden", TenantID: "ten_visible", ProductID: "prod_hidden", Type: "build", CreatedAt: createdAt},
+		{ID: "ev_allowed", TenantID: "ten_visible", ProductID: "prod_allowed", Type: "build", CreatedAt: createdAt.Add(time.Second)},
+		{ID: "ev_foreign", TenantID: "ten_other", ProductID: "prod_allowed", Type: "build", CreatedAt: createdAt.Add(2 * time.Second)},
+	}
+	store := &visibleEvidencePageStoreSpy{
+		evidencePageStoreSpy: evidencePageStoreSpy{contextRecordingStore: contextRecordingStore{state: PersistedState{
+			Products: map[string]domain.Product{
+				"prod_allowed": {ID: "prod_allowed", TenantID: "ten_visible"},
+				"prod_hidden":  {ID: "prod_hidden", TenantID: "ten_visible"},
+			},
+			Evidence: map[string]domain.EvidenceItem{"ev_hidden": items[0], "ev_allowed": items[1]},
+		}, ok: true}},
+		items: items,
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	actor := domain.Actor{
+		TenantID: "ten_visible", UserID: "usr_visible", Scopes: []string{ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopeEvidenceRead}}},
+	}
+	pageRequest := appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}
+	page, err := ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{Page: pageRequest})
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != "ev_allowed" || store.visibleLists != 1 || len(store.requests) != 1 || store.requests[0].TenantID != actor.TenantID {
+		t.Fatalf("visible list=%#v calls=%d requests=%#v error=%v", page, store.visibleLists, store.requests, err)
+	}
+	search, err := ledger.SearchEvidencePage(context.Background(), actor, EvidenceSearchPageRequest{Filter: EvidenceSearchInput{Type: "build"}, Page: pageRequest})
+	if err != nil || len(search.Items) != 1 || search.Items[0].ID != "ev_allowed" || store.visibleSearches != 1 || len(store.searchRequests) != 1 || store.searchRequests[0].TenantID != actor.TenantID {
+		t.Fatalf("visible search=%#v calls=%d requests=%#v error=%v", search, store.visibleSearches, store.searchRequests, err)
+	}
+	actor.ResourceGrants = nil
+	page, err = ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{Page: pageRequest})
+	if err != nil || len(page.Items) != 0 || store.visibleLists != 2 {
+		t.Fatalf("revoked grant page=%#v calls=%d error=%v", page, store.visibleLists, err)
+	}
+}
+
+func TestEvidenceVisiblePageRejectsUnauthorizedAdapterProjection(t *testing.T) {
+	for _, item := range []domain.EvidenceItem{
+		{ID: "ev_foreign", TenantID: "ten_other", ProductID: "prod_allowed"},
+		{ID: "ev_hidden", TenantID: "ten_visible", ProductID: "prod_hidden"},
+	} {
+		t.Run(item.ID, func(t *testing.T) {
+			result := appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{item}}
+			store := &visibleEvidencePageStoreSpy{
+				evidencePageStoreSpy: evidencePageStoreSpy{contextRecordingStore: contextRecordingStore{state: PersistedState{
+					Products: map[string]domain.Product{"prod_allowed": {ID: "prod_allowed", TenantID: "ten_visible"}},
+				}, ok: true}},
+				override: &result,
+			}
+			ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+			actor := domain.Actor{
+				TenantID: "ten_visible", UserID: "usr_visible", Scopes: []string{ScopeEvidenceRead},
+				ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopeEvidenceRead}}},
+			}
+			page, err := ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{
+				Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending},
+			})
+			if err == nil || len(page.Items) != 0 {
+				t.Fatalf("unsafe projection returned: page=%#v error=%v", page, err)
+			}
+		})
+	}
+}
+
+func TestEvidenceTenantWidePageRejectsForeignAdapterProjection(t *testing.T) {
+	foreign := domain.EvidenceItem{ID: "ev_foreign", TenantID: "ten_other"}
+	store := &evidencePageStoreSpy{
+		contextRecordingStore: contextRecordingStore{state: PersistedState{}, ok: true},
+		result:                appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{foreign}},
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	actor := domain.Actor{TenantID: "ten_visible", KeyID: "key_visible", Scopes: []string{ScopeEvidenceRead}}
+	pageRequest := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
+	page, err := ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{Page: pageRequest})
+	if err == nil || len(page.Items) != 0 {
+		t.Fatalf("foreign list projection returned: page=%#v error=%v", page, err)
+	}
+	page, err = ledger.SearchEvidencePage(context.Background(), actor, EvidenceSearchPageRequest{Page: pageRequest})
+	if err == nil || len(page.Items) != 0 {
+		t.Fatalf("foreign search projection returned: page=%#v error=%v", page, err)
+	}
+}
+
+func TestEvidenceVisiblePageStillValidatesParserNormalizations(t *testing.T) {
+	derived := domain.EvidenceItem{ID: "ev_derived", TenantID: "ten_visible", ProductID: "prod_allowed", Type: "parser_normalization"}
+	result := appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{derived}}
+	store := &visibleEvidencePageStoreSpy{
+		evidencePageStoreSpy: evidencePageStoreSpy{contextRecordingStore: contextRecordingStore{state: PersistedState{
+			Products: map[string]domain.Product{"prod_allowed": {ID: "prod_allowed", TenantID: "ten_visible"}},
+			Evidence: map[string]domain.EvidenceItem{"ev_derived": derived},
+		}, ok: true}},
+		override: &result,
+	}
+	ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+	actor := domain.Actor{
+		TenantID: "ten_visible", UserID: "usr_visible", Scopes: []string{ScopeEvidenceRead},
+		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopeEvidenceRead}}},
+	}
+	page, err := ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{
+		Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending},
+	})
+	if err == nil || len(page.Items) != 0 {
+		t.Fatalf("unverified parser normalization returned: items=%d error=%v", len(page.Items), err)
+	}
+}
+
+func TestEvidencePagesValidateParserNormalizationsBeforeExposure(t *testing.T) {
+	initial, projection, derivedID := parserNormalizationProjectionFixture(t, "ten_parser_page")
+	derived := projection.ParserNormalizations[0]
+	actor := domain.Actor{TenantID: "ten_parser_page", KeyID: "key_parser_page", Scopes: []string{ScopeEvidenceRead}}
+
+	for _, test := range []struct {
+		name string
+		read func(*Ledger) (appquery.Result[domain.EvidenceItem], error)
+	}{
+		{
+			name: "list",
+			read: func(ledger *Ledger) (appquery.Result[domain.EvidenceItem], error) {
+				return ledger.ListEvidencePage(context.Background(), actor, EvidencePageRequest{
+					Page: appquery.PageRequest{PageSize: 10, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending},
+				})
+			},
+		},
+		{
+			name: "search",
+			read: func(ledger *Ledger) (appquery.Result[domain.EvidenceItem], error) {
+				return ledger.SearchEvidencePage(context.Background(), actor, EvidenceSearchPageRequest{
+					Filter: EvidenceSearchInput{Type: "parser_normalization"},
+					Page:   appquery.PageRequest{PageSize: 10, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending},
+				})
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &parserEvidencePageStoreSpy{
+				evidencePageStoreSpy: &evidencePageStoreSpy{
+					contextRecordingStore: contextRecordingStore{state: initial, ok: true},
+					result:                appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{derived}},
+				},
+				workerProjections: map[string]WorkerProjection{actor.TenantID: projection},
+			}
+			ledger := newLedgerWithStore(t, Config{APIKeyPepper: "test", Store: store})
+			page, err := test.read(ledger)
+			if err != nil || len(page.Items) != 1 || page.Items[0].ID != derivedID {
+				t.Fatalf("valid parser normalization page=%#v error=%v", page, err)
+			}
+
+			forged := derived
+			forged.Title = "Caller-controlled replay marker"
+			store.result = appquery.Result[domain.EvidenceItem]{Items: []domain.EvidenceItem{forged}}
+			if _, err := test.read(ledger); !errors.Is(err, ErrConflict) {
+				t.Fatalf("forged parser normalization error=%v, want conflict", err)
+			}
+		})
+	}
+}
+
+type parserEvidencePageStoreSpy struct {
+	*evidencePageStoreSpy
+	workerProjections map[string]WorkerProjection
+}
+
+func (s *parserEvidencePageStoreSpy) LoadWorkerProjection(_ context.Context, tenantID string) (WorkerProjection, error) {
+	return s.workerProjections[tenantID], nil
+}
+
 func TestMemoryStoreRetainsCommittedStateWhenCloneFails(t *testing.T) {
 	store := NewMemoryStore()
 	committed := PersistedState{Tenants: map[string]domain.Tenant{"ten_committed": {ID: "ten_committed", Name: "Committed"}}}
@@ -123,6 +420,40 @@ type recordingOutbox struct {
 func (r *recordingOutbox) Enqueue(_ context.Context, job OutboxJob) error {
 	r.jobs = append(r.jobs, job)
 	return nil
+}
+
+type testNormalizedVEXDecisionStatement struct {
+	StatementIndex  int      `json:"statement_index"`
+	Vulnerability   string   `json:"vulnerability"`
+	Products        []string `json:"products"`
+	Status          string   `json:"status"`
+	Justification   string   `json:"justification"`
+	ImpactStatement string   `json:"impact_statement"`
+	ActionStatement string   `json:"action_statement"`
+}
+
+func requireVEXDecisionRequest(t *testing.T, payload map[string]any, wantStatements int) []testNormalizedVEXDecisionStatement {
+	t.Helper()
+	if payload["worker_create_decisions"] != true || payload["decision_request_schema"] != evidenceapp.VEXDecisionRequestSchemaVersion {
+		t.Fatalf("VEX decision request metadata = %#v", payload)
+	}
+	encoded, err := json.Marshal(payload["decision_statements"])
+	if err != nil {
+		t.Fatalf("marshal normalized VEX decision statements: %v", err)
+	}
+	var statements []testNormalizedVEXDecisionStatement
+	if err := json.Unmarshal(encoded, &statements); err != nil {
+		t.Fatalf("decode normalized VEX decision statements: %v", err)
+	}
+	if len(statements) != wantStatements {
+		t.Fatalf("normalized VEX decision statements = %#v, want %d", statements, wantStatements)
+	}
+	for _, statement := range statements {
+		if statement.StatementIndex <= 0 || statement.Vulnerability == "" || statement.Status == "" {
+			t.Fatalf("incomplete normalized VEX decision statement = %#v", statement)
+		}
+	}
+	return statements
 }
 
 func TestTenantScopedEvidenceAndAPIKeyAuth(t *testing.T) {
@@ -244,7 +575,7 @@ func TestReleaseSecuritySummaryIsTenantScopedAndRedacted(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -351,7 +682,7 @@ func TestUploadSBOMCanDeferParserSideEffectsToWorker(t *testing.T) {
 		t.Fatalf("artifact: %v", err)
 	}
 
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`))
 	if err != nil {
 		t.Fatalf("upload sbom: %v", err)
 	}
@@ -434,7 +765,7 @@ func TestUploadVulnerabilityScanCanDeferParserSideEffectsToWorker(t *testing.T) 
 		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
 	}
 	job := outbox.jobs[0]
-	if job.Kind != "parse_vulnerability_scan" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionGenericVulnerabilityJSON {
+	if job.Kind != "parse_vulnerability_scan" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionScannerAdaptersJSON {
 		t.Fatalf("outbox job missing replay metadata: %#v", job)
 	}
 	payloadRef, ok := job.Payload["payload_ref"].(string)
@@ -1049,7 +1380,7 @@ func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.CreateReleaseBundle(ctx, actor, release.ID); err != nil {
@@ -1152,7 +1483,7 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, "", []byte(`{
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
-		"components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
+		"components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
 	}`))
 	if err != nil {
 		t.Fatalf("sbom: %v", err)
@@ -1243,7 +1574,7 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, "", []byte(`{
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
-		"components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
+		"components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]
 	}`))
 	if err != nil {
 		t.Fatalf("summary sbom: %v", err)
@@ -1584,8 +1915,9 @@ func TestVulnerabilityDecisionEvidenceLinksAreTenantAndReleaseScoped(t *testing.
 	}
 }
 
-func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+func TestOpenVEXIngestionQueuesNoObjectDecisionRequestAndRejectsMalformedInput(t *testing.T) {
+	outbox := &recordingOutbox{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1596,6 +1928,7 @@ func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
 	}`)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
+	outbox.jobs = nil
 	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
 		"@context":"https://openvex.dev/ns/v0.2.0",
 		"@id":"https://example.test/vex/1",
@@ -1618,23 +1951,31 @@ func TestOpenVEXIngestionCreatesDecisionAndRejectsMalformedInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import report: %v", err)
 	}
-	if importReport.Status != "parsed" || importReport.StatementCount != 1 || importReport.DecisionsCreated != 1 || importReport.DecisionsSuperseded != 0 || len(importReport.MappingFailures) != 0 {
+	if importReport.Status != "accepted" || importReport.StatementCount != 1 || importReport.DecisionsCreated != 0 || importReport.DecisionsSuperseded != 0 || len(importReport.MappingFailures) != 0 || !stringSliceContains(importReport.Warnings, evidenceapp.VEXAsyncDecisionWarning) {
 		t.Fatalf("unexpected import report: %#v", importReport)
+	}
+	if len(outbox.jobs) != 1 || outbox.jobs[0].Kind != "parse_vex" || outbox.jobs[0].Payload["payload_ref"] != "" {
+		t.Fatalf("no-object VEX outbox jobs = %#v", outbox.jobs)
+	}
+	statements := requireVEXDecisionRequest(t, outbox.jobs[0].Payload, 1)
+	if statements[0].StatementIndex != 1 || statements[0].Vulnerability != "CVE-2026-0002" || len(statements[0].Products) != 1 || statements[0].Products[0] != "pkg:apk/openssl@3.1.0" || statements[0].Status != decisionStatusFixed {
+		t.Fatalf("normalized no-object VEX request = %#v", statements)
 	}
 	report, err := ledger.ReleaseReadinessReport(ctx, actor, release.ID)
 	if err != nil {
 		t.Fatalf("readiness: %v", err)
 	}
-	if len(report.BlockingFindings) != 0 {
-		t.Fatalf("VEX decision did not handle finding: %#v", report.BlockingFindings)
+	if len(report.BlockingFindings) != 1 {
+		t.Fatalf("finding must remain open until asynchronous decision processing: %#v", report.BlockingFindings)
 	}
 	if _, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"author":"a","timestamp":"2026-05-27T12:00:00Z","statements":[],"extra":true}`)); !errors.Is(err, ErrValidation) {
 		t.Fatalf("malformed VEX err = %v, want validation", err)
 	}
 }
 
-func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+func TestOpenVEXPreviewTracksSupersessionAndMappingFailuresBeforeAsyncUpload(t *testing.T) {
+	outbox := &recordingOutbox{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1654,7 +1995,8 @@ func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("manual decision: %v", err)
 	}
-	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
+	outbox.jobs = nil
+	raw := []byte(`{
 		"@context":"https://openvex.dev/ns/v0.2.0",
 		"@id":"https://example.test/vex/2",
 		"author":"security@example.test",
@@ -1673,7 +2015,18 @@ func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
 			"justification":"component not present",
 			"impact_statement":"not present in this release"
 		}]
-	}`))
+	}`)
+	preview, err := ledger.PreviewVEXImport(ctx, actor, release.ID, artifact.ID, raw)
+	if err != nil {
+		t.Fatalf("preview vex: %v", err)
+	}
+	if preview.StatementCount != 2 || preview.DecisionsWouldCreate != 1 || preview.DecisionsWouldSupersede != 1 {
+		t.Fatalf("preview counts = %#v", preview)
+	}
+	if len(preview.MappingFailures) != 1 || preview.MappingFailures[0].StatementIndex != 2 || preview.MappingFailures[0].Code != "finding_not_found" {
+		t.Fatalf("preview mapping failures = %#v", preview.MappingFailures)
+	}
+	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, raw)
 	if err != nil {
 		t.Fatalf("vex: %v", err)
 	}
@@ -1681,22 +2034,29 @@ func TestOpenVEXImportReportTracksSupersessionAndMappingFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import report: %v", err)
 	}
-	if report.StatementCount != 2 || report.DecisionsCreated != 1 || report.DecisionsSuperseded != 1 {
+	if report.StatementCount != 2 || report.DecisionsCreated != 0 || report.DecisionsSuperseded != 0 || report.Status != "accepted" {
 		t.Fatalf("report counts = %#v", report)
 	}
-	if len(report.MappingFailures) != 1 || report.MappingFailures[0].StatementIndex != 2 || report.MappingFailures[0].Code != "finding_not_found" {
+	if len(report.MappingFailures) != 0 || !stringSliceContains(report.Warnings, evidenceapp.VEXAsyncDecisionWarning) {
 		t.Fatalf("mapping failures = %#v", report.MappingFailures)
+	}
+	if len(outbox.jobs) != 1 || outbox.jobs[0].Kind != "parse_vex" || outbox.jobs[0].Payload["payload_ref"] != "" {
+		t.Fatalf("no-object VEX outbox jobs = %#v", outbox.jobs)
+	}
+	statements := requireVEXDecisionRequest(t, outbox.jobs[0].Payload, 2)
+	if statements[0].StatementIndex != 1 || statements[0].Vulnerability != "CVE-2026-0003" || statements[1].StatementIndex != 2 || statements[1].Vulnerability != "CVE-2026-9999" {
+		t.Fatalf("normalized VEX decision statements = %#v", statements)
 	}
 	body, err := json.Marshal(report)
 	if err != nil {
 		t.Fatalf("marshal report: %v", err)
 	}
-	if strings.Contains(string(body), "payload") || strings.Contains(string(body), "manual triage") {
+	if strings.Contains(string(body), "payload_ref") || strings.Contains(string(body), "manual triage") {
 		t.Fatalf("import report leaked raw payload or internal triage details: %s", body)
 	}
 }
 
-func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
+func TestUploadVEXQueuesDecisionSideEffectsAndPersistsNormalizedDocument(t *testing.T) {
 	outbox := &recordingOutbox{}
 	store := NewMemoryStore()
 	objects := newTestObjectStore()
@@ -1751,8 +2111,8 @@ func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
 		t.Fatalf("load state ok=%v err=%v", ok, err)
 	}
 	persisted := state.VEXDocuments[vex.ID]
-	if persisted.Author != "" || persisted.StatementCount != 0 || persisted.StatusSummary != nil {
-		t.Fatalf("persisted vex document should wait for worker parser side effects: %#v", persisted)
+	if persisted.Author != "security@example.test" || persisted.StatementCount != 1 || persisted.StatusSummary["fixed"] != 1 {
+		t.Fatalf("persisted vex document should retain the verified normalized projection: %#v", persisted)
 	}
 	importReport, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
 	if err != nil {
@@ -1774,8 +2134,12 @@ func TestUploadVEXCanDeferDocumentParserSideEffectsToWorker(t *testing.T) {
 		t.Fatalf("outbox jobs = %d, want 1", len(outbox.jobs))
 	}
 	job := outbox.jobs[0]
-	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON || job.Payload["worker_create_decisions"] != true || job.Payload["import_report_id"] == "" {
+	if job.Kind != "parse_vex" || job.Payload["payload_ref"] == "" || job.Payload["payload_hash"] == "" || job.Payload["parser_version"] != ParserVersionOpenVEXJSON || job.Payload["import_report_id"] == "" {
 		t.Fatalf("outbox job missing replay metadata: %#v", job)
+	}
+	statements := requireVEXDecisionRequest(t, job.Payload, 1)
+	if statements[0].Vulnerability != "CVE-2026-0002" || statements[0].Status != decisionStatusFixed {
+		t.Fatalf("normalized replayable VEX request = %#v", statements)
 	}
 	payloadRef, ok := job.Payload["payload_ref"].(string)
 	payloadKey := strings.TrimPrefix(payloadRef, "object://")
@@ -1808,7 +2172,7 @@ func TestExceptionApprovalControlsReadinessAndTenantScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actorA, releaseA.ID, artifactA.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actorA, releaseA.ID, artifactA.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.CreateReleaseBundle(ctx, actorA, releaseA.ID); err != nil {
@@ -1849,7 +2213,7 @@ func TestCollectorBuildAttestationReadinessFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("project: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/payments-api"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/payments-api"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	if _, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{"scanner":"grype","target_ref":"pkg:oci/payments-api","release_id":"`+release.ID+`","findings":[]}`)); err != nil {
@@ -1924,8 +2288,8 @@ func TestCollectorBuildAttestationReadinessFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readiness after attestation: %v", err)
 	}
-	if report.Result != "passed" {
-		t.Fatalf("expected passed readiness, got %#v", report)
+	if report.Result != "failed" || !hasMissing(report.Gaps, "build_attestation") {
+		t.Fatalf("an unverified structural attestation must not satisfy readiness: %#v", report)
 	}
 }
 
@@ -2058,8 +2422,27 @@ func addBuildProvenance(t *testing.T, ledger *Ledger, actor domain.Actor, releas
 	if err != nil {
 		t.Fatalf("provenance build: %v", err)
 	}
-	if _, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest)); err != nil {
+	attestation, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest))
+	if err != nil {
 		t.Fatalf("provenance attestation: %v", err)
+	}
+	markAttestationVerifiedForReadiness(ledger, actor, attestation.ID)
+}
+
+// markAttestationVerifiedForReadiness isolates broader readiness tests from
+// cryptographic verification. EVY-603 verification behavior itself is covered
+// by the DSSE adapter and application verification tests.
+func markAttestationVerifiedForReadiness(ledger *Ledger, actor domain.Actor, attestationID string) {
+	id := newID("vr")
+	ledger.verifications[id] = domain.VerificationResult{
+		ID:            id,
+		TenantID:      actor.TenantID,
+		SubjectType:   "build_attestation",
+		SubjectID:     attestationID,
+		Result:        string(domain.VerificationStatePassed),
+		Profile:       domain.VerificationProfile{ID: domain.VerificationProfileDSSEAttestationSignature},
+		SchemaVersion: domain.VerificationResultSchemaVersion,
+		VerifiedAt:    fixedNow(),
 	}
 }
 
@@ -2073,12 +2456,13 @@ func dsseForDigest(t *testing.T, digest string) []byte {
 			"digest": map[string]string{"sha256": strings.TrimPrefix(digest, "sha256:")},
 		}},
 		"predicate": map[string]any{
-			"builder":   map[string]string{"id": "https://github.com/actions/runner"},
-			"buildType": "https://github.com/actions/workflow",
-			"materials": []map[string]any{{
-				"uri":    "git+https://github.com/aatuh/evydence",
-				"digest": map[string]string{"sha1": "0123456789abcdef0123456789abcdef01234567"},
-			}},
+			"buildDefinition": map[string]any{
+				"buildType":          "https://github.com/actions/workflow",
+				"externalParameters": map[string]string{"mode": "release"},
+			},
+			"runDetails": map[string]any{
+				"builder": map[string]string{"id": "https://github.com/actions/runner"},
+			},
 		},
 	}
 	statementBody, err := json.Marshal(statement)

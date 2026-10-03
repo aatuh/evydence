@@ -1,0 +1,225 @@
+          "$ref": "#/definitions/attachment"
+        },
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "description": "Specifies the URL to the diff",
+          "format": "iri-reference"
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "title": "Issue",
+      "description": "An individual issue that has been resolved.",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "defect",
+            "enhancement",
+            "security"
+          ],
+          "meta:enum": {
+            "defect": "A fault, flaw, or bug in software.",
+            "enhancement": "A new feature or behavior in software.",
+            "security": "A special type of defect which impacts security."
+          },
+          "title": "Issue Type",
+          "description": "Specifies the type of issue"
+        },
+        "id": {
+          "type": "string",
+          "title": "Issue ID",
+          "description": "The identifier of the issue assigned by the source of the issue"
+        },
+        "name": {
+          "type": "string",
+          "title": "Issue Name",
+          "description": "The name of the issue"
+        },
+        "description": {
+          "type": "string",
+          "title": "Issue Description",
+          "description": "A description of the issue"
+        },
+        "source": {
+          "type": "object",
+          "title": "Source",
+          "description": "The source of the issue where it is documented",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "title": "Name",
+              "description": "The name of the source.",
+              "examples": [
+                "National Vulnerability Database",
+                "NVD",
+                "Apache"
+              ]
+            },
+            "url": {
+              "type": "string",
+              "title": "URL",
+              "description": "The url of the issue documentation as provided by the source",
+              "format": "iri-reference"
+            }
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "iri-reference"
+          },
+          "title": "References",
+          "description": "A collection of URL's for reference. Multiple URLs are allowed.",
+          "examples": ["https://example.com"]
+        }
+      }
+    },
+    "identifiableAction": {
+      "type": "object",
+      "title": "Identifiable Action",
+      "description": "Specifies an individual commit",
+      "additionalProperties": false,
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp",
+          "description": "The timestamp in which the action occurred"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the individual who performed the action"
+        },
+        "email": {
+          "type": "string",
+          "format": "idn-email",
+          "title": "E-mail",
+          "description": "The email address of the individual who performed the action"
+        }
+      }
+    },
+    "externalReference": {
+      "type": "object",
+      "title": "External Reference",
+      "description": "External references provide a way to document systems, sites, and information that may be relevant but are not included with the BOM. They may also establish specific relationships within or external to the BOM.",
+      "required": [
+        "url",
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "title": "URL",
+              "type": "string",
+              "format": "iri-reference"
+            },
+            {
+              "title": "BOM-Link",
+              "$ref": "#/definitions/bomLink"
+            }
+          ],
+          "title": "URL",
+          "description": "The URI (URL or URN) to the external reference. External references are URIs and therefore can accept any URL scheme including https ([RFC-7230](https://www.ietf.org/rfc/rfc7230.txt)), mailto ([RFC-2368](https://www.ietf.org/rfc/rfc2368.txt)), tel ([RFC-3966](https://www.ietf.org/rfc/rfc3966.txt)), and dns ([RFC-4501](https://www.ietf.org/rfc/rfc4501.txt)). External references may also include formally registered URNs such as [CycloneDX BOM-Link](https://cyclonedx.org/capabilities/bomlink/) to reference CycloneDX BOMs or any object within a BOM. BOM-Link transforms applicable external references into relationships that can be expressed in a BOM or across BOMs."
+        },
+        "comment": {
+          "type": "string",
+          "title": "Comment",
+          "description": "An optional comment describing the external reference"
+        },
+        "type": {
+          "type": "string",
+          "title": "Type",
+          "description": "Specifies the type of external reference.",
+          "enum": [
+            "vcs",
+            "issue-tracker",
+            "website",
+            "advisories",
+            "bom",
+            "mailing-list",
+            "social",
+            "chat",
+            "documentation",
+            "support",
+            "source-distribution",
+            "distribution",
+            "distribution-intake",
+            "license",
+            "build-meta",
+            "build-system",
+            "release-notes",
+            "security-contact",
+            "model-card",
+            "log",
+            "configuration",
+            "evidence",
+            "formulation",
+            "attestation",
+            "threat-model",
+            "adversary-model",
+            "risk-assessment",
+            "vulnerability-assertion",
+            "exploitability-statement",
+            "pentest-report",
+            "static-analysis-report",
+            "dynamic-analysis-report",
+            "runtime-analysis-report",
+            "component-analysis-report",
+            "maturity-report",
+            "certification-report",
+            "codified-infrastructure",
+            "quality-metrics",
+            "poam",
+            "electronic-signature",
+            "digital-signature",
+            "rfc-9116",
+            "other"
+          ],
+          "meta:enum": {
+            "vcs": "Version Control System",
+            "issue-tracker": "Issue or defect tracking system, or an Application Lifecycle Management (ALM) system",
+            "website": "Website",
+            "advisories": "Security advisories",
+            "bom": "Bill of Materials (SBOM, OBOM, HBOM, SaaSBOM, etc)",
+            "mailing-list": "Mailing list or discussion group",
+            "social": "Social media account",
+            "chat": "Real-time chat platform",
+            "documentation": "Documentation, guides, or how-to instructions",
+            "support": "Community or commercial support",
+            "source-distribution": "The location where the source code distributable can be obtained. This is often an archive format such as zip or tgz. The source-distribution type complements use of the version control (vcs) type.",
+            "distribution": "Direct or repository download location",
+            "distribution-intake": "The location where a component was published to. This is often the same as \"distribution\" but may also include specialized publishing processes that act as an intermediary.",
+            "license": "The reference to the license file. If a license URL has been defined in the license node, it should also be defined as an external reference for completeness.",
+            "build-meta": "Build-system specific meta file (i.e. pom.xml, package.json, .nuspec, etc)",
+            "build-system": "Reference to an automated build system",
+            "release-notes": "Reference to release notes",
+            "security-contact": "Specifies a way to contact the maintainer, supplier, or provider in the event of a security incident. Common URIs include links to a disclosure procedure, a mailto (RFC-2368) that specifies an email address, a tel (RFC-3966) that specifies a phone number, or dns (RFC-4501) that specifies the records containing DNS Security TXT.",
+            "model-card": "A model card describes the intended uses of a machine learning model, potential limitations, biases, ethical considerations, training parameters, datasets used to train the model, performance metrics, and other relevant data useful for ML transparency.",
+            "log": "A record of events that occurred in a computer system or application, such as problems, errors, or information on current operations.",
+            "configuration": "Parameters or settings that may be used by other components or services.",
+            "evidence": "Information used to substantiate a claim.",
+            "formulation": "Describes how a component or service was manufactured or deployed.",
+            "attestation": "Human or machine-readable statements containing facts, evidence, or testimony.",
+            "threat-model": "An enumeration of identified weaknesses, threats, and countermeasures, dataflow diagram (DFD), attack tree, and other supporting documentation in human-readable or machine-readable format.",
+            "adversary-model": "The defined assumptions, goals, and capabilities of an adversary.",
+            "risk-assessment": "Identifies and analyzes the potential of future events that may negatively impact individuals, assets, and/or the environment. Risk assessments may also include judgments on the tolerability of each risk.",
+            "vulnerability-assertion": "A Vulnerability Disclosure Report (VDR) which asserts the known and previously unknown vulnerabilities that affect a component, service, or product including the analysis and findings describing the impact (or lack of impact) that the reported vulnerability has on a component, service, or product.",
+            "exploitability-statement": "A Vulnerability Exploitability eXchange (VEX) which asserts the known vulnerabilities that do not affect a product, product family, or organization, and optionally the ones that do. The VEX should include the analysis and findings describing the impact (or lack of impact) that the reported vulnerability has on the product, product family, or organization.",
+            "pentest-report": "Results from an authorized simulated cyberattack on a component or service, otherwise known as a penetration test.",
+            "static-analysis-report": "SARIF or proprietary machine or human-readable report for which static analysis has identified code quality, security, and other potential issues with the source code.",
+            "dynamic-analysis-report": "Dynamic analysis report that has identified issues such as vulnerabilities and misconfigurations.",
+            "runtime-analysis-report": "Report generated by analyzing the call stack of a running application.",
+            "component-analysis-report": "Report generated by Software Composition Analysis (SCA), container analysis, or other forms of component analysis.",
+            "maturity-report": "Report containing a formal assessment of an organization, business unit, or team against a maturity model.",

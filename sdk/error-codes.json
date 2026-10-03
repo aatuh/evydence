@@ -1,0 +1,121 @@
+{
+  "errors": [
+    {
+      "code": "VALIDATION_FAILED",
+      "detail": "validation failed",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 400
+    },
+    {
+      "code": "UNAUTHORIZED",
+      "detail": "unauthorized",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 401
+    },
+    {
+      "code": "FORBIDDEN",
+      "detail": "forbidden",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 403
+    },
+    {
+      "code": "NOT_FOUND",
+      "detail": "not found",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 404
+    },
+    {
+      "code": "VERSION_CONFLICT",
+      "detail": "resource revision conflict",
+      "retry_class": "refresh_and_retry",
+      "retryable": true,
+      "status": 409
+    },
+    {
+      "code": "CONFLICT",
+      "detail": "conflict",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 409
+    },
+    {
+      "code": "EVIDENCE_IMMUTABLE",
+      "detail": "immutable resource",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 409
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REUSED",
+      "detail": "idempotency key reused with different request",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 409
+    },
+    {
+      "code": "IDEMPOTENCY_IN_PROGRESS",
+      "detail": "idempotency request is in progress",
+      "retry_after_seconds": 1,
+      "retry_class": "idempotency_in_progress",
+      "retryable": true,
+      "status": 409
+    },
+    {
+      "code": "IDEMPOTENCY_REQUEST_FAILED",
+      "detail": "idempotency request previously failed",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 409
+    },
+    {
+      "code": "COSIGN_FULL_VERIFICATION_UNAVAILABLE",
+      "detail": "full cosign verification is unavailable because no verifier or trust policy is configured",
+      "retry_class": "dependency_unavailable",
+      "retryable": false,
+      "status": 422
+    },
+    {
+      "code": "VERIFICATION_FAILED",
+      "detail": "verification failed",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 422
+    },
+    {
+      "code": "RATE_LIMITED",
+      "detail": "rate limited",
+      "retry_after_seconds": 60,
+      "retry_class": "rate_limited",
+      "retryable": true,
+      "status": 429
+    },
+    {
+      "code": "SIGNING_PROVIDER_UNAVAILABLE",
+      "detail": "signing provider temporarily unavailable",
+      "retry_after_seconds": 5,
+      "retry_class": "transient_provider",
+      "retryable": true,
+      "status": 503
+    },
+    {
+      "code": "DEPENDENCY_UNAVAILABLE",
+      "detail": "dependency temporarily unavailable",
+      "retry_after_seconds": 5,
+      "retry_class": "dependency_unavailable",
+      "retryable": true,
+      "status": 503
+    },
+    {
+      "code": "INTERNAL_ERROR",
+      "detail": "internal server error",
+      "retry_class": "none",
+      "retryable": false,
+      "status": 500
+    }
+  ],
+  "version": 1
+}

@@ -14,7 +14,7 @@ func TestControlFrameworkControlEvidenceAndCoverageFlow(t *testing.T) {
 	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/payments-api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/payments-api"}]}`))
 	if err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestControlValidationScopeAndWaivedCoverage(t *testing.T) {
 	if report.Result != "passed" || report.Controls[0].Status != "waived" || len(report.AcceptedExceptions) != 1 {
 		t.Fatalf("approved control exception should waive coverage: %#v", report)
 	}
-	sbom, err := ledger.UploadSBOM(ctx, actorA, releaseA.ID, artifactA.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actorA, releaseA.ID, artifactA.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api"}]}`))
 	if err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestControlStatePersistsAcrossRestart(t *testing.T) {
 		t.Fatalf("new ledger: %v", err)
 	}
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api"}]}`))
 	if err != nil {
 		t.Fatalf("sbom: %v", err)
 	}

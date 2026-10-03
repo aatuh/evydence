@@ -30,7 +30,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"RecordIncidentTimelineEvent",
 			"CreateRemediationTask",
 			"IncidentReport",
-			"uploadSecurityScan",
+			"UploadSecurityScan",
 			"UploadManualSecurityDocument",
 			"VulnerabilityPostureReport",
 			"EvaluateCustomPolicy",
@@ -61,7 +61,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		body := string(bodyBytes)
 		for _, name := range funcs {
 			fn := functionBody(t, body, name)
-			if !strings.Contains(fn, "authorizeResourceLocked") && !strings.Contains(fn, "resourceAllowedLocked") {
+			if !strings.Contains(fn, "authorizeResourceLocked") && !strings.Contains(fn, "resourceAllowedLocked") &&
+				!strings.Contains(fn, "releaseCommands.") && !strings.Contains(fn, "evidenceCommands.") {
 				t.Fatalf("%s.%s missing resource-scoped authorization call", file, name)
 			}
 		}

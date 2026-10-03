@@ -7,12 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
 type CreateOrganizationInput struct {
@@ -138,789 +138,6 @@ type CreateCommercialCollectorInput struct {
 	Version       string
 	ManifestHash  string
 	AllowedScopes []string
-}
-
-func (s identityService) CreateOrganization(ctx context.Context, actor domain.Actor, in CreateOrganizationInput) (domain.Organization, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.Organization{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.Organization{}, err
-	}
-	in.Name, in.Slug = strings.TrimSpace(in.Name), strings.TrimSpace(in.Slug)
-	if in.Name == "" || in.Slug == "" {
-		return domain.Organization{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, existing := range l.organizations {
-		if existing.TenantID == actor.TenantID && existing.Slug == in.Slug {
-			return domain.Organization{}, ErrConflict
-		}
-	}
-	org := domain.Organization{ID: newID("org"), TenantID: actor.TenantID, Name: in.Name, Slug: in.Slug, Status: "active", SchemaVersion: domain.OrganizationSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertOrganization(ctx, org); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(org.CreatedAt, actor.TenantID, "organization.created", "organization", org.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.Organization{}, err
-		}
-		l.organizations[org.ID] = org
-		l.publishCommittedAuditEntryLocked(entry)
-		return org, nil
-	}
-	l.organizations[org.ID] = org
-	_, _ = l.appendChainLocked(actor.TenantID, "organization.created", "organization", org.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.Organization{}, err
-	}
-	return org, nil
-}
-
-func (s identityService) CreateUser(ctx context.Context, actor domain.Actor, in CreateUserInput) (domain.HumanUser, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.HumanUser{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.HumanUser{}, err
-	}
-	email := strings.ToLower(strings.TrimSpace(in.Email))
-	name := strings.TrimSpace(in.DisplayName)
-	if email == "" || !strings.Contains(email, "@") || name == "" {
-		return domain.HumanUser{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if in.OrganizationID != "" {
-		org, ok := l.organizations[strings.TrimSpace(in.OrganizationID)]
-		if !ok || org.TenantID != actor.TenantID {
-			return domain.HumanUser{}, ErrNotFound
-		}
-	}
-	for _, existing := range l.users {
-		if existing.TenantID == actor.TenantID && existing.Email == email {
-			return domain.HumanUser{}, ErrConflict
-		}
-	}
-	user := domain.HumanUser{ID: newID("usr"), TenantID: actor.TenantID, OrganizationID: strings.TrimSpace(in.OrganizationID), Email: email, DisplayName: name, Status: "active", SchemaVersion: domain.HumanUserSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertHumanUser(ctx, user); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(user.CreatedAt, actor.TenantID, "user.created", "human_user", user.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.HumanUser{}, err
-		}
-		l.users[user.ID] = user
-		l.publishCommittedAuditEntryLocked(entry)
-		return user, nil
-	}
-	l.users[user.ID] = user
-	_, _ = l.appendChainLocked(actor.TenantID, "user.created", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.HumanUser{}, err
-	}
-	return user, nil
-}
-
-func (s identityService) DeactivateUser(ctx context.Context, actor domain.Actor, id string) (domain.HumanUser, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.HumanUser{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.HumanUser{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	user, ok := l.users[strings.TrimSpace(id)]
-	if !ok || user.TenantID != actor.TenantID {
-		return domain.HumanUser{}, ErrNotFound
-	}
-	if user.Status == "deactivated" {
-		return domain.HumanUser{}, ErrConflict
-	}
-	now := l.now()
-	user.Status = "deactivated"
-	user.DeactivatedAt = &now
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.DeactivateHumanUser(ctx, user); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "user.deactivated", "human_user", user.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.HumanUser{}, err
-		}
-		l.users[user.ID] = user
-		l.publishCommittedAuditEntryLocked(entry)
-		return user, nil
-	}
-	l.users[user.ID] = user
-	_, _ = l.appendChainLocked(actor.TenantID, "user.deactivated", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.HumanUser{}, err
-	}
-	return user, nil
-}
-
-func (s identityService) CreateRoleBinding(ctx context.Context, actor domain.Actor, in CreateRoleBindingInput) (domain.RoleBinding, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.RoleBinding{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.RoleBinding{}, err
-	}
-	in.SubjectType, in.SubjectID = strings.TrimSpace(in.SubjectType), strings.TrimSpace(in.SubjectID)
-	in.Role, in.ResourceType, in.ResourceID = strings.TrimSpace(in.Role), strings.TrimSpace(in.ResourceType), strings.TrimSpace(in.ResourceID)
-	if !validRoleSubject(in.SubjectType) || in.SubjectID == "" || !validRole(in.Role) {
-		return domain.RoleBinding{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureRoleSubjectLocked(actor.TenantID, in.SubjectType, in.SubjectID); err != nil {
-		return domain.RoleBinding{}, err
-	}
-	if err := l.ensureRoleResourceLocked(actor.TenantID, in.ResourceType, in.ResourceID); err != nil {
-		return domain.RoleBinding{}, err
-	}
-	binding := domain.RoleBinding{ID: newID("rbac"), TenantID: actor.TenantID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, Role: in.Role, ResourceType: in.ResourceType, ResourceID: in.ResourceID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertRoleBinding(ctx, binding); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(binding.CreatedAt, actor.TenantID, "role_binding.created", "role_binding", binding.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.RoleBinding{}, err
-		}
-		l.roleBindings[binding.ID] = binding
-		l.publishCommittedAuditEntryLocked(entry)
-		return binding, nil
-	}
-	l.roleBindings[binding.ID] = binding
-	_, _ = l.appendChainLocked(actor.TenantID, "role_binding.created", "role_binding", binding.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.RoleBinding{}, err
-	}
-	return binding, nil
-}
-
-func (s identityService) ListRoleBindings(ctx context.Context, actor domain.Actor) ([]domain.RoleBinding, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return nil, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	out := []domain.RoleBinding{}
-	for _, binding := range l.roleBindings {
-		if binding.TenantID == actor.TenantID {
-			out = append(out, binding)
-		}
-	}
-	return out, nil
-}
-
-func (s identityService) CreateSSOProvider(ctx context.Context, actor domain.Actor, in CreateSSOProviderInput) (domain.SSOProvider, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	in.Name, in.Type, in.Issuer, in.ClientID = strings.TrimSpace(in.Name), strings.TrimSpace(in.Type), strings.TrimSpace(in.Issuer), strings.TrimSpace(in.ClientID)
-	if in.Name == "" || !validSSOType(in.Type) || !strings.HasPrefix(in.Issuer, "https://") || in.ClientID == "" {
-		return domain.SSOProvider{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	jwks, err := normalizeJWKS(in.JWKS)
-	if err != nil {
-		return domain.SSOProvider{}, ErrValidation
-	}
-	samlCerts, err := normalizeSAMLSigningCertificates(in.SAMLSigningCertificates)
-	if err != nil {
-		return domain.SSOProvider{}, ErrValidation
-	}
-	provider := domain.SSOProvider{ID: newID("sso"), TenantID: actor.TenantID, Name: in.Name, Type: in.Type, Issuer: in.Issuer, ClientID: in.ClientID, GroupsClaim: strings.TrimSpace(in.GroupsClaim), RoleMapping: cloneStringMap(in.RoleMapping), JWKS: jwks, SAMLSigningCertificates: samlCerts, Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertSSOProvider(ctx, provider); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(provider.CreatedAt, actor.TenantID, "sso_provider.created", "sso_provider", provider.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.SSOProvider{}, err
-		}
-		l.ssoProviders[provider.ID] = provider
-		l.publishCommittedAuditEntryLocked(entry)
-		return provider, nil
-	}
-	l.ssoProviders[provider.ID] = provider
-	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.created", "sso_provider", provider.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	return provider, nil
-}
-
-func (s identityService) UpdateSSOProviderTrustMaterial(ctx context.Context, actor domain.Actor, id string, in UpdateSSOProviderTrustMaterialInput) (domain.SSOProvider, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return domain.SSOProvider{}, ErrValidation
-	}
-	jwks, err := normalizeJWKS(in.JWKS)
-	if err != nil {
-		return domain.SSOProvider{}, ErrValidation
-	}
-	samlCerts, err := normalizeSAMLSigningCertificates(in.SAMLSigningCertificates)
-	if err != nil {
-		return domain.SSOProvider{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	provider, ok := l.ssoProviders[id]
-	if !ok || provider.TenantID != actor.TenantID {
-		return domain.SSOProvider{}, ErrNotFound
-	}
-	switch provider.Type {
-	case "oidc":
-		if len(jwks) == 0 || len(samlCerts) != 0 {
-			return domain.SSOProvider{}, ErrValidation
-		}
-		provider.JWKS = jwks
-		provider.SAMLSigningCertificates = nil
-	case "saml":
-		if len(samlCerts) == 0 || len(jwks) != 0 {
-			return domain.SSOProvider{}, ErrValidation
-		}
-		provider.SAMLSigningCertificates = samlCerts
-		provider.JWKS = nil
-	default:
-		return domain.SSOProvider{}, ErrValidation
-	}
-	now := l.now()
-	provider.TrustMaterialUpdatedAt = &now
-	materialHash, err := canonicalAnyHash(struct {
-		ProviderID              string         `json:"provider_id"`
-		JWKS                    map[string]any `json:"jwks,omitempty"`
-		SAMLSigningCertificates []string       `json:"saml_signing_certificates,omitempty"`
-		UpdatedAt               string         `json:"updated_at"`
-	}{
-		ProviderID:              provider.ID,
-		JWKS:                    provider.JWKS,
-		SAMLSigningCertificates: provider.SAMLSigningCertificates,
-		UpdatedAt:               now.Format(time.RFC3339Nano),
-	})
-	if err != nil {
-		return domain.SSOProvider{}, err
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.UpdateSSOProviderTrustMaterial(ctx, provider); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "sso_provider.trust_material_updated", "sso_provider", provider.ID, actorType(actor), actorID(actor), materialHash, ""))
-			return err
-		}); err != nil {
-			return domain.SSOProvider{}, err
-		}
-		l.ssoProviders[provider.ID] = provider
-		l.publishCommittedAuditEntryLocked(entry)
-		return provider, nil
-	}
-	l.ssoProviders[provider.ID] = provider
-	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.trust_material_updated", "sso_provider", provider.ID, actorType(actor), actorID(actor), materialHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	return provider, nil
-}
-
-func (s identityService) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, actor domain.Actor, id string) (domain.SSOProvider, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return domain.SSOProvider{}, ErrValidation
-	}
-	discovery := l.oidc
-	if discovery == nil {
-		return domain.SSOProvider{}, ErrValidation
-	}
-	l.mu.Lock()
-	provider, ok := l.ssoProviders[id]
-	if !ok || provider.TenantID != actor.TenantID {
-		l.mu.Unlock()
-		return domain.SSOProvider{}, ErrNotFound
-	}
-	if provider.Type != "oidc" {
-		l.mu.Unlock()
-		return domain.SSOProvider{}, ErrValidation
-	}
-	l.mu.Unlock()
-
-	result, err := discovery.FetchOIDCTrustMaterial(ctx, OIDCDiscoveryRequest{TenantID: actor.TenantID, ProviderID: provider.ID, Issuer: provider.Issuer})
-	if err != nil {
-		return domain.SSOProvider{}, ErrVerificationFailed
-	}
-	if strings.TrimRight(strings.TrimSpace(result.Issuer), "/") != strings.TrimRight(provider.Issuer, "/") {
-		return domain.SSOProvider{}, ErrVerificationFailed
-	}
-	jwks, err := normalizeJWKS(result.JWKS)
-	if err != nil {
-		return domain.SSOProvider{}, ErrVerificationFailed
-	}
-	if len(jwks) == 0 {
-		return domain.SSOProvider{}, ErrVerificationFailed
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	current, ok := l.ssoProviders[id]
-	if !ok || current.TenantID != actor.TenantID {
-		return domain.SSOProvider{}, ErrNotFound
-	}
-	if current.Type != "oidc" || current.Issuer != provider.Issuer {
-		return domain.SSOProvider{}, ErrVerificationFailed
-	}
-	now := l.now()
-	current.JWKS = jwks
-	current.SAMLSigningCertificates = nil
-	current.TrustMaterialUpdatedAt = &now
-	materialHash, err := canonicalAnyHash(struct {
-		ProviderID string         `json:"provider_id"`
-		Issuer     string         `json:"issuer"`
-		JWKS       map[string]any `json:"jwks"`
-		UpdatedAt  string         `json:"updated_at"`
-	}{
-		ProviderID: current.ID,
-		Issuer:     current.Issuer,
-		JWKS:       current.JWKS,
-		UpdatedAt:  now.Format(time.RFC3339Nano),
-	})
-	if err != nil {
-		return domain.SSOProvider{}, err
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.UpdateSSOProviderTrustMaterial(ctx, current); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "sso_provider.oidc_trust_material_refreshed", "sso_provider", current.ID, actorType(actor), actorID(actor), materialHash, ""))
-			return err
-		}); err != nil {
-			return domain.SSOProvider{}, err
-		}
-		l.ssoProviders[current.ID] = current
-		l.publishCommittedAuditEntryLocked(entry)
-		return current, nil
-	}
-	l.ssoProviders[current.ID] = current
-	_, _ = l.appendChainLocked(actor.TenantID, "sso_provider.oidc_trust_material_refreshed", "sso_provider", current.ID, actorType(actor), actorID(actor), materialHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.SSOProvider{}, err
-	}
-	return current, nil
-}
-
-func (s identityService) LinkSSOIdentity(ctx context.Context, actor domain.Actor, in LinkSSOIdentityInput) (domain.UserIdentityLink, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.UserIdentityLink{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.UserIdentityLink{}, err
-	}
-	in.UserID, in.ProviderID, in.Subject = strings.TrimSpace(in.UserID), strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.Subject)
-	email := strings.ToLower(strings.TrimSpace(in.Email))
-	if in.UserID == "" || in.ProviderID == "" || in.Subject == "" || email == "" || !in.Verified {
-		return domain.UserIdentityLink{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	user, ok := l.users[in.UserID]
-	if !ok || user.TenantID != actor.TenantID || user.Email != email {
-		return domain.UserIdentityLink{}, ErrNotFound
-	}
-	provider, ok := l.ssoProviders[in.ProviderID]
-	if !ok || provider.TenantID != actor.TenantID {
-		return domain.UserIdentityLink{}, ErrNotFound
-	}
-	link := domain.UserIdentityLink{ID: newID("uil"), TenantID: actor.TenantID, UserID: user.ID, ProviderID: provider.ID, Subject: in.Subject, Email: email, Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertUserIdentityLink(ctx, link); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(link.CreatedAt, actor.TenantID, "identity_link.created", "human_user", user.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.UserIdentityLink{}, err
-		}
-		l.identityLinks[link.ID] = link
-		l.publishCommittedAuditEntryLocked(entry)
-		return link, nil
-	}
-	l.identityLinks[link.ID] = link
-	_, _ = l.appendChainLocked(actor.TenantID, "identity_link.created", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.UserIdentityLink{}, err
-	}
-	return link, nil
-}
-
-func (s identityService) CreateSSOSession(ctx context.Context, actor domain.Actor, in CreateSSOSessionInput) (domain.SSOSession, string, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.SSOSession{}, "", err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.SSOSession{}, "", err
-	}
-	if strings.TrimSpace(in.UserID) == "" || strings.TrimSpace(in.ProviderID) == "" || !in.ExpiresAt.After(l.now()) {
-		return domain.SSOSession{}, "", ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	user, ok := l.users[strings.TrimSpace(in.UserID)]
-	if !ok || user.TenantID != actor.TenantID || user.Status != "active" {
-		return domain.SSOSession{}, "", ErrNotFound
-	}
-	provider, ok := l.ssoProviders[strings.TrimSpace(in.ProviderID)]
-	if !ok || provider.TenantID != actor.TenantID {
-		return domain.SSOSession{}, "", ErrNotFound
-	}
-	secret := "evysso_" + randomToken(32)
-	session := domain.SSOSession{ID: newID("sess"), TenantID: actor.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: l.now(), Hash: l.hashSecret(secret)}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertSSOSession(ctx, session); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(session.CreatedAt, actor.TenantID, "sso_session.created", "human_user", user.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.SSOSession{}, "", err
-		}
-		l.ssoSessions[session.ID] = session
-		l.publishCommittedAuditEntryLocked(entry)
-		public := session
-		public.Hash = ""
-		return public, secret, nil
-	}
-	l.ssoSessions[session.ID] = session
-	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.created", "human_user", user.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistCriticalStateLocked(ctx); err != nil {
-		return domain.SSOSession{}, "", err
-	}
-	session.Hash = ""
-	return session, secret, nil
-}
-
-func (s identityService) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCredentialInput) (domain.ProviderVerification, domain.SSOSession, string, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.ProviderVerification{}, domain.SSOSession{}, "", err
-	}
-	providerID, subject := strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.Subject)
-	idToken, samlAssertion := strings.TrimSpace(in.IDToken), strings.TrimSpace(in.SAMLAssertion)
-	if providerID == "" || subject == "" || (idToken == "" && samlAssertion == "") || (idToken != "" && samlAssertion != "") {
-		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrValidation
-	}
-	expiresAt := in.ExpiresAt.UTC()
-	now := l.now()
-	if expiresAt.IsZero() {
-		expiresAt = now.Add(8 * time.Hour)
-	}
-	if !expiresAt.After(now) || expiresAt.After(now.Add(12*time.Hour)) {
-		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrValidation
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	provider, ok := l.ssoProviders[providerID]
-	if !ok || provider.Status != "active" {
-		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrNotFound
-	}
-	if (provider.Type == "oidc" && samlAssertion != "") || (provider.Type == "saml" && idToken != "") {
-		return domain.ProviderVerification{}, domain.SSOSession{}, "", ErrValidation
-	}
-	checks := []domain.VerifyCheck{}
-	if idToken != "" {
-		tokenChecks, _ := verifyOIDCIDToken(provider, subject, idToken, now)
-		checks = append(checks, tokenChecks...)
-	}
-	if samlAssertion != "" {
-		assertionChecks, _ := verifySAMLAssertion(provider, subject, samlAssertion, now)
-		checks = append(checks, assertionChecks...)
-	}
-
-	var link domain.UserIdentityLink
-	for _, candidate := range l.identityLinks {
-		if candidate.TenantID == provider.TenantID && candidate.ProviderID == provider.ID && candidate.Subject == subject && candidate.Verified {
-			link = candidate
-			break
-		}
-	}
-	if link.ID == "" {
-		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "failed"})
-	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "passed"})
-	}
-
-	verification := domain.ProviderVerification{
-		ID:            newID("pvr"),
-		TenantID:      provider.TenantID,
-		ProviderType:  provider.Type,
-		ProviderID:    provider.ID,
-		Subject:       subject,
-		Checks:        checks,
-		Limitations:   []string{"Credential exchange uses configured local token/assertion trust roots and verified identity links; no live provider API or group synchronization call is made."},
-		SchemaVersion: domain.ProviderVerificationVersion,
-		CreatedAt:     now,
-	}
-	reassessProviderVerification(&verification, provider, true)
-	if verificationReturnsFailure(verification.Result) {
-		if err := s.persistProviderVerificationLocked(ctx, verification, provider); err != nil {
-			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
-		}
-		return verification, domain.SSOSession{}, "", ErrVerificationFailed
-	}
-	user, ok := l.users[link.UserID]
-	if !ok || user.TenantID != provider.TenantID || user.Status != "active" {
-		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "failed"})
-		reassessProviderVerification(&verification, provider, true)
-		if err := s.persistProviderVerificationLocked(ctx, verification, provider); err != nil {
-			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
-		}
-		return verification, domain.SSOSession{}, "", ErrVerificationFailed
-	}
-	verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "active_user", Result: "passed"})
-	reassessProviderVerification(&verification, provider, true)
-
-	groups := oidcGroupsFromVerifiedToken(provider, idToken)
-	grants := append(l.resourceGrantsForUserLocked(user.ID), resourceGrantsForProviderGroups(provider, groups)...)
-	if len(scopesFromResourceGrants(grants)) == 0 {
-		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "authorization_grant", Result: "failed"})
-		reassessProviderVerification(&verification, provider, true)
-		if err := s.persistProviderVerificationLocked(ctx, verification, provider); err != nil {
-			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
-		}
-		return verification, domain.SSOSession{}, "", ErrForbidden
-	}
-	if len(groups) > 0 && len(resourceGrantsForProviderGroups(provider, groups)) > 0 {
-		verification.Checks = append(verification.Checks, domain.VerifyCheck{Name: "mapped_group_roles", Result: "passed", Detail: fmt.Sprintf("%d session-scoped provider group role mapping(s) applied", len(resourceGrantsForProviderGroups(provider, groups)))})
-		reassessProviderVerification(&verification, provider, true)
-	}
-
-	secret := "evysso_" + randomToken(32)
-	session := domain.SSOSession{ID: newID("sess"), TenantID: provider.TenantID, UserID: user.ID, ProviderID: provider.ID, Prefix: secretPrefix(secret), Groups: groups, ExpiresAt: expiresAt, SchemaVersion: domain.SSOSessionSchemaVersion, CreatedAt: now, Hash: l.hashSecret(secret)}
-	if l.unitOfWork != nil {
-		entries := []domain.AuditChainEntry{}
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertProviderVerification(ctx, verification); err != nil {
-				return err
-			}
-			entry, err := repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", ""))
-			if err != nil {
-				return err
-			}
-			entries = append(entries, entry)
-			if err := repos.Identity.InsertSSOSession(ctx, session); err != nil {
-				return err
-			}
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", ""))
-			if err != nil {
-				return err
-			}
-			entries = append(entries, entry)
-			return nil
-		}); err != nil {
-			return domain.ProviderVerification{}, domain.SSOSession{}, "", err
-		}
-		l.providerVerifications[verification.ID] = verification
-		l.ssoSessions[session.ID] = session
-		for _, entry := range entries {
-			l.publishCommittedAuditEntryLocked(entry)
-		}
-		public := session
-		public.Hash = ""
-		return verification, public, secret, nil
-	}
-	l.providerVerifications[verification.ID] = verification
-	l.ssoSessions[session.ID] = session
-	_, _ = l.appendChainLocked(provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", "")
-	if err := l.persistCriticalStateLocked(ctx); err != nil {
-		return domain.ProviderVerification{}, domain.SSOSession{}, "", err
-	}
-	session.Hash = ""
-	return verification, session, secret, nil
-}
-
-// persistProviderVerificationLocked records an exchange outcome and its audit
-// entry before making it visible through the local read model. The caller
-// holds l.mu and never includes the presented credential in the record.
-func (s identityService) persistProviderVerificationLocked(ctx context.Context, verification domain.ProviderVerification, provider domain.SSOProvider) error {
-	l := s.ledger
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertProviderVerification(ctx, verification); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(verification.CreatedAt, provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", ""))
-			return err
-		}); err != nil {
-			return err
-		}
-		l.providerVerifications[verification.ID] = verification
-		l.publishCommittedAuditEntryLocked(entry)
-		return nil
-	}
-	l.providerVerifications[verification.ID] = verification
-	_, _ = l.appendChainLocked(provider.TenantID, "provider_identity.verified", "provider_identity", verification.ID, "sso_provider", provider.ID, "", "")
-	return l.persistLocked(ctx)
-}
-
-func (s identityService) RevokeSSOSession(ctx context.Context, actor domain.Actor, id string) (domain.SSOSession, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.SSOSession{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.SSOSession{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	session, ok := l.ssoSessions[strings.TrimSpace(id)]
-	if !ok || session.TenantID != actor.TenantID {
-		return domain.SSOSession{}, ErrNotFound
-	}
-	if session.RevokedAt != nil {
-		return domain.SSOSession{}, ErrConflict
-	}
-	now := l.now()
-	session.RevokedAt = &now
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.RevokeSSOSession(ctx, session); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.SSOSession{}, err
-		}
-		l.ssoSessions[session.ID] = session
-		l.publishCommittedAuditEntryLocked(entry)
-		public := session
-		public.Hash = ""
-		return public, nil
-	}
-	l.ssoSessions[session.ID] = session
-	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistCriticalStateLocked(ctx); err != nil {
-		return domain.SSOSession{}, err
-	}
-	session.Hash = ""
-	return session, nil
-}
-
-func (s identityService) RevokeCurrentSSOSession(ctx context.Context, actor domain.Actor) (domain.SSOSession, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.SSOSession{}, err
-	}
-	if strings.TrimSpace(actor.UserID) == "" || strings.TrimSpace(actor.SessionID) == "" {
-		return domain.SSOSession{}, ErrForbidden
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	session, ok := l.ssoSessions[strings.TrimSpace(actor.SessionID)]
-	if !ok || session.TenantID != actor.TenantID || session.UserID != actor.UserID {
-		return domain.SSOSession{}, ErrNotFound
-	}
-	if session.RevokedAt != nil {
-		return domain.SSOSession{}, ErrConflict
-	}
-	now := l.now()
-	session.RevokedAt = &now
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.RevokeSSOSession(ctx, session); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.SSOSession{}, err
-		}
-		l.ssoSessions[session.ID] = session
-		l.publishCommittedAuditEntryLocked(entry)
-		public := session
-		public.Hash = ""
-		return public, nil
-	}
-	l.ssoSessions[session.ID] = session
-	_, _ = l.appendChainLocked(actor.TenantID, "sso_session.revoked", "sso_session", session.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistCriticalStateLocked(ctx); err != nil {
-		return domain.SSOSession{}, err
-	}
-	session.Hash = ""
-	return session, nil
 }
 
 func (l *Ledger) InstanceAdminSnapshot(ctx context.Context, actor domain.Actor) (domain.InstanceAdminSnapshot, error) {
@@ -1113,13 +330,21 @@ func (s identityService) ListCustomerPortalAccess(ctx context.Context, actor dom
 	defer l.mu.Unlock()
 	if packageID != "" {
 		pkg, ok := l.customerPackages[packageID]
-		if !ok || pkg.TenantID != actor.TenantID {
+		if !ok || !l.currentPortalPackageLocked(actor.TenantID, pkg) {
 			return nil, ErrNotFound
+		}
+		if !l.resourceAllowedLocked(actor, ScopePackageRead, resourceRefs{ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, CustomerPackageID: pkg.ID}) {
+			return nil, ErrForbidden
 		}
 	}
 	accesses := []domain.CustomerPortalAccess{}
 	for _, access := range l.portalAccess {
 		if access.TenantID != actor.TenantID || (packageID != "" && access.PackageID != packageID) {
+			continue
+		}
+		pkg, ok := l.customerPackages[access.PackageID]
+		if !ok || !l.currentPortalPackageLocked(actor.TenantID, pkg) ||
+			!l.resourceAllowedLocked(actor, ScopePackageRead, resourceRefs{ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, CustomerPackageID: pkg.ID}) {
 			continue
 		}
 		access.Hash = ""
@@ -1132,6 +357,21 @@ func (s identityService) ListCustomerPortalAccess(ctx context.Context, actor dom
 		return accesses[i].CreatedAt.Before(accesses[j].CreatedAt)
 	})
 	return accesses, nil
+}
+
+func (l *Ledger) currentPortalPackageLocked(tenantID string, pkg domain.CustomerSecurityPackage) bool {
+	if pkg.TenantID != tenantID || pkg.ProductID == "" {
+		return false
+	}
+	product, ok := l.products[pkg.ProductID]
+	if !ok || product.TenantID != tenantID {
+		return false
+	}
+	if pkg.ReleaseID != "" {
+		release, ok := l.releases[pkg.ReleaseID]
+		return ok && release.TenantID == tenantID && release.ProductID == pkg.ProductID
+	}
+	return true
 }
 
 func (s identityService) RevokeCustomerPortalAccess(ctx context.Context, actor domain.Actor, id string) (domain.CustomerPortalAccess, error) {
@@ -1445,9 +685,9 @@ func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.
 		if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
 			return domain.QuestionnaireAnswerLibraryEntry{}, err
 		}
-		if err := l.authorizeResourceLocked(actor, ScopePackageWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
-			return domain.QuestionnaireAnswerLibraryEntry{}, err
-		}
+	}
+	if err := l.authorizeResourceLocked(actor, ScopePackageWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, err
 	}
 	if in.ControlID != "" {
 		control, ok := l.controls[in.ControlID]
@@ -1536,6 +776,9 @@ func (s packageReportService) ListQuestionnaireAnswerLibrary(ctx context.Context
 		if in.ReleaseID != "" && entry.ReleaseID != "" && entry.ReleaseID != in.ReleaseID {
 			continue
 		}
+		if !l.resourceAllowedLocked(actor, ScopePackageRead, resourceRefs{ProductID: entry.ProductID, ReleaseID: entry.ReleaseID}) {
+			continue
+		}
 		out = append(out, entry)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
@@ -1594,6 +837,9 @@ func (l *Ledger) ListCommercialCollectorDefinitions(ctx context.Context, actor d
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeCollectorRead, resourceRefs{}); err != nil {
+		return nil, err
+	}
 	out := []domain.CommercialCollectorDefinition{}
 	for _, def := range l.commercialCollectors {
 		if def.TenantID == actor.TenantID {
@@ -1727,22 +973,7 @@ func (l *Ledger) resourceGrantsForSSOSessionLocked(session domain.SSOSession) []
 }
 
 func resourceGrantsForProviderGroups(provider domain.SSOProvider, groups []string) []domain.ResourceGrant {
-	if provider.GroupsClaim == "" || len(provider.RoleMapping) == 0 || len(groups) == 0 {
-		return nil
-	}
-	grants := []domain.ResourceGrant{}
-	for _, group := range groups {
-		role := strings.TrimSpace(provider.RoleMapping[group])
-		if !validRole(role) {
-			continue
-		}
-		scopes := scopesForRole(role)
-		if len(scopes) == 0 {
-			continue
-		}
-		grants = append(grants, domain.ResourceGrant{Role: role, Scopes: scopes})
-	}
-	return grants
+	return identityapp.ProviderGroupGrants(ssoProviderToIdentityContext(provider), groups)
 }
 
 func scopesFromResourceGrants(grants []domain.ResourceGrant) []string {
@@ -1775,7 +1006,10 @@ type resourceRefs struct {
 }
 
 func refsForEvidence(item domain.EvidenceItem) resourceRefs {
-	return resourceRefs{ProductID: item.ProductID, ProjectID: item.ProjectID, ReleaseID: item.ReleaseID}
+	return resourceRefs{
+		ProductID: item.ProductID, ProjectID: item.ProjectID, ReleaseID: item.ReleaseID,
+		BuildID: item.BuildID, DeploymentID: item.DeploymentID,
+	}
 }
 
 func (l *Ledger) authorizeResourceLocked(actor domain.Actor, scope string, refs resourceRefs) error {
@@ -1956,6 +1190,9 @@ func (l *Ledger) projectCoversRefsLocked(tenantID, projectID string, refs resour
 		build, ok := l.buildRuns[refs.BuildID]
 		return ok && build.TenantID == tenantID && build.ProjectID == projectID
 	}
+	if refs.ArtifactID != "" {
+		return l.artifactCoversProjectLocked(tenantID, refs.ArtifactID, projectID)
+	}
 	return false
 }
 
@@ -2017,6 +1254,25 @@ func (l *Ledger) artifactCoversProductLocked(tenantID, artifactID, productID str
 	return false
 }
 
+func (l *Ledger) artifactCoversProjectLocked(tenantID, artifactID, projectID string) bool {
+	for _, item := range l.evidence {
+		if item.TenantID == tenantID && item.ProjectID == projectID && evidenceReferencesArtifact(item, artifactID) {
+			return true
+		}
+	}
+	for _, build := range l.buildRuns {
+		if build.TenantID != tenantID || build.ProjectID != projectID {
+			continue
+		}
+		for _, output := range build.Outputs {
+			if output.ArtifactID == artifactID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (l *Ledger) artifactCoversReleaseLocked(tenantID, artifactID, releaseID string) bool {
 	for _, item := range l.evidence {
 		if item.TenantID == tenantID && item.ReleaseID == releaseID && evidenceReferencesArtifact(item, artifactID) {
@@ -2046,32 +1302,7 @@ func evidenceReferencesArtifact(item domain.EvidenceItem, artifactID string) boo
 }
 
 func scopesForRole(role string) []string {
-	switch role {
-	case "tenant_admin":
-		return []string{"*"}
-	case "security_engineer":
-		return []string{
-			ScopeEvidenceRead, ScopeEvidenceWrite,
-			ScopeSecurityRead, ScopeSecurityWrite,
-			ScopeControlsRead, ScopeControlsWrite,
-			ScopePolicyRead, ScopePolicyWrite,
-			ScopeVerifyRead, ScopeReportRead,
-		}
-	case "release_manager":
-		return []string{
-			ScopeProductRead, ScopeProjectRead,
-			ScopeReleaseRead, ScopeReleaseWrite,
-			ScopeEvidenceRead, ScopeEvidenceWrite,
-			ScopeBuildRead, ScopeBundleRead, ScopeBundleWrite,
-			ScopeVerifyRead, ScopeReportRead,
-		}
-	case "customer_verifier":
-		return []string{ScopePackageRead, ScopeBundleRead, ScopeVerifyRead, ScopeReportRead}
-	case "collector":
-		return []string{ScopeEvidenceWrite, ScopeBuildWrite, ScopeBundleWrite}
-	default:
-		return nil
-	}
+	return identityapp.RoleScopes(role)
 }
 
 func oidcGroupsFromVerifiedToken(provider domain.SSOProvider, token string) []string {

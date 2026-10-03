@@ -1,0 +1,286 @@
+          "title": "Cryptographic Properties"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {"$ref": "#/definitions/property"}
+        },
+        "tags": {
+          "$ref": "#/definitions/tags",
+          "title": "Tags"
+        },
+        "signature": {
+          "$ref": "#/definitions/signature",
+          "title": "Signature",
+          "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+        }
+      }
+    },
+    "swid": {
+      "type": "object",
+      "title": "SWID Tag",
+      "description": "Specifies metadata and content for ISO-IEC 19770-2 Software Identification (SWID) Tags.",
+      "required": [
+        "tagId",
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tagId": {
+          "type": "string",
+          "title": "Tag ID",
+          "description": "Maps to the tagId of a SoftwareIdentity."
+        },
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "Maps to the name of a SoftwareIdentity."
+        },
+        "version": {
+          "type": "string",
+          "title": "Version",
+          "default": "0.0",
+          "description": "Maps to the version of a SoftwareIdentity."
+        },
+        "tagVersion": {
+          "type": "integer",
+          "title": "Tag Version",
+          "default": 0,
+          "description": "Maps to the tagVersion of a SoftwareIdentity."
+        },
+        "patch": {
+          "type": "boolean",
+          "title": "Patch",
+          "default": false,
+          "description": "Maps to the patch of a SoftwareIdentity."
+        },
+        "text": {
+          "title": "Attachment text",
+          "description": "Specifies the metadata and content of the SWID tag.",
+          "$ref": "#/definitions/attachment"
+        },
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "description": "The URL to the SWID file.",
+          "format": "iri-reference"
+        }
+      }
+    },
+    "attachment": {
+      "type": "object",
+      "title": "Attachment",
+      "description": "Specifies the metadata and content for an attachment.",
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "contentType": {
+          "type": "string",
+          "title": "Content-Type",
+          "description": "Specifies the format and nature of the data being attached, helping systems correctly interpret and process the content. Common content type examples include `application/json` for JSON data and `text/plain` for plain text documents.\n [RFC 2045 section 5.1](https://www.ietf.org/rfc/rfc2045.html#section-5.1) outlines the structure and use of content types. For a comprehensive list of registered content types, refer to the [IANA media types registry](https://www.iana.org/assignments/media-types/media-types.xhtml).",
+          "default": "text/plain",
+          "examples": [
+            "text/plain",
+            "application/json",
+            "image/png"
+          ]
+        },
+        "encoding": {
+          "type": "string",
+          "title": "Encoding",
+          "description": "Specifies the optional encoding the text is represented in.",
+          "enum": [
+            "base64"
+          ],
+          "meta:enum": {
+            "base64": "Base64 is a binary-to-text encoding scheme that represents binary data in an ASCII string."
+          }
+        },
+        "content": {
+          "type": "string",
+          "title": "Attachment Text",
+          "description": "The attachment data. Proactive controls such as input validation and sanitization should be employed to prevent misuse of attachment text."
+        }
+      }
+    },
+    "hash": {
+      "type": "object",
+      "title": "Hash",
+      "required": [
+        "alg",
+        "content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "alg": {
+          "$ref": "#/definitions/hash-alg"
+        },
+        "content": {
+          "$ref": "#/definitions/hash-content"
+        }
+      }
+    },
+    "hash-alg": {
+      "type": "string",
+      "title": "Hash Algorithm",
+      "description": "The algorithm that generated the hash value.",
+      "enum": [
+        "MD5",
+        "SHA-1",
+        "SHA-256",
+        "SHA-384",
+        "SHA-512",
+        "SHA3-256",
+        "SHA3-384",
+        "SHA3-512",
+        "BLAKE2b-256",
+        "BLAKE2b-384",
+        "BLAKE2b-512",
+        "BLAKE3"
+      ]
+    },
+    "hash-content": {
+      "type": "string",
+      "title": "Hash Value",
+      "description": "The value of the hash.",
+      "examples": ["3942447fac867ae5cdb3229b658f4d48"],
+      "pattern": "^([a-fA-F0-9]{32}|[a-fA-F0-9]{40}|[a-fA-F0-9]{64}|[a-fA-F0-9]{96}|[a-fA-F0-9]{128})$"
+    },
+    "license": {
+      "type": "object",
+      "title": "License",
+      "description": "Specifies the details and attributes related to a software license. It can either include a valid SPDX license identifier or a named license, along with additional properties such as license acknowledgment, comprehensive commercial licensing information, and the full text of the license.",
+      "oneOf": [
+        {
+          "required": ["id"]
+        },
+        {
+          "required": ["name"]
+        }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the license elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "id": {
+          "$ref": "spdx.schema.json",
+          "title": "License ID (SPDX)",
+          "description": "A valid SPDX license identifier. If specified, this value must be one of the enumeration of valid SPDX license identifiers defined in the spdx.schema.json (or spdx.xml) subschema which is synchronized with the official SPDX license list.",
+          "examples": ["Apache-2.0"]
+        },
+        "name": {
+          "type": "string",
+          "title": "License Name",
+          "description": "The name of the license. This may include the name of a commercial or proprietary license or an open source license that may not be defined by SPDX.",
+          "examples": ["Acme Software License"]
+        },
+        "acknowledgement": {
+          "$ref": "#/definitions/licenseAcknowledgementEnumeration"
+        },
+        "text": {
+          "title": "License text",
+          "description": "An optional way to include the textual content of a license.",
+          "$ref": "#/definitions/attachment"
+        },
+        "url": {
+          "type": "string",
+          "title": "License URL",
+          "description": "The URL to the license file. If specified, a 'license' externalReference should also be specified for completeness",
+          "examples": ["https://www.apache.org/licenses/LICENSE-2.0.txt"],
+          "format": "iri-reference"
+        },
+        "licensing": {
+          "type": "object",
+          "title": "Licensing information",
+          "description": "Licensing details describing the licensor/licensee, license type, renewal and expiration dates, and other important metadata",
+          "additionalProperties": false,
+          "properties": {
+            "altIds": {
+              "type": "array",
+              "title": "Alternate License Identifiers",
+              "description": "License identifiers that may be used to manage licenses and their lifecycle",
+              "items": {
+                "type": "string"
+              }
+            },
+            "licensor": {
+              "title": "Licensor",
+              "description": "The individual or organization that grants a license to another individual or organization",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "organization": {
+                  "title": "Licensor (Organization)",
+                  "description": "The organization that granted the license",
+                  "$ref": "#/definitions/organizationalEntity"
+                },
+                "individual": {
+                  "title": "Licensor (Individual)",
+                  "description": "The individual, not associated with an organization, that granted the license",
+                  "$ref": "#/definitions/organizationalContact"
+                }
+              },
+              "oneOf":[
+                {
+                  "required": ["organization"]
+                },
+                {
+                  "required": ["individual"]
+                }
+              ]
+            },
+            "licensee": {
+              "title": "Licensee",
+              "description": "The individual or organization for which a license was granted to",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "organization": {
+                  "title": "Licensee (Organization)",
+                  "description": "The organization that was granted the license",
+                  "$ref": "#/definitions/organizationalEntity"
+                },
+                "individual": {
+                  "title": "Licensee (Individual)",
+                  "description": "The individual, not associated with an organization, that was granted the license",
+                  "$ref": "#/definitions/organizationalContact"
+                }
+              },
+              "oneOf":[
+                {
+                  "required": ["organization"]
+                },
+                {
+                  "required": ["individual"]
+                }
+              ]
+            },
+            "purchaser": {
+              "title": "Purchaser",
+              "description": "The individual or organization that purchased the license",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "organization": {
+                  "title": "Purchaser (Organization)",
+                  "description": "The organization that purchased the license",
+                  "$ref": "#/definitions/organizationalEntity"
+                },
+                "individual": {
+                  "title": "Purchaser (Individual)",
+                  "description": "The individual, not associated with an organization, that purchased the license",
+                  "$ref": "#/definitions/organizationalContact"
+                }
+              },
+              "oneOf":[
+                {
+                  "required": ["organization"]
+                },
+                {
+                  "required": ["individual"]

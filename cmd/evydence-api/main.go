@@ -2,48 +2,61 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/netip"
 	"os"
-	"path/filepath"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/identity/httpvalidator"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcdiscovery"
 	"github.com/aatuh/evydence/internal/adapters/identity/oidcuserinfo"
-	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
-	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
-	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/signing/awskms"
 	"github.com/aatuh/evydence/internal/adapters/signing/azurekeyvault"
 	"github.com/aatuh/evydence/internal/adapters/signing/gcpkms"
 	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
+	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	"github.com/aatuh/evydence/internal/platform/redaction"
+	"github.com/aatuh/evydence/internal/platform/wiring"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 const runtimeReadinessTimeout = 5 * time.Second
 
+const maxSigstoreTrustConfigBytes = 1 << 20
+
 func main() {
-	if err := run(); err != nil {
-		log.Fatal(err)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := runWithContext(ctx); err != nil {
+		log.Fatal(redaction.Error(err))
 	}
 }
 
-func run() error {
+func runWithContext(ctx context.Context) error {
 	identity := runtimeinfo.Current()
 	log.Printf("evydence api build identity %s", identity.String())
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	pepper := strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY_PEPPER"))
+	profile, err := wiring.ResolveRuntimeProfile(os.Getenv("EVYDENCE_RUNTIME_PROFILE"), production, databaseURL, wiring.API)
+	if err != nil {
+		return err
+	}
 	if err := validateRuntimeConfig(
 		production,
 		databaseURL,
@@ -57,10 +70,17 @@ func run() error {
 	if err := validateAPIWriterMode(production, os.Getenv("EVYDENCE_API_WRITER_MODE"), os.Getenv("EVYDENCE_API_WRITER_REPLICAS")); err != nil {
 		return err
 	}
+	if err := validateOutboundHTTPConfig(production); err != nil {
+		return err
+	}
+	httpConfig, err := httpRuntimeConfigFromEnv()
+	if err != nil {
+		return err
+	}
 	cfg := app.Config{APIKeyPepper: pepper}
 	cfg.WorkerOwnedParserSideEffects = boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS")
 	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"), "true"),
+		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
 	providerValidator, err := openProviderIdentityValidator()
@@ -73,52 +93,38 @@ func run() error {
 		return err
 	}
 	cfg.Transparency = transparencyFetcher
-	if signer, err := openSigningExecutor(); err != nil {
+	cosignVerifier, err := openCosignVerifier()
+	if err != nil {
+		return err
+	}
+	cfg.Cosign = cosignVerifier
+	if signer, err := openSigningExecutor(ctx); err != nil {
 		return err
 	} else {
 		cfg.Signer = signer
 	}
-	var closeStore func()
-	var releaseWriterLease func()
-	if databaseURL != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
-		if err != nil {
-			return err
-		}
-		if production {
-			if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
-				return err
-			}
-		}
-		pgStore, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
-		if err != nil {
-			return err
-		}
-		closeStore = pgStore.Close
-		if production {
-			releaseWriterLease, err = pgStore.AcquireAPIWriterLease(ctx)
-			if err != nil {
-				closeStore()
-				return fmt.Errorf("acquire api writer lease: %w", err)
-			}
-		}
-		migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-		if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-			if _, err := pgStore.ApplyMigrations(ctx, migrationsDir); err != nil {
-				closeStore()
-				return fmt.Errorf("apply migrations: %w", err)
-			}
-		} else if err := pgStore.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
-			closeStore()
-			return fmt.Errorf("check migrations: %w", err)
-		}
-		objectStore, _, err := openObjectStore(ctx)
-		if err != nil {
-			closeStore()
-			return err
-		}
+	startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelStartup()
+	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
+	runtime, err := wiring.OpenRuntime(startupCtx, wiring.RuntimeConfig{
+		Process:            wiring.API,
+		Profile:            profile,
+		Production:         production,
+		WorkerOwnedParsers: cfg.WorkerOwnedParserSideEffects,
+		DatabaseURL:        databaseURL,
+		LoadMode:           os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
+		MigrationsDir:      migrationsDir,
+		SkipMigrations:     strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
+		ObjectStore:        wiring.ObjectStoreConfigFromEnv(),
+		Cosign:             cosignVerifier,
+	})
+	if err != nil {
+		return err
+	}
+	defer runtime.Close()
+	if profile == wiring.PostgreSQL {
+		pgStore := runtime.Postgres
+		objectStore := runtime.Objects
 		cfg.Store = pgStore
 		cfg.UnitOfWork = pgStore
 		cfg.Outbox = pgStore
@@ -136,29 +142,27 @@ func run() error {
 		}
 		objectReadiness, ok := objectStore.(interface{ CheckReadiness(context.Context) error })
 		if !ok {
-			closeStore()
 			return errors.New("configured object store does not provide readiness checks")
 		}
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "object_store", Timeout: runtimeReadinessTimeout, FailureDetail: "object store access is unavailable", Check: objectReadiness.CheckReadiness})
 		log.Print("evydence api using postgres state store and configured object store")
+	} else {
+		cfg.ObjectStore = runtime.Objects
+		for _, limitation := range profile.Limitations() {
+			log.Print(redaction.RedactString(limitation)) // #nosec G706 -- Limitations returns compiled literals; redaction removes line breaks.
+		}
 	}
 	if production {
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(cfg.Signer)})
 	}
-	if closeStore != nil {
-		defer closeStore()
-	}
-	if releaseWriterLease != nil {
-		defer releaseWriterLease()
-	}
-	ledgerContext, cancelLedgerLoad := context.WithTimeout(context.Background(), 30*time.Second)
+	ledgerContext, cancelLedgerLoad := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelLedgerLoad()
 	ledger, err := app.NewLedgerWithContext(ledgerContext, cfg)
 	if err != nil {
 		return fmt.Errorf("create ledger: %w", err)
 	}
-	if !ledger.HasTenants() && !strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true") {
-		tenant, key, secret, err := ledger.BootstrapTenant(context.Background(), envDefault("EVYDENCE_BOOTSTRAP_TENANT", "Local Tenant"), "local-admin", []string{"*"})
+	if !ledger.HasTenants(ctx) && !strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true") {
+		tenant, key, secret, err := ledger.BootstrapTenant(ctx, envDefault("EVYDENCE_BOOTSTRAP_TENANT", "Local Tenant"), "local-admin", []string{"*"})
 		if err != nil {
 			return fmt.Errorf("bootstrap tenant: %w", err)
 		}
@@ -172,31 +176,38 @@ func run() error {
 			log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", tenant.ID, key.ID)
 		}
 	}
-	server, err := httpapi.NewServerWithOptions(ledger, httpapi.ServerOptions{
-		RateLimitRequestsPerMinute: intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 0),
-		BuildIdentity:              identity,
-	})
+	options, err := wiring.BuildAPIReadServices(runtime, pepper, cfg.ReadinessChecks)
+	if err != nil {
+		return fmt.Errorf("compose API read services: %w", err)
+	}
+	options.RateLimitRequestsPerMinute = httpConfig.RateLimitRequestsPerMinute
+	options.ExpensiveTenantRequestsPerMinute = httpConfig.ExpensiveTenantRequestsPerMinute
+	options.RateLimitBucketCapacity = httpConfig.RateLimitBucketCapacity
+	options.TrustedProxyCIDRs = httpConfig.TrustedProxyCIDRs
+	options.MaxURLBytes = httpConfig.MaxURLBytes
+	options.MaxInboundRequestBytes = httpConfig.MaxInboundRequestBytes
+	options.MaxInFlightRequests = httpConfig.MaxInFlightRequests
+	options.MaxConcurrentUploads = httpConfig.MaxConcurrentUploads
+	options.BuildIdentity = identity
+	options.PaginationSecret = []byte(pepper)
+	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, options)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}
 	addr := envDefault("EVYDENCE_ADDR", ":8080")
-	httpServer := &http.Server{
-		Addr:              addr,
-		Handler:           server.Handler(),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	httpServer := newHTTPServer(addr, server.Handler(), httpConfig)
 	log.Printf("evydence api listening on %s", addr)
-	return httpServer.ListenAndServe()
+	return serveHTTP(ctx, httpServer, httpConfig.ShutdownTimeout)
 }
 
-func openSigningExecutor() (app.SigningExecutor, error) {
+func openSigningExecutor(ctx context.Context) (app.SigningExecutor, error) {
 	mode := normalizeSigningKeyMode(os.Getenv("EVYDENCE_SIGNING_KEY_MODE"))
 	if mode == "aws_kms" {
 		region := strings.TrimSpace(os.Getenv("EVYDENCE_AWS_REGION"))
 		if region == "" {
 			region = strings.TrimSpace(os.Getenv("AWS_REGION"))
 		}
-		executor, err := awskms.New(context.Background(), awskms.Config{
+		executor, err := awskms.New(ctx, awskms.Config{
 			Region:           region,
 			KeyID:            os.Getenv("EVYDENCE_AWS_KMS_KEY_ID"),
 			Endpoint:         os.Getenv("EVYDENCE_AWS_KMS_ENDPOINT"),
@@ -208,27 +219,25 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 		}
 		return executor, nil
 	}
-	if mode == "gcp_kms" && strings.TrimSpace(os.Getenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN")) != "" {
-		executor, err := gcpkms.New(gcpkms.Config{
-			Endpoint:    os.Getenv("EVYDENCE_GCP_KMS_ENDPOINT"),
-			AccessToken: os.Getenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN"),
-			KeyName:     os.Getenv("EVYDENCE_GCP_KMS_KEY_NAME"),
-			Timeout:     time.Duration(intEnv("EVYDENCE_GCP_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
+	if mode == "gcp_kms" {
+		executor, err := gcpkms.New(ctx, gcpkms.Config{
+			Endpoint: os.Getenv("EVYDENCE_GCP_KMS_ENDPOINT"),
+			KeyName:  os.Getenv("EVYDENCE_GCP_KMS_KEY_NAME"),
+			Timeout:  time.Duration(intEnv("EVYDENCE_GCP_KMS_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("configure GCP KMS signing executor: %w", err)
 		}
 		return executor, nil
 	}
-	if mode == "azure_key_vault" && strings.TrimSpace(os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN")) != "" {
+	if mode == "azure_key_vault" {
 		executor, err := azurekeyvault.New(azurekeyvault.Config{
-			VaultURL:    os.Getenv("EVYDENCE_AZURE_KEY_VAULT_URL"),
-			AccessToken: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN"),
-			KeyName:     os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME"),
-			KeyVersion:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION"),
-			Algorithm:   os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ALGORITHM"),
-			APIVersion:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_API_VERSION"),
-			Timeout:     time.Duration(intEnv("EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS", 10)) * time.Second,
+			VaultURL:   os.Getenv("EVYDENCE_AZURE_KEY_VAULT_URL"),
+			KeyName:    os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_NAME"),
+			KeyVersion: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION"),
+			Algorithm:  os.Getenv("EVYDENCE_AZURE_KEY_VAULT_ALGORITHM"),
+			APIVersion: os.Getenv("EVYDENCE_AZURE_KEY_VAULT_API_VERSION"),
+			Timeout:    time.Duration(intEnv("EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("configure Azure Key Vault signing executor: %w", err)
@@ -245,7 +254,8 @@ func openSigningExecutor() (app.SigningExecutor, error) {
 	executor, err := signinggateway.New(signinggateway.Config{
 		Endpoint:                  endpoint,
 		BearerToken:               os.Getenv("EVYDENCE_SIGNING_EXECUTOR_TOKEN"),
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"), "true"),
+		VerificationPublicKey:     os.Getenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64"),
+		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
 	if err != nil {
@@ -260,7 +270,7 @@ func openTransparencyProofFetcher() (app.TransparencyProofFetcher, error) {
 		fetcher, err := transparencygateway.New(transparencygateway.Config{
 			Endpoint:                  endpoint,
 			BearerToken:               os.Getenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN"),
-			AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST"), "true"),
+			AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST"),
 			Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
@@ -269,9 +279,55 @@ func openTransparencyProofFetcher() (app.TransparencyProofFetcher, error) {
 		return fetcher, nil
 	}
 	return httpfetcher.New(httpfetcher.Config{
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"), "true"),
+		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_TRANSPARENCY_FETCH_TIMEOUT_SECONDS", 10)) * time.Second,
 	}), nil
+}
+
+// openCosignVerifier decodes public, operator-managed trust material from
+// bounded base64 environment variables. It deliberately has no network path:
+// the verification endpoint supports explicit offline bundles only.
+func openCosignVerifier() (app.CosignPolicyVerifier, error) {
+	rootValue := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64"))
+	keyValue := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64"))
+	if rootValue == "" && keyValue == "" {
+		return nil, nil
+	}
+	version := strings.TrimSpace(os.Getenv("EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION"))
+	if version == "" {
+		return nil, errors.New("sigstore trust material requires EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION")
+	}
+	rootJSON, err := decodeBoundedBase64Config(rootValue)
+	if err != nil {
+		return nil, errors.New("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64 is invalid")
+	}
+	publicKey, err := decodeBoundedBase64Config(keyValue)
+	if err != nil {
+		return nil, errors.New("EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64 is invalid")
+	}
+	verifier, err := cosignverification.New(cosignverification.Config{
+		TrustedRootJSON:     rootJSON,
+		TrustRootVersion:    version,
+		TrustedPublicKeyPEM: publicKey,
+	})
+	if err != nil {
+		return nil, errors.New("configured Sigstore trust material is invalid")
+	}
+	return verifier, nil
+}
+
+func decodeBoundedBase64Config(value string) ([]byte, error) {
+	if value == "" {
+		return nil, nil
+	}
+	if len(value) > base64.StdEncoding.EncodedLen(maxSigstoreTrustConfigBytes) {
+		return nil, errors.New("configuration is too large")
+	}
+	decoded, err := base64.StdEncoding.Strict().DecodeString(value)
+	if err != nil || len(decoded) == 0 || len(decoded) > maxSigstoreTrustConfigBytes {
+		return nil, errors.New("invalid base64 configuration")
+	}
+	return decoded, nil
 }
 
 func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {
@@ -280,7 +336,7 @@ func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {
 		validator, err := httpvalidator.New(httpvalidator.Config{
 			Endpoint:                  endpoint,
 			BearerToken:               os.Getenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN"),
-			AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST"), "true"),
+			AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST"),
 			Timeout:                   time.Duration(intEnv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS", 10)) * time.Second,
 		})
 		if err != nil {
@@ -289,7 +345,7 @@ func openProviderIdentityValidator() (app.ProviderIdentityValidator, error) {
 		return validator, nil
 	}
 	return oidcuserinfo.New(oidcuserinfo.Config{
-		AllowInsecureForLocalhost: strings.EqualFold(os.Getenv("EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST"), "true"),
+		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS", 10)) * time.Second,
 	}), nil
 }
@@ -301,7 +357,7 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode,
 	if strings.TrimSpace(databaseURL) == "" {
 		return errors.New("production requires EVYDENCE_DATABASE_URL")
 	}
-	if strings.TrimSpace(pepper) == "" || strings.TrimSpace(pepper) == "local-dev-pepper-change-me" {
+	if strings.TrimSpace(pepper) == "" || strings.TrimSpace(pepper) == identityapp.LocalDevelopmentPepper {
 		return errors.New("production requires a non-default EVYDENCE_API_KEY_PEPPER")
 	}
 	normalizedMode := normalizeSigningKeyMode(signingKeyMode)
@@ -315,6 +371,31 @@ func validateRuntimeConfig(production bool, databaseURL, pepper, signingKeyMode,
 		return errors.New("production refuses EVYDENCE_PRINT_BOOTSTRAP_SECRET=true")
 	}
 	return nil
+}
+
+var outboundLocalhostOverrideNames = []string{
+	"EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST",
+	"EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST",
+}
+
+func validateOutboundHTTPConfig(production bool) error {
+	if !production {
+		return nil
+	}
+	for _, name := range outboundLocalhostOverrideNames {
+		if boolEnv(name) {
+			return fmt.Errorf("production refuses %s=true", name)
+		}
+	}
+	return nil
+}
+
+func outboundLocalhostAllowed(name string) bool {
+	return !strings.EqualFold(os.Getenv("ENV"), "production") && boolEnv(name)
 }
 
 func signingConfigurationReadiness(signer app.SigningExecutor) func(context.Context) error {
@@ -387,6 +468,187 @@ func envDefault(name, fallback string) string {
 	return fallback
 }
 
+type httpRuntimeConfig struct {
+	ReadHeaderTimeout                time.Duration
+	ReadTimeout                      time.Duration
+	WriteTimeout                     time.Duration
+	IdleTimeout                      time.Duration
+	ShutdownTimeout                  time.Duration
+	MaxHeaderBytes                   int
+	MaxURLBytes                      int
+	MaxInboundRequestBytes           int64
+	MaxInFlightRequests              int
+	MaxConcurrentUploads             int
+	RateLimitRequestsPerMinute       int
+	ExpensiveTenantRequestsPerMinute int
+	RateLimitBucketCapacity          int
+	TrustedProxyCIDRs                []string
+}
+
+// httpRuntimeConfigFromEnv validates ingress controls before a listener is
+// opened. Bounds deliberately make accidental zero/infinite timeouts and
+// memory-expanding headers impossible in the API process configuration.
+func httpRuntimeConfigFromEnv() (httpRuntimeConfig, error) {
+	readHeaderTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_READ_HEADER_TIMEOUT_SECONDS", 5, 1, 60)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	readTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_READ_TIMEOUT_SECONDS", 30, 1, 900)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	writeTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS", 60, 1, 900)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	idleTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS", 120, 1, 3600)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	shutdownTimeout, err := boundedDurationSecondsEnv("EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS", 30, 1, 300)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	maxHeaderBytes, err := boundedIntEnv("EVYDENCE_HTTP_MAX_HEADER_BYTES", 16<<10, 1<<10, 1<<20)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	maxURLBytes, err := boundedIntEnv("EVYDENCE_HTTP_MAX_URL_BYTES", 8<<10, 1<<10, 64<<10)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	maxInFlight, err := boundedIntEnv("EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS", 256, 1, 100_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	maxUploads, err := boundedIntEnv("EVYDENCE_HTTP_MAX_CONCURRENT_UPLOADS", 8, 1, 10_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	rateLimit, err := boundedIntEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 120, 0, 60_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	expensiveTenantRateLimit, err := boundedIntEnv("EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE", 30, 0, 60_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	bucketCapacity, err := boundedIntEnv("EVYDENCE_RATE_LIMIT_BUCKET_CAPACITY", 10_000, 1, 1_000_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	trustedProxyCIDRs, err := trustedProxyCIDRsFromEnv("EVYDENCE_TRUSTED_PROXY_CIDRS")
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
+	return httpRuntimeConfig{
+		ReadHeaderTimeout:                readHeaderTimeout,
+		ReadTimeout:                      readTimeout,
+		WriteTimeout:                     writeTimeout,
+		IdleTimeout:                      idleTimeout,
+		ShutdownTimeout:                  shutdownTimeout,
+		MaxHeaderBytes:                   maxHeaderBytes,
+		MaxURLBytes:                      maxURLBytes,
+		MaxInboundRequestBytes:           app.EvidenceDocumentLimit,
+		MaxInFlightRequests:              maxInFlight,
+		MaxConcurrentUploads:             maxUploads,
+		RateLimitRequestsPerMinute:       rateLimit,
+		ExpensiveTenantRequestsPerMinute: expensiveTenantRateLimit,
+		RateLimitBucketCapacity:          bucketCapacity,
+		TrustedProxyCIDRs:                trustedProxyCIDRs,
+	}, nil
+}
+
+func boundedDurationSecondsEnv(name string, fallback, min, max int) (time.Duration, error) {
+	seconds, err := boundedIntEnv(name, fallback, min, max)
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(seconds) * time.Second, nil
+}
+
+func boundedIntEnv(name string, fallback, min, max int) (int, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < min || parsed > max {
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, min, max)
+	}
+	return parsed, nil
+}
+
+func trustedProxyCIDRsFromEnv(name string) ([]string, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil, nil
+	}
+	parts := strings.Split(value, ",")
+	trusted := make([]string, 0, len(parts))
+	for _, part := range parts {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("%s contains an invalid CIDR", name)
+		}
+		trusted = append(trusted, prefix.Masked().String())
+	}
+	return trusted, nil
+}
+
+func newHTTPServer(addr string, handler http.Handler, config httpRuntimeConfig) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: config.ReadHeaderTimeout,
+		ReadTimeout:       config.ReadTimeout,
+		WriteTimeout:      config.WriteTimeout,
+		IdleTimeout:       config.IdleTimeout,
+		MaxHeaderBytes:    config.MaxHeaderBytes,
+	}
+}
+
+func serveHTTP(ctx context.Context, server *http.Server, shutdownTimeout time.Duration) error {
+	if ctx == nil {
+		return errors.New("API server context is required")
+	}
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", server.Addr)
+	if err != nil {
+		return err
+	}
+	return serveHTTPOnListener(ctx, server, listener, shutdownTimeout)
+}
+
+func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration) error {
+	if ctx == nil {
+		return errors.New("API server context is required")
+	}
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = 30 * time.Second
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- server.Serve(listener) }()
+	select {
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			return fmt.Errorf("gracefully shut down API server: %w", err)
+		}
+		err := <-errCh
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	}
+}
+
 func intEnv(name string, fallback int) int {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
@@ -404,28 +666,5 @@ func boolEnv(name string) bool {
 }
 
 func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("EVYDENCE_OBJECT_STORE"))) {
-	case "", "file", "filesystem":
-		objectRoot := envDefault("EVYDENCE_OBJECT_DIR", filepath.Join("tmp", "objects"))
-		objectStore, err := filesystem.New(objectRoot)
-		if err != nil {
-			return nil, "", err
-		}
-		return objectStore, "filesystem root " + objectRoot, nil
-	case "s3", "minio":
-		objectStore, err := s3store.New(ctx, s3store.Config{
-			Endpoint:        os.Getenv("EVYDENCE_S3_ENDPOINT"),
-			AccessKeyID:     os.Getenv("EVYDENCE_S3_ACCESS_KEY_ID"),
-			SecretAccessKey: os.Getenv("EVYDENCE_S3_SECRET_ACCESS_KEY"),
-			Bucket:          os.Getenv("EVYDENCE_S3_BUCKET"),
-			Region:          os.Getenv("EVYDENCE_S3_REGION"),
-			UseSSL:          strings.EqualFold(os.Getenv("EVYDENCE_S3_USE_SSL"), "true"),
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		return objectStore, "S3-compatible bucket " + envDefault("EVYDENCE_S3_BUCKET", ""), nil
-	default:
-		return nil, "", errors.New("unsupported EVYDENCE_OBJECT_STORE")
-	}
+	return wiring.OpenObjectStore(ctx, wiring.ObjectStoreConfigFromEnv())
 }

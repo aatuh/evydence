@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/domain"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 )
 
 type packageReportService struct {
@@ -42,6 +43,16 @@ func (l *Ledger) VulnerabilityPostureReport(ctx context.Context, actor domain.Ac
 	return l.packageReportService().VulnerabilityPostureReport(ctx, actor, releaseID)
 }
 
+func (l *Ledger) ReleaseReadinessReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseReadinessReport, error) {
+	value, err := l.packageCommands.ReleaseReadinessReport(ctx, actor, releaseID)
+	return releaseReadinessReportFromPackageContext(value), fromPackageContextError(err)
+}
+
+func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseBundle, error) {
+	value, err := l.packageCommands.CreateReleaseBundle(ctx, actor, releaseID)
+	return domain.ReleaseBundleFromContextModel(value), fromPackageContextError(err)
+}
+
 func (l *Ledger) RetentionReport(ctx context.Context, actor domain.Actor, scopeType, scopeID string) (domain.RetentionReport, error) {
 	return l.packageReportService().RetentionReport(ctx, actor, scopeType, scopeID)
 }
@@ -63,15 +74,24 @@ func (l *Ledger) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domai
 }
 
 func (l *Ledger) CreateRedactionProfile(ctx context.Context, actor domain.Actor, in CreateRedactionProfileInput) (domain.RedactionProfile, error) {
-	return l.packageReportService().CreateRedactionProfile(ctx, actor, in)
+	value, err := l.packageCommands.CreateRedactionProfile(ctx, actor, packageapp.CreateRedactionProfileInput{
+		Name: in.Name, Description: in.Description, Preset: in.Preset,
+		AllowedTypes: append([]string(nil), in.AllowedTypes...), ExcludedFields: append([]string(nil), in.ExcludedFields...),
+	})
+	return redactionProfileFromPackageContext(value), fromPackageContextError(err)
 }
 
 func (l *Ledger) CreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, in CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error) {
-	return l.packageReportService().CreateCustomerSecurityPackage(ctx, actor, in)
+	value, err := l.packageCommands.CreateCustomerSecurityPackage(ctx, actor, packageapp.CreateCustomerPackageInput{
+		ProductID: in.ProductID, ReleaseID: in.ReleaseID, RedactionProfileID: in.RedactionProfileID,
+		Title: in.Title, ExpiresAt: in.ExpiresAt,
+	})
+	return customerSecurityPackageFromContext(value), fromPackageContextError(err)
 }
 
 func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
-	return l.packageReportService().AccessCustomerSecurityPackage(ctx, actor, id)
+	value, err := l.packageCommands.AccessCustomerSecurityPackage(ctx, actor, id)
+	return customerSecurityPackageFromContext(value), fromPackageContextError(err)
 }
 
 func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor domain.Actor, id string) (CustomerPackageArchive, error) {
@@ -91,23 +111,33 @@ func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.A
 }
 
 func (l *Ledger) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
-	return l.packageReportService().CRAReadinessHTMLPackage(ctx, actor, productID, releaseID)
+	value, err := l.packageCommands.CRAReadinessHTMLPackage(ctx, actor, productID, releaseID)
+	return htmlReportPackageFromPackageContext(value), fromPackageContextError(err)
 }
 
 func (l *Ledger) CreateCustomReportTemplate(ctx context.Context, actor domain.Actor, in CreateReportTemplateInput) (domain.CustomReportTemplate, error) {
-	return l.packageReportService().CreateCustomReportTemplate(ctx, actor, in)
+	value, err := l.packageCommands.CreateCustomReportTemplate(ctx, actor, packageapp.CreateReportTemplateInput{
+		Name: in.Name, Version: in.Version, ReportType: in.ReportType,
+		AllowedFields: append([]string(nil), in.AllowedFields...), Template: in.Template,
+	})
+	return customReportTemplateFromPackageContext(value), fromPackageContextError(err)
 }
 
 func (l *Ledger) RenderCustomReport(ctx context.Context, actor domain.Actor, in RenderReportInput) (domain.RenderedCustomReport, error) {
-	return l.packageReportService().RenderCustomReport(ctx, actor, in)
+	value, err := l.packageCommands.RenderCustomReport(ctx, actor, packageapp.RenderReportInput{
+		TemplateID: in.TemplateID, SubjectType: in.SubjectType, SubjectID: in.SubjectID,
+	})
+	return renderedCustomReportFromPackageContext(value), fromPackageContextError(err)
 }
 
 func (l *Ledger) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, releaseID string, evidenceIDs []string) (domain.EvidenceBundle, error) {
-	return l.packageReportService().ExportEvidenceBundle(ctx, actor, releaseID, evidenceIDs)
+	value, err := l.packageCommands.ExportEvidenceBundle(ctx, actor, releaseID, evidenceIDs)
+	return evidenceBundleFromPackageContext(value), fromPackageContextError(err)
 }
 
 func (l *Ledger) ImportEvidenceBundle(ctx context.Context, actor domain.Actor, bundle domain.EvidenceBundle) (domain.EvidenceBundleImport, error) {
-	return l.packageReportService().ImportEvidenceBundle(ctx, actor, bundle)
+	value, err := l.packageCommands.ImportEvidenceBundle(ctx, actor, evidenceBundleToPackageContext(bundle))
+	return evidenceBundleImportFromPackageContext(value), fromPackageContextError(err)
 }
 
 func (l *Ledger) CreateEvidenceSummary(ctx context.Context, actor domain.Actor, in CreateEvidenceSummaryInput) (domain.EvidenceSummary, error) {

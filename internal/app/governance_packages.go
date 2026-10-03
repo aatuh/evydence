@@ -4,16 +4,20 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/ed25519"
-	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"html"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/redaction"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
 type CreateWaiverInput struct {
@@ -81,492 +85,13 @@ type RenderReportInput struct {
 }
 
 type CreateDSSETrustRootInput struct {
-	Name      string
-	KeyID     string
-	Algorithm string
-	PublicKey string
-}
-
-type redactionProfilePreset struct {
-	Name           string
-	Description    string
-	AllowedTypes   []string
-	ExcludedFields []string
-}
-
-var redactionProfilePresets = map[string]redactionProfilePreset{
-	"customer_safe": {
-		Name:        "customer_safe",
-		Description: "Customer-safe package profile for release evidence summaries without raw payloads, secrets, internal notes, or internal-only provenance fields.",
-		AllowedTypes: []string{
-			"artifact",
-			"answer_library",
-			"sbom",
-			"vulnerability_scan",
-			"vex",
-			"vulnerability_decision",
-			"release_bundle",
-			"approval",
-			"exception",
-			"object_lock_proof",
-			"waiver",
-		},
-		ExcludedFields: []string{
-			"action_internal_url",
-			"environment_hash",
-			"internal_notes",
-			"internal_url",
-			"object_key",
-			"oidc_subject",
-			"parameters_hash",
-			"payload",
-			"payload_bytes",
-			"payload_ref",
-			"private_key",
-			"repository",
-			"secret",
-			"source_identity",
-			"token",
-			"workflow_ref",
-		},
-	},
-	"security_review": {
-		Name:        "security_review",
-		Description: "Security-review package profile for broader technical evidence review while still excluding raw payloads, secrets, token material, and private keys.",
-		AllowedTypes: []string{
-			"api_security",
-			"approval",
-			"answer_library",
-			"artifact",
-			"build",
-			"build_attestation",
-			"dast",
-			"exception",
-			"license_scan",
-			"manual_security_document",
-			"object_lock_proof",
-			"openapi_contract",
-			"pen_test_report",
-			"release_bundle",
-			"sast",
-			"sbom",
-			"secret_scan",
-			"security_review",
-			"threat_model",
-			"vex",
-			"vulnerability_decision",
-			"vulnerability_scan",
-			"waiver",
-		},
-		ExcludedFields: []string{
-			"internal_notes",
-			"object_key",
-			"payload",
-			"payload_bytes",
-			"payload_ref",
-			"private_key",
-			"secret",
-			"token",
-		},
-	},
-}
-
-func applyRedactionProfilePreset(in CreateRedactionProfileInput) (CreateRedactionProfileInput, error) {
-	presetName := strings.TrimSpace(in.Preset)
-	if presetName == "" {
-		return in, nil
-	}
-	preset, ok := redactionProfilePresets[presetName]
-	if !ok {
-		return CreateRedactionProfileInput{}, ErrValidation
-	}
-	if len(in.AllowedTypes) > 0 || len(in.ExcludedFields) > 0 {
-		return CreateRedactionProfileInput{}, ErrValidation
-	}
-	in.Name = preset.Name
-	in.Description = preset.Description
-	in.AllowedTypes = append([]string(nil), preset.AllowedTypes...)
-	in.ExcludedFields = append([]string(nil), preset.ExcludedFields...)
-	return in, nil
-}
-
-func (l *Ledger) CreateWaiver(ctx context.Context, actor domain.Actor, in CreateWaiverInput) (domain.Waiver, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.Waiver{}, err
-	}
-	if err := require(actor, ScopePolicyWrite); err != nil {
-		return domain.Waiver{}, err
-	}
-	in.ScopeType, in.ScopeID = strings.TrimSpace(in.ScopeType), strings.TrimSpace(in.ScopeID)
-	in.Owner, in.Risk, in.Reason = strings.TrimSpace(in.Owner), strings.TrimSpace(in.Risk), strings.TrimSpace(in.Reason)
-	if !validWaiverScope(in.ScopeType) || in.ScopeID == "" || in.Owner == "" || in.Risk == "" || in.Reason == "" || !in.ExpiresAt.After(l.now()) {
-		return domain.Waiver{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureWaiverScopeLocked(actor.TenantID, in.ScopeType, in.ScopeID); err != nil {
-		return domain.Waiver{}, err
-	}
-	if in.ControlID != "" {
-		control, ok := l.controls[strings.TrimSpace(in.ControlID)]
-		if !ok || control.TenantID != actor.TenantID {
-			return domain.Waiver{}, ErrNotFound
-		}
-	}
-	if in.PolicyID != "" {
-		policy, ok := l.customPolicies[strings.TrimSpace(in.PolicyID)]
-		if !ok || policy.TenantID != actor.TenantID {
-			return domain.Waiver{}, ErrNotFound
-		}
-	}
-	if in.Supersedes != "" {
-		prev, ok := l.waivers[strings.TrimSpace(in.Supersedes)]
-		if !ok || prev.TenantID != actor.TenantID || prev.SupersededBy != "" {
-			return domain.Waiver{}, ErrNotFound
-		}
-	}
-	waiver := domain.Waiver{
-		ID:            newID("wv"),
-		TenantID:      actor.TenantID,
-		ScopeType:     in.ScopeType,
-		ScopeID:       in.ScopeID,
-		ControlID:     strings.TrimSpace(in.ControlID),
-		PolicyID:      strings.TrimSpace(in.PolicyID),
-		Owner:         in.Owner,
-		Risk:          in.Risk,
-		Reason:        in.Reason,
-		ExpiresAt:     in.ExpiresAt.UTC(),
-		Supersedes:    strings.TrimSpace(in.Supersedes),
-		SchemaVersion: domain.WaiverSchemaVersion,
-		CreatedAt:     l.now(),
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Governance.InsertWaiver(ctx, waiver); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(waiver.CreatedAt, actor.TenantID, "waiver.created", "waiver", waiver.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.Waiver{}, err
-		}
-		if waiver.Supersedes != "" {
-			previous := l.waivers[waiver.Supersedes]
-			previous.SupersededBy = waiver.ID
-			l.waivers[previous.ID] = previous
-		}
-		l.waivers[waiver.ID] = waiver
-		l.publishCommittedAuditEntryLocked(entry)
-		return waiver, nil
-	}
-	if waiver.Supersedes != "" {
-		prev := l.waivers[waiver.Supersedes]
-		prev.SupersededBy = waiver.ID
-		l.waivers[prev.ID] = prev
-	}
-	l.waivers[waiver.ID] = waiver
-	_, _ = l.appendChainLocked(actor.TenantID, "waiver.created", "waiver", waiver.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.Waiver{}, err
-	}
-	return waiver, nil
-}
-
-func (l *Ledger) ApproveWaiver(ctx context.Context, actor domain.Actor, id string) (domain.Waiver, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.Waiver{}, err
-	}
-	if err := require(actor, ScopePolicyWrite); err != nil {
-		return domain.Waiver{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	waiver, ok := l.waivers[strings.TrimSpace(id)]
-	if !ok || waiver.TenantID != actor.TenantID {
-		return domain.Waiver{}, ErrNotFound
-	}
-	if waiver.Approved || !waiver.ExpiresAt.After(l.now()) {
-		return domain.Waiver{}, ErrConflict
-	}
-	now := l.now()
-	waiver.Approved = true
-	waiver.ApprovedBy = actorID(actor)
-	waiver.ApprovedAt = &now
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Governance.ApproveWaiver(ctx, waiver); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, "waiver.approved", "waiver", waiver.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.Waiver{}, err
-		}
-		l.waivers[waiver.ID] = waiver
-		l.publishCommittedAuditEntryLocked(entry)
-		return waiver, nil
-	}
-	l.waivers[waiver.ID] = waiver
-	_, _ = l.appendChainLocked(actor.TenantID, "waiver.approved", "waiver", waiver.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.Waiver{}, err
-	}
-	return waiver, nil
-}
-
-func (l *Ledger) CreateApprovalRecord(ctx context.Context, actor domain.Actor, in CreateApprovalInput) (domain.ApprovalRecord, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ApprovalRecord{}, err
-	}
-	if err := require(actor, ScopeReleaseWrite); err != nil {
-		return domain.ApprovalRecord{}, err
-	}
-	in.SubjectType, in.SubjectID = strings.TrimSpace(in.SubjectType), strings.TrimSpace(in.SubjectID)
-	in.Decision, in.Reason = strings.TrimSpace(in.Decision), strings.TrimSpace(in.Reason)
-	if !validApprovalSubject(in.SubjectType) || in.SubjectID == "" || !validApprovalDecision(in.Decision) || in.Reason == "" {
-		return domain.ApprovalRecord{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureApprovalSubjectLocked(actor.TenantID, in.SubjectType, in.SubjectID); err != nil {
-		return domain.ApprovalRecord{}, err
-	}
-	if in.EvidenceID != "" {
-		item, ok := l.evidence[strings.TrimSpace(in.EvidenceID)]
-		if !ok || item.TenantID != actor.TenantID {
-			return domain.ApprovalRecord{}, ErrNotFound
-		}
-	}
-	approval := domain.ApprovalRecord{ID: newID("apr"), TenantID: actor.TenantID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, Decision: in.Decision, Reason: in.Reason, ApproverID: actorID(actor), EvidenceID: strings.TrimSpace(in.EvidenceID), SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Governance.InsertApprovalRecord(ctx, approval); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(approval.CreatedAt, actor.TenantID, "approval.created", "approval", approval.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.ApprovalRecord{}, err
-		}
-		l.approvals[approval.ID] = approval
-		l.publishCommittedAuditEntryLocked(entry)
-		return approval, nil
-	}
-	l.approvals[approval.ID] = approval
-	_, _ = l.appendChainLocked(actor.TenantID, "approval.created", "approval", approval.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.ApprovalRecord{}, err
-	}
-	return approval, nil
-}
-
-func (s packageReportService) CreateRedactionProfile(ctx context.Context, actor domain.Actor, in CreateRedactionProfileInput) (domain.RedactionProfile, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.RedactionProfile{}, err
-	}
-	if err := require(actor, ScopePackageWrite); err != nil {
-		return domain.RedactionProfile{}, err
-	}
-	var err error
-	in, err = applyRedactionProfilePreset(in)
-	if err != nil {
-		return domain.RedactionProfile{}, err
-	}
-	in.Name = strings.TrimSpace(in.Name)
-	if in.Name == "" {
-		return domain.RedactionProfile{}, ErrValidation
-	}
-	if len(in.AllowedTypes) == 0 {
-		return domain.RedactionProfile{}, ErrValidation
-	}
-	for _, typ := range in.AllowedTypes {
-		if strings.TrimSpace(typ) == "" {
-			return domain.RedactionProfile{}, ErrValidation
-		}
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	profile := domain.RedactionProfile{ID: newID("rp"), TenantID: actor.TenantID, Name: in.Name, Description: strings.TrimSpace(in.Description), AllowedTypes: sortedStrings(in.AllowedTypes), ExcludedFields: sortedStrings(in.ExcludedFields), SchemaVersion: domain.RedactionProfileSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Governance.InsertRedactionProfile(ctx, profile); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(profile.CreatedAt, actor.TenantID, "redaction_profile.created", "redaction_profile", profile.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.RedactionProfile{}, err
-		}
-		l.redactions[profile.ID] = profile
-		l.publishCommittedAuditEntryLocked(entry)
-		return profile, nil
-	}
-	l.redactions[profile.ID] = profile
-	_, _ = l.appendChainLocked(actor.TenantID, "redaction_profile.created", "redaction_profile", profile.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.RedactionProfile{}, err
-	}
-	return profile, nil
-}
-
-func (s packageReportService) CreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, in CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	if err := require(actor, ScopePackageWrite); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	in.ProductID, in.ReleaseID = strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
-	in.RedactionProfileID, in.Title = strings.TrimSpace(in.RedactionProfileID), strings.TrimSpace(in.Title)
-	if in.ProductID == "" || in.RedactionProfileID == "" || in.Title == "" || !in.ExpiresAt.After(l.now()) {
-		return domain.CustomerSecurityPackage{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopePackageWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	profile, ok := l.redactions[in.RedactionProfileID]
-	if !ok || profile.TenantID != actor.TenantID {
-		return domain.CustomerSecurityPackage{}, ErrNotFound
-	}
-	evidenceIDs := l.packageEvidenceIDsLocked(actor.TenantID, in.ProductID, in.ReleaseID, profile)
-	packageID := newID("csp")
-	generatedAt := l.now()
-	manifest := l.customerPackageManifestLocked(packageID, generatedAt, actor.TenantID, in.Title, in.ProductID, in.ReleaseID, profile, evidenceIDs)
-	hash, err := canonicalAnyHash(manifest)
-	if err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	pkg := domain.CustomerSecurityPackage{ID: packageID, TenantID: actor.TenantID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, RedactionProfileID: profile.ID, Title: in.Title, State: "generated", Manifest: manifest, ManifestHash: hash, ExpiresAt: in.ExpiresAt.UTC(), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: generatedAt}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Packages.InsertCustomerSecurityPackage(ctx, pkg); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(pkg.CreatedAt, actor.TenantID, "customer_package.generated", "customer_security_package", pkg.ID, "api_key", actor.KeyID, hash, ""))
-			return err
-		}); err != nil {
-			return domain.CustomerSecurityPackage{}, err
-		}
-		l.customerPackages[pkg.ID] = pkg
-		l.publishCommittedAuditEntryLocked(entry)
-		return pkg, nil
-	}
-	l.customerPackages[pkg.ID] = pkg
-	_, _ = l.appendChainLocked(actor.TenantID, "customer_package.generated", "customer_security_package", pkg.ID, "api_key", actor.KeyID, hash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	return pkg, nil
-}
-
-func (l *Ledger) customerPackageManifestLocked(packageID string, generatedAt time.Time, tenantID, title, productID, releaseID string, profile domain.RedactionProfile, evidenceIDs []string) map[string]any {
-	product := l.products[productID]
-	var release domain.Release
-	if releaseID != "" {
-		release = l.releases[releaseID]
-	}
-	checks := l.packageReadinessChecksLocked(tenantID, releaseID)
-	gaps := []string{}
-	readinessResult := "not_applicable"
-	if releaseID != "" {
-		readinessResult = "passed"
-		for _, check := range checks {
-			gaps = append(gaps, check.Missing...)
-			if check.Result == "failed" {
-				readinessResult = "failed"
-			}
-		}
-		sort.Strings(gaps)
-	}
-	manifest := map[string]any{
-		"schema_version":        domain.CustomerPackageSchemaVersion,
-		"package_version":       domain.CustomerPackageSchemaVersion,
-		"package_id":            packageID,
-		"id":                    packageID,
-		"title":                 title,
-		"generated_at":          generatedAt.UTC().Format(time.RFC3339Nano),
-		"tenant":                l.packageTenantMetadataLocked(tenantID),
-		"organization":          l.packageOrganizationMetadataLocked(tenantID),
-		"product":               packageProductMetadata(product),
-		"product_id":            productID,
-		"release":               packageReleaseMetadata(release),
-		"release_id":            releaseID,
-		"redaction_profile_id":  profile.ID,
-		"redaction_profile":     packageRedactionProfileMetadata(profile),
-		"evidence_ids":          append([]string(nil), evidenceIDs...),
-		"artifact_digests":      l.packageArtifactMetadataLocked(tenantID, releaseID),
-		"readiness_summary":     packageReadinessSummary(readinessResult, checks, gaps),
-		"verification_material": l.packageVerificationMaterialLocked(tenantID, releaseID),
-		"limitations": []string{
-			"Package contents are scoped by product, release, redaction profile, and package expiry.",
-			"Raw tenant evidence payload bytes, object-store payload references, bearer tokens, private keys, API key hashes, SSO/session token hashes, and internal decision notes are not included.",
-			"Package data reflects records present in this Evydence instance at generation time.",
-		},
-		"non_claims": []string{
-			"This package supports technical evidence review and compliance readiness only.",
-			"It is not legal compliance proof, certification, complete SBOM proof, an authoritative vulnerability result, regulator acceptance, or a secure-release guarantee.",
-		},
-	}
-	if customerSafeGaps := packageCustomerSafeGaps(checks, profile); len(customerSafeGaps) > 0 {
-		manifest["customer_safe_gaps"] = customerSafeGaps
-	}
-	if profileAllowsPackageType(profile, "sbom") {
-		manifest["sboms"] = l.packageSBOMMetadataLocked(tenantID, releaseID)
-	}
-	if profileAllowsPackageType(profile, "vulnerability_scan") {
-		manifest["vulnerability_scans"] = l.packageVulnerabilityScanMetadataLocked(tenantID, releaseID)
-	}
-	if profileAllowsPackageType(profile, "vex") {
-		manifest["vex_documents"] = l.packageVEXMetadataLocked(tenantID, releaseID)
-	}
-	if profileAllowsPackageType(profile, "openapi_contract") {
-		manifest["api_contracts"] = l.packageAPIContractMetadataLocked(tenantID, releaseID)
-	}
-	if decisions := l.packageDecisionSummariesLocked(tenantID, releaseID, profile); len(decisions) > 0 {
-		manifest["vulnerability_decisions"] = decisions
-		manifest["customer_decision_export"] = map[string]any{
-			"file":           customerDecisionExportFile,
-			"schema_version": customerDecisionExportVersion,
-			"decision_count": len(decisions),
-			"scope":          "package",
-		}
-	}
-	if profileAllowsPackageType(profile, "approval") {
-		manifest["approvals"] = l.packageApprovalSummariesLocked(tenantID, productID, releaseID)
-	}
-	if profileAllowsPackageType(profile, "exception") {
-		manifest["exceptions"] = l.packageExceptionSummariesLocked(tenantID, releaseID)
-	}
-	if profileAllowsPackageType(profile, "waiver") {
-		manifest["waivers"] = l.packageWaiverSummariesLocked(tenantID, productID, releaseID)
-	}
-	if profileAllowsPackageType(profile, "answer_library") {
-		manifest["answer_library"] = l.packageAnswerLibraryMetadataLocked(tenantID, productID, releaseID)
-	}
-	if profileAllowsPackageType(profile, "object_lock_proof") {
-		manifest["object_lock_proofs"] = l.packageObjectLockProofsLocked(tenantID)
-	}
-	if profileAllowsPackageType(profile, "build") || profileAllowsPackageType(profile, "build_attestation") {
-		manifest["provenance"] = l.packageProvenanceMetadataLocked(tenantID, releaseID, profile)
-	}
-	return manifest
+	Name                  string
+	KeyID                 string
+	Algorithm             string
+	PublicKey             string
+	AllowedPredicateTypes []string
+	ExpectedBuilderIDs    []string
+	RequiredClaims        []string
 }
 
 func (l *Ledger) packageTenantMetadataLocked(tenantID string) map[string]any {
@@ -627,17 +152,6 @@ func packageReleaseMetadata(release domain.Release) map[string]any {
 		out["approved_at"] = release.ApprovedAt.UTC().Format(time.RFC3339)
 	}
 	return out
-}
-
-func packageRedactionProfileMetadata(profile domain.RedactionProfile) map[string]any {
-	return map[string]any{
-		"id":              profile.ID,
-		"name":            profile.Name,
-		"description":     profile.Description,
-		"allowed_types":   append([]string(nil), profile.AllowedTypes...),
-		"excluded_fields": append([]string(nil), profile.ExcludedFields...),
-		"schema_version":  profile.SchemaVersion,
-	}
 }
 
 func (l *Ledger) packageArtifactMetadataLocked(tenantID, releaseID string) []map[string]any {
@@ -749,7 +263,6 @@ func (l *Ledger) packageVEXMetadataLocked(tenantID, releaseID string) []map[stri
 			"release_id":      vex.ReleaseID,
 			"artifact_id":     vex.ArtifactID,
 			"format":          vex.Format,
-			"author":          vex.Author,
 			"version":         vex.Version,
 			"statement_count": vex.StatementCount,
 			"status_summary":  cloneIntMap(vex.StatusSummary),
@@ -966,49 +479,14 @@ func (l *Ledger) packageAnswerLibraryMetadataLocked(tenantID, productID, release
 }
 
 func (l *Ledger) packageObjectLockProofsLocked(tenantID string) []map[string]any {
-	out := []map[string]any{}
+	policies := make([]verificationdomain.ObjectRetentionPolicy, 0)
 	for _, policy := range l.retentionPolicies {
 		if policy.TenantID != tenantID {
 			continue
 		}
-		policy = currentRetentionPolicy(policy, l.now())
-		proof := map[string]any{
-			"id":                           policy.ID,
-			"name":                         policy.Name,
-			"object_prefix_configured":     policy.ObjectPrefix != "",
-			"sample_object_key_configured": policy.ObjectKey != "",
-			"require_legal_hold":           policy.RequireLegalHold,
-			"mode":                         policy.Mode,
-			"retention_days":               policy.RetentionDays,
-			"status":                       policy.Status,
-			"verification_hash":            policy.VerificationHash,
-			"verification_provider":        policy.VerificationProvider,
-			"verification_mode":            policy.VerificationMode,
-			"verification_retention_days":  policy.VerificationRetentionDays,
-			"verification_checks":          packageVerifyChecks(policy.VerificationChecks),
-			"verification_limitations":     append([]string(nil), policy.VerificationLimitations...),
-			"created_at":                   policy.CreatedAt.UTC().Format(time.RFC3339),
-			"limitations": []string{
-				"Object-lock proof records show configured Evydence verification results for tenant object-storage settings only.",
-				"They do not prove external WORM enforcement, IAM policy, lifecycle policy, backup behavior, or legal compliance.",
-			},
-		}
-		if policy.VerifiedAt != nil {
-			proof["verified_at"] = policy.VerifiedAt.UTC().Format(time.RFC3339)
-		}
-		if policy.VerificationObservedAt != nil {
-			proof["verification_observed_at"] = policy.VerificationObservedAt.UTC().Format(time.RFC3339)
-		}
-		if policy.VerificationExpiresAt != nil {
-			proof["verification_expires_at"] = policy.VerificationExpiresAt.UTC().Format(time.RFC3339)
-		}
-		if policy.VerificationLegalHold != nil {
-			proof["verification_legal_hold"] = *policy.VerificationLegalHold
-		}
-		out = append(out, proof)
+		policies = append(policies, objectRetentionPolicyToVerificationContext(policy))
 	}
-	sortManifestMapsByID(out)
-	return out
+	return verificationapp.ObjectLockProofs(policies, l.now())
 }
 
 func packageVerifyChecks(checks []domain.VerifyCheck) []map[string]any {
@@ -1097,98 +575,6 @@ func packageOptionalTime(value *time.Time) string {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339)
-}
-
-func (l *Ledger) packageReadinessChecksLocked(tenantID, releaseID string) []domain.PolicyCheck {
-	if releaseID == "" {
-		return nil
-	}
-	return []domain.PolicyCheck{
-		l.checkReleaseHasEvidenceLocked(tenantID, releaseID, "sbom", "release_requires_sbom", "high"),
-		l.checkReleaseHasEvidenceLocked(tenantID, releaseID, "vulnerability_scan", "release_requires_vulnerability_scan", "high"),
-		l.checkReleaseHasArtifactDigestLocked(tenantID, releaseID),
-		l.checkReleaseHasSignedBundleLocked(tenantID, releaseID),
-		l.checkReleaseHasPassedBuildLocked(tenantID, releaseID),
-		l.checkReleaseHasBuildAttestationLocked(tenantID, releaseID),
-		l.checkNoOpenCriticalLocked(tenantID, releaseID),
-	}
-}
-
-func packageReadinessSummary(result string, checks []domain.PolicyCheck, gaps []string) map[string]any {
-	checkSummaries := make([]map[string]any, 0, len(checks))
-	for _, check := range checks {
-		checkSummaries = append(checkSummaries, map[string]any{
-			"name":        check.Name,
-			"result":      check.Result,
-			"severity":    check.Severity,
-			"missing":     append([]string(nil), check.Missing...),
-			"explanation": check.Explanation,
-			"remediation": check.Remediation,
-		})
-	}
-	return map[string]any{
-		"result": result,
-		"checks": checkSummaries,
-		"gaps":   append([]string(nil), gaps...),
-		"limitations": []string{
-			"Readiness is derived from recorded package-scope evidence only.",
-			"Readiness output is not a compliance, certification, or secure-release conclusion.",
-		},
-	}
-}
-
-func packageCustomerSafeGaps(checks []domain.PolicyCheck, profile domain.RedactionProfile) []map[string]any {
-	out := []map[string]any{}
-	for _, check := range checks {
-		if check.Result == "passed" {
-			continue
-		}
-		for _, missing := range check.Missing {
-			if !packageGapVisibleForProfile(missing, profile) {
-				continue
-			}
-			out = append(out, map[string]any{
-				"id":               "gap_" + check.Name + "_" + missing,
-				"category":         "missing_evidence",
-				"evidence_type":    missing,
-				"source_check":     check.Name,
-				"severity":         check.Severity,
-				"summary":          check.Explanation,
-				"remediation":      check.Remediation,
-				"customer_visible": true,
-				"limitations": []string{
-					"Gap is based only on evidence metadata included by this package redaction profile.",
-				},
-			})
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		left, _ := out[i]["id"].(string)
-		right, _ := out[j]["id"].(string)
-		return left < right
-	})
-	return out
-}
-
-func packageGapVisibleForProfile(missing string, profile domain.RedactionProfile) bool {
-	switch strings.TrimSpace(missing) {
-	case "artifact", "artifact_digest":
-		return profileAllowsPackageType(profile, "artifact")
-	case "sbom":
-		return profileAllowsPackageType(profile, "sbom")
-	case "vulnerability_scan":
-		return profileAllowsPackageType(profile, "vulnerability_scan")
-	case "vulnerability_decision":
-		return profileAllowsPackageType(profile, "vulnerability_decision")
-	case "signed_release_bundle":
-		return profileAllowsPackageType(profile, "release_bundle")
-	case "passed_build":
-		return profileAllowsPackageType(profile, "build")
-	case "build_attestation":
-		return profileAllowsPackageType(profile, "build_attestation")
-	default:
-		return false
-	}
 }
 
 func (l *Ledger) packageVerificationMaterialLocked(tenantID, releaseID string) map[string]any {
@@ -1338,52 +724,6 @@ func sortManifestMapsByID(items []map[string]any) {
 	})
 }
 
-func (s packageReportService) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	if err := require(actor, ScopePackageRead); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	pkg, ok := l.customerPackages[strings.TrimSpace(id)]
-	if !ok || pkg.TenantID != actor.TenantID {
-		return domain.CustomerSecurityPackage{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopePackageRead, resourceRefs{ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, CustomerPackageID: pkg.ID}); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	if !pkg.ExpiresAt.After(l.now()) {
-		return domain.CustomerSecurityPackage{}, ErrConflict
-	}
-	previous := pkg
-	pkg.AccessCount++
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Packages.UpdateCustomerSecurityPackageAccess(ctx, previous, pkg); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(l.now(), actor.TenantID, "customer_package.accessed", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), pkg.ManifestHash, ""))
-			return err
-		}); err != nil {
-			return domain.CustomerSecurityPackage{}, err
-		}
-		l.customerPackages[pkg.ID] = pkg
-		l.publishCommittedAuditEntryLocked(entry)
-		return pkg, nil
-	}
-	l.customerPackages[pkg.ID] = pkg
-	_, _ = l.appendChainLocked(actor.TenantID, "customer_package.accessed", "customer_security_package", pkg.ID, actorType(actor), actorID(actor), pkg.ManifestHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	return pkg, nil
-}
-
 func (s packageReportService) ExportCustomerSecurityPackageArchive(ctx context.Context, actor domain.Actor, id string) (CustomerPackageArchive, error) {
 	l := s.ledger
 	pkg, err := l.AccessCustomerSecurityPackage(ctx, actor, id)
@@ -1408,22 +748,11 @@ func (s packageReportService) ExportCustomerPortalPackageArchiveWithAcceptance(c
 
 func (s packageReportService) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
 	l := s.ledger
-	pkg, err := l.AccessCustomerSecurityPackage(ctx, actor, packageID)
+	report, err := l.packageCommands.SecurityReviewPackageReport(ctx, actor, packageID)
 	if err != nil {
-		return domain.SecurityReviewPackageReport{}, err
+		return domain.SecurityReviewPackageReport{}, fromPackageContextError(err)
 	}
-	ids := []string{}
-	switch evidenceIDs := pkg.Manifest["evidence_ids"].(type) {
-	case []string:
-		ids = append(ids, evidenceIDs...)
-	case []any:
-		for _, id := range evidenceIDs {
-			if value, ok := id.(string); ok {
-				ids = append(ids, value)
-			}
-		}
-	}
-	return domain.SecurityReviewPackageReport{ReportType: "security_review_package", TemplateVersion: "security-review-package.v1.0.0", PackageID: pkg.ID, ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, EvidenceIDs: ids, Assumptions: []string{"Report includes only package-scoped evidence metadata."}, Limitations: []string{"This report supports customer review but is not a compliance, legal, or secure-release conclusion."}, GeneratedAt: l.now()}, nil
+	return domain.SecurityReviewPackageReport{ReportType: report.ReportType, TemplateVersion: report.TemplateVersion, PackageID: report.PackageID, ProductID: report.ProductID, ReleaseID: report.ReleaseID, EvidenceIDs: report.EvidenceIDs, Assumptions: report.Assumptions, Limitations: report.Limitations, GeneratedAt: report.GeneratedAt}, nil
 }
 
 func packageWithDistributionWatermark(pkg domain.CustomerSecurityPackage, access domain.CustomerPortalAccess) domain.CustomerSecurityPackage {
@@ -1477,6 +806,7 @@ func cleanExternalLabel(value string) string {
 func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackageArchive, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
+	var expandedSize int64
 	decisionExport := customerPackageDecisionExport(pkg)
 	metadata := map[string]any{
 		"id":                   pkg.ID,
@@ -1526,40 +856,45 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 		{name: "package.json", body: metadata},
 		{name: "verification.json", body: verification},
 	} {
-		body, err := json.MarshalIndent(entry.body, "", "  ")
+		body, err := marshalCustomerPackageJSON(entry.body)
 		if err != nil {
 			_ = zw.Close()
-			return CustomerPackageArchive{}, err
+			return CustomerPackageArchive{}, fmt.Errorf("serialize customer package %s: %w", entry.name, err)
 		}
 		body = append(body, '\n')
-		if err := addZIPFile(zw, entry.name, body); err != nil {
+		if err := addCustomerPackageZIPFile(zw, &expandedSize, entry.name, body); err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
 	}
 	if decisionExport != nil {
-		body, err := json.MarshalIndent(decisionExport, "", "  ")
+		body, err := marshalCustomerPackageJSON(decisionExport)
 		if err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
 		body = append(body, '\n')
-		if err := addZIPFile(zw, customerDecisionExportFile, body); err != nil {
+		if err := addCustomerPackageZIPFile(zw, &expandedSize, customerDecisionExportFile, body); err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
 	}
-	if err := addZIPFile(zw, "README.txt", []byte(readme)); err != nil {
+	if err := addCustomerPackageZIPFile(zw, &expandedSize, "README.txt", []byte(readme)); err != nil {
 		_ = zw.Close()
 		return CustomerPackageArchive{}, err
 	}
 	if pkg.DistributionWatermark != "" {
-		if err := addZIPFile(zw, "WATERMARK.txt", []byte(pkg.DistributionWatermark+"\n")); err != nil {
+		if err := addCustomerPackageZIPFile(zw, &expandedSize, "WATERMARK.txt", []byte(pkg.DistributionWatermark+"\n")); err != nil {
 			_ = zw.Close()
 			return CustomerPackageArchive{}, err
 		}
 	}
-	if err := addZIPFile(zw, "report.html", customerPackageHTMLReport(pkg, metadata, verification)); err != nil {
+	report := customerPackageHTMLReport(pkg, metadata, verification)
+	if len(report) > MaxGeneratedReportBytes {
+		_ = zw.Close()
+		return CustomerPackageArchive{}, ErrValidation
+	}
+	if err := addCustomerPackageZIPFile(zw, &expandedSize, "report.html", report); err != nil {
 		_ = zw.Close()
 		return CustomerPackageArchive{}, err
 	}
@@ -1567,6 +902,9 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 		return CustomerPackageArchive{}, err
 	}
 	body := buf.Bytes()
+	if len(body) > MaxCustomerPackageArchiveBytes {
+		return CustomerPackageArchive{}, ErrValidation
+	}
 	return CustomerPackageArchive{PackageID: pkg.ID, Filename: "evydence-customer-package-" + pkg.ID + ".zip", MediaType: "application/zip", Bytes: body, Hash: hashBytes(body), Size: int64(len(body))}, nil
 }
 
@@ -1635,9 +973,9 @@ func customerPackageHTMLReport(pkg domain.CustomerSecurityPackage, metadata, ver
 		b.WriteString("<p class=\"muted\">No customer-visible VEX documents or vulnerability decisions are included by this package profile.</p>")
 	} else {
 		if len(vexDocuments) > 0 {
-			b.WriteString("<h3>VEX Documents</h3><table><thead><tr><th>ID</th><th>Format</th><th>Author</th><th>Statements</th><th>Status Summary</th></tr></thead><tbody>")
+			b.WriteString("<h3>VEX Documents</h3><table><thead><tr><th>ID</th><th>Format</th><th>Statements</th><th>Status Summary</th></tr></thead><tbody>")
 			for _, record := range vexDocuments {
-				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["format"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["author"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["statement_count"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["status_summary"])) + "</td></tr>")
+				b.WriteString("<tr><td>" + packageHTMLEscape(packageHTMLString(record["id"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["format"])) + "</td><td>" + packageHTMLEscape(packageHTMLString(record["statement_count"])) + "</td><td>" + packageHTMLEscape(packageHTMLJSON(record["status_summary"])) + "</td></tr>")
 			}
 			b.WriteString("</tbody></table>")
 		}
@@ -1842,8 +1180,19 @@ func packageHTMLEscape(value string) string {
 	return html.EscapeString(value)
 }
 
+func addCustomerPackageZIPFile(zw *zip.Writer, expandedSize *int64, name string, body []byte) error {
+	if expandedSize == nil || len(body) > MaxCustomerPackageFileBytes || *expandedSize > MaxCustomerPackageExpandedBytes-int64(len(body)) {
+		return ErrValidation
+	}
+	*expandedSize += int64(len(body))
+	return addZIPFile(zw, name, body)
+}
+
 func addZIPFile(zw *zip.Writer, name string, body []byte) error {
-	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+	// Customer packages are generated with stored entries. This keeps their
+	// advertised uncompressed bytes equal to on-disk bytes and guarantees the
+	// generated package cannot trip the verifier's compression-ratio defense.
+	header := &zip.FileHeader{Name: name, Method: zip.Store}
 	header.SetMode(0o644)
 	header.Modified = time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)
 	writer, err := zw.CreateHeader(header)
@@ -1854,43 +1203,15 @@ func addZIPFile(zw *zip.Writer, name string, body []byte) error {
 	return err
 }
 
-func (s packageReportService) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
-	l := s.ledger
-	report, err := l.CRAReadinessReport(ctx, actor, CRAReadinessReportInput{ProductID: productID, ReleaseID: releaseID})
-	if err != nil {
-		return domain.HTMLReportPackage{}, err
+// marshalCustomerPackageJSON is the final output boundary for customer
+// artifacts. The profile builders must already have removed sensitive fields;
+// this guard rejects rather than silently mutates the immutable manifest.
+func marshalCustomerPackageJSON(value any) ([]byte, error) {
+	if _, changed := redaction.RemoveSensitive(value); changed {
+		path, _ := redaction.FirstSensitivePath(value)
+		return nil, fmt.Errorf("%w: customer package contains sensitive field %s", ErrValidation, path)
 	}
-	htmlBody := "<!doctype html><html><head><meta charset=\"utf-8\"><title>CRA readiness</title></head><body><h1>CRA readiness</h1><p>Result: " + html.EscapeString(report.Result) + "</p><h2>Limitations</h2><ul>"
-	for _, limitation := range report.Limitations {
-		htmlBody += "<li>" + html.EscapeString(limitation) + "</li>"
-	}
-	htmlBody += "</ul></body></html>"
-	hash := hashBytes([]byte(htmlBody))
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	pkg := domain.HTMLReportPackage{ID: newID("html"), TenantID: actor.TenantID, ReportType: "cra_readiness", ProductID: productID, ReleaseID: releaseID, HTML: htmlBody, Hash: hash, SchemaVersion: "html-report-package.v1.0.0", CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Packages.InsertHTMLReportPackage(ctx, pkg); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(pkg.CreatedAt, actor.TenantID, "html_report.generated", "html_report", pkg.ID, "api_key", actor.KeyID, hash, ""))
-			return err
-		}); err != nil {
-			return domain.HTMLReportPackage{}, err
-		}
-		l.htmlReports[pkg.ID] = pkg
-		l.publishCommittedAuditEntryLocked(entry)
-		return pkg, nil
-	}
-	l.htmlReports[pkg.ID] = pkg
-	_, _ = l.appendChainLocked(actor.TenantID, "html_report.generated", "html_report", pkg.ID, "api_key", actor.KeyID, hash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.HTMLReportPackage{}, err
-	}
-	return pkg, nil
+	return json.MarshalIndent(value, "", "  ")
 }
 
 func (l *Ledger) ListControlFrameworkTemplatePacks(ctx context.Context, actor domain.Actor) ([]domain.ControlFrameworkTemplatePack, error) {
@@ -1968,403 +1289,37 @@ func (l *Ledger) InstallControlFrameworkTemplatePack(ctx context.Context, actor 
 	return framework, nil
 }
 
-func (s packageReportService) CreateCustomReportTemplate(ctx context.Context, actor domain.Actor, in CreateReportTemplateInput) (domain.CustomReportTemplate, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.CustomReportTemplate{}, err
-	}
-	if err := require(actor, ScopeReportRead); err != nil {
-		return domain.CustomReportTemplate{}, err
-	}
-	in.Name, in.Version, in.ReportType = strings.TrimSpace(in.Name), strings.TrimSpace(in.Version), strings.TrimSpace(in.ReportType)
-	if in.Name == "" || in.Version == "" || in.ReportType == "" || len(in.AllowedFields) == 0 || int64(len(in.Template)) > ReportTemplateRequestLimit {
-		return domain.CustomReportTemplate{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	tpl := domain.CustomReportTemplate{ID: newID("rptpl"), TenantID: actor.TenantID, Name: in.Name, Version: in.Version, ReportType: in.ReportType, AllowedFields: sortedStrings(in.AllowedFields), Template: strings.TrimSpace(in.Template), SchemaVersion: domain.ReportTemplateSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Packages.InsertCustomReportTemplate(ctx, tpl); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(tpl.CreatedAt, actor.TenantID, "report_template.created", "report_template", tpl.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.CustomReportTemplate{}, err
-		}
-		l.reportTemplates[tpl.ID] = tpl
-		l.publishCommittedAuditEntryLocked(entry)
-		return tpl, nil
-	}
-	l.reportTemplates[tpl.ID] = tpl
-	_, _ = l.appendChainLocked(actor.TenantID, "report_template.created", "report_template", tpl.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.CustomReportTemplate{}, err
-	}
-	return tpl, nil
-}
-
-func (s packageReportService) RenderCustomReport(ctx context.Context, actor domain.Actor, in RenderReportInput) (domain.RenderedCustomReport, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.RenderedCustomReport{}, err
-	}
-	if err := require(actor, ScopeReportRead); err != nil {
-		return domain.RenderedCustomReport{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	tpl, ok := l.reportTemplates[strings.TrimSpace(in.TemplateID)]
-	if !ok || tpl.TenantID != actor.TenantID {
-		return domain.RenderedCustomReport{}, ErrNotFound
-	}
-	output := map[string]any{}
-	source := map[string]any{"subject_type": in.SubjectType, "subject_id": in.SubjectID, "generated_at": l.now().UTC().Format(time.RFC3339)}
-	for _, field := range tpl.AllowedFields {
-		if value, ok := source[field]; ok {
-			output[field] = value
-		}
-	}
-	hash, err := canonicalAnyHash(output)
-	if err != nil {
-		return domain.RenderedCustomReport{}, err
-	}
-	rendered := domain.RenderedCustomReport{ID: newID("rr"), TenantID: actor.TenantID, TemplateID: tpl.ID, SubjectType: strings.TrimSpace(in.SubjectType), SubjectID: strings.TrimSpace(in.SubjectID), Output: output, Hash: hash, SchemaVersion: "rendered-report.v1.0.0", CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Packages.InsertRenderedCustomReport(ctx, rendered); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(rendered.CreatedAt, actor.TenantID, "report_template.rendered", "rendered_report", rendered.ID, "api_key", actor.KeyID, hash, ""))
-			return err
-		}); err != nil {
-			return domain.RenderedCustomReport{}, err
-		}
-		l.renderedReports[rendered.ID] = rendered
-		l.publishCommittedAuditEntryLocked(entry)
-		return rendered, nil
-	}
-	l.renderedReports[rendered.ID] = rendered
-	_, _ = l.appendChainLocked(actor.TenantID, "report_template.rendered", "rendered_report", rendered.ID, "api_key", actor.KeyID, hash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.RenderedCustomReport{}, err
-	}
-	return rendered, nil
-}
-
-func (s packageReportService) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, releaseID string, evidenceIDs []string) (domain.EvidenceBundle, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.EvidenceBundle{}, err
-	}
-	if err := require(actor, ScopeBundleRead); err != nil {
-		return domain.EvidenceBundle{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	ids := []string{}
-	if len(evidenceIDs) == 0 {
-		if releaseID != "" {
-			release, ok := l.releases[strings.TrimSpace(releaseID)]
-			if !ok || release.TenantID != actor.TenantID {
-				return domain.EvidenceBundle{}, ErrNotFound
-			}
-			if err := l.authorizeResourceLocked(actor, ScopeBundleRead, resourceRefs{ReleaseID: release.ID}); err != nil {
-				return domain.EvidenceBundle{}, err
-			}
-		} else if err := l.authorizeResourceLocked(actor, ScopeBundleRead, resourceRefs{}); err != nil {
-			return domain.EvidenceBundle{}, err
-		}
-		for _, item := range l.evidence {
-			if item.TenantID == actor.TenantID && (releaseID == "" || item.ReleaseID == releaseID) && l.resourceAllowedLocked(actor, ScopeBundleRead, refsForEvidence(item)) {
-				ids = append(ids, item.ID)
-			}
-		}
-	} else {
-		for _, id := range evidenceIDs {
-			item, ok := l.evidence[strings.TrimSpace(id)]
-			if !ok || item.TenantID != actor.TenantID {
-				return domain.EvidenceBundle{}, ErrNotFound
-			}
-			if err := l.authorizeResourceLocked(actor, ScopeBundleRead, refsForEvidence(item)); err != nil {
-				return domain.EvidenceBundle{}, err
-			}
-			ids = append(ids, item.ID)
-		}
-	}
-	sort.Strings(ids)
-	head := ""
-	if entries := l.chain[actor.TenantID]; len(entries) > 0 {
-		head = entries[len(entries)-1].EntryHash
-	}
-	manifest := map[string]any{
-		"bundle_version":      domain.EvidenceBundleSchemaVersion,
-		"tenant_id":           actor.TenantID,
-		"release_id":          releaseID,
-		"evidence_ids":        ids,
-		"audit_chain_head":    head,
-		"object_lock_proofs":  l.packageObjectLockProofsLocked(actor.TenantID),
-		"verification":        "Run evydence verify-evidence-bundle <bundle.json> offline.",
-		"verification_limits": []string{"Object-lock proof records reflect Evydence verification metadata and do not prove legal compliance, provider IAM correctness, or complete WORM enforcement."},
-	}
-	hash, err := canonicalAnyHash(manifest)
-	if err != nil {
-		return domain.EvidenceBundle{}, err
-	}
-	bundleID := newID("eb")
-	if l.unitOfWork != nil {
-		sig, err := l.newEvidenceBundleSignatureLocked(actor.TenantID, bundleID, []byte(hash))
-		if err != nil {
-			return domain.EvidenceBundle{}, err
-		}
-		bundle := domain.EvidenceBundle{ID: bundleID, TenantID: actor.TenantID, ReleaseID: releaseID, EvidenceIDs: ids, Manifest: manifest, ManifestHash: hash, SignatureRefs: []string{sig.ID}, VerificationText: "Verify manifest_hash over manifest canonical JSON and signature references with tenant public keys.", SchemaVersion: domain.EvidenceBundleSchemaVersion, CreatedAt: l.now()}
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Signatures.InsertSignature(ctx, sig); err != nil {
-				return err
-			}
-			if err := repos.Packages.InsertEvidenceBundle(ctx, bundle); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(bundle.CreatedAt, actor.TenantID, "evidence_bundle.exported", "evidence_bundle", bundle.ID, "api_key", actor.KeyID, hash, sig.ID))
-			return err
-		}); err != nil {
-			return domain.EvidenceBundle{}, err
-		}
-		l.signatures[sig.ID] = sig
-		l.evidenceBundles[bundle.ID] = bundle
-		l.publishCommittedAuditEntryLocked(entry)
-		return bundle, nil
-	}
-	sig, err := l.signLocked(actor.TenantID, "evidence_bundle", bundleID, []byte(hash))
-	if err != nil {
-		return domain.EvidenceBundle{}, err
-	}
-	bundle := domain.EvidenceBundle{ID: bundleID, TenantID: actor.TenantID, ReleaseID: releaseID, EvidenceIDs: ids, Manifest: manifest, ManifestHash: hash, SignatureRefs: []string{sig.ID}, VerificationText: "Verify manifest_hash over manifest canonical JSON and signature references with tenant public keys.", SchemaVersion: domain.EvidenceBundleSchemaVersion, CreatedAt: l.now()}
-	l.evidenceBundles[bundle.ID] = bundle
-	_, _ = l.appendChainLocked(actor.TenantID, "evidence_bundle.exported", "evidence_bundle", bundle.ID, "api_key", actor.KeyID, hash, sig.ID)
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.EvidenceBundle{}, err
-	}
-	return bundle, nil
-}
-
-func (l *Ledger) newEvidenceBundleSignatureLocked(tenantID, bundleID string, payload []byte) (domain.Signature, error) {
-	for _, key := range l.signingKeys {
-		if key.TenantID == tenantID && key.Status == "active" && len(key.Private) == ed25519.PrivateKeySize {
-			value := ed25519.Sign(ed25519.PrivateKey(key.Private), payload)
-			return domain.Signature{ID: newID("sig"), TenantID: tenantID, SubjectType: "evidence_bundle", SubjectID: bundleID, KeyID: key.ID, Algorithm: "Ed25519", Value: base64.RawStdEncoding.EncodeToString(value), CreatedAt: l.now()}, nil
-		}
-	}
-	return domain.Signature{}, ErrConflict
-}
-
-func (s packageReportService) ImportEvidenceBundle(ctx context.Context, actor domain.Actor, bundle domain.EvidenceBundle) (domain.EvidenceBundleImport, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.EvidenceBundleImport{}, err
-	}
-	if err := require(actor, ScopeBundleWrite); err != nil {
-		return domain.EvidenceBundleImport{}, err
-	}
-	hash, err := canonicalAnyHash(bundle.Manifest)
-	if err != nil || hash != bundle.ManifestHash {
-		return domain.EvidenceBundleImport{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	record := domain.EvidenceBundleImport{ID: newID("ebi"), TenantID: actor.TenantID, BundleHash: bundle.ManifestHash, Result: "accepted", ImportedCount: len(bundle.EvidenceIDs), SchemaVersion: domain.EvidenceBundleImportVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Packages.InsertEvidenceBundleImport(ctx, record); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "evidence_bundle.imported", "evidence_bundle_import", record.ID, "api_key", actor.KeyID, bundle.ManifestHash, ""))
-			return err
-		}); err != nil {
-			return domain.EvidenceBundleImport{}, err
-		}
-		l.bundleImports[record.ID] = record
-		l.publishCommittedAuditEntryLocked(entry)
-		return record, nil
-	}
-	l.bundleImports[record.ID] = record
-	_, _ = l.appendChainLocked(actor.TenantID, "evidence_bundle.imported", "evidence_bundle_import", record.ID, "api_key", actor.KeyID, bundle.ManifestHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.EvidenceBundleImport{}, err
-	}
-	return record, nil
-}
-
-func (l *Ledger) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, in CreateDSSETrustRootInput) (domain.DSSETrustRoot, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.DSSETrustRoot{}, err
-	}
-	if err := require(actor, ScopeKeysAdmin); err != nil {
-		return domain.DSSETrustRoot{}, err
-	}
-	in.Name, in.KeyID, in.Algorithm, in.PublicKey = strings.TrimSpace(in.Name), strings.TrimSpace(in.KeyID), strings.TrimSpace(in.Algorithm), strings.TrimSpace(in.PublicKey)
-	if in.Name == "" || in.KeyID == "" || in.Algorithm != "Ed25519" {
-		return domain.DSSETrustRoot{}, ErrValidation
-	}
-	pub, err := base64.StdEncoding.DecodeString(in.PublicKey)
-	if err != nil || len(pub) != ed25519.PublicKeySize {
-		return domain.DSSETrustRoot{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	root := domain.DSSETrustRoot{ID: newID("dtr"), TenantID: actor.TenantID, Name: in.Name, KeyID: in.KeyID, Algorithm: in.Algorithm, PublicKey: in.PublicKey, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Governance.InsertDSSETrustRoot(ctx, root); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(root.CreatedAt, actor.TenantID, "dsse_trust_root.created", "dsse_trust_root", root.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.DSSETrustRoot{}, err
-		}
-		l.dsseTrustRoots[root.ID] = root
-		l.publishCommittedAuditEntryLocked(entry)
-		return root, nil
-	}
-	l.dsseTrustRoots[root.ID] = root
-	_, _ = l.appendChainLocked(actor.TenantID, "dsse_trust_root.created", "dsse_trust_root", root.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.DSSETrustRoot{}, err
-	}
-	return root, nil
-}
-
 func validDSSETrustRoot(root domain.DSSETrustRoot) bool {
-	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion == "" || root.CreatedAt.IsZero() {
-		return false
-	}
-	publicKey, err := base64.StdEncoding.DecodeString(root.PublicKey)
-	return err == nil && len(publicKey) == ed25519.PublicKeySize
+	return verificationapp.ValidDSSETrustRoot(domain.DSSETrustRootToContextModel(root))
 }
 
-func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domain.Actor, attestationID string) (domain.VerificationResult, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.VerificationResult{}, err
-	}
-	if err := require(actor, ScopeVerifyRead); err != nil {
-		return domain.VerificationResult{}, err
-	}
-	l.mu.Lock()
-	att, ok := l.attestations[strings.TrimSpace(attestationID)]
-	if !ok || att.TenantID != actor.TenantID {
-		l.mu.Unlock()
-		return domain.VerificationResult{}, ErrNotFound
-	}
-	roots := []domain.DSSETrustRoot{}
-	for _, root := range l.dsseTrustRoots {
-		if root.TenantID == actor.TenantID && root.Status == "active" {
-			roots = append(roots, root)
+func (l *Ledger) registeredReleaseBuildOutputDigestsLocked(tenantID string, build domain.BuildRun) []string {
+	releaseDigests := l.releaseArtifactDigestsLocked(tenantID, build.ReleaseID)
+	digests := []string{}
+	for _, output := range build.Outputs {
+		artifact, ok := l.artifacts[output.ArtifactID]
+		if !ok || artifact.TenantID != tenantID || artifact.Digest != output.Digest {
+			continue
+		}
+		if _, ok := releaseDigests[output.Digest]; ok {
+			digests = append(digests, output.Digest)
 		}
 	}
-	l.mu.Unlock()
-	if l.objects == nil || att.PayloadRef == "" {
-		return domain.VerificationResult{}, ErrValidation
-	}
-	objectKey := strings.TrimPrefix(att.PayloadRef, "object://")
-	if lifecycle, ok := l.store.(ObjectPayloadLifecycleStore); ok {
-		if err := RequireFinalizedObjectPayload(ctx, lifecycle, actor.TenantID, att.PayloadHash, objectKey); err != nil {
-			return domain.VerificationResult{}, err
-		}
-	}
-	object, err := l.objects.Get(ctx, objectKey)
-	if err != nil {
-		return domain.VerificationResult{}, err
-	}
-	var envelope dsseEnvelope
-	if err := json.Unmarshal(object.Bytes, &envelope); err != nil {
-		return domain.VerificationResult{}, ErrValidation
-	}
-	payload, err := base64.StdEncoding.DecodeString(envelope.Payload)
-	if err != nil {
-		return domain.VerificationResult{}, ErrValidation
-	}
-	checks := []domain.VerifyCheck{}
-	passed := false
-	for _, sig := range envelope.Signatures {
-		for _, root := range roots {
-			if sig.KeyID != root.KeyID {
-				continue
-			}
-			pub, _ := base64.StdEncoding.DecodeString(root.PublicKey)
-			value, err := base64.StdEncoding.DecodeString(sig.Sig)
-			if err == nil && ed25519.Verify(ed25519.PublicKey(pub), payload, value) {
-				passed = true
-				checks = append(checks, domain.VerifyCheck{Name: "dsse_signature", Result: "passed", Detail: root.KeyID})
-			}
-		}
-	}
-	if !passed {
-		checks = append(checks, domain.VerifyCheck{Name: "dsse_signature", Result: "failed"})
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	profile := assuranceProfile("dsse-attestation-signature.v1", []string{"dsse_signature"}, []string{"active tenant DSSE Ed25519 trust roots"}, "DSSE key identifier matches configured trust root", "not_evaluated", "raw DSSE attestation bytes", att.PayloadHash, []string{"DSSE signature verification does not verify builder identity, provenance completeness, or external transparency inclusion."})
-	vr := verificationResult(newID("vr"), actor.TenantID, "build_attestation", att.ID, checks, profile, l.now())
-	if l.unitOfWork != nil {
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			return repos.Verification.InsertVerificationResult(ctx, vr)
-		}); err != nil {
-			return domain.VerificationResult{}, err
-		}
-		l.verifications[vr.ID] = vr
-		if verificationReturnsFailure(vr.Result) {
-			return vr, ErrVerificationFailed
-		}
-		return vr, nil
-	}
-	l.verifications[vr.ID] = vr
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.VerificationResult{}, err
-	}
-	if verificationReturnsFailure(vr.Result) {
-		return vr, ErrVerificationFailed
-	}
-	return vr, nil
+	return sortedStrings(digests)
 }
 
-func (l *Ledger) packageEvidenceIDsLocked(tenantID, productID, releaseID string, profile domain.RedactionProfile) []string {
-	allowed := map[string]struct{}{}
-	for _, typ := range profile.AllowedTypes {
-		allowed[typ] = struct{}{}
+func verifyDSSEAgainstConfiguredRoots(ctx context.Context, raw []byte, roots []domain.DSSETrustRoot, expectedSubjects []string) (verificationdsse.Result, error) {
+	policies := make([]verificationdsse.Policy, 0, len(roots))
+	for _, root := range roots {
+		policies = append(policies, verificationdsse.Policy{
+			Roots:                  []verificationdsse.TrustRoot{{ID: root.ID, KeyID: root.KeyID, Algorithm: root.Algorithm, PublicKey: root.PublicKey}},
+			AllowedPredicateTypes:  root.AllowedPredicateTypes,
+			ExpectedBuilderIDs:     root.ExpectedBuilderIDs,
+			RequiredClaims:         root.RequiredClaims,
+			ExpectedSubjectDigests: expectedSubjects,
+		})
 	}
-	ids := []string{}
-	for _, item := range l.evidence {
-		if item.TenantID != tenantID {
-			continue
-		}
-		if releaseID != "" {
-			if item.ReleaseID != releaseID {
-				continue
-			}
-		} else if productID != "" && item.ProductID != productID {
-			continue
-		}
-		if len(allowed) > 0 {
-			if _, ok := allowed[item.Type]; !ok {
-				continue
-			}
-		}
-		ids = append(ids, item.ID)
-	}
-	sort.Strings(ids)
-	return ids
+	return verificationdsse.VerifyConfiguredPolicies(ctx, raw, policies)
 }
 
 func (l *Ledger) packageDecisionSummariesLocked(tenantID, releaseID string, profile domain.RedactionProfile) []map[string]any {
@@ -2444,23 +1399,20 @@ func profileExcludedFields(profile domain.RedactionProfile) map[string]bool {
 }
 
 func builtinTemplatePacks() []domain.ControlFrameworkTemplatePack {
-	return []domain.ControlFrameworkTemplatePack{
-		{ID: "tpl_cra_readiness", Name: "Evydence CRA Readiness", Slug: "evydence-cra-readiness", Version: "2026.05", Description: "Starter technical evidence controls for CRA readiness tracking.", SchemaVersion: "control-framework-template-pack.v1.0.0", Controls: []domain.SecurityControl{
-			{Code: "CRA-SBOM", Title: "SBOM evidence", Objective: "Release records SBOM evidence.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "sbom", Required: true}}, Limitations: []string{"SBOM presence does not prove completeness."}},
-			{Code: "CRA-VULN", Title: "Vulnerability evidence", Objective: "Release records vulnerability scan and decisions.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "vulnerability_scan", Required: true}}},
-		}},
-		{ID: "tpl_nist_ssdf_lite", Name: "NIST SSDF Lite", Slug: "nist-ssdf-lite", Version: "2026.05", Description: "Small starter control pack for secure development evidence.", SchemaVersion: "control-framework-template-pack.v1.0.0", Controls: []domain.SecurityControl{
-			{Code: "SSDF-BUILD", Title: "Build provenance", Objective: "Release has build and attestation evidence.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "build", Required: true}, {Type: "build_attestation", Required: true}}},
-		}},
-		{ID: "tpl_soc2_technical_lite", Name: "SOC 2 Technical Evidence Lite", Slug: "soc2-technical-lite", Version: "2026.05", Description: "Starter technical evidence controls for SOC 2-style review preparation.", SchemaVersion: "control-framework-template-pack.v1.0.0", Controls: []domain.SecurityControl{
-			{Code: "SOC2-CHANGE", Title: "Change evidence", Objective: "Release records source, build, and approval evidence for change review.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "build", Required: true}, {Type: "artifact", Required: true}, {Type: "release_bundle", Required: true}}, Limitations: []string{"This pack organizes technical evidence only and does not state SOC 2 control effectiveness."}},
-			{Code: "SOC2-VULN", Title: "Vulnerability review evidence", Objective: "Release records vulnerability scan evidence and decisions or exceptions.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "vulnerability_scan", Required: true}, {Type: "vulnerability_decision", Required: false}, {Type: "exception", Required: false}}},
-		}},
-		{ID: "tpl_iso27001_technical_lite", Name: "ISO 27001 Technical Evidence Lite", Slug: "iso27001-technical-lite", Version: "2026.05", Description: "Starter technical evidence controls for ISO 27001-style evidence organization.", SchemaVersion: "control-framework-template-pack.v1.0.0", Controls: []domain.SecurityControl{
-			{Code: "ISO-ASSET", Title: "Software asset evidence", Objective: "Release records artifacts, SBOM, and dependency evidence.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "artifact", Required: true}, {Type: "sbom", Required: true}}, Limitations: []string{"Artifact and SBOM evidence does not prove inventory completeness."}},
-			{Code: "ISO-CHANGE", Title: "Release change evidence", Objective: "Release records build provenance and bundle verification evidence.", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "build", Required: true}, {Type: "build_attestation", Required: false}, {Type: "release_bundle", Required: true}}},
-		}},
+	owned := riskdomain.BuiltinTemplatePacks()
+	packs := make([]domain.ControlFrameworkTemplatePack, 0, len(owned))
+	for _, pack := range owned {
+		converted := domain.ControlFrameworkTemplatePack{ID: pack.ID, Name: pack.Name, Slug: pack.Slug, Version: pack.Version, Description: pack.Description, SchemaVersion: pack.SchemaVersion}
+		for _, control := range pack.Controls {
+			item := domain.SecurityControl{ID: control.ID, TenantID: control.TenantID, FrameworkID: control.FrameworkID, Code: control.Code, Title: control.Title, Objective: control.Objective, Applicability: append([]string(nil), control.Applicability...), Limitations: append([]string(nil), control.Limitations...), SchemaVersion: control.SchemaVersion, CreatedAt: control.CreatedAt}
+			for _, requirement := range control.EvidenceRequirements {
+				item.EvidenceRequirements = append(item.EvidenceRequirements, domain.ControlEvidenceRequirement{Type: requirement.Type, FreshnessDays: requirement.FreshnessDays, Required: requirement.Required})
+			}
+			converted.Controls = append(converted.Controls, item)
+		}
+		packs = append(packs, converted)
 	}
+	return packs
 }
 
 func validWaiverScope(scope string) bool {

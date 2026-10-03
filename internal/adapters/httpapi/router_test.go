@@ -38,6 +38,133 @@ func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
 	}
 }
 
+func TestListProductsUsesBoundedTenantBoundCursorPagination(t *testing.T) {
+	server, secret := testServer(t)
+	for _, product := range []struct {
+		name string
+		slug string
+	}{
+		{name: "Alpha", slug: "alpha"},
+		{name: "Bravo", slug: "bravo"},
+		{name: "Charlie", slug: "charlie"},
+	} {
+		postJSON(t, server, secret, "/v1/products", "pagination-"+product.slug, map[string]any{"name": product.name, "slug": product.slug}, http.StatusCreated)
+	}
+	first := getRaw(t, server, secret, "/v1/products?page_size=2&sort=created_at&direction=asc", http.StatusOK)
+	var firstPage struct {
+		Data []map[string]any `json:"data"`
+		Meta struct {
+			PageSize   int    `json:"page_size"`
+			Sort       string `json:"sort"`
+			Direction  string `json:"direction"`
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &firstPage); err != nil {
+		t.Fatalf("decode first page: %v body=%s", err, first.Body.String())
+	}
+	if len(firstPage.Data) != 2 || firstPage.Meta.PageSize != 2 || firstPage.Meta.Sort != "created_at" || firstPage.Meta.Direction != "asc" || firstPage.Meta.NextCursor == "" {
+		t.Fatalf("first page = %#v, want two records and continuation metadata", firstPage)
+	}
+	second := getRaw(t, server, secret, "/v1/products?page_size=2&sort=created_at&direction=asc&cursor="+url.QueryEscape(firstPage.Meta.NextCursor), http.StatusOK)
+	var secondPage struct {
+		Data []map[string]any `json:"data"`
+		Meta struct {
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(second.Body.Bytes(), &secondPage); err != nil {
+		t.Fatalf("decode second page: %v body=%s", err, second.Body.String())
+	}
+	if len(secondPage.Data) != 1 || secondPage.Meta.NextCursor != "" {
+		t.Fatalf("second page = %#v, want the remaining record without continuation", secondPage)
+	}
+	invalid := getRaw(t, server, secret, "/v1/products?page_size=501", http.StatusBadRequest)
+	if !strings.Contains(invalid.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("invalid page size response = %s", invalid.Body.String())
+	}
+	tampered := getRaw(t, server, secret, "/v1/products?page_size=2&cursor="+url.QueryEscape(firstPage.Meta.NextCursor+"x"), http.StatusBadRequest)
+	if !strings.Contains(tampered.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("tampered cursor response = %s", tampered.Body.String())
+	}
+}
+
+func TestEvidenceSearchCursorPagesDoNotTruncateMatchingRecords(t *testing.T) {
+	server, secret := testServer(t)
+	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+	for _, key := range []string{"search-page-a", "search-page-b", "search-page-c"} {
+		postJSON(t, server, secret, "/v1/evidence", key, map[string]any{"type": "build", "title": key, "payload_hash": digest}, http.StatusCreated)
+	}
+	first := getRaw(t, server, secret, "/v1/evidence/search?type=build&page_size=2", http.StatusOK)
+	var firstPage struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+		Meta struct {
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &firstPage); err != nil {
+		t.Fatalf("decode search first page: %v", err)
+	}
+	if len(firstPage.Data) != 2 || firstPage.Meta.NextCursor == "" {
+		t.Fatalf("search first page=%#v, want two records and a cursor", firstPage)
+	}
+	second := getRaw(t, server, secret, "/v1/evidence/search?type=build&page_size=2&cursor="+url.QueryEscape(firstPage.Meta.NextCursor), http.StatusOK)
+	var secondPage struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(second.Body.Bytes(), &secondPage); err != nil {
+		t.Fatalf("decode search second page: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, item := range append(firstPage.Data, secondPage.Data...) {
+		if item.ID == "" || seen[item.ID] {
+			t.Fatalf("search pages contain invalid or duplicate id %q", item.ID)
+		}
+		seen[item.ID] = true
+	}
+	if len(seen) != 3 {
+		t.Fatalf("search cursor pages returned %d distinct records, want 3", len(seen))
+	}
+	getRaw(t, server, secret, "/v1/evidence/search?source=one&source_system=one", http.StatusBadRequest)
+}
+
+func TestResourceReadsUsePrivateConditionalETags(t *testing.T) {
+	server, secret := testServer(t)
+	product := postJSON(t, server, secret, "/v1/products", "etag-product", map[string]any{"name": "ETag product", "slug": "etag-product"}, http.StatusCreated)
+	productID := dataField(t, product, "id")
+	first := getRaw(t, server, secret, "/v1/products/"+productID, http.StatusOK)
+	etag := first.Header().Get("ETag")
+	if etag == "" || !strings.Contains(first.Header().Get("Cache-Control"), "private") || !strings.Contains(first.Header().Get("Vary"), "Authorization") {
+		t.Fatalf("immutable resource cache headers = %#v, want private ETag response", first.Header())
+	}
+	conditional := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/products/"+productID, nil)
+	request.Header.Set("Authorization", "Bearer "+secret)
+	request.Header.Set("If-None-Match", etag)
+	server.Handler().ServeHTTP(conditional, request)
+	if conditional.Code != http.StatusNotModified || conditional.Body.Len() != 0 || conditional.Header().Get("ETag") != etag {
+		t.Fatalf("conditional immutable response status=%d headers=%#v body=%q", conditional.Code, conditional.Header(), conditional.Body.String())
+	}
+	release := postJSON(t, server, secret, "/v1/releases", "etag-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, release, "id")
+	mutable := getRaw(t, server, secret, "/v1/releases/"+releaseID, http.StatusOK)
+	if mutable.Header().Get("ETag") != `"1"` {
+		t.Fatalf("mutable resource ETag = %q, want revision ETag", mutable.Header().Get("ETag"))
+	}
+	invalid := httptest.NewRecorder()
+	invalidRequest := httptest.NewRequest(http.MethodGet, "/v1/products/"+productID, nil)
+	invalidRequest.Header.Set("Authorization", "Bearer "+secret)
+	invalidRequest.Header.Set("If-None-Match", "not-a-tag")
+	server.Handler().ServeHTTP(invalid, invalidRequest)
+	if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("invalid If-None-Match response status=%d body=%s", invalid.Code, invalid.Body.String())
+	}
+}
+
 func TestOpenAPIOperationsHaveExactlyOneStabilityClass(t *testing.T) {
 	server, _ := testServer(t)
 	docBytes, err := server.OpenAPI()
@@ -116,8 +243,16 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	schemas := asStringAnyMap(t, asStringAnyMap(t, doc["components"])["schemas"])
 	problem := asStringAnyMap(t, schemas["Problem"])
 	problemProps := asStringAnyMap(t, problem["properties"])
-	if _, ok := problemProps["request_id"]; !ok {
-		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
+	for _, field := range []string{"code", "request_id", "retryable", "retry_class", "violations"} {
+		if _, ok := problemProps[field]; !ok {
+			t.Fatalf("Problem schema missing %q: %#v", field, problemProps)
+		}
+	}
+	errorCodes := fmt.Sprintf("%v", asStringAnyMap(t, schemas["ErrorCode"])["enum"])
+	for _, definition := range app.ErrorCatalog() {
+		if !strings.Contains(errorCodes, string(definition.Code)) {
+			t.Fatalf("ErrorCode schema missing catalog code %q: %s", definition.Code, errorCodes)
+		}
 	}
 	versionProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VersionInfo"])["properties"])
 	for _, field := range []string{"version", "commit", "build_time", "dirty", "go_version", "release_manifest_digest"} {
@@ -138,6 +273,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	decisionProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VulnerabilityDecision"])["properties"])
 	if _, ok := decisionProps["sbom_component_purl"]; !ok {
 		t.Fatalf("decision schema missing sbom_component_purl: %#v", decisionProps)
+	}
+	if _, ok := decisionProps["internal_notes"]; ok {
+		t.Fatalf("decision response schema exposes tenant-internal notes: %#v", decisionProps)
 	}
 	if _, ok := decisionProps["supporting_refs"]; !ok {
 		t.Fatalf("decision schema missing supporting_refs: %#v", decisionProps)
@@ -229,7 +367,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestExampleContains(t, uploadSBOM, "cyclonedx-release-sbom", "pkg:apk/openssl")
 	assertResponseRef(t, uploadSBOM, "201", "#/components/schemas/SBOMEnvelope")
 	uploadVulnerabilityScan := operationMap(t, paths, "/v1/vulnerability-scans", "post")
-	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanRequest")
+	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanBody")
 	assertRequestExampleContains(t, uploadVulnerabilityScan, "generic-critical-finding", "CVE-2026-0099")
 	assertResponseRef(t, uploadVulnerabilityScan, "201", "#/components/schemas/VulnerabilityScanEnvelope")
 	listVulnerabilityDecisions := operationMap(t, paths, "/v1/vulnerability-decisions", "get")
@@ -260,16 +398,18 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestRef(t, verifyCosign, "#/components/schemas/VerifyCosignSignatureRequest")
 	assertResponseRef(t, verifyCosign, "200", "#/components/schemas/CosignVerificationEnvelope")
 	assertProblemResponseRef(t, verifyCosign, "422")
-	if deprecated, _ := verifyCosign["deprecated"].(bool); !deprecated {
-		t.Fatalf("cosign metadata assessment operation must be deprecated: %#v", verifyCosign)
+	if deprecated, _ := verifyCosign["deprecated"].(bool); deprecated {
+		t.Fatalf("real Cosign verification operation must not remain deprecated: %#v", verifyCosign)
 	}
 	cosignRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VerifyCosignSignatureRequest"])["properties"])
-	if _, ok := cosignRequestProps["require_full_verification"]; !ok {
-		t.Fatalf("cosign request must let callers request full verification: %#v", cosignRequestProps)
+	for _, field := range []string{"expected_identity", "expected_issuer", "mode", "offline"} {
+		if _, ok := cosignRequestProps[field]; !ok {
+			t.Fatalf("cosign policy request missing %s: %#v", field, cosignRequestProps)
+		}
 	}
 	cosignResult := asStringAnyMap(t, asStringAnyMap(t, schemas["CosignVerification"])["properties"])["result"]
-	if strings.Contains(fmt.Sprintf("%v", cosignResult), "passed") || !strings.Contains(fmt.Sprintf("%v", cosignResult), "limited") {
-		t.Fatalf("cosign result schema must expose limited, not passed: %#v", cosignResult)
+	if !strings.Contains(fmt.Sprintf("%v", cosignResult), "passed") {
+		t.Fatalf("cosign result schema must expose passed when full verification succeeds: %#v", cosignResult)
 	}
 	searchEvidence := operationMap(t, paths, "/v1/evidence/search", "get")
 	assertQueryParams(t, searchEvidence, "product_id", "project_id", "release_id", "type", "source", "tag", "cursor", "limit")
@@ -610,6 +750,56 @@ func TestProductProjectArtifactReadEndpoints(t *testing.T) {
 	getJSON(t, server, secret, "/v1/artifacts/art_missing", http.StatusNotFound)
 }
 
+func TestReleaseAndArtifactRejectUnsupportedRelationshipFields(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "contract-fields-product", map[string]any{"name": "Contract API", "slug": "contract-api"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+
+	for _, tc := range []struct {
+		name    string
+		path    string
+		idem    string
+		payload map[string]any
+	}{
+		{
+			name:    "release project id",
+			path:    "/v1/releases",
+			idem:    "contract-fields-release-project",
+			payload: map[string]any{"product_id": productID, "project_id": "proj_ignored", "version": "1.0.0"},
+		},
+		{
+			name:    "artifact release id",
+			path:    "/v1/artifacts",
+			idem:    "contract-fields-artifact-release",
+			payload: map[string]any{"release_id": "rel_ignored", "name": "api.tgz", "media_type": "application/gzip", "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"},
+		},
+		{
+			name:    "artifact subject ref",
+			path:    "/v1/artifacts",
+			idem:    "contract-fields-artifact-subject",
+			payload: map[string]any{"subject_ref": "release:ignored", "name": "api.tgz", "media_type": "application/gzip", "digest": "sha256:3e23e8160039594a33894f6564e1b1348bbdbb4f9a5f5f6e8a1c7a8c4f6f1f5a"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := postJSON(t, server, secret, tc.path, tc.idem, tc.payload, http.StatusBadRequest)
+			if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+				t.Fatalf("unsupported field response = %s", body)
+			}
+		})
+	}
+}
+
+func TestRegisterArtifactRequiresMediaType(t *testing.T) {
+	server, secret := testServer(t)
+	body := postJSON(t, server, secret, "/v1/artifacts", "contract-fields-artifact-media-type", map[string]any{
+		"name":   "api.tgz",
+		"digest": "sha256:2e7d2c03a9507ae265ecf5b5356885a53393a2029d241394997265a1a25aefc6",
+	}, http.StatusBadRequest)
+	if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("missing media_type response = %s", body)
+	}
+}
+
 func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
 	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
 	server, err := NewServerWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
@@ -639,6 +829,19 @@ func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
 	}
 	if rec.Header().Get("Retry-After") == "" || rec.Header().Get(requestIDHeader) == "" {
 		t.Fatalf("missing retry/request headers: %#v", rec.Header())
+	}
+	var problem struct {
+		Code              string `json:"code"`
+		RequestID         string `json:"request_id"`
+		Retryable         bool   `json:"retryable"`
+		RetryClass        string `json:"retry_class"`
+		RetryAfterSeconds int    `json:"retry_after_seconds"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode rate limit problem: %v", err)
+	}
+	if problem.Code != "RATE_LIMITED" || !problem.Retryable || problem.RetryClass != "rate_limited" || problem.RetryAfterSeconds != 60 || problem.RequestID == "" {
+		t.Fatalf("rate limit problem metadata = %#v", problem)
 	}
 }
 
@@ -735,6 +938,31 @@ func TestUnknownJSONFieldReturnsProblem(t *testing.T) {
 	}
 	if rec.Header().Get("X-Request-ID") != "req-test-validation" || !strings.Contains(rec.Body.String(), `"request_id":"req-test-validation"`) {
 		t.Fatalf("request id missing from problem/header: header=%q body=%s", rec.Header().Get("X-Request-ID"), rec.Body.String())
+	}
+	var problem struct {
+		Code       string `json:"code"`
+		Violations []struct {
+			Field   string `json:"field"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"violations"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode validation problem: %v", err)
+	}
+	if problem.Code != "VALIDATION_FAILED" || len(problem.Violations) != 1 || problem.Violations[0].Field != "/extra" || problem.Violations[0].Code != "unknown_field" || problem.Violations[0].Message != "" {
+		t.Fatalf("safe field violation missing: %#v", problem)
+	}
+}
+
+func TestCosignVerificationRejectsLegacyMetadataFields(t *testing.T) {
+	server, secret := testServer(t)
+	body := postJSON(t, server, secret, "/v1/artifact-signatures/sig_missing/verify-cosign", "legacy-cosign-metadata", map[string]any{
+		"rekor_uuid":         "legacy-record",
+		"certificate_issuer": "https://issuer.example.invalid",
+	}, http.StatusBadRequest)
+	if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("legacy metadata request must fail validation: %s", body)
 	}
 }
 
@@ -871,7 +1099,7 @@ func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "api", "purl": "pkg:github/acme/api@abc"}},
+			"components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:github/acme/api@abc"}},
 		},
 	}, http.StatusCreated)
 	postJSON(t, server, secret, "/v1/vulnerability-scans", "flow-scan", map[string]any{"scanner": "generic", "target_ref": "pkg:github/acme/api@abc", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
@@ -901,7 +1129,7 @@ func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
+			"components": []map[string]any{{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
 		},
 	}, http.StatusCreated)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "security-summary-scan", map[string]any{
@@ -944,7 +1172,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
+			"components": []map[string]any{{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
 		},
 	}, http.StatusCreated)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "risk-scan", map[string]any{
@@ -967,8 +1195,11 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision-bad", map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "customer_visible": true}, http.StatusBadRequest)
 	decisionPayload := map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "impact_statement": "The vulnerable code path is not present in this release.", "customer_visible": true, "internal_notes": "private note", "evidence_ids": []string{evidenceID}, "reviewed_at": "2026-05-27T12:00:00Z", "review_due_at": "2026-08-25T12:00:00Z"}
 	decisionBody := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
-	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, `"internal_notes":"private note"`) || !strings.Contains(decisionBody, evidenceID) || !strings.Contains(decisionBody, `"review_due_at":"2026-08-25T12:00:00Z"`) || !strings.Contains(decisionBody, `"sbom_component_purl":"pkg:apk/openssl@3.1.0"`) {
-		t.Fatalf("decision response missing customer visibility/internal note fields: %s", decisionBody)
+	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, evidenceID) || !strings.Contains(decisionBody, `"review_due_at":"2026-08-25T12:00:00Z"`) || !strings.Contains(decisionBody, `"sbom_component_purl":"pkg:apk/openssl@3.1.0"`) {
+		t.Fatalf("decision response missing safe fields: %s", decisionBody)
+	}
+	if strings.Contains(decisionBody, "private note") || strings.Contains(decisionBody, `"internal_notes"`) {
+		t.Fatalf("decision response leaked internal notes: %s", decisionBody)
 	}
 	replayed := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
 	if replayed != decisionBody {
@@ -976,7 +1207,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	}
 	historyPath := "/v1/vulnerability-decisions?release_id=" + releaseID + "&product_id=" + productID + "&vulnerability=CVE-2026-0099&component=" + url.QueryEscape("pkg:apk/openssl@3.1.0") + "&status=not_affected&active=true"
 	history := getJSON(t, server, secret, historyPath, http.StatusOK)
-	if !strings.Contains(history, `"vulnerability":"CVE-2026-0099"`) || !strings.Contains(history, `"customer_visible":true`) {
+	if !strings.Contains(history, `"vulnerability":"CVE-2026-0099"`) || !strings.Contains(history, `"customer_visible":true`) || strings.Contains(history, "private note") || strings.Contains(history, `"internal_notes"`) {
 		t.Fatalf("decision history response missing decision fields: %s", history)
 	}
 	getJSON(t, server, secret, "/v1/vulnerability-decisions?active=maybe", http.StatusBadRequest)
@@ -1006,13 +1237,9 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/container-images", "int-image", map[string]any{"artifact_id": artifactID, "repository": "registry.example.com/payments", "tag": "3.0.0", "digest": artifactDigest}, http.StatusCreated)
 	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "int-sig", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "signature": "MEUCIQ"}, http.StatusCreated)
 	sigID := dataField(t, sigBody, "id")
-	cosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign", map[string]any{"rekor_uuid": "uuid", "rekor_log_index": "1"}, http.StatusOK)
-	if !strings.Contains(cosign, `"result":"limited"`) || !strings.Contains(cosign, `"digest_binding_assessed"`) {
-		t.Fatalf("cosign response: %s", cosign)
-	}
-	fullCosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign-full", map[string]any{"require_full_verification": true}, http.StatusUnprocessableEntity)
-	if !strings.Contains(fullCosign, `"code":"COSIGN_FULL_VERIFICATION_UNAVAILABLE"`) {
-		t.Fatalf("full cosign verification problem: %s", fullCosign)
+	cosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign", map[string]any{"mode": "keyless", "offline": true, "expected_identity": "repo:owner/name", "expected_issuer": "https://token.actions.githubusercontent.com"}, http.StatusUnprocessableEntity)
+	if !strings.Contains(cosign, `"code":"COSIGN_FULL_VERIFICATION_UNAVAILABLE"`) {
+		t.Fatalf("unconfigured Cosign verification problem: %s", cosign)
 	}
 	postJSON(t, server, secret, "/v1/signing-providers", "int-provider", map[string]any{"name": "dev", "type": "local_encrypted_dev", "key_ref": "file://dev.keys", "encrypted": true}, http.StatusCreated)
 	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "int-batch", map[string]any{}, http.StatusCreated)
@@ -1132,7 +1359,7 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 	vexID := dataField(t, vexBody, "id")
 	getJSON(t, server, secret, "/v1/vex/"+vexID, http.StatusOK)
 	importReport := getJSON(t, server, secret, "/v1/vex/"+vexID+"/import-report", http.StatusOK)
-	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "payload_ref") {
+	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "created asynchronously") || strings.Contains(importReport, "unavailable") || strings.Contains(importReport, "payload_ref") {
 		t.Fatalf("unsafe or incomplete VEX import report: %s", importReport)
 	}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
@@ -1189,6 +1416,13 @@ func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 	}
 	buildBody := postJSON(t, server, collectorSecret, "/v1/builds", "prov-build", buildPayload, http.StatusCreated)
 	buildID := dataField(t, buildBody, "id")
+	buildEvidence := postJSON(t, server, secret, "/v1/evidence", "prov-build-evidence", map[string]any{
+		"product_id": productID, "project_id": projectID, "release_id": releaseID, "build_id": buildID,
+		"type": "build", "subtype": "log", "title": "Build log", "payload_hash": artifactDigest,
+	}, http.StatusCreated)
+	if got := dataField(t, buildEvidence, "build_id"); got != buildID {
+		t.Fatalf("created evidence build_id = %q, want %q", got, buildID)
+	}
 	replayed := postJSON(t, server, collectorSecret, "/v1/builds", "prov-build", buildPayload, http.StatusCreated)
 	if replayed != buildBody {
 		t.Fatalf("build idempotency replay changed response\nfirst=%s\nsecond=%s", buildBody, replayed)
@@ -1241,7 +1475,7 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "api", "purl": "pkg:oci/payments-api"}},
+			"components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:oci/payments-api"}},
 		},
 	}, http.StatusCreated)
 	sbomID := dataField(t, sbomBody, "id")
@@ -1365,6 +1599,13 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 	}
 	deploymentBody := postJSON(t, server, secret, "/v1/deployments", "inc-deploy", map[string]any{"environment_id": envID, "release_id": releaseID, "artifact_ids": []string{artifactID}, "status": "succeeded", "started_at": "2026-05-28T12:00:00Z"}, http.StatusCreated)
 	deploymentID := dataField(t, deploymentBody, "id")
+	deploymentEvidence := postJSON(t, server, secret, "/v1/evidence", "inc-deployment-evidence", map[string]any{
+		"product_id": productID, "release_id": releaseID, "deployment_id": deploymentID,
+		"type": "deployment", "subtype": "observation", "title": "Deployment observation", "payload_hash": digest,
+	}, http.StatusCreated)
+	if got := dataField(t, deploymentEvidence, "deployment_id"); got != deploymentID {
+		t.Fatalf("created evidence deployment_id = %q, want %q", got, deploymentID)
+	}
 	getJSON(t, server, secret, "/v1/deployments/"+deploymentID, http.StatusOK)
 	getJSON(t, server, secret, "/v1/deployments?release_id="+releaseID+"&environment_id="+envID, http.StatusOK)
 }
@@ -1412,7 +1653,9 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 
 	baseSBOM := postJSON(t, server, secret, "/v1/sboms/spdx", "risk2-spdx-base", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"spdxVersion": "SPDX-2.3", "packages": []map[string]any{{"name": "openssl", "versionInfo": "3.1.0"}}}}, http.StatusCreated)
 	targetSBOM := postJSON(t, server, secret, "/v1/sboms/spdx", "risk2-spdx-target", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"spdxVersion": "SPDX-2.3", "packages": []map[string]any{{"name": "openssl", "versionInfo": "3.1.0"}, {"name": "curl", "versionInfo": "8.0.0"}}}}, http.StatusCreated)
-	diffBody := postJSON(t, server, secret, "/v1/sbom-diffs", "risk2-sbom-diff", map[string]any{"base_sbom_id": dataField(t, baseSBOM, "id"), "target_sbom_id": dataField(t, targetSBOM, "id"), "release_id": releaseID}, http.StatusCreated)
+	readKey := postJSON(t, server, secret, "/v1/api-keys", "risk2-read-key", map[string]any{"name": "Risk evidence reader", "scopes": []string{app.ScopeEvidenceRead}}, http.StatusCreated)
+	readSecret := nestedDataField(t, readKey, "secret")
+	diffBody := postJSON(t, server, readSecret, "/v1/sbom-diffs", "risk2-sbom-diff", map[string]any{"base_sbom_id": dataField(t, baseSBOM, "id"), "target_sbom_id": dataField(t, targetSBOM, "id"), "release_id": releaseID}, http.StatusCreated)
 	if !strings.Contains(diffBody, `"added_components"`) {
 		t.Fatalf("sbom diff missing added components: %s", diffBody)
 	}
@@ -1429,7 +1672,7 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 
 	baseContract := postJSON(t, server, secret, "/v1/openapi-contracts", "risk2-oas-base", map[string]any{"product_id": productID, "release_id": releaseID, "version": "1", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "1"}, "paths": map[string]any{"/v1/a": map[string]any{"get": map[string]any{"responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}}}, http.StatusCreated)
 	targetContract := postJSON(t, server, secret, "/v1/openapi-contracts", "risk2-oas-target", map[string]any{"product_id": productID, "release_id": releaseID, "version": "2", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "2"}, "paths": map[string]any{}}}, http.StatusCreated)
-	contractDiff := postJSON(t, server, secret, "/v1/openapi-diffs", "risk2-oas-diff", map[string]any{"base_contract_id": dataField(t, baseContract, "id"), "target_contract_id": dataField(t, targetContract, "id"), "release_id": releaseID}, http.StatusCreated)
+	contractDiff := postJSON(t, server, readSecret, "/v1/openapi-diffs", "risk2-oas-diff", map[string]any{"base_contract_id": dataField(t, baseContract, "id"), "target_contract_id": dataField(t, targetContract, "id"), "release_id": releaseID}, http.StatusCreated)
 	if !strings.Contains(contractDiff, `"result":"breaking"`) {
 		t.Fatalf("contract diff should be breaking: %s", contractDiff)
 	}
@@ -1489,6 +1732,7 @@ func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
 	bundle := dataMap(t, bundleBody)
 	postJSON(t, server, secret, "/v1/evidence-bundles/import", "gov-bundle-import", bundle, http.StatusCreated)
 	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-bad-root", map[string]any{"name": "bad", "key_id": "root", "algorithm": "Ed25519", "public_key": "bad"}, http.StatusBadRequest)
+	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-root-missing-policy", map[string]any{"name": "missing policy", "key_id": "root-2", "algorithm": "Ed25519", "public_key": base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))}, http.StatusBadRequest)
 }
 
 func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
@@ -1739,7 +1983,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 		t.Fatalf("anomaly missing limitations: %s", anomaly)
 	}
 
-	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
+	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
 	sbomID := dataField(t, sbomBody, "id")
 	getJSON(t, server, secret, "/v1/sboms/"+sbomID, http.StatusOK)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "future-vuln-scan", map[string]any{"scanner": "grype", "target_ref": "pkg:oci/api", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
@@ -1768,10 +2012,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 
 	providerBody := postJSON(t, server, secret, "/v1/signing-providers", "future-provider", map[string]any{"name": "kms", "type": "aws_kms", "key_ref": "arn:aws:kms:example", "encrypted": true}, http.StatusCreated)
 	providerID := dataField(t, providerBody, "id")
-	op := postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusCreated)
-	if !strings.Contains(op, `"result":"passed"`) {
-		t.Fatalf("signing operation did not pass: %s", op)
-	}
+	postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusBadRequest)
 	saas := postJSON(t, server, secret, "/v1/saas/profiles", "future-saas", map[string]any{"name": "hosted", "region": "eu", "admin_tenant_id": dataField(t, productBody, "tenant_id"), "isolation_model": "shared-control-plane"}, http.StatusCreated)
 	if !strings.Contains(saas, `"config_hash"`) {
 		t.Fatalf("saas profile missing hash: %s", saas)
@@ -1914,6 +2155,9 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 	server.Handler().ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/v1/ready", nil))
 	if ready.Code != http.StatusServiceUnavailable || !strings.Contains(ready.Body.String(), `"status":"unavailable"`) {
 		t.Fatalf("readiness status=%d body=%s", ready.Code, ready.Body.String())
+	}
+	if ready.Header().Get("Retry-After") != "5" || !strings.Contains(ready.Body.String(), `"retry_class":"dependency_unavailable"`) || !strings.Contains(ready.Body.String(), `"retryable":true`) {
+		t.Fatalf("readiness retry metadata missing: headers=%#v body=%s", ready.Header(), ready.Body.String())
 	}
 	for _, forbidden := range []string{"super-secret", "database.internal", "database connectivity"} {
 		if strings.Contains(ready.Body.String(), forbidden) {
@@ -2415,9 +2659,11 @@ func dsseHTTP(t *testing.T, digest string) []byte {
 			"digest": map[string]string{"sha256": strings.TrimPrefix(digest, "sha256:")},
 		}},
 		"predicate": map[string]any{
-			"builder":   map[string]string{"id": "https://github.com/actions/runner"},
-			"buildType": "https://github.com/actions/workflow",
-			"materials": []map[string]any{{"uri": "git+https://github.com/aatuh/evydence"}},
+			"buildDefinition": map[string]any{
+				"buildType":          "https://github.com/actions/workflow",
+				"externalParameters": map[string]string{"mode": "release"},
+			},
+			"runDetails": map[string]any{"builder": map[string]string{"id": "https://github.com/actions/runner"}},
 		},
 	}
 	statementBody, err := json.Marshal(statement)

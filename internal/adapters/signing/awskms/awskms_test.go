@@ -14,8 +14,19 @@ import (
 )
 
 type fakeKMSSigner struct {
-	input *kms.SignInput
-	err   error
+	input       *kms.SignInput
+	verifyInput *kms.VerifyInput
+	err         error
+	verifyErr   error
+	valid       bool
+}
+
+func (f *fakeKMSSigner) Verify(_ context.Context, input *kms.VerifyInput, _ ...func(*kms.Options)) (*kms.VerifyOutput, error) {
+	f.verifyInput = input
+	if f.verifyErr != nil {
+		return nil, f.verifyErr
+	}
+	return &kms.VerifyOutput{SignatureValid: f.valid, SigningAlgorithm: input.SigningAlgorithm}, nil
 }
 
 func (f *fakeKMSSigner) Sign(_ context.Context, input *kms.SignInput, _ ...func(*kms.Options)) (*kms.SignOutput, error) {
@@ -47,16 +58,19 @@ func TestNewWithClientRejectsNonSHA256Algorithms(t *testing.T) {
 }
 
 func TestSignSendsDigestOnlyAndReturnsBase64Signature(t *testing.T) {
-	fake := &fakeKMSSigner{}
+	fake := &fakeKMSSigner{valid: true}
 	executor, err := NewWithClient(fake, Config{KeyID: "alias/evydence-release", SigningAlgorithm: string(types.SigningAlgorithmSpecRsassaPssSha256)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	result, err := executor.Sign(t.Context(), app.SigningRequest{
-		TenantID:    "ten_1",
-		SubjectType: "release",
-		SubjectID:   "rel_1",
-		PayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		TenantID:             "ten_1",
+		ProviderType:         "aws_kms",
+		KeyRef:               "alias/evydence-release",
+		SubjectType:          "release",
+		SubjectID:            "rel_1",
+		PayloadHash:          "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		CanonicalPayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,14 +90,29 @@ func TestSignSendsDigestOnlyAndReturnsBase64Signature(t *testing.T) {
 	if fake.input.SigningAlgorithm != types.SigningAlgorithmSpecRsassaPssSha256 {
 		t.Fatalf("algorithm = %q", fake.input.SigningAlgorithm)
 	}
+	if fake.verifyInput == nil || fake.verifyInput.KeyId == nil || *fake.verifyInput.KeyId != "alias/evydence-release" || fake.verifyInput.MessageType != types.MessageTypeDigest {
+		t.Fatalf("verify input = %#v", fake.verifyInput)
+	}
 	if result.Signature != base64.StdEncoding.EncodeToString([]byte("der-signature")) {
 		t.Fatalf("signature = %q", result.Signature)
 	}
 	if result.Algorithm != "aws-kms:RSASSA_PSS_SHA_256" {
 		t.Fatalf("algorithm = %q", result.Algorithm)
 	}
-	if result.KeyID == "" || len(result.Checks) != 1 || result.Checks[0].Name != "aws_kms_signature_returned" {
+	if result.KeyID == "" || len(result.Checks) != 1 || result.Checks[0].Name != "aws_kms_signature_verified" {
 		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestSignRejectsMismatchedKeyReferenceBeforeCallingKMS(t *testing.T) {
+	fake := &fakeKMSSigner{valid: true}
+	executor, err := NewWithClient(fake, Config{KeyID: "alias/evydence-release"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = executor.Sign(t.Context(), app.SigningRequest{TenantID: "ten_1", ProviderType: "aws_kms", KeyRef: "alias/other", SubjectType: "release", SubjectID: "rel_1", CanonicalPayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"})
+	if !errors.Is(err, app.ErrValidation) || fake.input != nil {
+		t.Fatalf("err=%v input=%#v, want rejected before KMS", err, fake.input)
 	}
 }
 
@@ -104,15 +133,29 @@ func TestSignHidesProviderErrorDetails(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = executor.Sign(context.Background(), app.SigningRequest{
-		TenantID:    "ten_1",
-		SubjectType: "release",
-		SubjectID:   "rel_1",
-		PayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		TenantID:             "ten_1",
+		ProviderType:         "aws_kms",
+		KeyRef:               "alias/evydence-release",
+		SubjectType:          "release",
+		SubjectID:            "rel_1",
+		PayloadHash:          "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		CanonicalPayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	})
 	if err == nil {
 		t.Fatal("expected provider error")
 	}
 	if strings.Contains(err.Error(), "0123456789abcdef") || strings.Contains(err.Error(), "payload") {
 		t.Fatalf("error leaked provider details: %v", err)
+	}
+}
+
+func TestSignRejectsSignatureThatKMSCannotVerify(t *testing.T) {
+	executor, err := NewWithClient(&fakeKMSSigner{valid: false}, Config{KeyID: "alias/evydence-release"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = executor.Sign(t.Context(), app.SigningRequest{TenantID: "ten_1", ProviderType: "aws_kms", KeyRef: "alias/evydence-release", SubjectType: "release", SubjectID: "rel_1", CanonicalPayloadHash: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"})
+	if !errors.Is(err, app.ErrVerificationFailed) {
+		t.Fatalf("err = %v, want verification failure", err)
 	}
 }

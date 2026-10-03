@@ -6,6 +6,23 @@ authorization, API keys, SSO sessions, collector identity, evidence
 immutability, canonical hashes, signatures, audit chains, release bundles,
 object storage, reports, exports, and release evidence.
 
+## Security Model And Release Review
+
+The repository's [threat model](docs/security/threat-model.md) and
+[security requirements matrix](docs/security/security-requirements.md) define
+the current trust boundaries, implemented evidence, open P0/P1 repository
+work, and operator/provider/review-owned controls. They are versioned with the
+code and must be reviewed for a release that changes a trust boundary,
+authentication method, provider, storage profile, parser, package format, or
+deployment topology.
+
+Those documents do not claim protection against a privileged operator who can
+rewrite every database, object, signing-key, and checkpoint record, or prove
+provider truth, legal compliance, certification, complete SBOM coverage,
+authoritative vulnerability results, or release security. Deployment IAM,
+network controls, identity-provider configuration, key custody, backups, and
+external review remain outside this repository's unilateral control.
+
 ## Reporting A Vulnerability
 
 If you believe you found a vulnerability, use GitHub private vulnerability

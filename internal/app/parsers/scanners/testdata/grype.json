@@ -1,0 +1,1 @@
+{"scanner":"grype","target_ref":"pkg:oci/example@sha256:111","release_id":"rel_test","source_schema":"grype-json.v1","payload":{"matches":[{"vulnerability":{"id":"GHSA-aaaa-bbbb-cccc","aliases":["CVE-2026-0001"],"severity":"High","fix":{"versions":["1.0.1"]}},"artifact":{"purl":"pkg:apk/alpine/demo@1.0.0","cpes":["cpe:2.3:a:example:demo:1.0.0:*:*:*:*:*:*:*"]}}]}}

@@ -216,10 +216,44 @@ func TestWithIdempotencyStoresNoOneTimeSecretInReplay(t *testing.T) {
 	}
 }
 
+func TestIdempotencyReplayRemovesAllCentralSensitiveFields(t *testing.T) {
+	canaries := []string{
+		"evy-api-key-canary",
+		"database-password-canary",
+		"internal-note-canary",
+		"object://tenant/raw-payload-canary",
+		"bearer-token-canary",
+	}
+	response, err := safeIdempotencyReplayResponse(map[string]any{
+		"api_key":        canaries[0],
+		"database_url":   "postgres://operator:" + canaries[1] + "@db.example.test/evydence",
+		"internal_notes": canaries[2],
+		"payload_ref":    canaries[3],
+		"nested":         map[string]any{"authorization": "Bearer " + canaries[4]},
+	})
+	if err != nil {
+		t.Fatalf("safe idempotency replay response: %v", err)
+	}
+	body, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal replay response: %v", err)
+	}
+	for _, canary := range canaries {
+		if strings.Contains(string(body), canary) {
+			t.Fatalf("replay response leaked %q: %s", canary, body)
+		}
+	}
+	for _, forbiddenField := range []string{"api_key", "database_url", "internal_notes", "payload_ref", "authorization"} {
+		if strings.Contains(string(body), forbiddenField) {
+			t.Fatalf("replay response retained sensitive field %q: %s", forbiddenField, body)
+		}
+	}
+}
+
 func TestIdempotencyStateErrorsAreSafeConflicts(t *testing.T) {
 	for _, testCase := range []struct {
 		err  error
-		code string
+		code ErrorCode
 	}{
 		{err: ErrIdempotencyInProgress, code: "IDEMPOTENCY_IN_PROGRESS"},
 		{err: ErrIdempotencyFailed, code: "IDEMPOTENCY_REQUEST_FAILED"},
@@ -338,6 +372,25 @@ func TestWithIdempotencyStoresOnlySafeFailedState(t *testing.T) {
 	record := ledger.idempotency[storeKey]
 	if record.State != IdempotencyFailed || record.Response != nil || record.OwnerTokenHash != "" || record.FailedAt == nil {
 		t.Fatalf("failed record retained unsafe state: %#v", record)
+	}
+}
+
+func TestWithIdempotencyAllowsRetryAfterTransientSigningFailure(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	actor := domain.Actor{TenantID: "tenant-idempotency-retry", KeyID: "key-idempotency-retry"}
+	body := []byte(`{"provider_id":"provider"}`)
+	if _, _, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/signing-operations", "retry-key", body, func(context.Context, *Ledger) (int, any, error) {
+		return 503, nil, ErrRetryableSigning
+	}); !errors.Is(err, ErrRetryableSigning) {
+		t.Fatalf("first signing request err=%v, want retryable signing error", err)
+	}
+	ranAgain := false
+	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/signing-operations", "retry-key", body, func(context.Context, *Ledger) (int, any, error) {
+		ranAgain = true
+		return 201, map[string]any{"id": "sop_1"}, nil
+	})
+	if err != nil || !ranAgain || status != 201 || response.(map[string]any)["id"] != "sop_1" {
+		t.Fatalf("retry status=%d response=%#v ran=%t err=%v", status, response, ranAgain, err)
 	}
 }
 

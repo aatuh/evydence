@@ -14,7 +14,7 @@ func TestAppReadListLifecycleAndReportGaps(t *testing.T) {
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 
-	if !ledger.HasTenants() {
+	if !ledger.HasTenants(ctx) {
 		t.Fatal("bootstrap fixture should create a tenant")
 	}
 	if _, err := ledger.ApproveRelease(ctx, actor, release.ID, release.Revision); !errors.Is(err, ErrConflict) {
@@ -71,7 +71,7 @@ func TestAppReadListLifecycleAndReportGaps(t *testing.T) {
 		t.Fatalf("security_review evidence count=%d want 2: %#v", len(listed), listed)
 	}
 
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`))
 	if err != nil {
 		t.Fatalf("sbom: %v", err)
 	}

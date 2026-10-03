@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
 const maxPortalFormBody = 64 << 10
@@ -40,12 +42,32 @@ func (s *Server) listCustomerPortalAccess(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	if s.portalAccessQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "customer-portal-access", "package_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.portalAccessQuery.ListPage(r.Context(), actor, r.URL.Query().Get("package_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapPortalAccessQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.CustomerPortalAccess]{Next: page.Next, Items: make([]domain.CustomerPortalAccess, 0, len(page.Items))}
+		for _, access := range page.Items {
+			mapped.Items = append(mapped.Items, portalAccessFromQuery(access))
+		}
+		writePage(s, w, r, actor, "customer-portal-access", request, mapped)
+		return
+	}
 	access, err := s.ledger.ListCustomerPortalAccess(r.Context(), actor, r.URL.Query().Get("package_id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, access)
+	writeCreatedAtPaginated(s, w, r, actor, "customer-portal-access", []string{"package_id"}, access, func(entry domain.CustomerPortalAccess) (string, time.Time) {
+		return entry.ID, entry.CreatedAt
+	})
 }
 
 func (s *Server) revokeCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
@@ -480,10 +502,32 @@ func (s *Server) listQuestionnaireAnswerLibrary(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
+	if s.answerLibraryQuery != nil {
+		request, err := s.parsePageRequest(r, actor, "questionnaire-answer-library", "question_id", "product_id", "release_id")
+		if err != nil {
+			writeProblem(w, r, err)
+			return
+		}
+		page, err := s.answerLibraryQuery.ListPage(r.Context(), actor, packagequery.AnswerLibraryFilter{
+			QuestionID: r.URL.Query().Get("question_id"), ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id"),
+		}, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+		if err != nil {
+			writeProblem(w, r, mapAnswerLibraryQueryError(err))
+			return
+		}
+		mapped := appquery.Result[domain.QuestionnaireAnswerLibraryEntry]{Next: page.Next, Items: make([]domain.QuestionnaireAnswerLibraryEntry, 0, len(page.Items))}
+		for _, entry := range page.Items {
+			mapped.Items = append(mapped.Items, answerLibraryEntryFromQuery(entry))
+		}
+		writePage(s, w, r, actor, "questionnaire-answer-library", request, mapped)
+		return
+	}
 	entries, err := s.ledger.ListQuestionnaireAnswerLibrary(r.Context(), actor, app.ListQuestionnaireAnswerLibraryInput{QuestionID: r.URL.Query().Get("question_id"), ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id")})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, entries)
+	writeCreatedAtPaginated(s, w, r, actor, "questionnaire-answer-library", []string{"question_id", "product_id", "release_id"}, entries, func(entry domain.QuestionnaireAnswerLibraryEntry) (string, time.Time) {
+		return entry.ID, entry.CreatedAt
+	})
 }

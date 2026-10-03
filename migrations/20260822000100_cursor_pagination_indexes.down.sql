@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS evidence_items_tenant_type_created_id_idx;
+DROP INDEX IF EXISTS evidence_items_tenant_release_created_id_idx;
+DROP INDEX IF EXISTS evidence_items_tenant_created_id_idx;

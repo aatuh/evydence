@@ -7,11 +7,12 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
 func main() {
 	if err := run(os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, redaction.Error(err))
 		os.Exit(1)
 	}
 }

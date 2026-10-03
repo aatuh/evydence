@@ -2,6 +2,9 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
@@ -84,6 +87,113 @@ func TestNativeCycloneDXSBOMStreamsPastSmallJSONLimit(t *testing.T) {
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("native streamed SBOM status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNativeCycloneDXSBOMIdempotencyIncludesReleaseHeader(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "native-idempotency-product", map[string]any{"name": "Native idempotency", "slug": "native-idempotency"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+	firstReleaseBody := postJSON(t, server, secret, "/v1/releases", "native-idempotency-release-a", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
+	secondReleaseBody := postJSON(t, server, secret, "/v1/releases", "native-idempotency-release-b", map[string]any{"product_id": productID, "version": "2.0.0"}, http.StatusCreated)
+	body := `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}`
+	send := func(releaseID string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/v1/sboms", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+secret)
+		req.Header.Set("Content-Type", "application/vnd.cyclonedx+json")
+		req.Header.Set("X-Evydence-Release-ID", releaseID)
+		req.Header.Set("Idempotency-Key", "native-idempotency-release-header")
+		rec := httptest.NewRecorder()
+		server.Handler().ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := send(dataField(t, firstReleaseBody, "id")); rec.Code != http.StatusCreated {
+		t.Fatalf("first upload status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if rec := send(dataField(t, secondReleaseBody, "id")); rec.Code != http.StatusConflict {
+		t.Fatalf("changed release header status=%d body=%s, want conflict", rec.Code, rec.Body.String())
+	}
+}
+
+func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
+	server, secret := testServer(t)
+	actor, err := server.ledger.Authenticate(t.Context(), secret)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}`)
+	sum := sha256.Sum256(body)
+	bodyDigest := "sha256:" + hex.EncodeToString(sum[:])
+	const key = "legacy-native-streamed-replay"
+	legacyResponse := map[string]any{"legacy_replay": true}
+	status, _, err := server.ledger.WithIdempotencyRequestHash(
+		t.Context(), actor, http.MethodPost, "/v1/sboms", key, bodyDigest,
+		func(context.Context, *app.Ledger) (int, any, error) {
+			return http.StatusCreated, legacyResponse, nil
+		},
+	)
+	if err != nil || status != http.StatusCreated {
+		t.Fatalf("seed legacy idempotency record: status=%d err=%v", status, err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/sboms", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+secret)
+	req.Header.Set("Content-Type", "application/vnd.cyclonedx+json")
+	req.Header.Set("X-Evydence-Release-ID", "rel_legacy")
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), `"legacy_replay":true`) {
+		t.Fatalf("legacy retry status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestReadDerivedDiffRoutesPreserveReadOnlyScope(t *testing.T) {
+	server, _ := testServer(t)
+	want := map[string]bool{
+		"/v1/sbom-diffs":    false,
+		"/v1/openapi-diffs": false,
+	}
+	for _, route := range server.evidenceRiskPolicyRoutes() {
+		if _, tracked := want[route.path]; !tracked {
+			continue
+		}
+		want[route.path] = true
+		if len(route.op.Scopes) != 1 || route.op.Scopes[0] != app.ScopeEvidenceRead {
+			t.Errorf("%s scopes = %v, want [%s]", route.path, route.op.Scopes, app.ScopeEvidenceRead)
+		}
+	}
+	for path, found := range want {
+		if !found {
+			t.Errorf("missing route %s", path)
+		}
+	}
+}
+
+func TestStreamedRequestFingerprintCoversSemanticHeadersCanonically(t *testing.T) {
+	t.Parallel()
+	bodyDigest := "sha256:" + strings.Repeat("a", 64)
+	base := map[string]string{
+		"artifact_id": "art_1", "media_type": "application/vnd.oai.openapi+json",
+		"product_id": "prod_1", "release_id": "rel_1", "version": "1.0.0",
+	}
+	want := streamedRequestFingerprint(bodyDigest, base)
+	reordered := map[string]string{
+		"version": "1.0.0", "release_id": "rel_1", "product_id": "prod_1",
+		"media_type": "application/vnd.oai.openapi+json", "artifact_id": "art_1",
+	}
+	if got := streamedRequestFingerprint(bodyDigest, reordered); got != want {
+		t.Fatalf("field ordering changed fingerprint: %q / %q", got, want)
+	}
+	for _, field := range []string{"artifact_id", "media_type", "product_id", "release_id", "version"} {
+		changed := make(map[string]string, len(base))
+		for key, value := range base {
+			changed[key] = value
+		}
+		changed[field] += "_changed"
+		if got := streamedRequestFingerprint(bodyDigest, changed); got == want {
+			t.Fatalf("changing %s did not change fingerprint", field)
+		}
 	}
 }
 

@@ -1,6 +1,10 @@
 package httpapi
 
-import "github.com/aatuh/api-toolkit/v3/specs"
+import (
+	"github.com/aatuh/api-toolkit/v3/specs"
+
+	"github.com/aatuh/evydence/internal/app"
+)
 
 func NewSpecRegistry() *specs.Registry {
 	registry := specs.NewRegistryWithOptions(specs.Info{
@@ -9,15 +13,35 @@ func NewSpecRegistry() *specs.Registry {
 		Version:     "dev",
 	}, specs.RegistryOptions{OpenAPIVersion: specs.OpenAPIVersion31})
 	registry.RegisterSecurityScheme("BearerAuth", specs.SecurityScheme{Type: "http", Scheme: "bearer"})
+	registerProblemSchemas(registry)
 	registry.RegisterSchema("Problem", map[string]any{
-		"type": "object",
+		"type":                 "object",
+		"additionalProperties": false,
 		"properties": map[string]any{
 			"type":     map[string]any{"type": "string"},
 			"title":    map[string]any{"type": "string"},
 			"status":   map[string]any{"type": "integer"},
 			"detail":   map[string]any{"type": "string"},
 			"instance": map[string]any{"type": "string"},
-			"code":     map[string]any{"type": "string"},
+			"code":     map[string]any{"$ref": "#/components/schemas/ErrorCode"},
+			"retryable": map[string]any{
+				"type":        "boolean",
+				"description": "Whether the documented retry class permits an automatic client retry.",
+			},
+			"retry_class": map[string]any{
+				"$ref": "#/components/schemas/RetryClass",
+			},
+			"retry_after_seconds": map[string]any{
+				"type":        "integer",
+				"minimum":     1,
+				"description": "Positive catalog retry interval, mirrored in Retry-After when present.",
+			},
+			"violations": map[string]any{
+				"type":        "array",
+				"maxItems":    32,
+				"description": "Optional safe request-body JSON Pointer validation violations.",
+				"items":       map[string]any{"$ref": "#/components/schemas/FieldViolation"},
+			},
 			"current_revision": map[string]any{
 				"type":        "integer",
 				"format":      "int64",
@@ -29,9 +53,44 @@ func NewSpecRegistry() *specs.Registry {
 				"description": "Request identifier mirrored from the X-Request-ID response header.",
 			},
 		},
+		"required": []string{"type", "title", "status", "detail", "code", "request_id", "retryable", "retry_class"},
 	})
 	registerCriticalSchemas(registry)
 	return registry
+}
+
+func registerProblemSchemas(registry *specs.Registry) {
+	definitions := app.ErrorCatalog()
+	codes := make([]string, 0, len(definitions))
+	retryClasses := make([]string, 0, len(definitions))
+	seenRetryClasses := map[string]struct{}{}
+	for _, definition := range definitions {
+		codes = append(codes, string(definition.Code))
+		if _, seen := seenRetryClasses[string(definition.RetryClass)]; seen {
+			continue
+		}
+		seenRetryClasses[string(definition.RetryClass)] = struct{}{}
+		retryClasses = append(retryClasses, string(definition.RetryClass))
+	}
+	registry.RegisterSchema("ErrorCode", map[string]any{
+		"type":        "string",
+		"enum":        codes,
+		"description": "Stable machine-readable Evydence Problem Details code. See docs/reference/error-codes.md.",
+	})
+	registry.RegisterSchema("RetryClass", map[string]any{
+		"type":        "string",
+		"enum":        retryClasses,
+		"description": "Stable client action classification for Problem Details retry behavior.",
+	})
+	registry.RegisterSchema("FieldViolation", map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"field": map[string]any{"type": "string", "pattern": "^/(?:[A-Za-z0-9_./-]|~[01])+$", "maxLength": 256},
+			"code":  map[string]any{"type": "string", "pattern": "^[a-z0-9_-]+$", "maxLength": 64},
+		},
+		"required": []string{"field", "code"},
+	})
 }
 
 func registerCriticalSchemas(registry *specs.Registry) {
@@ -178,7 +237,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "sequence", "entry_type", "subject_type", "subject_id", "actor_type", "actor_id", "occurred_at", "canonical_entry_hash", "previous_entry_hash", "entry_hash", "schema_version"))
 	registry.RegisterSchema("AuditChainEntryListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/AuditChainEntry"))
 	registry.RegisterSchema("ReadinessStatus", objectSchema(map[string]any{
-		"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"status":      map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"retryable":   map[string]any{"type": "boolean", "description": "Present for unavailable readiness and indicates whether a retry can help."},
+		"retry_class": map[string]any{"$ref": "#/components/schemas/RetryClass"},
+		"retry_after_seconds": map[string]any{
+			"type":        "integer",
+			"minimum":     1,
+			"description": "Present for retryable unavailable readiness and mirrored in Retry-After.",
+		},
 		"checks": map[string]any{"type": "array", "items": objectSchema(map[string]any{
 			"name":   map[string]any{"type": "string"},
 			"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
@@ -389,7 +455,6 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"impact_statement":    map[string]any{"type": "string"},
 		"action_statement":    map[string]any{"type": "string"},
 		"customer_visible":    map[string]any{"type": "boolean"},
-		"internal_notes":      map[string]any{"type": "string", "description": "Tenant-internal notes; do not include in customer-safe exports."},
 		"source":              map[string]any{"type": "string"},
 		"evidence_id":         map[string]any{"type": "string"},
 		"evidence_ids":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
@@ -614,20 +679,31 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "base_contract_id", "target_contract_id", "product_id", "result", "schema_version", "created_at"))
 	registry.RegisterSchema("ContractDiffEnvelope", dataEnvelopeSchema("#/components/schemas/ContractDiff"))
 	registry.RegisterSchema("SigningKey", objectSchema(map[string]any{
-		"id":         map[string]any{"type": "string"},
-		"tenant_id":  map[string]any{"type": "string"},
-		"kid":        map[string]any{"type": "string"},
-		"algorithm":  map[string]any{"type": "string"},
-		"status":     map[string]any{"type": "string"},
-		"public_key": map[string]any{"type": "string"},
-		"created_at": map[string]any{"type": "string", "format": "date-time"},
-		"revoked_at": map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "kid", "algorithm", "status", "public_key", "created_at"))
+		"id":                         map[string]any{"type": "string"},
+		"tenant_id":                  map[string]any{"type": "string"},
+		"kid":                        map[string]any{"type": "string"},
+		"version":                    map[string]any{"type": "integer", "minimum": 1},
+		"provider":                   map[string]any{"type": "string"},
+		"algorithm":                  map[string]any{"type": "string"},
+		"status":                     map[string]any{"type": "string", "enum": []string{"active", "retiring", "revoked"}},
+		"public_key":                 map[string]any{"type": "string"},
+		"public_key_fingerprint":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"valid_from":                 map[string]any{"type": "string", "format": "date-time"},
+		"valid_until":                map[string]any{"type": "string", "format": "date-time"},
+		"created_at":                 map[string]any{"type": "string", "format": "date-time"},
+		"revoked_at":                 map[string]any{"type": "string", "format": "date-time"},
+		"revocation_reason":          map[string]any{"type": "string"},
+		"revocation_semantics":       map[string]any{"type": "string", "enum": []string{"ordinary", "compromised"}},
+		"historical_validity_policy": map[string]any{"type": "string", "enum": []string{"preserve", "invalidate_from_compromise", "invalidate_all"}},
+		"compromised_at":             map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "kid", "version", "provider", "algorithm", "status", "public_key", "valid_from", "created_at"))
 	registry.RegisterSchema("SigningKeyEnvelope", dataEnvelopeSchema("#/components/schemas/SigningKey"))
 	registry.RegisterSchema("SigningKeyListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/SigningKey"))
 	registry.RegisterSchema("SigningKeyTransitionRequest", objectSchema(map[string]any{
-		"reason": map[string]any{"type": "string"},
-	}))
+		"reason":                     map[string]any{"type": "string", "minLength": 1},
+		"semantics":                  map[string]any{"type": "string", "enum": []string{"ordinary", "compromised"}},
+		"historical_validity_policy": map[string]any{"type": "string", "enum": []string{"preserve", "invalidate_from_compromise", "invalidate_all"}},
+	}, "reason"))
 	registry.RegisterSchema("CreateSigningProviderRequest", objectSchema(map[string]any{
 		"name":      map[string]any{"type": "string"},
 		"type":      map[string]any{"type": "string"},
@@ -667,24 +743,26 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "report_type", "tenant_id", "checks", "assumptions", "limitations", "generated_at"))
 	registry.RegisterSchema("SigningCustodyReviewReportEnvelope", dataEnvelopeSchema("#/components/schemas/SigningCustodyReviewReport"))
 	registry.RegisterSchema("CreateSigningOperationRequest", objectSchema(map[string]any{
-		"provider_id":        map[string]any{"type": "string"},
-		"subject_type":       map[string]any{"type": "string"},
-		"subject_id":         map[string]any{"type": "string"},
-		"payload_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
-		"external_signature": map[string]any{"type": "string", "description": "Optional when a server-side signing executor is configured. The executor signs payload_hash and Evydence records only the returned signature receipt."},
+		"provider_id":  map[string]any{"type": "string"},
+		"subject_type": map[string]any{"type": "string"},
+		"subject_id":   map[string]any{"type": "string"},
+		"payload_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
 	}, "provider_id", "subject_type", "subject_id", "payload_hash"))
 	registry.RegisterSchema("SigningOperation", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"provider_id":    map[string]any{"type": "string"},
-		"subject_type":   map[string]any{"type": "string"},
-		"subject_id":     map[string]any{"type": "string"},
-		"payload_hash":   map[string]any{"type": "string", "pattern": "^sha256:"},
-		"signature_ref":  map[string]any{"type": "string"},
-		"result":         map[string]any{"type": "string"},
-		"checks":         map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+		"id":                     map[string]any{"type": "string"},
+		"tenant_id":              map[string]any{"type": "string"},
+		"provider_id":            map[string]any{"type": "string"},
+		"subject_type":           map[string]any{"type": "string"},
+		"subject_id":             map[string]any{"type": "string"},
+		"payload_hash":           map[string]any{"type": "string", "pattern": "^sha256:"},
+		"canonical_payload_hash": map[string]any{"type": "string", "pattern": "^sha256:", "description": "Hash of the canonical provider-signing request; no raw payload bytes are stored."},
+		"request_id":             map[string]any{"type": "string", "description": "Evydence signing-request identifier for safe retry correlation."},
+		"provider_request_id":    map[string]any{"type": "string", "description": "Provider receipt identifier when returned by the signing provider; credentials and raw provider responses are never stored."},
+		"signature_ref":          map[string]any{"type": "string"},
+		"result":                 map[string]any{"type": "string"},
+		"checks":                 map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"schema_version":         map[string]any{"type": "string"},
+		"created_at":             map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "provider_id", "subject_type", "subject_id", "payload_hash", "result", "checks", "schema_version", "created_at"))
 	registry.RegisterSchema("SigningOperationEnvelope", dataEnvelopeSchema("#/components/schemas/SigningOperation"))
 	registry.RegisterSchema("CreateArtifactSignatureRequest", objectSchema(map[string]any{
@@ -711,29 +789,31 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "artifact_id", "subject_digest", "algorithm", "signature", "verification_status", "schema_version", "created_at"))
 	registry.RegisterSchema("ArtifactSignatureEnvelope", dataEnvelopeSchema("#/components/schemas/ArtifactSignature"))
 	registry.RegisterSchema("VerifyCosignSignatureRequest", objectSchema(map[string]any{
-		"rekor_uuid":                map[string]any{"type": "string"},
-		"rekor_log_index":           map[string]any{"type": "string"},
-		"certificate_identity":      map[string]any{"type": "string"},
-		"certificate_issuer":        map[string]any{"type": "string"},
-		"require_full_verification": map[string]any{"type": "boolean", "description": "Request cryptographic Cosign verification. This compatibility endpoint returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured."},
-	}))
+		"expected_identity": map[string]any{"type": "string", "description": "Exact expected Fulcio certificate identity for keyless verification."},
+		"expected_issuer":   map[string]any{"type": "string", "description": "Exact expected Fulcio OIDC issuer for keyless verification."},
+		"mode":              map[string]any{"type": "string", "enum": []string{"keyless", "key"}, "description": "keyless requires expected_identity and expected_issuer; key rejects them and uses configured public-key trust material."},
+		"offline":           map[string]any{"type": "boolean", "description": "Must be true for the currently supported explicit-offline bundle profile. The bundle must contain a verified Rekor inclusion proof."},
+	}, "mode", "offline"))
 	registry.RegisterSchema("CosignVerification", objectSchema(map[string]any{
-		"id":                    map[string]any{"type": "string"},
-		"tenant_id":             map[string]any{"type": "string"},
-		"artifact_id":           map[string]any{"type": "string"},
-		"container_image_id":    map[string]any{"type": "string"},
-		"artifact_signature_id": map[string]any{"type": "string"},
-		"subject_digest":        map[string]any{"type": "string"},
-		"rekor_uuid":            map[string]any{"type": "string"},
-		"rekor_log_index":       map[string]any{"type": "string"},
-		"certificate_identity":  map[string]any{"type": "string"},
-		"certificate_issuer":    map[string]any{"type": "string"},
-		"result":                map[string]any{"type": "string", "enum": []string{"failed", "not_verified", "limited", "skipped", "error"}, "description": "limited records only metadata assessment; it never proves a Cosign signature, certificate identity, trust policy, or Rekor inclusion."},
-		"checks":                map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
-		"profile":               map[string]any{"$ref": "#/components/schemas/VerificationProfile"},
-		"limitations":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-		"schema_version":        map[string]any{"type": "string"},
-		"created_at":            map[string]any{"type": "string", "format": "date-time"},
+		"id":                       map[string]any{"type": "string"},
+		"tenant_id":                map[string]any{"type": "string"},
+		"artifact_id":              map[string]any{"type": "string"},
+		"container_image_id":       map[string]any{"type": "string"},
+		"artifact_signature_id":    map[string]any{"type": "string"},
+		"subject_digest":           map[string]any{"type": "string"},
+		"rekor_uuid":               map[string]any{"type": "string"},
+		"rekor_log_index":          map[string]any{"type": "string"},
+		"certificate_identity":     map[string]any{"type": "string"},
+		"certificate_issuer":       map[string]any{"type": "string"},
+		"verifier_library_version": map[string]any{"type": "string"},
+		"trust_root_version":       map[string]any{"type": "string"},
+		"verification_mode":        map[string]any{"type": "string", "enum": []string{"keyless", "key"}},
+		"result":                   map[string]any{"type": "string", "enum": []string{"passed", "failed", "not_verified", "limited", "skipped", "error"}, "description": "passed requires every profile check, including cryptographic signature, digest, trust, and embedded Rekor inclusion proof verification."},
+		"checks":                   map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VerifyCheck"}},
+		"profile":                  map[string]any{"$ref": "#/components/schemas/VerificationProfile"},
+		"limitations":              map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"schema_version":           map[string]any{"type": "string"},
+		"created_at":               map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "artifact_signature_id", "subject_digest", "result", "checks", "profile", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("CosignVerificationEnvelope", dataEnvelopeSchema("#/components/schemas/CosignVerification"))
 	registry.RegisterSchema("DSSEEnvelope", objectSchema(map[string]any{
@@ -765,24 +845,30 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "build_id", "evidence_id", "payload_hash", "payload_size", "payload_type", "predicate_type", "subject_digests", "signature_count", "verification_status", "schema_version", "created_at"))
 	registry.RegisterSchema("BuildAttestationEnvelope", dataEnvelopeSchema("#/components/schemas/BuildAttestation"))
 	registry.RegisterSchema("CreateDSSETrustRootRequest", objectSchema(map[string]any{
-		"name":       map[string]any{"type": "string"},
-		"key_id":     map[string]any{"type": "string"},
-		"algorithm":  map[string]any{"type": "string", "enum": []string{"Ed25519"}},
-		"public_key": map[string]any{"type": "string", "description": "Base64-encoded Ed25519 public key."},
-	}, "name", "key_id", "algorithm", "public_key"))
+		"name":                    map[string]any{"type": "string"},
+		"key_id":                  map[string]any{"type": "string"},
+		"algorithm":               map[string]any{"type": "string", "enum": []string{"Ed25519"}},
+		"public_key":              map[string]any{"type": "string", "description": "Base64-encoded Ed25519 public key."},
+		"allowed_predicate_types": map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "enum": []string{"https://slsa.dev/provenance/v1"}}},
+		"expected_builder_ids":    map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 1}},
+		"required_claims":         map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "enum": []string{"builder_id", "build_type", "external_parameters"}}},
+	}, "name", "key_id", "algorithm", "public_key", "allowed_predicate_types", "expected_builder_ids", "required_claims"))
 	registry.RegisterSchema("DSSETrustRoot", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"key_id":         map[string]any{"type": "string"},
-		"algorithm":      map[string]any{"type": "string"},
-		"public_key":     map[string]any{"type": "string"},
-		"status":         map[string]any{"type": "string"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "name", "key_id", "algorithm", "public_key", "status", "schema_version", "created_at"))
+		"id":                      map[string]any{"type": "string"},
+		"tenant_id":               map[string]any{"type": "string"},
+		"name":                    map[string]any{"type": "string"},
+		"key_id":                  map[string]any{"type": "string"},
+		"algorithm":               map[string]any{"type": "string"},
+		"public_key":              map[string]any{"type": "string"},
+		"allowed_predicate_types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"expected_builder_ids":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"required_claims":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"status":                  map[string]any{"type": "string"},
+		"schema_version":          map[string]any{"type": "string"},
+		"created_at":              map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "key_id", "algorithm", "public_key", "allowed_predicate_types", "expected_builder_ids", "required_claims", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("DSSETrustRootEnvelope", dataEnvelopeSchema("#/components/schemas/DSSETrustRoot"))
-	registry.RegisterSchema("CreateReleaseCandidateRequest", objectSchema(map[string]any{
+	createCandidateRequest := objectSchema(map[string]any{
 		"release_id":   map[string]any{"type": "string"},
 		"name":         map[string]any{"type": "string"},
 		"build_ids":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
@@ -792,15 +878,20 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"vex_ids":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"contract_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"bundle_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}, "release_id", "name"))
-	registry.RegisterSchema("ReleaseCandidateTransitionRequest", objectSchema(map[string]any{
+	}, "release_id", "name")
+	createCandidateRequest["description"] = "PostgreSQL candidate creation uses a focused durable command requiring release:write and a matching tenant/product/release grant for human sessions. Current tenant-owned parent coordinates and all supplied reference IDs are validated in the active transaction without foreign-context payload or cached Ledger reads. Builds and parsed evidence/bundle references must belong to the same release; artifacts are tenant-scoped and human reuse needs a current authorized build/evidence association. Missing, foreign, wrong-release, or inconsistent source-evidence references return 404, and grant denial returns 403. Trimmed names and IDs are non-empty, NUL-free UTF-8: new names are bounded at 64 KiB, parent/reference IDs at 1024 bytes, and the combined reference arrays at 4096 entries and 64 KiB of identifier bytes. Sorting preserves duplicates. The whole HTTP JSON body is capped at 64 KiB including syntax/escapes. Invalid input returns 400 without candidate/audit writes. New snapshots start open at revision 1 with microsecond-precision UTC timestamps and the existing versioned normalized-JSON snapshot hash; candidate/audit effects commit together. Same-key replay returns the original snapshot and changed request bytes conflict. Local-memory creation retains its explicit compatibility binding."
+	registry.RegisterSchema("CreateReleaseCandidateRequest", createCandidateRequest)
+	candidateTransitionRequest := objectSchema(map[string]any{
 		"reason": map[string]any{"type": "string"},
-	}))
+	}, "reason")
+	candidateTransitionRequest["description"] = "Promotion/rejection requires a non-empty trimmed reason and a strong If-Match revision. In PostgreSQL, reason must be NUL-free UTF-8 and at most 64 KiB of UTF-8 bytes; the entire HTTP JSON body is also capped at 64 KiB. A focused command reads one locked candidate and its tenant-owned release/product coordinate, requires release:write and a matching tenant/product/release grant for human sessions, and authorizes before exposing revision conflicts. Only open candidates at the expected revision transition. State/revision/time changes and audit commit together; name, reference lists, snapshot hash, schema version, and creation metadata remain unchanged. Stored names are bounded at 64 KiB, IDs/schema identifiers at 1024 bytes, state at 32 bytes, hash at 128 bytes, and JSON snapshots at 1 MiB; unsupported stored snapshots fail with 409 rather than truncation. Local-memory transitions keep the explicit compatibility binding."
+	registry.RegisterSchema("ReleaseCandidateTransitionRequest", candidateTransitionRequest)
 	registry.RegisterSchema("ReleaseCandidate", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
 		"release_id":     map[string]any{"type": "string"},
 		"name":           map[string]any{"type": "string"},
+		"revision":       map[string]any{"type": "integer", "format": "int64", "minimum": 1},
 		"state":          map[string]any{"type": "string"},
 		"build_ids":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"artifact_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
@@ -871,7 +962,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"author":        map[string]any{"type": "string"},
 		"message":       map[string]any{"type": "string", "description": "Commit message is hashed before storage."},
 		"committed_at":  map[string]any{"type": "string", "format": "date-time"},
-	}, "repository_id", "sha", "committed_at"))
+	}, "repository_id", "sha"))
 	registry.RegisterSchema("SourceCommit", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -913,7 +1004,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"target_branch":   map[string]any{"type": "string"},
 		"head_commit_id":  map[string]any{"type": "string"},
 		"review_decision": map[string]any{"type": "string"},
-	}, "repository_id", "provider", "provider_id", "title", "state"))
+	}, "repository_id", "provider_id", "title", "state"))
 	registry.RegisterSchema("PullRequest", objectSchema(map[string]any{
 		"id":              map[string]any{"type": "string"},
 		"tenant_id":       map[string]any{"type": "string"},
@@ -954,7 +1045,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"started_at":     map[string]any{"type": "string", "format": "date-time"},
 		"finished_at":    map[string]any{"type": "string", "format": "date-time"},
 		"rollback_of":    map[string]any{"type": "string"},
-	}, "environment_id", "release_id", "status", "started_at"))
+	}, "environment_id", "release_id", "status"))
 	registry.RegisterSchema("DeploymentEvent", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -1084,13 +1175,15 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"schema_version": map[string]any{"type": "string"},
 	}, "id", "name", "slug", "version", "controls", "schema_version"))
 	registry.RegisterSchema("ControlFrameworkTemplatePackListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ControlFrameworkTemplatePack"))
-	registry.RegisterSchema("RegisterContainerImageRequest", objectSchema(map[string]any{
+	registerContainerImageRequest := objectSchema(map[string]any{
 		"artifact_id": map[string]any{"type": "string"},
 		"repository":  map[string]any{"type": "string"},
 		"tag":         map[string]any{"type": "string"},
 		"digest":      map[string]any{"type": "string"},
 		"platform":    map[string]any{"type": "string"},
-	}, "repository", "digest"))
+	}, "repository", "digest")
+	registerContainerImageRequest["description"] = "PostgreSQL profile: normalized artifact IDs are limited to 1024 UTF-8 bytes and repository text to 65536 bytes. Newly stored tag and platform text are limited to 65536 UTF-8 bytes. Stored text must be NUL-free. Reuse of a tenant/repository/digest identity returns the original immutable image, ignoring submitted tag and platform. Registration records submitted metadata; it does not download or verify a registry image."
+	registry.RegisterSchema("RegisterContainerImageRequest", registerContainerImageRequest)
 	registry.RegisterSchema("ContainerImage", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -1592,12 +1685,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "collector", "api_key"))
 	registry.RegisterSchema("CollectorCreateEnvelope", dataEnvelopeSchema("#/components/schemas/CollectorCreateResponse"))
 	registry.RegisterSchema("CollectorListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Collector"))
-	registry.RegisterSchema("CreateControlFrameworkRequest", objectSchema(map[string]any{
+	createControlFrameworkRequest := objectSchema(map[string]any{
 		"name":        map[string]any{"type": "string"},
 		"slug":        map[string]any{"type": "string"},
 		"version":     map[string]any{"type": "string"},
 		"description": map[string]any{"type": "string"},
-	}, "name", "version"))
+	}, "name", "version")
+	createControlFrameworkRequest["description"] = "Creates a versioned framework with controls:admin. PostgreSQL uses a focused transaction with a tenant-scoped existence check and atomic audit; human sessions need a current tenant-level grant. Name/version are trimmed and non-empty; an omitted or blank slug is derived from the name using the existing ASCII slug rule. Explicit slugs are retained. New name/description text is NUL-free UTF-8 bounded at 64 KiB each; slug/version together are bounded at 1024 UTF-8 bytes. The HTTP body is capped at 64 KiB including JSON syntax/escapes. Supplied fields cannot be null. Duplicate tenant/slug/version keys return 409; same-key retry returns the original result, and changed request bytes conflict. Creation timestamps use microsecond-precision UTC in PostgreSQL. Local-memory mode retains its compatibility command."
+	registry.RegisterSchema("CreateControlFrameworkRequest", createControlFrameworkRequest)
 	registry.RegisterSchema("ControlFramework", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -1616,7 +1711,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"freshness_days": map[string]any{"type": "integer", "minimum": 0},
 		"required":       map[string]any{"type": "boolean"},
 	}, "type", "required"))
-	registry.RegisterSchema("CreateSecurityControlRequest", objectSchema(map[string]any{
+	createSecurityControlRequest := objectSchema(map[string]any{
 		"framework_id":          map[string]any{"type": "string"},
 		"code":                  map[string]any{"type": "string"},
 		"title":                 map[string]any{"type": "string"},
@@ -1624,7 +1719,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"evidence_requirements": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/ControlEvidenceRequirement"}},
 		"applicability":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"limitations":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}, "framework_id", "code", "title", "objective"))
+	}, "framework_id", "code", "title", "objective")
+	createSecurityControlRequest["description"] = "Creates a control under a current tenant-owned framework with controls:admin. PostgreSQL human sessions need a current tenant-level grant; ownership, code uniqueness, insertion, and audit use one focused transaction without Ledger inventory reads. Missing/foreign frameworks return 404, grant denial 403, and duplicate framework/code keys 409. Trimmed IDs/code/title/objective are non-empty NUL-free UTF-8. Framework IDs and codes are bounded at 1024 bytes each, and tenant ID plus framework ID plus code at 2048 bytes; title/objective are bounded at 64 KiB each. At most ten unique supported evidence requirement types are accepted, in request order, with freshness_days from 0 through 3650. Each requirement must supply its non-null required boolean (false is valid). Optional arrays may be omitted, but supplied fields/items cannot be null. Applicability is trimmed/sorted with duplicates and empty entries retained; limitations are trimmed in order with blank entries omitted. These two lists together are bounded at 1024 input entries and 64 KiB of input text. The entire HTTP JSON body is capped at 64 KiB including syntax/escapes. Invalid input returns 400 without control/audit writes. Same-key retry returns the original result; changed request bytes conflict. Local-memory mode retains its compatibility command."
+	registry.RegisterSchema("CreateSecurityControlRequest", createSecurityControlRequest)
 	registry.RegisterSchema("SecurityControl", objectSchema(map[string]any{
 		"id":                    map[string]any{"type": "string"},
 		"tenant_id":             map[string]any{"type": "string"},
@@ -1639,7 +1736,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":            map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "framework_id", "code", "title", "objective", "schema_version", "created_at"))
 	registry.RegisterSchema("SecurityControlEnvelope", dataEnvelopeSchema("#/components/schemas/SecurityControl"))
-	registry.RegisterSchema("LinkControlEvidenceRequest", objectSchema(map[string]any{
+	linkControlEvidenceRequest := objectSchema(map[string]any{
 		"evidence_type": map[string]any{"type": "string"},
 		"subject_type":  map[string]any{"type": "string"},
 		"subject_id":    map[string]any{"type": "string"},
@@ -1647,7 +1744,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"release_id":    map[string]any{"type": "string"},
 		"confidence":    map[string]any{"type": "string", "enum": []string{"high", "medium", "low", "unsupported"}},
 		"notes":         map[string]any{"type": "string"},
-	}, "evidence_type", "subject_type", "subject_id", "confidence"))
+	}, "evidence_type", "subject_type", "subject_id", "confidence")
+	linkControlEvidenceRequest["description"] = "Creates an append-only control evidence link with controls:write. PostgreSQL resolves the current tenant-owned control/framework, subject, typed source evidence, and scoped parents inside the idempotent command transaction without Ledger inventory reads. Human sessions need a current matching resource grant. Product/release IDs are optional association filters, not ownership proof; artifact grants require a matching current evidence/build association. Supported subject types are evidence, evidence_item, product, release, artifact, sbom, vulnerability_scan, vex, vulnerability_decision, finding, vulnerability_finding, exception, build, build_attestation, openapi_contract, and release_bundle. Missing, foreign, or unsupported subjects return 404; grant denial returns 403; ambiguous findings return 409. Required fields must be supplied; no supplied field may be null. Trimmed IDs/types/confidence are NUL-free UTF-8, each identity field is bounded at 1024 bytes, and the natural key (tenant, control, evidence type, subject type, subject ID, supplied product and release) at 2048 bytes. Notes are trimmed, NUL-free UTF-8, and bounded at 64 KiB. The entire HTTP JSON body is capped at 64 KiB including syntax/escapes. Natural-key duplicates return the original link unchanged, even with different confidence/notes, after current subject authorization; they append no audit entry. Same idempotency key and request bytes replay the original response; changed request bytes conflict. Link, audit, and completed replay commit together. Invalid input returns 400; failed writes leave no link/audit pair. Local-memory mode retains its explicit compatibility command."
+	registry.RegisterSchema("LinkControlEvidenceRequest", linkControlEvidenceRequest)
 	registry.RegisterSchema("ControlEvidence", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -1664,52 +1763,52 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "control_id", "evidence_type", "subject_type", "subject_id", "confidence", "schema_version", "created_at"))
 	registry.RegisterSchema("ControlEvidenceEnvelope", dataEnvelopeSchema("#/components/schemas/ControlEvidence"))
 	registry.RegisterSchema("ControlEvidenceListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/ControlEvidence"))
-	registry.RegisterSchema("CreateProductRequest", objectSchema(map[string]any{
+	createProductRequest := objectSchema(map[string]any{
 		"name": map[string]any{"type": "string"},
-		"slug": map[string]any{"type": "string"},
-	}, "name", "slug"))
+		"slug": map[string]any{"type": "string", "description": "Nonempty product slug, trimmed before validation; at most 1024 UTF-8 bytes so the tenant/slug natural identity fits the supported PostgreSQL index."},
+	}, "name", "slug")
+	createProductRequest["description"] = "Product creation accepts name and slug and requires product:write. PostgreSQL human sessions also need a matching tenant-level grant, not a grant on an existing product. Authorization is rechecked before a tenant-scoped boolean slug-existence query, and product/audit effects commit together; cached Ledger products are not used. Slugs are unique within a tenant: a different-key request for an existing slug returns 409, while same-key replay returns the original product. Trimmed names and slugs must be non-empty, NUL-free UTF-8; new names are bounded at 64 KiB of UTF-8 bytes and slugs at 1024 bytes. The entire HTTP JSON body is limited to 64 KiB, including syntax and escapes. Invalid input returns 400 without product/audit writes. Creation timestamps use microsecond-precision UTC. Explicit local-memory mode retains its compatibility binding."
+	registry.RegisterSchema("CreateProductRequest", createProductRequest)
 	registry.RegisterSchema("Product", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"slug":           map[string]any{"type": "string"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "name", "slug", "schema_version", "created_at"))
-	registry.RegisterSchema("ProductEnvelope", dataEnvelopeSchema("#/components/schemas/Product"))
-	registry.RegisterSchema("ProductListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Product"))
-	registry.RegisterSchema("CreateProjectRequest", objectSchema(map[string]any{
-		"product_id": map[string]any{"type": "string"},
+		"id":         map[string]any{"type": "string"},
+		"tenant_id":  map[string]any{"type": "string"},
 		"name":       map[string]any{"type": "string"},
 		"slug":       map[string]any{"type": "string"},
-	}, "product_id", "name", "slug"))
-	registry.RegisterSchema("Project", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"product_id":     map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"slug":           map[string]any{"type": "string"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "product_id", "name", "slug", "schema_version", "created_at"))
-	registry.RegisterSchema("ProjectEnvelope", dataEnvelopeSchema("#/components/schemas/Project"))
-	registry.RegisterSchema("CreateReleaseRequest", objectSchema(map[string]any{
+		"created_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "slug", "created_at"))
+	registry.RegisterSchema("ProductEnvelope", dataEnvelopeSchema("#/components/schemas/Product"))
+	registry.RegisterSchema("ProductListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/Product"))
+	createProjectRequest := objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
-		"project_id": map[string]any{"type": "string"},
+		"name":       map[string]any{"type": "string"},
+	}, "product_id", "name")
+	createProjectRequest["description"] = "Project creation accepts only product_id and name and requires project:write. PostgreSQL human sessions also need a tenant or matching product grant. The current tenant-owned product is rechecked in the write transaction and project/audit effects commit together; cached Ledger products are not used. Trimmed product IDs and names must be non-empty, NUL-free UTF-8; product IDs are bounded at 1024 UTF-8 bytes and new project names at 64 KiB of UTF-8 bytes. Unsupported input returns 400 and oversized stored parent coordinates return 409, never truncated values. Explicit local-memory mode retains its compatibility path."
+	registry.RegisterSchema("CreateProjectRequest", createProjectRequest)
+	registry.RegisterSchema("Project", objectSchema(map[string]any{
+		"id":         map[string]any{"type": "string"},
+		"tenant_id":  map[string]any{"type": "string"},
+		"product_id": map[string]any{"type": "string"},
+		"name":       map[string]any{"type": "string"},
+		"created_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "product_id", "name", "created_at"))
+	registry.RegisterSchema("ProjectEnvelope", dataEnvelopeSchema("#/components/schemas/Project"))
+	createReleaseRequest := objectSchema(map[string]any{
+		"product_id": map[string]any{"type": "string"},
 		"version":    map[string]any{"type": "string"},
-	}, "product_id", "version"))
+	}, "product_id", "version")
+	createReleaseRequest["description"] = "Release creation accepts product_id and version and requires release:write. PostgreSQL human sessions also need a tenant or matching product grant. The current tenant-owned product is rechecked in the write transaction and release/audit effects commit together; cached Ledger products and releases are not used. New releases start in draft at revision 1. Versions are unique within each product: a different-key request for an existing version returns 409, while same-key replay returns the original release. Trimmed product IDs and versions must be non-empty, NUL-free UTF-8; product IDs are bounded at 1024 UTF-8 bytes and new release versions at 64 KiB of UTF-8 bytes. Unsupported input returns 400 and oversized stored parent coordinates return 409, never truncated values. Explicit local-memory mode retains its compatibility path. Recording a release does not assert approval, verification, or compliance."
+	registry.RegisterSchema("CreateReleaseRequest", createReleaseRequest)
 	registry.RegisterSchema("Release", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"product_id":     map[string]any{"type": "string"},
-		"project_id":     map[string]any{"type": "string"},
-		"version":        map[string]any{"type": "string"},
-		"status":         map[string]any{"type": "string", "enum": []string{"draft", "frozen", "approved"}},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-		"frozen_at":      map[string]any{"type": "string", "format": "date-time"},
-		"approved_at":    map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "product_id", "version", "revision", "status", "schema_version", "created_at"))
+		"id":          map[string]any{"type": "string"},
+		"tenant_id":   map[string]any{"type": "string"},
+		"product_id":  map[string]any{"type": "string"},
+		"version":     map[string]any{"type": "string"},
+		"revision":    map[string]any{"type": "integer", "minimum": 1},
+		"state":       map[string]any{"type": "string", "enum": []string{"draft", "frozen", "approved"}},
+		"created_at":  map[string]any{"type": "string", "format": "date-time"},
+		"frozen_at":   map[string]any{"type": "string", "format": "date-time"},
+		"approved_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "product_id", "version", "revision", "state", "created_at"))
 	registry.RegisterSchema("ReleaseEnvelope", dataEnvelopeSchema("#/components/schemas/Release"))
 	registry.RegisterSchema("ReleaseEvidenceFlowStep", objectSchema(map[string]any{
 		"id":                   map[string]any{"type": "string"},
@@ -1783,37 +1882,51 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"generated_at":               map[string]any{"type": "string", "format": "date-time"},
 	}, "product", "release", "artifact_count", "sbom_status", "vulnerability_scan_status", "open_findings_by_severity", "decisions_by_status", "approval_summary", "exception_summary", "readiness_status", "package_status", "counts", "assumptions", "limitations", "schema_version", "generated_at"))
 	registry.RegisterSchema("ReleaseSecuritySummaryEnvelope", dataEnvelopeSchema("#/components/schemas/ReleaseSecuritySummary"))
-	registry.RegisterSchema("RegisterArtifactRequest", objectSchema(map[string]any{
-		"release_id":  map[string]any{"type": "string"},
-		"name":        map[string]any{"type": "string"},
-		"media_type":  map[string]any{"type": "string"},
-		"digest":      map[string]any{"type": "string", "pattern": "^sha256:"},
-		"size":        map[string]any{"type": "integer", "minimum": 0},
-		"subject_ref": map[string]any{"type": "string"},
-	}, "name", "digest"))
+	registerArtifactRequest := objectSchema(map[string]any{
+		"name":       map[string]any{"type": "string"},
+		"media_type": map[string]any{"type": "string"},
+		"digest":     map[string]any{"type": "string", "pattern": "^sha256:"},
+		"size":       map[string]any{"type": "integer", "minimum": 0},
+	}, "name", "media_type", "digest")
+	registerArtifactRequest["description"] = "Artifact metadata registration requires evidence:write. Names and media types are trimmed and non-empty; digest is sha256: followed by 64 hexadecimal digits; size defaults to zero and must be non-negative. PostgreSQL reuse of a tenant digest requires current artifact authorization and returns the original immutable metadata without another audit entry. New stored names and media types must be NUL-free UTF-8, each at most 64 KiB of UTF-8 bytes; unsupported new text returns 400 and oversized existing metadata returns 409, never truncated values. Explicit local-memory mode retains its compatibility path. Registration does not upload bytes or establish digest, signature, or provenance trust."
+	registry.RegisterSchema("RegisterArtifactRequest", registerArtifactRequest)
 	registry.RegisterSchema("Artifact", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"release_id":     map[string]any{"type": "string"},
-		"name":           map[string]any{"type": "string"},
-		"media_type":     map[string]any{"type": "string"},
-		"digest":         map[string]any{"type": "string"},
-		"size":           map[string]any{"type": "integer"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
-	}, "id", "tenant_id", "name", "digest", "schema_version", "created_at"))
+		"id":         map[string]any{"type": "string"},
+		"tenant_id":  map[string]any{"type": "string"},
+		"name":       map[string]any{"type": "string"},
+		"media_type": map[string]any{"type": "string"},
+		"digest":     map[string]any{"type": "string"},
+		"size":       map[string]any{"type": "integer", "minimum": 0},
+		"created_at": map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "tenant_id", "name", "media_type", "digest", "size", "created_at"))
 	registry.RegisterSchema("ArtifactEnvelope", dataEnvelopeSchema("#/components/schemas/Artifact"))
-	registry.RegisterSchema("CreateBuildRequest", objectSchema(map[string]any{
-		"project_id":   map[string]any{"type": "string"},
-		"release_id":   map[string]any{"type": "string"},
-		"provider":     map[string]any{"type": "string"},
-		"commit_sha":   map[string]any{"type": "string"},
-		"status":       map[string]any{"type": "string", "enum": []string{"queued", "running", "passed", "failed", "cancelled"}},
-		"started_at":   map[string]any{"type": "string", "format": "date-time"},
-		"completed_at": map[string]any{"type": "string", "format": "date-time"},
-		"github":       map[string]any{"type": "object"},
-		"outputs":      map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
-	}, "project_id", "release_id", "provider", "commit_sha", "status", "started_at"))
+	registry.RegisterSchema("BuildOutput", objectSchema(map[string]any{
+		"artifact_id": map[string]any{"type": "string"},
+		"digest":      map[string]any{"type": "string"},
+	}, "digest"))
+	createBuildRequest := objectSchema(map[string]any{
+		"project_id":        map[string]any{"type": "string"},
+		"release_id":        map[string]any{"type": "string"},
+		"provider":          map[string]any{"type": "string"},
+		"commit_sha":        map[string]any{"type": "string"},
+		"repository":        map[string]any{"type": "string"},
+		"workflow_ref":      map[string]any{"type": "string"},
+		"run_id":            map[string]any{"type": "string"},
+		"run_attempt":       map[string]any{"type": "integer", "minimum": 0},
+		"job_id":            map[string]any{"type": "string"},
+		"actor":             map[string]any{"type": "string"},
+		"ref":               map[string]any{"type": "string"},
+		"oidc_subject":      map[string]any{"type": "string"},
+		"status":            map[string]any{"type": "string", "enum": []string{"queued", "running", "passed", "failed", "cancelled"}},
+		"started_at":        map[string]any{"type": "string", "format": "date-time"},
+		"finished_at":       map[string]any{"type": "string", "format": "date-time"},
+		"parameters_hash":   map[string]any{"type": "string"},
+		"environment_hash":  map[string]any{"type": "string"},
+		"provider_metadata": map[string]any{"type": "object"},
+		"outputs":           map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/BuildOutput"}},
+	}, "project_id", "release_id", "provider", "commit_sha", "status", "started_at")
+	createBuildRequest["description"] = "Scalar text must be valid UTF-8 without NUL characters. Provider metadata must be JSON-serializable, with no NUL characters in keys or string values. Invalid input returns 400. Submitted CI identity is unverified metadata."
+	registry.RegisterSchema("CreateBuildRequest", createBuildRequest)
 	registry.RegisterSchema("BuildRun", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -1838,7 +1951,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"author":       map[string]any{"type": "string"},
 		"message":      map[string]any{"type": "string", "description": "Commit message supplied by the collector; Evydence stores a message hash."},
 		"committed_at": map[string]any{"type": "string", "format": "date-time"},
-	}, "sha", "committed_at"))
+	}, "sha"))
 	registry.RegisterSchema("SourceSnapshotBranchInput", objectSchema(map[string]any{
 		"name":            map[string]any{"type": "string"},
 		"protected":       map[string]any{"type": "boolean"},
@@ -1851,7 +1964,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"source_branch":   map[string]any{"type": "string"},
 		"target_branch":   map[string]any{"type": "string"},
 		"review_decision": map[string]any{"type": "string"},
-	}, "provider_id", "state"))
+	}, "provider_id", "title", "state"))
 	registry.RegisterSchema("SourceSnapshotRequest", objectSchema(map[string]any{
 		"project_id":   map[string]any{"type": "string"},
 		"repository":   map[string]any{"$ref": "#/components/schemas/SourceSnapshotRepositoryInput"},
@@ -1960,17 +2073,19 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "evidence_id", "release_id", "format", "component_count", "created_at"))
 	registry.RegisterSchema("SBOMEnvelope", dataEnvelopeSchema("#/components/schemas/SBOM"))
 	registry.RegisterSchema("SBOMComponent", objectSchema(map[string]any{
-		"name":    map[string]any{"type": "string"},
-		"version": map[string]any{"type": "string"},
-		"purl":    map[string]any{"type": "string"},
-		"hashes":  map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
+		"identity": map[string]any{"type": "string"},
+		"name":     map[string]any{"type": "string"},
+		"version":  map[string]any{"type": "string"},
+		"purl":     map[string]any{"type": "string"},
+		"hashes":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
 	}, "name"))
 	registry.RegisterSchema("SBOMComponentRecord", objectSchema(map[string]any{
+		"id":          map[string]any{"type": "string", "description": "Stable record identity for cursor pagination within an SBOM."},
 		"sbom_id":     map[string]any{"type": "string"},
 		"release_id":  map[string]any{"type": "string"},
 		"artifact_id": map[string]any{"type": "string"},
 		"component":   map[string]any{"$ref": "#/components/schemas/SBOMComponent"},
-	}, "sbom_id", "component"))
+	}, "id", "sbom_id", "component"))
 	registry.RegisterSchema("SBOMComponentRecordListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/SBOMComponentRecord"))
 	registry.RegisterSchema("UploadSPDXSBOMRequest", objectSchema(map[string]any{
 		"release_id":  map[string]any{"type": "string"},
@@ -2068,27 +2183,49 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "tenant_id", "release_id", "format", "parser_version", "advisory", "statement_count", "status_summary", "decisions_would_create", "decisions_would_supersede", "assumptions", "limitations", "schema_version", "generated_at"))
 	registry.RegisterSchema("VEXImportPreviewEnvelope", dataEnvelopeSchema("#/components/schemas/VEXImportPreview"))
 	registry.RegisterSchema("VulnerabilityScan", objectSchema(map[string]any{
-		"id":         map[string]any{"type": "string"},
-		"tenant_id":  map[string]any{"type": "string"},
-		"release_id": map[string]any{"type": "string"},
-		"scanner":    map[string]any{"type": "string"},
-		"target_ref": map[string]any{"type": "string"},
-		"summary":    map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
-		"findings":   map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
-		"created_at": map[string]any{"type": "string", "format": "date-time"},
+		"id":              map[string]any{"type": "string"},
+		"tenant_id":       map[string]any{"type": "string"},
+		"release_id":      map[string]any{"type": "string"},
+		"scanner":         map[string]any{"type": "string"},
+		"adapter":         map[string]any{"type": "string"},
+		"adapter_version": map[string]any{"type": "string"},
+		"source_schema":   map[string]any{"type": "string"},
+		"target_ref":      map[string]any{"type": "string"},
+		"summary":         map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+		"findings":        map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/VulnerabilityFinding"}},
+		"created_at":      map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "release_id", "scanner", "target_ref", "summary", "findings", "created_at"))
 	registry.RegisterSchema("VulnerabilityScanEnvelope", dataEnvelopeSchema("#/components/schemas/VulnerabilityScan"))
+	registry.RegisterSchema("VulnerabilityIdentity", objectSchema(map[string]any{
+		"cve": map[string]any{"type": "string"}, "ghsa": map[string]any{"type": "string"}, "osv": map[string]any{"type": "string"}, "vendor_advisory": map[string]any{"type": "string"}, "purl": map[string]any{"type": "string"}, "cpe": map[string]any{"type": "string"},
+	}))
+	registry.RegisterSchema("VulnerabilityFinding", objectSchema(map[string]any{
+		"id": map[string]any{"type": "string"}, "vulnerability": map[string]any{"type": "string"}, "component": map[string]any{"type": "string"}, "severity": map[string]any{"type": "string"}, "state": map[string]any{"type": "string"}, "severity_source": map[string]any{"type": "string"}, "fix_version": map[string]any{"type": "string"}, "identity": map[string]any{"$ref": "#/components/schemas/VulnerabilityIdentity"},
+	}, "id", "vulnerability", "severity", "state"))
+	registry.RegisterSchema("ScannerAdapterEnvelope", objectSchema(map[string]any{
+		"scanner":       map[string]any{"type": "string", "enum": []string{"grype", "trivy", "osv-scanner", "dependency-track"}},
+		"target_ref":    map[string]any{"type": "string"},
+		"release_id":    map[string]any{"type": "string"},
+		"source_schema": map[string]any{"type": "string", "enum": []string{"grype-json.v1", "trivy-json.v1", "osv-scanner-json.v1", "dependency-track-json.v1"}},
+		"payload":       map[string]any{"type": "object", "description": "Unmodified native scanner JSON. The selected scanner and source_schema determine the bounded adapter."},
+	}, "scanner", "target_ref", "release_id", "source_schema", "payload"))
 	registry.RegisterSchema("UploadVulnerabilityScanRequest", objectSchema(map[string]any{
 		"scanner":    map[string]any{"type": "string"},
 		"target_ref": map[string]any{"type": "string"},
 		"release_id": map[string]any{"type": "string"},
 		"findings": map[string]any{"type": "array", "items": objectSchema(map[string]any{
-			"vulnerability": map[string]any{"type": "string"},
-			"component":     map[string]any{"type": "string"},
-			"severity":      map[string]any{"type": "string"},
-			"state":         map[string]any{"type": "string"},
+			"vulnerability":   map[string]any{"type": "string"},
+			"component":       map[string]any{"type": "string"},
+			"severity":        map[string]any{"type": "string"},
+			"state":           map[string]any{"type": "string"},
+			"severity_source": map[string]any{"type": "string"},
+			"fix_version":     map[string]any{"type": "string"},
+			"identity":        map[string]any{"$ref": "#/components/schemas/VulnerabilityIdentity"},
 		}, "vulnerability", "severity")},
 	}, "scanner", "target_ref", "release_id", "findings"))
+	registry.RegisterSchema("UploadVulnerabilityScanBody", map[string]any{
+		"oneOf": []any{map[string]any{"$ref": "#/components/schemas/UploadVulnerabilityScanRequest"}, map[string]any{"$ref": "#/components/schemas/ScannerAdapterEnvelope"}},
+	})
 	registry.RegisterSchema("CreateIncidentRequest", objectSchema(map[string]any{
 		"product_id": map[string]any{"type": "string"},
 		"release_id": map[string]any{"type": "string"},
@@ -2472,7 +2609,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"items":       map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/EvidenceItem"}},
 		"next_cursor": map[string]any{"type": "string"},
 	}, "items"))
-	registry.RegisterSchema("EvidenceSearchEnvelope", dataEnvelopeSchema("#/components/schemas/EvidenceSearchResponse"))
+	registry.RegisterSchema("EvidenceSearchEnvelope", dataArrayEnvelopeSchema("#/components/schemas/EvidenceItem"))
 	registry.RegisterSchema("CreateReleaseBundleRequest", objectSchema(map[string]any{
 		"release_id": map[string]any{"type": "string"},
 	}, "release_id"))
@@ -2577,6 +2714,10 @@ func dataArrayEnvelopeSchema(itemRef string) map[string]any {
 		"data": map[string]any{"type": "array", "items": map[string]any{"$ref": itemRef}},
 		"meta": objectSchema(map[string]any{
 			"api_version": map[string]any{"type": "string"},
-		}, "api_version"),
+			"page_size":   map[string]any{"type": "integer", "minimum": 1, "maximum": 500},
+			"sort":        map[string]any{"type": "string", "enum": []string{"created_at", "id"}},
+			"direction":   map[string]any{"type": "string", "enum": []string{"asc", "desc"}},
+			"next_cursor": map[string]any{"type": "string", "description": "Opaque cursor for the next page; absent when no additional page exists."},
+		}, "api_version", "page_size", "sort", "direction"),
 	}, "data", "meta")
 }

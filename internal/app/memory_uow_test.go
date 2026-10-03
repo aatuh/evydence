@@ -3,7 +3,10 @@ package app
 import (
 	"context"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -47,6 +50,100 @@ func TestMemoryUnitOfWorkRollbackDiscardsDomainAuditAndOutboxMutations(t *testin
 	}
 	if len(snapshot.Tenants) != 0 || len(snapshot.Products) != 0 || len(snapshot.AuditEntries) != 0 || len(snapshot.OutboxJobs) != 0 {
 		t.Fatalf("rollback retained mutations: %#v", snapshot)
+	}
+}
+
+func TestMemoryCatalogPointReadsStayTenantScopedInsideTransaction(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMemoryUnitOfWorkFactory()
+	uow, err := factory.BeginUnitOfWork(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := uow.Rollback(ctx); err != nil {
+			t.Errorf("rollback product lookup transaction: %v", err)
+		}
+	}()
+	repos := uow.Repositories()
+	for _, tenantID := range []string{"ten_first", "ten_second"} {
+		if err := repos.Identity.InsertTenant(ctx, domain.Tenant{ID: tenantID, Name: tenantID, CreatedAt: fixedNow()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	product := domain.Product{ID: "prod_first", TenantID: "ten_first", Name: "First", Slug: "shared", CreatedAt: fixedNow()}
+	if err := repos.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+		t.Fatal(err)
+	}
+	found, ok, err := repos.ReleaseCatalog.ProductBySlug(ctx, "ten_first", "shared")
+	if err != nil || !ok || found != product {
+		t.Fatalf("same-tenant lookup product=%#v found=%t err=%v", found, ok, err)
+	}
+	if foreign, ok, err := repos.ReleaseCatalog.ProductBySlug(ctx, "ten_second", "shared"); err != nil || ok || foreign.ID != "" {
+		t.Fatalf("foreign-tenant lookup product=%#v found=%t err=%v", foreign, ok, err)
+	}
+	if found, err := repos.ReleaseCatalog.GetProduct(ctx, "ten_first", product.ID); err != nil || found != product {
+		t.Fatalf("same-tenant point product=%#v err=%v", found, err)
+	}
+	if _, err := repos.ReleaseCatalog.GetProduct(ctx, "ten_second", product.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign-tenant point err=%v, want not found", err)
+	}
+	project := domain.Project{ID: "proj_first", TenantID: product.TenantID, ProductID: product.ID, Name: "First Project", CreatedAt: fixedNow()}
+	if err := repos.ReleaseCatalog.InsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	if found, err := repos.ReleaseCatalog.GetProject(ctx, product.TenantID, project.ID); err != nil || found != project {
+		t.Fatalf("same-tenant project=%#v err=%v", found, err)
+	}
+	if _, err := repos.ReleaseCatalog.GetProject(ctx, "ten_second", project.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign-tenant project err=%v, want not found", err)
+	}
+	frozenAt := fixedNow().Add(time.Hour)
+	release := domain.Release{ID: "rel_first", TenantID: product.TenantID, ProductID: product.ID, Version: "1.0.0", Revision: 1, State: "frozen", FrozenAt: &frozenAt, CreatedAt: fixedNow()}
+	if err := repos.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
+		t.Fatal(err)
+	}
+	if found, ok, err := repos.ReleaseCatalog.ReleaseByVersion(ctx, product.TenantID, product.ID, release.Version); err != nil || !ok || !reflect.DeepEqual(found, release) {
+		t.Fatalf("same-tenant release=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, ok, err := repos.ReleaseCatalog.ReleaseByVersion(ctx, "ten_second", product.ID, release.Version); err != nil || ok || found.ID != "" {
+		t.Fatalf("foreign-tenant release=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, err := repos.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID); err != nil || !reflect.DeepEqual(found, release) {
+		t.Fatalf("same-tenant release point=%#v err=%v", found, err)
+	}
+	if _, err := repos.ReleaseCatalog.GetRelease(ctx, "ten_second", release.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign-tenant release point err=%v, want not found", err)
+	}
+	if locked, err := repos.ReleaseCatalog.GetReleaseForUpdate(ctx, product.TenantID, release.ID); err != nil || !reflect.DeepEqual(locked, release) {
+		t.Fatalf("same-tenant release mutation point=%#v err=%v", locked, err)
+	}
+	if _, err := repos.ReleaseCatalog.GetReleaseForUpdate(ctx, "ten_second", release.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("foreign-tenant release mutation point err=%v, want not found", err)
+	}
+	artifact := domain.Artifact{ID: "art_first", TenantID: product.TenantID, Name: "Output", MediaType: "application/octet-stream", Digest: "sha256:" + strings.Repeat("a", 64), Size: 1, CreatedAt: fixedNow()}
+	if err := repos.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
+		t.Fatal(err)
+	}
+	if found, ok, err := repos.ReleaseCatalog.ArtifactByDigest(ctx, product.TenantID, artifact.Digest); err != nil || !ok || found != artifact {
+		t.Fatalf("same-tenant digest artifact=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, ok, err := repos.ReleaseCatalog.ArtifactByDigest(ctx, "ten_second", artifact.Digest); err != nil || ok || found.ID != "" {
+		t.Fatalf("foreign-tenant digest artifact=%#v found=%t err=%v", found, ok, err)
+	}
+	point, err := repos.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID)
+	if err != nil || point.FrozenAt == nil {
+		t.Fatalf("release point for mutation check=%#v err=%v", point, err)
+	}
+	*point.FrozenAt = point.FrozenAt.Add(time.Hour)
+	versioned, ok, err := repos.ReleaseCatalog.ReleaseByVersion(ctx, product.TenantID, product.ID, release.Version)
+	if err != nil || !ok || versioned.FrozenAt == nil || !versioned.FrozenAt.Equal(frozenAt) {
+		t.Fatalf("point read mutated stored release=%#v found=%t err=%v", versioned, ok, err)
+	}
+	*versioned.FrozenAt = versioned.FrozenAt.Add(time.Hour)
+	point, err = repos.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID)
+	if err != nil || point.FrozenAt == nil || !point.FrozenAt.Equal(frozenAt) {
+		t.Fatalf("version lookup mutated stored release=%#v err=%v", point, err)
 	}
 }
 
@@ -127,6 +224,138 @@ func TestMemoryUnitOfWorkRejectsCrossTenantProductReference(t *testing.T) {
 	}
 	if err := uow.Rollback(context.Background()); err != nil {
 		t.Fatalf("rollback cross-tenant unit of work: %v", err)
+	}
+}
+
+func TestMemoryEvidenceRepositoryEnforcesCompleteResourceScope(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMemoryUnitOfWorkFactory()
+	uow, err := factory.BeginUnitOfWork(ctx)
+	if err != nil {
+		t.Fatalf("begin unit of work: %v", err)
+	}
+	defer func() { _ = uow.Rollback(ctx) }()
+	repositories := uow.Repositories()
+	now := fixedNow()
+	tenant := domain.Tenant{ID: "ten_evidence_scope", Name: "Evidence scope", CreatedAt: now}
+	if err := repositories.Identity.InsertTenant(ctx, tenant); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	for _, product := range []domain.Product{
+		{ID: "prod_scope_a", TenantID: tenant.ID, Name: "Product A", Slug: "product-a", CreatedAt: now},
+		{ID: "prod_scope_b", TenantID: tenant.ID, Name: "Product B", Slug: "product-b", CreatedAt: now},
+	} {
+		if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+			t.Fatalf("insert product %s: %v", product.ID, err)
+		}
+	}
+	for _, project := range []domain.Project{
+		{ID: "proj_scope_a", TenantID: tenant.ID, ProductID: "prod_scope_a", Name: "Project A", CreatedAt: now},
+		{ID: "proj_scope_b", TenantID: tenant.ID, ProductID: "prod_scope_b", Name: "Project B", CreatedAt: now},
+	} {
+		if err := repositories.ReleaseCatalog.InsertProject(ctx, project); err != nil {
+			t.Fatalf("insert project %s: %v", project.ID, err)
+		}
+	}
+	for _, release := range []domain.Release{
+		{ID: "rel_scope_a", TenantID: tenant.ID, ProductID: "prod_scope_a", Version: "1.0.0", State: "draft", CreatedAt: now},
+		{ID: "rel_scope_b", TenantID: tenant.ID, ProductID: "prod_scope_b", Version: "1.0.0", State: "draft", CreatedAt: now},
+	} {
+		if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
+			t.Fatalf("insert release %s: %v", release.ID, err)
+		}
+	}
+	if err := repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{
+		ID: "build_scope_a", TenantID: tenant.ID, ProjectID: "proj_scope_a", ReleaseID: "rel_scope_a",
+		Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed",
+		StartedAt: now, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("insert build: %v", err)
+	}
+	base := domain.EvidenceItem{
+		ID: "evi_scope_a", TenantID: tenant.ID, ProductID: "prod_scope_a", ProjectID: "proj_scope_a", ReleaseID: "rel_scope_a", BuildID: "build_scope_a",
+		Type: "note", Title: "Scope evidence", PayloadHash: "sha256:payload", CanonicalHash: "sha256:canonical", CreatedAt: now,
+	}
+	if err := repositories.Evidence.InsertEvidence(ctx, base); err != nil {
+		t.Fatalf("insert valid evidence: %v", err)
+	}
+	if loaded, err := repositories.Evidence.GetEvidence(ctx, tenant.ID, base.ID); err != nil || loaded.ID != base.ID {
+		t.Fatalf("GetEvidence value=%#v err=%v", loaded, err)
+	}
+	if _, err := repositories.Evidence.GetEvidence(ctx, "ten_other", base.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-tenant GetEvidence error = %v, want not found", err)
+	}
+	sbom := domain.SBOM{ID: "sbom_scope_a", TenantID: tenant.ID, EvidenceID: base.ID, ReleaseID: base.ReleaseID, Format: "cyclonedx", SpecVersion: "1.6", ComponentCount: 1, Components: []domain.SBOMComponent{{Name: "library"}}, CreatedAt: now}
+	if err := repositories.Evidence.InsertSBOM(ctx, sbom); err != nil {
+		t.Fatalf("insert SBOM: %v", err)
+	}
+	if loaded, err := repositories.Evidence.GetSBOM(ctx, tenant.ID, sbom.ID); err != nil || loaded.ComponentCount != sbom.ComponentCount {
+		t.Fatalf("GetSBOM value=%#v err=%v", loaded, err)
+	}
+	contract := domain.OpenAPIContract{ID: "oas_scope_a", TenantID: tenant.ID, ProductID: base.ProductID, ReleaseID: base.ReleaseID, Version: "v1", Hash: "sha256:contract", PathCount: 1, Operations: []domain.OpenAPIOperation{{Path: "/health", Method: "GET"}}, EvidenceID: base.ID, CreatedAt: now}
+	if err := repositories.Evidence.InsertOpenAPIContract(ctx, contract); err != nil {
+		t.Fatalf("insert OpenAPI contract: %v", err)
+	}
+	if loaded, err := repositories.Evidence.GetOpenAPIContract(ctx, tenant.ID, contract.ID); err != nil || len(loaded.Operations) != 1 || loaded.Operations[0].Path != contract.Operations[0].Path {
+		t.Fatalf("GetOpenAPIContract value=%#v err=%v", loaded, err)
+	}
+	for name, item := range map[string]domain.EvidenceItem{
+		"missing build": func() domain.EvidenceItem {
+			value := base
+			value.ID, value.BuildID = "evi_missing_build", "build_missing"
+			return value
+		}(),
+		"mixed product coordinates": func() domain.EvidenceItem {
+			value := base
+			value.ID, value.ProjectID, value.ReleaseID, value.BuildID = "evi_mixed_scope", "proj_scope_b", "rel_scope_b", ""
+			return value
+		}(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := repositories.Evidence.InsertEvidence(ctx, item); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("InsertEvidence error = %v, want not found", err)
+			}
+		})
+	}
+	mixedLink := base
+	mixedLink.ReleaseID = "rel_scope_b"
+	if err := repositories.Evidence.CompareAndSwapEvidenceLinks(ctx, base, mixedLink); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("CompareAndSwapEvidenceLinks error = %v, want not found", err)
+	}
+	expected := base
+	expected.RelatedEvidenceRefs = []domain.EvidenceRef{}
+	winner := expected
+	winner.Title = "must not replace immutable evidence fields"
+	winner.RelatedEvidenceRefs = []domain.EvidenceRef{{Type: "product", ID: base.ProductID, Relationship: "linked_to"}}
+	if err := repositories.Evidence.CompareAndSwapEvidenceLinks(ctx, expected, winner); err != nil {
+		t.Fatalf("winning CompareAndSwapEvidenceLinks: %v", err)
+	}
+	stale := expected
+	stale.RelatedEvidenceRefs = []domain.EvidenceRef{{Type: "release", ID: base.ReleaseID, Relationship: "linked_to"}}
+	if err := repositories.Evidence.CompareAndSwapEvidenceLinks(ctx, expected, stale); !errors.Is(err, ErrConflict) {
+		t.Fatalf("stale CompareAndSwapEvidenceLinks error = %v, want conflict", err)
+	}
+	if loaded, err := repositories.Evidence.GetEvidence(ctx, tenant.ID, base.ID); err != nil || loaded.Title != base.Title || len(loaded.RelatedEvidenceRefs) != 1 || loaded.RelatedEvidenceRefs[0].Type != "product" {
+		t.Fatalf("stale CAS replaced winner: value=%#v err=%v", loaded, err)
+	}
+
+	if err := repositories.Deployments.InsertDeploymentEnvironment(ctx, domain.DeploymentEnvironment{
+		ID: "env_scope_a", TenantID: tenant.ID, ProductID: "prod_scope_a", Name: "production", Kind: "production",
+		SchemaVersion: "deployment-environment.v1.0.0", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("insert environment: %v", err)
+	}
+	pending := base
+	pending.ID, pending.ProductID, pending.ProjectID, pending.ReleaseID, pending.BuildID = "evi_dep_scope", "prod_scope_b", "", "rel_scope_b", ""
+	pending.Type, pending.Subtype, pending.DeploymentID = "deployment", "event", "dep_scope"
+	if err := repositories.Evidence.InsertEvidence(ctx, pending); err != nil {
+		t.Fatalf("insert pending deployment evidence: %v", err)
+	}
+	if err := repositories.Deployments.InsertDeploymentEvent(ctx, domain.DeploymentEvent{
+		ID: "dep_scope", TenantID: tenant.ID, EnvironmentID: "env_scope_a", ReleaseID: "rel_scope_a", Status: "succeeded",
+		StartedAt: now, EvidenceID: pending.ID, SchemaVersion: domain.DeploymentEventSchemaVersion, CreatedAt: now,
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("InsertDeploymentEvent error = %v, want not found", err)
 	}
 }
 

@@ -6,7 +6,31 @@ Evydence trusts tenant-scoped API keys and SSO session tokens after server-side 
 
 Provider metadata such as GitHub Actions, GitLab, DSSE, VEX, SBOM, OpenAPI, scanner payloads, and SSO provider records is treated as uploaded evidence unless a configured trust root or verification path proves more. Current SSO support records provider metadata, identity links, expiring sessions, local OIDC token verification, local SAML assertion verification against tenant-configured trust material, OIDC discovery/JWKS refresh, optional OIDC UserInfo validation when a caller supplies an access token, and an optional operator-controlled provider validation gateway. It does not include direct provider-specific management API clients, browser login callbacks, or external group synchronization. Structural parsing is not the same as provider truth or cryptographic trust.
 
-Verification endpoints return a versioned machine result and an assurance profile. A result is `passed` only when every check required by that profile was recorded and passed. Missing, warning, unknown, or mixed skipped checks are `limited`; all required checks deliberately skipped are `skipped`; absent profile or evaluation evidence is `not_verified`; a failed required check is `failed`; and an evaluation error is `error`. The profile records the non-secret trust-material identifiers or classes evaluated, identity policy, transparency-proof treatment, payload scope/digest, required checks, and limitations. It makes the scope of an assessment reviewable without treating metadata presence as cryptographic or provider trust. See [Verification results](../reference/verification-results.md).
+Verification endpoints return a versioned machine result and a named assurance
+profile. A result is `passed` only when every check required by that profile
+was recorded and passed. Missing, warning, unknown, or mixed skipped checks are
+`limited`; all required checks deliberately skipped are `skipped`; absent
+profile or evaluation evidence is `not_verified`; a failed required check is
+`failed`; and an evaluation error is `error`. The profile records non-secret
+trust-material identifiers or classes, canonical input, identity and issuer
+policy, transparency, clock and revocation treatment, payload scope/digest,
+required checks, offline inputs, and limitations.
+
+Recorded metadata, cryptographic validity, trusted identity, and transparency
+verification are separate layers. A submitted certificate identity does not
+prove who signed a payload until a profile has verified the certificate and
+compared it with an expected identity supplied by the caller or tenant policy.
+The Cosign endpoint verifies explicit offline Sigstore bundles with
+operator-configured trust material. Keyless requests must provide exact expected
+identity and issuer values; the receipt records only verified values and safe
+library/trust-root versions. An online-required request fails rather than
+downgrading to metadata. The offline DSSE profile verifies DSSE PAE, in-toto Statement v1,
+the SLSA provenance v1 predicate, a configured builder and required claims, and
+registered release-artifact subjects against an explicit tenant Ed25519 root.
+It does not establish certificate-chain trust, transparency, CI runtime
+integrity, provenance completeness, or historical-key validity. See [the
+cryptographic trust-model ADR](../adr/0002-cryptographic-trust-model.md)
+and [Verification results](../reference/verification-results.md).
 
 ## Audit-Chain Tamper Evidence
 

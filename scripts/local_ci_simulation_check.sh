@@ -4,14 +4,17 @@ set -eu
 repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_root"
 
-for tool in curl go jq python3; do
+for tool in curl go jq openssl python3; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     printf '%s\n' "local-ci-simulation-check: missing required tool: $tool" >&2
     exit 2
   fi
 done
 
-workdir="${EVYDENCE_LOCAL_CI_SIMULATION_DIR:-tmp/local-ci-simulation}"
+mkdir -p tmp
+# Treat the override as a prefix and own only the fresh directory created here.
+# Never recursively remove a pre-existing operator-selected path.
+workdir="$(mktemp -d -- "${EVYDENCE_LOCAL_CI_SIMULATION_DIR:-tmp/local-ci-simulation}.XXXXXX")"
 api_pid=""
 
 cleanup() {
@@ -25,7 +28,6 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-rm -rf "$workdir"
 mkdir -p "$workdir/.evydence"
 
 port="$(python3 - <<'PY'
@@ -42,7 +44,10 @@ go build -o "$workdir/evydence-api" ./cmd/evydence-api
 go build -o "$workdir/evydence" ./cmd/evydence
 
 EVYDENCE_ADDR="127.0.0.1:$port" \
+EVYDENCE_RUNTIME_PROFILE=local_memory \
 EVYDENCE_API_KEY_PEPPER="local-ci-simulation-pepper" \
+EVYDENCE_OBJECT_STORE=filesystem \
+EVYDENCE_OBJECT_DIR="$workdir/objects" \
 EVYDENCE_BOOTSTRAP_TENANT="Local CI Simulation Tenant" \
 EVYDENCE_PRINT_BOOTSTRAP_SECRET=true \
 "$workdir/evydence-api" >"$workdir/api.stdout" 2>"$workdir/api.stderr" &
@@ -132,30 +137,59 @@ cat >"$workdir/.evydence/grype.json" <<JSON
 }
 JSON
 
-python3 - "$artifact_digest" "$workdir/.evydence/attestation.dsse.json" <<'PY'
+python3 - "$artifact_digest" "$workdir/.evydence" <<'PY'
 import base64
 import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 digest = sys.argv[1].removeprefix("sha256:")
-out = Path(sys.argv[2])
+out_dir = Path(sys.argv[2])
+os.umask(0o077)
 statement = {
     "_type": "https://in-toto.io/Statement/v1",
     "subject": [{"name": "evydence-cli", "digest": {"sha256": digest}}],
     "predicateType": "https://slsa.dev/provenance/v1",
     "predicate": {
-        "builder": {"id": "local-ci-simulation"},
-        "buildType": "https://evydence.local/build/local-ci",
-        "materials": [],
+        "buildDefinition": {
+            "buildType": "https://evydence.local/build/local-ci",
+            "externalParameters": {"mode": "local-ci-simulation"},
+            "resolvedDependencies": [],
+        },
+        "runDetails": {"builder": {"id": "local-ci-simulation"}},
     },
 }
+payload_type = b"application/vnd.in-toto+json"
+payload = json.dumps(statement, sort_keys=True).encode()
+pae = b"DSSEv1 " + str(len(payload_type)).encode() + b" " + payload_type + b" " + str(len(payload)).encode() + b" " + payload
+with tempfile.TemporaryDirectory(prefix="dsse-sign-", dir=out_dir) as key_dir:
+    key_path = Path(key_dir) / "private.pem"
+    pae_path = Path(key_dir) / "payload.pae"
+    pae_path.write_bytes(pae)
+    subprocess.run(["openssl", "genpkey", "-algorithm", "ed25519", "-out", str(key_path)], check=True, capture_output=True)
+    public_der = subprocess.run(["openssl", "pkey", "-in", str(key_path), "-pubout", "-outform", "DER"], check=True, capture_output=True).stdout
+    if not public_der.startswith(bytes.fromhex("302a300506032b6570032100")) or len(public_der) != 44:
+        raise ValueError("unexpected Ed25519 public key format")
+    signature = subprocess.run(["openssl", "pkeyutl", "-sign", "-rawin", "-inkey", str(key_path), "-in", str(pae_path)], check=True, capture_output=True).stdout
 envelope = {
-    "payloadType": "application/vnd.in-toto+json",
-    "payload": base64.b64encode(json.dumps(statement, sort_keys=True).encode()).decode(),
-    "signatures": [{"keyid": "local-ci-test-key", "sig": "local-ci-structural-signature"}],
+    "payloadType": payload_type.decode(),
+    "payload": base64.b64encode(payload).decode(),
+    "signatures": [{"keyid": "local-ci-test-key", "sig": base64.b64encode(signature).decode()}],
 }
-out.write_text(json.dumps(envelope, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(out_dir / "attestation.dsse.json").write_text(json.dumps(envelope, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+trust_root = {
+    "name": "Local CI ephemeral test root",
+    "key_id": "local-ci-test-key",
+    "algorithm": "Ed25519",
+    "public_key": base64.b64encode(public_der[-32:]).decode(),
+    "allowed_predicate_types": ["https://slsa.dev/provenance/v1"],
+    "expected_builder_ids": ["local-ci-simulation"],
+    "required_claims": ["builder_id", "build_type", "external_parameters"],
+}
+(out_dir / "trust-root.json").write_text(json.dumps(trust_root, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
 EVYDENCE_API_URL="$api_url" \
@@ -178,6 +212,17 @@ GITHUB_REF="refs/heads/main" \
   --attestation-path "$workdir/.evydence/attestation.dsse.json" \
   --started-at "2026-06-01T12:00:00Z" \
   >"$workdir/upload-build.stdout"
+
+attestation_id="$(awk '$1 == "attestation" && $2 == "uploaded:" {print $3}' "$workdir/upload-build.stdout")"
+case "$attestation_id" in
+  att_*) ;;
+  *) printf '%s\n' 'local-ci-simulation-check: missing uploaded attestation id' >&2; exit 1 ;;
+esac
+trust_root="$(api POST /v1/dsse-trust-roots local-ci-dsse-root "$(jq -c . "$workdir/.evydence/trust-root.json")")"
+printf '%s\n' "$trust_root" >"$workdir/trust-root-response.json"
+verification="$(api POST "/v1/build-attestations/$attestation_id/verify-signature" local-ci-attestation-verify '{}')"
+printf '%s\n' "$verification" >"$workdir/attestation-verification.json"
+jq -e '.data.result == "passed"' "$workdir/attestation-verification.json" >/dev/null
 
 python3 scripts/github_release_evidence_manifest.py \
   --out "$workdir/.evydence/upload-manifest.json" \
@@ -214,7 +259,13 @@ profile="$(api POST /v1/redaction-profiles local-ci-redaction-profile "$profile_
 printf '%s\n' "$profile" >"$workdir/redaction-profile.json"
 profile_id="$(printf '%s' "$profile" | jq -er '.data.id')"
 
-package_payload="$(jq -cn --arg product_id "$product_id" --arg release_id "$release_id" --arg profile_id "$profile_id" '{product_id:$product_id,release_id:$release_id,redaction_profile_id:$profile_id,title:"Local CI release evidence",expires_at:"2026-06-30T00:00:00Z"}')"
+package_expiry="$(python3 - <<'PY'
+from datetime import datetime, timedelta, timezone
+
+print((datetime.now(timezone.utc) + timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))
+PY
+)"
+package_payload="$(jq -cn --arg product_id "$product_id" --arg release_id "$release_id" --arg profile_id "$profile_id" --arg expires_at "$package_expiry" '{product_id:$product_id,release_id:$release_id,redaction_profile_id:$profile_id,title:"Local CI release evidence",expires_at:$expires_at}')"
 package="$(api POST /v1/customer-packages local-ci-customer-package "$package_payload")"
 printf '%s\n' "$package" >"$workdir/customer-package.json"
 jq -e '.data.id and .data.manifest.limitations and .data.manifest.non_claims' "$workdir/customer-package.json" >/dev/null

@@ -14,8 +14,8 @@ artifact map and exact verification commands.
 
 | Mode | How To Enable | Expected Use |
 |------|---------------|--------------|
-| In-process state | Leave `EVYDENCE_DATABASE_URL` unset. | Local demos and unit tests. State is lost when the process exits. |
-| PostgreSQL state | Set `EVYDENCE_DATABASE_URL`. | Durable local or self-hosted operation with migrations and persisted outbox jobs. |
+| In-process state | Set `EVYDENCE_RUNTIME_PROFILE=local_memory` and leave `EVYDENCE_DATABASE_URL` unset. | Local API demos and unit tests only. State is lost when the process exits; no durable worker or outbox. |
+| PostgreSQL state | Set `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`. | Durable local or self-hosted operation with migrations and persisted outbox jobs. |
 | Production checks | Set `ENV=production`. | Rejects unsafe local defaults before API startup. |
 
 Configuration details live in [Configuration](../reference/configuration.md).
@@ -59,7 +59,8 @@ downloaded archive, and prints `public release verified`.
 To run a release-binary local demo instead of `go run`, use the extracted
 `evydence-api` and `evydence-worker` binaries with the same environment
 variables shown below. The in-process tutorial is still local-only; for durable
-evaluation set `EVYDENCE_DATABASE_URL` and run migrations first.
+evaluation set `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`,
+then run migrations first.
 
 ## Start Local Dependencies
 

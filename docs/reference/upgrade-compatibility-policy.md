@@ -38,15 +38,18 @@ The public API is `/v1`. Within a stable release line:
   response envelope shapes should remain compatible;
 - new optional request fields, response fields, query filters, and endpoints
   may be added;
-- errors continue to use RFC 9457 Problem Details with stable `code` and
-  `request_id` fields;
+- errors continue to use RFC 9457 Problem Details with stable `code`,
+  `request_id`, and documented retry fields;
 - secrets, token hashes, private keys, raw evidence payload bytes, and
   object-store paths must not become public response fields.
 
 Release candidates may still make breaking API or schema changes when needed
 for correctness, tenant isolation, evidence integrity, safe error handling, or
-security. Breaking changes must be documented in release notes, reflected in
-`openapi.yaml`, and covered by `make openapi-check`.
+security. They require the exact prerelease exception, migration note, and
+Unreleased changelog treatment defined in
+[API Versioning And Deprecation](api-versioning.md). Stable-line breaking
+changes are blocked except documented security emergencies; `make
+openapi-breaking-check` enforces both rules against a release-artifact baseline.
 
 ## Data And Evidence Compatibility
 

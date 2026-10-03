@@ -95,7 +95,7 @@ func TestUploadSBOMPersistedStagingMetadataAndFinalizationJobAreAtomic(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","version":"1.0.0"}]}`)
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","version":"1.0.0"}]}`)
 	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, raw); err != nil {
 		t.Fatalf("upload SBOM: %v", err)
 	}
@@ -150,6 +150,19 @@ func TestCreateEvidenceRejectsMismatchedStagedPayloadBinding(t *testing.T) {
 	}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("mismatched staged payload binding error=%v, want validation", err)
 	}
+	payload.Size = 11
+	payload.Status = ObjectPayloadFinalized
+	if _, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
+		Type:             "build",
+		Title:            "prematurely finalized payload",
+		PayloadRef:       "object://" + payload.FinalKey,
+		PayloadHash:      payload.Digest,
+		PayloadMediaType: payload.MediaType,
+		PayloadSize:      payload.Size,
+		StagedPayload:    payload,
+	}); !errors.Is(err, ErrValidation) {
+		t.Fatalf("finalized payload under unit of work error=%v, want validation", err)
+	}
 	snapshot, err := memory.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +204,7 @@ func TestUploadSBOMLeavesDiscoverableStagingObjectWhenTransactionFails(t *testin
 			return repos
 		},
 	}
-	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`)
+	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api"}]}`)
 	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, raw); !errors.Is(err, errInjectedRepositoryFailure) {
 		t.Fatalf("upload SBOM error=%v, want injected transaction failure", err)
 	}

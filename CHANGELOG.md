@@ -13,8 +13,43 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Candidate transition requests now mark `reason` required in OpenAPI, matching
+the existing promotion/rejection validation. See the
+[migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).
+
+The candidate response schema now defines the already-required positive
+`revision` integer returned by the API. See the
+[client migration note](docs/reference/api-versioning.md#unreleased-candidate-revision-schema-correction).
+
+PostgreSQL manual framework/control creation now uses focused durable commands
+with tenant-wide human administration grants and atomic audits. Creation also
+rejects null fields/items and missing requirement booleans in both profiles,
+matching the published contract. See the
+[migration note](docs/reference/api-versioning.md#unreleased-control-creation-boundary).
+
+Control-template installation now uses focused PostgreSQL transactions and
+records the actual installer principal, allowing authorized human sessions to
+commit. Invalid slugs are rejected before durable replay storage; empty-object
+body validation and optional-body OpenAPI now match the documented contract.
+See the same [migration note](docs/reference/api-versioning.md#unreleased-control-creation-boundary).
+
 ### Added
 
+- Production control coverage and CRA readiness reports now use bounded, tenant-scoped PostgreSQL snapshots with current-subject validation, actual subject timestamps for freshness, and fail-closed capacity limits. Local-memory mode retains its compatibility report path.
+
+- PostgreSQL-backed customer-portal access listing now pages within current tenant and resource grants without selecting token hashes; local-memory listing also enforces resource grants.
+
+- Added a versioned parser conformance corpus manifest and gate that records
+  fixture provenance, redistribution rights, hashes, bounded limits, and
+  expected normalized summaries for supported parser formats.
+
+- Added a canonical evidence-format compatibility matrix that distinguishes tested reduced CycloneDX, SPDX, OpenVEX, CycloneDX VEX, DSSE/in-toto, and scanner JSON contracts from incidental parser acceptance, with parser identities, effective limits, fixture evidence, and unsupported-format guidance.
+- Recovery tooling now pairs PostgreSQL and object-store backup generations with deterministic preflight manifests, native `pg_dump`/`pg_restore` rehearsal, mismatch detection before normal startup, and crash-boundary recovery tests.
+- Object payload reconciliation now provides a tenant-scoped, resumable worker
+  command with dry-run reporting, conservative lifecycle quarantine/recovery,
+  auditable receipts, and bounded reconciliation metrics. Provider-only objects
+  are advisory candidates and are never deleted merely because a listing
+  reports them; apply mode requires an explicit abandoned-staging age threshold.
 - API build identity now records version, commit, build time, dirty state, Go
   version, and a pre-build release-input-manifest digest. Runtime liveness,
   dependency-backed readiness, and instance-admin readiness diagnostics are
@@ -39,9 +74,126 @@ release artifacts.
 
 ### Changed
 
+- Corrected the `Product` OpenAPI response schema to omit the unsupported
+  `schema_version` field. Create, read, and list JSON and stored product records
+  are unchanged; clients must not require a field the server never returned.
+  See [the migration note](docs/reference/api-versioning.md#unreleased-product-schema-correction).
+
+- PostgreSQL GitHub/GitLab source snapshots now compose focused Integration
+  commands in one transaction, including audit and idempotency state. Late
+  failures roll back earlier inserts and branch updates, and repository reuse
+  returns UTC timestamps consistently. Optional components/fields must be
+  omitted rather than null. The request schema now reflects the existing
+  optional commit-time default and required pull-request title. The exact
+  prerelease compatibility record adds only the two title-schema corrections;
+  see [the migration note](docs/reference/api-versioning.md#source-snapshot-schema-reconciliation).
+
+- PostgreSQL-backed CRA vulnerability-handling and security-update evidence
+  reports now read bounded, tenant- and release-scoped snapshots instead of
+  Ledger maps. They omit private decision notes, reject inconsistent evidence
+  references and oversized reports rather than returning partial results, and
+  require valid singleton product/release filters. CRA scan counts are
+  aggregated in PostgreSQL without transferring raw findings to the API.
+  These reports organize recorded evidence; they do not prove legal compliance,
+  complete detection, scanner authority, or release security.
+
+- PostgreSQL-backed exception lists now resolve current release ownership and
+  `verify:read` grants before bounded keyset pagination. Unknown filtered
+  releases remain `404`; existing releases outside the actor's grants remain
+  `403`. Local-memory mode retains the compatibility reader.
+
+- PostgreSQL-backed lifecycle-event lists for ordinary evidence now page from
+  one tenant-scoped snapshot instead of materializing all events through the
+  Ledger. Worker-owned evidence retains its validated projection fallback;
+  response details continue to remove sensitive and internal fields.
+
+- PostgreSQL-backed SBOM point reads now verify source evidence, release, and
+  artifact parentage and source artifact references under one tenant before applying current `evidence:read`
+  resource grants. The response still contains the stored component array;
+  inconsistently linked historical rows are no longer returned.
+
+- PostgreSQL-backed SBOM component lists now apply current tenant and resource
+  grants before bounded keyset pagination, allowing clients to continue beyond
+  the former 500-result preselection cap. The local-memory profile retains that
+  cap; PostgreSQL still expands JSONB component arrays rather than using a
+  dedicated component search index. The list now excludes rows whose source
+  evidence type, release, artifact subject, or build/deployment parents disagree
+  with the stored SBOM, matching the SBOM point-read safety checks.
+
+- PostgreSQL-backed OpenAPI-contract point reads now verify current tenant,
+  source-evidence, product, and optional release relationships in one query
+  before applying human `evidence:read` resource grants. Response fields are
+  unchanged; inconsistent historical parent links are no longer returned.
+
+- Vulnerability-posture reports now aggregate stored scan findings inside
+  PostgreSQL without loading raw findings into the API. Tenant-wide reports
+  require a tenant-level human grant; release-filtered reports accept matching
+  product or release grants. Duplicate, blank, and unknown query parameters
+  are rejected, and the report documentation now states that decisions and
+  VEX records are not included.
+
+- The instance-admin snapshot now counts current PostgreSQL records in one
+  aggregate read instead of relying on the in-process Ledger projection.
+  The explicit `instance:admin` requirement and counts-only response remain.
+
+- Collector health reports now read one tenant-owned collector plus its latest
+  and pinned release through a bounded, consistent PostgreSQL snapshot.
+  Human sessions need a current tenant-level `collector:read` grant in both
+  PostgreSQL and local-memory modes; recorded evidence is not proof of runtime
+  integrity or vulnerability absence.
+
+- Marketplace collector lists and health reads now use bounded, tenant-filtered
+  PostgreSQL queries. Human sessions need a current tenant-level `collector:read`
+  grant in both PostgreSQL and local-memory modes; health reference presence
+  remains limited evidence, not a trust or safety conclusion.
+
+- PostgreSQL-backed control-evidence lists now apply current tenant and resource
+  grants before keyset pagination. Links with missing or cross-tenant controls,
+  frameworks, subject records, or mismatched product/release ownership are
+  excluded. Local-memory mode retains the Ledger compatibility reader.
+
+- Commercial collector-definition lists now use tenant-filtered PostgreSQL
+  keyset pagination. Human sessions require a current tenant-level
+  `collector:read` grant in both PostgreSQL and local-memory modes.
+
+- Signing-key lists now use tenant-filtered, keyset-paginated PostgreSQL reads
+  that never select encrypted private key material; local-memory mode retains
+  its compatibility list.
+
+- PostgreSQL-backed release-bundle and manifest reads now resolve the current
+  tenant-owned release before enforcing human `bundle:read` resource grants.
+  Their response shapes remain unchanged.
+- PostgreSQL-backed artifact-signature reads now require the current
+  tenant-owned artifact and matching digest. Scoped human sessions need a
+  current evidence or build association covered by their `evidence:read`
+  grant; the response shape is unchanged.
+- PostgreSQL-backed artifact point reads now use one tenant-filtered database
+  statement. Scoped human sessions need a current, consistent evidence or
+  digest-matching build association covered by their `evidence:read` grant;
+  the response shape is unchanged.
+- Questionnaire answer-library lists now enforce current human resource grants
+  for every draft, including unfiltered reads. Creating a tenant-wide draft
+  with only a product or release grant is now forbidden. PostgreSQL-backed list
+  requests apply tenant, current-parent, linked-reference, and grant filters
+  before pagination; mismatched product/release filters are rejected.
+- The `/v1` OpenAPI contract is now compared against a checksum-verified
+  release-artifact baseline in CI. Unapproved breaking changes fail; the
+  current pre-release reconciliation is exact and documented in
+  `docs/reference/api-versioning.md`. Stable-line breaks require a documented
+  security emergency, migration note, and changelog entry.
 - The release-evidence, SDK route catalog, API contract matrix, and public API
   operations now record explicit stability classifications for evaluation and
   implementation planning.
+- Corrected the prerelease release and artifact contracts to match the server:
+  `POST /v1/releases` no longer accepts `project_id`; `POST /v1/artifacts` no
+  longer accepts `release_id` or `subject_ref`; and artifact `media_type` is
+  required. Clients that sent those removed fields must omit them and link
+  artifacts to releases through the documented evidence, build, or
+  release-candidate flows instead.
+- Corrected the prerelease build helper to use `finished_at` and
+  `provider_metadata` plus the documented CI identity fields. The obsolete
+  `completed_at` and `github` fields are removed from the OpenAPI and typed SDK
+  contract.
 - The repository now tracks a scorecard and execution backlog with evidence
   links and external-evidence blockers; these are implementation-tracking
   records, not production or compliance claims.
@@ -51,6 +203,10 @@ release artifacts.
 
 ### Fixed
 
+- Artifact registration now rejects a missing or whitespace-only `media_type`
+  before persistence, so in-memory and PostgreSQL-backed deployments apply the
+  same request contract.
+- Object payload storage now enforces the versioned canonical tenant/digest key layout, confines filesystem operations beneath the configured root even across symlinks, and verifies tenant, digest bytes, byte count, and media type before filesystem or S3 content is trusted. S3 public/custom remote endpoints require TLS and AWS S3 endpoints require an explicit region.
 - Object-retention verification no longer treats a local policy record as
   provider enforcement. Positive results now retain bounded provider-observation
   metadata; unavailable, incomplete, failed, and stale observations remain

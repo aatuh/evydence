@@ -63,11 +63,11 @@ Known hardening work remains:
 - worker parser jobs re-read raw object-store payloads for key formats,
   verify digests, validate durable state, and persist missing parser-derived
   normalized fields. CycloneDX SBOM, generic vulnerability-scan, OpenAPI
-  contract, DSSE build-attestation, OpenVEX, and CycloneDX VEX uploads can run with
-  worker-owned parser side effects by setting
-  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; VEX-derived
-  vulnerability decisions are created idempotently by the `parse_vex` worker in
-  that mode;
+  contract, and DSSE build-attestation uploads can run with worker-owned parser
+  side effects by setting `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`.
+  OpenVEX and CycloneDX VEX documents are normalized during upload; their
+  decisions are always created idempotently after commit by `parse_vex` from a
+  bounded versioned request, with raw replay verification when available;
 - OpenAPI precision is enforced across the registered public API. The generated
   matrix remains the source of truth for operation ids, scopes, idempotency,
   parameters, and request/response schemas;
@@ -144,6 +144,9 @@ make production-check
 The gate requires:
 
 - `EVYDENCE_TEST_DATABASE_URL` set to a disposable PostgreSQL database;
+- `EVYDENCE_TEST_S3_*` set to an isolated loopback MinIO service with
+  test-only credentials;
+- `make integration-check` passing without skipped PostgreSQL or MinIO tests;
 - `make release-check` passing without skipped live PostgreSQL checks;
 - `make coverage-check` passing at the configured threshold;
 - migration compatibility from every committed migration prefix to the current
@@ -184,7 +187,7 @@ disposable database and sanitized logs.
 
 Do not describe an Evydence build as broadly self-hosted production-ready until:
 
-- `make production-check` passes in CI with live PostgreSQL;
+- `make production-check` passes in CI with live PostgreSQL and MinIO;
 - `make black-box-demo-check` passes against a disposable PostgreSQL schema,
   exercising API, worker, restart persistence, readiness, package, and
   audit-chain verification paths;
@@ -245,12 +248,12 @@ because they are hardening work on already implemented capabilities:
   next service-boundary review is complete, preserving tenant isolation and
   append-only behavior throughout.
 - Keep worker-owned parser side effects covered as parser formats evolve.
-  CycloneDX SBOM, generic vulnerability scan, OpenAPI contract, DSSE
-  build-attestation, OpenVEX document metadata, CycloneDX VEX document metadata,
-  and VEX-derived vulnerability decisions can be worker-owned behind
-  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`; SBOM, scan, OpenAPI, and
-  VEX replay side effects use focused release-ledger mutations when the
-  PostgreSQL store supports them.
+  CycloneDX SBOM, generic vulnerability scan, OpenAPI contract, and DSSE
+  build-attestation projections can be worker-owned behind
+  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`. VEX-derived decisions are
+  always worker-owned from the versioned normalized request, and SBOM, scan,
+  OpenAPI, and VEX worker side effects use focused release-ledger mutations when
+  the PostgreSQL store supports them.
 - Keep OpenAPI precision at zero broad operations as routes are added or
   changed, and expand generated SDK coverage from the committed contract.
 - Add native PKCS#11/HSM module execution where required by the deployment

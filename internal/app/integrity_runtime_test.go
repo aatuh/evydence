@@ -11,30 +11,42 @@ import (
 )
 
 func TestCosignMerkleTransparencyAndKeyRevocationFlow(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	rawBundle := []byte(`{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}`)
+	verifier := &fakeCosignPolicyVerifier{receipt: CosignVerificationReceipt{
+		LibraryVersion:      "sigstore-go.v1.1.4",
+		TrustRootVersion:    "test-root.v1",
+		CertificateIdentity: "repo:owner/name",
+		CertificateIssuer:   "https://token.actions.githubusercontent.com",
+		Checks: []domain.VerifyCheck{
+			{Name: "subject_digest", Result: "passed"},
+			{Name: "cryptographic_signature", Result: "passed"},
+			{Name: "sigstore_bundle", Result: "passed"},
+			{Name: "fulcio_trust_root", Result: "passed"},
+			{Name: "certificate_validity", Result: "passed"},
+			{Name: "certificate_identity_policy", Result: "passed"},
+			{Name: "rekor_inclusion_proof", Result: "passed"},
+		},
+	}}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: newTestObjectStore(), Cosign: verifier})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	image, err := ledger.RegisterContainerImage(ctx, actor, RegisterContainerImageInput{ArtifactID: artifact.ID, Repository: "registry.example.com/payments", Tag: "1.0.0", Digest: artifact.Digest})
 	if err != nil {
 		t.Fatalf("image: %v", err)
 	}
-	sig, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "MEUCIQDexample"})
+	sig, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "MEUCIQDexample", RawPayload: rawBundle, PayloadMediaType: "application/vnd.dev.sigstore.bundle.v0.3+json"})
 	if err != nil {
 		t.Fatalf("artifact signature: %v", err)
 	}
-	cosign, err := ledger.VerifyCosignSignature(ctx, actor, VerifyCosignInput{ArtifactSignatureID: sig.ID, RekorUUID: "rekor-uuid", RekorLogIndex: "42", CertificateIdentity: "repo:owner/name", CertificateIssuer: "https://token.actions.githubusercontent.com"})
+	cosign, err := ledger.VerifyCosignSignature(ctx, actor, VerifyCosignInput{ArtifactSignatureID: sig.ID, ExpectedIdentity: "repo:owner/name", ExpectedIssuer: "https://token.actions.githubusercontent.com", Mode: CosignVerificationModeKeyless, Offline: true})
 	if err != nil {
 		t.Fatalf("cosign verify: %v", err)
 	}
-	if cosign.ContainerImageID != image.ID || cosign.Result != "limited" {
+	if cosign.ContainerImageID != image.ID || cosign.Result != "passed" || cosign.TrustRootVersion != "test-root.v1" {
 		t.Fatalf("cosign verification = %#v", cosign)
 	}
-	if !hasVerifyCheck(cosign.Checks, "digest_binding_assessed", "passed") || !hasVerifyCheck(cosign.Checks, "signature_material_present", "passed") || !hasVerifyCheck(cosign.Checks, "rekor_metadata_present", "passed") {
-		t.Fatalf("cosign metadata assessment checks = %#v", cosign.Checks)
-	}
-	full, err := ledger.VerifyCosignSignature(ctx, actor, VerifyCosignInput{ArtifactSignatureID: sig.ID, RequireFullVerification: true})
-	if !errors.Is(err, ErrFullVerificationUnavailable) || full.Result != "limited" {
-		t.Fatalf("full cosign verification = %#v err=%v", full, err)
+	if len(verifier.requests) != 1 || string(verifier.requests[0].Bundle) != string(rawBundle) || verifier.requests[0].ExpectedIdentity != "repo:owner/name" {
+		t.Fatalf("cosign verifier request = %#v", verifier.requests)
 	}
 	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
 	if err != nil {
@@ -70,6 +82,75 @@ func TestCosignMerkleTransparencyAndKeyRevocationFlow(t *testing.T) {
 	}
 	if checkpoint.TimestampHash == "" {
 		t.Fatal("expected timestamp hash")
+	}
+}
+
+func TestVerifyMerkleBatchRejectsReplayedSignatureSubject(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, _, _ := setupReleaseRiskFixture(t, ledger)
+	batch, err := ledger.CreateMerkleBatch(ctx, actor, CreateMerkleBatchInput{})
+	if err != nil {
+		t.Fatalf("create merkle batch: %v", err)
+	}
+	ledger.mu.Lock()
+	signature := ledger.signatures[batch.SignatureRefs[0]]
+	signature.SubjectID = "mb_replayed"
+	ledger.signatures[signature.ID] = signature
+	ledger.mu.Unlock()
+
+	if _, err := ledger.VerifyMerkleBatch(ctx, actor, batch.ID); !errors.Is(err, ErrVerificationFailed) {
+		t.Fatalf("replayed signature subject err=%v, want ErrVerificationFailed", err)
+	}
+}
+
+type fakeCosignPolicyVerifier struct {
+	receipt  CosignVerificationReceipt
+	err      error
+	requests []CosignVerificationRequest
+}
+
+func (f *fakeCosignPolicyVerifier) VerifyCosign(_ context.Context, in CosignVerificationRequest) (CosignVerificationReceipt, error) {
+	f.requests = append(f.requests, in)
+	return f.receipt, f.err
+}
+
+func TestVerifyCosignSignatureRejectsHumanSessionOutsideArtifactGrant(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, _, artifact := setupReleaseRiskFixture(t, ledger)
+	sig, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "recorded"})
+	if err != nil {
+		t.Fatalf("create artifact signature: %v", err)
+	}
+	restricted := domain.Actor{TenantID: actor.TenantID, UserID: "usr_restricted", Scopes: []string{ScopeVerifyRead}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_other", Scopes: []string{ScopeVerifyRead}}}}
+	if _, err := ledger.VerifyCosignSignature(ctx, restricted, VerifyCosignInput{ArtifactSignatureID: sig.ID}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("restricted session verify err=%v, want forbidden", err)
+	}
+}
+
+func TestVerifyCosignSignatureRejectsInvalidPolicyBeforeVerifier(t *testing.T) {
+	verifier := &fakeCosignPolicyVerifier{}
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Cosign: verifier})
+	ctx := context.Background()
+	actor, _, artifact := setupReleaseRiskFixture(t, ledger)
+	sig, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "recorded"})
+	if err != nil {
+		t.Fatalf("create artifact signature: %v", err)
+	}
+	invalid := []VerifyCosignInput{
+		{ArtifactSignatureID: sig.ID, Mode: CosignVerificationModeKeyless, ExpectedIdentity: "identity", ExpectedIssuer: "issuer"},
+		{ArtifactSignatureID: sig.ID, Mode: CosignVerificationModeKeyless, Offline: true, ExpectedIdentity: "identity"},
+		{ArtifactSignatureID: sig.ID, Mode: CosignVerificationModeKey, Offline: true, ExpectedIdentity: "must-not-apply"},
+		{ArtifactSignatureID: sig.ID, Mode: "unknown", Offline: true},
+	}
+	for _, input := range invalid {
+		if _, err := ledger.VerifyCosignSignature(ctx, actor, input); !errors.Is(err, ErrValidation) {
+			t.Fatalf("verify invalid policy %#v err=%v, want validation", input, err)
+		}
+	}
+	if len(verifier.requests) != 0 {
+		t.Fatalf("invalid policy must not reach verifier: %#v", verifier.requests)
 	}
 }
 
@@ -538,7 +619,7 @@ func TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("artifact: %v", err)
 	}
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`))
+	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`))
 	if err != nil {
 		t.Fatalf("upload sbom: %v", err)
 	}

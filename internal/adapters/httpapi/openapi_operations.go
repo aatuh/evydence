@@ -6,6 +6,7 @@ import (
 	"github.com/aatuh/api-toolkit/v3/specs"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 )
 
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
@@ -17,7 +18,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Liveness status envelope.", "#/components/schemas/HealthStatusEnvelope")
 	case "ready":
-		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors."
+		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
@@ -46,7 +47,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("OpenAPI document.", "#/components/schemas/OpenAPIDocument")
 	case "instanceAdminSnapshot":
-		operation.Description = "Returns instance-level diagnostic counts. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient."
+		operation.Description = "Returns instance-level diagnostic counts from one current database snapshot in the PostgreSQL profile. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. The response omits tenant identifiers, evidence payloads, and credential material."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance admin snapshot envelope.", "#/components/schemas/InstanceAdminSnapshotEnvelope")
 	case "outboxOperatorDiagnostics":
 		operation.Description = "Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope."
@@ -153,7 +154,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Control evidence link request.", "#/components/schemas/LinkControlEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created control evidence link envelope.", "#/components/schemas/ControlEvidenceEnvelope")
 	case "listControlEvidence":
-		operation.Description = "Lists tenant-scoped control evidence links with optional control, product, and release filters."
+		operation.Description = "Keyset-pages tenant and grant-visible control evidence links with optional control, product, and release filters. PostgreSQL validates current control, framework, scope, and subject ownership before the page limit; broken links are excluded."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("control_id", "Filter by security control id.", "string"),
 			queryParam("product_id", "Filter by product id.", "string"),
@@ -180,14 +181,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Project id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Project envelope.", "#/components/schemas/ProjectEnvelope")
 	case "createRelease":
-		operation.Description = "Creates an append-only release record under a product and optional project."
+		operation.Description = "Creates an append-only release record under a product."
 		operation.RequestBody = jsonRequest("Release creation request.", "#/components/schemas/CreateReleaseRequest")
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"release-candidate": specs.Example{
 				Summary: "Create a release for evidence collection",
 				Value: map[string]any{
 					"product_id": "prod_20260527120000",
-					"project_id": "proj_20260527120000",
 					"version":    "1.0.0-rc.1",
 				},
 			},
@@ -198,14 +198,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 				Summary: "Created release response",
 				Value: map[string]any{
 					"data": map[string]any{
-						"id":             "rel_20260527120000",
-						"tenant_id":      "ten_20260527120000",
-						"product_id":     "prod_20260527120000",
-						"project_id":     "proj_20260527120000",
-						"version":        "1.0.0-rc.1",
-						"status":         "draft",
-						"schema_version": "release.v1.0.0",
-						"created_at":     "2026-05-27T12:00:00Z",
+						"id":         "rel_20260527120000",
+						"tenant_id":  "ten_20260527120000",
+						"product_id": "prod_20260527120000",
+						"version":    "1.0.0-rc.1",
+						"revision":   1,
+						"state":      "draft",
+						"created_at": "2026-05-27T12:00:00Z",
 					},
 					"meta": map[string]any{"api_version": "v1"},
 				},
@@ -235,7 +234,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "registerArtifact":
-		operation.Description = "Registers an artifact digest for release evidence and later build/attestation matching."
+		operation.Description = "Registers a tenant-scoped artifact digest for later evidence, build, and attestation matching."
 		operation.RequestBody = jsonRequest("Artifact registration request.", "#/components/schemas/RegisterArtifactRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered artifact envelope.", "#/components/schemas/ArtifactEnvelope")
 	case "getArtifact":
@@ -251,11 +250,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Build run id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Build run envelope.", "#/components/schemas/BuildRunEnvelope")
 	case "uploadGitHubSourceSnapshot":
-		operation.Description = "Uploads a strict GitHub source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records."
+		operation.Description = "Records a strict GitHub source snapshot. PostgreSQL checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. Repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. Stores only the exact-byte message hash; omitted commit time defaults to server time. Optional components must be omitted rather than null. Request replay adds no effects. The provider label is submitted metadata and does not verify GitHub origin, signatures, or review authority."
 		operation.RequestBody = jsonRequest("GitHub source snapshot upload request.", "#/components/schemas/SourceSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source snapshot resources envelope.", "#/components/schemas/SourceSnapshotEnvelope")
 	case "uploadGitLabSourceSnapshot":
-		operation.Description = "Uploads a strict GitLab source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records."
+		operation.Description = "Records a strict GitLab source snapshot. PostgreSQL checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. Repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. Stores only the exact-byte message hash; omitted commit time defaults to server time. Optional components must be omitted rather than null. Request replay adds no effects. The provider label is submitted metadata and does not verify GitLab origin, signatures, or review authority."
 		operation.RequestBody = jsonRequest("GitLab source snapshot upload request.", "#/components/schemas/SourceSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source snapshot resources envelope.", "#/components/schemas/SourceSnapshotEnvelope")
 	case "uploadSBOM":
@@ -271,11 +270,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "getSBOM":
-		operation.Description = "Returns a tenant-scoped SBOM metadata record by id."
+		operation.Description = "Returns a tenant-scoped SBOM record and its stored components when parsed; an accepted pending record may have an empty spec version and no components. In the PostgreSQL profile, source evidence and optional release/artifact parents must resolve within the same tenant, and the optional artifact must match the source evidence's sole artifact subject, before current resource grants are applied."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SBOM id."))
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "uploadVEX":
-		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description = "Uploads OpenVEX payload bytes and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
 		operation.RequestBody = streamingDocumentRequest("OpenVEX upload request.", "#/components/schemas/EvidenceUploadRequest", "application/vnd.openvex+json", app.EvidenceDocumentLimit)
 		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native OpenVEX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native OpenVEX document upload."))
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
@@ -283,7 +282,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			SchemaRef: "#/components/schemas/EvidenceUploadRequest",
 			Examples: map[string]any{
 				"openvex-fixed-decision": specs.Example{
-					Summary: "Imported OpenVEX fixed decision",
+					Summary: "Upload OpenVEX for asynchronous decision mapping",
 					Value:   openVEXUploadExample(),
 				},
 			},
@@ -294,7 +293,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("OpenVEX import preview request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "uploadCycloneDXVEX":
-		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable."
+		operation.Description = "Uploads CycloneDX VEX JSON and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status."
 		operation.RequestBody = jsonRequest("CycloneDX VEX upload request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "previewCycloneDXVEXImport":
@@ -306,18 +305,19 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "getVEXImportReport":
-		operation.Description = "Returns the persisted parser report for a tenant-scoped VEX import, including counts, warnings, and mapping failures without raw payload bytes."
+		operation.Description = "Returns the persisted parser report for a tenant-scoped VEX import. Uploads begin as accepted and become parsed or failed after asynchronous decision processing; the report includes safe counts, warnings, and mapping failures without raw payload bytes."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX import report envelope.", "#/components/schemas/VEXImportReportEnvelope")
 	case "uploadVulnerabilityScan":
-		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
-		operation.RequestBody = jsonRequest("Vulnerability scan upload payload.", "#/components/schemas/UploadVulnerabilityScanRequest")
+		operation.Description = "Uploads either the Evydence generic scan schema or a versioned native-scanner envelope (Grype, Trivy, OSV-Scanner, or Dependency-Track). Scanner output is preserved as raw evidence and is not treated as authoritative. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
+		operation.RequestBody = jsonRequest("Generic scan or versioned native-scanner envelope.", "#/components/schemas/UploadVulnerabilityScanBody")
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"generic-critical-finding": specs.Example{
 				Summary: "Upload a generic scanner finding for release triage",
 				Value:   vulnerabilityScanUploadExample(),
 			},
+			"grype-envelope": specs.Example{Summary: "Preserve a Grype JSON report with explicit release scope", Value: map[string]any{"scanner": "grype", "target_ref": "pkg:oci/payments-api@sha256-ca978112", "release_id": "rel_20260527120000", "source_schema": "grype-json.v1", "payload": map[string]any{"matches": []any{}}}},
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability scan envelope.", "#/components/schemas/VulnerabilityScanEnvelope")
 	case "getVulnerabilityScan":
@@ -336,15 +336,24 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence item list envelope.", "#/components/schemas/EvidenceItemListEnvelope")
 	case "searchEvidence":
-		operation.Description = "Searches tenant-scoped evidence with deterministic filters and cursor-style pagination."
+		operation.Description = "Searches tenant-scoped evidence with deterministic filters. The legacy source alias remains supported for source_system."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Filter by product id.", "string"),
 			queryParam("project_id", "Filter by project id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),
+			queryParam("build_id", "Filter by build id.", "string"),
+			queryParam("deployment_id", "Filter by deployment id.", "string"),
 			queryParam("type", "Filter by evidence type.", "string"),
-			queryParam("source", "Filter by evidence source.", "string"),
+			queryParam("subtype", "Filter by evidence subtype.", "string"),
+			queryParam("source", "Deprecated alias for source_system.", "string"),
+			queryParam("source_system", "Filter by evidence source system.", "string"),
+			queryParam("collector_id", "Filter by collector id.", "string"),
+			queryParam("verification_status", "Filter by verification status.", "string"),
+			queryParam("subject_type", "Filter by subject type.", "string"),
+			queryParam("subject_id", "Filter by subject id.", "string"),
 			queryParam("tag", "Filter by a single evidence tag.", "string"),
-			queryParam("cursor", "Opaque pagination cursor.", "string"),
+			queryParam("created_after", "Filter by an RFC3339 creation timestamp inclusive lower bound.", "string"),
+			queryParam("created_before", "Filter by an RFC3339 creation timestamp inclusive upper bound.", "string"),
 			queryParam("limit", "Maximum returned records.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence search result envelope.", "#/components/schemas/EvidenceSearchEnvelope")
@@ -357,7 +366,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Evidence graph snapshot creation request.", "#/components/schemas/CreateGraphSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence graph snapshot envelope.", "#/components/schemas/EvidenceGraphSnapshotEnvelope")
 	case "listSBOMComponents":
-		operation.Description = "Lists tenant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL."
+		operation.Description = "Lists tenant- and resource-grant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL. In the PostgreSQL profile, results use durable keyset pages without the legacy 500-component preselection cap. Source evidence must be an SBOM with matching release and artifact subject; an inaccessible, missing, or inconsistently linked filtered SBOM returns 404."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("sbom_id", "Filter by SBOM id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),
@@ -407,11 +416,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Release bundle creation request.", "#/components/schemas/CreateReleaseBundleRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
 	case "getReleaseBundle":
-		operation.Description = "Returns a tenant-scoped immutable release bundle by id."
+		operation.Description = "Returns an immutable release bundle by id only when its current tenant-owned release is covered by the caller's bundle:read grant."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
 	case "getReleaseBundleManifest":
-		operation.Description = "Returns the deterministic release bundle manifest by bundle id."
+		operation.Description = "Returns the deterministic release bundle manifest by id under the same current-release and bundle:read authorization as the bundle read."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle manifest envelope.", "#/components/schemas/ReleaseBundleManifestEnvelope")
 	case "verifyReleaseBundle":
@@ -426,16 +435,16 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Subject verification request.", "#/components/schemas/VerifySubjectRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Subject verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "listAuditLog":
-		operation.Description = "Lists tenant-scoped append-only audit-chain entries in reverse chronological order."
+		operation.Description = "Lists tenant-scoped append-only audit-chain entries in reverse chronological order. Human sessions require a tenant-wide admin grant."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("subject_type", "Filter by audited subject type.", "string"),
 			queryParam("subject_id", "Filter by audited subject id.", "string"),
 			queryParam("since", "Only include entries at or after this RFC3339 timestamp.", "string"),
-			queryParam("limit", "Maximum returned entries; defaults to 100 and caps at 500.", "integer"),
+			queryParam("limit", "Deprecated maximum returned entries alias; defaults to 50 and caps at 500.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Audit-chain entry list envelope.", "#/components/schemas/AuditChainEntryListEnvelope")
 	case "generateBackupManifest":
-		operation.Description = "Generates a tenant-scoped backup manifest after an operator backup completes. The manifest excludes raw payload bytes and private key material."
+		operation.Description = "Generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. PostgreSQL emits backup-manifest.v2.0.0 with tenant-relational-state.v2 semantics, including append-only decision supersession history; historical commitments retain their recorded profiles and local-memory v1 hashes remain distinct. Credential material, replay bookkeeping and raw object payload bytes are excluded."
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusCreated] = jsonResponse("Backup manifest envelope.", "#/components/schemas/BackupManifestEnvelope")
 	case "verifyBackupManifest":
@@ -461,7 +470,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Policy evaluation request.", "#/components/schemas/EvaluatePolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Policy evaluation envelope.", "#/components/schemas/PolicyEvaluationEnvelope")
 	case "createVulnerabilityDecision":
-		operation.Description = "Creates an append-only vulnerability decision for a tenant-scoped scan finding."
+		operation.Description = "Creates an append-only vulnerability decision for a tenant-scoped scan finding. Tenant-internal notes are accepted for the ledger but excluded from the response and idempotency replays."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
 		operation.RequestBody = jsonRequest("Vulnerability decision creation request.", "#/components/schemas/CreateVulnerabilityDecisionRequest")
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
@@ -472,7 +481,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability decision envelope.", "#/components/schemas/VulnerabilityDecisionEnvelope")
 	case "listVulnerabilityDecisions":
-		operation.Description = "Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters."
+		operation.Description = "Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. Tenant-internal notes are excluded from responses."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Filter by product id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),
@@ -492,7 +501,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Exception creation request.", "#/components/schemas/CreateExceptionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created exception envelope.", "#/components/schemas/ExceptionEnvelope")
 	case "listExceptions":
-		operation.Description = "Lists tenant-scoped exceptions, optionally filtered by release."
+		operation.Description = "Lists tenant- and current verify-grant-scoped exceptions, optionally filtered by release. In the PostgreSQL profile, release ownership and bounded keyset pages are resolved in one database snapshot before results are returned. A missing filtered release returns 404; an existing release outside the actor's grants returns 403."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Exception list envelope.", "#/components/schemas/ExceptionListEnvelope")
 	case "approveException":
@@ -529,7 +538,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
 	case "getOpenAPIContract":
-		operation.Description = "Returns a tenant-scoped OpenAPI contract metadata record by id."
+		operation.Description = "Returns tenant-scoped OpenAPI contract metadata by id. PostgreSQL reads require current same-tenant source evidence, product, and optional release parentage; human sessions need an evidence:read grant covering the product or release."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "OpenAPI contract id."))
 		operation.Responses[http.StatusOK] = jsonResponse("OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
 	case "createOpenAPIDiff":
@@ -537,14 +546,14 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("OpenAPI contract diff request.", "#/components/schemas/CreateOpenAPIDiffRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract diff envelope.", "#/components/schemas/ContractDiffEnvelope")
 	case "listSigningKeys":
-		operation.Description = "Lists tenant signing public-key metadata without private key material."
+		operation.Description = "Lists tenant signing public-key lifecycle metadata under verify:read; human sessions require a current tenant-level grant. PostgreSQL reads are keyset-paginated and never select encrypted private key material."
 		operation.Responses[http.StatusOK] = jsonResponse("Signing key list envelope.", "#/components/schemas/SigningKeyListEnvelope")
 	case "rotateSigningKey":
-		operation.Description = "Rotates the active tenant signing key and returns public-key metadata only."
+		operation.Description = "Rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only."
 		operation.RequestBody = jsonRequest("Signing key rotation request.", "#/components/schemas/SigningKeyTransitionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Rotated signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
 	case "revokeSigningKey":
-		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition."
+		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition. Ordinary revocation preserves signatures valid at signing time; compromised-key policy is explicit and can invalidate historical results."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Signing key id."))
 		operation.RequestBody = jsonRequest("Signing key revocation request.", "#/components/schemas/SigningKeyTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
@@ -553,22 +562,21 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Signing provider creation request.", "#/components/schemas/CreateSigningProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing provider envelope.", "#/components/schemas/SigningProviderEnvelope")
 	case "createSigningOperation":
-		operation.Description = "Records an external signing operation receipt and checks payload/signature metadata without logging secrets. When the API is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash."
+		operation.Description = "Requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. Caller-supplied signatures are rejected."
 		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
 	case "createArtifactSignature":
-		operation.Description = "Records detached artifact signature evidence and optional raw signature payload metadata."
+		operation.Description = "Records detached artifact signature evidence with recorded status; creation does not verify cryptographic trust. PostgreSQL authorizes the current tenant-owned artifact, stages optional JSON payload bytes, and commits signature metadata, payload lifecycle, finalization job and audit in the same transaction. Human sessions need a current artifact association covered by evidence:write grants. IDs are bounded at 1024 bytes; algorithm and signature text at 64 KiB. Payload staging is not finalization."
 		operation.RequestBody = jsonRequest("Artifact signature creation request.", "#/components/schemas/CreateArtifactSignatureRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "getArtifactSignature":
-		operation.Description = "Returns tenant-scoped artifact signature metadata by id."
+		operation.Description = "Returns artifact signature metadata by id only when the current tenant owns the signature and its artifact digest still matches. A human session additionally needs an evidence:read grant covering a current evidence or build association; issued credentials use their evidence:read scope."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "verifyCosignSignature":
-		operation.Description = "Deprecated compatibility metadata-assessment endpoint. It assesses stored digest binding, signature-material presence, and supplied Rekor metadata only. It never cryptographically verifies a Cosign signature, certificate identity, trust policy, Rekor inclusion, or checkpoint. Successful metadata assessment returns limited; require_full_verification=true returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured."
-		operation.Deprecated = true
+		operation.Description = "Cryptographically verifies a stored Sigstore/Cosign bundle against operator-configured trust material and caller-supplied keyless identity policy. The explicit offline profile requires an embedded Rekor inclusion proof and does not silently downgrade an online-required request."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
-		operation.RequestBody = jsonRequest("Cosign verification metadata request.", "#/components/schemas/VerifyCosignSignatureRequest")
+		operation.RequestBody = jsonRequest("Cosign policy verification request.", "#/components/schemas/VerifyCosignSignatureRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Cosign verification envelope.", "#/components/schemas/CosignVerificationEnvelope")
 	case "uploadBuildAttestation":
 		operation.Description = "Uploads a DSSE/in-toto build attestation for a tenant-scoped build and stores raw bytes in object storage."
@@ -576,12 +584,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("DSSE envelope.", "#/components/schemas/DSSEEnvelope")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created build attestation envelope.", "#/components/schemas/BuildAttestationEnvelope")
 	case "verifyBuildAttestationSignature":
-		operation.Description = "Verifies a build attestation signature against configured tenant DSSE trust roots."
+		operation.Description = "Offline-verifies DSSE PAE, an in-toto Statement v1/SLSA provenance v1 predicate, registered release-artifact subject digests, and immutable configured tenant-root policy."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Build attestation id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Build attestation verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "createDSSETrustRoot":
-		operation.Description = "Creates a tenant-scoped DSSE trust root using public verification key material only."
+		operation.Description = "Creates a tenant-scoped immutable DSSE Ed25519 trust root with an explicit SLSA predicate, builder, and required-claims policy."
 		operation.RequestBody = jsonRequest("DSSE trust-root creation request.", "#/components/schemas/CreateDSSETrustRootRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created DSSE trust root envelope.", "#/components/schemas/DSSETrustRootEnvelope")
 	case "createReleaseCandidate":
@@ -602,12 +610,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Release candidate transition request.", "#/components/schemas/ReleaseCandidateTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Transitioned release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "supersedeEvidence":
-		operation.Description = "Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata."
+		operation.Description = "Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence supersession request.", "#/components/schemas/SupersedeEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Superseded evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "linkEvidence":
-		operation.Description = "Creates an append-only relationship from evidence to another tenant-scoped subject."
+		operation.Description = "Creates an append-only relationship from evidence to another tenant-scoped subject. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence link request.", "#/components/schemas/LinkEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Linked evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
@@ -617,11 +625,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Evidence lifecycle event request.", "#/components/schemas/RecordEvidenceLifecycleEventRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence lifecycle event envelope.", "#/components/schemas/EvidenceLifecycleEventEnvelope")
 	case "listEvidenceLifecycleEvents":
-		operation.Description = "Lists append-only lifecycle events for a tenant-scoped evidence item."
+		operation.Description = "Lists append-only lifecycle events for a tenant-scoped evidence item. PostgreSQL pages ordinary evidence events from a consistent snapshot without loading all lifecycle records; worker-owned evidence retains its validated projection path. Sensitive detail fields are removed from responses."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence lifecycle event list envelope.", "#/components/schemas/EvidenceLifecycleEventListEnvelope")
 	case "createSourceRepository":
-		operation.Description = "Creates a tenant-scoped source repository record."
+		operation.Description = "Creates source repository metadata with source:write authorization. PostgreSQL serializes tenant/provider/full-name reuse and returns the existing repository unchanged without another audit entry. Human sessions need a tenant-wide grant for detached creation, or a matching product/project grant for attached creation; the existing repository is separately authorized before metadata is read. IDs are bounded at 1024 bytes, tenant/provider/full-name keys at 2304 bytes and optional metadata at 64 KiB. Repository and audit records commit in the same transaction as HTTP replay state. This records supplied metadata and does not contact or verify the provider, clone URL or repository contents."
 		operation.RequestBody = jsonRequest("Source repository creation request.", "#/components/schemas/CreateSourceRepositoryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source repository envelope.", "#/components/schemas/SourceRepositoryEnvelope")
 	case "listSourceRepositories":
@@ -629,19 +637,19 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, queryParam("project_id", "Project id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Source repository list envelope.", "#/components/schemas/SourceRepositoryListEnvelope")
 	case "recordSourceCommit":
-		operation.Description = "Records immutable source commit metadata and stores only a hash of the commit message."
+		operation.Description = "Records immutable source commit metadata using current repository tenant/project authorization before metadata reads. PostgreSQL mode normalizes 40-character hexadecimal SHAs to lowercase and returns the original repository/SHA record without changing metadata or auditing twice. Commit and audit are persisted in the same transaction. Stores only sha256 of exact nonblank message bytes; whitespace-only messages have no hash. Author and message inputs are bounded to 64 KiB; timestamps use UTC microseconds and committed_at defaults to recording time when omitted. Recording does not verify provider identity or repository contents."
 		operation.RequestBody = jsonRequest("Source commit creation request.", "#/components/schemas/RecordSourceCommitRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source commit envelope.", "#/components/schemas/SourceCommitEnvelope")
 	case "upsertSourceBranch":
-		operation.Description = "Records or updates source branch metadata and protected-branch snapshot hash."
+		operation.Description = "Records or replaces source branch metadata after current repository tenant/project authorization before metadata reads. PostgreSQL mode requires any supplied head commit to belong to the same repository and tenant. Existing branch identity and creation time are retained; head, protected flag and protection hash are replaced, including defaults when omitted. Repository/name upserts serialize; each executed create/update and its audit persist in the same transaction with replay state. Combined tenant/repository/name identity is limited to 2304 UTF-8 bytes and protection hash metadata to 64 KiB. A supplied protection hash is recorded metadata only; recording does not verify provider identity or branch protection."
 		operation.RequestBody = jsonRequest("Source branch upsert request.", "#/components/schemas/UpsertSourceBranchRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Source branch envelope.", "#/components/schemas/SourceBranchEnvelope")
 	case "recordPullRequest":
-		operation.Description = "Records pull-request review metadata linked to source repository evidence."
+		operation.Description = "Records an append-only pull-request metadata snapshot after current repository tenant/project authorization before metadata reads. Any supplied head commit must belong to the same repository and tenant. Each non-replayed call creates a new snapshot, even for the same provider ID; recording does not update an earlier snapshot. An omitted provider defaults to the stored repository provider. Snapshot, audit and HTTP replay state persist in the same transaction. Tenant/repository/head IDs are bounded to 1024 UTF-8 bytes and submitted metadata to 64 KiB; states are open, closed or merged. Recording does not verify provider identity, repository contents, review approval or merge authority."
 		operation.RequestBody = jsonRequest("Pull request record request.", "#/components/schemas/RecordPullRequestRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created pull request envelope.", "#/components/schemas/PullRequestEnvelope")
 	case "createDeploymentEnvironment":
-		operation.Description = "Creates a tenant-scoped deployment environment for release deployment evidence."
+		operation.Description = "Creates tenant-owned deployment environment metadata after deployment:write authorization. PostgreSQL serializes tenant/product/name reuse and returns the original environment without changing its kind or appending another audit entry. Human sessions need a tenant or product grant. New environment and audit records commit in the same transaction; replay adds no effects. Tenant/product IDs are bounded at 1024 bytes and kind text at 64 KiB; the combined tenant ID, product ID and normalized name is bounded at 2304 bytes to fit the unique database key. This records an environment definition, not proof of an actual deployment."
 		operation.RequestBody = jsonRequest("Deployment environment creation request.", "#/components/schemas/CreateDeploymentEnvironmentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created deployment environment envelope.", "#/components/schemas/DeploymentEnvironmentEnvelope")
 	case "listDeploymentEnvironments":
@@ -649,7 +657,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, queryParam("product_id", "Product id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Deployment environment list envelope.", "#/components/schemas/DeploymentEnvironmentListEnvelope")
 	case "recordDeployment":
-		operation.Description = "Records append-only deployment evidence for a release/environment/artifact set."
+		operation.Description = "Records append-only deployment metadata with immediately readable deployment/event evidence in the same transaction as both audit entries and HTTP replay state. Requires deployment:write; human sessions need a current tenant, product or release grant. Environment and release must have the same tenant and product; rollback targets must use the same environment, and artifacts must be tenant-owned. Reference IDs are bounded at 1024 bytes and artifact lists at 1024 entries. Omitted started_at defaults to command time; supplied timestamps are normalized to UTC without imposing ordering. PostgreSQL uses bounded identity reads without Ledger state. This records supplied metadata and does not prove runtime security or availability."
 		operation.RequestBody = jsonRequest("Deployment event creation request.", "#/components/schemas/RecordDeploymentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created deployment event envelope.", "#/components/schemas/DeploymentEventEnvelope")
 	case "listDeployments":
@@ -669,7 +677,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Collector release record request.", "#/components/schemas/RecordCollectorReleaseRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created collector release envelope.", "#/components/schemas/CollectorReleaseEnvelope")
 	case "collectorHealthReport":
-		operation.Description = "Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations."
+		operation.Description = "Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations. Production resolves the collector and its latest and pinned releases in one tenant-scoped database snapshot; human sessions require a tenant-wide collector:read grant."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Collector id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Collector health report envelope.", "#/components/schemas/CollectorHealthReportEnvelope")
 	case "createCommercialCollector":
@@ -677,26 +685,27 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Commercial collector definition request.", "#/components/schemas/CreateCommercialCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created commercial collector definition envelope.", "#/components/schemas/CommercialCollectorDefinitionEnvelope")
 	case "listCommercialCollectors":
-		operation.Description = "Lists tenant-scoped commercial collector definitions."
+		operation.Description = "Lists tenant-scoped commercial collector definitions under collector:read; human sessions require a current tenant-level grant. PostgreSQL results are keyset-paginated."
 		operation.Responses[http.StatusOK] = jsonResponse("Commercial collector definition list envelope.", "#/components/schemas/CommercialCollectorDefinitionListEnvelope")
 	case "createMarketplaceCollector":
 		operation.Description = "Creates tenant-scoped marketplace collector package metadata and evidence references."
 		operation.RequestBody = jsonRequest("Marketplace collector creation request.", "#/components/schemas/CreateMarketplaceCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created marketplace collector envelope.", "#/components/schemas/MarketplaceCollectorEnvelope")
 	case "listMarketplaceCollectors":
-		operation.Description = "Lists tenant-scoped marketplace collector package metadata."
+		operation.Description = "Keyset-pages tenant-scoped marketplace collector metadata. Human sessions need a current tenant-level collector:read grant; PostgreSQL applies the tenant limit in SQL."
 		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector list envelope.", "#/components/schemas/MarketplaceCollectorListEnvelope")
 	case "marketplaceCollectorHealth":
-		operation.Description = "Returns marketplace collector package health from recorded signature, SBOM, and scan evidence."
+		operation.Description = "Returns marketplace collector package health from current tenant-owned signature, SBOM, and scan references. Presence does not prove package safety, marketplace trust, or provider endorsement."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Marketplace collector id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector health report envelope.", "#/components/schemas/MarketplaceCollectorHealthReportEnvelope")
 	case "listControlFrameworkTemplatePacks":
 		operation.Description = "Lists built-in control framework template packs available for explicit tenant installation."
 		operation.Responses[http.StatusOK] = jsonResponse("Control framework template pack list envelope.", "#/components/schemas/ControlFrameworkTemplatePackListEnvelope")
 	case "installControlFrameworkTemplatePack":
-		operation.Description = "Installs a named control framework template pack into the tenant as ordinary framework/control records."
-		operation.Parameters = append(operation.Parameters, pathParam("slug", "Control framework template pack slug."))
-		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Description = "Installs a named starter pack as ordinary framework/control records. PostgreSQL uses a focused transaction with current tenant-level controls:admin grants for human sessions, a tenant-scoped version existence check, all starter controls, and one audit attributed to the authenticated principal. Same-key replay returns the original framework; changed request bytes or a different-key duplicate tenant/slug/version return 409. No cached Ledger inventory is used. The trimmed slug is NUL-free UTF-8 and bounded at 1024 bytes before durable replay reservation; invalid slugs return 400 and unknown slugs 404. An optional body must be an empty JSON object; blank/absent bodies retain their existing acceptance. Malformed, non-object, null, or unknown-field bodies return 400. Local-memory mode retains its explicit compatibility installation command. Starter content organizes technical evidence, not framework compliance or control efficacy."
+		operation.Parameters = append(operation.Parameters, pathParam("slug", "Control framework template pack slug; trimmed, NUL-free UTF-8, at most 1024 bytes."))
+		operation.RequestBody = jsonRequest("Optional empty JSON object; an absent or blank body uses an empty object.", "#/components/schemas/EmptyObject")
+		operation.RequestBody.Required = false
 		operation.Responses[http.StatusCreated] = jsonResponse("Installed control framework envelope.", "#/components/schemas/ControlFrameworkEnvelope")
 	case "registerContainerImage":
 		operation.Description = "Registers OCI/container image metadata and digest evidence linked to an optional artifact."
@@ -711,20 +720,22 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Manual security document upload request.", "#/components/schemas/UploadManualSecurityDocumentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created manual security document envelope.", "#/components/schemas/ManualSecurityDocumentEnvelope")
 	case "uploadSPDXSBOM":
-		operation.Description = "Uploads an SPDX JSON SBOM payload, stores raw bytes as evidence, and records normalized SBOM metadata."
-		operation.RequestBody = jsonRequest("SPDX SBOM upload request.", "#/components/schemas/UploadSPDXSBOMRequest")
+		operation.Description = "Uploads an SPDX 2.2 or 2.3 JSON SBOM payload, stores immutable raw bytes as evidence, and records deterministic normalization metadata. Use application/spdx+json with explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.RequestBody = streamingDocumentRequest("SPDX SBOM upload request.", "#/components/schemas/UploadSPDXSBOMRequest", "application/spdx+json", app.EvidenceDocumentLimit)
+		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native SPDX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native SPDX document upload."))
+		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "createSBOMDiff":
 		operation.Description = "Creates a deterministic SBOM diff between two tenant-scoped SBOM records."
 		operation.RequestBody = jsonRequest("SBOM diff creation request.", "#/components/schemas/CreateSBOMDiffRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM diff envelope.", "#/components/schemas/SBOMDiffEnvelope")
 	case "vulnerabilityPostureReport":
-		operation.Description = "Returns a vulnerability posture report derived from stored scan, decision, VEX, exception, and workflow records."
-		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Description = "Returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only; decisions, VEX, exceptions, and workflow records are not included. Without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. Raw findings are not returned, and scanner coverage is not independently verified."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Optional single release id; blank or duplicate values are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability posture report envelope.", "#/components/schemas/VulnerabilityPostureReportEnvelope")
 	case "vulnerabilityDecisionSummaryReport":
-		operation.Description = "Returns customer-safe active vulnerability decision summaries for a release with assumptions and limitations. Raw payloads and internal notes are excluded."
-		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Description = "Returns customer-safe active vulnerability decision summaries for one tenant-owned release with assumptions and limitations. Raw payloads and internal notes are excluded."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Single release id; missing, blank, duplicate, or unknown query parameters are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability decision summary report envelope.", "#/components/schemas/VulnerabilityDecisionSummaryReportEnvelope")
 	case "generateAnomalyReport":
 		operation.Description = "Creates a deterministic anomaly report over existing tenant evidence and metrics with assumptions and limitations."
@@ -843,7 +854,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Customer portal access creation request.", "#/components/schemas/CreateCustomerPortalAccessRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created portal access and one-time token envelope.", "#/components/schemas/CustomerPortalAccessCreateEnvelope")
 	case "listCustomerPortalAccess":
-		operation.Description = "Lists tenant-scoped external reviewer access records without token hashes or token secrets."
+		operation.Description = "Lists tenant-scoped external reviewer access records visible under the caller's current package, product, release, or tenant-level package:read grant. Token hashes and secrets are never returned."
 		operation.Parameters = append(operation.Parameters, queryParam("package_id", "Optional customer package id filter.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Customer portal access list envelope.", "#/components/schemas/CustomerPortalAccessListEnvelope")
 	case "revokeCustomerPortalAccess":
@@ -930,11 +941,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Questionnaire draft creation request.", "#/components/schemas/CreateQuestionnaireDraftRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire draft envelope.", "#/components/schemas/QuestionnaireDraftEnvelope")
 	case "createQuestionnaireAnswerLibraryEntry":
-		operation.Description = "Creates a tenant-scoped reusable questionnaire answer draft linked to optional evidence, product, release, or control scope."
+		operation.Description = "Creates a reusable questionnaire answer draft linked to optional evidence, product, release, or control scope. A human session needs a matching product or release grant; a draft without product or release scope requires a tenant grant."
 		operation.RequestBody = jsonRequest("Questionnaire answer library entry creation request.", "#/components/schemas/CreateQuestionnaireAnswerLibraryEntryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire answer library entry envelope.", "#/components/schemas/QuestionnaireAnswerLibraryEntryEnvelope")
 	case "listQuestionnaireAnswerLibrary":
-		operation.Description = "Lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters."
+		operation.Description = "Lists questionnaire answer drafts with optional question, product, and release filters. Product and release filters must reference current tenant-owned parents and agree when combined. Human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("question_id", "Filter by questionnaire question id.", "string"),
 			queryParam("product_id", "Filter by product id.", "string"),
@@ -946,11 +957,91 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("PDF report package creation request.", "#/components/schemas/CreatePDFReportPackageRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created PDF report package envelope.", "#/components/schemas/PDFReportPackageEnvelope")
 	}
+	if isPaginatedOperation(operation.OperationID) {
+		operation.Description += " Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction."
+		operation.Parameters = appendPaginationParameters(operation.OperationID, operation.Parameters)
+	}
+	if isConditionalReadOperation(operation.OperationID) {
+		operation.Parameters = appendParameterIfMissing(operation.Parameters, optionalHeaderParam("If-None-Match", "Optional ETag from a prior private resource read. A match returns 304 without a response body."))
+		if operation.Extensions == nil {
+			operation.Extensions = map[string]any{}
+		}
+		operation.Extensions["x-evydence-conditional-read"] = map[string]any{
+			"cache_control": "private, max-age=0, must-revalidate",
+			"vary":          "Authorization",
+			"not_modified":  http.StatusNotModified,
+		}
+	}
 	return operation
 }
 
+func isPaginatedOperation(operationID string) bool {
+	switch operationID {
+	case "listAPIKeys", "listCollectors", "listControlFrameworks", "listControlEvidence", "listProducts", "listEvidence", "searchEvidence", "listSBOMComponents", "listAuditLog", "listVulnerabilityDecisions", "listExceptions", "listSigningKeys", "listReleaseCandidates", "listEvidenceLifecycleEvents", "listSourceRepositories", "listDeploymentEnvironments", "listDeployments", "listCommercialCollectors", "listMarketplaceCollectors", "listControlFrameworkTemplatePacks", "listCustomerPortalAccess", "listQuestionnaireAnswerLibrary", "listRoleBindings":
+		return true
+	default:
+		return false
+	}
+}
+
+func isConditionalReadOperation(operationID string) bool {
+	switch operationID {
+	case "getSecurityControl", "getProduct", "getProject", "getRelease", "getReleaseCandidate", "getArtifact", "getArtifactSignature", "getBuildRun", "getDeployment", "getCustomerPackage", "getEvidence", "getSBOM", "getVEX", "getVEXImportReport", "getVulnerabilityScan", "getOpenAPIContract", "getReleaseBundle", "getReleaseBundleManifest":
+		return true
+	default:
+		return false
+	}
+}
+
+func appendPaginationParameters(operationID string, parameters []specs.Parameter) []specs.Parameter {
+	sortValues := []string{string(appquery.SortCreatedAt), string(appquery.SortID)}
+	defaultSort := string(appquery.SortCreatedAt)
+	defaultDirection := string(appquery.Ascending)
+	if operationID == "listControlFrameworkTemplatePacks" || operationID == "listSBOMComponents" {
+		sortValues = []string{string(appquery.SortID)}
+		defaultSort = string(appquery.SortID)
+	}
+	if operationID == "searchEvidence" || operationID == "listAuditLog" {
+		defaultDirection = string(appquery.Descending)
+	}
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "page_size",
+		In:          "query",
+		Description: "Maximum records in this page. Defaults to 50 and is capped at 500.",
+		Schema:      map[string]any{"type": "integer", "minimum": 1, "maximum": appquery.MaxPageSize, "default": appquery.DefaultPageSize},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "cursor",
+		In:          "query",
+		Description: "Opaque continuation token returned as meta.next_cursor. It must be reused with the same tenant, filters, sort, and direction.",
+		Schema:      map[string]any{"type": "string", "minLength": 1, "maxLength": 4096},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "sort",
+		In:          "query",
+		Description: "Stable sort key for cursor pagination.",
+		Schema:      map[string]any{"type": "string", "enum": sortValues, "default": defaultSort},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "direction",
+		In:          "query",
+		Description: "Sort direction for cursor pagination.",
+		Schema:      map[string]any{"type": "string", "enum": []string{string(appquery.Ascending), string(appquery.Descending)}, "default": defaultDirection},
+	})
+	return parameters
+}
+
+func appendParameterIfMissing(parameters []specs.Parameter, parameter specs.Parameter) []specs.Parameter {
+	for _, existing := range parameters {
+		if existing.In == parameter.In && existing.Name == parameter.Name {
+			return parameters
+		}
+	}
+	return append(parameters, parameter)
+}
+
 func addProblemResponses(operation *specs.Operation) {
-	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity} {
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusServiceUnavailable} {
 		operation.Responses[status] = problemResponse(http.StatusText(status))
 	}
 }

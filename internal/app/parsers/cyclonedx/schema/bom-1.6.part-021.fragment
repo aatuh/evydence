@@ -1,0 +1,164 @@
+              }
+            }
+          }
+        },
+        "levels": {
+          "type": "array",
+          "title": "Levels",
+          "description": "The list of levels associated with the standard. Some standards have different levels of compliance.",
+          "items": {
+            "type": "object",
+            "title": "Level",
+            "additionalProperties": false,
+            "properties": {
+              "bom-ref": {
+                "$ref": "#/definitions/refType",
+                "title": "BOM Reference",
+                "description": "An optional identifier which can be used to reference the object elsewhere in the BOM. Every bom-ref must be unique within the BOM."
+              },
+              "identifier": {
+                "type": "string",
+                "title": "Identifier",
+                "description": "The identifier used in the standard to identify a specific level."
+              },
+              "title": {
+                "type": "string",
+                "title": "Title",
+                "description": "The title of the level."
+              },
+              "description": {
+                "type": "string",
+                "title": "Description",
+                "description": "The description of the level."
+              },
+              "requirements": {
+                "type": "array",
+                "title": "Requirements",
+                "description": "The list of requirement `bom-ref`s that comprise the level.",
+                "items": { "$ref": "#/definitions/refLinkType" }
+              }
+            }
+          }
+        },
+        "externalReferences": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/externalReference"},
+          "title": "External References",
+          "description": "External references provide a way to document systems, sites, and information that may be relevant but are not included with the BOM. They may also establish specific relationships within or external to the BOM."
+        },
+        "signature": {
+          "$ref": "#/definitions/signature",
+          "title": "Signature",
+          "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+        }
+      }
+    },
+    "signature": {
+      "$ref": "jsf-0.82.schema.json#/definitions/signature",
+      "title": "Signature",
+      "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+    },
+    "cryptoProperties": {
+      "type": "object",
+      "title": "Cryptographic Properties",
+      "description": "Cryptographic assets have properties that uniquely define them and that make them actionable for further reasoning. As an example, it makes a difference if one knows the algorithm family (e.g. AES) or the specific variant or instantiation (e.g. AES-128-GCM). This is because the security level and the algorithm primitive (authenticated encryption) are only defined by the definition of the algorithm variant. The presence of a weak cryptographic algorithm like SHA1 vs. HMAC-SHA1 also makes a difference.",
+      "additionalProperties": false,
+      "required": [
+        "assetType"
+      ],
+      "properties": {
+        "assetType": {
+          "type": "string",
+          "title": "Asset Type",
+          "description": "Cryptographic assets occur in several forms. Algorithms and protocols are most commonly implemented in specialized cryptographic libraries. They may, however, also be 'hardcoded' in software components. Certificates and related cryptographic material like keys, tokens, secrets or passwords are other cryptographic assets to be modelled.",
+          "enum": [
+            "algorithm",
+            "certificate",
+            "protocol",
+            "related-crypto-material"
+          ],
+          "meta:enum": {
+            "algorithm": "Mathematical function commonly used for data encryption, authentication, and digital signatures.",
+            "certificate": "An electronic document that is used to provide the identity or validate a public key.",
+            "protocol": "A set of rules and guidelines that govern the behavior and communication with each other.",
+            "related-crypto-material": "Other cryptographic assets related to algorithms, certificates, and protocols such as keys and tokens."
+          }
+        },
+        "algorithmProperties": {
+          "type": "object",
+          "title": "Algorithm Properties",
+          "description": "Additional properties specific to a cryptographic algorithm.",
+          "additionalProperties": false,
+          "properties": {
+            "primitive": {
+              "type": "string",
+              "title": "primitive",
+              "description": "Cryptographic building blocks used in higher-level cryptographic systems and protocols. Primitives represent different cryptographic routines: deterministic random bit generators (drbg, e.g. CTR_DRBG from NIST SP800-90A-r1), message authentication codes (mac, e.g. HMAC-SHA-256), blockciphers (e.g. AES), streamciphers (e.g. Salsa20), signatures (e.g. ECDSA), hash functions (e.g. SHA-256), public-key encryption schemes (pke, e.g. RSA), extended output functions (xof, e.g. SHAKE256), key derivation functions (e.g. pbkdf2), key agreement algorithms (e.g. ECDH), key encapsulation mechanisms (e.g. ML-KEM), authenticated encryption (ae, e.g. AES-GCM) and the combination of multiple algorithms (combiner, e.g. SP800-56Cr2).",
+              "enum": [
+                "drbg",
+                "mac",
+                "block-cipher",
+                "stream-cipher",
+                "signature",
+                "hash",
+                "pke",
+                "xof",
+                "kdf",
+                "key-agree",
+                "kem",
+                "ae",
+                "combiner",
+                "other",
+                "unknown"
+              ],
+              "meta:enum": {
+                "drbg": "Deterministic Random Bit Generator (DRBG) is a type of pseudorandom number generator designed to produce a sequence of bits from an initial seed value. DRBGs are commonly used in cryptographic applications where reproducibility of random values is important.",
+                "mac": "In cryptography, a Message Authentication Code (MAC) is information used for authenticating and integrity-checking a message.",
+                "block-cipher": "A block cipher is a symmetric key algorithm that operates on fixed-size blocks of data. It encrypts or decrypts the data in block units, providing confidentiality. Block ciphers are widely used in various cryptographic modes and protocols for secure data transmission.",
+                "stream-cipher": "A stream cipher is a symmetric key cipher where plaintext digits are combined with a pseudorandom cipher digit stream (keystream).",
+                "signature": "In cryptography, a signature is a digital representation of a message or data that proves its origin, identity, and integrity. Digital signatures are generated using cryptographic algorithms and are widely used for authentication and verification in secure communication.",
+                "hash": "A hash function is a mathematical algorithm that takes an input (or 'message') and produces a fixed-size string of characters, which is typically a hash value. Hash functions are commonly used in various cryptographic applications, including data integrity verification and password hashing.",
+                "pke": "Public Key Encryption (PKE) is a type of encryption that uses a pair of public and private keys for secure communication. The public key is used for encryption, while the private key is used for decryption. PKE is a fundamental component of public-key cryptography.",
+                "xof": "An XOF is an extendable output function that can take arbitrary input and creates a stream of output, up to a limit determined by the size of the internal state of the hash function that underlies the XOF.",
+                "kdf": "A Key Derivation Function (KDF) derives key material from another source of entropy while preserving the entropy of the input.",
+                "key-agree": "In cryptography, a key-agreement is a protocol whereby two or more parties agree on a cryptographic key in such a way that both influence the outcome.",
+                "kem": "A Key Encapsulation Mechanism (KEM) algorithm is a mechanism for transporting random keying material to a recipient using the recipient's public key.",
+                "ae": "Authenticated Encryption (AE) is a cryptographic process that provides both confidentiality and data integrity. It ensures that the encrypted data has not been tampered with and comes from a legitimate source. AE is commonly used in secure communication protocols.",
+                "combiner": "A combiner aggregates many candidates for a cryptographic primitive and generates a new candidate for the same primitive.",
+                "other": "Another primitive type.",
+                "unknown": "The primitive is not known."
+              }
+            },
+            "parameterSetIdentifier": {
+              "type": "string",
+              "title": "Parameter Set Identifier",
+              "description": "An identifier for the parameter set of the cryptographic algorithm. Examples: in AES128, '128' identifies the key length in bits, in SHA256, '256' identifies the digest length, '128' in SHAKE128 identifies its maximum security level in bits, and 'SHA2-128s' identifies a parameter set used in SLH-DSA (FIPS205)."
+            },
+            "curve": {
+              "type": "string",
+              "title": "Elliptic Curve",
+              "description": "The specific underlying Elliptic Curve (EC) definition employed which is an indicator of the level of security strength, performance and complexity. Absent an authoritative source of curve names, CycloneDX recommends using curve names as defined at [https://neuromancer.sk/std/](https://neuromancer.sk/std/), the source of which can be found at [https://github.com/J08nY/std-curves](https://github.com/J08nY/std-curves)."
+            },
+            "executionEnvironment": {
+              "type": "string",
+              "title": "Execution Environment",
+              "description": "The target and execution environment in which the algorithm is implemented in.",
+              "enum": [
+                "software-plain-ram",
+                "software-encrypted-ram",
+                "software-tee",
+                "hardware",
+                "other",
+                "unknown"
+              ],
+              "meta:enum": {
+                "software-plain-ram": "A software implementation running in plain unencrypted RAM.",
+                "software-encrypted-ram": "A software implementation running in encrypted RAM.",
+                "software-tee": "A software implementation running in a trusted execution environment.",
+                "hardware": "A hardware implementation.",
+                "other": "Another implementation environment.",
+                "unknown": "The execution environment is not known."
+              }
+            },
+            "implementationPlatform": {
+              "type": "string",

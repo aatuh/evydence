@@ -5,6 +5,7 @@ repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_root"
 
 threshold="${EVYDENCE_COVERAGE_THRESHOLD:-80.0}"
+critical_threshold="${EVYDENCE_CRITICAL_COVERAGE_THRESHOLD:-81.0}"
 profile="${EVYDENCE_COVERAGE_PROFILE:-coverage.out}"
 
 if [ -z "${EVYDENCE_TEST_DATABASE_URL:-}" ]; then
@@ -27,4 +28,31 @@ awk -v got="$total" -v want="$threshold" 'BEGIN {
     exit 1
   }
   printf "coverage-check: total coverage %.1f%% meets required %.1f%%\n", got, want
+}'
+
+critical="$(awk '
+  $1 ~ /^github[.]com\/aatuh\/evydence\/internal\/(app|domain|platform)\// ||
+  $1 ~ /^github[.]com\/aatuh\/evydence\/internal\/adapters\/(httpapi|postgres|objectstore|verification)\// {
+    statements += $2
+    if ($3 > 0) {
+      covered += $2
+    }
+  }
+  END {
+    if (statements == 0) {
+      exit 2
+    }
+    printf "%.10f\n", covered * 100 / statements
+  }
+' "$profile")" || {
+  printf '%s\n' "coverage-check: could not read critical-package coverage" >&2
+  exit 2
+}
+
+awk -v got="$critical" -v want="$critical_threshold" 'BEGIN {
+  if (got + 0 < want + 0) {
+    printf "coverage-check: critical-package coverage %.1f%% is below required %.1f%%\n", got, want > "/dev/stderr"
+    exit 1
+  }
+  printf "coverage-check: critical-package coverage %.1f%% meets required %.1f%%\n", got, want
 }'

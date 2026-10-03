@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 const (
@@ -128,6 +129,9 @@ func (l *Ledger) ListControlFrameworks(ctx context.Context, actor domain.Actor) 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeControlsRead, resourceRefs{}); err != nil {
+		return nil, err
+	}
 	out := []domain.ControlFramework{}
 	for _, framework := range l.frameworks {
 		if framework.TenantID == actor.TenantID {
@@ -218,6 +222,9 @@ func (l *Ledger) GetSecurityControl(ctx context.Context, actor domain.Actor, id 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeControlsRead, resourceRefs{}); err != nil {
+		return domain.SecurityControl{}, err
+	}
 	control, ok := l.controls[strings.TrimSpace(id)]
 	if !ok || control.TenantID != actor.TenantID {
 		return domain.SecurityControl{}, ErrNotFound
@@ -244,6 +251,9 @@ func (l *Ledger) LinkControlEvidence(ctx context.Context, actor domain.Actor, co
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.ControlEvidence{}, err
+	}
 	control, ok := l.controls[controlID]
 	if !ok || control.TenantID != actor.TenantID {
 		return domain.ControlEvidence{}, ErrNotFound
@@ -324,6 +334,23 @@ func (l *Ledger) ListControlEvidence(ctx context.Context, actor domain.Actor, co
 		if releaseID != "" && link.ReleaseID != releaseID {
 			continue
 		}
+		control, ok := l.controls[link.ControlID]
+		if !ok || control.TenantID != actor.TenantID {
+			continue
+		}
+		framework, ok := l.frameworks[control.FrameworkID]
+		if !ok || framework.TenantID != actor.TenantID {
+			continue
+		}
+		if err := l.ensureScopeLocked(actor.TenantID, link.ProductID, "", link.ReleaseID); err != nil {
+			continue
+		}
+		if link.ProductID != "" && link.ReleaseID != "" && l.releases[link.ReleaseID].ProductID != link.ProductID {
+			continue
+		}
+		if !l.controlSubjectExistsLocked(actor.TenantID, link.SubjectType, link.SubjectID, link.ProductID, link.ReleaseID) {
+			continue
+		}
 		if !l.resourceAllowedLocked(actor, ScopeControlsRead, l.refsForControlEvidenceSubjectLocked(link.SubjectType, link.SubjectID, link.ProductID, link.ReleaseID)) {
 			continue
 		}
@@ -343,6 +370,9 @@ func (s packageReportService) ControlCoverageReport(ctx context.Context, actor d
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.ControlCoverageReport{}, err
+	}
 	report, err := l.controlCoverageReportLocked(actor.TenantID, in)
 	if err != nil {
 		return domain.ControlCoverageReport{}, err
@@ -363,6 +393,9 @@ func (s packageReportService) CRAReadinessReport(ctx context.Context, actor doma
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.CRAReadinessReport{}, err
+	}
 	if strings.TrimSpace(in.ProductID) == "" {
 		return domain.CRAReadinessReport{}, ErrValidation
 	}
@@ -372,16 +405,23 @@ func (s packageReportService) CRAReadinessReport(ctx context.Context, actor doma
 	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
 		return domain.CRAReadinessReport{}, err
 	}
-	frameworkID := l.firstFrameworkIDLocked(actor.TenantID)
-	coverage, err := l.controlCoverageReportLocked(actor.TenantID, ControlCoverageReportInput{FrameworkID: frameworkID, ProductID: in.ProductID, ReleaseID: in.ReleaseID})
+	return l.craReadinessReportLocked(actor.TenantID, in.ProductID, in.ReleaseID)
+}
+
+// craReadinessReportLocked produces one report from a single committed
+// compatibility read view. The caller owns the read-model lock and performs
+// authorization before returning the result to an actor.
+func (l *Ledger) craReadinessReportLocked(tenantID, productID, releaseID string) (domain.CRAReadinessReport, error) {
+	frameworkID := l.firstFrameworkIDLocked(tenantID)
+	coverage, err := l.controlCoverageReportLocked(tenantID, ControlCoverageReportInput{FrameworkID: frameworkID, ProductID: productID, ReleaseID: releaseID})
 	if err != nil {
 		return domain.CRAReadinessReport{}, err
 	}
 	return domain.CRAReadinessReport{
 		ReportType:         "cra_readiness",
 		TemplateVersion:    domain.CRAReadinessTemplateVersion,
-		ProductID:          in.ProductID,
-		ReleaseID:          in.ReleaseID,
+		ProductID:          productID,
+		ReleaseID:          releaseID,
 		Result:             coverage.Result,
 		Controls:           coverage.Controls,
 		MissingEvidence:    coverage.MissingEvidence,
@@ -406,6 +446,9 @@ func (s packageReportService) CRAVulnerabilityHandlingReport(ctx context.Context
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.CRAVulnerabilityHandlingReport{}, err
+	}
 	if err := l.ensureScopeLocked(actor.TenantID, productID, "", releaseID); err != nil {
 		return domain.CRAVulnerabilityHandlingReport{}, err
 	}
@@ -486,6 +529,9 @@ func (s packageReportService) SecurityUpdateEvidenceReport(ctx context.Context, 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.SecurityUpdateEvidenceReport{}, err
+	}
 	if err := l.ensureScopeLocked(actor.TenantID, productID, "", releaseID); err != nil {
 		return domain.SecurityUpdateEvidenceReport{}, err
 	}
@@ -871,38 +917,27 @@ func (l *Ledger) acceptedControlExceptionsLocked(tenantID, releaseID string) []d
 }
 
 func normalizeControlRequirements(in []domain.ControlEvidenceRequirement) ([]domain.ControlEvidenceRequirement, error) {
-	out := make([]domain.ControlEvidenceRequirement, 0, len(in))
-	seen := map[string]struct{}{}
+	owned := make([]riskdomain.ControlEvidenceRequirement, 0, len(in))
 	for _, req := range in {
-		req.Type = strings.TrimSpace(req.Type)
-		if !supportedControlEvidenceType(req.Type) || req.FreshnessDays < 0 || req.FreshnessDays > 3650 {
-			return nil, ErrValidation
-		}
-		if _, ok := seen[req.Type]; ok {
-			return nil, ErrValidation
-		}
-		seen[req.Type] = struct{}{}
-		out = append(out, req)
+		owned = append(owned, riskdomain.ControlEvidenceRequirement{Type: req.Type, FreshnessDays: req.FreshnessDays, Required: req.Required})
+	}
+	normalized, err := riskdomain.NormalizeControlRequirements(owned)
+	if err != nil {
+		return nil, ErrValidation
+	}
+	out := make([]domain.ControlEvidenceRequirement, 0, len(normalized))
+	for _, req := range normalized {
+		out = append(out, domain.ControlEvidenceRequirement{Type: req.Type, FreshnessDays: req.FreshnessDays, Required: req.Required})
 	}
 	return out, nil
 }
 
 func supportedControlEvidenceType(value string) bool {
-	switch strings.TrimSpace(value) {
-	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.SupportedControlEvidenceType(value)
 }
 
 func validControlConfidence(value string) bool {
-	switch strings.TrimSpace(value) {
-	case confidenceHigh, confidenceMedium, confidenceLow, confidenceUnsupported:
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidControlConfidence(value)
 }
 
 func aggregateConfidence(links []domain.ControlEvidence) string {
@@ -924,21 +959,7 @@ func scopeMatches(resourceValue, requestedValue string) bool {
 }
 
 func slugify(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	var b strings.Builder
-	lastDash := false
-	for _, r := range value {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
-			b.WriteRune(r)
-			lastDash = false
-			continue
-		}
-		if !lastDash {
-			b.WriteByte('-')
-			lastDash = true
-		}
-	}
-	return strings.Trim(b.String(), "-")
+	return riskdomain.ControlFrameworkSlug(value)
 }
 
 func cleanStrings(in []string) []string {

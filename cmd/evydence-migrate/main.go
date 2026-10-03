@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		log.Fatal(redaction.Error(err))
 	}
 }
 

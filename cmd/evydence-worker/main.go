@@ -13,7 +13,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,26 +20,69 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 
-	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
-	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	scannerparser "github.com/aatuh/evydence/internal/app/parsers/scanners"
+	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	"github.com/aatuh/evydence/internal/platform/redaction"
+	"github.com/aatuh/evydence/internal/platform/wiring"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 const defaultMaxWorkerPayloadBytes = 20 << 20
 
+var (
+	errParserPayloadReferenceMissing    = errors.New("parser payload reference is missing")
+	errVEXDecisionDependenciesPending   = errors.New("vex decision prerequisites are pending")
+	errVEXDecisionDependencyJobTerminal = errors.New("vex decision prerequisite parser job is terminal")
+)
+
 var expectedParserVersions = map[string]string{
 	"parse_sbom":               app.ParserVersionCycloneDXJSON,
-	"parse_vulnerability_scan": app.ParserVersionGenericVulnerabilityJSON,
+	"parse_vulnerability_scan": app.ParserVersionScannerAdaptersJSON,
 	"parse_openapi_contract":   app.ParserVersionOpenAPIJSON,
 	"parse_vex":                app.ParserVersionOpenVEXJSON,
 	"verify_attestation":       app.ParserVersionDSSEInTotoJSON,
 }
 
+type parserReplayStore interface {
+	LoadParserReplayState(context.Context, string, string, string) (app.PersistedState, bool, error)
+	ApplyParserReplay(context.Context, app.ParserReplayRequest, app.ReleaseLedgerMutation) (string, bool, error)
+}
+
+type parserReplayRuntime struct {
+	store   parserReplayStore
+	objects app.ObjectStore
+	close   func()
+}
+
+var openParserReplayRuntime = func(ctx context.Context, config wiring.RuntimeConfig) (parserReplayRuntime, error) {
+	runtime, err := wiring.OpenRuntime(ctx, config)
+	if err != nil {
+		return parserReplayRuntime{}, err
+	}
+	return parserReplayRuntime{store: runtime.Postgres, objects: runtime.Objects, close: runtime.Close}, nil
+}
+
+func workerRuntimeConfig(databaseURL string, production bool) wiring.RuntimeConfig {
+	return wiring.RuntimeConfig{
+		Process:        wiring.Worker,
+		Profile:        wiring.Profile(os.Getenv("EVYDENCE_RUNTIME_PROFILE")),
+		Production:     production,
+		DatabaseURL:    databaseURL,
+		LoadMode:       os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
+		MigrationsDir:  envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations"),
+		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
+		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
+	}
+}
+
 func main() {
 	if err := runWithArgs(os.Args[1:]); err != nil {
-		log.Fatal(err)
+		log.Fatal(redaction.Error(err)) // #nosec G706 -- redaction.Error removes credentials and line breaks before logging.
 	}
 }
 
@@ -55,6 +97,8 @@ func runWithArgs(args []string) error {
 			return nil
 		case "reconcile":
 			return runObjectReconciliation(args[1:])
+		case "parser-replay":
+			return runParserReplay(args[1:])
 		default:
 			return fmt.Errorf("unsupported worker command %q", args[0])
 		}
@@ -65,36 +109,13 @@ func runWithArgs(args []string) error {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
 	}
 	ctx := context.Background()
-	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
 	if err != nil {
 		return err
 	}
-	if production {
-		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
-			return err
-		}
-	}
-	store, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-	migrateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-		if _, err := store.ApplyMigrations(migrateCtx, migrationsDir); err != nil {
-			cancel()
-			return err
-		}
-	} else if err := store.RequireNoPendingMigrations(migrateCtx, migrationsDir); err != nil {
-		cancel()
-		return fmt.Errorf("check migrations: %w", err)
-	}
-	cancel()
-	objectStore, _, err := openObjectStore(ctx)
-	if err != nil {
-		return err
-	}
+	defer runtime.Close()
+	store := runtime.Postgres
+	objectStore := runtime.Objects
 	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
 	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
 	log.Printf("evydence worker started with postgres outbox, configured object store, polling interval %s", pollInterval)
@@ -118,7 +139,11 @@ func runWithArgs(args []string) error {
 			if err := processJobWithObjects(ctx, store, objectStore, job); err != nil {
 				failure := classifyWorkerFailure(err)
 				log.Printf("outbox job failed id=%s kind=%s class=%s code=%s", job.ID, job.Kind, failure.Class, failure.Code)
-				if failErr := store.FailJob(ctx, job.ID, job.LeaseToken, failure); failErr != nil {
+				if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
+					if deferErr := store.DeferJob(ctx, job.ID, job.LeaseToken, failure); deferErr != nil {
+						log.Printf("record outbox deferral failed id=%s", job.ID)
+					}
+				} else if failErr := store.FailJob(ctx, job.ID, job.LeaseToken, failure); failErr != nil {
 					log.Printf("record outbox failure failed id=%s", job.ID)
 				}
 				continue
@@ -128,6 +153,83 @@ func runWithArgs(args []string) error {
 			}
 		}
 	}
+}
+
+// runParserReplay is an explicit operator command that appends a derived
+// normalization record. It cannot edit the source evidence or provider object.
+func runParserReplay(args []string) error {
+	request, err := parseParserReplayArgs(args)
+	if err != nil {
+		return err
+	}
+	production := strings.EqualFold(os.Getenv("ENV"), "production")
+	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
+	if databaseURL == "" {
+		return errors.New("parser-replay requires EVYDENCE_DATABASE_URL")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
+	defer cancel()
+	runtime, err := openParserReplayRuntime(ctx, workerRuntimeConfig(databaseURL, production))
+	if err != nil {
+		return err
+	}
+	if runtime.store == nil || runtime.objects == nil || runtime.close == nil {
+		return errors.New("parser-replay runtime is incomplete")
+	}
+	defer runtime.close()
+	store := runtime.store
+	state, ok, err := store.LoadParserReplayState(ctx, request.TenantID, request.EvidenceID, request.ParserVersion)
+	if err != nil || !ok {
+		return errors.New("parser-replay could not load durable state")
+	}
+	replayRequest := app.ParserReplayRequest{
+		TenantID:      request.TenantID,
+		EvidenceID:    request.EvidenceID,
+		ParserVersion: request.ParserVersion,
+		ActorID:       request.ActorID,
+		Now:           time.Now().UTC(),
+	}
+	key, err := app.ParserReplayPayloadKey(&state, replayRequest)
+	if err != nil {
+		return errors.New("parser-replay source evidence not found")
+	}
+	object, err := runtime.objects.Get(ctx, key)
+	if err != nil {
+		return errors.New("parser-replay source payload verification failed")
+	}
+	result, err := app.ReplayStoredParserEvidence(&state, object, replayRequest)
+	if err != nil {
+		return errors.New("parser-replay rejected requested interpretation")
+	}
+	mutation, err := app.ParserReplayMutation(&state, replayRequest, result)
+	if err != nil {
+		return errors.New("parser-replay rejected derived persistence mutation")
+	}
+	persistedID, created, err := store.ApplyParserReplay(ctx, replayRequest, mutation)
+	if err != nil {
+		return errors.New("parser-replay could not persist derived record")
+	}
+	result.EvidenceID = persistedID
+	result.Created = created
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"evidence_id": result.EvidenceID, "created": result.Created, "parser_version": result.Parser.Version})
+}
+
+type parserReplayArgs struct {
+	TenantID, EvidenceID, ParserVersion, ActorID string
+}
+
+func parseParserReplayArgs(args []string) (parserReplayArgs, error) {
+	flags := flag.NewFlagSet("parser-replay", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	tenantID := flags.String("tenant", "", "tenant ID")
+	evidenceID := flags.String("evidence", "", "source evidence ID")
+	parserVersion := flags.String("parser-version", "", "installed parser version")
+	actorID := flags.String("actor", "", "operator actor ID")
+	apply := flags.Bool("apply", false, "append the derived replay record")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || !*apply || strings.TrimSpace(*tenantID) == "" || strings.TrimSpace(*evidenceID) == "" || strings.TrimSpace(*parserVersion) == "" || strings.TrimSpace(*actorID) == "" {
+		return parserReplayArgs{}, errors.New("parser-replay requires --tenant, --evidence, --parser-version, --actor, and --apply")
+	}
+	return parserReplayArgs{TenantID: strings.TrimSpace(*tenantID), EvidenceID: strings.TrimSpace(*evidenceID), ParserVersion: strings.TrimSpace(*parserVersion), ActorID: strings.TrimSpace(*actorID)}, nil
 }
 
 // runObjectReconciliation performs a bounded, tenant-scoped reconciliation
@@ -147,33 +249,12 @@ func runObjectReconciliation(args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_RECONCILIATION_TIMEOUT", 10*time.Minute))
 	defer cancel()
-	loadMode, err := postgres.ResolveLoadMode(os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"), production)
+	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
 	if err != nil {
 		return err
 	}
-	if production {
-		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
-			return err
-		}
-	}
-	store, err := postgres.OpenWithOptions(ctx, databaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: production})
-	if err != nil {
-		return errors.New("reconcile could not open durable storage")
-	}
-	defer store.Close()
-	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-	if !strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true") {
-		if _, err := store.ApplyMigrations(ctx, migrationsDir); err != nil {
-			return errors.New("reconcile could not apply migrations")
-		}
-	} else if err := store.RequireNoPendingMigrations(ctx, migrationsDir); err != nil {
-		return errors.New("reconcile requires current migrations")
-	}
-	objects, _, err := openObjectStore(ctx)
-	if err != nil {
-		return errors.New("reconcile could not open object storage")
-	}
-	receipt, err := app.ReconcileObjectPayloads(ctx, store, store, objects, request)
+	defer runtime.Close()
+	receipt, err := app.ReconcileObjectPayloads(ctx, runtime.Postgres, runtime.Postgres, runtime.Objects, request)
 	if err != nil {
 		return errors.New("payload reconciliation failed")
 	}
@@ -229,9 +310,18 @@ func classifyWorkerFailure(err error) postgres.JobFailure {
 	if errors.Is(err, app.ErrNotFound) {
 		return postgres.JobFailure{Class: postgres.JobFailurePermanent, Code: "payload_orphaned"}
 	}
+	if errors.Is(err, errParserPayloadReferenceMissing) {
+		return postgres.JobFailure{Class: postgres.JobFailurePoisoned, Code: "payload_invariant_failed"}
+	}
+	if errors.Is(err, errVEXDecisionDependenciesPending) {
+		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "dependency_pending"}
+	}
+	if errors.Is(err, errVEXDecisionDependencyJobTerminal) {
+		return postgres.JobFailure{Class: postgres.JobFailurePoisoned, Code: "dependency_failed"}
+	}
 	message := err.Error()
 	switch {
-	case strings.Contains(message, "unsupported outbox job kind"), strings.Contains(message, "unsupported outbox parser version"), strings.Contains(message, "unsupported payload lifecycle version"), strings.Contains(message, "tenant-prefixed"), strings.Contains(message, "tenant mismatch"), strings.Contains(message, "digest mismatch"), strings.Contains(message, "payload hash"), strings.Contains(message, "durable state"), strings.Contains(message, "payload lifecycle state is not available"), strings.Contains(message, "payload is invalid"):
+	case strings.Contains(message, "unsupported outbox job kind"), strings.Contains(message, "unsupported outbox parser version"), strings.Contains(message, "unsupported payload lifecycle version"), strings.Contains(message, "tenant-prefixed"), strings.Contains(message, "tenant mismatch"), strings.Contains(message, "digest mismatch"), strings.Contains(message, "payload hash"), strings.Contains(message, "durable state"), strings.Contains(message, "payload lifecycle state is not available"), strings.Contains(message, "payload is invalid"), strings.Contains(message, "normalized vex decision request"), strings.Contains(message, "vex decision job"):
 		return postgres.JobFailure{Class: postgres.JobFailurePoisoned, Code: "payload_invariant_failed"}
 	case strings.Contains(message, "payload finalization pending"):
 		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "payload_finalization_pending"}
@@ -248,6 +338,10 @@ type jobStateLoader interface {
 	LoadState(context.Context) (app.PersistedState, bool, error)
 }
 
+type jobDependencyInspector interface {
+	HasActiveJobDependency(context.Context, string, string, string, string) (bool, error)
+}
+
 type jobStateStore interface {
 	jobStateLoader
 	SaveState(context.Context, app.PersistedState) error
@@ -256,6 +350,15 @@ type jobStateStore interface {
 type jobReleaseLedgerMutationStore interface {
 	jobStateLoader
 	ApplyReleaseLedgerMutation(context.Context, app.ReleaseLedgerMutation) error
+}
+
+type jobClaimedReleaseLedgerMutationStore interface {
+	jobStateLoader
+	ApplyClaimedReleaseLedgerMutation(context.Context, string, string, app.ReleaseLedgerMutation) error
+}
+
+type jobFocusedStateLoader interface {
+	LoadWorkerJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error)
 }
 
 type jobObjectGetter interface {
@@ -272,6 +375,43 @@ func processJob(ctx context.Context, state jobStateLoader, job postgres.ClaimedJ
 
 func processJobWithObjects(ctx context.Context, state jobStateLoader, objects jobObjectGetter, job postgres.ClaimedJob) error {
 	return processJobInternal(ctx, state, objects, job, true)
+}
+
+func completedVEXDecisionJob(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) (bool, error) {
+	if job.Kind != "parse_vex" || !payloadBool(job, "worker_create_decisions") {
+		return false, nil
+	}
+	snapshot, ok, err := loadOutboxJobState(ctx, state, job)
+	if err != nil {
+		return false, errors.New("load durable state for vex decision job")
+	}
+	if !ok {
+		return false, errors.New("durable state is not initialized")
+	}
+	vex, ok := snapshot.VEXDocuments[job.SubjectID]
+	if !ok || vex.TenantID != job.TenantID {
+		return false, errors.New("parsed vex document is not available in durable state")
+	}
+	_, report, err := requireVEXDecisionJobLinkage(snapshot, job, vex)
+	if err != nil {
+		return false, err
+	}
+	if err := requireParserVersion(job); err != nil {
+		return false, failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+	}
+	if err := requireVEXParserFormat(job, vex.Format, ""); err != nil {
+		return false, failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+	}
+	if report.Status == "parsed" {
+		return true, nil
+	}
+	if err := vexDecisionDependencyError(ctx, state, &snapshot, job, vex.ReleaseID); err != nil {
+		if errors.Is(err, errVEXDecisionDependencyJobTerminal) {
+			return false, failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+		}
+		return false, err
+	}
+	return false, nil
 }
 
 func processJobInternal(ctx context.Context, state jobStateLoader, objects jobObjectGetter, job postgres.ClaimedJob, requireObjectReplay bool) error {
@@ -295,6 +435,11 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		}
 		return nil
 	}
+	if completed, err := completedVEXDecisionJob(ctx, state, job); err != nil {
+		return err
+	} else if completed {
+		return nil
+	}
 	var replayed app.Object
 	var hasReplayedObject bool
 	if requireObjectReplay {
@@ -305,12 +450,17 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		}
 		replayed, hasReplayedObject = object, ok
 	}
-	snapshot, ok, err := state.LoadState(ctx)
+	snapshot, ok, err := loadOutboxJobState(ctx, state, job)
 	if err != nil {
 		return errors.New("load durable state for outbox job")
 	}
 	if !ok {
 		return errors.New("durable state is not initialized")
+	}
+	if requireObjectReplay && !hasReplayedObject {
+		if err := requireParserPayloadReference(job, snapshot); err != nil {
+			return err
+		}
 	}
 	if err := requireParserVersion(job); err != nil {
 		if job.Kind == "parse_vex" {
@@ -320,6 +470,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		}
 		return err
 	}
+	sideEffects := app.ReleaseLedgerMutation{}
 	stateChanged := false
 	switch job.Kind {
 	case "parse_sbom":
@@ -328,7 +479,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			return errors.New("parsed sbom is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedSBOM(replayed.Bytes)
+			parsed, err := parseReplayedSBOM(replayed.Bytes, payloadString(job, "parser_version"))
 			if err != nil {
 				return err
 			}
@@ -337,6 +488,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			}
 			if updated, changed := mergeReplayedSBOM(sbom, parsed); changed {
 				snapshot.SBOMs[job.SubjectID] = updated
+				sideEffects.SBOMs = append(sideEffects.SBOMs, updated)
 				stateChanged = true
 			}
 		}
@@ -358,6 +510,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			}
 			if updated, changed := mergeReplayedVulnerabilityScan(scan, parsed); changed {
 				snapshot.Scans[job.SubjectID] = updated
+				sideEffects.Scans = append(sideEffects.Scans, updated)
 				stateChanged = true
 			}
 		}
@@ -379,6 +532,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			}
 			if updated, changed := mergeReplayedOpenAPIContract(contract, parsed); changed {
 				snapshot.Contracts[job.SubjectID] = updated
+				sideEffects.Contracts = append(sideEffects.Contracts, updated)
 				stateChanged = true
 			}
 		}
@@ -390,29 +544,87 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		if !ok || vex.TenantID != job.TenantID {
 			return errors.New("parsed vex document is not available in durable state")
 		}
+		var importReport domain.VEXImportReport
+		if payloadBool(job, "worker_create_decisions") {
+			var err error
+			_, importReport, err = requireVEXDecisionJobLinkage(snapshot, job, vex)
+			if err != nil {
+				return err
+			}
+		}
+		if err := requireVEXParserFormat(job, vex.Format, ""); err != nil {
+			return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+		}
+		if importReport.Status == "parsed" {
+			return nil
+		}
+		if payloadBool(job, "worker_create_decisions") {
+			if err := vexDecisionDependencyError(ctx, state, &snapshot, job, vex.ReleaseID); err != nil {
+				if errors.Is(err, errVEXDecisionDependencyJobTerminal) {
+					return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+				}
+				return err
+			}
+		}
+		var parsed replayedVEX
+		parsedAvailable := false
 		if hasReplayedObject {
-			parsed, err := parseReplayedVEX(replayed.Bytes)
+			parsed, err = parseReplayedVEX(replayed.Bytes)
 			if err != nil {
 				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 			}
+			parsedAvailable = true
 			if err := verifyReplayedVEX(parsed, vex); err != nil {
 				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 			}
+			if err := requireVEXParserFormat(job, vex.Format, parsed.Format); err != nil {
+				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+			}
+			// A legacy report count is acceptance-time durable state. Reconcile it
+			// before hydrating the VEX projection or creating any decisions.
+			if payloadBool(job, "worker_create_decisions") && payloadString(job, "decision_request_schema") == "" &&
+				importReport.StatementCount > 0 && parsed.StatementCount != importReport.StatementCount {
+				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, errors.New("replayed vex statement count does not match durable state"))
+			}
 			if updated, changed := mergeReplayedVEX(vex, parsed); changed {
 				snapshot.VEXDocuments[job.SubjectID] = updated
+				sideEffects.VEXDocuments = append(sideEffects.VEXDocuments, updated)
 				stateChanged = true
 			}
-			if payloadBool(job, "worker_create_decisions") {
-				created, superseded, mappingFailures, err := applyReplayedVEXDecisions(&snapshot, job, vex, parsed, replayed.Digest)
-				if err != nil {
-					return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+		}
+		if payloadBool(job, "worker_create_decisions") {
+			normalized, hasNormalized, err := normalizedVEXDecisionRequest(job, vex)
+			if err != nil {
+				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+			}
+			if parsedAvailable && hasNormalized && !sameVEXDecisionStatements(parsed, normalized) {
+				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, errors.New("normalized vex decision request does not match replayed payload"))
+			}
+			if !parsedAvailable {
+				if !hasNormalized {
+					return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, errors.New("normalized vex decision request is missing"))
 				}
-				if created > 0 {
-					stateChanged = true
+				parsed = normalized
+			}
+			decisionsBefore := snapshot.Decisions
+			chainBefore := append([]domain.AuditChainEntry(nil), snapshot.Chain[job.TenantID]...)
+			decisionPayloadHash := replayed.Digest
+			if decisionPayloadHash == "" {
+				decisionPayloadHash = payloadString(job, "payload_hash")
+			}
+			created, superseded, mappingFailures, duplicateStatements, err := applyReplayedVEXDecisions(&snapshot, job, vex, parsed, decisionPayloadHash)
+			if err != nil {
+				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
+			}
+			appendReplayedVEXDecisionSideEffects(&sideEffects, decisionsBefore, chainBefore, snapshot, job.TenantID)
+			if created > 0 {
+				stateChanged = true
+			}
+			if updateVEXImportReport(&snapshot, job, vex, parsed, created, superseded, mappingFailures, duplicateStatements) {
+				if _, report, ok := vexImportReportForJob(snapshot, job, vex); ok {
+					sideEffects.VEXImportReports = append(sideEffects.VEXImportReports, report)
 				}
-				if updateVEXImportReport(&snapshot, job, vex, parsed, created, superseded, mappingFailures) {
-					stateChanged = true
-				}
+				stateChanged = true
 			}
 		}
 		if err := requirePayloadHash(job, ""); err != nil {
@@ -426,7 +638,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		if len(bundle.SignatureRefs) == 0 {
 			return errors.New("release bundle signature is missing")
 		}
-		return requirePayloadHash(job, bundle.ManifestHash)
+		return requireBundleManifestHash(job, bundle.ManifestHash)
 	case "verify_subject":
 		resultID := payloadString(job, "result_id")
 		if resultID == "" {
@@ -458,6 +670,7 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 			}
 			if updated, changed := mergeReplayedAttestation(attestation, parsed, replayed.Bytes); changed {
 				snapshot.BuildAttestations[job.SubjectID] = updated
+				sideEffects.BuildAttestations = append(sideEffects.BuildAttestations, updated)
 				stateChanged = true
 			}
 		}
@@ -468,15 +681,66 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 		return errors.New("unsupported outbox job kind")
 	}
 	if stateChanged {
-		return persistParserSideEffects(ctx, state, snapshot, job.Kind)
+		return persistParserSideEffects(ctx, state, snapshot, job, sideEffects)
 	}
 	return nil
 }
 
-func persistParserSideEffects(ctx context.Context, state jobStateLoader, snapshot app.PersistedState, kind string) error {
-	if focused, ok := state.(jobReleaseLedgerMutationStore); ok && releaseLedgerParserJob(kind) {
-		if err := focused.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutationFromState(snapshot)); err != nil {
-			return errors.New("persist durable parser side effects")
+func loadOutboxJobState(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
+	switch job.Kind {
+	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "verify_attestation", "parse_vex":
+		if _, claimed := state.(jobClaimedReleaseLedgerMutationStore); claimed {
+			if focused, ok := state.(jobFocusedStateLoader); ok {
+				return focused.LoadWorkerJobState(ctx, job)
+			}
+		}
+	case "sign_bundle", "verify_subject":
+		if focused, ok := state.(jobFocusedStateLoader); ok {
+			return focused.LoadWorkerJobState(ctx, job)
+		}
+	}
+	return state.LoadState(ctx)
+}
+
+func requireParserPayloadReference(job postgres.ClaimedJob, snapshot app.PersistedState) error {
+	if payloadObjectKey(job) != "" {
+		return nil
+	}
+	switch job.Kind {
+	case "parse_sbom":
+		value, ok := snapshot.SBOMs[job.SubjectID]
+		if ok && value.TenantID == job.TenantID && strings.TrimSpace(value.SpecVersion) == "" {
+			return errParserPayloadReferenceMissing
+		}
+	case "parse_vulnerability_scan":
+		value, ok := snapshot.Scans[job.SubjectID]
+		if ok && value.TenantID == job.TenantID && (strings.TrimSpace(value.Scanner) == "" || strings.TrimSpace(value.TargetRef) == "" || value.Summary == nil) {
+			return errParserPayloadReferenceMissing
+		}
+	case "parse_openapi_contract":
+		value, ok := snapshot.Contracts[job.SubjectID]
+		if ok && value.TenantID == job.TenantID && value.PathCount == 0 && value.Operations == nil {
+			return errParserPayloadReferenceMissing
+		}
+	case "verify_attestation":
+		value, ok := snapshot.BuildAttestations[job.SubjectID]
+		if ok && value.TenantID == job.TenantID && strings.EqualFold(strings.TrimSpace(value.VerificationStatus), "accepted") {
+			return errParserPayloadReferenceMissing
+		}
+	}
+	return nil
+}
+
+func persistParserSideEffects(ctx context.Context, state jobStateLoader, snapshot app.PersistedState, job postgres.ClaimedJob, sideEffects app.ReleaseLedgerMutation) error {
+	if claimed, ok := state.(jobClaimedReleaseLedgerMutationStore); ok {
+		if err := claimed.ApplyClaimedReleaseLedgerMutation(ctx, job.ID, job.LeaseToken, sideEffects); err != nil {
+			return fmt.Errorf("persist claimed parser side effects: %w", err)
+		}
+		return nil
+	}
+	if focused, ok := state.(jobReleaseLedgerMutationStore); ok {
+		if err := focused.ApplyReleaseLedgerMutation(ctx, sideEffects); err != nil {
+			return fmt.Errorf("persist durable parser side effects: %w", err)
 		}
 		return nil
 	}
@@ -485,18 +749,9 @@ func persistParserSideEffects(ctx context.Context, state jobStateLoader, snapsho
 		return errors.New("durable parser side effects require writable state")
 	}
 	if err := stateStore.SaveState(ctx, snapshot); err != nil {
-		return errors.New("persist durable parser side effects")
+		return fmt.Errorf("persist durable parser side effects: %w", err)
 	}
 	return nil
-}
-
-func releaseLedgerParserJob(kind string) bool {
-	switch kind {
-	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "parse_vex":
-		return true
-	default:
-		return false
-	}
 }
 
 func requireParserVersion(job postgres.ClaimedJob) error {
@@ -509,6 +764,12 @@ func requireParserVersion(job postgres.ClaimedJob) error {
 		return nil
 	}
 	if job.Kind == "parse_vex" && (got == app.ParserVersionOpenVEXJSON || got == app.ParserVersionCycloneDXVEXJSON) {
+		return nil
+	}
+	if job.Kind == "parse_sbom" && (got == app.ParserVersionCycloneDXJSON || got == app.ParserVersionSPDXJSON) {
+		return nil
+	}
+	if job.Kind == "parse_vulnerability_scan" && (got == app.ParserVersionScannerAdaptersJSON || got == app.ParserVersionGenericVulnerabilityJSON) {
 		return nil
 	}
 	if got != expected {
@@ -577,6 +838,16 @@ func requirePayloadHash(job postgres.ClaimedJob, recordedHash string) error {
 	return nil
 }
 
+func requireBundleManifestHash(job postgres.ClaimedJob, recordedHash string) error {
+	if value, present := job.Payload["manifest_hash"]; present {
+		want, ok := value.(string)
+		if !ok || strings.TrimSpace(want) == "" || strings.TrimSpace(want) != recordedHash {
+			return errors.New("outbox bundle manifest hash does not match durable state")
+		}
+	}
+	return requirePayloadHash(job, recordedHash)
+}
+
 func payloadString(job postgres.ClaimedJob, key string) string {
 	if job.Payload == nil {
 		return ""
@@ -634,35 +905,31 @@ func mergeReplayedSBOM(sbom domain.SBOM, parsed replayedSBOM) (domain.SBOM, bool
 	return sbom, changed
 }
 
-func parseReplayedSBOM(raw []byte) (replayedSBOM, error) {
-	var doc struct {
-		BOMFormat   string `json:"bomFormat"`
-		SpecVersion string `json:"specVersion"`
-		Components  []struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-			PURL    string `json:"purl"`
-		} `json:"components"`
+func parseReplayedSBOM(raw []byte, parserVersions ...string) (replayedSBOM, error) {
+	parserVersion := ""
+	if len(parserVersions) > 0 {
+		parserVersion = parserVersions[0]
 	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.ToLower(strings.TrimSpace(doc.BOMFormat)) != "cyclonedx" {
-		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
-	}
-	components := make([]domain.SBOMComponent, 0, len(doc.Components))
-	for _, component := range doc.Components {
-		if strings.TrimSpace(component.Name) == "" {
+	if parserVersion == "" || parserVersion == app.ParserVersionCycloneDXJSON {
+		parsed, err := app.ParseCycloneDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+		if err != nil {
 			return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 		}
-		components = append(components, domain.SBOMComponent{Name: strings.TrimSpace(component.Name), Version: strings.TrimSpace(component.Version), PURL: strings.TrimSpace(component.PURL)})
+		return replayedSBOM{SpecVersion: parsed.SpecVersion, ComponentCount: len(parsed.Components), Components: append([]domain.SBOMComponent(nil), parsed.Components...)}, nil
 	}
-	return replayedSBOM{SpecVersion: strings.TrimSpace(doc.SpecVersion), ComponentCount: len(doc.Components), Components: components}, nil
+	parsed, err := app.ParseSPDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+	if err != nil {
+		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
+	}
+	return replayedSBOM{SpecVersion: parsed.SpecVersion, ComponentCount: len(parsed.Components), Components: append([]domain.SBOMComponent(nil), parsed.Components...)}, nil
 }
 
 type replayedVulnerabilityScan struct {
-	Scanner      string
-	TargetRef    string
-	FindingCount int
-	Summary      map[string]int
-	Findings     []domain.VulnerabilityFinding
+	Scanner, Adapter, AdapterVersion, SourceSchema string
+	TargetRef                                      string
+	FindingCount                                   int
+	Summary                                        map[string]int
+	Findings                                       []domain.VulnerabilityFinding
 }
 
 func verifyReplayedVulnerabilityScan(parsed replayedVulnerabilityScan, scan domain.VulnerabilityScan) error {
@@ -670,6 +937,9 @@ func verifyReplayedVulnerabilityScan(parsed replayedVulnerabilityScan, scan doma
 		return errors.New("replayed vulnerability scan payload does not match durable state")
 	}
 	if scan.TargetRef != "" && parsed.TargetRef != scan.TargetRef {
+		return errors.New("replayed vulnerability scan payload does not match durable state")
+	}
+	if (scan.Adapter != "" && parsed.Adapter != scan.Adapter) || (scan.AdapterVersion != "" && parsed.AdapterVersion != scan.AdapterVersion) || (scan.SourceSchema != "" && parsed.SourceSchema != scan.SourceSchema) {
 		return errors.New("replayed vulnerability scan payload does not match durable state")
 	}
 	if len(scan.Findings) != 0 && parsed.FindingCount != len(scan.Findings) {
@@ -693,6 +963,18 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 		scan.TargetRef = parsed.TargetRef
 		changed = true
 	}
+	if scan.Adapter == "" && parsed.Adapter != "" {
+		scan.Adapter = parsed.Adapter
+		changed = true
+	}
+	if scan.AdapterVersion == "" && parsed.AdapterVersion != "" {
+		scan.AdapterVersion = parsed.AdapterVersion
+		changed = true
+	}
+	if scan.SourceSchema == "" && parsed.SourceSchema != "" {
+		scan.SourceSchema = parsed.SourceSchema
+		changed = true
+	}
 	if scan.Summary == nil && parsed.Summary != nil {
 		scan.Summary = cloneIntMap(parsed.Summary)
 		changed = true
@@ -705,37 +987,21 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 }
 
 func parseReplayedVulnerabilityScan(raw []byte, subjectID string) (replayedVulnerabilityScan, error) {
-	var doc struct {
-		Scanner   string `json:"scanner"`
-		TargetRef string `json:"target_ref"`
-		Findings  []struct {
-			Vulnerability string `json:"vulnerability"`
-			Component     string `json:"component"`
-			Severity      string `json:"severity"`
-			State         string `json:"state"`
-		} `json:"findings"`
-		ReleaseID string `json:"release_id"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.TrimSpace(doc.Scanner) == "" || strings.TrimSpace(doc.TargetRef) == "" || strings.TrimSpace(doc.ReleaseID) == "" {
+	doc, err := scannerparser.ParseBounded(raw, scannerparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
 	}
 	summary := map[string]int{}
 	findings := make([]domain.VulnerabilityFinding, 0, len(doc.Findings))
 	for i, finding := range doc.Findings {
-		if strings.TrimSpace(finding.Vulnerability) == "" || strings.TrimSpace(finding.Severity) == "" {
-			return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
-		}
-		severity := strings.ToLower(strings.TrimSpace(finding.Severity))
-		summary[severity]++
+		summary[finding.Severity]++
 		findings = append(findings, domain.VulnerabilityFinding{
 			ID:            fmt.Sprintf("%s:finding:%d", strings.TrimSpace(subjectID), i+1),
-			Vulnerability: strings.TrimSpace(finding.Vulnerability),
-			Component:     strings.TrimSpace(finding.Component),
-			Severity:      severity,
-			State:         nonEmptyWorker(finding.State, "open"),
+			Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: finding.Severity, State: finding.State, SeveritySource: finding.SeveritySource, FixVersion: finding.FixVersion,
+			Identity: domain.VulnerabilityIdentity{CVE: finding.Identity.CVE, GHSA: finding.Identity.GHSA, OSV: finding.Identity.OSV, VendorAdvisory: finding.Identity.VendorAdvisory, PURL: finding.Identity.PURL, CPE: finding.Identity.CPE},
 		})
 	}
-	return replayedVulnerabilityScan{Scanner: strings.TrimSpace(doc.Scanner), TargetRef: strings.TrimSpace(doc.TargetRef), FindingCount: len(doc.Findings), Summary: summary, Findings: findings}, nil
+	return replayedVulnerabilityScan{Scanner: doc.Scanner, Adapter: doc.Adapter, AdapterVersion: doc.AdapterVersion, SourceSchema: doc.SourceSchema, TargetRef: doc.TargetRef, FindingCount: len(doc.Findings), Summary: summary, Findings: findings}, nil
 }
 
 type replayedOpenAPIContract struct {
@@ -810,13 +1076,17 @@ func mergeReplayedOpenAPIContract(contract domain.OpenAPIContract, parsed replay
 }
 
 type replayedVEX struct {
-	Author         string
-	StatementCount int
-	StatusSummary  map[string]int
-	Statements     []replayedVEXStatement
+	Format            string
+	Author            string
+	StatementCount    int
+	StatusSummary     map[string]int
+	Statements        []replayedVEXStatement
+	Warnings          []string
+	InvalidStatements []domain.VEXImportIssue
 }
 
 type replayedVEXStatement struct {
+	StatementIndex  int
 	Vulnerability   string
 	Products        map[string]struct{}
 	Status          string
@@ -826,6 +1096,9 @@ type replayedVEXStatement struct {
 }
 
 func verifyReplayedVEX(parsed replayedVEX, vex domain.VEXDocument) error {
+	if parsed.Format == "" || !strings.EqualFold(strings.TrimSpace(parsed.Format), strings.TrimSpace(vex.Format)) {
+		return errors.New("replayed vex payload does not match durable state")
+	}
 	if vex.Author != "" && parsed.Author != vex.Author {
 		return errors.New("replayed vex payload does not match durable state")
 	}
@@ -836,6 +1109,29 @@ func verifyReplayedVEX(parsed replayedVEX, vex domain.VEXDocument) error {
 		if parsed.StatusSummary[status] != count {
 			return errors.New("replayed vex payload does not match durable state")
 		}
+	}
+	return nil
+}
+
+func requireVEXParserFormat(job postgres.ClaimedJob, durableFormat, replayedFormat string) error {
+	parserVersion := payloadString(job, "parser_version")
+	if parserVersion == "" {
+		return nil
+	}
+	wantFormat := ""
+	switch parserVersion {
+	case app.ParserVersionOpenVEXJSON:
+		wantFormat = "openvex"
+	case app.ParserVersionCycloneDXVEXJSON:
+		wantFormat = "cyclonedx"
+	default:
+		return errors.New("unsupported outbox parser version")
+	}
+	if !strings.EqualFold(strings.TrimSpace(durableFormat), wantFormat) {
+		return errors.New("unsupported outbox parser version does not match durable vex format")
+	}
+	if replayedFormat != "" && !strings.EqualFold(strings.TrimSpace(replayedFormat), wantFormat) {
+		return errors.New("unsupported outbox parser version does not match replayed vex format")
 	}
 	return nil
 }
@@ -869,259 +1165,674 @@ func parseReplayedVEX(raw []byte) (replayedVEX, error) {
 }
 
 func parseReplayedOpenVEX(raw []byte) (replayedVEX, error) {
-	var doc struct {
-		Context    any    `json:"@context"`
-		ID         string `json:"@id"`
-		Author     string `json:"author"`
-		Timestamp  string `json:"timestamp"`
-		Version    any    `json:"version"`
-		Statements []struct {
-			Vulnerability struct {
-				Name string `json:"name"`
-			} `json:"vulnerability"`
-			Products        []map[string]any `json:"products"`
-			Status          string           `json:"status"`
-			Justification   string           `json:"justification"`
-			ImpactStatement string           `json:"impact_statement"`
-			ActionStatement string           `json:"action_statement"`
-		} `json:"statements"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || strings.TrimSpace(doc.Author) == "" || strings.TrimSpace(doc.Timestamp) == "" || len(doc.Statements) == 0 {
+	doc, err := vexparser.ParseOpenVEX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
-	summary := map[string]int{}
-	statements := make([]replayedVEXStatement, 0, len(doc.Statements))
-	for _, statement := range doc.Statements {
-		status := strings.TrimSpace(statement.Status)
-		if strings.TrimSpace(statement.Vulnerability.Name) == "" || status == "" || len(statement.Products) == 0 {
-			return replayedVEX{}, errors.New("replayed vex payload is invalid")
-		}
-		switch status {
-		case "affected", "not_affected", "fixed", "under_investigation":
-		default:
-			return replayedVEX{}, errors.New("replayed vex payload is invalid")
-		}
-		summary[status]++
-		statements = append(statements, replayedVEXStatement{
-			Vulnerability:   strings.TrimSpace(statement.Vulnerability.Name),
-			Products:        replayedVEXProductIDs(statement.Products),
-			Status:          status,
-			Justification:   strings.TrimSpace(statement.Justification),
-			ImpactStatement: strings.TrimSpace(statement.ImpactStatement),
-			ActionStatement: strings.TrimSpace(statement.ActionStatement),
-		})
-	}
-	return replayedVEX{Author: strings.TrimSpace(doc.Author), StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements}, nil
+	return replayedVEXFromParsed(doc), nil
 }
 
 func parseReplayedCycloneDXVEX(raw []byte) (replayedVEX, error) {
-	var doc struct {
-		BOMFormat       string `json:"bomFormat"`
-		SpecVersion     string `json:"specVersion"`
-		Vulnerabilities []struct {
-			ID      string `json:"id"`
-			Affects []struct {
-				Ref string `json:"ref"`
-			} `json:"affects,omitempty"`
-			Analysis struct {
-				State         string   `json:"state"`
-				Justification string   `json:"justification"`
-				Detail        string   `json:"detail"`
-				Response      []string `json:"response"`
-			} `json:"analysis"`
-		} `json:"vulnerabilities"`
-	}
-	if err := strictDecodeWorker(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
+	doc, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
+	return replayedVEXFromParsed(doc), nil
+}
+
+func replayedVEXFromParsed(doc vexparser.Document) replayedVEX {
 	summary := map[string]int{}
-	statements := make([]replayedVEXStatement, 0, len(doc.Vulnerabilities))
-	for _, vuln := range doc.Vulnerabilities {
-		status := workerCycloneDXAnalysisStatus(vuln.Analysis.State)
-		if strings.TrimSpace(vuln.ID) == "" || status == "" {
+	statements := make([]replayedVEXStatement, 0, len(doc.Statements))
+	invalidStatements := []domain.VEXImportIssue{}
+	warnings := append([]string(nil), doc.Warnings...)
+	decisionSource := replayedVEXDecisionSource(doc.Format)
+	for index, statement := range doc.Statements {
+		if statement.Vulnerability == "" {
+			invalidStatements = append(invalidStatements, domain.VEXImportIssue{StatementIndex: index + 1, Code: "missing_vulnerability", Detail: "CycloneDX VEX vulnerability is missing an id."})
+			continue
+		}
+		if statement.Status == "" {
+			invalidStatements = append(invalidStatements, domain.VEXImportIssue{StatementIndex: index + 1, Code: "unsupported_analysis_state", Detail: "CycloneDX VEX vulnerability has an unsupported analysis state."})
 			continue
 		}
 		products := map[string]struct{}{}
-		for _, affect := range vuln.Affects {
-			if ref := strings.TrimSpace(affect.Ref); ref != "" {
-				products[ref] = struct{}{}
-			}
+		for _, product := range statement.Products {
+			products[product] = struct{}{}
 		}
-		summary[status]++
-		statements = append(statements, replayedVEXStatement{
-			Vulnerability:   strings.TrimSpace(vuln.ID),
-			Products:        products,
-			Status:          status,
-			Justification:   nonEmptyWorker(strings.TrimSpace(vuln.Analysis.Justification), "cyclonedx_vex"),
-			ImpactStatement: strings.TrimSpace(vuln.Analysis.Detail),
-			ActionStatement: strings.Join(vuln.Analysis.Response, ","),
+		summary[statement.Status]++
+		statements = append(statements, replayedVEXStatement{StatementIndex: index + 1, Vulnerability: statement.Vulnerability, Products: products, Status: statement.Status, Justification: nonEmptyWorker(statement.Justification, decisionSource), ImpactStatement: statement.ImpactStatement, ActionStatement: statement.ActionStatement})
+	}
+	if len(invalidStatements) > 0 && strings.EqualFold(strings.TrimSpace(doc.Format), "cyclonedx") {
+		warnings = append(warnings, "One or more CycloneDX VEX vulnerabilities were skipped because required analysis fields were missing or unsupported.")
+	}
+	return replayedVEX{Format: doc.Format, Author: doc.Author, StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements, Warnings: warnings, InvalidStatements: invalidStatements}
+}
+
+func normalizedVEXDecisionRequest(job postgres.ClaimedJob, vex domain.VEXDocument) (replayedVEX, bool, error) {
+	schema := payloadString(job, "decision_request_schema")
+	if schema == "" {
+		return replayedVEX{}, false, nil
+	}
+	if schema != evidenceapp.VEXDecisionRequestSchemaVersion {
+		return replayedVEX{}, false, errors.New("normalized vex decision request schema is unsupported")
+	}
+	rows, ok := normalizedVEXRows(job.Payload["decision_statements"])
+	limits := vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes)
+	if !ok || len(rows) == 0 || len(rows) > limits.MaxStatements || vex.StatementCount <= 0 || len(rows) > vex.StatementCount {
+		return replayedVEX{}, false, errors.New("normalized vex decision request is invalid")
+	}
+	format := strings.ToLower(strings.TrimSpace(vex.Format))
+	if format != "openvex" && format != "cyclonedx" {
+		return replayedVEX{}, false, errors.New("normalized vex decision request format is invalid")
+	}
+	result := replayedVEX{
+		Format: format, Author: vex.Author, StatementCount: vex.StatementCount,
+		StatusSummary: map[string]int{}, Statements: make([]replayedVEXStatement, 0, len(rows)),
+	}
+	seenIndexes := map[int]struct{}{}
+	valueCount := 0
+	textBytes := int64(0)
+	for _, row := range rows {
+		if !normalizedVEXKeysValid(row) {
+			return replayedVEX{}, false, errors.New("normalized vex decision request is invalid")
+		}
+		index, ok := normalizedVEXInteger(row["statement_index"])
+		vulnerability, vulnerabilityOK := normalizedVEXString(row["vulnerability"], limits.MaxStringBytes)
+		status, statusOK := normalizedVEXString(row["status"], limits.MaxStringBytes)
+		justification, justificationOK := normalizedVEXOptionalString(row["justification"], limits.MaxStringBytes)
+		impact, impactOK := normalizedVEXOptionalString(row["impact_statement"], limits.MaxStringBytes)
+		action, actionOK := normalizedVEXOptionalString(row["action_statement"], limits.MaxStringBytes)
+		products, productsOK := normalizedVEXProducts(row["products"], limits.MaxStatements, limits.MaxStringBytes)
+		if !ok || !vulnerabilityOK || !statusOK || !justificationOK || !impactOK || !actionOK || !productsOK || index <= 0 || index > vex.StatementCount || !normalizedVEXStatus(status) {
+			return replayedVEX{}, false, errors.New("normalized vex decision request is invalid")
+		}
+		if _, duplicate := seenIndexes[index]; duplicate {
+			return replayedVEX{}, false, errors.New("normalized vex decision request is invalid")
+		}
+		seenIndexes[index] = struct{}{}
+		valueCount += 7 + len(products)
+		statementBytes := int64(len(vulnerability) + len(status) + len(justification) + len(impact) + len(action))
+		for _, product := range products {
+			statementBytes += int64(len(product))
+		}
+		if valueCount > limits.MaxValues || statementBytes > limits.MaxBytes || textBytes > limits.MaxBytes-statementBytes || (format == "openvex" && len(products) == 0) {
+			return replayedVEX{}, false, errors.New("normalized vex decision request is invalid")
+		}
+		textBytes += statementBytes
+		productSet := make(map[string]struct{}, len(products))
+		for _, product := range products {
+			productSet[product] = struct{}{}
+		}
+		justification = nonEmptyWorker(justification, replayedVEXDecisionSource(format))
+		result.StatusSummary[status]++
+		result.Statements = append(result.Statements, replayedVEXStatement{
+			StatementIndex: index, Vulnerability: vulnerability, Products: productSet, Status: status,
+			Justification: justification, ImpactStatement: impact, ActionStatement: action,
 		})
 	}
-	if len(statements) == 0 {
-		return replayedVEX{}, errors.New("replayed vex payload is invalid")
+	if len(result.StatusSummary) != len(vex.StatusSummary) {
+		return replayedVEX{}, false, errors.New("normalized vex decision request does not match durable state")
 	}
-	return replayedVEX{Author: "cyclonedx", StatementCount: len(doc.Vulnerabilities), StatusSummary: summary, Statements: statements}, nil
+	for status, count := range result.StatusSummary {
+		if vex.StatusSummary[status] != count {
+			return replayedVEX{}, false, errors.New("normalized vex decision request does not match durable state")
+		}
+	}
+	if err := verifyReplayedVEX(result, vex); err != nil {
+		return replayedVEX{}, false, errors.New("normalized vex decision request does not match durable state")
+	}
+	return result, true, nil
 }
 
-func workerCycloneDXAnalysisStatus(state string) string {
-	switch strings.ToLower(strings.TrimSpace(state)) {
-	case "resolved", "fixed":
-		return "fixed"
-	case "not_affected":
-		return "not_affected"
-	case "exploitable", "affected":
-		return "affected"
-	case "in_triage", "under_investigation":
-		return "under_investigation"
-	default:
-		return ""
-	}
-}
-
-func replayedVEXProductIDs(products []map[string]any) map[string]struct{} {
-	out := map[string]struct{}{}
-	var walk func([]map[string]any)
-	walk = func(items []map[string]any) {
-		for _, item := range items {
-			if id, ok := item["@id"].(string); ok {
-				if id = strings.TrimSpace(id); id != "" {
-					out[id] = struct{}{}
-				}
+func normalizedVEXRows(value any) ([]map[string]any, bool) {
+	switch rows := value.(type) {
+	case []map[string]any:
+		return rows, true
+	case []any:
+		result := make([]map[string]any, 0, len(rows))
+		for _, value := range rows {
+			row, ok := value.(map[string]any)
+			if !ok {
+				return nil, false
 			}
-			if children, ok := item["subcomponents"].([]any); ok {
-				mapped := make([]map[string]any, 0, len(children))
-				for _, child := range children {
-					if childMap, ok := child.(map[string]any); ok {
-						mapped = append(mapped, childMap)
-					}
-				}
-				walk(mapped)
+			result = append(result, row)
+		}
+		return result, true
+	default:
+		return nil, false
+	}
+}
+
+func normalizedVEXKeysValid(row map[string]any) bool {
+	allowed := map[string]struct{}{
+		"statement_index": {}, "vulnerability": {}, "products": {}, "status": {},
+		"justification": {}, "impact_statement": {}, "action_statement": {},
+	}
+	for key := range row {
+		if _, ok := allowed[key]; !ok {
+			return false
+		}
+	}
+	for _, required := range []string{"statement_index", "vulnerability", "products", "status"} {
+		if _, ok := row[required]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizedVEXInteger(value any) (int, bool) {
+	maxInt := int(^uint(0) >> 1)
+	switch value := value.(type) {
+	case int:
+		return value, value > 0
+	case int64:
+		if value > 0 && uint64(value) <= uint64(maxInt) {
+			return int(value), true
+		}
+	case float64:
+		if value >= 1 && value <= float64(maxInt) {
+			converted := int(value)
+			if value == float64(converted) {
+				return converted, true
+			}
+		}
+	case json.Number:
+		parsed, err := strconv.Atoi(value.String())
+		return parsed, err == nil && parsed > 0
+	}
+	return 0, false
+}
+
+func normalizedVEXString(value any, maxBytes int64) (string, bool) {
+	text, ok := value.(string)
+	text = strings.TrimSpace(text)
+	return text, ok && text != "" && int64(len(text)) <= maxBytes
+}
+
+func normalizedVEXOptionalString(value any, maxBytes int64) (string, bool) {
+	if value == nil {
+		return "", true
+	}
+	text, ok := value.(string)
+	text = strings.TrimSpace(text)
+	return text, ok && int64(len(text)) <= maxBytes
+}
+
+func normalizedVEXProducts(value any, maxItems int, maxBytes int64) ([]string, bool) {
+	var values []any
+	switch products := value.(type) {
+	case []string:
+		values = make([]any, 0, len(products))
+		for _, product := range products {
+			values = append(values, product)
+		}
+	case []any:
+		values = products
+	default:
+		return nil, false
+	}
+	if len(values) > maxItems {
+		return nil, false
+	}
+	result := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		product, ok := normalizedVEXString(value, maxBytes)
+		if !ok {
+			return nil, false
+		}
+		if _, duplicate := seen[product]; duplicate {
+			return nil, false
+		}
+		seen[product] = struct{}{}
+		result = append(result, product)
+	}
+	return result, true
+}
+
+func normalizedVEXStatus(status string) bool {
+	switch status {
+	case "affected", "not_affected", "fixed", "under_investigation":
+		return true
+	default:
+		return false
+	}
+}
+
+func sameVEXDecisionStatements(first, second replayedVEX) bool {
+	if first.Format != second.Format || len(first.Statements) != len(second.Statements) {
+		return false
+	}
+	for index := range first.Statements {
+		a, b := first.Statements[index], second.Statements[index]
+		if a.StatementIndex != b.StatementIndex || a.Vulnerability != b.Vulnerability || a.Status != b.Status || a.Justification != b.Justification || a.ImpactStatement != b.ImpactStatement || a.ActionStatement != b.ActionStatement || len(a.Products) != len(b.Products) {
+			return false
+		}
+		for product := range a.Products {
+			if _, ok := b.Products[product]; !ok {
+				return false
 			}
 		}
 	}
-	walk(products)
-	return out
+	return true
 }
 
-func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, payloadHash string) (int, int, []domain.VEXImportIssue, error) {
-	if state.Decisions == nil {
-		state.Decisions = map[string]domain.VulnerabilityDecision{}
+func applyReplayedVEXDecisions(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, payloadHash string) (int, int, []domain.VEXImportIssue, bool, error) {
+	appendChainEntry := func(state *app.PersistedState, now time.Time, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef string) (domain.AuditChainEntry, error) {
+		entry, err := app.AppendPersistedChainEntry(state, now, tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef)
+		if err != nil {
+			return domain.AuditChainEntry{}, err
+		}
+		entries := state.Chain[tenantID]
+		if len(entries) == 0 {
+			return domain.AuditChainEntry{}, errors.New("replayed vex audit entry was not appended")
+		}
+		entry.ID = replayedVEXAuditEntryID(job.ID, vex.ID, entryType, subjectType, subjectID, payloadHash)
+		if err := app.RehashAuditChainEntry(&entry); err != nil {
+			return domain.AuditChainEntry{}, err
+		}
+		entries[len(entries)-1] = entry
+		state.Chain[tenantID] = entries
+		return entry, nil
 	}
+	return applyReplayedVEXDecisionsWithAppender(state, job, vex, parsed, payloadHash, appendChainEntry)
+}
+
+type replayedVEXChainAppender func(*app.PersistedState, time.Time, string, string, string, string, string, string, string, string) (domain.AuditChainEntry, error)
+
+func applyReplayedVEXDecisionsWithAppender(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, payloadHash string, appendChainEntry replayedVEXChainAppender) (int, int, []domain.VEXImportIssue, bool, error) {
+	working := cloneReplayedVEXDecisionState(*state)
 	actorType := nonEmptyWorker(payloadString(job, "actor_type"), "worker")
 	actorID := nonEmptyWorker(payloadString(job, "actor_id"), job.ID)
 	evidenceID := payloadString(job, "evidence_id")
 	now := time.Now().UTC()
-	created := 0
-	superseded := 0
-	mappingFailures := []domain.VEXImportIssue{}
-	scanIDs := make([]string, 0, len(state.Scans))
-	for id, scan := range state.Scans {
+	mappingInput := riskapp.VEXMappingInput{
+		TenantID: job.TenantID, ReleaseID: vex.ReleaseID, VEXDocumentID: vex.ID, EvidenceID: evidenceID,
+		ActorID: actorID, Source: replayedVEXDecisionSource(parsed.Format), CreatedAt: now,
+	}
+	scanIDs := make([]string, 0, len(working.Scans))
+	for id, scan := range working.Scans {
 		if scan.TenantID == job.TenantID && scan.ReleaseID == vex.ReleaseID {
 			scanIDs = append(scanIDs, id)
 		}
 	}
 	sort.Strings(scanIDs)
 	for index, statement := range parsed.Statements {
-		statementMatched := false
-		for _, scanID := range scanIDs {
-			scan := state.Scans[scanID]
-			for _, finding := range scan.Findings {
-				if finding.Vulnerability != statement.Vulnerability {
-					continue
-				}
-				if len(statement.Products) > 0 && finding.Component != "" {
-					if _, ok := statement.Products[finding.Component]; !ok {
-						continue
-					}
-				}
-				statementMatched = true
-				if replayedVEXDecisionExists(state.Decisions, job.TenantID, vex.ID, finding.ID) {
-					continue
-				}
-				decisionID := replayedVEXDecisionID(vex.ID, finding.ID, statement.Status)
-				if _, exists := state.Decisions[decisionID]; exists {
-					continue
-				}
-				supersedes := ""
-				for id, existing := range state.Decisions {
-					if existing.TenantID == job.TenantID && existing.FindingID == finding.ID && existing.SupersededBy == "" {
-						supersedes = existing.ID
-						existing.SupersededBy = decisionID
-						state.Decisions[id] = existing
-					}
-				}
-				state.Decisions[decisionID] = domain.VulnerabilityDecision{
-					ID:              decisionID,
-					TenantID:        job.TenantID,
-					FindingID:       finding.ID,
-					ScanID:          scan.ID,
-					ReleaseID:       scan.ReleaseID,
-					Vulnerability:   finding.Vulnerability,
-					Component:       finding.Component,
-					Status:          statement.Status,
-					Justification:   statement.Justification,
-					ImpactStatement: statement.ImpactStatement,
-					ActionStatement: statement.ActionStatement,
-					CustomerVisible: strings.TrimSpace(statement.ImpactStatement) != "",
-					Source:          "vex",
-					EvidenceID:      evidenceID,
-					EvidenceIDs:     workerDecisionEvidenceIDs(evidenceID),
-					VEXDocumentID:   vex.ID,
-					Supersedes:      supersedes,
-					ApprovedBy:      actorID,
-					SchemaVersion:   domain.VulnerabilityDecisionVersion,
-					CreatedAt:       now,
-				}
-				if supersedes != "" {
-					superseded++
-					if _, err := app.AppendPersistedChainEntry(state, now, job.TenantID, "vulnerability_decision.superseded", "vulnerability_decision", supersedes, actorType, actorID, payloadHash, ""); err != nil {
-						return created, superseded, mappingFailures, errors.New("append replayed vex decision supersession audit entry")
-					}
-				}
-				if _, err := app.AppendPersistedChainEntry(state, now, job.TenantID, "vulnerability_decision.created", "vulnerability_finding", finding.ID, actorType, actorID, payloadHash, ""); err != nil {
-					return created, superseded, mappingFailures, errors.New("append replayed vex decision audit entry")
-				}
-				created++
-			}
+		statementIndex := statement.StatementIndex
+		if statementIndex <= 0 {
+			statementIndex = index + 1
 		}
-		if !statementMatched {
-			mappingFailures = append(mappingFailures, domain.VEXImportIssue{
-				StatementIndex: index + 1,
-				Code:           "finding_not_found",
-				Detail:         "No matching vulnerability scan finding was found for this VEX statement.",
+		products := make([]string, 0, len(statement.Products))
+		for product := range statement.Products {
+			products = append(products, product)
+		}
+		mappingInput.Statements = append(mappingInput.Statements, riskapp.VEXStatement{
+			Index: statementIndex, Vulnerability: statement.Vulnerability, Products: products,
+			Status: statement.Status, Justification: statement.Justification,
+			ImpactStatement: statement.ImpactStatement, ActionStatement: statement.ActionStatement,
+		})
+	}
+	findingIDs := map[string]struct{}{}
+	for _, scanID := range scanIDs {
+		scan := working.Scans[scanID]
+		for _, finding := range scan.Findings {
+			findingIDs[finding.ID] = struct{}{}
+			mappingInput.Findings = append(mappingInput.Findings, riskapp.VEXFinding{
+				ID: finding.ID, ScanID: scan.ID, TenantID: scan.TenantID, ReleaseID: scan.ReleaseID,
+				Vulnerability: finding.Vulnerability, Component: finding.Component,
 			})
 		}
 	}
-	return created, superseded, mappingFailures, nil
+	for _, decision := range working.Decisions {
+		if decision.TenantID != job.TenantID {
+			continue
+		}
+		if _, relevant := findingIDs[decision.FindingID]; !relevant {
+			continue
+		}
+		status, err := riskdomain.ParseDecisionStatus(decision.Status)
+		if err != nil {
+			status, _ = riskdomain.ParseDecisionStatus(riskdomain.DecisionStatusAffectedValue)
+		}
+		mappingInput.ExistingDecisions = append(mappingInput.ExistingDecisions, riskdomain.VulnerabilityDecision{
+			ID: decision.ID, TenantID: decision.TenantID, ReleaseID: decision.ReleaseID, FindingID: decision.FindingID,
+			Status: status, VEXDocumentID: decision.VEXDocumentID, SupersededBy: decision.SupersededBy,
+		})
+	}
+	mapping, err := riskapp.MapVEXDecisions(mappingInput, riskapp.VEXDecisionIDFunc(replayedVEXDecisionID))
+	if err != nil {
+		return 0, 0, nil, false, errors.New("map replayed vex decisions")
+	}
+	mappingFailures := make([]domain.VEXImportIssue, 0, len(mapping.Failures))
+	for _, failure := range mapping.Failures {
+		mappingFailures = append(mappingFailures, domain.VEXImportIssue{StatementIndex: failure.StatementIndex, Code: failure.Code, Detail: failure.Detail})
+	}
+	created, superseded := 0, 0
+	for _, decision := range mapping.Created {
+		for _, prior := range mapping.Superseded {
+			if prior.SupersededBy != decision.ID {
+				continue
+			}
+			legacy := working.Decisions[prior.ID]
+			legacy.SupersededBy = prior.SupersededBy
+			working.Decisions[legacy.ID] = legacy
+			superseded++
+			if _, err := appendChainEntry(&working, now, job.TenantID, "vulnerability_decision.superseded", "vulnerability_decision", legacy.ID, actorType, actorID, payloadHash, ""); err != nil {
+				return created, superseded, mappingFailures, mapping.HadDuplicate, errors.New("append replayed vex decision supersession audit entry")
+			}
+		}
+		legacy := domain.VulnerabilityDecisionFromContextModel(decision)
+		working.Decisions[legacy.ID] = legacy
+		if _, err := appendChainEntry(&working, now, job.TenantID, "vulnerability_decision.created", "vulnerability_finding", legacy.FindingID, actorType, actorID, payloadHash, ""); err != nil {
+			return created, superseded, mappingFailures, mapping.HadDuplicate, errors.New("append replayed vex decision audit entry")
+		}
+		created++
+	}
+	state.Decisions = working.Decisions
+	state.Chain = working.Chain
+	return created, superseded, mappingFailures, mapping.HadDuplicate, nil
 }
 
-func replayedVEXDecisionExists(decisions map[string]domain.VulnerabilityDecision, tenantID, vexID, findingID string) bool {
-	for _, decision := range decisions {
-		if decision.TenantID == tenantID && decision.VEXDocumentID == vexID && decision.FindingID == findingID {
+func cloneReplayedVEXDecisionState(state app.PersistedState) app.PersistedState {
+	cloned := state
+	cloned.Decisions = make(map[string]domain.VulnerabilityDecision, len(state.Decisions))
+	for id, decision := range state.Decisions {
+		cloned.Decisions[id] = decision
+	}
+	if state.Chain != nil {
+		cloned.Chain = make(map[string][]domain.AuditChainEntry, len(state.Chain))
+		for tenantID, entries := range state.Chain {
+			cloned.Chain[tenantID] = append([]domain.AuditChainEntry(nil), entries...)
+		}
+	}
+	return cloned
+}
+
+func replayedVEXDecisionSource(format string) string {
+	if strings.EqualFold(strings.TrimSpace(format), "cyclonedx") {
+		return "cyclonedx_vex"
+	}
+	return "vex"
+}
+
+func workerVEXStatementUnambiguous(state *app.PersistedState, scanIDs []string, statement replayedVEXStatement) bool {
+	matchCount := 0
+	components := map[string]struct{}{}
+	hasUnstableComponent := false
+	hasDuplicateComponent := false
+	for _, scanID := range scanIDs {
+		for _, finding := range state.Scans[scanID].Findings {
+			if finding.Vulnerability != statement.Vulnerability {
+				continue
+			}
+			if len(statement.Products) > 0 && finding.Component != "" {
+				if _, ok := statement.Products[finding.Component]; !ok {
+					continue
+				}
+			}
+			matchCount++
+			component := strings.TrimSpace(finding.Component)
+			if component == "" {
+				hasUnstableComponent = true
+				continue
+			}
+			if _, duplicate := components[component]; duplicate {
+				hasDuplicateComponent = true
+				continue
+			}
+			components[component] = struct{}{}
+		}
+	}
+	if matchCount < 2 {
+		return true
+	}
+	return len(statement.Products) > 0 && matchCount <= len(statement.Products) && !hasUnstableComponent && !hasDuplicateComponent
+}
+
+func appendReplayedVEXDecisionSideEffects(mutation *app.ReleaseLedgerMutation, beforeDecisions map[string]domain.VulnerabilityDecision, beforeChain []domain.AuditChainEntry, after app.PersistedState, tenantID string) {
+	changedDecisionIDs := make([]string, 0)
+	for id, decision := range after.Decisions {
+		before, existed := beforeDecisions[id]
+		if !existed || before.SupersededBy != decision.SupersededBy {
+			changedDecisionIDs = append(changedDecisionIDs, id)
+		}
+	}
+	sort.Strings(changedDecisionIDs)
+	for _, id := range changedDecisionIDs {
+		mutation.VulnerabilityDecisions = append(mutation.VulnerabilityDecisions, after.Decisions[id])
+	}
+
+	priorEntries := make(map[string]struct{}, len(beforeChain))
+	for _, entry := range beforeChain {
+		priorEntries[entry.ID] = struct{}{}
+	}
+	for _, entry := range after.Chain[tenantID] {
+		if _, existed := priorEntries[entry.ID]; !existed {
+			mutation.AuditChainEntries = append(mutation.AuditChainEntries, entry)
+		}
+	}
+}
+
+func requireVEXDecisionJobLinkage(state app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument) (string, domain.VEXImportReport, error) {
+	reportID := payloadString(job, "import_report_id")
+	report, ok := state.VEXImportReports[reportID]
+	if reportID == "" || !ok || report.ID != reportID || vex.ID == "" || vex.ID != job.SubjectID {
+		return "", domain.VEXImportReport{}, errors.New("vex decision job durable report linkage is invalid")
+	}
+	requestSchema := payloadString(job, "decision_request_schema")
+	strict := requestSchema != ""
+	evidenceID := payloadString(job, "evidence_id")
+	// Jobs queued before normalized decision requests stored the parsed count on
+	// the import report while leaving the VEX projection at its zero placeholder.
+	// Only that placeholder may defer equality until the raw payload is replayed.
+	if evidenceID == "" || vex.EvidenceID == "" || evidenceID != vex.EvidenceID ||
+		report.TenantID != job.TenantID || report.VEXDocumentID != vex.ID || report.EvidenceID != vex.EvidenceID ||
+		report.ReleaseID != vex.ReleaseID || report.ArtifactID != vex.ArtifactID || report.StatementCount < 0 || vex.StatementCount < 0 ||
+		(strict && report.StatementCount != vex.StatementCount) || (!strict && vex.StatementCount != 0 && report.StatementCount != vex.StatementCount) {
+		return "", domain.VEXImportReport{}, errors.New("vex decision job durable report linkage is invalid")
+	}
+	switch report.Status {
+	case "accepted", "failed", "parsed":
+	default:
+		return "", domain.VEXImportReport{}, errors.New("vex decision job durable report state is invalid")
+	}
+	expectedParserVersion, ok := expectedVEXParserVersion(vex.Format)
+	if !ok {
+		return "", domain.VEXImportReport{}, errors.New("vex decision job durable format is invalid")
+	}
+	jobParserVersion := payloadString(job, "parser_version")
+	if (jobParserVersion != "" && jobParserVersion != expectedParserVersion) ||
+		(report.ParserVersion != "" && report.ParserVersion != expectedParserVersion) ||
+		(strict && (jobParserVersion == "" || report.ParserVersion == "")) {
+		return "", domain.VEXImportReport{}, errors.New("vex decision job parser linkage is invalid")
+	}
+	if !validWorkerDigest(payloadString(job, "payload_hash")) {
+		return "", domain.VEXImportReport{}, errors.New("vex decision job payload hash is invalid")
+	}
+	if job.SubjectType != "" && job.SubjectType != "vex_document" {
+		return "", domain.VEXImportReport{}, errors.New("vex decision job subject linkage is invalid")
+	}
+	if strict {
+		if job.SubjectType != "vex_document" || vex.ReleaseID == "" || payloadString(job, "release_id") != vex.ReleaseID || payloadString(job, "artifact_id") != vex.ArtifactID ||
+			vex.SchemaVersion != domain.VEXDocumentSchemaVersion || report.SchemaVersion != domain.VEXImportReportSchemaVersion || vex.StatementCount <= 0 {
+			return "", domain.VEXImportReport{}, errors.New("vex decision job durable schema linkage is invalid")
+		}
+		evidence, ok := state.Evidence[vex.EvidenceID]
+		if !ok || evidence.ID != vex.EvidenceID || evidence.TenantID != job.TenantID || evidence.ReleaseID != vex.ReleaseID ||
+			evidence.Type != "vex" || evidence.Subtype != strings.ToLower(strings.TrimSpace(vex.Format)) ||
+			evidence.PayloadHash != payloadString(job, "payload_hash") || evidence.PayloadRef != payloadString(job, "payload_ref") ||
+			!evidenceHasOnlyArtifactSubject(evidence, vex.ArtifactID) {
+			return "", domain.VEXImportReport{}, errors.New("vex decision job durable evidence linkage is invalid")
+		}
+		actorType := payloadString(job, "actor_type")
+		actorID := payloadString(job, "actor_id")
+		if !validVEXDecisionActor(actorType, actorID) || !vexAcceptedAuditMatches(state, job, vex, actorType, actorID) ||
+			(actorType == "api_key" && evidence.UploadedBy != actorID) ||
+			(actorType == "collector" && evidence.CollectorID != actorID) {
+			return "", domain.VEXImportReport{}, errors.New("vex decision job durable actor linkage is invalid")
+		}
+	}
+	return reportID, report, nil
+}
+
+func expectedVEXParserVersion(format string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "openvex":
+		return app.ParserVersionOpenVEXJSON, true
+	case "cyclonedx":
+		return app.ParserVersionCycloneDXVEXJSON, true
+	default:
+		return "", false
+	}
+}
+
+func evidenceHasOnlyArtifactSubject(evidence domain.EvidenceItem, artifactID string) bool {
+	artifactID = strings.TrimSpace(artifactID)
+	found := false
+	for _, subject := range evidence.SubjectRefs {
+		if strings.TrimSpace(subject.Type) != "artifact" {
+			continue
+		}
+		if artifactID == "" {
+			return false
+		}
+		if strings.TrimSpace(subject.ID) != artifactID {
+			return false
+		}
+		found = true
+	}
+	return found == (artifactID != "")
+}
+
+func validVEXDecisionActor(actorType, actorID string) bool {
+	if strings.TrimSpace(actorID) == "" {
+		return false
+	}
+	switch strings.TrimSpace(actorType) {
+	case "api_key", "collector", "human_user":
+		return true
+	default:
+		return false
+	}
+}
+
+func vexDecisionDependencyError(ctx context.Context, loader jobStateLoader, state *app.PersistedState, job postgres.ClaimedJob, releaseID string) error {
+	if state == nil {
+		return errVEXDecisionDependencyJobTerminal
+	}
+	tenantID := job.TenantID
+	pendingScanIDs := make([]string, 0)
+	for id, scan := range state.Scans {
+		if scan.TenantID != tenantID || scan.ReleaseID != releaseID {
+			continue
+		}
+		if pendingVulnerabilityScanProjection(scan) {
+			if strings.TrimSpace(id) == "" || scan.ID != id {
+				return errVEXDecisionDependencyJobTerminal
+			}
+			pendingScanIDs = append(pendingScanIDs, id)
+		}
+	}
+	if len(pendingScanIDs) == 0 {
+		return nil
+	}
+	inspector, ok := loader.(jobDependencyInspector)
+	if !ok {
+		return errVEXDecisionDependenciesPending
+	}
+	sort.Strings(pendingScanIDs)
+	for _, scanID := range pendingScanIDs {
+		scan, exists := state.Scans[scanID]
+		if !exists || scan.TenantID != tenantID || scan.ReleaseID != releaseID || scan.ID != scanID {
+			return errVEXDecisionDependencyJobTerminal
+		}
+		if !pendingVulnerabilityScanProjection(scan) {
+			continue
+		}
+		active, err := inspector.HasActiveJobDependency(ctx, tenantID, "parse_vulnerability_scan", "vulnerability_scan", scanID)
+		if err != nil {
+			return errors.New("inspect vex decision prerequisite job")
+		}
+		if !active {
+			refreshed, ok, err := loadOutboxJobState(ctx, loader, job)
+			if err != nil || !ok {
+				return errors.New("recheck vex decision prerequisite projection")
+			}
+			refreshedScan, exists := refreshed.Scans[scanID]
+			if !exists || refreshedScan.TenantID != tenantID || refreshedScan.ReleaseID != releaseID || refreshedScan.ID != scanID {
+				return errVEXDecisionDependencyJobTerminal
+			}
+			*state = refreshed
+			if !pendingVulnerabilityScanProjection(refreshedScan) {
+				continue
+			}
+			// A terminal job may be replayed between the first status check and
+			// the durable projection reload. Recheck before concluding that the
+			// still-empty projection can no longer be published.
+			active, err = inspector.HasActiveJobDependency(ctx, tenantID, "parse_vulnerability_scan", "vulnerability_scan", scanID)
+			if err != nil {
+				return errors.New("recheck vex decision prerequisite job")
+			}
+			if !active {
+				return errVEXDecisionDependencyJobTerminal
+			}
+		}
+	}
+	for _, scanID := range pendingScanIDs {
+		if scan, ok := state.Scans[scanID]; ok && pendingVulnerabilityScanProjection(scan) {
+			return errVEXDecisionDependenciesPending
+		}
+	}
+	return nil
+}
+
+func pendingVulnerabilityScanProjection(scan domain.VulnerabilityScan) bool {
+	return scan.Findings == nil && scan.Summary == nil && strings.TrimSpace(scan.Scanner) == "" &&
+		strings.TrimSpace(scan.Adapter) == "" && strings.TrimSpace(scan.AdapterVersion) == "" &&
+		strings.TrimSpace(scan.SourceSchema) == "" && strings.TrimSpace(scan.TargetRef) == ""
+}
+
+func vexAcceptedAuditMatches(state app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, actorType, actorID string) bool {
+	payloadHash := payloadString(job, "payload_hash")
+	for _, entry := range state.Chain[job.TenantID] {
+		if entry.TenantID == job.TenantID && entry.EntryType == "vex.accepted" && entry.SubjectType == "vex_document" && entry.SubjectID == vex.ID &&
+			entry.ActorType == actorType && entry.ActorID == actorID && entry.PayloadHash == payloadHash {
 			return true
 		}
 	}
 	return false
 }
 
-func updateVEXImportReport(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, created, superseded int, mappingFailures []domain.VEXImportIssue) bool {
+func vexImportReportForJob(state app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument) (string, domain.VEXImportReport, bool) {
 	reportID := payloadString(job, "import_report_id")
-	if reportID == "" {
-		for id, report := range state.VEXImportReports {
-			if report.TenantID == job.TenantID && report.VEXDocumentID == vex.ID {
-				reportID = id
-				break
-			}
+	if reportID != "" {
+		report, ok := state.VEXImportReports[reportID]
+		if !ok || report.TenantID != job.TenantID || report.VEXDocumentID != vex.ID {
+			return "", domain.VEXImportReport{}, false
+		}
+		return reportID, report, true
+	}
+	reportIDs := make([]string, 0, len(state.VEXImportReports))
+	for id, report := range state.VEXImportReports {
+		if report.TenantID == job.TenantID && report.VEXDocumentID == vex.ID {
+			reportIDs = append(reportIDs, id)
 		}
 	}
-	if reportID == "" {
-		return false
+	if len(reportIDs) == 0 {
+		return "", domain.VEXImportReport{}, false
 	}
+	sort.Strings(reportIDs)
+	reportID = reportIDs[0]
+	return reportID, state.VEXImportReports[reportID], true
+}
+
+func updateVEXImportReport(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, parsed replayedVEX, created, superseded int, mappingFailures []domain.VEXImportIssue, duplicateStatements bool) bool {
 	if state.VEXImportReports == nil {
 		state.VEXImportReports = map[string]domain.VEXImportReport{}
 	}
-	report, ok := state.VEXImportReports[reportID]
-	if !ok || report.TenantID != job.TenantID || report.VEXDocumentID != vex.ID {
+	reportID, report, ok := vexImportReportForJob(*state, job, vex)
+	if !ok {
 		return false
 	}
 	updated := report
@@ -1147,6 +1858,22 @@ func updateVEXImportReport(state *app.PersistedState, job postgres.ClaimedJob, v
 		updated.DecisionsSuperseded = superseded
 		changed = true
 	}
+	warnings := append([]string(nil), parsed.Warnings...)
+	if duplicateStatements {
+		if strings.EqualFold(strings.TrimSpace(parsed.Format), "cyclonedx") {
+			warnings = append(warnings, "Duplicate CycloneDX VEX vulnerabilities for an already mapped finding were ignored.")
+		} else {
+			warnings = append(warnings, "Duplicate VEX statements for an already mapped finding were ignored.")
+		}
+	}
+	if merged, appended := appendUniqueWorkerStrings(updated.Warnings, warnings); appended {
+		updated.Warnings = merged
+		changed = true
+	}
+	if merged, appended := appendUniqueVEXImportIssues(updated.InvalidStatements, parsed.InvalidStatements); appended {
+		updated.InvalidStatements = merged
+		changed = true
+	}
 	if !vexImportIssuesEqual(updated.MappingFailures, mappingFailures) {
 		updated.MappingFailures = append([]domain.VEXImportIssue(nil), mappingFailures...)
 		changed = true
@@ -1163,9 +1890,53 @@ func updateVEXImportReport(state *app.PersistedState, job postgres.ClaimedJob, v
 	return true
 }
 
+func appendUniqueWorkerStrings(existing, additions []string) ([]string, bool) {
+	seen := make(map[string]struct{}, len(existing)+len(additions))
+	for _, value := range existing {
+		seen[value] = struct{}{}
+	}
+	merged := append([]string(nil), existing...)
+	changed := false
+	for _, value := range additions {
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		merged = append(merged, value)
+		changed = true
+	}
+	return merged, changed
+}
+
+func appendUniqueVEXImportIssues(existing, additions []domain.VEXImportIssue) ([]domain.VEXImportIssue, bool) {
+	seen := make(map[domain.VEXImportIssue]struct{}, len(existing)+len(additions))
+	for _, issue := range existing {
+		seen[issue] = struct{}{}
+	}
+	merged := append([]domain.VEXImportIssue(nil), existing...)
+	changed := false
+	for _, issue := range additions {
+		if _, ok := seen[issue]; ok {
+			continue
+		}
+		seen[issue] = struct{}{}
+		merged = append(merged, issue)
+		changed = true
+	}
+	return merged, changed
+}
+
 func failVEXImportReportWithSnapshot(ctx context.Context, state jobStateLoader, snapshot *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, cause error) error {
 	if updateVEXImportReportFailure(snapshot, job, vex, cause) {
-		if err := persistParserSideEffects(ctx, state, *snapshot, job.Kind); err != nil {
+		_, report, ok := vexImportReportForJob(*snapshot, job, vex)
+		if !ok {
+			return cause
+		}
+		sideEffects := app.ReleaseLedgerMutation{VEXImportReports: []domain.VEXImportReport{report}}
+		if err := persistParserSideEffects(ctx, state, *snapshot, job, sideEffects); err != nil {
 			return err
 		}
 	}
@@ -1176,7 +1947,7 @@ func recordVEXImportReportFailure(ctx context.Context, state jobStateLoader, job
 	if job.Kind != "parse_vex" || state == nil {
 		return
 	}
-	snapshot, ok, err := state.LoadState(ctx)
+	snapshot, ok, err := loadOutboxJobState(ctx, state, job)
 	if err != nil || !ok {
 		return
 	}
@@ -1187,27 +1958,26 @@ func recordVEXImportReportFailure(ctx context.Context, state jobStateLoader, job
 	if !updateVEXImportReportFailure(&snapshot, job, vex, cause) {
 		return
 	}
-	_ = persistParserSideEffects(ctx, state, snapshot, job.Kind)
+	_, report, ok := vexImportReportForJob(snapshot, job, vex)
+	if !ok {
+		return
+	}
+	sideEffects := app.ReleaseLedgerMutation{VEXImportReports: []domain.VEXImportReport{report}}
+	_ = persistParserSideEffects(ctx, state, snapshot, job, sideEffects)
 }
 
 func updateVEXImportReportFailure(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, cause error) bool {
-	reportID := payloadString(job, "import_report_id")
-	if reportID == "" {
-		for id, report := range state.VEXImportReports {
-			if report.TenantID == job.TenantID && report.VEXDocumentID == vex.ID {
-				reportID = id
-				break
-			}
-		}
-	}
-	if reportID == "" {
-		return false
-	}
 	if state.VEXImportReports == nil {
 		state.VEXImportReports = map[string]domain.VEXImportReport{}
 	}
-	report, ok := state.VEXImportReports[reportID]
-	if !ok || report.TenantID != job.TenantID || report.VEXDocumentID != vex.ID {
+	reportID, report, ok := vexImportReportForJob(*state, job, vex)
+	if !ok {
+		return false
+	}
+	// Decision, audit, and report effects commit atomically. Once the report is
+	// parsed, a reclaimed job is already complete and must never regress that
+	// durable success because a replay object later becomes unavailable.
+	if report.Status == "parsed" {
 		return false
 	}
 	code := safeVEXParserFailureCode(cause)
@@ -1242,6 +2012,9 @@ func safeVEXParserFailureCode(cause error) string {
 	if cause == nil {
 		return "parser_failed"
 	}
+	if errors.Is(cause, errVEXDecisionDependencyJobTerminal) {
+		return "dependency_failed"
+	}
 	message := cause.Error()
 	switch {
 	case strings.Contains(message, "read outbox payload object"):
@@ -1256,6 +2029,8 @@ func safeVEXParserFailureCode(cause error) string {
 		return "payload_too_large"
 	case strings.Contains(message, "unsupported outbox parser version"):
 		return "unsupported_parser_version"
+	case strings.Contains(message, "normalized vex decision request"):
+		return "durable_state_mismatch"
 	case strings.Contains(message, "durable state"), strings.Contains(message, "not available"):
 		return "durable_state_mismatch"
 	case strings.Contains(message, "replayed vex payload is invalid"):
@@ -1283,6 +2058,8 @@ func safeVEXParserFailureDetail(code string) string {
 		return "The replayed VEX payload did not match durable state for the job."
 	case "payload_invalid":
 		return "The VEX payload could not be parsed as a supported VEX document."
+	case "dependency_failed":
+		return "A required vulnerability-scan parser job reached a terminal state before publishing its projection."
 	default:
 		return "The worker could not parse or verify the VEX payload."
 	}
@@ -1308,12 +2085,9 @@ func replayedVEXDecisionID(vexID, findingID, status string) string {
 	return "vd_" + sum
 }
 
-func workerDecisionEvidenceIDs(evidenceID string) []string {
-	evidenceID = strings.TrimSpace(evidenceID)
-	if evidenceID == "" {
-		return nil
-	}
-	return []string{evidenceID}
+func replayedVEXAuditEntryID(jobID, vexID, entryType, subjectType, subjectID, payloadHash string) string {
+	sum := sha256.Sum256([]byte(strings.Join([]string{jobID, vexID, entryType, subjectType, subjectID, payloadHash}, "\x00")))
+	return "ace_vex_" + hex.EncodeToString(sum[:])
 }
 
 func verifyReplayedAttestation(raw []byte, parsed replayedAttestation, attestation domain.BuildAttestation) error {
@@ -1567,28 +2341,5 @@ func digestBytes(body []byte) string {
 }
 
 func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("EVYDENCE_OBJECT_STORE"))) {
-	case "", "file", "filesystem":
-		objectRoot := envDefault("EVYDENCE_OBJECT_DIR", filepath.Join("tmp", "objects"))
-		objectStore, err := filesystem.New(objectRoot)
-		if err != nil {
-			return nil, "", err
-		}
-		return objectStore, "filesystem root " + objectRoot, nil
-	case "s3", "minio":
-		objectStore, err := s3store.New(ctx, s3store.Config{
-			Endpoint:        os.Getenv("EVYDENCE_S3_ENDPOINT"),
-			AccessKeyID:     os.Getenv("EVYDENCE_S3_ACCESS_KEY_ID"),
-			SecretAccessKey: os.Getenv("EVYDENCE_S3_SECRET_ACCESS_KEY"),
-			Bucket:          os.Getenv("EVYDENCE_S3_BUCKET"),
-			Region:          os.Getenv("EVYDENCE_S3_REGION"),
-			UseSSL:          strings.EqualFold(os.Getenv("EVYDENCE_S3_USE_SSL"), "true"),
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		return objectStore, "S3-compatible bucket " + envDefault("EVYDENCE_S3_BUCKET", ""), nil
-	default:
-		return nil, "", errors.New("unsupported EVYDENCE_OBJECT_STORE")
-	}
+	return wiring.OpenObjectStore(ctx, wiring.ObjectStoreConfigFromEnv())
 }
