@@ -16,6 +16,10 @@ type DurableCommandExecutor interface {
 }
 
 func (s *Server) createDurable(w http.ResponseWriter, r *http.Request, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error)) {
+	s.createDurableAfterCommit(w, r, authorize, run, nil)
+}
+
+func (s *Server) createDurableAfterCommit(w http.ResponseWriter, r *http.Request, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error), afterCommit func()) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -29,6 +33,9 @@ func (s *Server) createDurable(w http.ResponseWriter, r *http.Request, authorize
 	if err != nil {
 		writeProblem(w, r, err)
 		return
+	}
+	if afterCommit != nil {
+		afterCommit()
 	}
 	w.Header().Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
 	writeData(w, status, response)

@@ -2948,13 +2948,13 @@
               <div><dt>Responses</dt><dd>201 application/json: UserIdentityLinkEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/logout logout sso session revokes the currently authenticated sso session without requiring identity administrator privileges. api keys and collector keys cannot use this route. logoutssosession evydence none">
+          <article class="operation" data-operation data-search="post /v1/sso/logout logout sso session revokes only the currently authenticated user&#x27;s tenant-owned sso session without requiring administration grants. api and collector keys cannot use this route. postgresql uses bounded hash-free locked metadata and one revocation/audit/replay transaction without ledger inventories. the httponly secure samesite=strict cookie at /v1 is cleared only after successful durable commit, never on failure. a revoked or expired secret cannot authenticate another request, including saved-receipt replay. ambient session-cookie requests require a single https origin matching request host; bearer requests do not. https proxies must preserve the public host. logoutssosession evydence none">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/logout</code>
             </div>
             <h3>Logout SSO session</h3>
-            <p>Revokes the currently authenticated SSO session without requiring identity administrator privileges. API keys and collector keys cannot use this route.</p>
+            <p>Revokes only the currently authenticated user&#x27;s tenant-owned SSO session without requiring administration grants. API and collector keys cannot use this route. PostgreSQL uses bounded hash-free locked metadata and one revocation/audit/replay transaction without Ledger inventories. The HttpOnly Secure SameSite=Strict cookie at /v1 is cleared only after successful durable commit, never on failure. A revoked or expired secret cannot authenticate another request, including saved-receipt replay. Ambient session-cookie requests require a single HTTPS Origin matching request Host; bearer requests do not. HTTPS proxies must preserve the public Host.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>logoutSSOSession</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3050,13 +3050,13 @@
               <div><dt>Responses</dt><dd>201 application/json: SSOSessionCreateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/sessions/{id}/revoke revoke sso session revokes a tenant-scoped sso session as an audited lifecycle transition. revokessosession evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/sso/sessions/{id}/revoke revoke sso session revokes a current tenant-owned sso session with tenant-wide identity:admin authority. postgresql reads bounded, hash-free session metadata under a row lock and commits revocation, actual-caller audit and safe replay together without ledger inventories. an expired session, inactive user/provider or missing parent does not prevent administrative invalidation. a new request for an already-revoked session conflicts; authorized completed replay returns the original safe metadata after current session ownership checks. ambient session-cookie requests require a single https origin matching request host; bearer requests do not. admin revocation sets no browser cookie. revokessosession evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/sessions/{id}/revoke</code>
             </div>
             <h3>Revoke SSO session</h3>
-            <p>Revokes a tenant-scoped SSO session as an audited lifecycle transition.</p>
+            <p>Revokes a current tenant-owned SSO session with tenant-wide identity:admin authority. PostgreSQL reads bounded, hash-free session metadata under a row lock and commits revocation, actual-caller audit and safe replay together without Ledger inventories. An expired session, inactive user/provider or missing parent does not prevent administrative invalidation. A new request for an already-revoked session conflicts; authorized completed replay returns the original safe metadata after current session ownership checks. Ambient session-cookie requests require a single HTTPS Origin matching request Host; bearer requests do not. Admin revocation sets no browser cookie.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>revokeSSOSession</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

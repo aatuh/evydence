@@ -56,6 +56,7 @@ type Server struct {
 	ssoProviderCommands               SSOProviderCommands
 	ssoIdentityLinkCommands           SSOIdentityLinkCommands
 	ssoSessionCommands                SSOSessionCommands
+	ssoSessionRevocationCommands      SSOSessionRevocationCommands
 	readinessQuery                    ReadinessQuery
 	metricsQuery                      MetricsQuery
 	retentionQuery                    RetentionQuery
@@ -215,6 +216,8 @@ type ServerOptions struct {
 	SSOIdentityLinkCommands SSOIdentityLinkCommands
 	// SSOSessionCommands issues admin-managed sessions without Ledger state.
 	SSOSessionCommands SSOSessionCommands
+	// SSOSessionRevocationCommands revokes/logout through locked durable metadata.
+	SSOSessionRevocationCommands SSOSessionRevocationCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -428,6 +431,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.SSOSessionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SSO sessions require durable idempotency")
 	}
+	if opts.SSOSessionRevocationCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused SSO revocation requires durable idempotency")
+	}
 	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused collectors require durable idempotency")
 	}
@@ -537,6 +543,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.ssoProviderCommands = opts.SSOProviderCommands
 	server.ssoIdentityLinkCommands = opts.SSOIdentityLinkCommands
 	server.ssoSessionCommands = opts.SSOSessionCommands
+	server.ssoSessionRevocationCommands = opts.SSOSessionRevocationCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands

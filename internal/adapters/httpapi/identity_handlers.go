@@ -301,14 +301,36 @@ func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if s.ssoSessionRevocationCommands != nil {
+		s.revokeDurableSSOSession(w, r)
+		return
+	}
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeSSODiscoveryRequest(body); err != nil {
+			return 0, nil, err
+		}
 		session, err := s.identityAccess.RevokeSSOSession(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, session, err
 	})
 }
 
 func (s *Server) logoutSSOSession(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if s.ssoSessionRevocationCommands != nil {
+		s.logoutDurableSSOSession(w, r)
+		return
+	}
+	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodeSSODiscoveryRequest(body); err != nil {
+			return 0, nil, err
+		}
 		session, err := s.identityAccess.RevokeCurrentSSOSession(ctx, actor)
 		if err == nil {
 			clearSSOSessionCookie(w)

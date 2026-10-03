@@ -708,6 +708,10 @@ func (s *Service) RevokeCurrentSSOSession(ctx context.Context, actor identitydom
 }
 
 func (s *Service) revokeSession(ctx context.Context, actor identitydomain.Actor, id string, requireSelf bool) (identitydomain.SSOSession, error) {
+	id, err := normalizeRevocationID(id)
+	if err != nil {
+		return identitydomain.SSOSession{}, err
+	}
 	session, err := s.reader.SSOSession(ctx, actor.TenantID, id)
 	if err != nil {
 		return identitydomain.SSOSession{}, err
@@ -721,7 +725,10 @@ func (s *Service) revokeSession(ctx context.Context, actor identitydomain.Actor,
 	if session.RevokedAt != nil {
 		return identitydomain.SSOSession{}, ErrConflict
 	}
-	now := s.clock.Now().UTC()
+	now := s.clock.Now().UTC().Truncate(time.Microsecond)
+	if now.IsZero() || !validAPIKeyTime(now) {
+		return identitydomain.SSOSession{}, ErrValidation
+	}
 	session = cloneSSOSession(session)
 	session.RevokedAt = &now
 	if err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {

@@ -581,8 +581,21 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 		t.Fatalf("exchange response leaked id token: %s", rec.Body.String())
 	}
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/v1/sso/logout", strings.NewReader(`{}`))
+	req = httptest.NewRequest(http.MethodPost, "https://example.com/v1/sso/logout", strings.NewReader(`{}`))
 	req.AddCookie(cookie)
+	req.Header.Set("Origin", "https://attacker.example")
+	req.Header.Set("Idempotency-Key", "unsafe-cookie-session")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || rec.Header().Get("Set-Cookie") != "" {
+		t.Fatal("cross-origin logout revoked session or changed cookie", rec.Code)
+	}
+	if _, err := ledger.Authenticate(t.Context(), cookie.Value); err != nil {
+		t.Fatal("rejected cross-origin logout changed session", err)
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "https://example.com/v1/sso/logout", strings.NewReader(`{}`))
+	req.AddCookie(cookie)
+	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Idempotency-Key", "logout-cookie-session")
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

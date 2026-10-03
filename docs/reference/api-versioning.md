@@ -437,6 +437,35 @@ credential usable. Historical rows and receipts are not backfilled. See
 for the contract. Exact compatibility validation/review and full closure gates
 remain required before EVY-905 completion; this note is not release evidence.
 
+## Unreleased SSO Session Revocation Boundary
+
+PostgreSQL administrator revocation and self logout now use focused Identity
+commands. Current authority/session ownership checks precede reservation and
+completed replay; one locked, hash-free metadata row, conditional revocation,
+actual-caller audit and safe replay share a transaction. An expired session or
+inactive/missing user/provider can still be administratively invalidated. A
+new command on an already-revoked session conflicts; completed admin replay
+returns original safe metadata. A revoked logout credential cannot authenticate
+another request or replay its saved receipt.
+
+Both profiles now require an empty body or strict empty JSON object (64 KiB
+maximum), and session path IDs must be trimmed, NUL-free UTF-8 at most 1 KiB.
+Cookie-only revocation/logout requests must send exactly one HTTPS `Origin`
+matching the request `Host`. Reverse proxies must preserve the public `Host`;
+bearer requests do not need Origin. Clients must not rely on missing/foreign
+cookie origins, ignored nonempty bodies, null, duplicate members or trailing
+JSON. These are intentional input/security acceptance restrictions, not new
+provider verification or stronger authentication claims.
+
+Durable logout clears its existing secure `/v1` cookie only after successful
+commit, never on storage/audit/replay/commit failure. Stored session response
+metadata has explicit bounds (1 KiB per identity/prefix/version field, 128 KiB
+groups JSON); excess/invalid data returns `409`, never a truncated response.
+Immutable session fields and hashes remain unchanged. Historical rows/receipts
+are not rewritten. See [revocation and logout](../api.md#sso-session-revocation-and-logout).
+Exact compatibility review and full ticket gates remain required before
+EVY-905 closure; this note is not release evidence.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

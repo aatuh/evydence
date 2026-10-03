@@ -725,8 +725,14 @@ display metadata or provider trust inventories. The shared stateless credential
 adapter retains session entropy/prefix/HMAC compatibility; only the initial
 response returns the secret. Live tests cover restart metadata replay, real
 authentication, revocation/expiry, current authority/parents, rollback at all
-four stages and parent-lock contention. Credential exchange and session
-revocation/logout command composition still need migration. Identity linking
+four stages and parent-lock contention. Session revocation/logout now use a
+separate focused Identity command and one bounded, hash-free session row held
+through lifecycle/audit/replay commit. Administrative invalidation does not
+depend on active or present user/provider parents or unexpired credentials;
+self logout requires the caller's exact user/session. HTTP cookie mutations
+require a matching HTTPS Origin in both profiles, and durable logout clears its
+cookie only after successful commit. Credential exchange command composition
+still needs migration. Identity linking
 now uses a separate focused Identity command with a tenant/projection lock and
 one current user/provider/email existence query. Parent share locks hold
 ownership and email through link/audit/replay commit; no user display metadata
@@ -743,7 +749,8 @@ still runs outside that transaction. See
 [SSO trust rotation](api.md#sso-trust-rotation),
 [OIDC discovery refresh](api.md#oidc-discovery-refresh),
 [SSO identity linking](api.md#sso-identity-linking),
-[administrator-issued SSO sessions](api.md#administrator-issued-sso-sessions) and
+[administrator-issued SSO sessions](api.md#administrator-issued-sso-sessions),
+[SSO session revocation/logout](api.md#sso-session-revocation-and-logout) and
 [SSO public trust material](api.md#sso-public-trust-material) for compatibility,
 limits and historical-record caveats.
 

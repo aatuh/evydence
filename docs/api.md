@@ -852,6 +852,42 @@ and body rules but remains non-durable. Discovery does not authenticate users,
 prove provider ownership/key custody, synchronize groups or scrub historical
 material. See the [compatibility note](reference/api-versioning.md#unreleased-oidc-discovery-boundary).
 
+#### SSO Session Revocation And Logout
+
+`POST /v1/sso/sessions/{id}/revoke` requires current tenant-wide
+`identity:admin` authority and a current tenant-owned session. It can invalidate
+an expired session or one whose user/provider is inactive or missing; it does
+not depend on those parents being usable for login. The trimmed path ID is
+NUL-free UTF-8 bounded at 1 KiB. A new command for an already-revoked session
+returns `409`. A completed matching admin replay returns the original safe
+metadata after current authority/ownership checks, without another audit.
+
+`POST /v1/sso/logout` needs an authenticated human session, no administration
+grant, and revokes only that caller's session. API/collector keys return `403`.
+The old bearer/cookie secret stops working, so a later request using it returns
+`401` even when a saved logout receipt exists. The `/v1` cookie retains
+`HttpOnly`, `Secure` and `SameSite=Strict` and is cleared only after successful
+durable commit; error responses do not clear it. Admin revocation sets no cookie.
+
+Both routes require an idempotency key and accept only an empty body or one
+strict empty JSON object, at most 64 KiB. Null, fields, duplicate members,
+trailing values and malformed UTF-8 return `400`. In both profiles, cookie-only
+mutations require exactly one `Origin` header containing an HTTPS origin with
+the same host/port as the request `Host`; missing, ambiguous or foreign origins
+return `403`. HTTPS reverse proxies must preserve the public `Host`. An explicit
+bearer credential takes precedence over an incidental cookie and does not need
+an Origin header. Non-browser clients should use bearer authentication.
+
+PostgreSQL locks one bounded, hash-free session projection through conditional
+revocation, actual-caller audit and safe replay completion. No user/provider
+inventory or credential hash is loaded. Stored identity/prefix/version fields
+are bounded at 1 KiB each and stored groups JSON at 128 KiB; oversized or invalid
+stored metadata returns `409` without partial output. New revocation timestamps
+use UTC microseconds; existing immutable session fields/hashes are unchanged.
+Local memory retains its explicit non-durable compatibility path and shares
+body, path and cookie-Origin rules. See the
+[compatibility note](reference/api-versioning.md#unreleased-sso-session-revocation-boundary).
+
 #### Administrator-Issued SSO Sessions
 
 `POST /v1/sso/sessions` requires current tenant-wide `identity:admin` authority,
