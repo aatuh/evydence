@@ -9,6 +9,8 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 )
 
+const focusedVEXIngestionDescription = " In PostgreSQL mode, a focused command checks current tenant-owned release parents and human release/artifact grants before parsing or staging. IDs are NUL-free UTF-8 bounded at 1024 bytes; wrapped JSON remains capped at 64 KiB and rejects null, duplicate, and unknown fields. Declared source size and SHA-256 are verified. Normalized projections are limited to 100,000 statements, 1 MiB per string, and 64 MiB combined projection strings; the versioned post-commit decision request permits at most 1,000,000 values and 20 MiB combined decision text. Overflow fails validation rather than truncating. VEX, accepted report, evidence, audit, payload metadata, outbox jobs, and idempotency completion commit together; decisions are never written during upload. Replay checks current grants without parsing or staging. Retained body-only native OpenVEX receipts require exact tenant, release, optional artifact, and format and never execute a new upload. Normalized VEX metadata and the accepted report are always retained, regardless of worker-owned parsing. Acceptance does not establish source authority, signature trust, or legal sufficiency."
+
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
 	switch operation.OperationID {
@@ -276,6 +278,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "uploadVEX":
 		operation.Description = "Uploads OpenVEX payload bytes and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description += focusedVEXIngestionDescription
 		operation.RequestBody = streamingDocumentRequest("OpenVEX upload request.", "#/components/schemas/EvidenceUploadRequest", "application/vnd.openvex+json", app.EvidenceDocumentLimit)
 		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native OpenVEX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native OpenVEX document upload."))
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
@@ -295,6 +298,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "uploadCycloneDXVEX":
 		operation.Description = "Uploads CycloneDX VEX JSON and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status."
+		operation.Description += focusedVEXIngestionDescription
 		operation.RequestBody = jsonRequest("CycloneDX VEX upload request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "previewCycloneDXVEXImport":

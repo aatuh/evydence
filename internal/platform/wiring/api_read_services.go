@@ -227,6 +227,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability scan ingestion commands: %w", err)
 	}
+	options.VEXIngestionCommands, err = BuildVEXIngestionCommands(store, runtime.Objects)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create VEX ingestion commands: %w", err)
+	}
 	options.DeploymentEnvironmentCommands, err = BuildDeploymentEnvironmentCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create environment commands: %w", err)

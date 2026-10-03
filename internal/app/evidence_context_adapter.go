@@ -841,12 +841,7 @@ func vexDocumentToEvidenceContext(value domain.VEXDocument) evidencedomain.VEXDo
 }
 
 func vexDocumentFromEvidenceContext(value evidencedomain.VEXDocument) domain.VEXDocument {
-	return domain.VEXDocument{
-		ID: value.ID, TenantID: value.TenantID, EvidenceID: value.EvidenceID, ReleaseID: value.ReleaseID,
-		ArtifactID: value.ArtifactID, Format: value.Format, Author: value.Author, Version: value.Version,
-		StatementCount: value.StatementCount, StatusSummary: cloneNullableIntMap(value.StatusSummary),
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.VEXDocumentFromContext(value)
 }
 
 func vexImportReportToEvidenceContext(value domain.VEXImportReport) evidencedomain.VEXImportReport {
@@ -862,29 +857,13 @@ func vexImportReportToEvidenceContext(value domain.VEXImportReport) evidencedoma
 }
 
 func vexImportReportFromEvidenceContext(value evidencedomain.VEXImportReport) domain.VEXImportReport {
-	return domain.VEXImportReport{
-		ID: value.ID, TenantID: value.TenantID, VEXDocumentID: value.VEXDocumentID, EvidenceID: value.EvidenceID,
-		ReleaseID: value.ReleaseID, ArtifactID: value.ArtifactID, ParserVersion: value.ParserVersion, Status: value.Status,
-		StatementCount: value.StatementCount, DecisionsCreated: value.DecisionsCreated, DecisionsSuperseded: value.DecisionsSuperseded,
-		UnsupportedFields: append([]string(nil), value.UnsupportedFields...), Warnings: append([]string(nil), value.Warnings...),
-		InvalidStatements: vexImportIssuesFromEvidenceContext(value.InvalidStatements), MappingFailures: vexImportIssuesFromEvidenceContext(value.MappingFailures),
-		FailureCode: value.FailureCode, FailureDetail: value.FailureDetail, SchemaVersion: value.SchemaVersion,
-		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-	}
+	return domain.VEXImportReportFromContext(value)
 }
 
 func vexImportIssuesToEvidenceContext(values []domain.VEXImportIssue) []evidencedomain.VEXImportIssue {
 	result := make([]evidencedomain.VEXImportIssue, 0, len(values))
 	for _, value := range values {
 		result = append(result, evidencedomain.VEXImportIssue{StatementIndex: value.StatementIndex, Code: value.Code, Detail: value.Detail})
-	}
-	return result
-}
-
-func vexImportIssuesFromEvidenceContext(values []evidencedomain.VEXImportIssue) []domain.VEXImportIssue {
-	result := make([]domain.VEXImportIssue, 0, len(values))
-	for _, value := range values {
-		result = append(result, domain.VEXImportIssue{StatementIndex: value.StatementIndex, Code: value.Code, Detail: value.Detail})
 	}
 	return result
 }

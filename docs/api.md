@@ -775,6 +775,56 @@ Source/test evidence: `internal/evidence/app/vulnerability_scan_ingestion_comman
 `internal/app/evidence_parser_adapter.go`, and
 `internal/platform/wiring/vulnerability_scan_ingestion_commands_test.go`.
 
+### VEX Ingestion
+
+`POST /v1/vex` (OpenVEX) and `POST /v1/vex/cyclonedx` require
+`evidence:write`. Wrapped JSON supplies `release_id`, optional `artifact_id`,
+and `payload` within the existing 64 KiB request limit. OpenVEX also accepts
+native `application/vnd.openvex+json` uploads up to 20 MiB, with one nonblank
+`X-Evydence-Release-ID` and one optional `X-Evydence-Artifact-ID`. Explicit
+null fields, duplicate wrapped fields or native metadata headers, and unknown
+wrapped fields are rejected. IDs must be NUL-free UTF-8, at most 1024 bytes;
+required IDs must be nonblank. Wrapped source bytes are the `payload` JSON
+value, preserving its internal formatting but excluding surrounding envelope
+whitespace; native uploads preserve all document bytes. See
+[evidence-format compatibility](reference/evidence-format-compatibility.md#openvex-json)
+for versions, parser identities, and format-specific limitations.
+
+In PostgreSQL mode, the focused Evidence command resolves and locks current
+tenant-owned release parents and checks current release and optional-artifact
+grants before full parsing or object staging. Human artifact checks retain the
+existing `403` policy for missing or foreign artifacts. The stateless shared
+parser verifies the declared source size and SHA-256. Normalized projections
+are bounded to 100,000 statements, 1 MiB per string, and 64 MiB of combined
+projection strings. The versioned worker decision request additionally permits
+at most 1,000,000 values and 20 MiB of combined decision text; normalized
+reference expansion beyond these budgets fails validation, never truncation.
+Statement indexes, status summaries, and parser versions must agree.
+
+VEX document, accepted import report, evidence, audit, payload metadata,
+parser/finalization jobs, and idempotency completion share one transaction,
+including pending parents in compound commands. Uploads never write decisions:
+normalized VEX metadata and an `accepted` report are always stored, regardless
+of the worker-owned parsing flag. The `parse_vex` worker maps decisions after
+commit and completes the report. Raw replay verification requires the payload
+object; without it, the worker consumes the bounded normalized request.
+
+Replay rechecks current ownership/grants without parsing or staging. Native
+OpenVEX fingerprints include metadata headers; retained body-only receipts are
+replay-only and require exact tenant, release, optional artifact, and format.
+Changed bytes return `409`. Failed commits leave no partial database effects;
+unreferenced staged bytes remain recoverable through the
+[payload recovery workflow](runbooks/object-store-recovery.md).
+
+New timestamps use UTC microsecond precision; historical rows and parser
+identities are unchanged. Evidence remains `pending`. Acceptance does not
+establish source authority, signature trust, legal sufficiency, or release
+security. Local-memory mode retains its explicit compatibility path.
+
+Source/test evidence: `internal/evidence/app/vex_ingestion_commands.go`,
+`internal/app/evidence_parser_adapter.go`, and
+`internal/platform/wiring/vex_ingestion_commands_test.go`.
+
 ### Stored SBOM Diffs
 
 `POST /v1/sbom-diffs` requires `evidence:read`, two distinct stored SBOM IDs,

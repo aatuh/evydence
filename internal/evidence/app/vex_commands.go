@@ -64,9 +64,7 @@ func (s *Service) uploadVEXPayload(ctx context.Context, actor identitydomain.Act
 	if err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
-	warnings := append([]string(nil), parsed.Warnings...)
 	limitations := append([]string(nil), parsed.Limitations...)
-	warnings = appendUniqueString(warnings, VEXAsyncDecisionWarning)
 
 	now := s.clock.Now().UTC()
 	prepared, err := s.prepareEvidence(ctx, actor, CreateEvidenceInput{
@@ -77,30 +75,7 @@ func (s *Service) uploadVEXPayload(ctx context.Context, actor identitydomain.Act
 	if err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
-	vex := evidencedomain.VEXDocument{
-		ID: s.ids.NewID("vex"), TenantID: actor.TenantID, EvidenceID: prepared.item.ID, ReleaseID: releaseID, ArtifactID: artifactID,
-		Format: format, Author: parsed.Author, Version: parsed.Version, StatementCount: parsed.StatementCount,
-		StatusSummary: cloneIntMap(parsed.StatusSummary), SchemaVersion: evidencedomain.VEXDocumentSchemaVersion, CreatedAt: now,
-	}
-	report := evidencedomain.VEXImportReport{
-		ID: s.ids.NewID("vexrep"), TenantID: actor.TenantID, VEXDocumentID: vex.ID, EvidenceID: vex.EvidenceID,
-		ReleaseID: releaseID, ArtifactID: artifactID, ParserVersion: parsed.ParserVersion, Status: "accepted",
-		StatementCount: parsed.StatementCount, DecisionsCreated: 0, DecisionsSuperseded: 0,
-		UnsupportedFields: []string{}, Warnings: warnings, InvalidStatements: cloneVEXImportIssues(parsed.InvalidStatements),
-		MappingFailures: []evidencedomain.VEXImportIssue{}, SchemaVersion: evidencedomain.VEXImportReportSchemaVersion,
-		CreatedAt: now, UpdatedAt: now,
-	}
-	job := s.parserJob(actor.TenantID, "parse_vex", "vex_document", vex.ID, source, staged, parsed.ParserVersion, now)
-	job.Payload["worker_create_decisions"] = true
-	job.Payload["decision_request_schema"] = VEXDecisionRequestSchemaVersion
-	job.Payload["decision_statements"] = vexDecisionStatementsPayload(parsed.Statements)
-	job.Payload["actor_type"] = auditActorType(actor)
-	job.Payload["actor_id"] = auditActorID(actor)
-	job.Payload["evidence_id"] = vex.EvidenceID
-	job.Payload["release_id"] = vex.ReleaseID
-	job.Payload["artifact_id"] = vex.ArtifactID
-	job.Payload["import_report_id"] = report.ID
-	job.Payload["decisions_created"] = 0
+	vex, report, job := buildVEXIngestionRecords(s.ids, actor, VEXIngestionInput{ReleaseID: releaseID, ArtifactID: artifactID, Format: format}, parsed, prepared.item.ID, source, staged, now)
 
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
 		if err := s.persistPreparedEvidence(ctx, tx, actor, &prepared); err != nil {

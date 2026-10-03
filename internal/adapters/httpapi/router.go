@@ -103,6 +103,7 @@ type Server struct {
 	openAPIIngestionCommands          OpenAPIIngestionCommands
 	sbomIngestionCommands             SBOMIngestionCommands
 	scanIngestionCommands             VulnerabilityScanIngestionCommands
+	vexIngestionCommands              VEXIngestionCommands
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -264,6 +265,7 @@ type ServerOptions struct {
 	OpenAPIIngestionCommands      OpenAPIIngestionCommands
 	SBOMIngestionCommands         SBOMIngestionCommands
 	ScanIngestionCommands         VulnerabilityScanIngestionCommands
+	VEXIngestionCommands          VEXIngestionCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -380,7 +382,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if opts.OpenAPIIngestionCommands != nil || opts.SBOMIngestionCommands != nil || opts.ScanIngestionCommands != nil {
+	if opts.OpenAPIIngestionCommands != nil || opts.SBOMIngestionCommands != nil || opts.ScanIngestionCommands != nil || opts.VEXIngestionCommands != nil {
 		if _, ok := opts.DurableCommandExecutor.(DurableStreamedCommandExecutor); !ok {
 			return nil, errors.New("focused document ingestion requires durable streamed idempotency")
 		}
@@ -468,6 +470,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.openAPIIngestionCommands = opts.OpenAPIIngestionCommands
 	server.sbomIngestionCommands = opts.SBOMIngestionCommands
 	server.scanIngestionCommands = opts.ScanIngestionCommands
+	server.vexIngestionCommands = opts.VEXIngestionCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -2688,6 +2691,10 @@ func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
+	if s.vexIngestionCommands != nil {
+		s.uploadDurableVEX(w, r, "openvex")
+		return
+	}
 	if requestMediaType(r) == "application/vnd.openvex+json" {
 		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
 		if err != nil {
@@ -2793,6 +2800,10 @@ func (s *Server) getVEXImportReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
+	if s.vexIngestionCommands != nil {
+		s.uploadDurableVEX(w, r, "cyclonedx")
+		return
+	}
 	var req struct {
 		ReleaseID  string          `json:"release_id"`
 		ArtifactID string          `json:"artifact_id"`

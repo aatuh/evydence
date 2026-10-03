@@ -196,9 +196,20 @@ raw object storage is available, the worker also reparses the payload and
 requires it to match the normalized request; without it, decision processing
 continues from the normalized request without independent raw replay.
 
-Evidence: `internal/evidence/app/vex_commands.go`,
+The PostgreSQL profile binds a standalone focused command and stateless
+parser; explicit local-memory mode retains its compatibility service. Current
+parent ownership and grants are rechecked on replay without normalization or
+staging. See [VEX ingestion](../api.md#vex-ingestion) for source-byte semantics,
+normalized projection and worker-request budgets, and retained body-only
+native receipt compatibility. Historical rows and parser identities are
+unchanged; acceptance still does not establish source authority or trust.
+
+Evidence: `internal/evidence/app/vex_ingestion_commands.go`,
+`internal/platform/wiring/vex_ingestion_commands.go`,
 `internal/app/evidence_parser_adapter.go`,
 `internal/app/evidence_context_adapter.go`, `cmd/evydence-worker/main.go`,
+`TestPostgresVEXIngestionUsesFocusedAtomicUploadsAndRestartReplay`,
+`TestPostgresVEXIngestionJoinsPendingParentsAndOuterRollback`,
 `TestUploadVEXPayloadPersistsInitialRecordsAndReplayJobAtomically`,
 `TestReleaseEvidenceVEXAtomicallyStagesPayloadAndQueuesReplayDecisions`, and
 worker VEX replay tests.
@@ -221,7 +232,12 @@ OpenVEX, the upload itself writes no decisions; all valid normalized statements
 are mapped post-commit by `parse_vex`, with raw replay verification when the
 payload object is available.
 
-Evidence: `internal/evidence/app/vex_commands.go`,
+The same focused PostgreSQL command and [VEX ingestion contract](../api.md#vex-ingestion)
+apply. The existing route accepts wrapped JSON only, not a native CycloneDX
+media-type upload.
+
+Evidence: `internal/evidence/app/vex_ingestion_commands.go`,
+`internal/platform/wiring/vex_ingestion_commands.go`,
 `internal/app/evidence_parser_adapter.go`, `ParserVersionCycloneDXVEXJSON`,
 `TestEvidenceVEXParserRetainsCycloneDXInvalidStatementIndexes`,
 `TestUploadCycloneDXVEXRollsBackEvidenceDocumentReportAuditsAndJobsTogether`,

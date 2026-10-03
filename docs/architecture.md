@@ -132,8 +132,22 @@ their parser identities and public finding fields. Evidence, scan, audit,
 payload metadata, outbox, and replay completion commit together without Ledger
 reloads. Replay probes the incoming scope but does not normalize findings or
 stage objects. See [vulnerability scan ingestion](api.md#vulnerability-scan-ingestion)
-for limits, worker-owned projections, and compatibility. Other ingestion paths
-and startup Ledger retirement remain EVY-905 work.
+for limits, worker-owned projections, and compatibility.
+
+OpenVEX and CycloneDX VEX ingestion (`POST /v1/vex` and
+`POST /v1/vex/cyclonedx`) bind a focused Evidence command in PostgreSQL mode.
+Flat transaction ports reuse evidence preparation and accept no decision
+repository. Current tenant-owned release parents and optional-artifact grants
+precede stateless, digest/size-bound parsing and object staging. VEX document,
+accepted import report, evidence, audit, payload metadata, outbox, and durable
+replay completion join the same active transaction, including pending parents
+in compound commands. The upload always retains normalized VEX metadata and a
+bounded versioned decision request; only the post-commit worker writes mapped
+decisions. Replay checks current authorization without parsing, staging, or
+Ledger reloads, and retained body-only native receipts require exact original
+coordinates. See [VEX ingestion](api.md#vex-ingestion) for limits and
+compatibility. Other ingestion paths, VEX previews, and startup Ledger
+retirement remain EVY-905 work.
 
 ## Bounded-context transition
 

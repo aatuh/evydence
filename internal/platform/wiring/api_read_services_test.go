@@ -180,6 +180,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ScanIngestionCommands != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable scan ingestion")
 	}
+	if memory.VEXIngestionCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable VEX ingestion")
+	}
 	if memory.SBOMIngestionCommands != nil {
 		t.Fatal("local memory must keep explicit SBOM ingestion compatibility binding")
 	}
@@ -330,6 +333,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ScanIngestionCommands == nil {
 		t.Fatal("PostgreSQL profile did not bind focused scan ingestion")
+	}
+	if options.VEXIngestionCommands == nil {
+		t.Fatal("PostgreSQL VEX ingestion still depends on Ledger")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

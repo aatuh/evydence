@@ -186,6 +186,17 @@ func (OpenAPIContractPayloadParser) ParseOpenAPIContract(ctx context.Context, so
 }
 
 func (ledgerEvidencePayloadParser) ParseVEX(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedVEX, error) {
+	return (VEXPayloadParser{}).ParseVEX(ctx, format, source)
+}
+
+// VEXPayloadParser preserves the checked format adapters and statement indexes
+// without constructing a Ledger or accessing vulnerability decisions.
+type VEXPayloadParser struct{}
+
+func (VEXPayloadParser) ParseVEX(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedVEX, error) {
+	if ctx == nil {
+		return evidenceapp.ParsedVEX{}, evidenceapp.ErrValidation
+	}
 	if err := ctx.Err(); err != nil {
 		return evidenceapp.ParsedVEX{}, err
 	}
