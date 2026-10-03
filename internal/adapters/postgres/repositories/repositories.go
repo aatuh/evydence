@@ -20,6 +20,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 // New returns focused repositories bound to tx. The caller owns committing or
@@ -3888,12 +3889,7 @@ func validContractDiffResult(value string) bool {
 }
 
 func validVulnerabilityWorkflowAction(value string) bool {
-	switch value {
-	case "scanner_metadata", "sla_set", "scanner_disagreement", "superseded", "reopened":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidVulnerabilityWorkflowAction(value)
 }
 
 func validRiskSeverity(value string) bool {

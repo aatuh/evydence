@@ -669,6 +669,18 @@ metadata in an unchanged older snapshot cannot undo durable state. Initial
 legacy imports remain supported. These changes do not convert all exception
 metadata to append-only projections or retire production Ledger startup.
 
+Vulnerability workflow annotations now bind a focused Risk-owned command in
+PostgreSQL. Its finding reader resolves current tenant-owned scan/source and
+release/product identifiers only, with a two-row ambiguity sentinel; scanner
+payloads and historical workflow reasons never cross the port. The projection
+fence precedes scan row locks and remains held through workflow insertion,
+audit append, and durable replay completion. Existing action labels remain
+annotations, not finding-state or decision-supersession operations. Release-less
+scans retain their tenant-wide grant requirement. Fresh-server HTTP tests forbid
+Ledger refreshes, preserve old scanner/decision/workflow rows, and cover current
+ownership, replay, malformed input, and rollback at each transaction stage.
+The explicit local-memory path and unrelated production workflows remain.
+
 Vulnerability-decision creation now has a separate transaction-only command
 core. It uses the existing normalization and decision-construction rules, but
 does not refresh projections or list a tenant's full decision history. Current

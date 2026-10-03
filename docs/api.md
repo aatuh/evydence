@@ -1081,6 +1081,35 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/customer-portal/package/view` | Exchange package token from a form body for scoped HTML package review. |
 | `POST` | `/v1/customer-portal/package/view/download` | Exchange package token from a form body for scoped ZIP package download. |
 
+### Vulnerability Workflow Annotations
+
+`POST /v1/vulnerability-findings/{id}/workflow` appends one annotation with
+`action` and `reason`. Supported actions are `scanner_metadata`, `sla_set`,
+`scanner_disagreement`, `superseded`, and `reopened`. These labels do not
+themselves mutate a scan finding or supersede/reopen a vulnerability decision.
+
+In PostgreSQL mode, a focused command resolves the finding through its current
+tenant-owned scan, typed source evidence, and product/release parents. It
+selects bounded identifiers only, not scanner documents, findings payloads,
+SBOM context, or historical workflow reasons. Ambiguous finding IDs return 409;
+missing or inconsistent ownership returns 404. `security:write` is required,
+with a matching tenant/product/release grant for human sessions. A scan with no
+declared release retains its release-less response and requires tenant-wide
+permission, not a product-only grant.
+
+Action/reason must be nonempty after trimming. Finding IDs are limited to 1024
+UTF-8 bytes, actions to 128 bytes, and reasons to 65536 bytes; invalid UTF-8,
+NUL text, or explicit null fields return 400. The entire JSON body retains its
+64 KiB limit, including syntax and escapes. Workflow record, audit entry, and
+idempotency completion commit together. Same-key replay returns the original
+record only after current parent/grant checks; changed request bytes conflict.
+New records retain `vulnerability-workflow.v1.0.0` and UTC microsecond timestamps.
+Local-memory mode keeps its non-durable compatibility path.
+
+Source/test evidence: `internal/risk/app/vulnerability_workflow_commands.go`,
+`internal/adapters/postgres/repositories/vulnerability_workflow_reads.go`, and
+`internal/platform/wiring/vulnerability_workflow_http_test.go`.
+
 ### Exception Lifecycle
 
 `POST /v1/exceptions` creates a release-owned exception with optional finding

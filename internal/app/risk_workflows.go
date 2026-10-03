@@ -13,6 +13,7 @@ import (
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 type CreateIncidentInput struct {
@@ -838,7 +839,7 @@ func (l *Ledger) RecordVulnerabilityWorkflow(ctx context.Context, actor domain.A
 	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ReleaseID: scan.ReleaseID}); err != nil {
 		return domain.VulnerabilityWorkflowRecord{}, err
 	}
-	record := domain.VulnerabilityWorkflowRecord{ID: newID("vw"), TenantID: actor.TenantID, FindingID: in.FindingID, ReleaseID: scan.ReleaseID, Action: in.Action, Reason: in.Reason, ActorID: actorID(actor), SchemaVersion: "vulnerability-workflow.v1.0.0", CreatedAt: l.now()}
+	record := domain.VulnerabilityWorkflowRecord{ID: newID("vw"), TenantID: actor.TenantID, FindingID: in.FindingID, ReleaseID: scan.ReleaseID, Action: in.Action, Reason: in.Reason, ActorID: actorID(actor), SchemaVersion: riskdomain.VulnerabilityWorkflowSchemaVersion, CreatedAt: l.now()}
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -1085,12 +1086,7 @@ func validSensitivity(value string) bool {
 }
 
 func validVulnWorkflowAction(action string) bool {
-	switch action {
-	case "scanner_metadata", "sla_set", "scanner_disagreement", "superseded", "reopened":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidVulnerabilityWorkflowAction(action)
 }
 
 func validPolicyEvidenceType(typ string) bool {

@@ -93,6 +93,7 @@ type Server struct {
 	approvalCommands                  ApprovalCommands
 	waiverCommands                    WaiverCommands
 	exceptionCommands                 ExceptionCommands
+	vulnerabilityWorkflowCommands     VulnerabilityWorkflowCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
@@ -245,6 +246,7 @@ type ServerOptions struct {
 	ApprovalCommands              ApprovalCommands
 	WaiverCommands                WaiverCommands
 	ExceptionCommands             ExceptionCommands
+	VulnerabilityWorkflowCommands VulnerabilityWorkflowCommands
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
@@ -363,7 +365,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil) && opts.DurableCommandExecutor == nil {
+	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused commands require durable idempotency")
 	}
 	if ledger == nil {
@@ -436,6 +438,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.approvalCommands = opts.ApprovalCommands
 	server.waiverCommands = opts.WaiverCommands
 	server.exceptionCommands = opts.ExceptionCommands
+	server.vulnerabilityWorkflowCommands = opts.VulnerabilityWorkflowCommands
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
@@ -3000,6 +3003,10 @@ func externalVulnerabilityDecision(decision domain.VulnerabilityDecision) vulner
 }
 
 func (s *Server) recordVulnerabilityWorkflow(w http.ResponseWriter, r *http.Request) {
+	if s.vulnerabilityWorkflowCommands != nil {
+		s.recordDurableVulnerabilityWorkflow(w, r)
+		return
+	}
 	var req struct {
 		Action string `json:"action"`
 		Reason string `json:"reason"`

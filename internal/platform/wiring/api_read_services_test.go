@@ -57,6 +57,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.ExceptionCommands != nil {
 		t.Fatal("local memory bound durable exception commands")
 	}
+	if memory.VulnerabilityWorkflowCommands != nil {
+		t.Fatal("local memory bound durable workflow commands")
+	}
 	if memory.ReleaseReadinessReportQuery != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
 	}
@@ -348,6 +351,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.ExceptionCommands == nil {
 		t.Fatal("PostgreSQL exception commands still use Ledger")
+	}
+	if options.VulnerabilityWorkflowCommands == nil {
+		t.Fatal("PostgreSQL workflow recording still uses Ledger")
 	}
 	if options.TrustConfigurationCommands == nil {
 		t.Fatal("PostgreSQL lacks durable trust commands")
