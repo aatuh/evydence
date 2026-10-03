@@ -697,10 +697,16 @@ SSO trust normalization now lives in a stateless Identity application policy,
 shared by local compatibility and production callers. It rejects recognized
 private/symmetric JOSE members, retains only supported public JWK fields, and
 normalizes parsed RSA public certificates without retaining trailing PEM blocks.
-It has no Ledger, HTTP, SQL, or provider-client dependency. Provider command
-composition still needs migration; extracting this policy does not retire its
-current Ledger-backed orchestration. See [SSO public trust material](api.md#sso-public-trust-material)
-for limits and historical-record caveats.
+It has no Ledger, HTTP, SQL, or provider-client dependency. PostgreSQL provider
+registration now binds focused Identity commands with a narrow tenant lock,
+atomic provider/audit/replay writes, and current tenant-wide authorization
+before reservation or completed replay. It loads no provider inventory and
+does not refresh Ledger state. Local memory shares metadata normalization and
+strict transport decoding through its existing compatibility binding. Trust
+rotation, discovery, identity-link and session command composition still need
+migration. See [SSO provider registration](api.md#sso-provider-registration) and
+[SSO public trust material](api.md#sso-public-trust-material) for compatibility,
+limits and historical-record caveats.
 
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and

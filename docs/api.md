@@ -763,6 +763,34 @@ retains its compatibility binding and shares input normalization. See the
 
 Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. When an OIDC `access_token` is supplied, the same endpoint can call either the provider's discovered UserInfo endpoint or a configured operator-controlled provider validation gateway, verify the returned subject, and record any configured group-claim mapping checks without storing the access token. The provider validation gateway receives only non-secret request metadata and an `access_token_present` flag, not the supplied token. `POST /v1/sso/session-exchanges` uses local token/assertion verification and a verified identity link to issue a one-time SSO bearer secret and an HttpOnly cookie for browser clients. OIDC group claim values can map to session-scoped roles through the provider `groups_claim` and `role_mapping`; no permanent role binding is created from token claims. External group synchronization into permanent role bindings is not implemented in this slice.
 
+#### SSO Provider Registration
+
+In PostgreSQL mode, `POST /v1/sso/providers` uses focused Identity commands:
+provider creation, `sso_provider.created` audit and successful replay receipt
+commit together without loading provider inventories or refreshing Ledger
+state. Current tenant-wide `identity:admin` authority and input validation run
+before reservation or completed replay. Product-scoped or foreign-tenant human
+grants cannot administer providers. Success remains `201` with the published
+provider DTO; another key creates another provider even for identical metadata.
+
+The JSON body is limited to 64 KiB. Invalid raw UTF-8, duplicate/unknown fields,
+trailing values, explicit null fields, null role-map values and null certificate
+items return `400`. Stored metadata must be NUL-free; name, issuer, client ID
+and groups claim are bounded to 65,536 bytes each, type to 128 bytes, and encoded
+role mapping to 64 KiB. Required names/client IDs must be nonblank. Issuers must
+be absolute HTTPS URLs with a host, no userinfo and no fragment; issuer paths
+and existing query strings are retained. Top-level text is trimmed; group/role
+mapping strings are preserved. Unknown role names remain accepted but do not
+grant session scopes. Optional trust material remains optional for both types.
+
+Authorized replay preserves harmless public group names such as
+`token-reviewers` within the versioned provider DTO, not credential-shaped
+strings or unknown response fields. Generic log/customer-package redaction is
+unchanged. Local memory shares input rules but remains non-durable. Invalid
+private-material requests cannot replay retained PostgreSQL successes; this
+does not delete or scrub historical records. Registration makes no live
+provider call and does not prove provider ownership or key custody.
+
 #### SSO Public Trust Material
 
 SSO trust normalization is a stateless Identity policy shared by provider

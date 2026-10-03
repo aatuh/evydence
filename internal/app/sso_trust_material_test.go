@@ -95,3 +95,40 @@ func safePublicSSOFixture(t *testing.T, provider domain.SSOProvider) bool {
 	}
 	return strings.Contains(string(encoded), "public-only") && !strings.Contains(string(encoded), "private-jwks-canary")
 }
+
+func TestSSOProviderCreationRejectsUnsafePublicMetadata(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
+	base := CreateSSOProviderInput{Name: "Fixture", Type: "oidc", Issuer: "https://issuer.example.test/tenant", ClientID: "client"}
+	counts := func() [2]int {
+		ledger.mu.Lock()
+		defer ledger.mu.Unlock()
+		return [2]int{len(ledger.ssoProviders), len(ledger.chain[actor.TenantID])}
+	}
+	for _, bad := range []struct {
+		name string
+		set  func(*CreateSSOProviderInput)
+	}{
+		{"issuer credentials", func(in *CreateSSOProviderInput) {
+			in.Issuer = "https://operator:private-issuer-canary@issuer.example.test"
+		}},
+		{"missing issuer host", func(in *CreateSSOProviderInput) { in.Issuer = "https:///path" }},
+		{"issuer fragment", func(in *CreateSSOProviderInput) { in.Issuer += "#fragment" }},
+		{"NUL name", func(in *CreateSSOProviderInput) { in.Name = "bad\x00" }},
+		{"invalid UTF8 client", func(in *CreateSSOProviderInput) { in.ClientID = string([]byte{0xff}) }},
+		{"NUL groups claim", func(in *CreateSSOProviderInput) { in.GroupsClaim = "bad\x00" }},
+		{"NUL group mapping", func(in *CreateSSOProviderInput) { in.RoleMapping = map[string]string{"group": "bad\x00"} }},
+	} {
+		t.Run(bad.name, func(t *testing.T) {
+			in := base
+			bad.set(&in)
+			before := counts()
+			if out, err := ledger.CreateSSOProvider(t.Context(), actor, in); !errors.Is(err, ErrValidation) || out.ID != "" {
+				t.Fatal("unsafe provider metadata accepted", err)
+			}
+			if counts() != before {
+				t.Fatal("invalid provider metadata produced effects")
+			}
+		})
+	}
+}

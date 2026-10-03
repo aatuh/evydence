@@ -320,6 +320,26 @@ bounds. This unreleased security correction is not compatibility approval or
 provider-side verification; exact compatibility validation remains required
 before EVY-905 closure.
 
+## Unreleased SSO Provider Registration Boundary
+
+PostgreSQL SSO provider creation now uses focused Identity commands and one
+provider/audit/replay transaction. Current tenant-wide administration and input
+validation run before reservation or completed replay; scoped, foreign or
+removed human grants cannot replay a prior success. Invalid private-material
+requests are rejected even if a historical success receipt exists, without
+removing that receipt.
+
+Both profiles reject malformed or credential-bearing issuer URLs, fragments,
+invalid raw UTF-8, NUL metadata and explicit null fields/items rather than
+accepting them or allowing a PostgreSQL failure. Existing issuer paths/query
+strings, optional trust material, group/role mappings and new-key repeated
+registration remain supported. Public replay now retains harmless group names
+containing words such as `token` only within the versioned provider DTO; generic
+privacy redaction is unchanged. See [provider registration](../api.md#sso-provider-registration)
+for exact limits and migration guidance. Historical rows/backups are not
+scrubbed, and registration is not live provider verification. Required exact
+compatibility validation and review remain outstanding before EVY-905 closure.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

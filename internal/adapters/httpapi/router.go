@@ -53,6 +53,7 @@ type Server struct {
 	apiKeyCommands                    APIKeyCommands
 	membershipCommands                MembershipCommands
 	roleBindingCommands               RoleBindingCommands
+	ssoProviderCommands               SSOProviderCommands
 	readinessQuery                    ReadinessQuery
 	metricsQuery                      MetricsQuery
 	retentionQuery                    RetentionQuery
@@ -206,6 +207,8 @@ type ServerOptions struct {
 	MembershipCommands MembershipCommands
 	// RoleBindingCommands assigns current tenant-owned subjects/resources directly.
 	RoleBindingCommands RoleBindingCommands
+	// SSOProviderCommands registers providers without Ledger state or inventories.
+	SSOProviderCommands SSOProviderCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -410,6 +413,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.RoleBindingCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused role bindings require durable idempotency")
 	}
+	if opts.SSOProviderCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused SSO providers require durable idempotency")
+	}
 	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused collectors require durable idempotency")
 	}
@@ -516,6 +522,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.apiKeyCommands = opts.APIKeyCommands
 	server.membershipCommands = opts.MembershipCommands
 	server.roleBindingCommands = opts.RoleBindingCommands
+	server.ssoProviderCommands = opts.SSOProviderCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands

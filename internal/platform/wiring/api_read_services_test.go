@@ -45,6 +45,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.RoleBindingCommands != nil {
 		t.Fatal("local memory bound durable role assignment")
 	}
+	if memory.SSOProviderCommands != nil {
+		t.Fatal("local memory bound durable provider registration")
+	}
 	if memory.IncidentCommands != nil {
 		t.Fatal("local memory bound durable incidents")
 	}
@@ -384,6 +387,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.RoleBindingCommands == nil {
 		t.Fatal("PostgreSQL role assignment still uses Ledger")
+	}
+	if options.SSOProviderCommands == nil {
+		t.Fatal("PostgreSQL provider registration still uses Ledger")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

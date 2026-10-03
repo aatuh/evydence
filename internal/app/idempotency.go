@@ -291,6 +291,9 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 	if user, ok := publicHumanUserReplay(decoded); ok {
 		return user, nil
 	}
+	if provider, ok := publicSSOProviderReplay(decoded); ok {
+		return provider, nil
+	}
 	if !changed {
 		return response, nil
 	}

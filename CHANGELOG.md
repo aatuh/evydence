@@ -215,6 +215,12 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Fixed
 
+- PostgreSQL SSO provider registration now uses focused Identity commands with
+  atomic provider/audit/replay writes and current tenant-wide checks before
+  replay. Both profiles reject unsafe issuer URLs, NUL metadata and null
+  fields/items. Harmless public group names are preserved on replay without
+  weakening generic privacy redaction. See the
+  [compatibility note](docs/reference/api-versioning.md#unreleased-sso-provider-registration-boundary).
 - SSO trust imports now reject private/symmetric JOSE members and retain only
   supported public JWK fields. Shared normalization lives in stateless Identity
   code; valid public-key and certificate formats remain. Historical rows and

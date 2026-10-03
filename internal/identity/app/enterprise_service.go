@@ -336,19 +336,7 @@ func (s *Service) CreateSSOProvider(ctx context.Context, actor identitydomain.Ac
 	if err := s.authorizeIdentityAdmin(ctx, actor); err != nil {
 		return identitydomain.SSOProvider{}, err
 	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.Type = strings.TrimSpace(input.Type)
-	input.Issuer = strings.TrimSpace(input.Issuer)
-	input.ClientID = strings.TrimSpace(input.ClientID)
-	input.GroupsClaim = strings.TrimSpace(input.GroupsClaim)
-	if input.Name == "" || !validSSOType(input.Type) || !strings.HasPrefix(input.Issuer, "https://") || input.ClientID == "" {
-		return identitydomain.SSOProvider{}, ErrValidation
-	}
-	jwks, err := s.trustMaterial.NormalizeJWKS(input.JWKS)
-	if err != nil {
-		return identitydomain.SSOProvider{}, ErrValidation
-	}
-	certificates, err := s.trustMaterial.NormalizeSAMLSigningCertificates(input.SAMLSigningCertificates)
+	input, err := normalizeSSOProviderInput(input, s.trustMaterial)
 	if err != nil {
 		return identitydomain.SSOProvider{}, ErrValidation
 	}
@@ -356,8 +344,8 @@ func (s *Service) CreateSSOProvider(ctx context.Context, actor identitydomain.Ac
 	provider := identitydomain.SSOProvider{
 		ID: s.ids.NewID("sso"), TenantID: actor.TenantID, Name: input.Name, Type: input.Type,
 		Issuer: input.Issuer, ClientID: input.ClientID, GroupsClaim: input.GroupsClaim,
-		RoleMapping: cloneStringMap(input.RoleMapping), JWKS: cloneAnyMap(jwks),
-		SAMLSigningCertificates: append([]string(nil), certificates...), Status: "active",
+		RoleMapping: cloneStringMap(input.RoleMapping), JWKS: cloneAnyMap(input.JWKS),
+		SAMLSigningCertificates: append([]string(nil), input.SAMLSigningCertificates...), Status: "active",
 		SchemaVersion: identitydomain.SSOProviderSchemaVersion, CreatedAt: now,
 	}
 	if err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
