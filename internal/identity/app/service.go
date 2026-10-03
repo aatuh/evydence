@@ -142,12 +142,10 @@ type Service struct {
 	credentials        CredentialManager
 	sessionCredentials SessionCredentialManager
 	grantTargets       GrantTargetResolver
-	sessionGrants      SessionGrantPolicy
 	trustMaterial      TrustMaterialValidator
 	canonicalHasher    CanonicalHasher
 	oidcDiscovery      OIDCDiscovery
-	credentialVerifier CredentialVerifier
-	verificationPolicy ProviderVerificationPolicy
+	exchange           *SSOExchangeCommands
 	clock              application.Clock
 	ids                application.IDGenerator
 }
@@ -163,14 +161,23 @@ func NewService(config Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	exchange, err := NewSSOExchangeCommands(SSOExchangeCommandConfig{
+		Reader: config.Reader, Transactions: serviceSSOExchangeTransactions{transactions: config.Transactions},
+		Credentials: config.SessionCredentials, Verifier: config.CredentialVerifier,
+		VerificationPolicy: config.VerificationPolicy, SessionGrants: config.SessionGrants,
+		Clock: config.Clock, IDs: config.IDs,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
 		authenticator: authenticator,
 		reader:        config.Reader, transactions: config.Transactions, authorizer: config.Authorizer,
 		grantPolicy: config.GrantPolicy, credentials: config.Credentials, sessionCredentials: config.SessionCredentials,
-		grantTargets: config.GrantTargets, sessionGrants: config.SessionGrants, trustMaterial: config.TrustMaterial,
+		grantTargets: config.GrantTargets, trustMaterial: config.TrustMaterial,
 		canonicalHasher: config.CanonicalHasher, oidcDiscovery: config.OIDCDiscovery,
-		credentialVerifier: config.CredentialVerifier, verificationPolicy: config.VerificationPolicy,
-		clock: config.Clock, ids: config.IDs,
+		exchange: exchange,
+		clock:    config.Clock, ids: config.IDs,
 	}, nil
 }
 

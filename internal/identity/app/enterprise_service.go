@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -548,143 +546,7 @@ func (s *Service) CreateSSOSession(ctx context.Context, actor identitydomain.Act
 }
 
 func (s *Service) ExchangeSSOCredential(ctx context.Context, input ExchangeSSOCredentialInput) (identitydomain.ProviderVerification, identitydomain.SSOSession, string, error) {
-	if err := contextError(ctx); err != nil {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-	}
-	input.ProviderID = strings.TrimSpace(input.ProviderID)
-	input.Subject = strings.TrimSpace(input.Subject)
-	input.IDToken = strings.TrimSpace(input.IDToken)
-	input.SAMLAssertion = strings.TrimSpace(input.SAMLAssertion)
-	if input.ProviderID == "" || input.Subject == "" || (input.IDToken == "" && input.SAMLAssertion == "") || (input.IDToken != "" && input.SAMLAssertion != "") || containsCredential(input.Subject, input.IDToken, input.SAMLAssertion) {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
-	}
-	now := s.clock.Now().UTC()
-	expiresAt := input.ExpiresAt.UTC()
-	if expiresAt.IsZero() {
-		expiresAt = now.Add(8 * time.Hour)
-	}
-	if !expiresAt.After(now) || expiresAt.After(now.Add(12*time.Hour)) {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
-	}
-	provider, err := s.reader.SSOProviderByID(ctx, input.ProviderID)
-	if err != nil {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-	}
-	if provider.ID != input.ProviderID || provider.TenantID == "" || provider.Status != "active" {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrNotFound
-	}
-	if (provider.Type == "oidc" && input.SAMLAssertion != "") || (provider.Type == "saml" && input.IDToken != "") {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
-	}
-	provider = cloneSSOProvider(provider)
-	snapshot := SSOExchangeSnapshot{Provider: cloneSSOProvider(provider), Subject: input.Subject}
-	credentialResult, verificationErr := s.credentialVerifier.Verify(ctx, CredentialVerificationRequest{
-		Provider: cloneSSOProvider(provider), Subject: input.Subject, IDToken: input.IDToken,
-		SAMLAssertion: input.SAMLAssertion, Now: now,
-	})
-	checks := redactedCredentialChecks(credentialResult.Checks, input.IDToken, input.SAMLAssertion)
-	if verificationErr != nil {
-		checks = append(checks, identitydomain.VerificationCheck{Name: "credential_verification", Result: "failed", Detail: "credential verification did not complete"})
-	}
-	link, found, err := s.reader.IdentityLink(ctx, provider.TenantID, provider.ID, input.Subject)
-	if err != nil {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-	}
-	if !found || link.TenantID != provider.TenantID || link.ProviderID != provider.ID || link.Subject != input.Subject || !link.Verified {
-		checks = append(checks, identitydomain.VerificationCheck{Name: "verified_identity_link", Result: "failed"})
-	} else {
-		checks = append(checks, identitydomain.VerificationCheck{Name: "verified_identity_link", Result: "passed"})
-	}
-	snapshot.IdentityLinkFound = found
-	if found {
-		snapshot.IdentityLink = link
-	}
-	verification := identitydomain.ProviderVerification{
-		ID: s.ids.NewID("pvr"), TenantID: provider.TenantID, ProviderType: provider.Type,
-		ProviderID: provider.ID, Subject: input.Subject, Checks: checks,
-		Limitations:   []string{"Credential exchange uses configured local token/assertion trust roots and verified identity links; no live provider API or group synchronization call is made."},
-		SchemaVersion: identitydomain.ProviderVerificationVersion, CreatedAt: now,
-	}
-	verification = s.verificationPolicy.Assess(verification, provider, true)
-	if s.verificationPolicy.ReturnsFailure(verification.Result) {
-		if err := s.persistProviderVerification(ctx, verification, provider, snapshot); err != nil {
-			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-		}
-		return cloneProviderVerification(verification), identitydomain.SSOSession{}, "", ErrVerificationFailed
-	}
-	user, err := s.reader.User(ctx, provider.TenantID, link.UserID)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-	}
-	snapshot.UserLoaded = true
-	if err == nil {
-		snapshot.UserFound = true
-		snapshot.User = cloneHumanUser(user)
-	}
-	if err != nil || user.ID != link.UserID || user.TenantID != provider.TenantID || user.Status != "active" {
-		verification.Checks = append(verification.Checks, identitydomain.VerificationCheck{Name: "active_user", Result: "failed"})
-		verification = s.verificationPolicy.Assess(verification, provider, true)
-		if err := s.persistProviderVerification(ctx, verification, provider, snapshot); err != nil {
-			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-		}
-		return cloneProviderVerification(verification), identitydomain.SSOSession{}, "", ErrVerificationFailed
-	}
-	verification.Checks = append(verification.Checks, identitydomain.VerificationCheck{Name: "active_user", Result: "passed"})
-	verification = s.verificationPolicy.Assess(verification, provider, true)
-	userGrants, err := s.reader.UserGrants(ctx, provider.TenantID, user.ID)
-	if err != nil {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-	}
-	snapshot.UserGrantsLoaded = true
-	snapshot.UserGrants = cloneGrants(userGrants)
-	groups := credentialSafeStrings(credentialResult.Groups, input.IDToken, input.SAMLAssertion)
-	mappedGroupGrants := cloneGrants(s.sessionGrants.GrantsForProviderGroups(provider, groups))
-	grants := append(cloneGrants(userGrants), mappedGroupGrants...)
-	if len(scopesFromGrants(grants)) == 0 {
-		verification.Checks = append(verification.Checks, identitydomain.VerificationCheck{Name: "authorization_grant", Result: "failed"})
-		verification = s.verificationPolicy.Assess(verification, provider, true)
-		if err := s.persistProviderVerification(ctx, verification, provider, snapshot); err != nil {
-			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-		}
-		return cloneProviderVerification(verification), identitydomain.SSOSession{}, "", ErrForbidden
-	}
-	if len(groups) > 0 && len(mappedGroupGrants) > 0 {
-		verification.Checks = append(verification.Checks, identitydomain.VerificationCheck{
-			Name: "mapped_group_roles", Result: "passed",
-			Detail: fmt.Sprintf("%d session-scoped provider group role mapping(s) applied", len(mappedGroupGrants)),
-		})
-		verification = s.verificationPolicy.Assess(verification, provider, true)
-	}
-	credential, err := s.sessionCredentials.GenerateSession()
-	if err != nil {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-	}
-	if !validCredential(credential) {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
-	}
-	session := identitydomain.SSOSession{
-		ID: s.ids.NewID("sess"), TenantID: provider.TenantID, UserID: user.ID, ProviderID: provider.ID,
-		Prefix: credential.Prefix, Groups: append([]string(nil), groups...), ExpiresAt: expiresAt,
-		SchemaVersion: identitydomain.SSOSessionSchemaVersion, CreatedAt: now, Hash: credential.Hash,
-	}
-	if err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Identity().ValidateSSOExchangeState(ctx, cloneSSOExchangeSnapshot(snapshot)); err != nil {
-			return err
-		}
-		if err := tx.Identity().InsertProviderVerification(ctx, verification); err != nil {
-			return err
-		}
-		if err := s.appendProviderAudit(ctx, tx, provider, now, verification.ID); err != nil {
-			return err
-		}
-		if err := tx.Identity().InsertSSOSession(ctx, session); err != nil {
-			return err
-		}
-		return s.appendAudit(ctx, tx, now, provider.TenantID, "sso_session.created", "human_user", user.ID, "sso_provider", provider.ID, "", "")
-	}); err != nil {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
-	}
-	return cloneProviderVerification(verification), publicSession(session), credential.Secret, nil
+	return s.exchange.ExchangeSSOCredential(ctx, input)
 }
 
 func (s *Service) RevokeSSOSession(ctx context.Context, actor identitydomain.Actor, id string) (identitydomain.SSOSession, error) {
@@ -740,22 +602,6 @@ func (s *Service) revokeSession(ctx context.Context, actor identitydomain.Actor,
 		return identitydomain.SSOSession{}, err
 	}
 	return publicSession(session), nil
-}
-
-func (s *Service) persistProviderVerification(ctx context.Context, verification identitydomain.ProviderVerification, provider identitydomain.SSOProvider, snapshot SSOExchangeSnapshot) error {
-	return s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Identity().ValidateSSOExchangeState(ctx, cloneSSOExchangeSnapshot(snapshot)); err != nil {
-			return err
-		}
-		if err := tx.Identity().InsertProviderVerification(ctx, verification); err != nil {
-			return err
-		}
-		return s.appendProviderAudit(ctx, tx, provider, verification.CreatedAt, verification.ID)
-	})
-}
-
-func (s *Service) appendProviderAudit(ctx context.Context, tx Transaction, provider identitydomain.SSOProvider, now time.Time, verificationID string) error {
-	return s.appendAudit(ctx, tx, now, provider.TenantID, "provider_identity.verified", "provider_identity", verificationID, "sso_provider", provider.ID, "", "")
 }
 
 func (s *Service) appendActorAudit(ctx context.Context, tx Transaction, actor identitydomain.Actor, now time.Time, entryType, subjectType, subjectID, payloadHash, signatureRef string) error {

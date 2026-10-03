@@ -731,8 +731,20 @@ through lifecycle/audit/replay commit. Administrative invalidation does not
 depend on active or present user/provider parents or unexpired credentials;
 self logout requires the caller's exact user/session. HTTP cookie mutations
 require a matching HTTPS Origin in both profiles, and durable logout clears its
-cookie only after successful commit. Credential exchange command composition
-still needs migration. Identity linking
+cookie only after successful commit. Credential exchange orchestration now
+lives in a standalone Identity command with four read operations and a narrow
+snapshot-validation/session/verification/audit transaction port. It does not
+construct the broad Identity service or depend on Ledger, HTTP, SQL, or provider
+clients. The existing compatibility path delegates to that command rather than
+duplicating login rules. Verification runs before the write transaction, which
+rechecks provider trust, identity-link presence, user status, and loaded grants
+before committing verification/session records and their audits. Failed trust
+or authorization assessments commit only a verification receipt; any storage,
+audit, cancellation, or commit failure returns no record or secret. Incoming
+credentials and issued secrets are not idempotency replay material. The
+production PostgreSQL reader/transaction and HTTP binding still need migration;
+this extraction does not establish bounded production login reads or Ledger
+retirement. Identity linking
 now uses a separate focused Identity command with a tenant/projection lock and
 one current user/provider/email existence query. Parent share locks hold
 ownership and email through link/audit/replay commit; no user display metadata
