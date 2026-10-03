@@ -12,6 +12,7 @@ import (
 )
 
 var _ identityapp.SSOExchangeReader = identity{}
+var _ identityapp.ProviderVerificationReader = identity{}
 
 func (r identity) SSOProviderByID(ctx context.Context, id string) (identitydomain.SSOProvider, error) {
 	if ctx == nil || r.tx == nil || !validMembershipQueryText(id, 1024) {

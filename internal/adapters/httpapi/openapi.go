@@ -193,11 +193,11 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}))
 	registry.RegisterSchema("VerifyProviderIdentityRequest", objectSchema(map[string]any{
 		"provider_type":  map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
-		"provider_id":    map[string]any{"type": "string"},
-		"subject":        map[string]any{"type": "string"},
-		"id_token":       map[string]any{"type": "string", "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS."},
-		"saml_assertion": map[string]any{"type": "string", "description": "Optional SAML assertion verified locally against configured SAML signing certificates."},
-		"access_token":   map[string]any{"type": "string", "description": "Optional OIDC access token used only for live UserInfo validation. It is not persisted and must not be supplied for SAML providers."},
+		"provider_id":    map[string]any{"type": "string", "maxLength": 1024, "description": "Nonblank tenant-owned provider ID, bounded at 1024 UTF-8 bytes before trimming."},
+		"subject":        map[string]any{"type": "string", "maxLength": 65536, "description": "Nonblank case-sensitive provider subject, bounded at 65536 UTF-8 bytes; cannot contain a supplied credential."},
+		"id_token":       map[string]any{"type": "string", "maxLength": 65536, "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS; bounded at 65536 UTF-8 bytes."},
+		"saml_assertion": map[string]any{"type": "string", "maxLength": 65536, "description": "Optional SAML assertion verified locally against configured SAML signing certificates; bounded at 65536 UTF-8 bytes."},
+		"access_token":   map[string]any{"type": "string", "maxLength": 16384, "description": "Optional OIDC access token used only by the configured live provider validator; bounded at 16384 UTF-8 bytes. It is not persisted and must not be supplied for SAML providers."},
 	}, "provider_type", "provider_id", "subject"))
 	registry.RegisterSchema("VerifyCheck", objectSchema(map[string]any{
 		"name":   map[string]any{"type": "string"},

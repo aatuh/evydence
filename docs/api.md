@@ -992,6 +992,61 @@ issue fresh sessions; no one-time consumption of provider tokens/assertions is
 claimed. Only session hashes are stored. Local memory remains non-durable, and
 production Ledger startup removal is still pending.
 
+#### Provider Identity Verification Receipts
+
+`POST /v1/provider-verifications` records an administrative assessment, not a
+login. It requires `identity:admin` (or admin scope); human sessions additionally
+need a matching tenant-wide grant. Current authority and tenant-owned provider
+type are checked before idempotency reservation or replay. An inactive provider
+may be assessed. No session, role binding, user activation or provider trust
+change is performed.
+
+The required fields are `provider_type` (`oidc` or `saml`), `provider_id` and
+`subject`. With no credentials, the receipt describes stored metadata and a
+verified link only; it does not prove a provider credential. Optional OIDC
+`id_token` and SAML `saml_assertion` use configured local public trust. Optional
+OIDC `access_token` uses the configured live provider validator, if present;
+missing configuration or provider errors cannot become a passed assessment.
+OIDC rejects SAML assertions; SAML rejects ID/access tokens.
+
+Both profiles reject malformed, duplicate, unknown, trailing or non-object JSON,
+explicit null fields, invalid UTF-8 and NUL text with `400`. Before trimming,
+provider IDs are limited to 1 KiB, subject/local credentials to 64 KiB each and
+access tokens to 16 KiB, within the 64 KiB body limit. Metadata labels must not
+contain a supplied credential. Cookie-authenticated requests require exactly
+one HTTPS `Origin` matching the public request Host; proxies must preserve Host.
+Deliberate bearer authentication takes precedence over an incidental cookie.
+
+PostgreSQL uses focused Identity commands and bounded tenant-owned provider/link
+reads, with the stored field limits from [trust rotation](#sso-trust-rotation)
+and [credential exchange](#sso-credential-exchange). Oversized stored rows
+produce `409`, without truncating an assessment. Provider/link state, including
+link presence, is revalidated and held stable through the write transaction.
+Preflight takes the existing worker/audit mutation fence before tenant and
+provider/link locks, including when the HTTP transaction keeps those locks.
+Receipt, caller-attributed audit and safe idempotency response commit together;
+fresh-server replay does not call the provider again. The HTTP idempotency
+transaction can hold selected rows while the bounded provider call runs.
+
+Direct application calls persist a failed assessment and its audit before
+returning verification failure. The HTTP create contract instead returns `422`,
+rolls back that receipt/audit in its outer transaction, and retains only a safe
+failed-retry marker; retrying that key returns `409`. Storage/audit/commit
+failures expose neither partial receipts nor internal errors.
+
+Provider checks/limitations redact supplied credentials before assessment,
+persistence and replay. Local/live adapter output must include named checks in
+the documented check-state vocabulary, with at most 256 checks, groups and
+limitations each and 256 KiB combined text. Check names/results are limited to
+128/64 bytes, details/limitations to 64 KiB each and group values to 1 KiB.
+The sanitized assessment is checked again after redaction, including expansion
+of text and combined output size. Malformed or excessive output becomes a safe
+failed assessment, never truncated success. Group mapping counts are
+informational and do not grant access.
+Existing JSON fields and versioned assurance profiles are preserved. This route
+does not prove provider truth or legal compliance; production Ledger startup
+removal remains pending.
+
 #### SSO Public Trust Material
 
 SSO trust normalization is a stateless Identity policy shared by provider

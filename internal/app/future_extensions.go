@@ -14,13 +14,13 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"math/big"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
 type CreateEvidenceSummaryInput struct {
@@ -1536,129 +1536,11 @@ func validateSigningResult(request SigningRequest, result SigningResult) error {
 }
 
 func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor, in VerifyProviderIdentityInput) (domain.ProviderVerification, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ProviderVerification{}, err
-	}
-	if err := require(actor, ScopeIdentityAdmin); err != nil {
-		return domain.ProviderVerification{}, err
-	}
-	providerType, providerID, subject := strings.TrimSpace(in.ProviderType), strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.Subject)
-	idToken := strings.TrimSpace(in.IDToken)
-	samlAssertion := strings.TrimSpace(in.SAMLAssertion)
-	accessToken := strings.TrimSpace(in.AccessToken)
-	if providerType == "" || providerID == "" || subject == "" {
-		return domain.ProviderVerification{}, ErrValidation
-	}
-	if len(accessToken) > 16*1024 {
-		return domain.ProviderVerification{}, ErrValidation
-	}
-	if (providerType == "oidc" && samlAssertion != "") || (providerType == "saml" && (idToken != "" || accessToken != "")) {
-		return domain.ProviderVerification{}, ErrValidation
-	}
-	l.mu.Lock()
-	var provider domain.SSOProvider
-	var providerFound bool
-	var verifiedLinkFound bool
-	switch providerType {
-	case "oidc", "saml":
-		provider, providerFound = l.ssoProviders[providerID]
-		if !providerFound || provider.TenantID != actor.TenantID || provider.Type != providerType {
-			l.mu.Unlock()
-			return domain.ProviderVerification{}, ErrNotFound
-		}
-		for _, link := range l.identityLinks {
-			if link.TenantID == actor.TenantID && link.ProviderID == provider.ID && link.Subject == subject && link.Verified {
-				verifiedLinkFound = true
-				break
-			}
-		}
-	default:
-		l.mu.Unlock()
-		return domain.ProviderVerification{}, ErrValidation
-	}
-	l.mu.Unlock()
-
-	checks := []domain.VerifyCheck{}
-	now := l.now()
-	if idToken != "" {
-		tokenChecks, _ := verifyOIDCIDToken(provider, subject, idToken, now)
-		checks = append(checks, tokenChecks...)
-	}
-	if samlAssertion != "" {
-		assertionChecks, _ := verifySAMLAssertion(provider, subject, samlAssertion, now)
-		checks = append(checks, assertionChecks...)
-	}
-	limitations := []string{"Verification uses stored provider metadata and configured local token/assertion trust roots; no live provider API or discovery call is made."}
-	if idToken == "" && samlAssertion == "" {
-		limitations = []string{"Verification is limited to stored provider/link metadata because no provider token was supplied."}
-	}
-	if accessToken != "" {
-		if l.providerAPI == nil {
-			checks = append(checks, domain.VerifyCheck{Name: "live_provider_api_configured", Result: "failed"})
-			limitations = []string{"A provider access token was supplied, but no live provider API validator is configured."}
-		} else {
-			validation, err := l.providerAPI.ValidateProviderIdentity(ctx, ProviderIdentityValidationRequest{
-				TenantID:     actor.TenantID,
-				ProviderID:   provider.ID,
-				ProviderType: provider.Type,
-				Issuer:       provider.Issuer,
-				Subject:      subject,
-				GroupsClaim:  provider.GroupsClaim,
-				AccessToken:  accessToken,
-			})
-			checks = append(checks, validation.Checks...)
-			if len(validation.Groups) > 0 && len(resourceGrantsForProviderGroups(provider, validation.Groups)) > 0 {
-				checks = append(checks, domain.VerifyCheck{Name: "mapped_provider_api_groups", Result: "passed", Detail: fmt.Sprintf("%d provider API group role mapping(s) can be applied to sessions", len(resourceGrantsForProviderGroups(provider, validation.Groups)))})
-			}
-			if len(validation.Limitations) > 0 {
-				limitations = validation.Limitations
-			} else {
-				limitations = []string{"Live provider API validation used a supplied OIDC access token; no access token is stored in Evydence records."}
-			}
-			if err != nil {
-				checks = append(checks, domain.VerifyCheck{Name: "live_provider_api_validation", Result: "error", Detail: "provider API validation did not complete"})
-			}
-		}
-	}
-	if verifiedLinkFound {
-		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "passed"})
-	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "verified_identity_link", Result: "failed"})
-	}
-
-	profile := providerVerificationProfile(provider, idToken != "" || samlAssertion != "" || accessToken != "", checks, limitations)
-	result := string(domain.AggregateVerificationState(profile, checks))
-	record := domain.ProviderVerification{ID: newID("pvr"), TenantID: actor.TenantID, ProviderType: providerType, ProviderID: providerID, Subject: subject, Result: result, Checks: checks, Profile: profile, Limitations: limitations, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: l.now()}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Identity.InsertProviderVerification(ctx, record); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "provider_identity.verified", "provider_identity", record.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.ProviderVerification{}, err
-		}
-		l.providerVerifications[record.ID] = record
-		l.publishCommittedAuditEntryLocked(entry)
-		if verificationReturnsFailure(result) {
-			return record, ErrVerificationFailed
-		}
-		return record, nil
-	}
-	l.providerVerifications[record.ID] = record
-	_, _ = l.appendChainLocked(actor.TenantID, "provider_identity.verified", "provider_identity", record.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.ProviderVerification{}, err
-	}
-	if verificationReturnsFailure(result) {
-		return record, ErrVerificationFailed
-	}
-	return record, nil
+	record, err := l.verifyProviderIdentity(ctx, actor, identityapp.VerifyProviderIdentityInput{
+		ProviderType: in.ProviderType, ProviderID: in.ProviderID, Subject: in.Subject,
+		IDToken: in.IDToken, SAMLAssertion: in.SAMLAssertion, AccessToken: in.AccessToken,
+	})
+	return ProviderVerificationFromIdentity(record), fromIdentityContextError(err)
 }
 
 func (l *Ledger) ensureFutureSubjectLocked(tenantID, subjectType, subjectID string) (resourceRefs, error) {

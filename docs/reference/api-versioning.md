@@ -498,6 +498,34 @@ These input restrictions require release compatibility review; this note is not
 an approved exception, publication evidence, or proof of production Ledger
 retirement, provider token single-use, or live provider verification.
 
+## Unreleased Provider Verification Receipt Boundary
+
+`POST /v1/provider-verifications` keeps its route, response fields, assurance
+profile format and idempotency behavior. Both profiles now share the focused
+Identity receipt command; PostgreSQL binds bounded owned reads and atomic
+receipt/audit/replay writes directly, without Ledger state. Metadata-only,
+local OIDC/SAML and configured live OIDC assessments remain available, including
+assessments of inactive providers. None issues sessions or authorization grants.
+
+New restrictions reject explicit null/non-object input, invalid UTF-8/NUL text,
+IDs above 1 KiB, subject/local credentials above 64 KiB and access tokens above
+16 KiB before trimming. Metadata labels containing supplied credentials are
+rejected. Human callers require tenant-wide authority; cookie-authenticated
+requests require a single same-host HTTPS Origin, while bearer credentials
+retain precedence. Oversized stored projections conflict rather than truncate.
+Provider output lacking named valid-state checks, exceeding the documented
+budgets (including after redaction) or containing invalid text becomes a safe failed assessment. Supplied
+credentials are redacted from checks/limitations and their assurance profile.
+
+The HTTP create transaction still rolls back a failed assessment's receipt and
+audit, with a safe failed-retry marker and no receipt body; direct application
+calls persist failed assessments. Provider/link changes before direct-command
+commit now conflict, including a previously absent link appearing. See
+[provider identity verification receipts](../api.md#provider-identity-verification-receipts)
+for exact limits. Historical records are not rewritten. These restrictions
+require release compatibility review; this note is not an approved exception,
+provider verification evidence or proof of production Ledger retirement.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

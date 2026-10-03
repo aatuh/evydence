@@ -339,6 +339,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO exchange commands: %w", err)
 	}
+	options.ProviderVerificationCommands, err = BuildProviderVerificationCommands(store, runtime.ProviderAPI)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create provider verification commands: %w", err)
+	}
 	options.InstanceAdminQuery, err = BuildInstanceAdminQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create instance admin query: %w", err)

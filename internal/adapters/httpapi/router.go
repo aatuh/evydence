@@ -139,6 +139,7 @@ type Server struct {
 	idempotency                       idempotencyExecutor
 	identityAccess                    identityAccessService
 	ssoExchangeCommands               SSOExchangeCommands
+	providerVerificationCommands      ProviderVerificationCommands
 	releaseCatalog                    releaseCatalogService
 	productQuery                      ProductQuery
 	catalogPointQuery                 CatalogPointQuery
@@ -221,6 +222,8 @@ type ServerOptions struct {
 	SSOSessionRevocationCommands SSOSessionRevocationCommands
 	// SSOExchangeCommands verifies public credentials and commits login directly.
 	SSOExchangeCommands SSOExchangeCommands
+	// ProviderVerificationCommands persists admin receipts without Ledger state.
+	ProviderVerificationCommands ProviderVerificationCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
 	ReadinessQuery ReadinessQuery
 	// MetricsQuery supplies bounded tenant counters in the PostgreSQL profile.
@@ -437,6 +440,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.SSOSessionRevocationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SSO revocation requires durable idempotency")
 	}
+	if opts.ProviderVerificationCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused provider verification requires durable idempotency")
+	}
 	if opts.CollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused collectors require durable idempotency")
 	}
@@ -548,6 +554,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.ssoSessionCommands = opts.SSOSessionCommands
 	server.ssoSessionRevocationCommands = opts.SSOSessionRevocationCommands
 	server.ssoExchangeCommands = opts.SSOExchangeCommands
+	server.providerVerificationCommands = opts.ProviderVerificationCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands

@@ -10,6 +10,13 @@ import (
 
 type failingProviderVerificationRepository struct{ IdentityRepository }
 
+func TestLedgerProviderReceiptUnauthorizedUsesPublicError(t *testing.T) {
+	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	if v, err := ledger.VerifyProviderIdentity(t.Context(), domain.Actor{}, VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: "provider", Subject: "subject"}); !errors.Is(err, ErrUnauthorized) || v.ID != "" {
+		t.Fatalf("unauthorized receipt = %#v err=%v", v, err)
+	}
+}
+
 func (failingProviderVerificationRepository) InsertProviderVerification(context.Context, domain.ProviderVerification) error {
 	return errInjectedRepositoryFailure
 }

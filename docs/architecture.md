@@ -777,6 +777,25 @@ still runs outside that transaction. See
 [SSO public trust material](api.md#sso-public-trust-material) for compatibility,
 limits and historical-record caveats.
 
+Administrative provider-identity receipts now use a separate focused Identity
+command with tenant-owned provider/link reads, local credential and optional
+live-provider ports, conservative assurance aggregation and a receipt/audit-only
+transaction. Production wiring binds PostgreSQL directly; no Ledger inventory,
+session issuer or user/grant reader is exposed. Existing bounded provider/link
+SQL and snapshot comparison reject oversized or changed state, including an
+absent link appearing before direct-command commit. Caller attribution, DTO
+fields and safe restart replay are preserved. HTTP uses its existing outer
+idempotency transaction, so a failed assessment rolls back receipt/audit and
+retains only a failed-retry marker; direct application calls can persist the
+failed assessment. Preflight takes the worker/audit fence before parent locks;
+the live contention test observes advisory waiting and proves the waiting read
+does not hold the provider row. Provider output is bounded, credential-redacted
+and rechecked after redaction before assessment/persistence. Live tests cover both modes, current human authority,
+restart replay, provider/link changes, oversized rows and real write/audit/
+deferred-commit failures. See [provider identity verification receipts](api.md#provider-identity-verification-receipts)
+for input and cookie-origin compatibility. Production Ledger startup retirement
+and other extension workflows remain open.
+
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current

@@ -1183,7 +1183,7 @@ func fromIdentityContextError(err error) error {
 	switch {
 	case errors.Is(err, identityapp.ErrValidation):
 		return ErrValidation
-	case errors.Is(err, identityapp.ErrUnauthorized):
+	case errors.Is(err, identityapp.ErrUnauthorized), errors.Is(err, application.ErrUnauthorized):
 		return ErrUnauthorized
 	case errors.Is(err, identityapp.ErrForbidden):
 		return ErrForbidden

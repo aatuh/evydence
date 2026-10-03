@@ -118,6 +118,7 @@ func runWithContext(ctx context.Context) error {
 		ObjectStore:        wiring.ObjectStoreConfigFromEnv(),
 		Cosign:             cosignVerifier,
 		OIDC:               cfg.OIDC,
+		ProviderAPI:        cfg.ProviderAPI,
 	})
 	if err != nil {
 		return err
