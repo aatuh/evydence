@@ -190,8 +190,23 @@ pending incidents in compound commands. Live tests forbid Ledger refreshes,
 check ownership locks/reparenting, and inject record/audit/completion/commit
 failures. Local memory retains its explicit compatibility path. See
 [incident commands](api.md#incident-commands) for input and compatibility
-limits. Signed incident webhook migration and startup Ledger retirement
-remain EVY-905 work.
+limits.
+
+Signed incident webhook receivers and ingress also bind focused Operations
+ports in PostgreSQL mode. An unauthenticated primary-key lookup exposes only
+the receiver's tenant locator; the active transaction then re-reads and locks
+the receiver by tenant and ID before verifying its current Ed25519 key.
+The tenant projection fence precedes ownership row locks. Current incident
+parents and incident-scoped evidence authority are checked on acceptance and
+replay. Natural replay uses the unique tenant/receiver/event key and a bounded
+timeline point read, not a full event inventory. Event, timeline, and webhook
+audit append atomically, including pending parents in compound commands.
+Concurrent retry, restart, receiver revocation/key replacement, evidence
+reparenting, large unrelated documents, and insertion/audit/commit failures
+have narrow live tests. Human receiver creation additionally joins durable
+HTTP idempotency completion. Local memory shares the pure signing protocol,
+not an authoritative production cache. See [signed incident webhooks](api.md#signed-incident-webhooks)
+for protocol and migration limits. Startup Ledger retirement remains EVY-905 work.
 
 ## Bounded-context transition
 

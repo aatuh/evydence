@@ -77,10 +77,13 @@ func (c *IncidentCommands) prepareActor(ctx context.Context, a identitydomain.Ac
 	if c == nil {
 		return ErrValidation
 	}
+	return prepareIncidentActor(ctx, a, c.config.Authorizer)
+}
+func prepareIncidentActor(ctx context.Context, a identitydomain.Actor, authorizer application.Authorizer) error {
 	if err := incidentContextError(ctx); err != nil {
 		return err
 	}
-	if err := c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeIncidentWrite, ScopeOnly: true}); err != nil {
+	if err := authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeIncidentWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	_, id := incidentActor(a)

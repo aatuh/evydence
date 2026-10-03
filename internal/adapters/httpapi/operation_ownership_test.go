@@ -86,9 +86,11 @@ func TestBoundedContextOperationOwnershipMetadata(t *testing.T) {
 		"createVulnerabilityDecision":     operationOwnerGovernance,
 
 		// Human incident commands bind focused Operations services in PostgreSQL.
-		"createIncident":         operationOwnerOperationsIncidents,
-		"recordIncidentTimeline": operationOwnerOperationsIncidents,
-		"createRemediationTask":  operationOwnerOperationsIncidents,
+		"createIncident":                operationOwnerOperationsIncidents,
+		"recordIncidentTimeline":        operationOwnerOperationsIncidents,
+		"createRemediationTask":         operationOwnerOperationsIncidents,
+		"createIncidentWebhookReceiver": operationOwnerOperationsIncidents,
+		"receiveIncidentWebhook":        operationOwnerOperationsIncidents,
 
 		// These metadata assignments remain on the compatibility track.
 		"createGraphSnapshot":         operationOwnerReleaseLedger,
@@ -126,7 +128,7 @@ func TestBoundedContextOperationOwnershipMetadata(t *testing.T) {
 		"release-catalog":        21,
 		"evidence-ingestion":     27,
 		"release-ledger":         6,
-		"operations-incidents":   3,
+		"operations-incidents":   5,
 		"customer-delivery":      3,
 		"governance":             3,
 		"integrity-verification": 2,

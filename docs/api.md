@@ -758,6 +758,52 @@ reservation and permit retry. Recorded evidence links and tasks organize
 technical evidence; they do not prove incident root cause or remediation
 completeness. Signed webhook receivers and ingestion are separate workflows.
 
+### Signed Incident Webhooks
+
+`POST /v1/incidents/{id}/webhook-receivers` requires `incident:write` and a
+current incident product or release grant for human sessions. Its JSON fields
+are `name`, `provider`, and `public_key`. Public keys contain the 32 Ed25519
+public-key bytes in raw or padded standard base64; storage uses raw standard
+base64. The private key remains external. Receiver, principal audit, and HTTP
+idempotency completion share one transaction, with current parent/grant checks
+before replay. IDs are capped at 1024 UTF-8 bytes, name/provider at 64 KiB
+each, and encoded key input at 1024 bytes.
+
+`POST /v1/incident-webhooks/{receiver_id}` is public and needs neither a bearer
+token nor `Idempotency-Key`. Supply exactly one nonblank value for each header:
+
+- `X-Evydence-Webhook-Event-ID`: the provider event identity.
+- `X-Evydence-Webhook-Timestamp`: an RFC3339 timestamp within five minutes.
+- `X-Evydence-Webhook-Signature`: the standard-base64 Ed25519 signature,
+  optionally prefixed with `ed25519=`.
+
+Sign the concatenation of the timestamp formatted as UTC RFC3339 **seconds**,
+a newline, the trimmed event ID, a newline, and the exact raw request body.
+Fractional input timestamps still use seconds in this existing signature
+protocol. Signature verification precedes payload parsing. JSON supplies
+required `event_type`/`summary` and optional `evidence_id`/`occurred_at`.
+Omitted `occurred_at` defaults to creation time. Both HTTP bodies retain the
+64 KiB limit; direct ingestion permits at most 2 MiB. Explicit null,
+duplicate/unknown fields, invalid UTF-8, and NUL fail validation. Receiver and
+event IDs are capped at 1024 UTF-8 bytes; event IDs cannot contain interior
+CR/LF. The combined tenant/receiver/event replay key is capped at 2304 bytes.
+Encoded keys/signatures cannot contain interior CR/LF.
+
+PostgreSQL binds focused Operations ports, not Ledger maps. Bounded point
+reads lock the active receiver and coherent current incident/evidence parents
+through commit. Evidence must belong to the incident product and, when
+release-scoped, its release; tenant-only or different-product evidence is not
+within receiver authority. These checks also apply to natural event replay.
+Same event ID and identical body bytes return the original receipt/timeline,
+even when freshly signed; changed bytes yield `409`. Signature/key failures
+yield `401`, missing/inactive/foreign references yield `404`, and malformed
+verified inputs yield `400`. Event, timeline, and webhook-attributed audit
+commit together; failures leave no public replay reservation and are retryable
+with the same provider event ID after the cause is resolved. New timestamps
+and durable replay are UTC microsecond precision. Local memory retains its
+explicit compatibility path and shares the signing/base64 protocol helpers.
+Recorded timelines do not prove incident resolution or remediation completeness.
+
 ### SBOM Ingestion
 
 `POST /v1/sboms` (CycloneDX) and `POST /v1/sboms/spdx` require

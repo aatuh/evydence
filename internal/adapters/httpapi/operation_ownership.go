@@ -55,7 +55,7 @@ func boundedContextOperationOwner(operationID string) (string, bool) {
 	case "verifyBuildAttestationSignature", "verifyReleaseBundle":
 		return operationOwnerIntegrityVerification, true
 
-	case "createIncident", "recordIncidentTimeline", "createRemediationTask":
+	case "createIncident", "recordIncidentTimeline", "createRemediationTask", "createIncidentWebhookReceiver", "receiveIncidentWebhook":
 		return operationOwnerOperationsIncidents, true
 
 	case "createGraphSnapshot", "createEvidenceSummary",

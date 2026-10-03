@@ -91,7 +91,7 @@ This generated reference is the complete operation-level inventory for the commi
 | createException | POST | `/v1/exceptions` | `core` | `governance` | `bearer` | release:write | required | CreateExceptionRequest | 201:ExceptionEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | approveException | POST | `/v1/exceptions/{id}/approve` | `core` | `governance` | `bearer` | release:write | required | EmptyObject | 200:ExceptionEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | health | GET | `/v1/health` | `supported` | `platform-operations` | `public` | - | not required | - | 200:HealthStatusEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
-| receiveIncidentWebhook | POST | `/v1/incident-webhooks/{receiver_id}` | `experimental` | `integration-ingestion` | `webhook-signature` | - | not required | SignedIncidentWebhookPayload | 201:IncidentWebhookDeliveryEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| receiveIncidentWebhook | POST | `/v1/incident-webhooks/{receiver_id}` | `experimental` | `operations-incidents` | `webhook-signature` | - | not required | SignedIncidentWebhookPayload | 201:IncidentWebhookDeliveryEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createIncident | POST | `/v1/incidents` | `experimental` | `operations-incidents` | `bearer` | incident:write | required | CreateIncidentRequest | 201:IncidentEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | recordIncidentTimeline | POST | `/v1/incidents/{id}/timeline` | `experimental` | `operations-incidents` | `bearer` | incident:write | required | RecordIncidentTimelineRequest | 201:IncidentTimelineEventEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createIncidentWebhookReceiver | POST | `/v1/incidents/{id}/webhook-receivers` | `experimental` | `operations-incidents` | `bearer` | incident:write | required | CreateIncidentWebhookReceiverRequest | 201:IncidentWebhookReceiverEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -266,7 +266,7 @@ Every `experimental` operation is an explicit candidate for a maintainer decisio
 | recordEvidenceLifecycleEvent | `evidence-ingestion` | review experimental scope |
 | supersedeEvidence | `evidence-ingestion` | review experimental scope |
 | listExceptions | `governance` | review experimental scope |
-| receiveIncidentWebhook | `integration-ingestion` | review experimental scope |
+| receiveIncidentWebhook | `operations-incidents` | review experimental scope |
 | createIncident | `operations-incidents` | review experimental scope |
 | recordIncidentTimeline | `operations-incidents` | review experimental scope |
 | createIncidentWebhookReceiver | `operations-incidents` | review experimental scope |

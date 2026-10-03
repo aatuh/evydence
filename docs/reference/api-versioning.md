@@ -187,6 +187,30 @@ grants. Ownership annotations now identify `operations-incidents`. This note
 does not approve the outstanding compatibility change set or claim a release;
 the exact gate must still pass before ticket closure.
 
+## Unreleased Signed Incident Webhook Boundary
+
+PostgreSQL receiver creation and public ingress now use focused Operations
+commands and bounded point reads. Route shapes, response fields, public
+no-bearer/no-HTTP-idempotency semantics, schema versions, Ed25519 framing, and
+natural event replay are retained. Re-signed retries return the original
+receipt. New timestamps and database replay normalize to UTC microseconds.
+Pure base64/signing helpers are shared with explicit local memory. No migration
+or historical-row rewrite is needed.
+
+The durable boundary rejects duplicate protocol headers, ambiguous/trailing
+JSON, explicit null fields (already non-nullable in the published schema),
+unknown fields, invalid UTF-8, NUL, and oversized direct inputs. Event IDs and
+encoded key/signature values reject interior CR/LF. Current receiver key/status,
+incident parents, and evidence coordinates are checked before replay. Receiver
+authority now requires evidence from the incident's product and, if
+release-scoped, release; formerly accepted different-product or tenant-only
+evidence is rejected. Use a properly incident-scoped evidence reference or
+omit the optional link. This closes the legacy stale-parent and broader-evidence
+authority gaps; it does not approve the outstanding compatibility change set
+or claim a release. The exact compatibility gate still applies before EVY-905
+closure. See [signed incident webhooks](../api.md#signed-incident-webhooks)
+for byte limits and signing instructions.
+
 ## Stable-Line Rule
 
 A stable `/v1` line permits additive fields, endpoints, and optional filters.

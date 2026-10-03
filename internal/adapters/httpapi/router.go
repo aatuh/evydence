@@ -107,6 +107,7 @@ type Server struct {
 	vexPreviewQuery                   VEXPreviewQuery
 	securityDocumentCommands          SecurityDocumentCommands
 	incidentCommands                  IncidentCommands
+	incidentWebhookCommands           IncidentWebhookCommands
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
@@ -272,6 +273,7 @@ type ServerOptions struct {
 	VEXPreviewQuery               VEXPreviewQuery
 	SecurityDocumentCommands      SecurityDocumentCommands
 	IncidentCommands              IncidentCommands
+	IncidentWebhookCommands       IncidentWebhookCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
 	DeploymentCommands            DeploymentCommands
 	SourceRepositoryCommands      SourceRepositoryCommands
@@ -388,7 +390,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if opts.IncidentCommands != nil && opts.DurableCommandExecutor == nil {
+	if (opts.IncidentCommands != nil || opts.IncidentWebhookCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused incidents require durable idempotency")
 	}
 	if opts.SecurityDocumentCommands != nil && opts.DurableCommandExecutor == nil {
@@ -486,6 +488,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.vexPreviewQuery = opts.VEXPreviewQuery
 	server.securityDocumentCommands = opts.SecurityDocumentCommands
 	server.incidentCommands = opts.IncidentCommands
+	server.incidentWebhookCommands = opts.IncidentWebhookCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
 	server.deploymentCommands = opts.DeploymentCommands
@@ -1903,6 +1906,10 @@ func (s *Server) recordIncidentTimeline(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) createIncidentWebhookReceiver(w http.ResponseWriter, r *http.Request) {
+	if s.incidentWebhookCommands != nil {
+		s.createDurableIncidentWebhookReceiver(w, r)
+		return
+	}
 	var req struct {
 		Name      string `json:"name"`
 		Provider  string `json:"provider"`
@@ -1918,6 +1925,10 @@ func (s *Server) createIncidentWebhookReceiver(w http.ResponseWriter, r *http.Re
 }
 
 func (s *Server) receiveIncidentWebhook(w http.ResponseWriter, r *http.Request) {
+	if s.incidentWebhookCommands != nil {
+		s.receiveDurableIncidentWebhook(w, r)
+		return
+	}
 	body, err := readBody(r)
 	if err != nil {
 		writeProblem(w, r, err)

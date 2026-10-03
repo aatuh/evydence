@@ -39,6 +39,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.IncidentCommands != nil {
 		t.Fatal("local memory bound durable incidents")
 	}
+	if memory.IncidentWebhookCommands != nil {
+		t.Fatal("local memory bound durable webhooks")
+	}
 	if memory.SecurityDocumentCommands != nil {
 		t.Fatal("local memory bound durable security documents")
 	}
@@ -354,6 +357,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.IncidentCommands == nil {
 		t.Fatal("postgres omitted focused incidents")
+	}
+	if options.IncidentWebhookCommands == nil {
+		t.Fatal("postgres omitted focused webhooks")
 	}
 	if options.SBOMIngestionCommands == nil {
 		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")

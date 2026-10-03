@@ -13,6 +13,7 @@ import (
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
@@ -101,7 +102,7 @@ type CreateCustomPolicyInput struct {
 	Rules       []domain.PolicyRule
 }
 
-const incidentWebhookTimestampTolerance = 5 * time.Minute
+const incidentWebhookTimestampTolerance = operationsapp.IncidentWebhookTimestampTolerance
 
 type cycloneDXVEXDocument struct {
 	BOMFormat       string                      `json:"bomFormat"`
@@ -467,33 +468,23 @@ func (l *Ledger) HandleIncidentWebhook(ctx context.Context, in HandleIncidentWeb
 }
 
 func incidentWebhookSignedPayload(timestamp time.Time, eventID string, body []byte) []byte {
-	prefix := timestamp.UTC().Format(time.RFC3339) + "\n" + strings.TrimSpace(eventID) + "\n"
-	return append([]byte(prefix), body...)
+	return operationsapp.IncidentWebhookSignedPayload(timestamp, eventID, body)
 }
 
 func decodeWebhookPublicKey(value string) ([]byte, error) {
-	key, err := decodeBase64Value(strings.TrimSpace(value))
-	if err != nil || len(key) != ed25519.PublicKeySize {
+	key, err := operationsapp.DecodeIncidentWebhookPublicKey(value)
+	if err != nil {
 		return nil, ErrValidation
 	}
 	return key, nil
 }
 
 func decodeWebhookSignature(value string) ([]byte, error) {
-	value = strings.TrimSpace(value)
-	value = strings.TrimPrefix(value, "ed25519=")
-	signature, err := decodeBase64Value(value)
-	if err != nil || len(signature) != ed25519.SignatureSize {
+	signature, err := operationsapp.DecodeIncidentWebhookSignature(value)
+	if err != nil {
 		return nil, ErrUnauthorized
 	}
 	return signature, nil
-}
-
-func decodeBase64Value(value string) ([]byte, error) {
-	if decoded, err := base64.RawStdEncoding.DecodeString(value); err == nil {
-		return decoded, nil
-	}
-	return base64.StdEncoding.DecodeString(value)
 }
 
 func (l *Ledger) CreateRemediationTask(ctx context.Context, actor domain.Actor, in CreateRemediationTaskInput) (domain.RemediationTask, error) {
