@@ -344,24 +344,7 @@ func (s *Service) CreateContractDiff(ctx context.Context, actor identitydomain.A
 			return evidencedomain.ContractDiff{}, err
 		}
 	}
-	result := "unchanged"
-	breaking, nonBreaking := []string{}, []string{}
-	if base.Hash != target.Hash {
-		result = "changed"
-		breaking, nonBreaking = diffOpenAPIOperations(base, target)
-		if len(base.Operations) == 0 || len(target.Operations) == 0 {
-			breaking, nonBreaking = []string{}, []string{}
-			if target.PathCount < base.PathCount {
-				breaking = append(breaking, "target contract has fewer paths than base contract")
-			}
-			if target.PathCount > base.PathCount {
-				nonBreaking = append(nonBreaking, "target contract has additional paths")
-			}
-		}
-		if len(breaking) > 0 {
-			result = "breaking"
-		}
-	}
+	result, breaking, nonBreaking := evaluateContractDifference(base, target)
 	now := s.clock.Now().UTC()
 	diff := evidencedomain.ContractDiff{
 		ID: s.ids.NewID("cdiff"), TenantID: actor.TenantID, BaseContractID: base.ID, TargetContractID: target.ID,

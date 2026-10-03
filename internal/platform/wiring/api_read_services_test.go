@@ -69,6 +69,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.SBOMDiffCommands != nil {
 		t.Fatal("local memory bound durable SBOM diff commands")
 	}
+	if memory.ContractDiffCommands != nil {
+		t.Fatal("local memory bound durable contract diff commands")
+	}
 	if memory.ReleaseReadinessReportQuery != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
 	}
@@ -372,6 +375,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.SBOMDiffCommands == nil {
 		t.Fatal("PostgreSQL SBOM diff commands still use Ledger")
+	}
+	if options.ContractDiffCommands == nil {
+		t.Fatal("PostgreSQL contract diff commands still use Ledger")
 	}
 	if options.TrustConfigurationCommands == nil {
 		t.Fatal("PostgreSQL lacks durable trust commands")

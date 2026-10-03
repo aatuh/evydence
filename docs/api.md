@@ -715,6 +715,36 @@ Source/test evidence: `internal/evidence/app/sbom_diff_commands.go`,
 `internal/adapters/postgres/repositories/sbom_diff_reads.go`, and
 `internal/platform/wiring/sbom_diff_commands_test.go`.
 
+### Stored OpenAPI Contract Diffs
+
+`POST /v1/openapi-diffs` requires `evidence:read` and two distinct stored
+contract IDs belonging to the same product. Optional `release_id` may identify
+any current release of that product, not only a source contract's release.
+In PostgreSQL mode, identifier-only reads validate tenant-owned product,
+release, source evidence, and coherent source parents before operation data is
+read. Human sessions need current matching grants for both contracts and the
+requested release. The same checks run before saved-response replay.
+
+Each source's operation JSON is limited to 32 MiB and 524,288 operations before
+database transfer, preventing compact arrays from expanding without a bound.
+The application also enforces a shared 32 MiB budget for operation strings and
+structure (64 bytes per operation, 8 per nested field/status value). Invalid
+projections fail as 400 without truncated results. Input IDs are limited to
+1024 UTF-8 bytes; NUL, invalid UTF-8, blank required IDs, and explicit null
+fields are rejected. The request body retains its 64 KiB limit.
+
+Operation comparison retains existing sorted change messages, last-operation
+identity precedence, equal-hash behavior, and path-count fallback for historical
+contracts without operations. Diff, audit, and idempotency completion share one
+transaction under the tenant projection fence. Replay returns the original
+result; changed request bytes return 409. Trusted snapshot replay cannot rewrite
+historical diffs. Local-memory mode retains its explicit compatibility path.
+This comparison does not prove complete API compatibility or release security.
+
+Source/test evidence: `internal/evidence/app/contract_diff_commands.go`,
+`internal/adapters/postgres/repositories/contract_diff_reads.go`, and
+`internal/platform/wiring/contract_diff_commands_test.go`.
+
 ### Instance Outbox Operations
 
 | Method | Path | Notes |

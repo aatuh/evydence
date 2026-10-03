@@ -97,6 +97,7 @@ type Server struct {
 	customPolicyCommands              CustomPolicyCommands
 	policyEvaluationCommands          PolicyEvaluationCommands
 	sbomDiffCommands                  SBOMDiffCommands
+	contractDiffCommands              ContractDiffCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
@@ -253,6 +254,7 @@ type ServerOptions struct {
 	CustomPolicyCommands          CustomPolicyCommands
 	PolicyEvaluationCommands      PolicyEvaluationCommands
 	SBOMDiffCommands              SBOMDiffCommands
+	ContractDiffCommands          ContractDiffCommands
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
 	DeploymentEnvironmentCommands DeploymentEnvironmentCommands
@@ -371,7 +373,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
-	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil || opts.CustomPolicyCommands != nil || opts.PolicyEvaluationCommands != nil || opts.SBOMDiffCommands != nil) && opts.DurableCommandExecutor == nil {
+	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil || opts.CustomPolicyCommands != nil || opts.PolicyEvaluationCommands != nil || opts.SBOMDiffCommands != nil || opts.ContractDiffCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused commands require durable idempotency")
 	}
 	if ledger == nil {
@@ -448,6 +450,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.customPolicyCommands = opts.CustomPolicyCommands
 	server.policyEvaluationCommands = opts.PolicyEvaluationCommands
 	server.sbomDiffCommands = opts.SBOMDiffCommands
+	server.contractDiffCommands = opts.ContractDiffCommands
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
@@ -3150,6 +3153,10 @@ func (s *Server) getOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createOpenAPIDiff(w http.ResponseWriter, r *http.Request) {
+	if s.contractDiffCommands != nil {
+		s.createDurableContractDiff(w, r)
+		return
+	}
 	var req struct {
 		BaseContractID   string `json:"base_contract_id"`
 		TargetContractID string `json:"target_contract_id"`

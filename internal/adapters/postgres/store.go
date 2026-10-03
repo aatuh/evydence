@@ -4149,20 +4149,8 @@ func syncIncidentSecurityGovernanceRows(ctx context.Context, tx pgx.Tx, state ap
 		if diff.ID == "" || diff.TenantID == "" || diff.BaseContractID == "" || diff.TargetContractID == "" {
 			continue
 		}
-		document, err := json.Marshal(diff)
-		if err != nil {
-			return fmt.Errorf("encode contract diff document: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO contract_diffs (
-				id, tenant_id, base_contract_id, target_contract_id, product_id,
-				release_id, result, document, schema_version, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			ON CONFLICT (id) DO UPDATE SET result = EXCLUDED.result, document = EXCLUDED.document
-		`, diff.ID, diff.TenantID, diff.BaseContractID, diff.TargetContractID, diff.ProductID,
-			nullableString(diff.ReleaseID), diff.Result, document, diff.SchemaVersion, nonZeroTime(diff.CreatedAt)); err != nil {
-			return fmt.Errorf("upsert contract diff row: %w", err)
+		if err := importContractDiffRow(ctx, tx, diff); err != nil {
+			return err
 		}
 	}
 	for _, policy := range state.CustomPolicies {

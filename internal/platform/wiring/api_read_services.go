@@ -429,6 +429,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SBOM diff commands: %w", err)
 	}
+	options.ContractDiffCommands, err = BuildContractDiffCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create contract diff commands: %w", err)
+	}
 	options.VulnerabilityDecisionSummaryQuery, err = BuildVulnerabilityDecisionSummaryQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create vulnerability decision summary query: %w", err)

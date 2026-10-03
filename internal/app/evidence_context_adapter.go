@@ -999,12 +999,7 @@ func sbomDiffFromEvidenceContext(value evidencedomain.SBOMDiff) domain.SBOMDiff 
 }
 
 func contractDiffFromEvidenceContext(value evidencedomain.ContractDiff) domain.ContractDiff {
-	return domain.ContractDiff{
-		ID: value.ID, TenantID: value.TenantID, BaseContractID: value.BaseContractID, TargetContractID: value.TargetContractID,
-		ProductID: value.ProductID, ReleaseID: value.ReleaseID, Result: value.Result,
-		BreakingChanges: append([]string(nil), value.BreakingChanges...), NonBreakingChanges: append([]string(nil), value.NonBreakingChanges...),
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
+	return domain.ContractDiffFromContext(value)
 }
 
 func lifecycleToEvidenceContext(value domain.EvidenceLifecycleEvent) (evidencedomain.EvidenceLifecycleEvent, error) {

@@ -88,7 +88,16 @@ transaction and tenant projection fence, including pending inputs in compound
 commands. The existing deterministic diff evaluator is reused. Historical diff
 and dependency imports compare existing records instead of updating them. See
 [stored SBOM diffs](api.md#stored-sbom-diffs) for limits and compatibility.
-OpenAPI diffs and other ingestion paths still need EVY-905 migration.
+
+OpenAPI diff creation (`POST /v1/openapi-diffs`) also uses a focused Evidence
+command. Current contract/source coordinates and requested-release grants are
+checked before bounded operation reads or saved-response replay. It reuses the
+existing pure comparison rules while retaining attachment to any release of
+the common product. Reads, diff insertion, audit, and replay completion join the
+active transaction; snapshot import cannot rewrite the historical diff. See
+[stored OpenAPI contract diffs](api.md#stored-openapi-contract-diffs) for limits
+and compatibility. Other ingestion paths and startup Ledger retirement remain
+EVY-905 work.
 
 ## Bounded-context transition
 
