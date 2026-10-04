@@ -2748,6 +2748,38 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### Merkle Batch Creation
+
+`POST /v1/merkle-batches` requires current tenant-wide `keys:admin` authority
+and returns `201`. Human sessions need a matching tenant grant. Its only body
+fields are optional nonnegative int64 `from_sequence` and `to_sequence`.
+Zero or omission selects sequence `1` and the current last sequence on fresh
+creation; a nonzero upper bound cannot precede the lower bound. Both profiles
+cap the body at 64 KiB and reject unknown, duplicate, case-aliased, explicitly
+null, invalid UTF-8 and malformed fields. Cookie-authenticated mutations require
+same-origin protection; an explicit bearer credential takes precedence.
+
+PostgreSQL uses focused durable execution without a Ledger clone. Before
+reservation and every replay, a current tenant-admin guard locks only the tenant
+root through the common writer fence. It does not read chain leaves, audit
+bodies or signing keys. Fresh creation takes locks in fence/tenant/chain/leaf/key
+order, checks the contiguous nonblank chain index, and reads only the selected
+stored entry hashes: at most 4096 leaves within an 8 MiB encoded-view budget.
+It retains existing Merkle hashing and local Ed25519 signing. An initial key,
+if needed, commits atomically with the signature, batch, caller audit and
+successful replay; read, write, completion or commit failure returns no partial
+success. No signing-provider network call occurs.
+
+Completed retries return the original range, leaves, root and signature
+references without selecting the current chain or signing again. New audit
+entries do not extend a replayed default range. Later source/key corruption
+does not rewrite that saved result or make it current-validity evidence.
+Changed request bytes conflict with `409`; revoked grants return `403` and
+revoked sessions `401`. Explicit local memory uses the same request and current
+authority rules but retains nondurable storage. Creating a batch commits stored
+hashes; it does not independently verify every audit record, establish external
+publication, prove release security or make a legal compliance conclusion.
+
 ### Signed Release Bundle Creation
 
 `POST /v1/release-bundles` requires `bundle:write` (or `admin`) and current

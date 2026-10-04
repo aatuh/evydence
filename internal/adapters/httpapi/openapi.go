@@ -287,10 +287,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"verified_at":    map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "subject_type", "subject_id", "result", "checks", "profile", "limitations", "schema_version", "verified_at"))
 	registry.RegisterSchema("VerificationResultEnvelope", dataEnvelopeSchema("#/components/schemas/VerificationResult"))
-	registry.RegisterSchema("CreateMerkleBatchRequest", objectSchema(map[string]any{
-		"from_sequence": map[string]any{"type": "integer", "format": "int64"},
-		"to_sequence":   map[string]any{"type": "integer", "format": "int64"},
-	}))
+	merkleCreationRequest := objectSchema(map[string]any{
+		"from_sequence": map[string]any{"type": "integer", "format": "int64", "minimum": 0, "description": "Optional nonnegative lower bound; zero or omission selects sequence 1 on fresh creation."},
+		"to_sequence":   map[string]any{"type": "integer", "format": "int64", "minimum": 0, "description": "Optional nonnegative upper bound; zero or omission selects the current last sequence on fresh creation. A nonzero upper bound cannot precede the lower bound."},
+	})
+	merkleCreationRequest["description"] = "Creates a signed commitment to selected stored audit-entry hashes. PostgreSQL uses native durable execution with current tenant-wide keys:admin authority checked before reservation and replay; human sessions need a matching tenant grant. The common writer fence precedes tenant, chain, leaf and signing-key locks. Fresh creation checks the contiguous nonblank chain index and reads at most 4096 selected leaves within an 8 MiB encoded-view budget, without loading audit bodies or unrelated tenant state. Initial key if needed, signature, batch, caller audit and successful replay commit together. Completed replay returns the original range/root/signature references without reading the current chain or signing again; changed request bytes conflict. Both profiles reject unknown, duplicate, case-aliased, explicitly null and malformed fields; the body is capped at 64 KiB. Cookie mutations require same-origin protection. Local memory remains nondurable. Creation does not independently verify every audit record, external publication, release security or legal compliance."
+	registry.RegisterSchema("CreateMerkleBatchRequest", merkleCreationRequest)
 	registry.RegisterSchema("MerkleBatch", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

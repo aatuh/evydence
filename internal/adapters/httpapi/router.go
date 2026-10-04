@@ -523,6 +523,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.SigningKeyCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused signing keys require durable idempotency")
 	}
+	if opts.MerkleCreationCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused Merkle creation requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -3895,27 +3898,6 @@ func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
 	}
 	writeCreatedAtPaginatedWithLegacyLimit(s, w, r, actor, "audit-log", []string{"subject_type", "subject_id", "since"}, entries, func(entry domain.AuditChainEntry) (string, time.Time) {
 		return entry.ID, entry.OccurredAt
-	})
-}
-
-func (s *Server) createMerkleBatch(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		FromSequence int64 `json:"from_sequence"`
-		ToSequence   int64 `json:"to_sequence"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.merkleCreationCommands != nil {
-			if err := validateNonNullableObjectFields(body, "from_sequence", "to_sequence"); err != nil {
-				return 0, nil, err
-			}
-			batch, err := s.merkleCreationCommands.CreateMerkleBatch(ctx, actor, verificationapp.CreateMerkleBatchInput{FromSequence: req.FromSequence, ToSequence: req.ToSequence})
-			return http.StatusCreated, domain.MerkleBatch(batch), mapVerificationCommandError(err)
-		}
-		batch, err := s.verification.CreateMerkleBatch(ctx, actor, app.CreateMerkleBatchInput{FromSequence: req.FromSequence, ToSequence: req.ToSequence})
-		return http.StatusCreated, batch, err
 	})
 }
 

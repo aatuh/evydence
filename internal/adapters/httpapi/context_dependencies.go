@@ -222,6 +222,7 @@ type TransparencyCheckpointCommands interface {
 }
 
 type MerkleCreationCommands interface {
+	AuthorizeMerkleCreation(context.Context, identitydomain.Actor) error
 	CreateMerkleBatch(context.Context, identitydomain.Actor, verificationapp.CreateMerkleBatchInput) (verificationdomain.MerkleBatch, error)
 }
 

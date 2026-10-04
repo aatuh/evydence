@@ -30,10 +30,11 @@ func (t merkleCreationTransactions) ExecuteMerkleCreation(ctx context.Context, f
 	return mapSigningKeyWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
 		reader, ok := repos.Integrity.(verificationapp.MerkleCreationReader)
 		signer, valid := repos.Signatures.(merkleRootSigner)
-		if !ok || !valid || repos.Audit == nil {
+		guard, guarded := repos.Identity.(trustConfigurationTenantGuard)
+		if !ok || !valid || !guarded || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return fn(ctx, merkleCreationTransaction{reader, signer, repos.Integrity, repos.Signatures, repos.Audit})
+		return fn(ctx, merkleCreationTransaction{reader: reader, signer: signer, integrity: repos.Integrity, signatures: repos.Signatures, audit: repos.Audit, guard: guard})
 	}))
 }
 
@@ -43,6 +44,7 @@ type merkleCreationTransaction struct {
 	integrity  app.IntegrityRepository
 	signatures app.SignatureRepository
 	audit      app.AuditRepository
+	guard      trustConfigurationTenantGuard
 }
 
 func (t merkleCreationTransaction) LockMerkleCreationView(ctx context.Context, tenant string) (verificationapp.MerkleCreationView, error) {
@@ -69,7 +71,10 @@ func (t merkleCreationTransaction) InsertMerkleBatch(ctx context.Context, b veri
 	return mapSigningKeyWriteError(t.integrity.InsertMerkleBatch(ctx, domain.MerkleBatch(b)))
 }
 func (t merkleCreationTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	return verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, a, r)
+	if err := verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, a, r); err != nil {
+		return err
+	}
+	return mapSigningKeyWriteError(t.guard.LockAPIKeyCreation(ctx, a.TenantID))
 }
 func (t merkleCreationTransaction) AppendAudit(ctx context.Context, a application.AuditEvent) (application.AuditReceipt, error) {
 	r, err := appendAuditEvent(ctx, t.audit, a)

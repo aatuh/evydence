@@ -6,10 +6,36 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
+
+func TestMerkleCreationReplayGuardDoesNotReadChainOrSign(t *testing.T) {
+	for _, failure := range []string{"", "scope", "auth", "commit"} {
+		c, f := merkleCreationFixture(t)
+		f.fail = failure
+		c.config.Clock = application.ClockFunc(func() time.Time { panic("replay guard read clock") })
+		c.config.IDs = application.IDGeneratorFunc(func(string) string { panic("replay guard generated ID") })
+		err := c.AuthorizeMerkleCreation(t.Context(), identitydomain.Actor{TenantID: "tenant", KeyID: "caller"})
+		if failure == "" && err != nil || failure != "" && err == nil || f.reads+f.signs+len(f.keys)+len(f.sigs)+len(f.batches)+len(f.audits) != 0 {
+			t.Fatal("guard generated or read Merkle state", failure, err)
+		}
+	}
+	c, f := merkleCreationFixture(t)
+	for _, tenant := range []string{" tenant ", "bad\x00", string([]byte{255}), strings.Repeat("t", 1025)} {
+		if err := c.AuthorizeMerkleCreation(t.Context(), identitydomain.Actor{TenantID: tenant, KeyID: "caller"}); !errors.Is(err, ErrValidation) || f.transactions != 0 {
+			t.Fatal("bad tenant reached guard transaction", err)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := c.AuthorizeMerkleCreation(ctx, identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}); !errors.Is(err, context.Canceled) || f.transactions != 0 {
+		t.Fatal("cancelled guard reached transaction", err)
+	}
+}
 
 type merkleCreationFake struct {
 	recordedCheckpointFake

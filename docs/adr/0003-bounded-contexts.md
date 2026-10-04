@@ -443,6 +443,15 @@ requires current authority. Explicit local memory retains nondurable storage
 and its narrow ownership guard. This does not finish broad API startup or the
 remaining command-wrapper cutover. See
 [key lifecycle commands](../api.md#signing-key-lifecycle-commands).
+Merkle-batch creation also uses native durable HTTP execution. Its current
+tenant-admin replay guard reads only the tenant root, not chain leaves or keys.
+The common writer fence now precedes tenant/chain/leaf/key locks, including the
+repository view entry point. Bounded selected hashes retain their existing
+Merkle root and Ed25519 format; initial key, signature, batch, audit and replay
+commit together. Completed retries preserve the original range without signing
+again. This is a stored-hash commitment, not verification of every audit record
+or proof of external publication. See
+[Merkle creation](../api.md#merkle-batch-creation).
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 

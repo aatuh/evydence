@@ -44,19 +44,45 @@ func NewMerkleCreationCommands(c MerkleCreationConfig) (*MerkleCreationCommands,
 	}
 	return &MerkleCreationCommands{c}, nil
 }
+
+// ValidateMerkleCreationInput checks only request shape. Zero bounds retain
+// their historical meaning and are resolved only against a fresh locked view.
+func ValidateMerkleCreationInput(in CreateMerkleBatchInput) error {
+	if in.FromSequence < 0 || in.ToSequence < 0 || in.ToSequence != 0 && in.FromSequence > in.ToSequence {
+		return ErrValidation
+	}
+	return nil
+}
+
+// AuthorizeMerkleCreation is a current tenant-admin replay guard. Native
+// transactions retain the tenant fence/root lock through the outer commit;
+// the guard never reads chain leaves or signing keys, generates IDs or signs.
+func (s *MerkleCreationCommands) AuthorizeMerkleCreation(ctx context.Context, a identitydomain.Actor) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateSigningKeyActor(a); err != nil {
+		return err
+	}
+	r := application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}
+	if err := s.config.Authorizer.Authorize(ctx, a, r); err != nil {
+		return err
+	}
+	return s.config.Transactions.ExecuteMerkleCreation(ctx, func(ctx context.Context, tx MerkleCreationTransaction) error { return tx.Authorize(ctx, a, r) })
+}
 func (s *MerkleCreationCommands) CreateMerkleBatch(ctx context.Context, a identitydomain.Actor, in CreateMerkleBatchInput) (verificationdomain.MerkleBatch, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.MerkleBatch{}, err
 	}
-	if err := validateActor(a); err != nil {
+	if err := validateSigningKeyActor(a); err != nil {
 		return verificationdomain.MerkleBatch{}, err
 	}
 	request := application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, request); err != nil {
 		return verificationdomain.MerkleBatch{}, err
 	}
-	if in.FromSequence < 0 || in.ToSequence < 0 || in.ToSequence != 0 && in.FromSequence > in.ToSequence {
-		return verificationdomain.MerkleBatch{}, ErrValidation
+	if err := ValidateMerkleCreationInput(in); err != nil {
+		return verificationdomain.MerkleBatch{}, err
 	}
 	var result verificationdomain.MerkleBatch
 	err := s.config.Transactions.ExecuteMerkleCreation(ctx, func(ctx context.Context, tx MerkleCreationTransaction) error {
