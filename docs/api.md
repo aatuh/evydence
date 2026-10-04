@@ -2748,6 +2748,49 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### Object Retention Policy Creation And Verification
+
+`POST /v1/object-retention-policies` requires current tenant-wide `admin`
+authority; `POST /v1/object-retention-policies/{id}/verify` requires current
+tenant-wide `verify:read`. Human sessions need a matching tenant grant;
+product/release grants are insufficient. Creation records intent and does not
+call the provider or prove object-lock enforcement. Verification without a
+configured provider records `not_verified`, not an enforcement claim.
+
+In PostgreSQL mode both routes use focused commands and native durable replay,
+without a Ledger clone or whole-state read. Current authorization and tenant
+existence precede reservation and replay. Verification additionally locks only
+the current tenant-owned policy identity: replay does not load changed receipt
+metadata or repeat a provider call. The common tenant mutation fence precedes
+tenant/policy/audit locks, which remain held through the outer transaction.
+Fresh verification reads one bounded policy and compares the complete original
+snapshot before writing, so even same-status receipt races fail closed.
+
+Policy changes, their caller audit entry, and successful replay commit together.
+A same-key retry returns the original public result, including its safe
+tenant-prefixed sample `object_key`; changed request bytes return `409`.
+Private payload references and credential-like text retain ordinary replay
+redaction. Previously stored, already-redacted replay records are not rebuilt
+or backfilled from current policy data. Revoked tenant grants return `403`,
+revoked sessions `401`, and
+missing/foreign policies `404`. Command failure may retain a safe failed-key
+marker without a result; replay-write or outer commit failure rolls back
+entirely. A provider observation cannot be rolled back by database failure,
+and a fresh retry may therefore observe the provider again.
+
+Both profiles cap the JSON body at 64 KiB and reject unknown, duplicate,
+case-aliased, explicitly null, invalid UTF-8/NUL, and over-budget inputs.
+Name, mode, object prefix, and object key are bounded at 4096 raw UTF-8 bytes
+before trimming; verification IDs have a 1024-byte raw bound. Retention days
+must be `1..2147483647`. The maximum observation age defaults to 24 hours;
+an explicitly supplied value must be `1..8784`. A blank optional prefix
+defaults to `tenants/<tenant_id>/`; sample keys must be under the chosen
+tenant-owned prefix, and `require_legal_hold: true` requires a sample key.
+Verification accepts `{}` and retains legacy blank-body compatibility.
+Cookie-authenticated mutations require a same-host HTTPS Origin; explicit
+bearer credentials retain precedence. Local memory keeps nondurable replay
+and the same normalization and current tenant-wide authorization rules.
+
 ### Signing Provider And DSSE Trust Configuration
 
 `POST /v1/signing-providers` records a provider type and credential-free key

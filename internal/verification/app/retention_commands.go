@@ -25,6 +25,8 @@ type RetentionPolicyRepository interface {
 }
 type RetentionTransaction interface {
 	RetentionPolicyRepository
+	// Lock only current tenant/policy identity, not mutable receipt metadata.
+	LockObjectRetentionPolicy(context.Context, string, string) error
 	application.Authorizer
 	application.AuditAppender
 }
@@ -58,6 +60,49 @@ func NewRetentionCommands(config RetentionCommandConfig) (*RetentionCommands, er
 }
 func (s *RetentionCommands) authorize(ctx context.Context, actor identitydomain.Actor, scope string) error {
 	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, TenantWide: true})
+}
+
+func (s *RetentionCommands) AuthorizeCreateObjectRetentionPolicy(ctx context.Context, actor identitydomain.Actor, input CreateObjectRetentionPolicyInput) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateActor(actor); err != nil {
+		return err
+	}
+	if _, err := NormalizeObjectRetentionPolicyInput(actor.TenantID, input); err != nil {
+		return err
+	}
+	if err := s.authorize(ctx, actor, ScopeAdmin); err != nil {
+		return err
+	}
+	return s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true})
+	})
+}
+
+// AuthorizeVerifyObjectRetentionPolicy runs before reservation/replay. It
+// checks current access and locks only the owned policy coordinate, so saved
+// receipts do not require rebuilding an observation or revalidating metadata.
+func (s *RetentionCommands) AuthorizeVerifyObjectRetentionPolicy(ctx context.Context, actor identitydomain.Actor, id string) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateActor(actor); err != nil {
+		return err
+	}
+	id, err := NormalizeObjectRetentionPolicyID(id)
+	if err != nil {
+		return err
+	}
+	if err := s.authorize(ctx, actor, ScopeVerifyRead); err != nil {
+		return err
+	}
+	return s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
+			return err
+		}
+		return tx.LockObjectRetentionPolicy(ctx, actor.TenantID, id)
+	})
 }
 func (s *RetentionCommands) auditEvent(actor identitydomain.Actor, at time.Time, kind, id string) application.AuditEvent {
 	return application.AuditEvent{ID: s.ids.NewID("ace"), TenantID: actor.TenantID, EntryType: kind, SubjectType: "object_retention_policy", SubjectID: id, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: at.UTC()}
@@ -96,4 +141,17 @@ type serviceRetentionTransaction struct {
 	RetentionPolicyRepository
 	application.Authorizer
 	application.AuditAppender
+}
+
+// Compatibility-only local transactions have no SQL root-lock port. They
+// resolve the same tenant-owned identity through their local repository.
+func (t serviceRetentionTransaction) LockObjectRetentionPolicy(ctx context.Context, tenant, id string) error {
+	v, err := t.GetObjectRetentionPolicyForUpdate(ctx, tenant, id)
+	if err != nil {
+		return err
+	}
+	if v.ID != id || v.TenantID != tenant {
+		return ErrNotFound
+	}
+	return nil
 }

@@ -26,16 +26,21 @@ func BuildRetentionCommands(reader verificationapp.RetentionPolicyReader, factor
 
 type retentionPolicyLocker interface {
 	GetObjectRetentionPolicyForUpdate(context.Context, string, string) (verificationdomain.ObjectRetentionPolicy, error)
+	LockObjectRetentionPolicy(context.Context, string, string) error
+}
+type retentionTenantGuard interface {
+	LockAPIKeyCreation(context.Context, string) error
 }
 type retentionTransactions struct{ factory app.UnitOfWorkFactory }
 
 func (t retentionTransactions) ExecuteRetentionCommand(ctx context.Context, command func(context.Context, verificationapp.RetentionTransaction) error) error {
 	return mapSigningKeyWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
 		reader, ok := repos.Integrity.(retentionPolicyLocker)
-		if !ok || repos.Audit == nil {
+		guard, canGuard := repos.Identity.(retentionTenantGuard)
+		if !ok || !canGuard || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, retentionTransaction{reader, repos.Integrity, repos.Audit})
+		return command(ctx, retentionTransaction{reader: reader, integrity: repos.Integrity, audit: repos.Audit, guard: guard})
 	}))
 }
 
@@ -43,6 +48,11 @@ type retentionTransaction struct {
 	reader    retentionPolicyLocker
 	integrity app.IntegrityRepository
 	audit     app.AuditRepository
+	guard     retentionTenantGuard
+}
+
+func (t retentionTransaction) LockObjectRetentionPolicy(ctx context.Context, tenant, id string) error {
+	return mapSigningKeyWriteError(t.reader.LockObjectRetentionPolicy(ctx, tenant, id))
 }
 
 func (t retentionTransaction) GetObjectRetentionPolicyForUpdate(ctx context.Context, tenantID, id string) (verificationdomain.ObjectRetentionPolicy, error) {
@@ -56,7 +66,12 @@ func (t retentionTransaction) UpdateObjectRetentionPolicy(ctx context.Context, p
 	return mapSigningKeyWriteError(t.integrity.UpdateObjectRetentionPolicy(ctx, domain.ObjectRetentionPolicyFromContextModel(policy), expected))
 }
 func (t retentionTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	return verificationquery.NewRetentionAuthorizer().Authorize(ctx, actor, request)
+	if err := verificationquery.NewRetentionAuthorizer().Authorize(ctx, actor, request); err != nil {
+		return err
+	}
+	// Fence before tenant/policy/audit locks; a native HTTP request joins its
+	// enclosing replay transaction and holds the guard until outer commit.
+	return mapSigningKeyWriteError(t.guard.LockAPIKeyCreation(ctx, actor.TenantID))
 }
 func (t retentionTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
 	receipt, err := appendAuditEvent(ctx, t.audit, event)

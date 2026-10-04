@@ -66,6 +66,39 @@ type BackupSnapshot struct {
 	ConsistencyChecks []verificationdomain.VerifyCheck
 }
 
+// NormalizeObjectRetentionPolicyInput checks raw scalar budgets before trimming
+// and shares defaults and tenant-prefix rules across both runtime profiles.
+func NormalizeObjectRetentionPolicyInput(tenantID string, input CreateObjectRetentionPolicyInput) (CreateObjectRetentionPolicyInput, error) {
+	if !validRetentionText(tenantID, 1024) || strings.TrimSpace(tenantID) != tenantID || !validRetentionText(input.Name, 4096) || !validRetentionText(input.Mode, 4096) || len(input.ObjectPrefix) > 4096 || len(input.ObjectKey) > 4096 || !utf8.ValidString(input.ObjectPrefix) || !utf8.ValidString(input.ObjectKey) || strings.ContainsRune(input.ObjectPrefix, 0) || strings.ContainsRune(input.ObjectKey, 0) {
+		return CreateObjectRetentionPolicyInput{}, ErrValidation
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	input.ObjectPrefix = strings.TrimSpace(input.ObjectPrefix)
+	input.ObjectKey = strings.TrimSpace(input.ObjectKey)
+	input.Mode = strings.TrimSpace(input.Mode)
+	if input.MaxVerificationAgeHours == 0 {
+		input.MaxVerificationAgeHours = defaultRetentionVerificationAgeHours
+	}
+	if input.ObjectPrefix == "" {
+		input.ObjectPrefix = "tenants/" + tenantID + "/"
+	}
+	if !validObjectRetentionPolicyInput(tenantID, input) {
+		return CreateObjectRetentionPolicyInput{}, ErrValidation
+	}
+	return input, nil
+}
+
+func NormalizeObjectRetentionPolicyID(id string) (string, error) {
+	if len(id) > 1024 || !utf8.ValidString(id) || strings.ContainsRune(id, 0) {
+		return "", ErrValidation
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "", ErrNotFound
+	}
+	return id, nil
+}
+
 func (s *RetentionCommands) CreateObjectRetentionPolicy(ctx context.Context, actor identitydomain.Actor, input CreateObjectRetentionPolicyInput) (verificationdomain.ObjectRetentionPolicy, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
@@ -76,18 +109,9 @@ func (s *RetentionCommands) CreateObjectRetentionPolicy(ctx context.Context, act
 	if err := s.authorize(ctx, actor, ScopeAdmin); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.ObjectPrefix = strings.TrimSpace(input.ObjectPrefix)
-	input.ObjectKey = strings.TrimSpace(input.ObjectKey)
-	input.Mode = strings.TrimSpace(input.Mode)
-	if input.MaxVerificationAgeHours == 0 {
-		input.MaxVerificationAgeHours = defaultRetentionVerificationAgeHours
-	}
-	if input.ObjectPrefix == "" {
-		input.ObjectPrefix = "tenants/" + actor.TenantID + "/"
-	}
-	if !validObjectRetentionPolicyInput(actor.TenantID, input) {
-		return verificationdomain.ObjectRetentionPolicy{}, ErrValidation
+	input, err := NormalizeObjectRetentionPolicyInput(actor.TenantID, input)
+	if err != nil {
+		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	now := s.clock.Now().UTC()
 	policy := verificationdomain.ObjectRetentionPolicy{
@@ -96,7 +120,7 @@ func (s *RetentionCommands) CreateObjectRetentionPolicy(ctx context.Context, act
 		MaxVerificationAgeHours: input.MaxVerificationAgeHours, Status: "configured",
 		SchemaVersion: verificationdomain.ObjectRetentionPolicyVersion, CreatedAt: now,
 	}
-	err := s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
+	err = s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
 		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}); err != nil {
 			return err
 		}
@@ -122,12 +146,9 @@ func (s *RetentionCommands) VerifyObjectRetentionPolicy(ctx context.Context, act
 	if err := s.authorize(ctx, actor, ScopeVerifyRead); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return verificationdomain.ObjectRetentionPolicy{}, ErrNotFound
-	}
-	if !validRetentionText(id, 1024) {
-		return verificationdomain.ObjectRetentionPolicy{}, ErrValidation
+	id, err := NormalizeObjectRetentionPolicyID(id)
+	if err != nil {
+		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	policy, err := s.reader.ReadObjectRetentionPolicy(ctx, actor.TenantID, id)
 	if err != nil {

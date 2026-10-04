@@ -116,6 +116,8 @@ type SigningKeyCommands interface {
 }
 
 type RetentionCommands interface {
+	AuthorizeCreateObjectRetentionPolicy(context.Context, identitydomain.Actor, verificationapp.CreateObjectRetentionPolicyInput) error
+	AuthorizeVerifyObjectRetentionPolicy(context.Context, identitydomain.Actor, string) error
 	CreateObjectRetentionPolicy(context.Context, identitydomain.Actor, verificationapp.CreateObjectRetentionPolicyInput) (verificationdomain.ObjectRetentionPolicy, error)
 	VerifyObjectRetentionPolicy(context.Context, identitydomain.Actor, string) (verificationdomain.ObjectRetentionPolicy, error)
 }

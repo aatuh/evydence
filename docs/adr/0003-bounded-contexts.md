@@ -393,6 +393,20 @@ explicit local memory retains nondurable replay. Registration establishes
 neither key custody nor authenticated builder identity. Broad API startup
 and other compatibility-backed operations remain EVY-905 work. See
 [trust configuration](../api.md#signing-provider-and-dsse-trust-configuration).
+Object-retention creation and verification also use Verification-owned commands
+with native durable replay. Current tenant-wide `admin`/`verify:read` authority
+and the actor-tenant existence guard precede reservation; verification locks
+only the owned policy ID before replay, never changed receipt metadata. The
+common writer fence precedes tenant/policy/audit locks and survives through
+the outer commit and any fresh provider observation. Fresh commands retain
+bounded policy reads, complete-snapshot compare-and-swap, and atomic receipt,
+audit-hash and replay writes. A validated public retention DTO may preserve
+its safe tenant-prefixed sample key in replay; arbitrary storage references
+and diagnostic secrets keep the generic denylist. Provider observations are
+not rolled back by database failure and local intent is not enforcement proof.
+Explicit local memory retains nondurable compatibility storage. API startup
+and the remaining command wrappers still require EVY-905 migration. See
+[retention commands](../api.md#object-retention-policy-creation-and-verification).
 Signing-key pages use a verification-owned tenant-scoped query that selects
 only public lifecycle metadata and applies a keyset limit in PostgreSQL;
 human sessions need a current tenant-level `verify:read` grant.

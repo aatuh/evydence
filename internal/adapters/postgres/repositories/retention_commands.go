@@ -76,3 +76,16 @@ func validRetentionCoordinate(value string) bool {
 func (r integrity) GetObjectRetentionPolicyForUpdate(ctx context.Context, tenantID, id string) (verificationdomain.ObjectRetentionPolicy, error) {
 	return ReadObjectRetentionPolicy(ctx, r.tx, tenantID, id, true)
 }
+
+// Replay authorization needs only current ownership/existence, not potentially
+// changed or oversized observation metadata. The caller takes the tenant
+// mutation fence before this row lock and holds it through outer commit.
+func (r integrity) LockObjectRetentionPolicy(ctx context.Context, tenantID, id string) error {
+	if ctx == nil || r.tx == nil || !validRetentionCoordinate(tenantID) || !validRetentionCoordinate(id) {
+		return app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return requireRow(ctx, r.tx, `SELECT 1 FROM object_retention_policies WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id)
+}

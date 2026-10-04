@@ -323,15 +323,17 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "batch_id", "provider", "timestamp_hash", "state", "schema_version", "created_at"))
 	registry.RegisterSchema("TransparencyCheckpointEnvelope", dataEnvelopeSchema("#/components/schemas/TransparencyCheckpoint"))
-	registry.RegisterSchema("CreateObjectRetentionPolicyRequest", objectSchema(map[string]any{
-		"name":                       map[string]any{"type": "string"},
-		"object_prefix":              map[string]any{"type": "string"},
-		"object_key":                 map[string]any{"type": "string", "description": "Optional tenant-prefixed sample object key used for object-level retention verification when supported by the object store."},
+	createObjectRetentionPolicyRequest := objectSchema(map[string]any{
+		"name":                       map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Nonblank name; raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
+		"object_prefix":              map[string]any{"type": "string", "maxLength": 4096, "description": "Tenant-owned object-store prefix, defaulting to tenants/<tenant_id>/. Raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
+		"object_key":                 map[string]any{"type": "string", "maxLength": 4096, "description": "Optional sample object key under the policy's tenant-owned prefix; required when require_legal_hold is true. Raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
 		"require_legal_hold":         map[string]any{"type": "boolean", "description": "When true, the sample object key must have provider-reported legal hold enabled."},
-		"mode":                       map[string]any{"type": "string", "enum": []string{"governance", "compliance"}},
-		"retention_days":             map[string]any{"type": "integer", "minimum": 1},
+		"mode":                       map[string]any{"type": "string", "enum": []string{"governance", "compliance"}, "maxLength": 4096, "description": "Raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
+		"retention_days":             map[string]any{"type": "integer", "minimum": 1, "maximum": 2147483647},
 		"max_verification_age_hours": map[string]any{"type": "integer", "minimum": 1, "maximum": 8784, "description": "Maximum age of a successful provider observation before it is reported as stale. Defaults to 24 hours."},
-	}, "name", "mode", "retention_days"))
+	}, "name", "mode", "retention_days")
+	createObjectRetentionPolicyRequest["description"] = "Records retention intent only; creation does not prove provider enforcement. PostgreSQL uses focused durable commands without Ledger replay. Current tenant-wide admin authority and tenant existence are checked before reservation and replay. Policy, audit and successful replay commit together. Both profiles reject unknown, duplicate, case-aliased, explicitly null, invalid UTF-8/NUL or over-budget fields before execution; the whole JSON body is capped at 64 KiB. Unsafe cookie-authenticated mutations require same-origin protection. Local memory retains explicit nondurable replay."
+	registry.RegisterSchema("CreateObjectRetentionPolicyRequest", createObjectRetentionPolicyRequest)
 	registry.RegisterSchema("ObjectRetentionPolicy", objectSchema(map[string]any{
 		"id":                          map[string]any{"type": "string"},
 		"tenant_id":                   map[string]any{"type": "string"},

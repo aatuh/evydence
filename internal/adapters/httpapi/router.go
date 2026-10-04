@@ -516,6 +516,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.TrustConfigurationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused trust configuration requires durable idempotency")
 	}
+	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused retention requires durable idempotency")
+	}
 	if opts.SaaSProfileCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SaaS profiles require durable idempotency")
 	}
@@ -3961,56 +3964,6 @@ func (s *Server) createTransparencyCheckpoint(w http.ResponseWriter, r *http.Req
 		}
 		checkpoint, err := s.verification.CreateTransparencyCheckpoint(ctx, actor, app.CreateTransparencyCheckpointInput{BatchID: req.BatchID, Provider: req.Provider, ExternalURL: req.ExternalURL, ExternalID: req.ExternalID})
 		return http.StatusCreated, checkpoint, err
-	})
-}
-
-func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name                    string `json:"name"`
-		ObjectPrefix            string `json:"object_prefix"`
-		ObjectKey               string `json:"object_key"`
-		RequireLegalHold        bool   `json:"require_legal_hold"`
-		Mode                    string `json:"mode"`
-		RetentionDays           int    `json:"retention_days"`
-		MaxVerificationAgeHours *int   `json:"max_verification_age_hours"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body, "name", "mode", "retention_days", "object_prefix", "object_key", "require_legal_hold", "max_verification_age_hours"); err != nil {
-			return 0, nil, err
-		}
-		age := 0
-		if req.MaxVerificationAgeHours != nil {
-			age = *req.MaxVerificationAgeHours
-			if age < 1 || age > 8784 {
-				return 0, nil, app.ErrValidation
-			}
-		}
-		if s.retentionCommands != nil {
-			policy, err := s.retentionCommands.CreateObjectRetentionPolicy(ctx, actor, verificationapp.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays, MaxVerificationAgeHours: age})
-			return http.StatusCreated, domain.ObjectRetentionPolicyFromContextModel(policy), mapSigningKeyCommandError(err)
-		}
-		policy, err := s.verification.CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput{Name: req.Name, ObjectPrefix: req.ObjectPrefix, ObjectKey: req.ObjectKey, RequireLegalHold: req.RequireLegalHold, Mode: req.Mode, RetentionDays: req.RetentionDays, MaxVerificationAgeHours: age})
-		return http.StatusCreated, policy, err
-	})
-}
-
-func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &struct{}{}); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body); err != nil {
-			return 0, nil, err
-		}
-		if s.retentionCommands != nil {
-			policy, err := s.retentionCommands.VerifyObjectRetentionPolicy(ctx, actor, r.PathValue("id"))
-			return http.StatusOK, domain.ObjectRetentionPolicyFromContextModel(policy), mapSigningKeyCommandError(err)
-		}
-		policy, err := s.verification.VerifyObjectRetentionPolicy(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, policy, err
 	})
 }
 

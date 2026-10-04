@@ -302,6 +302,9 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 	if link, ok := publicSSOIdentityLinkReplay(decoded); ok {
 		return link, nil
 	}
+	if policy, ok := publicObjectRetentionReplay(decoded); ok {
+		return policy, nil
+	}
 	if !changed {
 		return response, nil
 	}
