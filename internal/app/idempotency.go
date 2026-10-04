@@ -305,6 +305,9 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 	if policy, ok := publicObjectRetentionReplay(decoded); ok {
 		return policy, nil
 	}
+	if bundle, ok := publicSignedReleaseBundleReplay(decoded); ok {
+		return bundle, nil
+	}
 	if !changed {
 		return response, nil
 	}

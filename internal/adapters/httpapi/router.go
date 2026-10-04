@@ -526,6 +526,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.RetentionMarkerCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention markers require durable idempotency")
 	}
+	if opts.ReleaseBundleCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused release bundles require durable idempotency")
+	}
 	if opts.SaaSProfileCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SaaS profiles require durable idempotency")
 	}
@@ -3748,23 +3751,7 @@ func (s *Server) securityUpdateEvidenceReport(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) createReleaseBundle(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ReleaseID string `json:"release_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if strings.TrimSpace(req.ReleaseID) == "" {
-			return 0, nil, app.ErrValidation
-		}
-		if s.releaseBundleCommands != nil {
-			bundle, err := s.releaseBundleCommands.CreateReleaseBundle(ctx, actor, req.ReleaseID)
-			return http.StatusCreated, releaseBundleFromQuery(bundle), mapCustomerPackageAccessError(err)
-		}
-		bundle, err := s.packages.CreateReleaseBundle(ctx, actor, req.ReleaseID)
-		return http.StatusCreated, bundle, err
-	})
+	s.createReleaseBundleCommand(w, r)
 }
 
 func (s *Server) getReleaseBundle(w http.ResponseWriter, r *http.Request) {

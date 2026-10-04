@@ -33,16 +33,18 @@ func (t releaseBundleTransactions) ExecuteReleaseBundle(ctx context.Context, com
 	return mapPackageAccessWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
 		locker, ok := repos.Packages.(releaseBundleParentLocker)
 		validator, valid := repos.Signatures.(packageSignatureValidator)
-		if !ok || !valid || repos.Audit == nil || repos.Outbox == nil {
+		fence, canFence := repos.Identity.(retentionTenantGuard)
+		if !ok || !valid || !canFence || repos.Audit == nil || repos.Outbox == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, releaseBundleTransaction{repos.Packages, locker, repos.Signatures, validator, repos.Audit, repos.Outbox})
+		return command(ctx, releaseBundleTransaction{repos.Packages, locker, fence, repos.Signatures, validator, repos.Audit, repos.Outbox})
 	}))
 }
 
 type releaseBundleTransaction struct {
 	packages   app.PackageRepository
 	parent     releaseBundleParentLocker
+	fence      retentionTenantGuard
 	signatures app.SignatureRepository
 	validator  packageSignatureValidator
 	audit      app.AuditRepository
@@ -50,14 +52,25 @@ type releaseBundleTransaction struct {
 }
 
 func (t releaseBundleTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	productID, err := t.parent.LockReleaseBundleParent(ctx, actor.TenantID, request.Resources.ReleaseID)
+	if err := packagequery.NewReleaseBundleAuthorizer().Authorize(ctx, actor, request); err != nil {
+		return err
+	}
+	productID, err := t.LockReleaseBundleCreationScope(ctx, actor.TenantID, request.Resources.ReleaseID)
 	if err != nil {
 		return mapPackageAccessWriteError(err)
 	}
 	if productID != request.Resources.ProductID {
 		return packageapp.ErrConflict
 	}
-	return packagequery.NewReleaseBundleAuthorizer().Authorize(ctx, actor, request)
+	return nil
+}
+
+func (t releaseBundleTransaction) LockReleaseBundleCreationScope(ctx context.Context, tenant, release string) (string, error) {
+	if err := t.fence.LockAPIKeyCreation(ctx, tenant); err != nil {
+		return "", mapPackageAccessWriteError(err)
+	}
+	product, err := t.parent.LockReleaseBundleParent(ctx, tenant, release)
+	return product, mapPackageAccessWriteError(err)
 }
 func (t releaseBundleTransaction) InsertReleaseBundleSignature(ctx context.Context, signature packageapp.PackageSignature, hash string) error {
 	return insertValidatedPackageSignature(ctx, t.signatures, t.validator, signature, hash)

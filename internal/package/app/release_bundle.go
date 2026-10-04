@@ -74,8 +74,9 @@ func (s *ReleaseBundleCommands) CreateReleaseBundle(ctx context.Context, actor i
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", ScopeOnly: true}); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
-	releaseID = strings.TrimSpace(releaseID)
-	if releaseID == "" {
+	var normalizeErr error
+	releaseID, normalizeErr = NormalizeReleaseBundleID(releaseID)
+	if normalizeErr != nil || !graphID(actor.TenantID) {
 		return packagedomain.ReleaseBundle{}, ErrValidation
 	}
 	now := s.config.Clock.Now().UTC()
@@ -106,6 +107,10 @@ func (s *ReleaseBundleCommands) CreateReleaseBundle(ctx context.Context, actor i
 		"generated_at":       now.Format(time.RFC3339Nano),
 		"generator":          map[string]any{"name": "evydence", "version": "dev"},
 		"object_lock_proofs": cloneBundleMapSlice(snapshot.ObjectLockProofs),
+	}
+	manifest, err = SanitizeReleaseBundleManifest(manifest)
+	if err != nil {
+		return packagedomain.ReleaseBundle{}, err
 	}
 	manifestHash, err := s.config.Hasher.HashPackageManifest(ctx, manifest)
 	if err != nil {

@@ -407,6 +407,20 @@ not rolled back by database failure and local intent is not enforcement proof.
 Explicit local memory retains nondurable compatibility storage. API startup
 and the remaining command wrappers still require EVY-905 migration. See
 [retention commands](../api.md#object-retention-policy-creation-and-verification).
+Package-owned release-bundle creation now uses native durable replay with a
+flat current release/product guard. The actor-tenant fence precedes parent
+share locks held through bundle/signature/audit/job/replay commit. Completed
+replay does not read a manifest snapshot, select signing material, or sign
+again. Fresh creation retains the bounded repeatable-read snapshot and exact
+local Ed25519 format; its transaction revalidates public key lifecycle and the
+signature. Explicit local memory keeps its compatibility store with a narrow
+current-root/grant check. Fresh manifests sanitize private fields and sensitive
+text before hashing; a hash-bound, versioned creation projection preserves only
+the public retention-location presence flag during replay. Generic redaction
+is unchanged and old redacted replies are not backfilled. This does not retire
+API startup or prove current key
+validity, evidence completeness, release security, or legal compliance. See
+[bundle creation](../api.md#signed-release-bundle-creation).
 Operations-owned legal-hold and retention-extension appends now use narrow
 transactions with flat tenant/subject locks, current tenant-wide administration,
 and native durable replay. The actor-tenant fence precedes subject share locks,

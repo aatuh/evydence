@@ -2640,9 +2640,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"next_cursor": map[string]any{"type": "string"},
 	}, "items"))
 	registry.RegisterSchema("EvidenceSearchEnvelope", dataArrayEnvelopeSchema("#/components/schemas/EvidenceItem"))
-	registry.RegisterSchema("CreateReleaseBundleRequest", objectSchema(map[string]any{
-		"release_id": map[string]any{"type": "string"},
-	}, "release_id"))
+	registry.RegisterSchema("CreateReleaseBundleRequest", releaseBundleCreationSchema())
 	registry.RegisterSchema("ReleaseBundleManifest", objectSchema(map[string]any{
 		"manifest_version": map[string]any{"type": "string"},
 		"bundle_id":        map[string]any{"type": "string"},

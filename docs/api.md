@@ -2748,6 +2748,48 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### Signed Release Bundle Creation
+
+`POST /v1/release-bundles` requires `bundle:write` (or `admin`) and current
+tenant-owned release/product access. Human sessions need a matching tenant,
+product, or release grant; a project grant cannot authorize this operation.
+The body contains only `release_id`: nonblank NUL-free UTF-8, at most 1024 raw
+bytes before trimming. Both profiles cap the body at 64 KiB and reject unknown,
+duplicate, case-aliased, explicitly null, invalid UTF-8, and over-budget inputs.
+Cookie mutations require same-host HTTPS Origin; explicit bearer credentials
+retain precedence.
+
+PostgreSQL uses native durable execution without a Ledger command clone or
+whole-state read. Before reservation and every replay, the command fences the
+actor tenant, share-locks only the owned release and its owned product, and
+checks current scoped authority. Locks remain held through the outer commit.
+Missing/foreign roots return `404`; revoked grants return `403` and revoked
+sessions `401`, without recording a successful replay.
+
+Fresh creation reads the bounded, complete manifest snapshot in one
+repeatable-read view, uses the existing local Ed25519 signature format, and
+revalidates the public signing-key lifecycle and signature before insertion.
+Private fields and credential/PII-like text are sanitized before hashing and
+signing. Retention proofs retain only boolean location-presence facts, not
+object paths; the public `sample_object_key_configured` flag remains part of
+the signed commitment.
+Bundle, signature, caller audit entry, `sign_bundle` job, and successful replay
+commit atomically. Command failures may retain only a safe failed-key marker;
+replay completion or outer commit failure rolls back entirely.
+
+Same-key/same-bytes replay returns the original public response values, without
+reading changed manifest inputs, selecting signing-key material, signing again,
+or adding another job/audit. JSON object key order is not significant. Changed
+request bytes return `409`. Historical replay does not assert that its signing
+key remains active today; use the verification endpoint for a current result.
+Replay preserves the flag only in an explicit, already-public, versioned
+creation DTO whose manifest still matches its exact hash. Generic redaction
+is unchanged. Previously saved, already-redacted replies are not rebuilt or
+backfilled from current bundle records.
+Explicit local memory retains nondurable compatibility storage and current
+scoped access checks. A signed bundle is technical evidence, not a legal
+compliance conclusion, complete evidence, or a guarantee of release security.
+
 ### Legal Holds And Retention Extensions
 
 `POST /v1/legal-holds` and `POST /v1/retention-overrides` append tenant-scoped

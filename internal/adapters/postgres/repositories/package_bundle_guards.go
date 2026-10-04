@@ -6,17 +6,29 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 )
 
 // LockReleaseBundleParent prevents reparenting across the write transaction.
 // Both the release and its parent product must belong to the requested tenant.
 func (r packages) LockReleaseBundleParent(ctx context.Context, tenantID, releaseID string) (string, error) {
+	if ctx == nil || r.tx == nil || !validRetentionCoordinate(tenantID) {
+		return "", app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	id, normalizeErr := packageapp.NormalizeReleaseBundleID(releaseID)
+	if normalizeErr != nil || id != releaseID {
+		return "", app.ErrValidation
+	}
 	var productID string
 	var oversized bool
 	err := r.tx.QueryRow(ctx, `SELECT left(r.product_id,1025),octet_length(r.product_id)>1024
@@ -28,7 +40,7 @@ func (r packages) LockReleaseBundleParent(ctx context.Context, tenantID, release
 	if err != nil {
 		return "", fmt.Errorf("lock bundle release scope: %w", err)
 	}
-	if oversized || productID == "" {
+	if oversized || productID == "" || strings.TrimSpace(productID) != productID {
 		return "", app.ErrConflict
 	}
 	return productID, nil

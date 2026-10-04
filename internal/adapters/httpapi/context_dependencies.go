@@ -103,6 +103,7 @@ type BundleImportCommand interface {
 }
 
 type ReleaseBundleCommands interface {
+	AuthorizeReleaseBundleCreation(context.Context, identitydomain.Actor, string) error
 	CreateReleaseBundle(context.Context, identitydomain.Actor, string) (packagedomain.ReleaseBundle, error)
 }
 
