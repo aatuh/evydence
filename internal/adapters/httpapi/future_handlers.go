@@ -78,18 +78,30 @@ func (s *Server) createGraphSnapshot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSaaSEditionProfile(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name           string `json:"name"`
-		Region         string `json:"region"`
-		AdminTenantID  string `json:"admin_tenant_id"`
-		IsolationModel string `json:"isolation_model"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.saasProfileCommands != nil {
+		s.createDurableSaaSProfile(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodeSaaSProfileRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
 		profile, err := s.ledger.CreateSaaSEditionProfile(ctx, actor, app.CreateSaaSEditionProfileInput{Name: req.Name, Region: req.Region, AdminTenantID: req.AdminTenantID, IsolationModel: req.IsolationModel})
 		return http.StatusCreated, profile, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodeSaaSProfileRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeCreateSaaSEditionProfile(r.Context(), a, app.CreateSaaSEditionProfileInput{Name: in.Name, Region: in.Region, AdminTenantID: in.AdminTenantID, IsolationModel: in.IsolationModel}); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

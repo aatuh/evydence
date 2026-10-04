@@ -369,35 +369,30 @@ func (l *Ledger) CreateSaaSEditionProfile(ctx context.Context, actor domain.Acto
 	if err := ctx.Err(); err != nil {
 		return domain.SaaSEditionProfile{}, err
 	}
-	if !actorHasExactScope(actor, ScopeInstanceAdmin) {
-		return domain.SaaSEditionProfile{}, ErrForbidden
+	if err := l.AuthorizeCreateSaaSEditionProfile(ctx, actor, in); err != nil {
+		return domain.SaaSEditionProfile{}, err
 	}
-	name, region, adminTenantID, isolation := strings.TrimSpace(in.Name), strings.TrimSpace(in.Region), strings.TrimSpace(in.AdminTenantID), strings.TrimSpace(in.IsolationModel)
-	if name == "" || region == "" || adminTenantID == "" || isolation == "" {
-		return domain.SaaSEditionProfile{}, ErrValidation
+	normalized, err := experimentalapp.NormalizeSaaSProfileInput(saasProfileInput(in))
+	if err != nil {
+		return domain.SaaSEditionProfile{}, fromExperimentalCommandError(err)
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if _, ok := l.tenants[adminTenantID]; !ok {
+	if _, ok := l.tenants[normalized.AdminTenantID]; !ok {
 		return domain.SaaSEditionProfile{}, ErrNotFound
 	}
-	cfgHash, err := canonicalAnyHash(in)
+	if _, ok := l.tenants[actor.TenantID]; !ok {
+		return domain.SaaSEditionProfile{}, ErrNotFound
+	}
+	cfgHash, err := experimentalapp.SaaSProfileConfigHash(saasProfileInput(in))
 	if err != nil {
 		return domain.SaaSEditionProfile{}, err
 	}
-	profile := domain.SaaSEditionProfile{
-		ID:             newID("saas"),
-		TenantID:       actor.TenantID,
-		Name:           name,
-		Region:         region,
-		AdminTenantID:  adminTenantID,
-		IsolationModel: isolation,
-		Status:         "proposed",
-		ConfigHash:     cfgHash,
-		Limitations:    []string{"This profile records SaaS edition configuration intent; it is not a deployment readiness certification."},
-		SchemaVersion:  domain.SaaSEditionProfileVersion,
-		CreatedAt:      l.now(),
+	projection, err := experimentalapp.BuildSaaSProfile(newID("saas"), actor.TenantID, normalized, cfgHash, l.now())
+	if err != nil {
+		return domain.SaaSEditionProfile{}, fromExperimentalCommandError(err)
 	}
+	profile := SaaSProfileLegacyRecord(projection)
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -410,11 +405,11 @@ func (l *Ledger) CreateSaaSEditionProfile(ctx context.Context, actor domain.Acto
 		}); err != nil {
 			return domain.SaaSEditionProfile{}, err
 		}
-		l.saasProfiles[profile.ID] = profile
+		l.saasProfiles[profile.ID] = SaaSProfileLegacyRecord(projection)
 		l.publishCommittedAuditEntryLocked(entry)
 		return profile, nil
 	}
-	l.saasProfiles[profile.ID] = profile
+	l.saasProfiles[profile.ID] = SaaSProfileLegacyRecord(projection)
 	_, _ = l.appendChainLocked(actor.TenantID, "saas_profile.created", "saas_profile", profile.ID, actorType(actor), actorID(actor), cfgHash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.SaaSEditionProfile{}, err

@@ -123,6 +123,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create anomaly report commands: %w", err)
 	}
+	options.SaaSProfileCommands, err = BuildSaaSProfileCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create SaaS profile commands: %w", err)
+	}
 	options.QuestionnaireDraftCommands, err = BuildQuestionnaireDraftCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create questionnaire draft commands: %w", err)

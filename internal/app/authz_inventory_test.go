@@ -34,7 +34,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"pdf_report_creation.go":           {"AuthorizeCreatePDFReportPackage"},
 		"anomaly_report_creation.go":       {"AuthorizeGenerateAnomalyReport"},
 		"signing_operation_creation.go":    {"AuthorizeCreateSigningOperation"},
-		"future_extensions.go":             {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation"},
+		"saas_profile_creation.go":         {"AuthorizeCreateSaaSEditionProfile"},
+		"future_extensions.go":             {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation", "CreateSaaSEditionProfile"},
 		"answer_library_creation.go": {
 			"AuthorizeQuestionnaireAnswerLibraryCreate",
 			"authorizeAnswerLibraryCreateLocked",
@@ -85,7 +86,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 				!strings.Contains(fn, "authorizeQuestionnairePackageCreateLocked") && !strings.Contains(fn, "packagequery.NewQuestionnairePackageAuthorizer().Authorize") &&
 				!strings.Contains(fn, "authorizePortalWriteLocked") && !strings.Contains(fn, "packagequery.NewPortalAccessWriteAuthorizer().Authorize") &&
 				!strings.Contains(fn, "authorizeGraphSnapshotLocked") && !strings.Contains(fn, "authorizeProductReleaseLocked") &&
-				!strings.Contains(fn, "verificationquery.NewSigningKeyAdminAuthorizer().Authorize") && !strings.Contains(fn, "l.AuthorizeCreateSigningOperation(") {
+				!strings.Contains(fn, "verificationquery.NewSigningKeyAdminAuthorizer().Authorize") && !strings.Contains(fn, "l.AuthorizeCreateSigningOperation(") &&
+				!strings.Contains(fn, "experimentalapp.AuthorizeSaaSProfileActor(") && !strings.Contains(fn, "l.AuthorizeCreateSaaSEditionProfile(") {
 				t.Fatalf("%s.%s missing resource-scoped authorization call", file, name)
 			}
 		}

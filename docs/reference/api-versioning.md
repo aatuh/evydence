@@ -548,6 +548,24 @@ for exact limits. Historical records are not rewritten. These restrictions
 require release compatibility review; this note is not an approved exception,
 provider verification evidence or proof of production Ledger retirement.
 
+## Unreleased SaaS Profile Boundary
+
+`POST /v1/saas/profiles` now uses focused Experimental commands and a bounded
+two-tenant-ID projection in PostgreSQL. Profile ownership, deliberate
+instance-admin cross-tenant admin references, raw-value configuration hash
+profile, status, schema, limitations, response fields and audit binding remain
+unchanged. Local memory shares the pure rules and copies stored limitations.
+
+Both profiles require an authenticated exact issued `instance:admin` actor,
+current tenant existence before replay, strict exact non-null JSON fields,
+raw UTF-8/NUL-free byte bounds before trimming, and Origin for cookie mutations.
+Oversized or ambiguous requests that were previously accepted now return `400`;
+identity-less direct calls now return unauthorized. Durable timestamps use UTC
+microseconds. These tightened boundaries require release compatibility review;
+this note is not an approved exception. See [SaaS profile creation](../api.md#saas-profile-creation)
+for exact limits, hash compatibility and replay behavior. No deployment is
+provisioned or certified, and complete production Ledger retirement remains open.
+
 ## Unreleased Signing Operation Boundary
 
 `POST /v1/signing-operations` now binds focused Verification commands to

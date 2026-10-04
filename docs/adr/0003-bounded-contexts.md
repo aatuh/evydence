@@ -9,6 +9,14 @@ legacy-facade retirement remain assigned to EVY-905 and EVY-906.
 
 ## Context
 
+Experimental-owned `SaaSProfileCommands` records configuration intent using
+flat two-tenant-key, insert and audit ports, with exact instance authority.
+The composition root binds current roots, actor-tenant projection fencing and
+atomic profile/audit/replay writes without exposing Ledger state or extending
+the mixed Future interface. Local memory shares raw-value hashing and record
+rules. The cross-tenant admin reference is deliberate instance authority, not
+tenant delegation; these records do not enforce hosted deployment isolation.
+
 Verification-owned `SigningOperationCommands` uses flat bounded provider,
 subject-coordinate, executor, insert and audit ports. The runtime supplies the
 configured executor; no service locator or mixed Future interface expansion

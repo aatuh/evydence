@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
@@ -17,6 +18,10 @@ func fromExperimentalCommandError(err error) error {
 		return ErrNotFound
 	case errors.Is(err, experimentalapp.ErrConflict):
 		return ErrConflict
+	case errors.Is(err, application.ErrUnauthorized):
+		return ErrUnauthorized
+	case errors.Is(err, application.ErrForbidden):
+		return ErrForbidden
 	default:
 		return err
 	}

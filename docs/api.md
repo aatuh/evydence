@@ -2576,6 +2576,46 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### SaaS Profile Creation
+
+`POST /v1/saas/profiles` records experimental hosted-deployment intent only.
+It does not provision a deployment, enforce the requested isolation model,
+validate region availability, or certify readiness. It requires an authenticated
+actor with the exact issued `instance:admin` scope and an `Idempotency-Key`;
+tenant `admin` and `*` do not confer this authority.
+
+The body has exactly four non-null string fields: `name`, `region`,
+`admin_tenant_id`, and `isolation_model`. Both runtime profiles reject malformed,
+non-object, duplicate, unknown, mixed-case, null, invalid UTF-8 and NUL-containing
+inputs with `400`. Raw byte caps, applied before trimming, are 256 for name,
+128 for region, 1024 for admin tenant ID, and 256 for isolation model.
+All normalized values must be nonblank. The independent 64 KiB body limit
+returns `400` with a `/body` `invalid_size` violation before command invocation.
+Cookie mutations require a single same-host HTTPS Origin; bearer credentials
+take precedence over a cookie.
+
+The profile belongs to the actor's tenant. An explicit instance administrator
+may intentionally reference another existing tenant as `admin_tenant_id`;
+this is not tenant-level delegation. Both tenant roots must currently exist,
+including before completed replay, or creation/replay returns `404`.
+PostgreSQL reads at most two tenant IDs, not tenant names, secrets, evidence,
+or a Ledger snapshot. Tenant key-share locks prevent deletion through commit
+and remain compatible with opposite-direction admin references. The actor's
+tenant also holds the shared writer/worker projection fence.
+
+Profile, audit and successful replay completion share one database transaction.
+Failed insert, audit or commit publishes no successful profile. Completed replay
+returns the original result without another profile/audit; changed request bytes
+using that key return `409`. Current issued authority is required for every
+request, including replay. The status remains `proposed`, the schema remains
+`saas-edition-profile.v1.0.0`, and the limitation explicitly states intent only.
+The existing normalized-JSON configuration hash commits to the four raw field
+values under the legacy `Name`, `Region`, `AdminTenantID`, and `IsolationModel`
+keys; trimming stored labels does not change that commitment. Durable timestamps
+use UTC microseconds. Explicit local memory shares input/actor rules, hashing,
+record construction and copied limitations, but retains in-process persistence
+and locking limitations. Historical records are not rewritten.
+
 ### Signing Operation Creation
 
 `POST /v1/signing-operations` requires `keys:admin` (or admin), an

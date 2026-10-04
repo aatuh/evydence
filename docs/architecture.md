@@ -1169,6 +1169,14 @@ Source snapshots, deployment records, signed incident webhook events, incident p
 
 Evidence summaries, questionnaire drafts, graph snapshots and anomaly reports organize stored records with their documented assumptions and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
 
+Experimental SaaS profile creation now uses focused commands and at most two
+current tenant keys, with exact instance-admin authority. Profile, audit and
+replay writes are atomic and root deletion is locked through commit. Pure
+raw-value hashing and record rules are shared with explicit local memory.
+These records express hosted-deployment intent only, not provisioned isolation.
+See [SaaS profile creation](api.md#saas-profile-creation) for the deliberate
+cross-tenant admin-reference boundary and compatibility limits.
+
 Experimental anomaly reports bind focused commands and current scoped SQL facts
 to the report/audit/replay transaction. Release checks share readiness presence
 predicates without loading full readiness or Ledger snapshots. Other subjects

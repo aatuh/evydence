@@ -4,6 +4,7 @@ import (
 	"github.com/aatuh/api-toolkit/v3/specs"
 
 	"github.com/aatuh/evydence/internal/app"
+	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
@@ -2536,10 +2537,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "log_id", "checkpoint_id", "merkle_batch_id", "external_id", "entry_hash", "state", "schema_version", "created_at"))
 	registry.RegisterSchema("PublicTransparencyLogEntryEnvelope", dataEnvelopeSchema("#/components/schemas/PublicTransparencyLogEntry"))
 	registry.RegisterSchema("CreateSaaSEditionProfileRequest", objectSchema(map[string]any{
-		"name":            map[string]any{"type": "string"},
-		"region":          map[string]any{"type": "string"},
-		"admin_tenant_id": map[string]any{"type": "string"},
-		"isolation_model": map[string]any{"type": "string"},
+		"name":            map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxSaaSProfileNameBytes, "description": "Nonblank intent label; raw NUL-free UTF-8 is capped at 256 bytes before trimming."},
+		"region":          map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxSaaSProfileRegionBytes, "description": "Nonblank region label; raw NUL-free UTF-8 is capped at 128 bytes before trimming. No region provisioning is performed."},
+		"admin_tenant_id": map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxSaaSProfileIDBytes, "description": "Current existing tenant; an explicit instance administrator may reference another tenant. Raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
+		"isolation_model": map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxSaaSProfileIsolationBytes, "description": "Nonblank intent label; raw NUL-free UTF-8 is capped at 256 bytes before trimming. It does not prove deployment isolation."},
 	}, "name", "region", "admin_tenant_id", "isolation_model"))
 	registry.RegisterSchema("SaaSEditionProfile", objectSchema(map[string]any{
 		"id":              map[string]any{"type": "string"},
