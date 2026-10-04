@@ -477,16 +477,11 @@ func (l *Ledger) packageObjectLockProofsLocked(tenantID string) []map[string]any
 }
 
 func packageVerifyChecks(checks []domain.VerifyCheck) []map[string]any {
-	out := make([]map[string]any, 0, len(checks))
+	values := make([]packageapp.CustomerPackageVerificationCheck, 0, len(checks))
 	for _, check := range checks {
-		out = append(out, map[string]any{"name": check.Name, "result": check.Result, "detail": check.Detail})
+		values = append(values, packageapp.CustomerPackageVerificationCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		left, _ := out[i]["name"].(string)
-		right, _ := out[j]["name"].(string)
-		return left < right
-	})
-	return out
+	return packageapp.CustomerPackageVerificationCheckSummaries(values)
 }
 
 func (l *Ledger) packageProvenanceMetadataLocked(tenantID, releaseID string, profile domain.RedactionProfile) map[string]any {

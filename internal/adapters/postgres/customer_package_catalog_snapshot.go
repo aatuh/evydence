@@ -105,13 +105,7 @@ func readCustomerSnapshotMetadataRows(ctx context.Context, tx pgx.Tx, projection
 // Time-sensitive sections use the caller's fixed generation time, rather than
 // observing different wall clocks between queries in the same snapshot.
 func readCustomerSnapshotMetadataRowsAt(ctx context.Context, tx pgx.Tx, projection, tenant, product, release string, budget *customerSnapshotBudget, generatedAt time.Time) ([]map[string]any, error) {
-	rows, err := tx.Query(ctx, `WITH scope AS (
-		SELECT $1::text AS tenant_id,$2::text AS product_id,$3::text AS release_id,$6::timestamptz AS generated_at
-	), records AS MATERIALIZED (`+projection+` LIMIT $5), bounds AS (
-		SELECT count(*) >= $5 OR coalesce(sum(octet_length(metadata::text)),0)>$4 OR coalesce(bool_or(invalid),false) AS rejected FROM records
-	)
-	SELECT CASE WHEN bounds.rejected THEN NULL ELSE records.metadata END,bounds.rejected
-	FROM records CROSS JOIN bounds ORDER BY records.sort_id COLLATE "C"`, tenant, product, release, budget.remainingBytes, packageapp.MaxSecurityReviewEvidenceIDs+1, generatedAt.UTC())
+	rows, err := tx.Query(ctx, customerSnapshotMetadataQuery(projection), tenant, product, release, budget.remainingBytes, packageapp.MaxSecurityReviewEvidenceIDs+1, generatedAt.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("read customer-package snapshot metadata: %w", err)
 	}
@@ -148,6 +142,19 @@ func readCustomerSnapshotMetadataRowsAt(ctx context.Context, tx pgx.Tx, projecti
 	}
 	budget.remainingBytes -= used
 	return out, nil
+}
+
+func customerSnapshotMetadataQuery(projection string) string {
+	// Both sets must be materialized. Otherwise the planner can inline bounds
+	// into the inner side of the join and recalculate the entire page budget
+	// once per output row, turning the bounded read into quadratic work.
+	return `WITH scope AS (
+		SELECT $1::text AS tenant_id,$2::text AS product_id,$3::text AS release_id,$6::timestamptz AS generated_at
+	), records AS MATERIALIZED (` + projection + ` LIMIT $5), bounds AS MATERIALIZED (
+		SELECT count(*) >= $5 OR coalesce(sum(octet_length(metadata::text)),0)>$4 OR coalesce(bool_or(invalid),false) AS rejected FROM records
+	)
+	SELECT CASE WHEN bounds.rejected THEN NULL ELSE records.metadata END,bounds.rejected
+	FROM records CROSS JOIN bounds ORDER BY records.sort_id COLLATE "C"`
 }
 
 const customerCatalogRootsSQL = `SELECT p.id AS sort_id,

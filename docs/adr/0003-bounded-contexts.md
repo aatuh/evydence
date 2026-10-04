@@ -84,8 +84,25 @@ and public integrity check reach the package. Private signing-key ciphertext is
 never selected. Source inspection has its own 8 MiB budget and JSON structure
 limits, while only the public summary charges the shared manifest budget.
 The aggregate does not prove external anchoring or third-party log inclusion.
-Remaining verification/retention metadata and complete reader assembly still
-need to be implemented before production binding.
+The private verification-metadata component now selects release-bundle,
+verification-receipt, and Cosign-assessment summaries in that same view and
+shared budget. Receipt subjects must resolve through coherent tenant/product/
+release ownership; attestations reuse the provenance source checks, while
+artifact signatures and Cosign assessments use the catalog's selected artifacts.
+Cosign signature/digest and optional image coordinates must agree. Bundles with
+unrelated or missing signature/key parents are excluded as whole records, not
+silently trimmed. Check formatting is shared with the local reader; recorded
+states, profile fields, ordering, optional omissions, and nil-list shapes are
+preserved without upgrading assurance or making fresh provider/cryptographic
+claims. Only known check/profile fields cross the driver; bundle manifests,
+private extensions, payload locations, signature bytes, certificate identities,
+and private keys are not selected. Subject inventories, public row/list counts,
+metadata bytes, JSON types, and timestamps are bounded before transfer. The shared
+reader materializes both the selected page and its budget aggregate; an actual
+query-plan regression checks that the aggregate runs once rather than once per
+output row, retaining the same exact-capacity and overflow assertions. Retention
+metadata and complete reader assembly still need to be implemented before
+production binding.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and
 API startup still reach Ledger. See
