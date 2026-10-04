@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -270,7 +271,11 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 		return nil, ErrValidation
 	}
 	var decoded any
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
+	// Redaction must not round valid manifest sizes/counts or other public
+	// numbers when it reconstructs the JSON tree for a safe replay.
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
 		return nil, ErrValidation
 	}
 	keyMetadata, binding, publicCollectorKey := publicCollectorReplayMetadata(decoded)

@@ -70,6 +70,11 @@ For 24 hours after reservation:
 - A failed key returns `409` with `IDEMPOTENCY_REQUEST_FAILED`. Its original
   error and any partial response are not stored or replayed.
 
+Native PostgreSQL replay decoding and safe-response redaction preserve exact
+stored JSON numbers, including large artifact sizes and decimal values, without
+converting them through floating point. This does not recover values already
+rounded in an older stored response or change a manifest's hashing profile.
+
 For create endpoints that issue a one-time credential, such as an API key or
 collector key, the initial response includes the raw credential once. The
 durable replay envelope deliberately omits that field. A retry after a
