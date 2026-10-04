@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
@@ -29,7 +30,11 @@ func TestPostgresSubjectVerificationCompositionSharesReplayAndRollbackTransactio
 		{Name: "writer_lease", Check: func(context.Context) error { return nil }},
 		{Name: "signing_config", Check: func(context.Context) error { return nil }},
 	}
-	options, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Production: true}, "test-only-pepper", checks)
+	objects, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Objects: objects, Production: true}, "test-only-pepper", checks)
 	if err != nil {
 		t.Fatal(err)
 	}

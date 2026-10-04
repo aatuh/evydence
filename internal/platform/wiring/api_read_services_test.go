@@ -543,10 +543,10 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 		options.PortalAccessQuery == nil || options.APIKeyQuery == nil || options.RoleBindingQuery == nil {
 		t.Fatalf("incomplete durable dependencies=%#v", options)
 	}
-	if _, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Production: true}, "", checks); err == nil {
+	if _, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Objects: objects, Production: true}, "", checks); err == nil {
 		t.Fatal("production accepted a missing credential pepper")
 	}
-	if _, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Production: true}, "non-default-pepper", nil); err == nil {
+	if _, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Objects: objects, Production: true}, "non-default-pepper", nil); err == nil {
 		t.Fatal("production accepted missing dependency probes")
 	}
 	status, err := options.ReadinessQuery.Public(t.Context())
