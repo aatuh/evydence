@@ -17,10 +17,20 @@ The legacy Package service delegates to these same rules rather than retaining
 a second creation implementation. Bounded JSON normalization retains existing
 collection/public-profile shapes with owned mutable slices; opaque/custom
 metadata uses the sanitized public JSON tree. A native PostgreSQL write adapter
-takes the common worker/audit fence before tenant/product/release/policy locks and joins
-the durable executor's active unit of work. Focused tests cover rollback,
+takes the common worker/audit fence before tenant/product/release/policy locks
+and joins the durable executor's active unit of work. Focused tests cover rollback,
 outer-commit failure, and lock-order behavior using an immutable snapshot
 fixture, not a production reader.
+The native reader's private catalog projection now selects public tenant,
+organization, product, release, evidence-reference, and artifact metadata in a
+caller-owned repeatable-read transaction. It validates evidence parent
+associations inside the selected tenant/product, binds build-output artifact
+digests, and rejects row/byte overflow before transferring selected metadata.
+It neither loads Ledger state nor acquires the writer fence on its read
+connection. This catalog component is tested against live PostgreSQL but is
+not yet a complete snapshot reader: evidence summaries, governance,
+verification, provenance, readiness, and the selected policy still need to be
+composed in that same view.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and
 API startup still reach Ledger. See
