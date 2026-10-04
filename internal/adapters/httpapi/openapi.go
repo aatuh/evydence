@@ -1219,13 +1219,15 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":      map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "name", "schema_version", "created_at"))
 	registry.RegisterSchema("RedactionProfileEnvelope", dataEnvelopeSchema("#/components/schemas/RedactionProfile"))
-	registry.RegisterSchema("CreateCustomerPackageRequest", objectSchema(map[string]any{
-		"product_id":           map[string]any{"type": "string"},
-		"release_id":           map[string]any{"type": "string"},
-		"redaction_profile_id": map[string]any{"type": "string"},
-		"title":                map[string]any{"type": "string"},
+	customerPackageRequest := objectSchema(map[string]any{
+		"product_id":           map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxCustomerPackageIDBytes},
+		"release_id":           map[string]any{"type": "string", "maxLength": packageapp.MaxCustomerPackageIDBytes},
+		"redaction_profile_id": map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxCustomerPackageIDBytes},
+		"title":                map[string]any{"type": "string", "minLength": 1, "maxLength": packageapp.MaxCustomerPackageTitleBytes},
 		"expires_at":           map[string]any{"type": "string", "format": "date-time"},
-	}, "product_id", "redaction_profile_id", "title", "expires_at"))
+	}, "product_id", "redaction_profile_id", "title", "expires_at")
+	customerPackageRequest["description"] = "New packages require current tenant-owned product/redaction-profile references and optional matching release. Raw NUL-free UTF-8 IDs are capped at 1024 bytes and title at 4096 bytes before trimming; required values must be nonblank. expires_at must be a representable UTC timestamp in the future, checked again after write locks. Snapshot and final manifest are independently capped at 8 MiB, JSON depth 32 and 4096 entries per array. Historical package responses are not restricted by these creation bounds."
+	registry.RegisterSchema("CreateCustomerPackageRequest", customerPackageRequest)
 	registry.RegisterSchema("CustomerSecurityPackage", objectSchema(map[string]any{
 		"id":                     map[string]any{"type": "string"},
 		"tenant_id":              map[string]any{"type": "string"},

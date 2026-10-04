@@ -2409,6 +2409,51 @@ the original result without duplicating effects, and rejects changed request
 content with `409`. Local memory shares policy rules and current replay
 authorization but retains its documented nondurable storage limitation.
 
+### Customer Package Creation
+
+`POST /v1/customer-packages` requires `package:write`, an `Idempotency-Key`,
+current tenant-owned `product_id` and `redaction_profile_id`, a nonblank `title`,
+and future `expires_at`. Optional `release_id` must belong to that product and
+tenant. Human authorization is evaluated against the selected product/release;
+package-read authority alone cannot create a package.
+
+Creation now shares focused Package application rules across adapters:
+
+- Raw IDs are limited to 1024 NUL-free UTF-8 bytes and title to 4096 bytes,
+  checked before trimming. OpenAPI character limits do not replace byte limits.
+- The complete snapshot and final redacted manifest are each limited to 8 MiB,
+  JSON depth 32, and 4096 entries per array. Exceeded stored-input bounds return
+  `409`; invalid create inputs return `400`. Results are rejected, not truncated.
+- Profile allowlists and excluded fields retain the existing manifest format;
+  hard exclusions apply even to typed JSON-compatible adapter metadata. The
+  manifest hash uses the existing normalized-JSON profile, not a new hash
+  version. Created-at timestamps use microsecond precision.
+- Fresh creation rechecks expiry after write locks and compares the current
+  policy with the snapshot policy. Equivalent timestamp locations and empty
+  lists do not count as policy changes. Package and generation audit write
+  atomically, with no successful top-level result on insert/audit/commit failure.
+
+Previously accepted overlong create values or oversized snapshots can now
+fail these checks. Historical records are not rewritten, and response schemas
+are not restricted by the new creation bounds. Existing access/download bounds
+remain unchanged.
+
+Migration status: `CustomerPackageCommands` and the composition root's native
+write adapter are implemented. The native adapter selects only current
+tenant/product/release identities and bounded public redaction policy, taking
+the common worker/audit fence before row locks. Its creation/replay guard checks
+current scope without reading evidence or allocating a new package. The guard
+does not reject an expired original request merely because time has passed;
+fresh creation and package access still enforce expiry.
+
+The production snapshot reader and focused HTTP binding are **outstanding**.
+The existing route still uses the Ledger compatibility reader and command
+envelope; the native guard is not yet the route's replay guard. The legacy
+profile and snapshot are separate reads with a write-time policy recheck,
+whereas the native reader contract requires one committed database view. Native
+write-boundary tests use an immutable fixture and do not prove production
+snapshot completeness or Ledger-free startup. EVY-905 remains incomplete.
+
 ### Customer Package Archive Download
 
 `GET /v1/customer-packages/{id}/download` requires `package:read` and the current

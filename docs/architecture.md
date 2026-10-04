@@ -1291,9 +1291,12 @@ and profile/audit/replay commit atomically. Creation does not read evidence,
 existing profiles, customer manifests, or signing keys. Both profiles share
 preset/normalization rules and recheck tenant-wide package-write authority
 before replay. Historical profiles are not rewritten or subjected to new
-creation bounds. Customer-package creation and API startup
-still have Ledger dependencies; this migration does not remove them. See
-[redaction-profile creation](api.md#redaction-profile-creation).
+creation bounds. Customer-package creation rules are now extracted into a
+focused command with a native selected-scope/policy write adapter, but its
+production snapshot reader and HTTP binding are not yet installed. Creation
+and API startup still have Ledger dependencies; these prerequisites do not
+remove them. See [customer-package creation](api.md#customer-package-creation)
+and [redaction-profile creation](api.md#redaction-profile-creation).
 
 Authenticated customer-package downloads now use the same focused audited
 access command as package JSON reads, followed by the existing bounded

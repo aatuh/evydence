@@ -4,7 +4,6 @@ package app
 import (
 	"context"
 	"errors"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -196,83 +195,11 @@ type CreateCustomerPackageInput struct {
 }
 
 func (s *Service) CreateCustomerSecurityPackage(ctx context.Context, actor identitydomain.Actor, input CreateCustomerPackageInput) (packagedomain.CustomerSecurityPackage, error) {
-	if err := contextError(ctx); err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	if err := validateActor(actor); err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopePackageWrite, application.ResourceReferences{}, true); err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	input.ProductID = strings.TrimSpace(input.ProductID)
-	input.ReleaseID = strings.TrimSpace(input.ReleaseID)
-	input.RedactionProfileID = strings.TrimSpace(input.RedactionProfileID)
-	input.Title = strings.TrimSpace(input.Title)
-	now := s.clock.Now().UTC()
-	if input.ProductID == "" || input.RedactionProfileID == "" || input.Title == "" || !input.ExpiresAt.After(now) {
-		return packagedomain.CustomerSecurityPackage{}, ErrValidation
-	}
-	if s.projectionRefresher != nil {
-		if err := s.projectionRefresher.RefreshPackageProjection(ctx, actor.TenantID); err != nil {
-			return packagedomain.CustomerSecurityPackage{}, err
-		}
-	}
-	profile, err := s.reader.GetRedactionProfile(ctx, actor.TenantID, input.RedactionProfileID)
+	commands, err := NewCustomerPackageCommands(CustomerPackageCommandConfig{Reader: serviceCustomerCreationReader{s.reader, s.projectionRefresher}, Transactions: serviceCustomerCreationTransactions{s.transactions}, Authorizer: s.authorizer, Hasher: s.canonicalizer, Clock: s.clock, IDs: s.ids})
 	if err != nil {
 		return packagedomain.CustomerSecurityPackage{}, err
 	}
-	if !validRedactionProfile(profile, actor.TenantID, input.RedactionProfileID) {
-		return packagedomain.CustomerSecurityPackage{}, ErrNotFound
-	}
-	resources := application.ResourceReferences{ProductID: input.ProductID, ReleaseID: input.ReleaseID}
-	if err := s.authorize(ctx, actor, ScopePackageWrite, resources, false); err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	snapshot, err := s.reader.ReadCommittedPackageSnapshot(ctx, actor.TenantID, input.ProductID, input.ReleaseID)
-	if err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	if !validPackageSnapshot(snapshot, actor.TenantID, input.ProductID, input.ReleaseID) {
-		return packagedomain.CustomerSecurityPackage{}, ErrConflict
-	}
-
-	packageID := s.ids.NewID("csp")
-	manifest := buildCustomerPackageManifest(packageID, now, input.Title, profile, snapshot)
-	manifest = sanitizeManifestMap(manifest, profile.ExcludedFields)
-	hash, err := s.canonicalizer.HashPackageManifest(ctx, manifest)
-	if err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	if strings.TrimSpace(hash) == "" {
-		return packagedomain.CustomerSecurityPackage{}, ErrValidation
-	}
-	pkg := packagedomain.CustomerSecurityPackage{
-		ID: packageID, TenantID: actor.TenantID, ProductID: input.ProductID, ReleaseID: input.ReleaseID,
-		RedactionProfileID: profile.ID, Title: input.Title, State: "generated", Manifest: manifest, ManifestHash: hash,
-		ExpiresAt: input.ExpiresAt.UTC(), SchemaVersion: packagedomain.CustomerPackageSchemaVersion, CreatedAt: now,
-	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		current, err := tx.Packages().GetRedactionProfile(ctx, actor.TenantID, profile.ID)
-		if err != nil {
-			return err
-		}
-		if !reflect.DeepEqual(current, profile) {
-			return ErrConflict
-		}
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: resources}); err != nil {
-			return err
-		}
-		if err := tx.Packages().InsertCustomerSecurityPackage(ctx, pkg); err != nil {
-			return err
-		}
-		_, err = tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "customer_package.generated", "customer_security_package", pkg.ID, hash))
-		return err
-	})
-	if err != nil {
-		return packagedomain.CustomerSecurityPackage{}, err
-	}
-	return cloneCustomerSecurityPackage(pkg), nil
+	return commands.CreateCustomerSecurityPackage(ctx, actor, input)
 }
 
 func (s *Service) AccessCustomerSecurityPackage(ctx context.Context, actor identitydomain.Actor, id string) (packagedomain.CustomerSecurityPackage, error) {
@@ -559,13 +486,6 @@ func normalizedNonEmptyStrings(values []string, rejectEmpty bool) ([]string, err
 
 func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, scope string, resources application.ResourceReferences, scopeOnly bool) error {
 	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly})
-}
-
-func (s *Service) auditEvent(actor identitydomain.Actor, at time.Time, entryType, subjectType, subjectID, payloadHash string) application.AuditEvent {
-	return application.AuditEvent{
-		ID: s.ids.NewID("ace"), TenantID: actor.TenantID, EntryType: entryType, SubjectType: subjectType, SubjectID: subjectID,
-		ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: at.UTC(), PayloadHash: payloadHash,
-	}
 }
 
 func contextError(ctx context.Context) error {

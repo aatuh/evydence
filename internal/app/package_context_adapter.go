@@ -17,7 +17,7 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
-const packageSnapshotVersion = "package-snapshot.v1.0.0"
+const packageSnapshotVersion = packageapp.CustomerPackageSnapshotVersion
 
 func (l *Ledger) configurePackageCommands() error {
 	service, err := packageapp.NewService(packageapp.Config{
