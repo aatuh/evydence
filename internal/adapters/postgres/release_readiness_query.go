@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -47,7 +49,17 @@ func (s *Store) ReadReleaseReadinessSnapshot(ctx context.Context, tenantID, rele
 }
 
 func readReleaseReadinessSnapshotTx(ctx context.Context, tx pgx.Tx, tenantID, releaseID string, now time.Time) (riskapp.ReadinessSnapshot, error) {
+	return readReleaseReadinessSnapshotBoundedTx(ctx, tx, tenantID, releaseID, now, packageapp.MaxCustomerPackageManifestBytes)
+}
+
+func readReleaseReadinessSnapshotBoundedTx(ctx context.Context, tx pgx.Tx, tenantID, releaseID string, now time.Time, maxBytes int) (riskapp.ReadinessSnapshot, error) {
 	var empty riskapp.ReadinessSnapshot
+	if ctx == nil || tx == nil || maxBytes < 0 || maxBytes > packageapp.MaxCustomerPackageManifestBytes {
+		return empty, riskapp.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
 	snapshot := riskapp.ReadinessSnapshot{SnapshotVersion: riskapp.ReadinessSnapshotVersion, TenantID: tenantID, ReleaseID: releaseID}
 	err := tx.QueryRow(ctx, `SELECT r.product_id FROM releases AS r
 		JOIN products AS p ON p.id=r.product_id AND p.tenant_id=r.tenant_id
@@ -70,72 +82,85 @@ func readReleaseReadinessSnapshotTx(ctx context.Context, tx pgx.Tx, tenantID, re
 	}
 	// IDs are the only decision/exception data returned to policy evaluation.
 	remainingIDs := maxReadinessIDs
+	remainingBytes := maxBytes
 	for _, item := range []struct {
 		query string
 		ids   *[]string
 	}{
-		{`SELECT left(id,1025) FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND customer_visible AND btrim(coalesce(impact_statement,''))='' ORDER BY id LIMIT $3`, &snapshot.MissingCustomerStatementIDs},
-		{`SELECT left(id,1025) FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND status='not_affected' AND btrim(justification)='' ORDER BY id LIMIT $3`, &snapshot.MissingNotAffectedReasonIDs},
-		{`SELECT left(id,1025) FROM exceptions WHERE tenant_id=$1 AND release_id=$2 AND (btrim(owner)='' OR btrim(reason)='' OR (approved AND (btrim(coalesce(approved_by,''))='' OR approved_at IS NULL))) ORDER BY id LIMIT $3`, &snapshot.IncompleteExceptionIDs},
+		{`SELECT id FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND customer_visible AND btrim(coalesce(impact_statement,''))=''`, &snapshot.MissingCustomerStatementIDs},
+		{`SELECT id FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND status='not_affected' AND btrim(justification)=''`, &snapshot.MissingNotAffectedReasonIDs},
+		{`SELECT id FROM exceptions WHERE tenant_id=$1 AND release_id=$2 AND (btrim(owner)='' OR btrim(reason)='' OR (approved AND (btrim(coalesce(approved_by,''))='' OR approved_at IS NULL)))`, &snapshot.IncompleteExceptionIDs},
 	} {
-		rows, err := tx.Query(ctx, item.query, tenantID, releaseID, remainingIDs+1)
+		*item.ids, err = readReadinessIDs(ctx, tx, item.query, &remainingIDs, &remainingBytes, tenantID, releaseID)
 		if err != nil {
-			return empty, fmt.Errorf("read readiness exceptions and decisions: %w", err)
+			return empty, err
 		}
-		for rows.Next() {
-			var id string
-			if err := rows.Scan(&id); err != nil {
-				rows.Close()
-				return empty, fmt.Errorf("scan readiness identifier: %w", err)
-			}
-			if len(id) > 1024 || remainingIDs == 0 {
-				rows.Close()
-				return empty, riskapp.ErrValidation
-			}
-			*item.ids = append(*item.ids, id)
-			remainingIDs--
-		}
-		if err := rows.Err(); err != nil {
-			rows.Close()
-			return empty, fmt.Errorf("iterate readiness identifiers: %w", err)
-		}
-		rows.Close()
 	}
-	err = tx.QueryRow(ctx, `SELECT count(*) FROM customer_security_packages WHERE tenant_id=$1 AND release_id=$2`, tenantID, releaseID).Scan(&snapshot.PackageCount)
-	if err != nil || snapshot.PackageCount > remainingIDs {
+	err = tx.QueryRow(ctx, `SELECT count(*) FROM customer_security_packages p WHERE `+readinessCustomerPackageScopeSQL, tenantID, releaseID).Scan(&snapshot.PackageCount)
+	if err != nil {
+		return empty, fmt.Errorf("read readiness package count: %w", err)
+	}
+	if snapshot.PackageCount > remainingIDs {
 		return empty, riskapp.ErrValidation
 	}
-	rows, err := tx.Query(ctx, `SELECT p.id FROM customer_security_packages AS p
+	snapshot.InvalidPackageOrProfileIDs, err = readReadinessIDs(ctx, tx, `SELECT p.id FROM customer_security_packages AS p
 		LEFT JOIN redaction_profiles AS r ON r.id=p.redaction_profile_id AND r.tenant_id=p.tenant_id
-		WHERE p.tenant_id=$1 AND p.release_id=$2 AND (r.id IS NULL OR cardinality(r.allowed_types)=0 OR p.expires_at<=$3
+		WHERE `+readinessCustomerPackageScopeSQL+` AND (r.id IS NULL OR cardinality(r.allowed_types)=0 OR p.expires_at<=$3
 		OR NOT (ARRAY['payload_ref','object_key','private_key','token','secret','internal_notes'] <@ (SELECT coalesce(array_agg(lower(btrim(value))),'{}'::text[]) FROM unnest(r.excluded_fields) AS value)))
-		ORDER BY p.id LIMIT $4`, tenantID, releaseID, now, remainingIDs+1)
+		`, &remainingIDs, &remainingBytes, tenantID, releaseID, now)
 	if err != nil {
-		return empty, fmt.Errorf("read readiness package profiles: %w", err)
+		return empty, err
 	}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return empty, fmt.Errorf("scan readiness package: %w", err)
-		}
-		if len(id) > 1024 || len(snapshot.InvalidPackageOrProfileIDs) >= remainingIDs {
-			rows.Close()
-			return empty, riskapp.ErrValidation
-		}
-		snapshot.InvalidPackageOrProfileIDs = append(snapshot.InvalidPackageOrProfileIDs, id)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return empty, fmt.Errorf("iterate readiness packages: %w", err)
-	}
-	rows.Close()
 	verified, err := readVerifiedReadinessBundle(ctx, tx, tenantID, releaseID, now)
 	if err != nil {
 		return empty, err
 	}
 	snapshot.HasVerifiedSignedBundle = verified
 	return snapshot, nil
+}
+
+const readinessCustomerPackageScopeSQL = `p.tenant_id=$1 AND p.release_id=$2
+	AND EXISTS(SELECT 1 FROM releases root WHERE root.id=p.release_id AND root.tenant_id=p.tenant_id AND root.product_id=p.product_id)`
+
+// Fixed internal SELECTs supply identifiers only. PostgreSQL checks the whole
+// selected list before transferring any identifier; it never truncates an ID
+// or collection into a plausible readiness result. Budgets span every list.
+func readReadinessIDs(ctx context.Context, tx pgx.Tx, query string, remainingIDs, remainingBytes *int, args ...any) ([]string, error) {
+	limitParam, byteParam := len(args)+1, len(args)+2
+	args = append(args, *remainingIDs+1, *remainingBytes)
+	rows, err := tx.Query(ctx, fmt.Sprintf(`WITH ids AS MATERIALIZED (%s ORDER BY id LIMIT $%d), bounds AS (
+	 SELECT count(*) >= $%d OR coalesce(sum(octet_length(to_jsonb(id)::text)),0)>$%d
+	 OR coalesce(bool_or(octet_length(id)>1024),false) AS rejected FROM ids
+	) SELECT CASE WHEN bounds.rejected THEN '' ELSE ids.id END,bounds.rejected
+	FROM ids CROSS JOIN bounds ORDER BY ids.id COLLATE "C"`, query, limitParam, limitParam, byteParam), args...)
+	if err != nil {
+		return nil, fmt.Errorf("read readiness identifiers: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	used := 0
+	for rows.Next() {
+		var id string
+		var rejected bool
+		if err := rows.Scan(&id, &rejected); err != nil {
+			return nil, fmt.Errorf("scan readiness identifier: %w", err)
+		}
+		if rejected || !customerSnapshotID(id, false) || len(out) >= *remainingIDs {
+			return nil, riskapp.ErrValidation
+		}
+		encoded, err := json.Marshal(id)
+		if err != nil || len(encoded) > *remainingBytes-used {
+			return nil, riskapp.ErrValidation
+		}
+		used += len(encoded)
+		out = append(out, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate readiness identifiers: %w", err)
+	}
+	*remainingIDs -= len(out)
+	*remainingBytes -= used
+	return out, nil
 }
 
 const releaseUnhandledFindingsCTE = `WITH findings AS (

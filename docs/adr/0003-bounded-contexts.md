@@ -69,8 +69,15 @@ policy comparison, preserving exact microsecond timestamps, list ordering,
 and optional descriptions. Only the write path takes the mutation fence and
 policy row lock. Invalid array shapes, oversized values, and out-of-range
 timestamps are rejected before policy JSON crosses the database driver.
-Verification and readiness still need to be composed before the reader can
-be bound to production.
+The private readiness component reuses Risk's fact reader and canonical
+evaluator in that same view, using the fixed generation time for exceptions,
+package expiry, and signing-key validity. Missing decision, exception, and
+package identifiers share pre-transfer row/byte bounds; package product and
+release ownership must agree. The final public check representation is
+charged to the shared metadata budget without persisting an evaluation or
+receipt. Product-only packages retain no release-readiness checks. Verification
+material and complete reader assembly still need to be implemented before
+production binding.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and
 API startup still reach Ledger. See
