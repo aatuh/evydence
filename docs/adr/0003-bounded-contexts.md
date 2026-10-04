@@ -51,8 +51,19 @@ and profile selection are shared with the explicit local reader. Internal notes,
 approver identities, source payloads, private reference extensions, and control
 objectives are not selected. Live tests cover expiry boundaries, append-only
 supersession, reference kinds, concurrent commits, row/byte bounds, malformed
-metadata, and reads while a command holds the writer fence. Verification,
-provenance, readiness, and the selected policy still need to be composed before
+metadata, and reads while a command holds the writer fence. The private provenance
+component now selects public build/attestation metadata in that same view and
+budget. Builds require coherent tenant/product/project/release and optional
+collector parents; registered outputs require same-tenant artifacts with matching
+digests. Unregistered digest-only outputs retain their existing public meaning.
+Attestations additionally require their typed evidence source to match the build,
+project, product, release, payload hash/size, and storage reference, without
+selecting source identity, raw payloads, storage locations, builder identity, or
+signature bytes. Public output sorting is shared with local memory. Null-list and
+timestamp shapes, recorded verification states, and the existing requirement for
+an included build before attestation inclusion are preserved. This metadata
+projection does not itself verify an attestation or signature. Verification,
+readiness, and the selected policy still need to be composed before
 the reader can be bound to production.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and

@@ -547,14 +547,11 @@ func (l *Ledger) packageProvenanceMetadataLocked(tenantID, releaseID string, pro
 }
 
 func packageBuildOutputs(outputs []domain.BuildOutput) []map[string]any {
-	out := make([]map[string]any, 0, len(outputs))
+	values := make([]packageapp.CustomerPackageBuildOutput, 0, len(outputs))
 	for _, output := range outputs {
-		out = append(out, map[string]any{"artifact_id": output.ArtifactID, "digest": output.Digest})
+		values = append(values, packageapp.CustomerPackageBuildOutput{ArtifactID: output.ArtifactID, Digest: output.Digest})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i]["artifact_id"].(string)+"\x00"+out[i]["digest"].(string) < out[j]["artifact_id"].(string)+"\x00"+out[j]["digest"].(string)
-	})
-	return out
+	return packageapp.CustomerPackageBuildOutputSummaries(values)
 }
 
 func packageOptionalTime(value *time.Time) string {
