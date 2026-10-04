@@ -215,8 +215,7 @@ var customerGovernanceDecisionsSQL = `SELECT v.id AS sort_id,jsonb_build_object(
 	FROM scope s JOIN vulnerability_decision_projection v ON v.tenant_id=s.tenant_id AND coalesce(v.release_id,'')=s.release_id
 	JOIN vulnerability_scans d ON d.id=v.scan_id AND d.tenant_id=v.tenant_id
 	JOIN evidence_items e ON ` + customerEvidenceParsedScopeSQL + ` AND e.type='vulnerability_scan'
-	WHERE v.customer_visible AND coalesce(v.superseded_by,'')='' AND d.findings @> jsonb_build_array(jsonb_build_object('id',v.finding_id,'vulnerability',v.vulnerability))
-	AND (SELECT count(*) FROM (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(d.findings)='array' THEN d.findings ELSE '[]'::jsonb END) f WHERE f->>'id'=v.finding_id LIMIT 2) matches)=1
+	WHERE v.customer_visible AND coalesce(v.superseded_by,'')='' AND ` + readinessDecisionFindingMatchSQL + `
 	AND ` + customerGovernanceEvidenceRefSQL("v.evidence_id") + `
 	AND CASE WHEN ` + customerGovernanceDecisionEvidenceInvalidSQL + ` THEN true ELSE NOT EXISTS(SELECT 1 FROM unnest(v.evidence_ids) ref(id) WHERE NOT ` + customerGovernanceEvidenceRefSQL("ref.id") + ` OR coalesce(ref.id,'')='') END
 	AND (coalesce(v.sbom_id,'')='' OR EXISTS(SELECT 1 FROM sboms d JOIN evidence_items e ON ` + customerEvidenceParsedScopeSQL + ` AND e.type='sbom' WHERE d.id=v.sbom_id AND ` + customerEvidenceArtifactScopeSQL + `))

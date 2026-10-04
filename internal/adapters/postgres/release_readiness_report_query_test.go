@@ -28,7 +28,7 @@ func TestReadReleaseReadinessReportSnapshotIsScopedBoundedAndReadOnly(t *testing
 	exec(`INSERT INTO evidence_items (id,tenant_id,product_id,release_id,type,title,source_system,observed_at,schema_version,payload_hash,canonical_hash,canonicalization,trust_level,verification_status)
 		VALUES ('ev_report','ten_report','prod_report','rel_report','vulnerability_scan','Report','test',$1,'evidence.v1','sha256:fixture','sha256:fixture','json','L2','pending')`, now)
 	exec(`INSERT INTO vulnerability_scans (id,tenant_id,evidence_id,release_id,scanner,target_ref,summary,findings)
-		VALUES ('scan_report','ten_report','ev_report','rel_report','test','target','{}','[{"id":"critical_open","vulnerability":"CVE-1","component":"pkg:one","severity":"critical","state":"open"},{"id":"critical_fixed","severity":"critical"},{"id":"critical_waived","severity":"critical"},{"id":"high_open","severity":"high"}]')`)
+		VALUES ('scan_report','ten_report','ev_report','rel_report','test','target','{}','[{"id":"critical_open","vulnerability":"CVE-1","component":"pkg:one","severity":"critical","state":"open"},{"id":"critical_fixed","vulnerability":"CVE-fixed","severity":"critical"},{"id":"critical_waived","severity":"critical"},{"id":"high_open","severity":"high"}]')`)
 	exec(`INSERT INTO vulnerability_decisions (id,tenant_id,finding_id,scan_id,release_id,vulnerability,status,justification,source,schema_version,internal_notes)
 		VALUES ('decision_report','ten_report','critical_fixed','scan_report','rel_report','CVE-fixed','fixed','patched','manual','decision.v1','private-notes-marker')`)
 	exec(`INSERT INTO exceptions (id,tenant_id,release_id,finding_id,reason,owner,expires_at,approved,approved_by,approved_at)

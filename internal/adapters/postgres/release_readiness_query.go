@@ -87,9 +87,9 @@ func readReleaseReadinessSnapshotBoundedTx(ctx context.Context, tx pgx.Tx, tenan
 		query string
 		ids   *[]string
 	}{
-		{`SELECT id FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND customer_visible AND btrim(coalesce(impact_statement,''))=''`, &snapshot.MissingCustomerStatementIDs},
-		{`SELECT id FROM vulnerability_decision_projection WHERE tenant_id=$1 AND release_id=$2 AND coalesce(superseded_by,'')='' AND status='not_affected' AND btrim(justification)=''`, &snapshot.MissingNotAffectedReasonIDs},
-		{`SELECT id FROM exceptions WHERE tenant_id=$1 AND release_id=$2 AND (btrim(owner)='' OR btrim(reason)='' OR (approved AND (btrim(coalesce(approved_by,''))='' OR approved_at IS NULL)))`, &snapshot.IncompleteExceptionIDs},
+		{releaseReadinessScopeCTE + ` SELECT v.id FROM scope s JOIN vulnerability_decision_projection v ON ` + readinessDecisionOwnershipSQL + ` WHERE coalesce(v.superseded_by,'')='' AND v.customer_visible AND btrim(coalesce(v.impact_statement,''))=''`, &snapshot.MissingCustomerStatementIDs},
+		{releaseReadinessScopeCTE + ` SELECT v.id FROM scope s JOIN vulnerability_decision_projection v ON ` + readinessDecisionOwnershipSQL + ` WHERE coalesce(v.superseded_by,'')='' AND v.status='not_affected' AND btrim(v.justification)=''`, &snapshot.MissingNotAffectedReasonIDs},
+		{releaseReadinessScopeCTE + ` SELECT x.id FROM scope s JOIN exceptions x ON ` + readinessExceptionOwnershipSQL + ` WHERE btrim(x.owner)='' OR btrim(x.reason)='' OR (x.approved AND (btrim(coalesce(x.approved_by,''))='' OR x.approved_at IS NULL))`, &snapshot.IncompleteExceptionIDs},
 	} {
 		*item.ids, err = readReadinessIDs(ctx, tx, item.query, &remainingIDs, &remainingBytes, tenantID, releaseID)
 		if err != nil {
@@ -163,23 +163,23 @@ func readReadinessIDs(ctx context.Context, tx pgx.Tx, query string, remainingIDs
 	return out, nil
 }
 
-const releaseUnhandledFindingsCTE = `WITH findings AS (
-		SELECT s.id AS scan_id, f.value->>'id' AS finding_id, lower(f.value->>'severity') AS severity,
+var releaseUnhandledFindingsCTE = releaseReadinessScopeCTE + `, findings AS (
+		SELECT d.id AS scan_id, f.value->>'id' AS finding_id, lower(f.value->>'severity') AS severity,
 			lower(coalesce(nullif(f.value->>'state',''),'open')) AS state,
 			f.value->>'vulnerability' AS vulnerability, f.value->>'component' AS component
-		FROM vulnerability_scans AS s
-		CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(s.findings)='array' THEN s.findings ELSE '[]'::jsonb END) AS f(value)
-		WHERE s.tenant_id=$1 AND s.release_id=$2
+		` + releaseReadinessScansFromSQL + `
+		CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(d.findings)='array' THEN d.findings ELSE '[]'::jsonb END) AS f(value)
 	), unhandled AS (
 		SELECT f.* FROM findings AS f
 		WHERE f.state='open' AND f.severity IN ('critical','high')
 		AND NOT EXISTS (
 			SELECT 1 FROM vulnerability_decision_projection AS d
 			WHERE d.tenant_id=$1 AND d.finding_id=f.finding_id AND d.scan_id=f.scan_id AND d.release_id=$2 AND coalesce(d.superseded_by,'')=''
-			AND d.id=(SELECT latest.id FROM vulnerability_decision_projection AS latest WHERE latest.tenant_id=$1 AND latest.finding_id=f.finding_id AND latest.scan_id=f.scan_id AND latest.release_id=$2 AND coalesce(latest.superseded_by,'')='' ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)
+			AND d.vulnerability=f.vulnerability AND coalesce(d.component,'')=coalesce(f.component,'')
+			AND (SELECT count(*) FROM findings same WHERE same.scan_id=f.scan_id AND same.finding_id=f.finding_id)=1
 			AND d.status IN ('fixed','not_affected')
 		) AND NOT EXISTS (
-			SELECT 1 FROM exceptions AS x WHERE x.tenant_id=$1 AND x.release_id=$2 AND x.approved AND x.expires_at>$3 AND (coalesce(x.finding_id,'')='' OR x.finding_id=f.finding_id)
+			SELECT 1 FROM scope s JOIN exceptions x ON ` + readinessExceptionOwnershipSQL + ` WHERE x.approved AND x.expires_at>$3 AND (coalesce(x.finding_id,'')='' OR x.finding_id=f.finding_id)
 		)
 	) `
 

@@ -20,19 +20,26 @@ type releasePresenceFacts struct {
 // identical without loading raw evidence, report packages or signing keys.
 func readReleasePresenceFacts(ctx context.Context, tx pgx.Tx, tenant, release string) (releasePresenceFacts, error) {
 	var v releasePresenceFacts
-	// Only registered, tenant-owned artifacts can contribute a trusted digest.
-	linkedDigests := `SELECT a.digest FROM evidence_items AS e
-		CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.subject_refs)='array' THEN e.subject_refs ELSE '[]'::jsonb END) AS ref(value)
-		JOIN artifacts AS a ON a.id=ref.value->>'id' AND a.tenant_id=e.tenant_id
-		WHERE e.tenant_id=$1 AND e.release_id=$2 AND ref.value->>'type'='artifact'
-		AND a.digest ~ '^sha256:[0-9a-fA-F]{64}$'`
-	err := tx.QueryRow(ctx, `SELECT
-		EXISTS(SELECT 1 FROM evidence_items AS e CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.subject_refs)='array' THEN e.subject_refs ELSE '[]'::jsonb END) AS ref(value) WHERE e.tenant_id=$1 AND e.release_id=$2 AND ref.value->>'type'='artifact' AND coalesce(ref.value->>'id','')<>''),
-		EXISTS(SELECT 1 FROM evidence_items WHERE tenant_id=$1 AND release_id=$2 AND type='sbom'),
-		EXISTS(SELECT 1 FROM evidence_items WHERE tenant_id=$1 AND release_id=$2 AND type='vulnerability_scan'),
-		EXISTS(`+linkedDigests+`),
-		EXISTS(SELECT 1 FROM build_runs AS b CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(b.outputs)='array' THEN b.outputs ELSE '[]'::jsonb END) AS output(value) WHERE b.tenant_id=$1 AND b.release_id=$2 AND b.status='passed' AND output.value->>'digest' IN (`+linkedDigests+`)),
-		EXISTS(SELECT 1 FROM build_attestations AS a JOIN build_runs AS b ON b.id=a.build_id AND b.tenant_id=a.tenant_id JOIN verification_results AS v ON v.tenant_id=a.tenant_id AND v.subject_type='build_attestation' AND v.subject_id=a.id AND v.result='passed' AND v.assurance_profile->>'id'=$3 AND v.schema_version=$4 CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(a.subject_digests)='array' THEN a.subject_digests ELSE '[]'::jsonb END) AS digest(value) WHERE a.tenant_id=$1 AND b.release_id=$2 AND digest.value IN (`+linkedDigests+`))`, tenant, release, verificationdomain.VerificationProfileDSSEAttestationSignature, verificationdomain.VerificationResultSchemaVersion).Scan(&v.HasArtifact, &v.HasSBOM, &v.HasVulnerabilityScan, &v.HasArtifactDigest, &v.HasPassedBuild, &v.HasVerifiedBuildAttestation)
+	// Only coherent sources and registered tenant-owned artifacts contribute
+	// digests. No raw source payload or receipt details cross this boundary.
+	err := tx.QueryRow(ctx, releaseReadinessScopeCTE+`, evidence AS MATERIALIZED (
+		SELECT e.id,e.type,e.subject_refs FROM scope s JOIN evidence_items e ON `+customerCatalogEvidenceScopeSQL+`
+	), linked_digests AS MATERIALIZED (
+		SELECT a.digest FROM evidence e CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.subject_refs)='array' THEN e.subject_refs ELSE '[]'::jsonb END) ref
+		JOIN artifacts a ON a.id=ref->>'id' AND a.tenant_id=$1 WHERE ref->>'type'='artifact' AND a.digest ~ '^sha256:[0-9a-fA-F]{64}$'
+	), builds AS MATERIALIZED (
+		SELECT b.id,b.tenant_id,b.project_id,b.release_id,b.status,b.outputs FROM scope s JOIN build_runs b ON `+customerProvenanceBuildScopeSQL+` AND NOT (`+customerProvenanceOutputsInvalidSQL+`)
+	) SELECT
+		EXISTS(SELECT 1 FROM evidence e CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.subject_refs)='array' THEN e.subject_refs ELSE '[]'::jsonb END) ref WHERE ref->>'type'='artifact' AND coalesce(ref->>'id','')<>''),
+		EXISTS(SELECT 1 FROM evidence WHERE type='sbom'),
+		EXISTS(SELECT 1 FROM evidence WHERE type='vulnerability_scan'),
+		EXISTS(SELECT 1 FROM linked_digests),
+		EXISTS(SELECT 1 FROM builds b CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(b.outputs)='array' THEN b.outputs ELSE '[]'::jsonb END) output WHERE b.status='passed' AND output->>'digest' IN (SELECT digest FROM linked_digests)),
+		EXISTS(SELECT 1 FROM scope s JOIN builds b ON b.tenant_id=s.tenant_id JOIN build_attestations a ON a.build_id=b.id AND a.tenant_id=b.tenant_id
+		JOIN evidence_items e ON `+customerProvenanceAttestationSourceSQL+`
+		JOIN verification_results v ON v.tenant_id=a.tenant_id AND v.subject_type='build_attestation' AND v.subject_id=a.id AND v.result='passed' AND v.assurance_profile->>'id'=$3 AND v.schema_version=$4
+		CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(a.subject_digests)='array' THEN a.subject_digests ELSE '[]'::jsonb END) digest
+		WHERE NOT (`+customerSnapshotStringListInvalidSQL("a.subject_digests")+`) AND digest IN (SELECT digest FROM linked_digests))`, tenant, release, verificationdomain.VerificationProfileDSSEAttestationSignature, verificationdomain.VerificationResultSchemaVersion).Scan(&v.HasArtifact, &v.HasSBOM, &v.HasVulnerabilityScan, &v.HasArtifactDigest, &v.HasPassedBuild, &v.HasVerifiedBuildAttestation)
 	if err != nil {
 		return releasePresenceFacts{}, fmt.Errorf("read readiness presence: %w", err)
 	}
@@ -40,10 +47,10 @@ func readReleasePresenceFacts(ctx context.Context, tx pgx.Tx, tenant, release st
 }
 func readReleaseUnhandledPresence(ctx context.Context, tx pgx.Tx, tenant, release string, now time.Time) (bool, bool, error) {
 	var invalidFindings bool
-	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM vulnerability_scans AS s
-		WHERE s.tenant_id=$1 AND s.release_id=$2 AND (
-			jsonb_typeof(s.findings)<>'array' OR EXISTS(
-				SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(s.findings)='array' THEN s.findings ELSE '[]'::jsonb END) AS f(value)
+	err := tx.QueryRow(ctx, releaseReadinessScopeCTE+` SELECT EXISTS(SELECT 1 `+releaseReadinessScansFromSQL+`
+		WHERE (
+			jsonb_typeof(d.findings)<>'array' OR EXISTS(
+				SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(d.findings)='array' THEN d.findings ELSE '[]'::jsonb END) AS f(value)
 				WHERE jsonb_typeof(f.value)<>'object' OR btrim(coalesce(f.value->>'id',''))='' OR btrim(coalesce(f.value->>'severity',''))=''
 			)
 		))`, tenant, release).Scan(&invalidFindings)

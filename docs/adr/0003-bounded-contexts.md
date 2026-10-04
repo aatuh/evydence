@@ -71,7 +71,17 @@ policy row lock. Invalid array shapes, oversized values, and out-of-range
 timestamps are rejected before policy JSON crosses the database driver.
 The private readiness component reuses Risk's fact reader and canonical
 evaluator in that same view, using the fixed generation time for exceptions,
-package expiry, and signing-key validity. Missing decision, exception, and
+package expiry, and signing-key validity. Readiness and anomaly presence facts
+now share the catalog/provenance parent checks: the selected tenant/product/
+release must agree with source evidence, build projects, optional collectors,
+registered outputs, and typed attestation payload bindings. Parsed scans must
+have a coherent typed source. Current decision handling and exported decision
+summaries require an unambiguous finding with matching vulnerability/component;
+an unrelated successor cannot inherit historical handling. Exception controls
+and optional findings must resolve inside the selected scope before contributing
+handling or missing identifiers. Malformed unrelated scans do not enter readiness
+validation. These are recorded facts, not fresh provider verification, and the
+Risk evaluator remains the single policy owner. Missing decision, exception, and
 package identifiers share pre-transfer row/byte bounds; package product and
 release ownership must agree. The final public check representation is
 charged to the shared metadata budget without persisting an evaluation or

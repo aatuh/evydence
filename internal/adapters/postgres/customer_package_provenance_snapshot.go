@@ -104,6 +104,11 @@ var customerProvenanceBuildsSQL = `SELECT b.id AS sort_id,jsonb_build_object('id
 	OR ` + customerGovernanceTimeInvalidSQL("b.started_at") + ` OR ` + customerGovernanceTimeInvalidSQL("b.finished_at") + ` OR ` + customerGovernanceTimeInvalidSQL("b.created_at") + `) AS invalid
 	FROM scope s JOIN build_runs b ON ` + customerProvenanceBuildScopeSQL + ` ORDER BY b.id`
 
+const customerProvenanceAttestationSourceSQL = `e.id=a.evidence_id AND e.tenant_id=a.tenant_id AND e.type='build_attestation'
+	AND e.product_id=s.product_id AND e.project_id=b.project_id AND e.release_id=b.release_id AND e.build_id=b.id
+	AND e.deployment_id IS NULL AND e.payload_hash=a.payload_hash AND e.payload_size=a.payload_size AND e.payload_ref IS NOT DISTINCT FROM a.payload_ref
+	AND ` + customerCatalogEvidenceOwnershipSQL
+
 var customerProvenanceAttestationsSQL = `SELECT a.id AS sort_id,jsonb_build_object('id',a.id,'build_id',a.build_id,'evidence_id',a.evidence_id,
 	'payload_hash',a.payload_hash,'payload_size',a.payload_size,'payload_type',a.payload_type,'predicate_type',a.predicate_type,'subject_digests',a.subject_digests,
 	'signature_count',a.signature_count,'verification_status',a.verification_status,'schema_version',a.schema_version,
@@ -112,7 +117,4 @@ var customerProvenanceAttestationsSQL = `SELECT a.id AS sort_id,jsonb_build_obje
 	OR ` + customerSnapshotStringListInvalidSQL("a.subject_digests") + `) AS invalid
 	FROM scope s JOIN build_runs b ON ` + customerProvenanceBuildScopeSQL + `
 	JOIN build_attestations a ON a.build_id=b.id AND a.tenant_id=b.tenant_id
-	JOIN evidence_items e ON e.id=a.evidence_id AND e.tenant_id=a.tenant_id AND e.type='build_attestation'
-	 AND e.product_id=s.product_id AND e.project_id=b.project_id AND e.release_id=b.release_id AND e.build_id=b.id
-	 AND e.deployment_id IS NULL AND e.payload_hash=a.payload_hash AND e.payload_size=a.payload_size AND e.payload_ref IS NOT DISTINCT FROM a.payload_ref
-	 AND ` + customerCatalogEvidenceOwnershipSQL + ` ORDER BY a.id`
+	JOIN evidence_items e ON ` + customerProvenanceAttestationSourceSQL + ` ORDER BY a.id`

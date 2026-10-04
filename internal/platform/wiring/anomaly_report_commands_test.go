@@ -39,7 +39,8 @@ func seedAnomalyBuildFacts(t *testing.T, p *pgxpool.Pool) {
 		{`INSERT INTO artifacts(id,tenant_id,name,media_type,size,digest)VALUES('artifact','tenant','Artifact','application/octet-stream',1,$1)`, []any{digest}},
 		{`UPDATE evidence_items SET subject_refs='[{"type":"artifact","id":"artifact"}]' WHERE id='a'`, nil},
 		{`UPDATE build_runs SET status='passed',outputs=jsonb_build_array(jsonb_build_object('digest',$1::text)) WHERE id='build'`, []any{digest}},
-		{`INSERT INTO build_attestations(id,tenant_id,build_id,evidence_id,payload_hash,payload_size,payload_type,predicate_type,subject_digests,materials_count,signature_count,verification_status,schema_version)VALUES('attestation','tenant','build','a','sha256:test',1,'application/json','test',jsonb_build_array($1::text),0,1,'passed','attestation.v1')`, []any{digest}},
+		{`INSERT INTO evidence_items(id,tenant_id,product_id,project_id,release_id,build_id,type,title,source_system,observed_at,schema_version,payload_hash,payload_size,canonical_hash,canonicalization,trust_level,verification_status) VALUES('attestation_source','tenant','product','project','release','build','build_attestation','Attestation','ci',now(),'evidence.v1','sha256:test',1,'sha256:test','v1','recorded','not_evaluated')`, nil},
+		{`INSERT INTO build_attestations(id,tenant_id,build_id,evidence_id,payload_hash,payload_size,payload_type,predicate_type,subject_digests,materials_count,signature_count,verification_status,schema_version)VALUES('attestation','tenant','build','attestation_source','sha256:test',1,'application/json','test',jsonb_build_array($1::text),0,1,'passed','attestation.v1')`, []any{digest}},
 		{`INSERT INTO verification_results(id,tenant_id,subject_type,subject_id,result,checks,verified_at,assurance_profile,schema_version)VALUES('receipt','tenant','build_attestation','attestation','passed','[]',now(),'{"id":"dsse-attestation-signature.v1"}','verification-result.v2.0.0')`, nil},
 	} {
 		if _, err := p.Exec(t.Context(), statement.sql, statement.args...); err != nil {
@@ -126,7 +127,7 @@ func TestPostgresAnomalyCriticalDecisionAndExceptionFacts(t *testing.T) {
 	}
 	a := identitydomain.Actor{TenantID: "tenant", KeyID: "operator", Scopes: []string{"report:read"}}
 	in := experimentalapp.AnomalyReportInput{SubjectType: "release", SubjectID: "release"}
-	if _, err := p.Exec(t.Context(), `INSERT INTO vulnerability_scans(id,tenant_id,evidence_id,release_id,scanner,target_ref,summary,findings)VALUES('scan','tenant','b','release','test','target','{}','[{"id":"finding","severity":"critical","state":"open"}]')`); err != nil {
+	if _, err := p.Exec(t.Context(), `INSERT INTO evidence_items(id,tenant_id,product_id,project_id,release_id,type,title,source_system,observed_at,schema_version,payload_hash,canonical_hash,canonicalization,trust_level,verification_status) VALUES('scan_source','tenant','product','project','release','vulnerability_scan','Scan','ci',now(),'evidence.v1','sha256:test','sha256:test','v1','recorded','not_evaluated'); INSERT INTO vulnerability_scans(id,tenant_id,evidence_id,release_id,scanner,target_ref,summary,findings)VALUES('scan','tenant','scan_source','release','test','target','{}','[{"id":"finding","vulnerability":"CVE-TEST","severity":"critical","state":"open"}]')`); err != nil {
 		t.Fatal(err)
 	}
 	want := func(critical bool) {
