@@ -13,9 +13,9 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
-// The reader must supply a bounded, committed snapshot. This builder does not
-// install a Ledger fallback; production route binding waits for its database
-// snapshot reader. Write effects already use the native unit of work.
+// The reader must supply a bounded, committed snapshot. The API composition
+// root injects the native reader; this builder never installs a Ledger fallback.
+// Write effects join the durable executor's native unit of work.
 func BuildCustomerPackageCreationCommands(reader packageapp.CustomerPackageSnapshotReader, factory app.UnitOfWorkFactory) (*packageapp.CustomerPackageCommands, error) {
 	if reader == nil || factory == nil {
 		return nil, errors.New("customer-package snapshot reader and transactions are required")

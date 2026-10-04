@@ -21,9 +21,8 @@ import (
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
 
-// This immutable fixture stands in for the as-yet-unbound production snapshot
-// reader. These tests prove the real write adapter/UOW, not HTTP migration or
-// production snapshot completeness.
+// This immutable fixture isolates write-adapter/UOW behavior. Separate native
+// reader and HTTP tests prove production snapshot completeness and binding.
 type customerCreationSnapshotFixture struct {
 	view  packageapp.CustomerPackageCreationSnapshot
 	reads int

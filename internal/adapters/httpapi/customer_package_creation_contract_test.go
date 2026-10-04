@@ -20,7 +20,8 @@ func TestCustomerCreationOpenAPIConstrainsOnlyNewRequest(t *testing.T) {
 	var doc struct {
 		Components struct {
 			Schemas map[string]struct {
-				Properties map[string]map[string]any `json:"properties"`
+				Properties  map[string]map[string]any `json:"properties"`
+				Description string                    `json:"description"`
 			} `json:"schemas"`
 		} `json:"components"`
 	}
@@ -38,6 +39,9 @@ func TestCustomerCreationOpenAPIConstrainsOnlyNewRequest(t *testing.T) {
 	}
 	if doc.Components.Schemas["CustomerSecurityPackage"].Properties["title"]["maxLength"] != nil {
 		t.Fatal("historical response constrained")
+	}
+	if !strings.Contains(doc.Components.Schemas["CreateCustomerPackageRequest"].Description, "Duplicate/case-aliased keys and explicit null fields are rejected") {
+		t.Fatal("strict creation JSON behavior missing from published contract")
 	}
 }
 

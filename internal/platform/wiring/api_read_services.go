@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
+	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/adapters/signing/localed25519"
 	"github.com/aatuh/evydence/internal/app"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
@@ -90,6 +92,14 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	options.CustomerPackageAccessCommands, err = BuildCustomerPackageAccessCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create customer package access commands: %w", err)
+	}
+	packageReader, err := postgres.NewCustomerPackageCreationSnapshotReader(store, verificationCanonicalHasher{}, localed25519.PayloadVerifier{})
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create customer package snapshot reader: %w", err)
+	}
+	options.CustomerPackageCreationCommands, err = BuildCustomerPackageCreationCommands(packageReader, store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create customer package creation commands: %w", err)
 	}
 	options.ReleaseSecuritySummaryQuery, err = BuildReleaseSecuritySummaryQuery(store)
 	if err != nil {

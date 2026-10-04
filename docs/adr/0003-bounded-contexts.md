@@ -27,8 +27,8 @@ caller-owned repeatable-read transaction. It validates evidence parent
 associations inside the selected tenant/product, binds build-output artifact
 digests, and rejects row/byte overflow before transferring selected metadata.
 It neither loads Ledger state nor acquires the writer fence on its read
-connection. This catalog component is tested against live PostgreSQL but is
-not yet a complete snapshot reader. Its evidence component now selects SBOM,
+connection. This catalog component is tested against live PostgreSQL as part
+of the complete snapshot reader. Its evidence component selects SBOM,
 scan, VEX, and API-contract/diff summaries in that same caller-owned view and
 shares the metadata byte budget. It excludes raw findings, components,
 documents, payload locations, VEX authors, and private operation extensions;
@@ -131,9 +131,17 @@ composition root must inject canonical hashing
 and signature verification; there is no Ledger or memory-mode fallback. Begin,
 section, cancellation, or commit failure returns no partial view, with bounded
 cancellation-independent rollback cleanup.
-Production creation is **not yet migrated**: focused HTTP/runtime binding is
-outstanding, and the existing creation route and
-API startup still reach Ledger. See
+PostgreSQL API wiring now binds this reader, the focused creation command and
+durable executor to the existing HTTP route. Current grants, coherent roots and
+selected policy are rechecked before reservation/replay under the writer fence;
+package, audit and successful replay commit together. Restart replay does not
+rebuild evidence or apply a later redaction policy, and exact stored JSON numbers
+survive replay/redaction. Live HTTP tests cover wrong ownership, revoked grants
+and sessions, expired-original replay, private-source exclusion, and
+insert/audit/replay/commit rollback. Invalid command execution can retain only
+the standard safe failed-key tombstone. Both profiles share strict request and
+cookie-mutation checks; explicit local memory retains its nondurable reader.
+Broad API startup still reaches Ledger. See
 [customer-package creation](../api.md#customer-package-creation) for limits and
 the remaining boundary.
 
@@ -143,8 +151,8 @@ only the actor's tenant identity, joins the durable replay transaction, and
 does not read existing profiles, evidence, manifests, or signing material.
 Current tenant-wide package-write authority is checked before replay. The local
 Package service delegates to the same preset, normalization, and record rules;
-its broad transaction adapter is compatibility-only. Customer-package creation
-and broad API startup remain separate EVY-905 work. See
+its broad transaction adapter is compatibility-only. Broad API startup remains
+separate EVY-905 work. See
 [profile creation](../api.md#redaction-profile-creation) for bounds and malformed
 request compatibility limits.
 

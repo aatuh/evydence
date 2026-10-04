@@ -31,12 +31,19 @@ func TestBuildAPIReadServicesRejectsIncompleteRuntimeWithoutLeakingSecrets(t *te
 	}
 }
 
+func TestBuildAPIReadServicesRejectsUnopenedDatabaseWithoutPackageFallback(t *testing.T) {
+	checks := []app.ReadinessCheck{{Name: "postgres", Check: func(context.Context) error { return nil }}, {Name: "migrations", Check: func(context.Context) error { return nil }}}
+	opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: &postgres.Store{}}, "private-pepper", checks)
+	if err == nil || strings.Contains(err.Error(), "private-pepper") || opts.CustomerPackageCreationCommands != nil || opts.DurableCommandExecutor != nil {
+		t.Fatal("unopened database silently installed incomplete/fallback commands", err)
+	}
+}
+
 func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T) {
 	memory, err := BuildAPIReadServices(&Runtime{Process: API, Profile: LocalMemory}, "", nil)
 	if err != nil || memory.ReadinessQuery != nil || memory.MetricsQuery != nil || memory.RetentionQuery != nil || memory.IncidentReportQuery != nil || memory.SecurityUpdateEvidenceQuery != nil || memory.CRAVulnerabilityQuery != nil || memory.MissingEvidenceQuery != nil || memory.ReleaseSecuritySummaryQuery != nil || memory.ControlCoverageQuery != nil || memory.Authenticator != nil || memory.InstanceAdminQuery != nil || memory.OutboxDiagnosticsQuery != nil || memory.OutboxReplayCommand != nil || memory.ProductQuery != nil || memory.ArtifactPointQuery != nil || memory.EvidenceFlowQuery != nil || memory.OpenAPIContractPointQuery != nil || memory.SBOMPointQuery != nil || memory.VulnerabilityScanPointQuery != nil || memory.VEXPointQuery != nil || memory.SBOMComponentsQuery != nil || memory.ReleaseBundleQuery != nil || memory.ControlEvidenceQuery != nil || memory.ControlTemplateQuery != nil || memory.ExceptionsQuery != nil || memory.VulnerabilityDecisionQuery != nil || memory.VulnerabilityDecisionSummaryQuery != nil || memory.MarketplaceCollectorQuery != nil || memory.CollectorHealthQuery != nil || memory.VulnerabilityPostureQuery != nil {
 		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
 	}
-	store := &postgres.Store{}
 	if memory.APIKeyCommands != nil {
 		t.Fatal("local memory bound durable API key issuance")
 	}
@@ -159,6 +166,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if memory.CustomerPackageAccessCommands != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable package access")
+	}
+	if memory.CustomerPackageCreationCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable package creation")
 	}
 	if memory.HTMLReportCommands != nil {
 		t.Fatal("local-memory profile unexpectedly bound durable HTML reports")
@@ -298,6 +308,13 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.TrustConfigurationCommands != nil {
 		t.Fatal("local memory binds durable trust commands")
 	}
+}
+
+func TestBuildAPIReadServicesComposesPostgresCommandsAndQueries(t *testing.T) {
+	// Native snapshot readers require an initialized pool. Keep every existing
+	// composition assertion, now against a migrated database rather than a
+	// zero-value Store that cannot execute any of the bound queries.
+	store, _ := openHTMLReportWiringStore(t)
 	checks := []app.ReadinessCheck{
 		{Name: "postgres", Check: func(context.Context) error { return nil }},
 		{Name: "migrations", Check: func(context.Context) error { return nil }},
@@ -317,6 +334,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.CustomerPackageAccessCommands == nil {
 		t.Fatal("PostgreSQL profile omitted package access")
+	}
+	if options.CustomerPackageCreationCommands == nil {
+		t.Fatal("PostgreSQL profile omitted native package creation")
 	}
 	if options.HTMLReportCommands == nil {
 		t.Fatal("PostgreSQL profile omitted HTML reports")

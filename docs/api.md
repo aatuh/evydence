@@ -2438,30 +2438,39 @@ Creation now shares focused Package application rules across adapters:
   lists do not count as policy changes. Package and generation audit write
   atomically, with no successful top-level result on insert/audit/commit failure.
 
-Previously accepted overlong create values or oversized snapshots can now
-fail these checks. Historical records are not rewritten, and response schemas
-are not restricted by the new creation bounds. Existing access/download bounds
-remain unchanged.
+Both profiles reject malformed/non-object JSON, unknown fields, duplicate or
+case-aliased keys, explicit null fields, invalid UTF-8 and exceeded raw byte
+bounds with `400`. The 64 KiB request-body limit applies independently. Cookie
+mutations require a same-host HTTPS Origin; bearer credentials retain precedence.
+Some previously decoded omissions/aliases now fail validation. Historical
+records are not rewritten, and response schemas are not restricted by the new
+creation bounds. Existing access/download bounds remain unchanged.
 
-Migration status: `CustomerPackageCommands` and the composition root's native
-write adapter are implemented. The native adapter selects only current
-tenant/product/release identities and bounded public redaction policy, taking
-the common worker/audit fence before row locks. Its creation/replay guard checks
-current scope without reading evidence or allocating a new package. The guard
-does not reject an expired original request merely because time has passed;
-fresh creation and package access still enforce expiry.
+PostgreSQL wiring binds `CustomerPackageCommands`, the complete native snapshot
+reader and the durable command executor to this route, with no Ledger-backed
+creation or replay dependency. The reader selects the policy and every public
+package section in one bounded, read-only repeatable-read view with a fixed
+generation time. It publishes no partial view on section or transaction failure.
+The write adapter takes the common worker/audit fence before current
+tenant/product/release and selected-policy locks. Package, generation audit and
+successful replay record commit in one unit of work.
 
-The complete native database snapshot reader is implemented, but its production
-HTTP/runtime binding is **outstanding**. It reads the selected profile and all
-public package sections in one bounded, read-only repeatable-read view with a
-fixed generation time, and publishes nothing on section or transaction failure.
-The existing route still uses the Ledger compatibility reader and command
-envelope; the native guard is not yet the route's replay guard. The legacy
-profile and snapshot are separate reads with a write-time policy recheck,
-whereas native reader tests cover the complete database view, scope, privacy,
-shared/final byte limits, concurrent commits and transaction failures. These
-checks do not prove the existing route is migrated or that startup is Ledger-free.
-EVY-905 remains incomplete; see the
+Current human grants, coherent tenant/product/release roots and the selected
+tenant-owned policy are checked before reservation, including restart replay.
+Missing/foreign roots or a mismatched release return `404`; denied current grants
+return `403`; changed request bytes with the same key return `409`. Replay returns
+the original safe package without reading evidence or applying a later policy.
+An expired original request can still replay during the idempotency retention
+window; fresh creation and package access enforce their separate expiry rules.
+Command failure may retain only the existing safe failed-key tombstone, never
+the package, generation audit, successful replay or private backend error.
+Outer-commit failure leaves no successful command effects and the key can retry.
+
+Explicit local memory uses the same request/domain rules and current grant check
+before replay, but retains its nondurable compatibility reader. Focused native
+reader and HTTP tests cover consistent views, scope, privacy, exact-number
+replay, byte limits and transaction failures. They do not establish that broad
+API startup is Ledger-free. EVY-905 remains incomplete; see the
 [bounded-context ADR](adr/0003-bounded-contexts.md) for the ownership boundary.
 
 ### Customer Package Archive Download

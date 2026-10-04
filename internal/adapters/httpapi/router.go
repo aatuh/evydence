@@ -65,6 +65,7 @@ type Server struct {
 	craVulnerabilityQuery             CRAVulnerabilityQuery
 	missingEvidenceQuery              MissingEvidenceQuery
 	customerPackageAccessCommands     CustomerPackageAccessCommands
+	customerPackageCreationCommands   CustomerPackageCreationCommands
 	htmlReportCommands                HTMLReportCommands
 	reportTemplateCommands            ReportTemplateCommands
 	bundleImportCommand               BundleImportCommand
@@ -293,6 +294,8 @@ type ServerOptions struct {
 	ReleaseReadinessReportQuery ReleaseReadinessReportQuery
 	// CustomerPackageAccessCommands reads and audits one durable package.
 	CustomerPackageAccessCommands CustomerPackageAccessCommands
+	// CustomerPackageCreationCommands freezes bounded durable public snapshots.
+	CustomerPackageCreationCommands CustomerPackageCreationCommands
 	// HTMLReportCommands uses bounded durable CRA facts and atomic report writes.
 	HTMLReportCommands HTMLReportCommands
 	// ReportTemplateCommands reads and persists templates and reports atomically.
@@ -539,6 +542,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.RedactionProfileCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused redaction profiles require durable idempotency")
 	}
+	if opts.CustomerPackageCreationCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused customer packages require durable idempotency")
+	}
 	if opts.AnswerLibraryCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused answer library requires durable idempotency")
 	}
@@ -594,6 +600,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.missingEvidenceQuery = opts.MissingEvidenceQuery
 	server.releaseReadinessReportQuery = opts.ReleaseReadinessReportQuery
 	server.customerPackageAccessCommands = opts.CustomerPackageAccessCommands
+	server.customerPackageCreationCommands = opts.CustomerPackageCreationCommands
 	server.htmlReportCommands = opts.HTMLReportCommands
 	server.reportTemplateCommands = opts.ReportTemplateCommands
 	server.bundleImportCommand = opts.BundleImportCommand
@@ -2343,23 +2350,6 @@ func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) 
 			return nil, err
 		}
 		return body, nil
-	})
-}
-
-func (s *Server) createCustomerPackage(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProductID          string    `json:"product_id"`
-		ReleaseID          string    `json:"release_id"`
-		RedactionProfileID string    `json:"redaction_profile_id"`
-		Title              string    `json:"title"`
-		ExpiresAt          time.Time `json:"expires_at"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		pkg, err := s.packages.CreateCustomerSecurityPackage(ctx, actor, app.CreateCustomerPackageInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, RedactionProfileID: req.RedactionProfileID, Title: req.Title, ExpiresAt: req.ExpiresAt})
-		return http.StatusCreated, pkg, err
 	})
 }
 
