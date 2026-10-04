@@ -106,32 +106,58 @@ func (s *Server) createSaaSEditionProfile(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) createPublicTransparencyLog(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name      string `json:"name"`
-		Endpoint  string `json:"endpoint"`
-		PublicKey string `json:"public_key"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.publicTransparencyMetadata != nil {
+		s.createDurablePublicTransparencyLog(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodePublicTransparencyLog(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		log, err := s.ledger.CreatePublicTransparencyLog(ctx, actor, app.CreatePublicTransparencyLogInput{Name: req.Name, Endpoint: req.Endpoint, PublicKey: req.PublicKey})
+		log, err := s.ledger.CreatePublicTransparencyLog(ctx, actor, legacyPublicTransparencyLogInput(req))
 		return http.StatusCreated, log, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodePublicTransparencyLog(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeCreatePublicTransparencyLog(r.Context(), a, legacyPublicTransparencyLogInput(in)); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 
 func (s *Server) publishPublicTransparencyLogEntry(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		LogID        string `json:"log_id"`
-		CheckpointID string `json:"checkpoint_id"`
-		ExternalID   string `json:"external_id"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.publicTransparencyMetadata != nil {
+		s.publishDurablePublicTransparencyLogEntry(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodePublicTransparencyPublication(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		entry, err := s.ledger.PublishPublicTransparencyLogEntry(ctx, actor, app.PublishPublicTransparencyLogEntryInput{LogID: req.LogID, CheckpointID: req.CheckpointID, ExternalID: req.ExternalID})
+		entry, err := s.ledger.PublishPublicTransparencyLogEntry(ctx, actor, legacyPublicTransparencyPublicationInput(req))
 		return http.StatusCreated, entry, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodePublicTransparencyPublication(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizePublishPublicTransparencyLogEntry(r.Context(), a, legacyPublicTransparencyPublicationInput(in)); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

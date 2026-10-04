@@ -147,6 +147,7 @@ type Server struct {
 	signingOperationCommands          SigningOperationCommands
 	saasProfileCommands               SaaSProfileCommands
 	marketplaceCollectorCommands      MarketplaceCollectorCommands
+	publicTransparencyMetadata        PublicTransparencyMetadataCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
 	questionnairePackageCommands      QuestionnairePackageCommands
 	portalAccessCommands              PortalAccessCommands
@@ -251,6 +252,8 @@ type ServerOptions struct {
 	SaaSProfileCommands SaaSProfileCommands
 	// MarketplaceCollectorCommands registers bounded metadata without Ledger.
 	MarketplaceCollectorCommands MarketplaceCollectorCommands
+	// PublicTransparencyMetadataCommands records log/publication metadata without Ledger.
+	PublicTransparencyMetadataCommands PublicTransparencyMetadataCommands
 	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
 	// QuestionnairePackageCommands generates bounded responses without Ledger state.
@@ -503,6 +506,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.MarketplaceCollectorCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused marketplace collectors require durable idempotency")
 	}
+	if opts.PublicTransparencyMetadataCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused public transparency metadata requires durable idempotency")
+	}
 	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire drafts require durable idempotency")
 	}
@@ -637,6 +643,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.signingOperationCommands = opts.SigningOperationCommands
 	server.saasProfileCommands = opts.SaaSProfileCommands
 	server.marketplaceCollectorCommands = opts.MarketplaceCollectorCommands
+	server.publicTransparencyMetadata = opts.PublicTransparencyMetadataCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
 	server.questionnairePackageCommands = opts.QuestionnairePackageCommands
 	server.portalAccessCommands = opts.PortalAccessCommands

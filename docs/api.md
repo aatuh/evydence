@@ -2612,6 +2612,43 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### Public Transparency Metadata
+
+`POST /v1/public-transparency-logs` and `POST /v1/public-transparency-log-entries`
+record configuration and declared publication metadata. They make no outbound
+request, publish nothing to a provider, and do not establish inclusion or
+public-log trust. A nonblank `public_key` is operator-supplied public metadata,
+not a cryptographically validated trust root; never submit private key material.
+The separate verify/fetch-proof operations assess proof material.
+
+Both metadata operations require `keys:admin` (or admin/wildcard scope);
+human sessions additionally need a current tenant-wide grant. Product/project/
+release grants are insufficient. Authorization, current tenant existence,
+and supplied-reference ownership are checked before idempotent replay.
+Cookie mutations require Origin; Bearer takes precedence over cookies.
+
+Requests are exact non-null JSON objects, with no unknown, duplicate or
+mixed-case fields, valid UTF-8 without NUL, and at most 64 KiB including
+whitespace. Raw byte limits apply before trimming. Log creation requires
+`name` (256), `endpoint` (4096), and `public_key` (16384); all must be nonblank.
+The endpoint must parse as absolute `https://` with a host, no userinfo, and
+no fragment. This syntactic validation is not endpoint/provider verification.
+Publication requires nonblank `log_id`, `checkpoint_id`, and `external_id`
+(1024 bytes each). The log, checkpoint, and linked Merkle batch must all
+currently belong to the actor tenant; foreign or missing roots return `404`.
+Malformed/oversized stored Merkle-root digests fail validation, not truncation.
+
+Responses preserve `201`, state `configured` or `published`, existing schema
+versions, and snake-case fields. The entry hash remains normalized canonical
+JSON over `log_id`, `checkpoint_id`, the exact recorded `merkle_root`, and
+trimmed `external_id`. Creation/publication returns no inclusion-verification
+fields. PostgreSQL records metadata, audit, and replay together with UTC
+microsecond timestamps. Changed raw request bytes under the same key return
+`409`; denied authority returns `403`, bad input `400`, and storage failures
+safe Problem Details without publishing a success response. Historical
+records are not rewritten. See [API versioning](reference/api-versioning.md#unreleased-public-transparency-metadata-boundary)
+for compatibility-review requirements.
+
 ### SaaS Profile Creation
 
 `POST /v1/saas/profiles` records experimental hosted-deployment intent only.

@@ -85,6 +85,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.MarketplaceCollectorCommands != nil {
 		t.Fatal("local memory bound durable marketplace collectors")
 	}
+	if memory.PublicTransparencyMetadataCommands != nil {
+		t.Fatal("local memory bound durable public transparency metadata")
+	}
 	if memory.QuestionnaireDraftCommands != nil {
 		t.Fatal("local memory bound durable questionnaire drafts")
 	}
@@ -368,6 +371,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.MarketplaceCollectorCommands == nil {
 		t.Fatal("PostgreSQL marketplace collectors still use Ledger")
+	}
+	if options.PublicTransparencyMetadataCommands == nil {
+		t.Fatal("PostgreSQL public transparency metadata still uses Ledger")
 	}
 	if options.ReleaseBundleVerification == nil {
 		t.Fatal("PostgreSQL bundle verification still uses Ledger")

@@ -1169,6 +1169,17 @@ Source snapshots, deployment records, signed incident webhook events, incident p
 
 Evidence summaries, questionnaire drafts, graph snapshots and anomaly reports organize stored records with their documented assumptions and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
 
+Experimental public-log creation and publication now bind focused commands to
+bounded PostgreSQL tenant/log/checkpoint/Merkle-root projections. The actor-tenant
+worker/audit fence is acquired before root share locks and retained through
+the metadata/audit/replay commit. Publication reads one owned root chain; it
+does not select log endpoint/key metadata or Merkle leaf/signature arrays.
+SQL caps transfer of corrupt batch IDs and root text before core validation.
+Local memory shares pure metadata and canonical entry-hash rules. These
+commands do not publish externally or assign inclusion assurance; proof
+verification/fetching and startup Ledger retirement remain EVY-905 work.
+See [public transparency metadata](api.md#public-transparency-metadata).
+
 Experimental marketplace collector registration now uses focused commands and
 flat tenant/reference ID projections in PostgreSQL. The transaction acquires
 the actor-tenant worker/audit fence before locking current roots. Supplied

@@ -28,15 +28,16 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"CreateQuestionnaireAnswerLibraryEntry",
 			"ListQuestionnaireAnswerLibrary",
 		},
-		"portal_access_creation.go":         {"AuthorizeCustomerPortalAccessCreate", "AuthorizeCustomerPortalAccessRevoke", "authorizePortalWriteLocked"},
-		"graph_snapshot_creation.go":        {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked"},
-		"product_release_authorization.go":  {"authorizeProductReleaseLocked"},
-		"pdf_report_creation.go":            {"AuthorizeCreatePDFReportPackage"},
-		"anomaly_report_creation.go":        {"AuthorizeGenerateAnomalyReport"},
-		"signing_operation_creation.go":     {"AuthorizeCreateSigningOperation"},
-		"saas_profile_creation.go":          {"AuthorizeCreateSaaSEditionProfile"},
-		"marketplace_collector_creation.go": {"AuthorizeCreateMarketplaceCollector"},
-		"future_extensions.go":              {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation", "CreateSaaSEditionProfile", "CreateMarketplaceCollector"},
+		"portal_access_creation.go":                {"AuthorizeCustomerPortalAccessCreate", "AuthorizeCustomerPortalAccessRevoke", "authorizePortalWriteLocked"},
+		"graph_snapshot_creation.go":               {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked"},
+		"product_release_authorization.go":         {"authorizeProductReleaseLocked"},
+		"pdf_report_creation.go":                   {"AuthorizeCreatePDFReportPackage"},
+		"anomaly_report_creation.go":               {"AuthorizeGenerateAnomalyReport"},
+		"signing_operation_creation.go":            {"AuthorizeCreateSigningOperation"},
+		"saas_profile_creation.go":                 {"AuthorizeCreateSaaSEditionProfile"},
+		"marketplace_collector_creation.go":        {"AuthorizeCreateMarketplaceCollector"},
+		"public_transparency_metadata_creation.go": {"AuthorizeCreatePublicTransparencyLog", "AuthorizePublishPublicTransparencyLogEntry"},
+		"future_extensions.go":                     {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation", "CreateSaaSEditionProfile", "CreateMarketplaceCollector", "CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry"},
 		"answer_library_creation.go": {
 			"AuthorizeQuestionnaireAnswerLibraryCreate",
 			"authorizeAnswerLibraryCreateLocked",
@@ -89,7 +90,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 				!strings.Contains(fn, "authorizeGraphSnapshotLocked") && !strings.Contains(fn, "authorizeProductReleaseLocked") &&
 				!strings.Contains(fn, "verificationquery.NewSigningKeyAdminAuthorizer().Authorize") && !strings.Contains(fn, "l.AuthorizeCreateSigningOperation(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeSaaSProfileActor(") && !strings.Contains(fn, "l.AuthorizeCreateSaaSEditionProfile(") &&
-				!strings.Contains(fn, "experimentalapp.AuthorizeMarketplaceCollectorActor(") && !strings.Contains(fn, "l.AuthorizeCreateMarketplaceCollector(") {
+				!strings.Contains(fn, "experimentalapp.AuthorizeMarketplaceCollectorActor(") && !strings.Contains(fn, "l.AuthorizeCreateMarketplaceCollector(") &&
+				!strings.Contains(fn, "experimentalapp.AuthorizePublicTransparencyMetadataActor(") && !strings.Contains(fn, "l.AuthorizeCreatePublicTransparencyLog(") && !strings.Contains(fn, "l.AuthorizePublishPublicTransparencyLogEntry(") {
 				t.Fatalf("%s.%s missing resource-scoped authorization call", file, name)
 			}
 		}

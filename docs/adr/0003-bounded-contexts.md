@@ -203,8 +203,14 @@ actor-tenant mutation fence before current-reference share locks and commits
 metadata, manifest-bound audit and replay together. The command never loads
 signature/key bytes, components or findings. Both runtime profiles require
 tenant-wide human administration and current ownership before replay. This
-records package metadata only; public-transparency commands and broad Ledger
-startup retirement still require migration.
+records package metadata only; broad Ledger startup retirement still requires
+migration. Public-transparency creation/publication now belong to focused
+Experimental metadata commands with flat tenant/log/checkpoint/batch/root
+ports. PostgreSQL fences the actor tenant before share-locking the owned root
+chain and commits metadata, audit, and replay together, without loading log
+keys or leaf arrays. Explicit local memory shares the pure hash/record rules.
+Proof verification/fetching remain separate migration work, not an assurance
+claim of these metadata commands.
 Governance framework pages, control points, and the static starter-template
 catalog use risk-owned queries. Template listing does not read tenant state;
 the installation command remains on the compatibility Ledger path. A

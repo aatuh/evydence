@@ -421,16 +421,19 @@ func (l *Ledger) CreatePublicTransparencyLog(ctx context.Context, actor domain.A
 	if err := ctx.Err(); err != nil {
 		return domain.PublicTransparencyLog{}, err
 	}
-	if err := require(actor, ScopeKeysAdmin); err != nil {
+	if err := l.AuthorizeCreatePublicTransparencyLog(ctx, actor, in); err != nil {
 		return domain.PublicTransparencyLog{}, err
-	}
-	name, endpoint, publicKey := strings.TrimSpace(in.Name), strings.TrimSpace(in.Endpoint), strings.TrimSpace(in.PublicKey)
-	if name == "" || publicKey == "" || !strings.HasPrefix(endpoint, "https://") {
-		return domain.PublicTransparencyLog{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	record := domain.PublicTransparencyLog{ID: newID("ptl"), TenantID: actor.TenantID, Name: name, Endpoint: endpoint, PublicKey: publicKey, State: "configured", SchemaVersion: domain.PublicTransparencyLogVersion, CreatedAt: l.now()}
+	if _, ok := l.tenants[actor.TenantID]; !ok {
+		return domain.PublicTransparencyLog{}, ErrNotFound
+	}
+	projection, err := experimentalapp.BuildPublicTransparencyLog(newID("ptl"), actor.TenantID, publicTransparencyLogInput(in), l.now())
+	if err != nil {
+		return domain.PublicTransparencyLog{}, fromExperimentalCommandError(err)
+	}
+	record := PublicTransparencyLogLegacyRecord(projection)
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -459,37 +462,25 @@ func (l *Ledger) PublishPublicTransparencyLogEntry(ctx context.Context, actor do
 	if err := ctx.Err(); err != nil {
 		return domain.PublicTransparencyLogEntry{}, err
 	}
-	if err := require(actor, ScopeKeysAdmin); err != nil {
+	if err := l.AuthorizePublishPublicTransparencyLogEntry(ctx, actor, in); err != nil {
 		return domain.PublicTransparencyLogEntry{}, err
 	}
-	logID, checkpointID, externalID := strings.TrimSpace(in.LogID), strings.TrimSpace(in.CheckpointID), strings.TrimSpace(in.ExternalID)
-	if logID == "" || checkpointID == "" || externalID == "" {
-		return domain.PublicTransparencyLogEntry{}, ErrValidation
+	normalized, err := experimentalapp.NormalizePublicTransparencyPublicationInput(publicTransparencyPublicationInput(in))
+	if err != nil {
+		return domain.PublicTransparencyLogEntry{}, fromExperimentalCommandError(err)
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	logRecord, ok := l.publicLogs[logID]
-	if !ok || logRecord.TenantID != actor.TenantID {
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	checkpoint, ok := l.transparency[checkpointID]
-	if !ok || checkpoint.TenantID != actor.TenantID {
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	batch, ok := l.merkleBatches[checkpoint.BatchID]
-	if !ok || batch.TenantID != actor.TenantID {
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	entryHash, err := canonicalAnyHash(struct {
-		LogID        string `json:"log_id"`
-		CheckpointID string `json:"checkpoint_id"`
-		MerkleRoot   string `json:"merkle_root"`
-		ExternalID   string `json:"external_id"`
-	}{LogID: logRecord.ID, CheckpointID: checkpoint.ID, MerkleRoot: batch.RootHash, ExternalID: externalID})
+	source, err := l.publicTransparencyPublicationSourceLocked(ctx, actor.TenantID, normalized)
 	if err != nil {
 		return domain.PublicTransparencyLogEntry{}, err
 	}
-	entry := domain.PublicTransparencyLogEntry{ID: newID("pte"), TenantID: actor.TenantID, LogID: logRecord.ID, CheckpointID: checkpoint.ID, MerkleBatchID: batch.ID, ExternalID: externalID, EntryHash: entryHash, State: "published", SchemaVersion: domain.PublicTransparencyEntryVersion, CreatedAt: l.now()}
+	projection, err := experimentalapp.BuildPublicTransparencyPublication(newID("pte"), actor.TenantID, normalized, source, l.now())
+	if err != nil {
+		return domain.PublicTransparencyLogEntry{}, fromExperimentalCommandError(err)
+	}
+	entry := PublicTransparencyPublicationLegacyRecord(projection)
+	entryHash := entry.EntryHash
 	if l.unitOfWork != nil {
 		var auditEntry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {

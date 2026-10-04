@@ -548,6 +548,28 @@ for exact limits. Historical records are not rewritten. These restrictions
 require release compatibility review; this note is not an approved exception,
 provider verification evidence or proof of production Ledger retirement.
 
+## Unreleased Public Transparency Metadata Boundary
+
+Log creation and publication now use focused Experimental commands and
+bounded PostgreSQL tenant/log/checkpoint/batch projections. They preserve
+metadata trimming, canonical entry hash inputs and digest case, configured/
+published states, schema versions, audit bindings, and response casing and
+omission. Neither operation performs external publication or inclusion
+verification. Log public-key metadata is not validated cryptographically.
+
+Both profiles require current tenant-wide human key administration and
+reference ownership before replay, strict exact non-null JSON fields, raw
+UTF-8/NUL-free byte bounds, and Origin for cookie mutations. Previously
+accepted oversized/ambiguous text, malformed HTTPS URLs, credential-bearing
+URLs and fragments now return `400`; product-scoped human grants return `403`.
+Publication rejects malformed or oversized persisted Merkle roots. Durable
+timestamps use UTC microseconds. Historical records are not rewritten.
+
+See [public transparency metadata](../api.md#public-transparency-metadata)
+for exact bounds and non-claims. These tightened boundaries require release
+compatibility review; this note is not an approved exception. Proof verification,
+proof fetching, and complete production Ledger retirement remain migration work.
+
 ## Unreleased Marketplace Collector Boundary
 
 `POST /v1/marketplace-collectors` now binds focused Experimental commands to

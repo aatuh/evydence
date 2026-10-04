@@ -2491,9 +2491,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "subject_type", "subject_id", "result", "assumptions", "limitations", "schema_version", "created_at"))
 	registry.RegisterSchema("AnomalyReportEnvelope", dataEnvelopeSchema("#/components/schemas/AnomalyReport"))
 	registry.RegisterSchema("CreatePublicTransparencyLogRequest", objectSchema(map[string]any{
-		"name":       map[string]any{"type": "string"},
-		"endpoint":   map[string]any{"type": "string"},
-		"public_key": map[string]any{"type": "string"},
+		"name":       map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxPublicTransparencyNameBytes, "description": "Nonblank log label; raw NUL-free UTF-8 is capped at 256 bytes before trimming."},
+		"endpoint":   map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxPublicTransparencyEndpointBytes, "description": "Absolute HTTPS URL with a host, without userinfo or fragment; raw NUL-free UTF-8 is capped at 4096 bytes before trimming. Registration makes no network request."},
+		"public_key": map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxPublicTransparencyKeyBytes, "description": "Nonblank operator-supplied public key metadata, not cryptographically verified by registration; raw NUL-free UTF-8 is capped at 16384 bytes before trimming. Do not submit private key material."},
 	}, "name", "endpoint", "public_key"))
 	registry.RegisterSchema("PublicTransparencyLog", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
@@ -2507,9 +2507,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "name", "endpoint", "public_key", "state", "schema_version", "created_at"))
 	registry.RegisterSchema("PublicTransparencyLogEnvelope", dataEnvelopeSchema("#/components/schemas/PublicTransparencyLog"))
 	registry.RegisterSchema("PublishPublicTransparencyLogEntryRequest", objectSchema(map[string]any{
-		"log_id":        map[string]any{"type": "string"},
-		"checkpoint_id": map[string]any{"type": "string"},
-		"external_id":   map[string]any{"type": "string"},
+		"log_id":        map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxPublicTransparencyIDBytes, "description": "Current tenant-owned log ID; raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
+		"checkpoint_id": map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxPublicTransparencyIDBytes, "description": "Current tenant-owned checkpoint linked to an owned Merkle batch; raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
+		"external_id":   map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxPublicTransparencyIDBytes, "description": "Nonblank operator-supplied external reference, not external publication proof; raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
 	}, "log_id", "checkpoint_id", "external_id"))
 	registry.RegisterSchema("VerifyPublicTransparencyLogEntryRequest", objectSchema(map[string]any{
 		"leaf_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},

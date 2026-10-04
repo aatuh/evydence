@@ -214,6 +214,7 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"generateDurableAnomalyReport",
 		"createDurableSaaSProfile",
 		"createDurableMarketplaceCollector",
+		"createDurablePublicTransparencyLog", "publishDurablePublicTransparencyLogEntry",
 		"createDurableQuestionnairePackage",
 		"createDurablePortalAccess", "revokeDurablePortalAccess",
 		"createDurableQuestionnaireTemplate",
