@@ -9,6 +9,47 @@ import (
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
+// AuthorizeDSSEVerification is only the explicit local-memory replay guard.
+// Native HTTP uses the focused service and flat PostgreSQL ownership locks;
+// this method neither refreshes worker projections nor inspects attestations.
+func (l *Ledger) AuthorizeDSSEVerification(ctx context.Context, a domain.Actor, raw string) error {
+	if ctx == nil {
+		return context.Canceled
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := require(a, ScopeVerifyRead); err != nil {
+		return err
+	}
+	tenant, err := verificationapp.NormalizeSigningKeyID(a.TenantID)
+	if err != nil || tenant != a.TenantID {
+		return ErrValidation
+	}
+	id, err := verificationapp.NormalizeSigningKeyID(raw)
+	if err != nil {
+		return ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	subject, err := resolveVerificationSubjectLocked(l, tenant, "build_attestation", id)
+	if err != nil {
+		return fromVerificationContextError(err)
+	}
+	refs := subject.Resources
+	project, projectFound := l.projects[refs.ProjectID]
+	release, releaseFound := l.releases[refs.ReleaseID]
+	product, productFound := l.products[project.ProductID]
+	if !projectFound || !releaseFound || !productFound || project.TenantID != tenant || release.TenantID != tenant || product.TenantID != tenant || project.ProductID != release.ProductID {
+		return ErrNotFound
+	}
+	item, found := l.evidence[l.attestations[id].EvidenceID]
+	if !found || item.TenantID != tenant || item.BuildID != refs.BuildID || item.ProductID != "" && item.ProductID != product.ID || item.ProjectID != "" && item.ProjectID != project.ID || item.ReleaseID != "" && item.ReleaseID != release.ID {
+		return ErrNotFound
+	}
+	return l.authorizeResourceLocked(a, ScopeVerifyRead, resourceRefs{ProductID: product.ID, ProjectID: project.ID, ReleaseID: release.ID, BuildID: refs.BuildID})
+}
+
 // AuthorizeSigningKeyRevocation is only the explicit local-memory replay
 // guard. Native HTTP uses the flat transactional ownership guard instead.
 func (l *Ledger) AuthorizeSigningKeyRevocation(ctx context.Context, a domain.Actor, raw string) error {

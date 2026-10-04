@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	securedsse "github.com/secure-systems-lab/go-securesystemslib/dsse"
 
@@ -37,8 +38,8 @@ func (s *countedDSSEReader) GetBounded(ctx context.Context, key string, max int6
 	return s.Store.GetBounded(ctx, key, max)
 }
 
-func TestPostgresDSSEVerificationReadsDurableFactsWithoutLedger(t *testing.T) {
-	store, pool := openHTMLReportWiringStore(t)
+func seedDSSEVerification(t *testing.T, pool *pgxpool.Pool, sessions bool) *countedDSSEReader {
+	t.Helper()
 	ctx := t.Context()
 	exec := func(sql string, args ...any) {
 		t.Helper()
@@ -46,7 +47,11 @@ func TestPostgresDSSEVerificationReadsDurableFactsWithoutLedger(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	exec(`INSERT INTO tenants(id,name) VALUES('tenant','DSSE'),('other','Other')`)
+	if sessions {
+		seedProviderReceiptHTTP(t, pool)
+	} else {
+		exec(`INSERT INTO tenants(id,name) VALUES('tenant','DSSE'),('other','Other')`)
+	}
 	exec(`INSERT INTO products(id,tenant_id,name,slug) VALUES('product','tenant','DSSE','dsse')`)
 	exec(`INSERT INTO projects(id,tenant_id,product_id,name) VALUES('project','tenant','product','DSSE')`)
 	exec(`INSERT INTO releases(id,tenant_id,product_id,version,state) VALUES('release','tenant','product','1','draft')`)
@@ -82,6 +87,24 @@ func TestPostgresDSSEVerificationReadsDurableFactsWithoutLedger(t *testing.T) {
 	exec(`INSERT INTO evidence_items(id,tenant_id,product_id,project_id,release_id,build_id,type,title,source_system,observed_at,evidence_version,schema_version,payload_ref,payload_hash,payload_size,payload_media_type,canonical_hash,canonicalization,trust_level,verification_status,chain_entry_id,subject_refs) VALUES('evidence','tenant','product','project','release','build','build_attestation','Attestation','ci',now(),1,'evidence-item.v1.0.0',$1,$2,$3,'application/vnd.dsse.envelope+json','hash','evydence-c14n.v2.0.0','L2','pending','',$4)`, "object://"+final, hash, len(raw), []map[string]string{{"type": "artifact", "id": "artifact", "digest": "opaque-not-trusted"}})
 	exec(`INSERT INTO build_attestations(id,tenant_id,build_id,evidence_id,payload_ref,payload_hash,payload_size,payload_type,predicate_type,subject_digests,materials_count,signature_count,verification_status,schema_version) VALUES('attestation','tenant','build','evidence',$1,$2,$3,'','','[]',0,0,'accepted','build-attestation.v1.0.0')`, "object://"+final, hash, len(raw))
 	exec(`INSERT INTO dsse_trust_roots(id,tenant_id,name,key_id,algorithm,public_key,status,schema_version,created_at,allowed_predicate_types,expected_builder_ids,required_claims) VALUES('root','tenant','Root','root-1','Ed25519',$1,'active','dsse-trust-root.v2.0.0',now(),'["https://slsa.dev/provenance/v1"]','["https://github.com/actions/runner"]','["builder_id","build_type","external_parameters"]')`, base64.StdEncoding.EncodeToString(public))
+	return objects
+}
+
+func TestPostgresDSSEVerificationReadsDurableFactsWithoutLedger(t *testing.T) {
+	store, pool := openHTMLReportWiringStore(t)
+	objects := seedDSSEVerification(t, pool, false)
+	ctx := t.Context()
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, sql, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	digest := "sha256:" + strings.Repeat("a", 64)
+	var hash string
+	if err := pool.QueryRow(ctx, `SELECT payload_hash FROM build_attestations WHERE id='attestation'`).Scan(&hash); err != nil {
+		t.Fatal(err)
+	}
 	commands, err := BuildDSSEVerificationCommands(store, objects)
 	if err != nil {
 		t.Fatal(err)

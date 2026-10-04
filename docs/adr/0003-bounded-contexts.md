@@ -481,6 +481,19 @@ finalized-object and full offline Sigstore profile. Both receipts, audit and
 successful replay commit together; failed HTTP inspection rolls back business
 effects. Local memory remains nondurable and other verification wrappers still
 require migration. See [offline Cosign verification](../api.md#offline-cosign-verification).
+
+The dedicated DSSE attestation-signature route now uses native durable
+execution too. Its flat current attestation/evidence/build and parent scope
+guard precedes reservation/replay, with the common writer fence before all
+ownership locks. Completed retries do not read payloads, trust policies or
+build outputs. Fresh inspection retains its bounded seven-check offline
+profile; receipt, audit, verification job and replay commit together. Failed
+HTTP inspection rolls back business effects, while unavailable trust remains
+conservative `not_verified`. Local memory retains a narrow current-parent
+guard and nondurable replay. The generic verification wrapper and broad API
+startup remain separate migrations. See
+[offline DSSE verification](../api.md#offline-dsse-attestation-verification).
+
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 

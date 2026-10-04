@@ -146,6 +146,7 @@ type EvidenceVerification interface {
 }
 
 type DSSEVerification interface {
+	AuthorizeDSSEVerification(context.Context, identitydomain.Actor, string) error
 	VerifyDSSEAttestationSignature(context.Context, identitydomain.Actor, string) (verificationdomain.VerificationResult, error)
 }
 
@@ -633,6 +634,7 @@ type packageService interface {
 // verificationService exposes provider-independent verification policy and
 // signing-key administration without giving handlers unrelated Ledger methods.
 type verificationService interface {
+	AuthorizeDSSEVerification(context.Context, domain.Actor, string) error
 	VerifySubject(context.Context, domain.Actor, string, string) (domain.VerificationResult, error)
 	VerifyCosignSignature(context.Context, domain.Actor, app.VerifyCosignInput) (domain.CosignVerification, error)
 	VerifyDSSEAttestationSignature(context.Context, domain.Actor, string) (domain.VerificationResult, error)

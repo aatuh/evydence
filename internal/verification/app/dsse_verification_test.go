@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -16,6 +17,7 @@ type dsseVerificationFake struct {
 	dsseSnapshot DSSEVerificationSnapshot
 	facts        DSSEVerificationFacts
 	inspections  int
+	resolutions  int
 }
 
 func (f *dsseVerificationFake) ExecuteDSSEVerification(ctx context.Context, command func(context.Context, DSSEVerificationTransaction) error) error {
@@ -23,6 +25,7 @@ func (f *dsseVerificationFake) ExecuteDSSEVerification(ctx context.Context, comm
 	copy.results, copy.audits, copy.jobs = nil, nil, nil
 	err := command(ctx, &copy)
 	f.payloadReads = copy.payloadReads
+	f.resolutions = copy.resolutions
 	if err != nil {
 		return err
 	}
@@ -33,7 +36,67 @@ func (f *dsseVerificationFake) ExecuteDSSEVerification(ctx context.Context, comm
 	return nil
 }
 func (f *dsseVerificationFake) ResolveDSSEVerificationSubject(context.Context, string, string) (SubjectReference, error) {
+	f.resolutions++
+	if f.fail == "scope" {
+		return SubjectReference{}, ErrNotFound
+	}
 	return f.subject, nil
+}
+
+func TestDSSEReplayGuardReadsOnlyCurrentCoordinates(t *testing.T) {
+	for _, failure := range []string{"", "scope", "auth", "commit", "foreign"} {
+		c, f := dsseVerificationFixture(t)
+		f.fail = failure
+		if failure == "foreign" {
+			f.subject.TenantID = "other"
+		}
+		c.config.Verifier = nil
+		c.config.Clock = application.ClockFunc(func() time.Time { panic("guard consulted clock") })
+		c.config.IDs = application.IDGeneratorFunc(func(string) string { panic("guard generated receipt ID") })
+		guard, ok := any(c).(interface {
+			AuthorizeDSSEVerification(context.Context, identitydomain.Actor, string) error
+		})
+		if !ok {
+			t.Fatal("missing focused DSSE replay authorization")
+		}
+		err := guard.AuthorizeDSSEVerification(t.Context(), identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}, " attestation ")
+		var want error
+		switch failure {
+		case "scope", "foreign":
+			want = ErrNotFound
+		case "auth":
+			want = application.ErrForbidden
+		case "commit":
+			want = errVerificationTestFailure
+		}
+		if !errors.Is(err, want) || f.resolutions != 1 || f.payloadReads+f.inspections != 0 || len(f.results)+len(f.audits)+len(f.jobs) != 0 {
+			t.Fatal("guard inspected verification state or wrote effects", failure, err, f)
+		}
+	}
+}
+
+func TestDSSEBoundsRawIDAndCanonicalActorBeforeReading(t *testing.T) {
+	for _, tc := range []struct{ tenant, id string }{
+		{" tenant", "attestation"}, {"tenant\x00", "attestation"}, {string([]byte{255}), "attestation"}, {strings.Repeat("t", 1025), "attestation"},
+		{"tenant", strings.Repeat(" ", 1024) + "attestation"}, {"tenant", "bad\x00id"}, {"tenant", string([]byte{255})},
+	} {
+		c, f := dsseVerificationFixture(t)
+		a := identitydomain.Actor{TenantID: tc.tenant, KeyID: "caller"}
+		if _, err := c.VerifyDSSEAttestationSignature(t.Context(), a, tc.id); !errors.Is(err, ErrValidation) || f.resolutions+f.payloadReads+f.inspections != 0 {
+			t.Fatal("invalid input reached DSSE verification", err, f)
+		}
+		if err := c.AuthorizeDSSEVerification(t.Context(), a, tc.id); !errors.Is(err, ErrValidation) || f.resolutions+f.payloadReads+f.inspections != 0 {
+			t.Fatal("invalid input reached DSSE replay guard", err, f)
+		}
+	}
+	c, f := dsseVerificationFixture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for _, ctx := range []context.Context{nil, ctx} {
+		if err := c.AuthorizeDSSEVerification(ctx, identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}, "attestation"); !errors.Is(err, context.Canceled) || f.resolutions+f.payloadReads+f.inspections != 0 {
+			t.Fatal("cancelled guard reached storage", err, f)
+		}
+	}
 }
 func (f *dsseVerificationFake) ReadDSSEVerification(context.Context, SubjectReference) (DSSEVerificationSnapshot, error) {
 	f.payloadReads++

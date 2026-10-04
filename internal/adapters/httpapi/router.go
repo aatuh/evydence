@@ -535,6 +535,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.CosignVerification != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused Cosign verification requires durable idempotency")
 	}
+	if opts.DSSEVerification != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused DSSE verification requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -1715,23 +1718,6 @@ func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) 
 		}
 		attestation, err := s.releaseCatalog.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
 		return http.StatusCreated, attestation, err
-	})
-}
-
-func (s *Server) verifyBuildAttestationSignature(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &struct{}{}); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body); err != nil {
-			return 0, nil, err
-		}
-		if s.dsseVerification != nil {
-			result, err := s.dsseVerification.VerifyDSSEAttestationSignature(ctx, actor, r.PathValue("id"))
-			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
-		}
-		result, err := s.verification.VerifyDSSEAttestationSignature(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, result, err
 	})
 }
 

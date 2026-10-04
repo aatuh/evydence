@@ -2788,6 +2788,49 @@ This offline receipt does not prove current trust validity, artifact safety,
 provenance completeness, provider runtime integrity or legal compliance. It
 does not fetch online trust or silently downgrade an unavailable full profile.
 
+### Offline DSSE Attestation Verification
+
+`POST /v1/build-attestations/{id}/verify-signature` requires `verify:read`
+(or `admin`) and a current tenant-owned attestation, source evidence, build,
+project, release and product. Human sessions additionally need a matching
+tenant, product, project or release verification grant. Both profiles require
+an empty JSON object, at most 64 KiB including whitespace, and cap raw IDs at
+1024 NUL-free UTF-8 bytes before trimming. Missing, malformed, non-object,
+unknown or duplicate input returns `400`. Unsafe cookie mutations require
+same-origin protection; explicit bearer credentials take precedence.
+
+PostgreSQL uses native durable execution without a Ledger clone. Before
+reservation and every replay, the guard resolves only flat current ownership
+coordinates and grants. The common writer fence precedes tenant, source
+evidence, parent and attestation share locks, held through the outer commit.
+It does not read payload metadata/bytes, trust policies, build outputs or
+previous verification results. Missing/foreign attestation or source evidence
+returns `404`; inconsistent current parent provenance returns `409`.
+Revoked grants return `403` and revoked sessions `401`, including on replay.
+
+Fresh PostgreSQL inspection retains the existing seven-check offline Ed25519 DSSE PAE,
+in-toto Statement v1 and SLSA provenance v1 profile. Expected subjects come
+from registered release artifacts and build outputs, not parsed attestation
+claims alone. Metadata is bounded to 4096 records and 8 MiB; finalized
+tenant/digest/size/media-bound payload reads are capped at 8 MiB. Receipt,
+caller audit, verification job and successful replay commit atomically.
+Failed HTTP inspection returns `422` with no success envelope and rolls back
+business effects. The standalone command retains its failed-observation
+receipt semantics. Missing usable trust can produce `200` with all required
+checks and result `not_verified`; it is not a passing verification.
+
+Completed replay returns the original receipt without re-inspecting changed
+metadata, bytes or trust material. Changed request bytes return `409`.
+A durable failed delivery key retains its existing `409` policy; recovery
+uses a new key. Explicit local memory remains nondurable, with current
+owned parents and resource grants checked before replay. The generic
+`POST /v1/verify` wrapper is a separate runtime migration, not covered by
+this dedicated route's native-execution guarantee.
+
+This offline receipt does not prove current trust validity, certificate-chain
+trust, revocation, transparency inclusion, provenance completeness,
+CI-provider runtime integrity, artifact safety or legal compliance.
+
 ### Merkle Batch Creation
 
 `POST /v1/merkle-batches` requires current tenant-wide `keys:admin` authority

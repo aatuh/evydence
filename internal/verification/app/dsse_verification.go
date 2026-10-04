@@ -66,22 +66,53 @@ func NewDSSEVerificationCommands(config DSSEVerificationConfig) (*DSSEVerificati
 	}
 	return &DSSEVerificationCommands{config}, nil
 }
+
+// AuthorizeDSSEVerification checks current flat ownership and grants before
+// reservation or replay. It does not read payloads, trust policies, outputs or
+// previous receipt metadata. The resolver's locks join the outer replay unit.
+func (s *DSSEVerificationCommands) AuthorizeDSSEVerification(ctx context.Context, actor identitydomain.Actor, raw string) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateSigningKeyActor(actor); err != nil {
+		return err
+	}
+	id, err := NormalizeSigningKeyID(raw)
+	if err != nil {
+		return err
+	}
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+		return err
+	}
+	return s.config.Transactions.ExecuteDSSEVerification(ctx, func(ctx context.Context, tx DSSEVerificationTransaction) error {
+		subject, err := tx.ResolveDSSEVerificationSubject(ctx, actor.TenantID, id)
+		if err != nil {
+			return err
+		}
+		if !validSubjectReference(subject, actor.TenantID, "build_attestation", id) {
+			return ErrNotFound
+		}
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)})
+	})
+}
+
 func (s *DSSEVerificationCommands) VerifyDSSEAttestationSignature(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := validateActor(actor); err != nil {
+	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	id = strings.TrimSpace(id)
-	if !validSigningKeyText(id) || len(id) > 1024 {
-		return verificationdomain.VerificationResult{}, ErrValidation
+	var err error
+	id, err = NormalizeSigningKeyID(id)
+	if err != nil {
+		return verificationdomain.VerificationResult{}, err
 	}
 	var result verificationdomain.VerificationResult
-	err := s.config.Transactions.ExecuteDSSEVerification(ctx, func(ctx context.Context, tx DSSEVerificationTransaction) error {
+	err = s.config.Transactions.ExecuteDSSEVerification(ctx, func(ctx context.Context, tx DSSEVerificationTransaction) error {
 		subject, err := tx.ResolveDSSEVerificationSubject(ctx, actor.TenantID, id)
 		if err != nil {
 			return err

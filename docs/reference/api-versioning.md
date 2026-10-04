@@ -36,6 +36,20 @@ The gate never fetches a baseline or resolves external OpenAPI references. It
 uses only the checked-in release artifact and invokes `oasdiff` with structured
 arguments and external-reference loading disabled.
 
+## Unreleased Dedicated DSSE Verification Boundary
+
+The dedicated attestation-signature route now uses focused PostgreSQL
+execution and checks current parent ownership and resource grants before
+returning a replay. Valid tenant/product/project/release grants, receipt
+schemas, seven-check offline profiles, and conservative `not_verified`
+results are preserved. Both profiles now reject missing bodies, unsafe
+cookie origins, malformed/non-object input, and raw IDs beyond the byte
+limit documented in [API Reference](../api.md#offline-dsse-attestation-verification).
+Inconsistent current parents cannot authorize historical delivery. These are
+input/authorization restrictions, not approved release-baseline exceptions.
+Historical receipts are not rewritten; generic verification remains a
+separate migration, and no release or provider-runtime assurance is claimed.
+
 ## Unreleased Answer-Library Creation Boundary
 
 Answer-library creation now uses focused PostgreSQL commands. Human

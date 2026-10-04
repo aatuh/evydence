@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
@@ -29,13 +30,27 @@ func (r verification) dsseCoordinates(ctx context.Context, tenant, id string, lo
 	if err != nil {
 		return "", "", fmt.Errorf("read attestation coordinates: %w", err)
 	}
-	if large || build == "" || evidence == "" {
+	if large || !validRetentionCoordinate(build) || !validRetentionCoordinate(evidence) {
 		return "", "", app.ErrConflict
 	}
 	return build, evidence, nil
 }
 func (r verification) ResolveDSSEVerificationSubject(ctx context.Context, tenant, id string) (verificationapp.SubjectReference, error) {
 	subject := verificationapp.SubjectReference{TenantID: tenant, Type: "build_attestation", ID: id}
+	if ctx == nil || r.tx == nil || !validRetentionCoordinate(tenant) || !validRetentionCoordinate(id) {
+		return subject, app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return subject, err
+	}
+	// Every entry point takes the common writer fence before any tenant,
+	// evidence, parent or parsed-record lock, including standalone commands.
+	if err := coordination.LockWorkerProjection(ctx, r.tx, tenant); err != nil {
+		return subject, err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR SHARE`, tenant); err != nil {
+		return subject, err
+	}
 	build, evidenceID, err := r.dsseCoordinates(ctx, tenant, id, false)
 	if err != nil {
 		return subject, err
