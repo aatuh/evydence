@@ -229,18 +229,30 @@ func (s *Server) marketplaceCollectorHealth(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) createPDFReportPackage(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ReportType string `json:"report_type"`
-		ProductID  string `json:"product_id"`
-		ReleaseID  string `json:"release_id"`
-		Title      string `json:"title"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.pdfReportCommands != nil {
+		s.createDurablePDFReportPackage(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodePDFReportRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
 		pkg, err := s.ledger.CreatePDFReportPackage(ctx, actor, app.CreatePDFReportPackageInput{ReportType: req.ReportType, ProductID: req.ProductID, ReleaseID: req.ReleaseID, Title: req.Title})
 		return http.StatusCreated, pkg, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodePDFReportRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeCreatePDFReportPackage(r.Context(), a, app.CreatePDFReportPackageInput{ReportType: in.ReportType, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Title: in.Title}); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

@@ -3,31 +3,14 @@ package app
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
 
 func (l *Ledger) authorizeGraphSnapshotLocked(a domain.Actor, in packageapp.CreateGraphSnapshotInput) (packageapp.GraphSnapshotScope, error) {
-	if err := l.ensureScopeLocked(a.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
-		return packageapp.GraphSnapshotScope{}, err
-	}
-	p := in.ProductID
-	if in.ReleaseID != "" {
-		parent := l.releases[in.ReleaseID].ProductID
-		if p != "" && p != parent {
-			return packageapp.GraphSnapshotScope{}, ErrNotFound
-		}
-		p = parent
-	}
-	if err := l.ensureScopeLocked(a.TenantID, p, "", ""); err != nil {
-		return packageapp.GraphSnapshotScope{}, err
-	}
-	if err := l.authorizeResourceLocked(a, ScopeEvidenceRead, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
-		return packageapp.GraphSnapshotScope{}, err
-	}
-	return packageapp.GraphSnapshotScope{TenantID: a.TenantID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Resources: application.ResourceReferences{ProductID: p, ReleaseID: in.ReleaseID}}, nil
+	r, err := l.authorizeProductReleaseLocked(a, ScopeEvidenceRead, in.ProductID, in.ReleaseID)
+	return packageapp.GraphSnapshotScope{TenantID: a.TenantID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Resources: r}, err
 }
 func (l *Ledger) AuthorizeCreateGraphSnapshot(ctx context.Context, a domain.Actor, in CreateGraphSnapshotInput) error {
 	if err := ctx.Err(); err != nil {

@@ -1159,7 +1159,16 @@ The production CRA vulnerability-handling report uses the same tenant/release sn
 
 Source snapshots, deployment records, signed incident webhook events, incident packages, security scans, manual reviews, SBOM diffs, contract diffs, API security checks, customer packages, customer portal package access, questionnaire packages, evidence bundles, and custom policies add traceability and reproducible decisions. Reports include gaps, assumptions, and limitations.
 
-Evidence summaries, questionnaire drafts, graph snapshots, PDF packages, and anomaly reports are generated from stored records with citations, assumptions, and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
+Evidence summaries, questionnaire drafts, graph snapshots and anomaly reports organize stored records with their documented assumptions and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
+
+PDF report packaging binds focused Package commands and current product/release
+coordinates in PostgreSQL. Verified staging, lifecycle metadata, finalizer job,
+report, audit and replay completion commit together; failures publish no report
+result. The payload remains a minimal title-only envelope, not stored evidence
+or report-type-specific pages. A shared pure input/payload builder serves local
+memory without giving production commands access to Ledger maps. See
+[PDF report packaging](api.md#pdf-report-packaging) for byte/hash compatibility,
+storage modes, physical orphan recovery and privacy-safe replay limitations.
 
 PostgreSQL graph snapshots bind focused Package commands and selected adjacency
 repositories. Coordinate-only guards resolve current tenant ownership before

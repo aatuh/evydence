@@ -1455,10 +1455,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("QuestionnaireAnswerLibraryEntryEnvelope", dataEnvelopeSchema("#/components/schemas/QuestionnaireAnswerLibraryEntry"))
 	registry.RegisterSchema("QuestionnaireAnswerLibraryEntryListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/QuestionnaireAnswerLibraryEntry"))
 	registry.RegisterSchema("CreatePDFReportPackageRequest", objectSchema(map[string]any{
-		"report_type": map[string]any{"type": "string"},
-		"product_id":  map[string]any{"type": "string"},
-		"release_id":  map[string]any{"type": "string"},
-		"title":       map[string]any{"type": "string"},
+		"report_type": map[string]any{"type": "string", "minLength": 1, "maxLength": 128, "description": "Nonblank trimmed descriptive metadata, not a renderer selector. Raw single-line UTF-8 is capped at 128 bytes and excludes control characters."},
+		"product_id":  map[string]any{"type": "string", "maxLength": 1024, "description": "Optional submitted product coordinate. At least one product/release ID must be nonblank. Raw UTF-8 IDs are capped at 1024 bytes, trimmed and NUL-free; a supplied product must own the supplied release."},
+		"release_id":  map[string]any{"type": "string", "maxLength": 1024, "description": "Optional submitted release coordinate. Release-only creation checks the current product parent without adding a product_id to the record."},
+		"title":       map[string]any{"type": "string", "minLength": 1, "maxLength": 65536, "description": "Nonblank single-line title, trimmed after validating at most 64 KiB raw UTF-8 without control characters or Unicode line/paragraph separators. The existing payload is a minimal title-only envelope, not a full evidence report."},
 	}, "report_type", "title"))
 	registry.RegisterSchema("PDFReportPackage", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},

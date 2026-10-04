@@ -1239,22 +1239,19 @@ func (s packageReportService) CreatePDFReportPackage(ctx context.Context, actor 
 	if err := require(actor, ScopeReportRead); err != nil {
 		return domain.PDFReportPackage{}, err
 	}
-	reportType, title := strings.TrimSpace(in.ReportType), strings.TrimSpace(in.Title)
-	productID, releaseID := strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
-	if reportType == "" || title == "" || (productID == "" && releaseID == "") {
-		return domain.PDFReportPackage{}, ErrValidation
+	v, err := packageapp.NormalizePDFReportInput(packageapp.CreatePDFReportInput{ReportType: in.ReportType, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Title: in.Title})
+	if err != nil {
+		return domain.PDFReportPackage{}, fromPackageContextError(err)
 	}
+	reportType, title, productID, releaseID := v.ReportType, v.Title, v.ProductID, v.ReleaseID
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if err := l.ensureScopeLocked(actor.TenantID, productID, "", releaseID); err != nil {
+	if _, err := l.authorizeProductReleaseLocked(actor, ScopeReportRead, productID, releaseID); err != nil {
 		return domain.PDFReportPackage{}, err
 	}
-	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: productID, ReleaseID: releaseID}); err != nil {
-		return domain.PDFReportPackage{}, err
-	}
-	body := []byte("%PDF-1.4\n% Evydence reproducible report\n1 0 obj << /Type /Catalog >> endobj\n% " + title + "\n% compliance readiness evidence only\n%%EOF\n")
-	if len(body) > MaxGeneratedReportBytes {
-		return domain.PDFReportPackage{}, ErrValidation
+	body, err := packageapp.PDFReportPayload(v)
+	if err != nil {
+		return domain.PDFReportPackage{}, fromPackageContextError(err)
 	}
 	digest := hashBytes(body)
 	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/pdf", digest, body)
@@ -1278,11 +1275,15 @@ func (s packageReportService) CreatePDFReportPackage(ctx context.Context, actor 
 		}); err != nil {
 			return domain.PDFReportPackage{}, err
 		}
-		l.pdfReports[record.ID] = record
+		saved := record
+		saved.Limitations = append([]string(nil), record.Limitations...)
+		l.pdfReports[record.ID] = saved
 		l.publishCommittedAuditEntryLocked(entry)
 		return record, nil
 	}
-	l.pdfReports[record.ID] = record
+	saved := record
+	saved.Limitations = append([]string(nil), record.Limitations...)
+	l.pdfReports[record.ID] = saved
 	_, _ = l.appendChainLocked(actor.TenantID, "pdf_report.created", "pdf_report", record.ID, actorType(actor), actorID(actor), digest, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.PDFReportPackage{}, err

@@ -210,6 +210,7 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"importEvidenceBundle", "createReportTemplate", "renderReportTemplate", "craReadinessHTMLPackage", "releaseReadinessReport",
 		"createDurableQuestionnaireDraft",
 		"createDurableGraphSnapshot",
+		"createDurablePDFReportPackage",
 		"createDurableQuestionnairePackage",
 		"createDurablePortalAccess", "revokeDurablePortalAccess",
 		"createDurableQuestionnaireTemplate",

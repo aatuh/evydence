@@ -115,6 +115,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create graph snapshot commands: %w", err)
 	}
+	options.PDFReportCommands, err = BuildPDFReportCommands(store, runtime.Objects, runtime.Production)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create PDF report commands: %w", err)
+	}
 	options.QuestionnaireDraftCommands, err = BuildQuestionnaireDraftCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create questionnaire draft commands: %w", err)

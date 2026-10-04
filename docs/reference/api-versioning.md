@@ -548,6 +548,27 @@ for exact limits. Historical records are not rewritten. These restrictions
 require release compatibility review; this note is not an approved exception,
 provider verification evidence or proof of production Ledger retirement.
 
+## Unreleased PDF Report Boundary
+
+`POST /v1/reports/pdf` now binds focused Package commands and coordinate-only
+PostgreSQL reads. Route, response fields, schema version, audit type and exact
+payload bytes/hash for valid single-line titles are preserved. The payload
+remains the minimal title-only envelope, not a full report renderer.
+
+Both profiles reject malformed, duplicate/unknown/null or mixed-case JSON
+fields, invalid UTF-8/NUL IDs, overlong raw input and multiline/control-bearing
+titles or report types. Product/release ownership must agree; current grants
+and parents are checked before replay. Cookie mutation Origin checks now apply;
+bearer precedence is unchanged. Local returned limitations no longer alias the
+cached immutable record. Production composition requires transactional object
+staging; non-production hash-only mode remains explicit. Durable timestamps
+use UTC microseconds. No historical record or payload is rewritten.
+
+See [PDF report packaging](../api.md#pdf-report-packaging) for exact limits,
+staging/finalization, rollback and privacy-safe replay semantics. Tightened
+inputs require release compatibility review; this is not an approved breaking
+exception, PDF-reader certification or proof of production Ledger retirement.
+
 ## Unreleased Graph Snapshot Boundary
 
 `POST /v1/evidence-graph-snapshots` now binds focused Package commands in the

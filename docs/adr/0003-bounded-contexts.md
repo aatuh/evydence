@@ -9,6 +9,13 @@ legacy-facade retirement remain assigned to EVY-905 and EVY-906.
 
 ## Context
 
+Package-owned `PDFReportCommands` owns minimal title-only report packaging,
+not an evidence renderer. Flat coordinate, staged-payload and insert ports
+bind PostgreSQL creation without extending `FutureExtensionsRepository`.
+The composition root couples lifecycle metadata, finalizer job, report, audit
+and replay through one unit of work. Graph/PDF commands share pure
+product/release validation; the legacy helper is local compatibility only.
+
 Package-owned `GraphSnapshotCommands` now materializes durable evidence
 adjacency through flat coordinate, root-label, selected-evidence and insert
 ports. The PostgreSQL concrete repository implements these ports without

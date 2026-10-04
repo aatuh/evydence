@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 )
@@ -68,6 +69,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if memory.GraphSnapshotCommands != nil {
 		t.Fatal("local memory bound durable graph snapshots")
+	}
+	if memory.PDFReportCommands != nil {
+		t.Fatal("local memory bound durable PDF creation")
 	}
 	if memory.QuestionnaireDraftCommands != nil {
 		t.Fatal("local memory bound durable questionnaire drafts")
@@ -285,7 +289,11 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 		{Name: "writer_lease", Check: func(context.Context) error { return nil }},
 		{Name: "signing_config", Check: func(context.Context) error { return nil }},
 	}
-	options, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Production: true}, "non-default-pepper", checks)
+	objects, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Objects: objects, Production: true}, "non-default-pepper", checks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,6 +314,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.GraphSnapshotCommands == nil {
 		t.Fatal("PostgreSQL graphs still use Ledger")
+	}
+	if options.PDFReportCommands == nil {
+		t.Fatal("PostgreSQL PDF creation is Ledger-backed")
 	}
 	if options.QuestionnaireDraftCommands == nil {
 		t.Fatal("PostgreSQL drafts still use Ledger")

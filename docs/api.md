@@ -2255,7 +2255,7 @@ effectiveness conclusions.
 | `POST` | `/v1/questionnaire-answer-library` | Create reusable questionnaire answer draft. |
 | `GET` | `/v1/reports/security-review-package` | Redaction-aware package report. |
 | `GET` | `/v1/reports/cra-readiness-html` | HTML CRA-readiness review content. |
-| `POST` | `/v1/reports/pdf` | Create reproducible PDF report package metadata and payload hash. |
+| `POST` | `/v1/reports/pdf` | Create reproducible PDF report package metadata and payload hash; see [PDF report packaging](#pdf-report-packaging). |
 | `GET` | `/v1/reports/incident-package` | Incident package report. |
 | `POST` | `/v1/report-templates` | Create allowed-field template. |
 | `POST` | `/v1/report-templates/{id}/render` | Render deterministic JSON report. |
@@ -2283,6 +2283,52 @@ non-claims while excluding raw payload bytes, object-store references, secrets,
 token hashes, and internal decision notes. Redaction profiles can be created
 from explicit `allowed_types` or the `customer_safe` / `security_review`
 presets; preset policy fields cannot be overridden in the create request.
+
+### PDF Report Packaging
+
+`POST /v1/reports/pdf` requires `report:read`, an `Idempotency-Key`, nonblank
+`report_type` and `title`, and at least one nonblank `product_id` or `release_id`.
+IDs are NUL-free UTF-8 capped at 1024 raw bytes before trimming; report type is
+capped at 128 bytes and title at 64 KiB. Type and title must be single-line
+UTF-8 without control characters or Unicode line/paragraph separators. Blank,
+malformed/non-object JSON, null fields, duplicate/unknown fields, mixed-case
+aliases and invalid text return `400` in both profiles. Existing HTTP body
+limits apply independently. Cookie mutations require one same-host HTTPS
+Origin; explicit bearer credentials retain precedence.
+
+Current tenant-owned product/release coordinates must agree; missing/foreign
+roots or mismatched pairs return `404`. Human sessions need a matching current
+tenant, product or release grant. Release-only requests authorize the current
+product parent but retain an omitted `product_id` in the record and response.
+The PostgreSQL profile uses focused Package commands and coordinate-only reads,
+not Ledger maps, evidence payloads, labels or report snapshots. The worker/audit
+fence and root locks remain held through report, audit and replay commit.
+
+Configured object storage stages digest/size-verified bytes, lifecycle metadata
+and a `finalize_payload` outbox job in the same transaction as the report and
+audit. The worker finalizes the object; creation does not claim it is already
+finalized. Storage, metadata, outbox, report, audit or commit failure returns no
+successful report projection. A failed transaction can leave physical staged
+bytes for the documented [object-store recovery](runbooks/object-store-recovery.md)
+process; database rows and jobs are rolled back. Production composition requires
+an object store supporting transactional staging. Non-production PostgreSQL
+without objects remains hash/metadata-only, with no downloadable payload.
+Explicit local memory uses the same validated envelope bytes but retains its
+in-process persistence/finalization behavior.
+
+Replay rechecks current roots and grants before returning stored metadata and
+never regenerates or restages the payload. The existing privacy-safe replay
+projection omits `payload_ref` and can redact sensitive title text; the payload
+digest remains the digest of the original bytes. Changed request bytes conflict
+with `409`; a new key creates a new report record. Schema version and the
+limitation are unchanged; durable timestamps use UTC microsecond precision.
+
+The payload is currently a minimal title-only PDF-marked envelope, not a
+fully rendered evidence report or a guarantee of PDF-reader interoperability.
+`report_type` is descriptive metadata, not a renderer selector. Its SHA-256
+covers only payload bytes, not product/release IDs or report-type metadata.
+No evidence, findings, citations or report-specific pages are embedded. It
+does not establish evidence completeness, legal compliance or certification.
 
 ### Questionnaire Template Creation
 

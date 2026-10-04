@@ -18,7 +18,7 @@ const (
 	ScopeEvidenceRead                  = "evidence:read"
 	MaxEvidenceGraphNodes              = 4096
 	MaxEvidenceGraphEdges              = 8192
-	MaxGraphSnapshotIDBytes            = 1024
+	MaxGraphSnapshotIDBytes            = MaxProductReleaseIDBytes
 	MaxGraphSnapshotLabelBytes         = 64 << 10
 	MaxGraphSnapshotReferenceTypeBytes = 128
 )
@@ -73,21 +73,15 @@ func graphID(v string) bool {
 	return v != "" && strings.TrimSpace(v) == v && graphText(v, MaxGraphSnapshotIDBytes)
 }
 func NormalizeGraphSnapshotInput(in CreateGraphSnapshotInput) (CreateGraphSnapshotInput, error) {
-	if !graphText(in.ProductID, MaxGraphSnapshotIDBytes) || !graphText(in.ReleaseID, MaxGraphSnapshotIDBytes) {
-		return in, ErrValidation
-	}
-	in.ProductID, in.ReleaseID = strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
-	if in.ProductID == "" && in.ReleaseID == "" {
-		return in, ErrValidation
-	}
-	return in, nil
+	var err error
+	in.ProductID, in.ReleaseID, err = NormalizeProductReleaseIDs(in.ProductID, in.ReleaseID)
+	return in, err
 }
 func ValidateGraphSnapshotScope(tenant string, in CreateGraphSnapshotInput, s GraphSnapshotScope) error {
-	r := s.Resources
-	if !graphID(tenant) || s.TenantID != tenant || s.ProductID != in.ProductID || s.ReleaseID != in.ReleaseID || !graphID(r.ProductID) || r.ReleaseID != in.ReleaseID || r != (application.ResourceReferences{ProductID: r.ProductID, ReleaseID: in.ReleaseID}) || in.ProductID != "" && r.ProductID != in.ProductID {
+	if s.ProductID != in.ProductID || s.ReleaseID != in.ReleaseID {
 		return ErrNotFound
 	}
-	return nil
+	return ValidateProductReleaseScope(tenant, in.ProductID, in.ReleaseID, s.TenantID, s.Resources)
 }
 func (s *GraphSnapshotCommands) prepare(ctx context.Context, a identitydomain.Actor, in CreateGraphSnapshotInput) (CreateGraphSnapshotInput, error) {
 	if s == nil {
