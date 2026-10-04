@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -98,13 +99,19 @@ func readCustomerPackageCatalogTx(ctx context.Context, tx pgx.Tx, tenant, produc
 // metadata-byte, and validity budgets before transferring any selected JSON;
 // on overflow only null metadata and a rejection flag cross the driver.
 func readCustomerSnapshotMetadataRows(ctx context.Context, tx pgx.Tx, projection, tenant, product, release string, budget *customerSnapshotBudget) ([]map[string]any, error) {
+	return readCustomerSnapshotMetadataRowsAt(ctx, tx, projection, tenant, product, release, budget, time.Time{})
+}
+
+// Time-sensitive sections use the caller's fixed generation time, rather than
+// observing different wall clocks between queries in the same snapshot.
+func readCustomerSnapshotMetadataRowsAt(ctx context.Context, tx pgx.Tx, projection, tenant, product, release string, budget *customerSnapshotBudget, generatedAt time.Time) ([]map[string]any, error) {
 	rows, err := tx.Query(ctx, `WITH scope AS (
-		SELECT $1::text AS tenant_id,$2::text AS product_id,$3::text AS release_id
+		SELECT $1::text AS tenant_id,$2::text AS product_id,$3::text AS release_id,$6::timestamptz AS generated_at
 	), records AS MATERIALIZED (`+projection+` LIMIT $5), bounds AS (
 		SELECT count(*) >= $5 OR coalesce(sum(octet_length(metadata::text)),0)>$4 OR coalesce(bool_or(invalid),false) AS rejected FROM records
 	)
 	SELECT CASE WHEN bounds.rejected THEN NULL ELSE records.metadata END,bounds.rejected
-	FROM records CROSS JOIN bounds ORDER BY records.sort_id COLLATE "C"`, tenant, product, release, budget.remainingBytes, packageapp.MaxSecurityReviewEvidenceIDs+1)
+	FROM records CROSS JOIN bounds ORDER BY records.sort_id COLLATE "C"`, tenant, product, release, budget.remainingBytes, packageapp.MaxSecurityReviewEvidenceIDs+1, generatedAt.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("read customer-package snapshot metadata: %w", err)
 	}

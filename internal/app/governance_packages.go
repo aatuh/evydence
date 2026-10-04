@@ -15,6 +15,7 @@ import (
 	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
+	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
@@ -1319,59 +1320,26 @@ func (l *Ledger) packageDecisionSummariesLocked(tenantID, releaseID string, prof
 	if !profileAllowsPackageType(profile, "vulnerability_decision") {
 		return nil
 	}
-	excluded := profileExcludedFields(profile)
-	summaries := []map[string]any{}
+	values := []packagedomain.VulnerabilityDecisionSnapshot{}
 	for _, decision := range l.decisions {
 		if decision.TenantID != tenantID || decision.ReleaseID != releaseID || decision.SupersededBy != "" || !decision.CustomerVisible {
 			continue
 		}
-		summary := map[string]any{
-			"id":                  decision.ID,
-			"finding_id":          decision.FindingID,
-			"scan_id":             decision.ScanID,
-			"release_id":          decision.ReleaseID,
-			"vulnerability":       decision.Vulnerability,
-			"component":           decision.Component,
-			"sbom_id":             decision.SBOMID,
-			"sbom_component_purl": decision.SBOMComponentPURL,
-			"sbom_component_name": decision.SBOMComponentName,
-			"status":              decision.Status,
-			"impact_statement":    decision.ImpactStatement,
-			"source":              decision.Source,
-			"created_at":          decision.CreatedAt.UTC().Format(time.RFC3339),
+		value := packagedomain.VulnerabilityDecisionSnapshot{
+			ID: decision.ID, FindingID: decision.FindingID, ScanID: decision.ScanID, ReleaseID: decision.ReleaseID,
+			Vulnerability: decision.Vulnerability, Component: decision.Component, SBOMID: decision.SBOMID,
+			SBOMComponentPURL: decision.SBOMComponentPURL, SBOMComponentName: decision.SBOMComponentName,
+			Status: string(decision.Status), Justification: decision.Justification, ImpactStatement: decision.ImpactStatement,
+			ActionStatement: decision.ActionStatement, Source: decision.Source, EvidenceID: decision.EvidenceID,
+			EvidenceIDs: decision.EvidenceIDs, VEXDocumentID: decision.VEXDocumentID,
+			ReviewedAt: decision.ReviewedAt, ReviewDueAt: decision.ReviewDueAt, CreatedAt: decision.CreatedAt,
 		}
-		if decision.ReviewedAt != nil && !excluded["reviewed_at"] {
-			summary["reviewed_at"] = decision.ReviewedAt.UTC().Format(time.RFC3339)
+		for _, ref := range decision.SupportingRefs {
+			value.SupportingRefs = append(value.SupportingRefs, packagedomain.SupportingReference{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})
 		}
-		if decision.ReviewDueAt != nil && !excluded["review_due_at"] {
-			summary["review_due_at"] = decision.ReviewDueAt.UTC().Format(time.RFC3339)
-		}
-		if decision.ActionStatement != "" && !excluded["action_statement"] {
-			summary["action_statement"] = decision.ActionStatement
-		}
-		if decision.Justification != "" && !excluded["justification"] {
-			summary["justification"] = decision.Justification
-		}
-		if decision.EvidenceID != "" && !excluded["evidence_id"] {
-			summary["evidence_id"] = decision.EvidenceID
-		}
-		if decision.VEXDocumentID != "" && !excluded["vex_document_id"] {
-			summary["vex_document_id"] = decision.VEXDocumentID
-		}
-		if len(decision.EvidenceIDs) > 0 && !excluded["evidence_ids"] {
-			summary["evidence_ids"] = append([]string(nil), decision.EvidenceIDs...)
-		}
-		if len(decision.SupportingRefs) > 0 && !excluded["supporting_refs"] {
-			summary["supporting_refs"] = cloneSubjectRefs(decision.SupportingRefs)
-		}
-		summaries = append(summaries, summary)
+		values = append(values, value)
 	}
-	sort.Slice(summaries, func(i, j int) bool {
-		left := summaries[i]["vulnerability"].(string) + "\x00" + summaries[i]["id"].(string)
-		right := summaries[j]["vulnerability"].(string) + "\x00" + summaries[j]["id"].(string)
-		return left < right
-	})
-	return summaries
+	return packageapp.CustomerPackageDecisionSummaries(values, redactionProfileToPackageContext(profile))
 }
 
 func profileAllowsPackageType(profile domain.RedactionProfile, typ string) bool {
@@ -1381,14 +1349,6 @@ func profileAllowsPackageType(profile domain.RedactionProfile, typ string) bool 
 		}
 	}
 	return false
-}
-
-func profileExcludedFields(profile domain.RedactionProfile) map[string]bool {
-	excluded := map[string]bool{}
-	for _, field := range profile.ExcludedFields {
-		excluded[strings.TrimSpace(field)] = true
-	}
-	return excluded
 }
 
 func builtinTemplatePacks() []domain.ControlFrameworkTemplatePack {

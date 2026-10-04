@@ -237,7 +237,7 @@ func normalizeRedactionProfileInput(input CreateRedactionProfileInput) (CreateRe
 func buildCustomerPackageManifest(packageID string, generatedAt time.Time, title string, profile packagedomain.RedactionProfile, snapshot PackageSnapshot) map[string]any {
 	evidenceIDs := make([]string, 0)
 	for _, evidence := range snapshot.Evidence {
-		if profileAllowsType(profile, evidence.Type) && strings.TrimSpace(evidence.ID) != "" {
+		if CustomerPackageIncludesType(profile, evidence.Type) && strings.TrimSpace(evidence.ID) != "" {
 			evidenceIDs = append(evidenceIDs, strings.TrimSpace(evidence.ID))
 		}
 	}
@@ -275,38 +275,38 @@ func buildCustomerPackageManifest(packageID string, generatedAt time.Time, title
 	if visible := customerSafeGaps(snapshot.ReadinessChecks, profile); len(visible) > 0 {
 		manifest["customer_safe_gaps"] = visible
 	}
-	if profileAllowsType(profile, "sbom") {
+	if CustomerPackageIncludesType(profile, "sbom") {
 		manifest["sboms"] = snapshot.SBOMs
 	}
-	if profileAllowsType(profile, "vulnerability_scan") {
+	if CustomerPackageIncludesType(profile, "vulnerability_scan") {
 		manifest["vulnerability_scans"] = snapshot.VulnerabilityScans
 	}
-	if profileAllowsType(profile, "vex") {
+	if CustomerPackageIncludesType(profile, "vex") {
 		manifest["vex_documents"] = snapshot.VEXDocuments
 	}
-	if profileAllowsType(profile, "openapi_contract") {
+	if CustomerPackageIncludesType(profile, "openapi_contract") {
 		manifest["api_contracts"] = snapshot.APIContracts
 	}
-	if profileAllowsType(profile, "vulnerability_decision") && len(snapshot.Decisions) > 0 {
+	if CustomerPackageIncludesType(profile, "vulnerability_decision") && len(snapshot.Decisions) > 0 {
 		manifest["vulnerability_decisions"] = snapshot.Decisions
 		manifest["customer_decision_export"] = map[string]any{"file": CustomerDecisionExportFile, "schema_version": CustomerDecisionExportVersion, "decision_count": len(snapshot.Decisions), "scope": "package"}
 	}
-	if profileAllowsType(profile, "approval") {
+	if CustomerPackageIncludesType(profile, "approval") {
 		manifest["approvals"] = snapshot.Approvals
 	}
-	if profileAllowsType(profile, "exception") {
+	if CustomerPackageIncludesType(profile, "exception") {
 		manifest["exceptions"] = snapshot.Exceptions
 	}
-	if profileAllowsType(profile, "waiver") {
+	if CustomerPackageIncludesType(profile, "waiver") {
 		manifest["waivers"] = snapshot.Waivers
 	}
-	if profileAllowsType(profile, "answer_library") {
+	if CustomerPackageIncludesType(profile, "answer_library") {
 		manifest["answer_library"] = snapshot.AnswerLibrary
 	}
-	if profileAllowsType(profile, "object_lock_proof") {
+	if CustomerPackageIncludesType(profile, "object_lock_proof") {
 		manifest["object_lock_proofs"] = snapshot.ObjectLockProofs
 	}
-	if profileAllowsType(profile, "build") || profileAllowsType(profile, "build_attestation") {
+	if CustomerPackageIncludesType(profile, "build") || CustomerPackageIncludesType(profile, "build_attestation") {
 		manifest["provenance"] = snapshot.Provenance
 	}
 	return manifest
@@ -351,19 +351,19 @@ func customerSafeGaps(checks []packagedomain.PolicyCheckSnapshot, profile packag
 func gapVisibleForProfile(missing string, profile packagedomain.RedactionProfile) bool {
 	switch strings.TrimSpace(missing) {
 	case "artifact", "artifact_digest":
-		return profileAllowsType(profile, "artifact")
+		return CustomerPackageIncludesType(profile, "artifact")
 	case "sbom":
-		return profileAllowsType(profile, "sbom")
+		return CustomerPackageIncludesType(profile, "sbom")
 	case "vulnerability_scan":
-		return profileAllowsType(profile, "vulnerability_scan")
+		return CustomerPackageIncludesType(profile, "vulnerability_scan")
 	case "vulnerability_decision":
-		return profileAllowsType(profile, "vulnerability_decision")
+		return CustomerPackageIncludesType(profile, "vulnerability_decision")
 	case "signed_release_bundle":
-		return profileAllowsType(profile, "release_bundle")
+		return CustomerPackageIncludesType(profile, "release_bundle")
 	case "passed_build":
-		return profileAllowsType(profile, "build")
+		return CustomerPackageIncludesType(profile, "build")
 	case "build_attestation":
-		return profileAllowsType(profile, "build_attestation")
+		return CustomerPackageIncludesType(profile, "build_attestation")
 	default:
 		return false
 	}
@@ -450,7 +450,9 @@ func validCustomerSecurityPackage(value packagedomain.CustomerSecurityPackage, t
 	return value.ID == id && value.TenantID == tenantID && value.ProductID != "" && value.State != "" && value.SchemaVersion != ""
 }
 
-func profileAllowsType(profile packagedomain.RedactionProfile, value string) bool {
+// CustomerPackageIncludesType is the manifest selection policy shared with
+// native snapshot readers, including whether a decision section is needed.
+func CustomerPackageIncludesType(profile packagedomain.RedactionProfile, value string) bool {
 	for _, allowed := range profile.AllowedTypes {
 		if strings.TrimSpace(allowed) == value {
 			return true

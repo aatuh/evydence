@@ -39,8 +39,21 @@ contract's declared product when optional source coordinates are absent.
 Product-only document summaries remain unreleased-only and product-scoped;
 contract diffs may reference other releases of that same product. Live tests
 cover these compatibility cases, unambiguous artifact binding, and concurrent
-commits. Governance, verification, provenance, readiness, and the selected
-policy still need to be composed before the reader can be bound to production.
+commits. The private governance component now selects active, customer-visible
+decisions, product/release approvals, approved unexpired exceptions and waivers,
+and scoped answer-library metadata. It uses the caller's fixed generation time
+and shared byte budget in that same read-only view. Source findings and optional
+evidence, SBOM, VEX, control, policy, and supporting-reference parents must resolve
+inside the selected scope. Tenant-wide reusable answers retain their existing
+meaning, but every citation must belong to the package scope; unrelated citations
+and incoherent parents are excluded. Decision fields, optional omissions, ordering,
+and profile selection are shared with the explicit local reader. Internal notes,
+approver identities, source payloads, private reference extensions, and control
+objectives are not selected. Live tests cover expiry boundaries, append-only
+supersession, reference kinds, concurrent commits, row/byte bounds, malformed
+metadata, and reads while a command holds the writer fence. Verification,
+provenance, readiness, and the selected policy still need to be composed before
+the reader can be bound to production.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and
 API startup still reach Ledger. See
