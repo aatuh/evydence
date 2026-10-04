@@ -135,6 +135,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create public transparency metadata commands: %w", err)
 	}
+	options.PublicTransparencyProofCommands, err = BuildPublicTransparencyVerificationCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create public transparency proof commands: %w", err)
+	}
 	options.QuestionnaireDraftCommands, err = BuildQuestionnaireDraftCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create questionnaire draft commands: %w", err)

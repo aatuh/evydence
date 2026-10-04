@@ -567,8 +567,30 @@ timestamps use UTC microseconds. Historical records are not rewritten.
 
 See [public transparency metadata](../api.md#public-transparency-metadata)
 for exact bounds and non-claims. These tightened boundaries require release
-compatibility review; this note is not an approved exception. Proof verification,
-proof fetching, and complete production Ledger retirement remain migration work.
+compatibility review; this note is not an approved exception. Proof fetching
+and complete production Ledger retirement remain migration work.
+
+## Unreleased Public Transparency Proof Boundary
+
+Operator proof verification now binds focused commands to bounded current
+PostgreSQL entry/log/checkpoint/batch coordinates. It preserves proof hashing,
+empty-proof JSON `null` normalization, digest case, response fields, and `200`
+for well-formed passing/failing local assessments. It does not authenticate a
+supplied log root. Same-state compare-and-swap now includes previous proof
+hash/time and publication coordinates; assessment, audit and replay are atomic.
+
+Both profiles reject duplicate/unknown/case-aliased fields, null values/items,
+omitted required fields, malformed digests, and text exceeding the documented
+raw byte bounds with `400`. Product-scoped human authority returns `403`;
+missing/foreign/broken current root chains return `404`, including on replay.
+The operator request cannot claim fetched provenance. Caller proof slices and
+returned local assessments no longer alias stored verification state. Durable
+timestamps use UTC microseconds. Historical records are not rewritten.
+
+See [proof verification](../api.md#public-transparency-proof-verification).
+These input/authorization restrictions require release compatibility review;
+this note is not an approved exception. Proof fetching and production startup
+Ledger retirement remain EVY-905 work.
 
 ## Unreleased Marketplace Collector Boundary
 

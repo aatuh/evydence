@@ -2512,11 +2512,11 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"external_id":   map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxPublicTransparencyIDBytes, "description": "Nonblank operator-supplied external reference, not external publication proof; raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
 	}, "log_id", "checkpoint_id", "external_id"))
 	registry.RegisterSchema("VerifyPublicTransparencyLogEntryRequest", objectSchema(map[string]any{
-		"leaf_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
-		"root_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
+		"leaf_hash":       map[string]any{"type": "string", "maxLength": experimentalapp.MaxPublicTransparencyDigestBytes, "pattern": `^(\s*|\s*sha256:[0-9a-fA-F]{64}\s*)$`, "description": "Optional leaf; omitted or blank defaults to the published entry hash. Raw NUL-free UTF-8 is capped at 128 bytes before trimming; binding compares the normalized string exactly."},
+		"root_hash":       map[string]any{"type": "string", "maxLength": experimentalapp.MaxPublicTransparencyDigestBytes, "pattern": `^\s*sha256:[0-9a-fA-F]{64}\s*$`, "description": "Supplied root for local proof verification, not authenticated public-log trust. Raw NUL-free UTF-8 is capped at 128 bytes before trimming."},
 		"leaf_index":      map[string]any{"type": "integer", "minimum": 0},
 		"tree_size":       map[string]any{"type": "integer", "minimum": 1},
-		"inclusion_proof": map[string]any{"type": "array", "items": map[string]any{"type": "string", "pattern": "^sha256:"}},
+		"inclusion_proof": map[string]any{"type": "array", "maxItems": experimentalapp.MaxPublicTransparencyProofNodes, "description": "Required non-null array of at most 64 digest nodes; an empty proof is allowed. Incorrect well-formed proofs return an inclusion_not_verified assessment. The commitment preserves legacy empty-proof JSON null normalization.", "items": map[string]any{"type": "string", "maxLength": experimentalapp.MaxPublicTransparencyDigestBytes, "pattern": `^\s*sha256:[0-9a-fA-F]{64}\s*$`}},
 	}, "root_hash", "leaf_index", "tree_size", "inclusion_proof"))
 	registry.RegisterSchema("PublicTransparencyLogEntry", objectSchema(map[string]any{
 		"id":                       map[string]any{"type": "string"},

@@ -148,6 +148,7 @@ type Server struct {
 	saasProfileCommands               SaaSProfileCommands
 	marketplaceCollectorCommands      MarketplaceCollectorCommands
 	publicTransparencyMetadata        PublicTransparencyMetadataCommands
+	publicTransparencyProofs          PublicTransparencyProofCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
 	questionnairePackageCommands      QuestionnairePackageCommands
 	portalAccessCommands              PortalAccessCommands
@@ -254,6 +255,8 @@ type ServerOptions struct {
 	MarketplaceCollectorCommands MarketplaceCollectorCommands
 	// PublicTransparencyMetadataCommands records log/publication metadata without Ledger.
 	PublicTransparencyMetadataCommands PublicTransparencyMetadataCommands
+	// PublicTransparencyProofCommands verifies operator-supplied proofs without Ledger.
+	PublicTransparencyProofCommands PublicTransparencyProofCommands
 	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
 	// QuestionnairePackageCommands generates bounded responses without Ledger state.
@@ -509,6 +512,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.PublicTransparencyMetadataCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused public transparency metadata requires durable idempotency")
 	}
+	if opts.PublicTransparencyProofCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused public transparency proofs require durable idempotency")
+	}
 	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire drafts require durable idempotency")
 	}
@@ -644,6 +650,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.saasProfileCommands = opts.SaaSProfileCommands
 	server.marketplaceCollectorCommands = opts.MarketplaceCollectorCommands
 	server.publicTransparencyMetadata = opts.PublicTransparencyMetadataCommands
+	server.publicTransparencyProofs = opts.PublicTransparencyProofCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
 	server.questionnairePackageCommands = opts.QuestionnairePackageCommands
 	server.portalAccessCommands = opts.PortalAccessCommands

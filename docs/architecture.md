@@ -1176,9 +1176,19 @@ the metadata/audit/replay commit. Publication reads one owned root chain; it
 does not select log endpoint/key metadata or Merkle leaf/signature arrays.
 SQL caps transfer of corrupt batch IDs and root text before core validation.
 Local memory shares pure metadata and canonical entry-hash rules. These
-commands do not publish externally or assign inclusion assurance; proof
-verification/fetching and startup Ledger retirement remain EVY-905 work.
+commands do not publish externally or assign inclusion assurance.
 See [public transparency metadata](api.md#public-transparency-metadata).
+
+Operator-supplied public-log proof verification now uses focused Experimental
+commands and one bounded tenant-owned entry/root-chain projection. It locks
+the assessment row and current roots after the actor-tenant fence, then commits
+the local result, proof-bound audit and replay together. Old diagnostic arrays,
+log endpoints/keys and Merkle leaves are not selected. Same-state updates
+compare previous proof commitments as well as publication coordinates. Local
+memory shares the pure proof/hash rules and deep-copies returned assessments.
+No authenticated public-log root or provider identity is implied. Proof fetching
+and startup Ledger retirement remain EVY-905 work; see
+[proof verification](api.md#public-transparency-proof-verification).
 
 Experimental marketplace collector registration now uses focused commands and
 flat tenant/reference ID projections in PostgreSQL. The transaction acquires

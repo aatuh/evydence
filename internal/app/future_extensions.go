@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/ed25519"
@@ -506,134 +505,44 @@ func (l *Ledger) PublishPublicTransparencyLogEntry(ctx context.Context, actor do
 }
 
 func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor domain.Actor, id string, in VerifyPublicTransparencyLogEntryInput) (domain.PublicTransparencyLogEntry, error) {
-	if err := ctx.Err(); err != nil {
+	if err := l.AuthorizeVerifyPublicTransparencyLogEntry(ctx, actor, id, in); err != nil {
 		return domain.PublicTransparencyLogEntry{}, err
 	}
-	if err := require(actor, ScopeKeysAdmin); err != nil {
-		return domain.PublicTransparencyLogEntry{}, err
-	}
-	id = strings.TrimSpace(id)
-	leafHash := strings.TrimSpace(in.LeafHash)
-	rootHash := strings.TrimSpace(in.RootHash)
-	if id == "" || rootHash == "" || in.TreeSize <= 0 || in.LeafIndex < 0 || in.LeafIndex >= in.TreeSize || len(in.InclusionProof) > 64 {
-		return domain.PublicTransparencyLogEntry{}, ErrValidation
-	}
-	for i := range in.InclusionProof {
-		in.InclusionProof[i] = strings.TrimSpace(in.InclusionProof[i])
-		if !validSHA256Digest(in.InclusionProof[i]) {
-			return domain.PublicTransparencyLogEntry{}, ErrValidation
-		}
-	}
-	if !validSHA256Digest(rootHash) {
-		return domain.PublicTransparencyLogEntry{}, ErrValidation
-	}
-
 	l.mu.Lock()
-	entry, ok := l.publicLogEntries[id]
-	if !ok || entry.TenantID != actor.TenantID {
-		l.mu.Unlock()
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	if leafHash == "" {
-		leafHash = entry.EntryHash
-	}
-	if !validSHA256Digest(leafHash) {
-		l.mu.Unlock()
-		return domain.PublicTransparencyLogEntry{}, ErrValidation
-	}
-	if _, ok := l.publicLogs[entry.LogID]; !ok {
-		l.mu.Unlock()
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	if _, ok := l.transparency[entry.CheckpointID]; !ok {
-		l.mu.Unlock()
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	expectedState := entry.State
-	l.mu.Unlock()
-
-	leafBound := leafHash == entry.EntryHash
-	proofOK := leafBound && verifyRFC6962StyleProof(leafHash, rootHash, in.LeafIndex, in.TreeSize, in.InclusionProof)
-	checks := []domain.VerifyCheck{
-		{Name: "public_log_leaf_binding", Result: checkResultString(leafBound), Detail: "The supplied leaf hash must match the published Evydence entry hash."},
-		{Name: "public_log_inclusion_proof", Result: checkResultString(proofOK), Detail: "The supplied proof must recompute the supplied public-log root hash."},
-	}
-	source := strings.TrimSpace(in.Source)
-	if source == "fetched" {
-		checks = append(checks, domain.VerifyCheck{Name: "public_log_proof_source", Result: "passed", Detail: "Inclusion proof material was fetched through the configured transparency proof fetcher."})
-	}
-	proofHash, err := canonicalAnyHash(struct {
-		EntryID        string   `json:"entry_id"`
-		LeafHash       string   `json:"leaf_hash"`
-		RootHash       string   `json:"root_hash"`
-		LeafIndex      int      `json:"leaf_index"`
-		TreeSize       int      `json:"tree_size"`
-		InclusionProof []string `json:"inclusion_proof"`
-		Source         string   `json:"source,omitempty"`
-	}{
-		EntryID:        entry.ID,
-		LeafHash:       leafHash,
-		RootHash:       rootHash,
-		LeafIndex:      in.LeafIndex,
-		TreeSize:       in.TreeSize,
-		InclusionProof: append([]string(nil), in.InclusionProof...),
-		Source:         source,
-	})
+	defer l.mu.Unlock()
+	current, err := l.publicTransparencyVerificationSourceLocked(ctx, actor.TenantID, strings.TrimSpace(id))
 	if err != nil {
 		return domain.PublicTransparencyLogEntry{}, err
 	}
 	now := l.now()
-	entry.InclusionRootHash = rootHash
-	entry.InclusionProofHash = proofHash
-	entry.InclusionVerifiedAt = &now
-	entry.VerificationChecks = checks
-	entry.VerificationLimitations = []string{
-		"Evydence verifies RFC6962-style proof material locally; the material may be supplied by an operator or fetched through a configured transparency proof fetcher.",
-		"Operators remain responsible for public-log trust, endpoint availability, and any provider-specific inclusion semantics.",
+	verified, err := experimentalapp.BuildPublicTransparencyVerification(current, publicTransparencyProofInput(in), strings.TrimSpace(in.Source), now)
+	if err != nil {
+		return domain.PublicTransparencyLogEntry{}, fromExperimentalCommandError(err)
 	}
-	if source == "fetched" {
-		entry.VerificationLimitations = append(entry.VerificationLimitations, "Fetched proof material is trusted only as input to local verification; provider identity and availability remain deployment responsibilities.")
-	}
-	entry.State = "inclusion_verified"
-	if !proofOK {
-		entry.State = "inclusion_not_verified"
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	current, ok := l.publicLogEntries[entry.ID]
-	if !ok || current.TenantID != actor.TenantID {
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	if current.State != expectedState {
-		return domain.PublicTransparencyLogEntry{}, ErrConflict
-	}
-	eventType := "public_transparency_log_entry.inclusion_verified"
-	if !proofOK {
-		eventType = "public_transparency_log_entry.inclusion_not_verified"
-	}
+	entry := PublicTransparencyVerificationLegacyRecord(verified)
+	eventType := "public_transparency_log_entry." + entry.State
 	if l.unitOfWork != nil {
 		var auditEntry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Future.UpdatePublicTransparencyLogEntry(ctx, entry, expectedState); err != nil {
+			if err := repos.Future.UpdatePublicTransparencyLogEntry(ctx, entry, current.State); err != nil {
 				return err
 			}
 			var err error
-			auditEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, eventType, "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), proofHash, ""))
+			auditEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(now, actor.TenantID, eventType, "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), entry.InclusionProofHash, ""))
 			return err
 		}); err != nil {
 			return domain.PublicTransparencyLogEntry{}, err
 		}
 		l.publicLogEntries[entry.ID] = entry
 		l.publishCommittedAuditEntryLocked(auditEntry)
-		return entry, nil
+		return PublicTransparencyVerificationLegacyRecord(verified), nil
 	}
 	l.publicLogEntries[entry.ID] = entry
-	_, _ = l.appendChainLocked(actor.TenantID, eventType, "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), proofHash, "")
+	_, _ = l.appendChainLocked(actor.TenantID, eventType, "public_transparency_log_entry", entry.ID, actorType(actor), actorID(actor), entry.InclusionProofHash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.PublicTransparencyLogEntry{}, err
 	}
-	return entry, nil
+	return PublicTransparencyVerificationLegacyRecord(verified), nil
 }
 
 func (l *Ledger) FetchAndVerifyPublicTransparencyLogEntry(ctx context.Context, actor domain.Actor, id string) (domain.PublicTransparencyLogEntry, error) {
@@ -692,45 +601,7 @@ func (l *Ledger) FetchAndVerifyPublicTransparencyLogEntry(ctx context.Context, a
 }
 
 func verifyRFC6962StyleProof(leafHash, rootHash string, leafIndex, treeSize int, proof []string) bool {
-	if treeSize <= 0 || leafIndex < 0 || leafIndex >= treeSize {
-		return false
-	}
-	node, err := decodeSHA256Digest(leafHash)
-	if err != nil {
-		return false
-	}
-	index, last := leafIndex, treeSize-1
-	proofIndex := 0
-	for last > 0 {
-		if proofIndex >= len(proof) {
-			return false
-		}
-		proofHash := proof[proofIndex]
-		sibling, err := decodeSHA256Digest(proofHash)
-		if err != nil {
-			return false
-		}
-		if index%2 == 1 || index == last {
-			node = transparencyParentHash(sibling, node)
-			for index%2 == 0 && index != 0 {
-				index /= 2
-				last /= 2
-			}
-		} else {
-			node = transparencyParentHash(node, sibling)
-		}
-		index /= 2
-		last /= 2
-		proofIndex++
-	}
-	if proofIndex != len(proof) {
-		return false
-	}
-	root, err := decodeSHA256Digest(rootHash)
-	if err != nil {
-		return false
-	}
-	return bytes.Equal(node, root)
+	return experimentalapp.VerifyPublicTransparencyProof(leafHash, rootHash, leafIndex, treeSize, proof)
 }
 
 func transparencyParentHash(left, right []byte) []byte {
@@ -754,13 +625,6 @@ func validSHA256Digest(value string) bool {
 	}
 	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
 	return err == nil
-}
-
-func checkResultString(ok bool) string {
-	if ok {
-		return "passed"
-	}
-	return "failed"
 }
 
 func (l *Ledger) CreateMarketplaceCollector(ctx context.Context, actor domain.Actor, in CreateMarketplaceCollectorInput) (domain.MarketplaceCollector, error) {

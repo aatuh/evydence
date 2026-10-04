@@ -37,7 +37,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"saas_profile_creation.go":                 {"AuthorizeCreateSaaSEditionProfile"},
 		"marketplace_collector_creation.go":        {"AuthorizeCreateMarketplaceCollector"},
 		"public_transparency_metadata_creation.go": {"AuthorizeCreatePublicTransparencyLog", "AuthorizePublishPublicTransparencyLogEntry"},
-		"future_extensions.go":                     {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation", "CreateSaaSEditionProfile", "CreateMarketplaceCollector", "CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry"},
+		"public_transparency_verification.go":      {"AuthorizeVerifyPublicTransparencyLogEntry"},
+		"future_extensions.go":                     {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation", "CreateSaaSEditionProfile", "CreateMarketplaceCollector", "CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry", "VerifyPublicTransparencyLogEntry"},
 		"answer_library_creation.go": {
 			"AuthorizeQuestionnaireAnswerLibraryCreate",
 			"authorizeAnswerLibraryCreateLocked",
@@ -91,7 +92,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 				!strings.Contains(fn, "verificationquery.NewSigningKeyAdminAuthorizer().Authorize") && !strings.Contains(fn, "l.AuthorizeCreateSigningOperation(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeSaaSProfileActor(") && !strings.Contains(fn, "l.AuthorizeCreateSaaSEditionProfile(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeMarketplaceCollectorActor(") && !strings.Contains(fn, "l.AuthorizeCreateMarketplaceCollector(") &&
-				!strings.Contains(fn, "experimentalapp.AuthorizePublicTransparencyMetadataActor(") && !strings.Contains(fn, "l.AuthorizeCreatePublicTransparencyLog(") && !strings.Contains(fn, "l.AuthorizePublishPublicTransparencyLogEntry(") {
+				!strings.Contains(fn, "experimentalapp.AuthorizePublicTransparencyMetadataActor(") && !strings.Contains(fn, "e.AuthorizePublicTransparencyMetadataActor(") && !strings.Contains(fn, "l.AuthorizeVerifyPublicTransparencyLogEntry(") && !strings.Contains(fn, "l.AuthorizeCreatePublicTransparencyLog(") && !strings.Contains(fn, "l.AuthorizePublishPublicTransparencyLogEntry(") {
 				t.Fatalf("%s.%s missing resource-scoped authorization call", file, name)
 			}
 		}

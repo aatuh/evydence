@@ -209,8 +209,13 @@ Experimental metadata commands with flat tenant/log/checkpoint/batch/root
 ports. PostgreSQL fences the actor tenant before share-locking the owned root
 chain and commits metadata, audit, and replay together, without loading log
 keys or leaf arrays. Explicit local memory shares the pure hash/record rules.
-Proof verification/fetching remain separate migration work, not an assurance
-claim of these metadata commands.
+Operator proof verification now uses focused Experimental commands and a
+bounded owned entry/root-chain projection. The actor-tenant fence precedes
+entry/root locks held through assessment/audit/replay commit. Previous proof
+commitments participate in same-state compare-and-swap. Local memory shares
+pure proof/hash rules; old diagnostic arrays are not command authority.
+Neither this result nor metadata creation authenticates public-log trust.
+Proof fetching and startup retirement remain separate EVY-905 work.
 Governance framework pages, control points, and the static starter-template
 catalog use risk-owned queries. Template listing does not read tenant state;
 the installation command remains on the compatibility Ledger path. A

@@ -2649,6 +2649,39 @@ safe Problem Details without publishing a success response. Historical
 records are not rewritten. See [API versioning](reference/api-versioning.md#unreleased-public-transparency-metadata-boundary)
 for compatibility-review requirements.
 
+### Public Transparency Proof Verification
+
+`POST /v1/public-transparency-log-entries/{id}/verify` accepts the required
+`root_hash`, `leaf_index`, `tree_size`, and `inclusion_proof` fields, plus an
+optional `leaf_hash`. The JSON object uses exact field names; duplicate,
+unknown, missing required, and null fields/items are rejected. It cannot set
+the internal fetched-proof source marker. The body limit is 64 KiB. IDs are
+capped at 1024 raw bytes; each digest at 128 raw bytes before trimming. Values
+must be NUL-free UTF-8; normalized digests have `sha256:` and exactly 64 hex
+digits. Blank/omitted `leaf_hash` defaults to the published entry hash. Proof
+arrays contain at most 64 nodes; empty arrays are valid input. `tree_size` is
+positive and `0 <= leaf_index < tree_size`.
+
+Both profiles require current tenant-wide human `keys:admin` authority (or an
+issued credential with that scope), and a current tenant-owned entry, log,
+checkpoint, and matching Merkle batch before execution or replay. Cookie
+mutations require Origin validation; bearer credentials retain precedence.
+PostgreSQL reads one bounded entry, not old check/limitation arrays, log keys,
+endpoints, or Merkle leaves. The entry and root chain remain locked through
+atomic assessment, audit, and replay commit. Compare-and-swap includes the
+previous proof hash/time and publication coordinates, not just terminal state.
+
+Well-formed material returns `200` with `inclusion_verified` or
+`inclusion_not_verified`. Passing requires exact normalized leaf-string binding
+and local RFC6962-style root recomputation; it does not authenticate the
+supplied root or establish public-log trust. The proof commitment preserves
+the existing canonical field names, omission of operator-source metadata,
+and empty-proof JSON `null` normalization. Changed raw request bytes under the
+same key return `409`; changed authority or ownership cannot reuse a saved
+success. Storage/commit failures return safe Problem Details, not a success
+assessment. Historical audit entries are not rewritten. Proof fetching and
+production startup Ledger retirement remain EVY-905 work.
+
 ### SaaS Profile Creation
 
 `POST /v1/saas/profiles` records experimental hosted-deployment intent only.

@@ -162,25 +162,30 @@ func (s *Server) publishPublicTransparencyLogEntry(w http.ResponseWriter, r *htt
 }
 
 func (s *Server) verifyPublicTransparencyLogEntry(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		LeafHash       string   `json:"leaf_hash"`
-		RootHash       string   `json:"root_hash"`
-		LeafIndex      int      `json:"leaf_index"`
-		TreeSize       int      `json:"tree_size"`
-		InclusionProof []string `json:"inclusion_proof"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.publicTransparencyProofs != nil {
+		s.verifyDurablePublicTransparencyLogEntry(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		in, err := decodePublicTransparencyProof(body, r.PathValue("id"))
+		if err != nil {
 			return 0, nil, err
 		}
-		entry, err := s.ledger.VerifyPublicTransparencyLogEntry(ctx, actor, r.PathValue("id"), app.VerifyPublicTransparencyLogEntryInput{
-			LeafHash:       req.LeafHash,
-			RootHash:       req.RootHash,
-			LeafIndex:      req.LeafIndex,
-			TreeSize:       req.TreeSize,
-			InclusionProof: req.InclusionProof,
-		})
-		return http.StatusOK, entry, err
+		v, err := s.ledger.VerifyPublicTransparencyLogEntry(ctx, actor, r.PathValue("id"), legacyPublicTransparencyProofInput(in))
+		return http.StatusOK, v, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodePublicTransparencyProof(body, r.PathValue("id"))
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeVerifyPublicTransparencyLogEntry(r.Context(), a, r.PathValue("id"), legacyPublicTransparencyProofInput(in)); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 
