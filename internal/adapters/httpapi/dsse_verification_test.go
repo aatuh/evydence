@@ -133,7 +133,7 @@ func TestDSSEVerificationHandlersUseFocusedCommandsAndReplay(t *testing.T) {
 	server, secret := testServer(t)
 	commands := &dsseVerificationHTTPFake{}
 	server.dsseVerification = commands
-	server.durableCommandExecutor = newTrustHTTPReplayExecutor(t, server, secret)
+	bindSubjectHTTPTestPort(t, server, secret, "build_attestation", commands.VerifyDSSEAttestationSignature)
 	path := "/v1/build-attestations/not-in-ledger/verify-signature"
 	first := postJSON(t, server, secret, path, "focused-dsse", map[string]any{}, http.StatusOK)
 	if !strings.Contains(first, `"id":"durable_receipt"`) || !strings.Contains(first, `"subject_type":"build_attestation"`) {
@@ -145,7 +145,8 @@ func TestDSSEVerificationHandlersUseFocusedCommandsAndReplay(t *testing.T) {
 	}
 	input := map[string]any{"subject_type": "build_attestation", "subject_id": "not-in-ledger"}
 	first = postJSON(t, server, secret, "/v1/verify", "generic-dsse", input, http.StatusOK)
-	if replay := postJSON(t, server, secret, "/v1/verify", "generic-dsse", input, http.StatusOK); replay != first || commands.calls != 2 {
+	assertTrustHTTPReplay(t, first, postJSON(t, server, secret, "/v1/verify", "generic-dsse", input, http.StatusOK))
+	if commands.calls != 2 {
 		t.Fatal("generic replay reran inspection")
 	}
 	commands.err = verificationapp.ErrVerificationFailed

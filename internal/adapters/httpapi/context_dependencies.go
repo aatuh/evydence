@@ -217,6 +217,7 @@ type BackupGenerationCommands interface {
 }
 
 type SubjectVerification interface {
+	AuthorizeSubjectVerification(context.Context, identitydomain.Actor, string, string) error
 	VerifySubject(context.Context, identitydomain.Actor, string, string) (verificationdomain.VerificationResult, error)
 }
 
@@ -634,6 +635,7 @@ type packageService interface {
 // verificationService exposes provider-independent verification policy and
 // signing-key administration without giving handlers unrelated Ledger methods.
 type verificationService interface {
+	AuthorizeSubjectVerification(context.Context, domain.Actor, string, string) error
 	AuthorizeDSSEVerification(context.Context, domain.Actor, string) error
 	VerifySubject(context.Context, domain.Actor, string, string) (domain.VerificationResult, error)
 	VerifyCosignSignature(context.Context, domain.Actor, app.VerifyCosignInput) (domain.CosignVerification, error)

@@ -47,8 +47,23 @@ cookie origins, malformed/non-object input, and raw IDs beyond the byte
 limit documented in [API Reference](../api.md#offline-dsse-attestation-verification).
 Inconsistent current parents cannot authorize historical delivery. These are
 input/authorization restrictions, not approved release-baseline exceptions.
-Historical receipts are not rewritten; generic verification remains a
-separate migration, and no release or provider-runtime assurance is claimed.
+Historical receipts are not rewritten; no release or provider-runtime
+assurance is claimed.
+
+## Unreleased Generic Verification Boundary
+
+`POST /v1/verify` now uses focused PostgreSQL execution and checks current
+ownership and grants before completed replay. Its nine subject types, receipt
+schemas and existing assurance profiles are preserved. Both profiles now
+enforce exact-case, non-null JSON fields, a 64 KiB body limit, raw text byte
+limits before trimming, and cookie-origin protection. Missing or inconsistent
+current parents cannot authorize historical delivery. Human grants for
+tenant-wide audit, checkpoint, backup and artifact-signature profiles cannot
+be replaced by a narrower release/product grant. See
+[Generic Subject Verification](../api.md#generic-subject-verification) for
+the input and replay contract. These are input/authorization restrictions,
+not approved release-baseline exceptions; old receipts are not rewritten and
+the migration does not claim current trust or provider-runtime assurance.
 
 ## Unreleased Answer-Library Creation Boundary
 

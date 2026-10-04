@@ -30,6 +30,7 @@ func TestReleaseBundleVerificationHandlersUseFocusedDurableCommands(t *testing.T
 	server, secret := testServer(t)
 	commands := &bundleVerificationHTTPFake{}
 	server.releaseBundleVerification = commands
+	bindSubjectHTTPTestPort(t, server, secret, "release_bundle", commands.VerifyReleaseBundle)
 	request := httptest.NewRequest(http.MethodGet, "/v1/release-bundles/bundle/verify", nil)
 	request.Header.Set("Authorization", "Bearer "+secret)
 	response := httptest.NewRecorder()
@@ -39,7 +40,8 @@ func TestReleaseBundleVerificationHandlersUseFocusedDurableCommands(t *testing.T
 	}
 	input := map[string]any{"subject_type": "release_bundle", "subject_id": "bundle"}
 	body := postJSON(t, server, secret, "/v1/verify", "durable-verify", input, http.StatusOK)
-	if replay := postJSON(t, server, secret, "/v1/verify", "durable-verify", input, http.StatusOK); replay != body || commands.calls != 2 {
+	assertTrustHTTPReplay(t, body, postJSON(t, server, secret, "/v1/verify", "durable-verify", input, http.StatusOK))
+	if commands.calls != 2 {
 		t.Fatal("verification replay reran command")
 	}
 	commands.err = verificationapp.ErrVerificationFailed

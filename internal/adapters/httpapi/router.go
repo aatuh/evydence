@@ -39,7 +39,6 @@ import (
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
-	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
@@ -537,6 +536,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	}
 	if opts.DSSEVerification != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused DSSE verification requires durable idempotency")
+	}
+	if opts.SubjectVerification != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused generic verification requires durable idempotency")
 	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
@@ -4029,71 +4031,6 @@ func (s *Server) listCommercialCollectors(w http.ResponseWriter, r *http.Request
 	}
 	writeCreatedAtPaginated(s, w, r, actor, "commercial-collectors", nil, definitions, func(definition domain.CommercialCollectorDefinition) (string, time.Time) {
 		return definition.ID, definition.CreatedAt
-	})
-}
-
-func (s *Server) verifySubject(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		SubjectType string `json:"subject_type"`
-		SubjectID   string `json:"subject_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		subjectType := strings.TrimSpace(req.SubjectType)
-		if s.subjectVerification != nil {
-			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
-				return 0, nil, err
-			}
-			subjectID := strings.TrimSpace(req.SubjectID)
-			if subjectType == "" || subjectType == "audit_chain" && subjectID != "" || subjectType != "audit_chain" && subjectID == "" {
-				return 0, nil, app.ErrValidation
-			}
-			result, err := s.subjectVerification.VerifySubject(ctx, actor, subjectType, subjectID)
-			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
-		}
-		if s.auditChainVerification != nil && subjectType == "audit_chain" {
-			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
-				return 0, nil, err
-			}
-			if strings.TrimSpace(req.SubjectID) != "" {
-				return 0, nil, app.ErrValidation
-			}
-			result, err := s.auditChainVerification.VerifyAuditChain(ctx, actor)
-			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
-		}
-		if s.releaseBundleVerification != nil && subjectType == "release_bundle" || s.evidenceVerification != nil && subjectType == "evidence_item" || s.dsseVerification != nil && subjectType == "build_attestation" || s.artifactSignatureVerification != nil && subjectType == "artifact_signature" || s.merkleVerification != nil && subjectType == "merkle_batch" || s.merkleCheckpointVerification != nil && subjectType == "audit_chain_checkpoint" || s.releaseManifestCheckpoint != nil && subjectType == "audit_chain_release_manifest" || s.backupVerification != nil && subjectType == "backup_manifest" {
-			if err := validateNonNullableObjectFields(body, "subject_type", "subject_id"); err != nil {
-				return 0, nil, err
-			}
-			if strings.TrimSpace(req.SubjectID) == "" {
-				return 0, nil, app.ErrValidation
-			}
-			var result verificationdomain.VerificationResult
-			var err error
-			switch subjectType {
-			case "evidence_item":
-				result, err = s.evidenceVerification.VerifyEvidence(ctx, actor, req.SubjectID)
-			case "build_attestation":
-				result, err = s.dsseVerification.VerifyDSSEAttestationSignature(ctx, actor, req.SubjectID)
-			case "artifact_signature":
-				result, err = s.artifactSignatureVerification.VerifyArtifactSignature(ctx, actor, req.SubjectID)
-			case "merkle_batch":
-				result, err = s.merkleVerification.VerifyMerkleBatch(ctx, actor, req.SubjectID)
-			case "audit_chain_checkpoint":
-				result, err = s.merkleCheckpointVerification.VerifyMerkleCheckpoint(ctx, actor, req.SubjectID)
-			case "audit_chain_release_manifest":
-				result, err = s.releaseManifestCheckpoint.VerifyReleaseManifestCheckpoint(ctx, actor, req.SubjectID)
-			case "backup_manifest":
-				result, err = s.backupVerification.VerifyBackupManifest(ctx, actor, req.SubjectID)
-			default:
-				result, err = s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, req.SubjectID)
-			}
-			return http.StatusOK, verificationResultFromFocused(result), mapVerificationCommandError(err)
-		}
-		result, err := s.verification.VerifySubject(ctx, actor, req.SubjectType, req.SubjectID)
-		return http.StatusOK, result, err
 	})
 }
 

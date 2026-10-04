@@ -490,9 +490,20 @@ build outputs. Fresh inspection retains its bounded seven-check offline
 profile; receipt, audit, verification job and replay commit together. Failed
 HTTP inspection rolls back business effects, while unavailable trust remains
 conservative `not_verified`. Local memory retains a narrow current-parent
-guard and nondurable replay. The generic verification wrapper and broad API
-startup remain separate migrations. See
+guard and nondurable replay. Broad API startup remains a separate migration. See
 [offline DSSE verification](../api.md#offline-dsse-attestation-verification).
+
+Generic subject verification now binds the closed nine-command dispatcher
+to native durable execution. A Verification-owned transaction port resolves
+only current ownership coordinates before reservation/replay; the PostgreSQL
+adapter takes the common writer fence before tenant/parent/subject share
+locks. It does not read inspection facts or previous receipts. Resource
+authorization retains each focused profile's scope, including tenant-wide
+grants for full-chain checkpoint and detached artifact-signature profiles.
+Fresh commands retain their inspectors and atomic receipt/audit/job/replay
+writes. Completed delivery preserves exact original values without inspecting
+changed metadata. Explicit local memory retains a current-map guard and
+nondurable replay. See [generic subject verification](../api.md#generic-subject-verification).
 
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.

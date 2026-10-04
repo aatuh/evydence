@@ -2824,12 +2824,55 @@ metadata, bytes or trust material. Changed request bytes return `409`.
 A durable failed delivery key retains its existing `409` policy; recovery
 uses a new key. Explicit local memory remains nondurable, with current
 owned parents and resource grants checked before replay. The generic
-`POST /v1/verify` wrapper is a separate runtime migration, not covered by
-this dedicated route's native-execution guarantee.
+[`POST /v1/verify`](#generic-subject-verification) uses the same focused DSSE
+inspection profile with its own native current-scope replay guard.
 
 This offline receipt does not prove current trust validity, certificate-chain
 trust, revocation, transparency inclusion, provenance completeness,
 CI-provider runtime integrity, artifact safety or legal compliance.
+
+### Generic Subject Verification
+
+`POST /v1/verify` requires `verify:read` (or `admin`) and dispatches a closed
+set: `audit_chain`, `evidence_item`, `release_bundle`, `build_attestation`,
+`artifact_signature`, `merkle_batch`, `audit_chain_checkpoint`,
+`audit_chain_release_manifest`, and `backup_manifest`. Each retains its
+existing assurance profile and inspection limits. In particular, artifact
+signature metadata can remain `limited`, unavailable DSSE trust remains
+`not_verified`, and backup verification checks recorded observations, not a
+new live backup or restore rehearsal.
+
+Both profiles require a strict non-null JSON object capped at 64 KiB, with
+only `subject_type` and `subject_id`. Raw text is NUL-free UTF-8, bounded at
+64 and 1024 bytes respectively before trimming. The type is required;
+`audit_chain` permits an omitted or blank ID, while every other type requires
+a nonblank ID. Unknown, duplicate, case-aliased, null, ill-typed, invalid
+UTF-8, oversized and trailing input returns `400`. Cookie-authenticated
+mutations require same-origin protection; explicit bearer credentials take
+precedence.
+
+PostgreSQL uses the complete focused dispatcher and native durable replay,
+never partial-service or Ledger fallback. Before reservation and every
+replay, a read-only guard locks current tenant, subject and required parent
+ownership coordinates. The common writer fence precedes those share locks,
+which remain held through the outer commit. Human sessions need matching
+resource grants for evidence, attestations and release bundles; audit-chain,
+Merkle, both checkpoint, backup and artifact-signature profiles require a
+tenant-wide verification grant. A release grant alone cannot authorize a
+full-chain release-manifest checkpoint.
+
+Completed replay returns the original response without reading changed
+payloads, manifests, digests, trust policies or prior verification metadata.
+Missing/foreign subjects return `404`; inconsistent or oversized current
+ownership can return `409`. Revoked grants return `403`, revoked sessions
+`401`, and changed request bytes `409`. Fresh receipts, caller audit,
+verification jobs and successful replay commit atomically. Failed HTTP
+inspection returns `422` with no success envelope and rolls back business
+effects. A failed delivery key retains its `409` policy; recovery uses a new
+key. Explicit local memory retains nondurable replay with a current ownership
+and grant guard. Historical responses are not rewritten and do not prove
+current trust validity, artifact safety, provider runtime integrity or legal
+compliance.
 
 ### Merkle Batch Creation
 

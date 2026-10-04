@@ -5,9 +5,63 @@ import (
 
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
+
+// AuthorizeSubjectVerification is only the explicit local-memory replay guard.
+// It reads current map ownership/grants, never inspection metadata or worker
+// projections. Native generic verification uses the transactional scope port.
+func (l *Ledger) AuthorizeSubjectVerification(ctx context.Context, a domain.Actor, kind, id string) error {
+	if ctx == nil {
+		return context.Canceled
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := require(a, ScopeVerifyRead); err != nil {
+		return err
+	}
+	tenant, err := verificationapp.NormalizeSigningKeyID(a.TenantID)
+	if err != nil || tenant != a.TenantID {
+		return ErrValidation
+	}
+	kind, id, err = verificationapp.NormalizeSubjectVerificationInput(kind, id)
+	if err != nil {
+		return ErrValidation
+	}
+	if kind == "build_attestation" {
+		return l.AuthorizeDSSEVerification(ctx, a, id)
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if _, ok := l.tenants[tenant]; !ok {
+		return ErrNotFound
+	}
+	subject, err := resolveVerificationSubjectLocked(l, tenant, kind, id)
+	if err != nil {
+		return fromVerificationContextError(err)
+	}
+	refs := subject.Resources
+	switch kind {
+	case "release_bundle", "audit_chain_release_manifest":
+		release, ok := l.releases[refs.ReleaseID]
+		product, productOK := l.products[release.ProductID]
+		if !ok || !productOK || release.TenantID != tenant || product.TenantID != tenant {
+			return ErrNotFound
+		}
+		refs.ProductID = product.ID
+	case "evidence_item":
+		if err := validateLedgerEvidenceScopeLocked(l, tenant, evidenceapp.EvidenceScope{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID}); err != nil {
+			return err
+		}
+	}
+	if kind != "evidence_item" && kind != "release_bundle" {
+		return fromVerificationContextError(application.AuthorizeTenantWideScope(ctx, a, ScopeVerifyRead))
+	}
+	return l.authorizeResourceLocked(a, ScopeVerifyRead, resourceRefs{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID})
+}
 
 // AuthorizeDSSEVerification is only the explicit local-memory replay guard.
 // Native HTTP uses the focused service and flat PostgreSQL ownership locks;

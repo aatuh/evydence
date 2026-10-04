@@ -24,12 +24,14 @@ func TestArtifactSignatureVerificationHandlerUsesDurableMetadataAndReplay(t *tes
 	s, secret := testServer(t)
 	f := &signatureMetadataHTTPFake{}
 	s.artifactSignatureVerification = f
+	bindSubjectHTTPTestPort(t, s, secret, "artifact_signature", f.VerifyArtifactSignature)
 	body := map[string]any{"subject_type": "artifact_signature", "subject_id": "not-in-ledger"}
 	first := postJSON(t, s, secret, "/v1/verify", "focused-signature-metadata", body, http.StatusOK)
 	if !strings.Contains(first, `"subject_type":"artifact_signature"`) || !strings.Contains(first, `"result":"limited"`) {
 		t.Fatal(first)
 	}
-	if replay := postJSON(t, s, secret, "/v1/verify", "focused-signature-metadata", body, http.StatusOK); replay != first || f.calls != 1 {
+	assertTrustHTTPReplay(t, first, postJSON(t, s, secret, "/v1/verify", "focused-signature-metadata", body, http.StatusOK))
+	if f.calls != 1 {
 		t.Fatal("replayed metadata assessment")
 	}
 	before := f.calls

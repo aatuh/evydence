@@ -24,6 +24,9 @@ func TestAuditChainVerificationHandlersUseFocusedCommands(t *testing.T) {
 	s, secret := testServer(t)
 	f := &auditVerificationHTTPFake{}
 	s.auditChainVerification = f
+	bindSubjectHTTPTestPort(t, s, secret, "audit_chain", func(ctx context.Context, a identitydomain.Actor, _ string) (verificationdomain.VerificationResult, error) {
+		return f.VerifyAuditChain(ctx, a)
+	})
 	req := httptest.NewRequest(http.MethodGet, "/v1/audit-chain/verify", nil)
 	req.Header.Set("Authorization", "Bearer "+secret)
 	response := httptest.NewRecorder()
@@ -33,7 +36,8 @@ func TestAuditChainVerificationHandlersUseFocusedCommands(t *testing.T) {
 	}
 	body := map[string]any{"subject_type": "audit_chain"}
 	first := postJSON(t, s, secret, "/v1/verify", "focused-audit", body, 200)
-	if replay := postJSON(t, s, secret, "/v1/verify", "focused-audit", body, 200); replay != first || f.calls != 2 {
+	assertTrustHTTPReplay(t, first, postJSON(t, s, secret, "/v1/verify", "focused-audit", body, 200))
+	if f.calls != 2 {
 		t.Fatal("replay reran verification")
 	}
 	before := f.calls

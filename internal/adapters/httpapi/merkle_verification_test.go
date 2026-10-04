@@ -24,6 +24,7 @@ func TestMerkleVerificationHandlersUseFocusedCommands(t *testing.T) {
 	s, secret := testServer(t)
 	f := &merkleVerificationHTTPFake{}
 	s.merkleVerification = f
+	bindSubjectHTTPTestPort(t, s, secret, "merkle_batch", f.VerifyMerkleBatch)
 	request := httptest.NewRequest(http.MethodGet, "/v1/merkle-batches/not-in-ledger/verify", nil)
 	request.Header.Set("Authorization", "Bearer "+secret)
 	response := httptest.NewRecorder()
@@ -33,7 +34,8 @@ func TestMerkleVerificationHandlersUseFocusedCommands(t *testing.T) {
 	}
 	body := map[string]any{"subject_type": "merkle_batch", "subject_id": "not-in-ledger"}
 	first := postJSON(t, s, secret, "/v1/verify", "merkle-focused", body, 200)
-	if replay := postJSON(t, s, secret, "/v1/verify", "merkle-focused", body, 200); replay != first || f.calls != 2 {
+	assertTrustHTTPReplay(t, first, postJSON(t, s, secret, "/v1/verify", "merkle-focused", body, 200))
+	if f.calls != 2 {
 		t.Fatal("replayed verification")
 	}
 	before := f.calls

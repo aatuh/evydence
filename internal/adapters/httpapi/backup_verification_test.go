@@ -24,6 +24,7 @@ func TestBackupVerificationHandlersUseFocusedCommands(t *testing.T) {
 	s, secret := testServer(t)
 	f := &backupVerificationHTTPFake{}
 	s.backupVerification = f
+	bindSubjectHTTPTestPort(t, s, secret, "backup_manifest", f.VerifyBackupManifest)
 	req := httptest.NewRequest(http.MethodGet, "/v1/backup-manifests/backup/verify", nil)
 	req.Header.Set("Authorization", "Bearer "+secret)
 	response := httptest.NewRecorder()
@@ -33,7 +34,8 @@ func TestBackupVerificationHandlersUseFocusedCommands(t *testing.T) {
 	}
 	body := map[string]any{"subject_type": "backup_manifest", "subject_id": "backup"}
 	first := postJSON(t, s, secret, "/v1/verify", "backup-replay", body, 200)
-	if replay := postJSON(t, s, secret, "/v1/verify", "backup-replay", body, 200); replay != first || f.calls != 2 {
+	assertTrustHTTPReplay(t, first, postJSON(t, s, secret, "/v1/verify", "backup-replay", body, 200))
+	if f.calls != 2 {
 		t.Fatal("replay repeated backup assessment")
 	}
 	for i, bad := range []string{`null`, `[]`, `{"subject_type":"backup_manifest"}`, `{"subject_type":"backup_manifest","subject_id":null}`, `{"subject_type":"backup_manifest","subject_id":1}`, `{"subject_type":"backup_manifest","subject_id":" "}`, `{"subject_type":"backup_manifest","subject_id":"backup","extra":1}`, `{"subject_type":"backup_manifest","subject_type":"release_bundle","subject_id":"backup"}`, `{"subject_type":"backup_manifest","subject_id":"backup"} {}`} {

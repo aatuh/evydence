@@ -24,12 +24,14 @@ func TestEvidenceVerificationHandlerUsesFocusedDurableCommands(t *testing.T) {
 	server, secret := testServer(t)
 	commands := &evidenceVerificationHTTPFake{}
 	server.evidenceVerification = commands
+	bindSubjectHTTPTestPort(t, server, secret, "evidence_item", commands.VerifyEvidence)
 	input := map[string]any{"subject_type": "evidence_item", "subject_id": "not-in-ledger"}
 	body := postJSON(t, server, secret, "/v1/verify", "focused-evidence", input, http.StatusOK)
 	if !strings.Contains(body, `"id":"durable_receipt"`) || !strings.Contains(body, `"subject_type":"evidence_item"`) {
 		t.Fatal(body)
 	}
-	if replay := postJSON(t, server, secret, "/v1/verify", "focused-evidence", input, http.StatusOK); replay != body || commands.calls != 1 {
+	assertTrustHTTPReplay(t, body, postJSON(t, server, secret, "/v1/verify", "focused-evidence", input, http.StatusOK))
+	if commands.calls != 1 {
 		t.Fatal("replay reran verification")
 	}
 	commands.err = verificationapp.ErrVerificationFailed

@@ -22,10 +22,12 @@ func TestMerkleCheckpointVerificationHandlerUsesFocusedCommand(t *testing.T) {
 	s, secret := testServer(t)
 	f := &merkleCheckpointHTTPFake{}
 	s.merkleCheckpointVerification = f
+	bindSubjectHTTPTestPort(t, s, secret, "audit_chain_checkpoint", f.VerifyMerkleCheckpoint)
 	body := map[string]any{"subject_type": "audit_chain_checkpoint", "subject_id": "batch"}
 	first := postJSON(t, s, secret, "/v1/verify", "checkpoint-replay", body, 200)
-	if replay := postJSON(t, s, secret, "/v1/verify", "checkpoint-replay", body, 200); replay != first || f.calls != 1 || !strings.Contains(first, `"subject_type":"audit_chain_checkpoint"`) {
-		t.Fatal(first, replay, f.calls)
+	assertTrustHTTPReplay(t, first, postJSON(t, s, secret, "/v1/verify", "checkpoint-replay", body, 200))
+	if f.calls != 1 || !strings.Contains(first, `"subject_type":"audit_chain_checkpoint"`) {
+		t.Fatal(first, f.calls)
 	}
 	for i, bad := range []string{`null`, `[]`, `{"subject_type":"audit_chain_checkpoint"}`, `{"subject_type":"audit_chain_checkpoint","subject_id":null}`, `{"subject_type":"audit_chain_checkpoint","subject_id":1}`, `{"subject_type":"audit_chain_checkpoint","subject_id":" "}`, `{"subject_type":"audit_chain_checkpoint","subject_id":"batch","extra":1}`, `{"subject_type":"audit_chain_checkpoint","subject_type":"merkle_batch","subject_id":"batch"}`, `{"subject_type":"audit_chain_checkpoint","subject_id":"batch"} {}`} {
 		postRaw(t, s, secret, "/v1/verify", "bad-checkpoint-"+string(rune('a'+i)), []byte(bad), 400)

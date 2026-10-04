@@ -358,8 +358,9 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 		return httpapi.ServerOptions{}, fmt.Errorf("create source snapshot commands: %w", err)
 	}
 	options.SubjectVerification, err = verificationapp.NewSubjectVerificationCommands(verificationapp.SubjectVerificationConfig{
-		Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(),
-		AuditChain: options.AuditChainVerification, Evidence: options.EvidenceVerification,
+		Authorizer:         verificationquery.NewEvidenceVerificationAuthorizer(),
+		ReplayTransactions: subjectVerificationScopeTransactions{store},
+		AuditChain:         options.AuditChainVerification, Evidence: options.EvidenceVerification,
 		ReleaseBundle: options.ReleaseBundleVerification, DSSE: options.DSSEVerification,
 		ArtifactSignature: options.ArtifactSignatureVerification, Merkle: options.MerkleVerification,
 		MerkleCheckpoint:          options.MerkleCheckpointVerification,

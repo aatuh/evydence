@@ -22,10 +22,12 @@ func TestReleaseManifestCheckpointHandlerUsesFocusedCommand(t *testing.T) {
 	s, secret := testServer(t)
 	f := &releaseManifestCheckpointHTTPFake{}
 	s.releaseManifestCheckpoint = f
+	bindSubjectHTTPTestPort(t, s, secret, "audit_chain_release_manifest", f.VerifyReleaseManifestCheckpoint)
 	body := map[string]any{"subject_type": "audit_chain_release_manifest", "subject_id": "bundle"}
 	first := postJSON(t, s, secret, "/v1/verify", "manifest-checkpoint-replay", body, 200)
-	if replay := postJSON(t, s, secret, "/v1/verify", "manifest-checkpoint-replay", body, 200); replay != first || f.calls != 1 || !strings.Contains(first, `"subject_type":"audit_chain_release_manifest"`) {
-		t.Fatal(first, replay, f.calls)
+	assertTrustHTTPReplay(t, first, postJSON(t, s, secret, "/v1/verify", "manifest-checkpoint-replay", body, 200))
+	if f.calls != 1 || !strings.Contains(first, `"subject_type":"audit_chain_release_manifest"`) {
+		t.Fatal(first, f.calls)
 	}
 	for i, bad := range []string{`null`, `[]`, `{"subject_type":"audit_chain_release_manifest"}`, `{"subject_type":"audit_chain_release_manifest","subject_id":null}`, `{"subject_type":"audit_chain_release_manifest","subject_id":1}`, `{"subject_type":"audit_chain_release_manifest","subject_id":" "}`, `{"subject_type":"audit_chain_release_manifest","subject_id":"bundle","extra":1}`, `{"subject_type":"audit_chain_release_manifest","subject_type":"release_bundle","subject_id":"bundle"}`, `{"subject_type":"audit_chain_release_manifest","subject_id":"bundle"} {}`} {
 		postRaw(t, s, secret, "/v1/verify", "bad-manifest-checkpoint-"+string(rune('a'+i)), []byte(bad), 400)
