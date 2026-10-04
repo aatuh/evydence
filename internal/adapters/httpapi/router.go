@@ -529,6 +529,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.TransparencyCheckpointCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused checkpoints require durable idempotency")
 	}
+	if opts.BackupGenerationCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused backup generation requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -3951,23 +3954,6 @@ func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeData(w, http.StatusOK, report)
-}
-
-func (s *Server) generateBackupManifest(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if s.backupGenerationCommands != nil {
-			if err := decodeJSON(body, &struct{}{}); err != nil {
-				return 0, nil, err
-			}
-			if err := validateNonNullableObjectFields(body); err != nil {
-				return 0, nil, err
-			}
-			manifest, err := s.backupGenerationCommands.GenerateBackupManifest(ctx, actor)
-			return http.StatusCreated, domain.BackupManifestFromContextModel(manifest), mapVerificationCommandError(err)
-		}
-		manifest, err := s.verification.GenerateBackupManifest(ctx, actor)
-		return http.StatusCreated, manifest, err
-	})
 }
 
 func (s *Server) verifyBackupManifest(w http.ResponseWriter, r *http.Request) {

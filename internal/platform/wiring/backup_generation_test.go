@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
@@ -97,32 +95,6 @@ func TestPostgresBackupStateCommitmentIsCompleteTenantScopedAndSecretFree(t *tes
 	}
 }
 
-type backupTenantBarrierTx struct {
-	pgx.Tx
-	locked chan struct{}
-}
-
-func (t backupTenantBarrierTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	row := t.Tx.QueryRow(ctx, sql, args...)
-	if strings.Contains(sql, "SELECT 1 FROM tenants") {
-		return backupTenantBarrierRow{row, t.locked}
-	}
-	return row
-}
-
-type backupTenantBarrierRow struct {
-	pgx.Row
-	locked chan struct{}
-}
-
-func (r backupTenantBarrierRow) Scan(dest ...any) error {
-	err := r.Row.Scan(dest...)
-	if err == nil {
-		close(r.locked)
-	}
-	return err
-}
-
 func TestPostgresBackupAndMerkleViewsDoNotDeadlockProjectionOwnerAuditAppend(t *testing.T) {
 	for _, kind := range []string{"backup", "merkle"} {
 		t.Run(kind, func(t *testing.T) {
@@ -148,8 +120,8 @@ func TestPostgresBackupAndMerkleViewsDoNotDeadlockProjectionOwnerAuditAppend(t *
 				t.Fatal(err)
 			}
 			defer func() { _ = view.Rollback(context.WithoutCancel(ctx)) }()
-			locked, done := make(chan struct{}), make(chan error, 1)
-			repos := repositories.New(backupTenantBarrierTx{view, locked})
+			done := make(chan error, 1)
+			repos := repositories.New(view)
 			go func() {
 				if kind == "backup" {
 					_, err := repos.Integrity.(verificationapp.BackupStateCommitmentReader).ReadBackupStateCommitment(ctx, "tenant")
@@ -159,10 +131,26 @@ func TestPostgresBackupAndMerkleViewsDoNotDeadlockProjectionOwnerAuditAppend(t *
 					done <- err
 				}
 			}()
-			select {
-			case <-locked:
-			case <-ctx.Done():
-				t.Fatal(ctx.Err())
+			// Observe the actual common-fence wait, not an obsolete tenant-first
+			// implementation barrier. Keep the worker audit/commit assertions.
+			ticker := time.NewTicker(5 * time.Millisecond)
+			defer ticker.Stop()
+		waitForFence:
+			for {
+				select {
+				case readErr := <-done:
+					t.Fatal("view bypassed projection owner", readErr)
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				case <-ticker.C:
+					var blocked bool
+					if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database()AND wait_event='advisory'AND $1=ANY(pg_blocking_pids(pid)))`, worker.Conn().PgConn().PID()).Scan(&blocked); err != nil {
+						t.Fatal(err)
+					}
+					if blocked {
+						break waitForFence
+					}
+				}
 			}
 			_, appendErr := repositories.New(worker).Audit.Append(ctx, domain.AuditChainEntry{ID: "entry", TenantID: "tenant", EntryType: "worker", SubjectType: "test", SubjectID: "test", ActorType: "collector", ActorID: "worker", OccurredAt: time.Now().UTC()})
 			if appendErr == nil {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -21,11 +22,18 @@ import (
 // own receipt audit entry; a shared-to-exclusive upgrade can deadlock.
 func (r verification) LockAuditChainVerification(ctx context.Context, tenant string) (verificationapp.AuditChainVerificationView, error) {
 	view := verificationapp.AuditChainVerificationView{TenantID: tenant}
-	if err := requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR SHARE`, tenant); err != nil {
+	_, err := verificationapp.NormalizeSigningKeyID(tenant)
+	if ctx == nil || r.tx == nil || err != nil || strings.TrimSpace(tenant) != tenant {
+		return view, app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
 		return view, err
 	}
 	if err := coordination.LockWorkerProjection(ctx, r.tx, tenant); err != nil {
 		return view, fmt.Errorf("lock verification projection view: %w", err)
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR SHARE`, tenant); err != nil {
+		return view, err
 	}
 	if _, err := r.tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, tenant); err != nil {
 		return view, fmt.Errorf("lock verification audit view: %w", err)

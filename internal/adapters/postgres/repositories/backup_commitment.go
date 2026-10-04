@@ -35,12 +35,18 @@ func BackupCommitmentProfileResourcesV1() []verificationapp.BackupCommitmentReso
 
 func (r integrity) ReadBackupStateCommitment(ctx context.Context, tenant string) (verificationapp.BackupStateCommitment, error) {
 	var empty verificationapp.BackupStateCommitment
-	// Fence tenant changes without blocking the projection-owning worker's
-	// foreign-key checks while we wait for its projection lock.
-	if err := requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR SHARE`, tenant); err != nil {
+	_, err := verificationapp.NormalizeSigningKeyID(tenant)
+	if ctx == nil || r.tx == nil || err != nil || strings.TrimSpace(tenant) != tenant {
+		return empty, app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
+	// Match native writers: common fence, tenant root, then audit-chain lock.
 	if err := coordination.LockWorkerProjection(ctx, r.tx, tenant); err != nil {
+		return empty, err
+	}
+	if err := requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR SHARE`, tenant); err != nil {
 		return empty, err
 	}
 	if _, err := r.tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, tenant); err != nil {

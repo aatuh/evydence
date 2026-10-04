@@ -210,6 +210,7 @@ type BackupVerification interface {
 }
 
 type BackupGenerationCommands interface {
+	AuthorizeBackupGeneration(context.Context, identitydomain.Actor) error
 	GenerateBackupManifest(context.Context, identitydomain.Actor) (verificationdomain.BackupManifest, error)
 }
 

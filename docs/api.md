@@ -2813,6 +2813,40 @@ does not fetch a URL, contact or authenticate a provider, verify publication or
 timestamp authenticity, prove release security or make a legal compliance
 conclusion. Do not put credentials or secret material in recorded coordinates.
 
+### Backup Manifest Generation
+
+`POST /v1/backup-manifests` requires current tenant-wide `admin` authority,
+an empty JSON object (`{}`), and returns `201`. Human sessions need a matching
+tenant grant. Both profiles cap the body at 64 KiB and reject missing, null,
+non-object, unknown-field, duplicate, case-aliased, invalid UTF-8 and malformed
+input. Cookie-authenticated mutations require same-origin protection; explicit
+bearer credentials take precedence.
+
+PostgreSQL uses focused native durable execution. Before reservation and every
+replay, the current tenant-admin guard locks only the tenant root, not state
+rows, audit pages or signing material. The common writer fence precedes tenant
+and audit-chain locks. Fresh generation streams the complete declared
+`tenant-relational-state.v2` metadata profile in one committed read view,
+including append-only decision supersession history. The commitment is bounded
+by 32768 rows and 8 MiB of encoded input; overflow returns `409` rather than a
+truncated prefix hash. Credential material, replay bookkeeping and raw object
+payload bytes are excluded. The emitted `backup-manifest.v2.0.0` records the
+state hash, existing resource counts and actual local audit consistency checks.
+Failed checks are retained as failed observations. Manifest, caller audit and
+successful replay commit together; failures do not return partial success.
+
+Completed retries return the original manifest without reading or hashing
+current state or inspecting the current chain again. Subsequent changes or
+corruption do not rewrite that result or turn it into current-validity evidence.
+Changed request bytes return `409`; revoked grants return `403` and revoked
+sessions `401`. Explicit local memory keeps nondurable storage and its distinct
+v1 whole-state hash; historical manifests retain their recorded versions.
+
+This endpoint does not create a restorable backup, verify a successful restore,
+prove external anchoring or make a legal compliance conclusion. Operators still
+need database and object-store backups from the same point in time; use the
+[backup and restore runbook](runbooks/backup-restore.md) for that procedure.
+
 ### Signed Release Bundle Creation
 
 `POST /v1/release-bundles` requires `bundle:write` (or `admin`) and current

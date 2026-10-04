@@ -28,10 +28,11 @@ func (t backupGenerationTransactions) ExecuteBackupGeneration(ctx context.Contex
 	return mapSigningKeyWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
 		state, ok := repos.Integrity.(verificationapp.BackupStateCommitmentReader)
 		chain, valid := repos.Verification.(verificationapp.AuditChainVerificationReader)
-		if !ok || !valid || repos.Audit == nil {
+		guard, guarded := repos.Identity.(trustConfigurationTenantGuard)
+		if !ok || !valid || !guarded || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return fn(ctx, backupGenerationTransaction{state, chain, repos.Integrity, repos.Audit})
+		return fn(ctx, backupGenerationTransaction{state: state, chain: chain, integrity: repos.Integrity, audit: repos.Audit, guard: guard})
 	}))
 }
 
@@ -40,6 +41,7 @@ type backupGenerationTransaction struct {
 	chain     verificationapp.AuditChainVerificationReader
 	integrity app.IntegrityRepository
 	audit     app.AuditRepository
+	guard     trustConfigurationTenantGuard
 }
 
 func (t backupGenerationTransaction) ReadBackupStateCommitment(ctx context.Context, tenant string) (verificationapp.BackupStateCommitment, error) {
@@ -55,7 +57,10 @@ func (t backupGenerationTransaction) ReadAuditChainVerificationPage(ctx context.
 	return p, mapSigningKeyWriteError(err)
 }
 func (t backupGenerationTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	return verificationquery.NewRetentionAuthorizer().Authorize(ctx, a, r)
+	if err := verificationquery.NewRetentionAuthorizer().Authorize(ctx, a, r); err != nil {
+		return err
+	}
+	return mapSigningKeyWriteError(t.guard.LockAPIKeyCreation(ctx, a.TenantID))
 }
 func (t backupGenerationTransaction) InsertBackupManifest(ctx context.Context, m verificationdomain.BackupManifest) error {
 	return mapSigningKeyWriteError(t.integrity.InsertBackupManifest(ctx, domain.BackupManifestFromContextModel(m)))

@@ -54,11 +54,29 @@ func NewBackupGenerationCommands(c BackupGenerationConfig) (*BackupGenerationCom
 	}
 	return &BackupGenerationCommands{c}, nil
 }
+
+// AuthorizeBackupGeneration keeps current tenant administration in the outer
+// native replay transaction. It reads no state commitment, audit pages, keys or
+// payloads and does not generate a new manifest on completed delivery.
+func (s *BackupGenerationCommands) AuthorizeBackupGeneration(ctx context.Context, a identitydomain.Actor) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateSigningKeyActor(a); err != nil {
+		return err
+	}
+	request := application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}
+	if err := s.config.Authorizer.Authorize(ctx, a, request); err != nil {
+		return err
+	}
+	return s.config.Transactions.ExecuteBackupGeneration(ctx, func(ctx context.Context, tx BackupGenerationTransaction) error { return tx.Authorize(ctx, a, request) })
+}
+
 func (s *BackupGenerationCommands) GenerateBackupManifest(ctx context.Context, a identitydomain.Actor) (verificationdomain.BackupManifest, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.BackupManifest{}, err
 	}
-	if err := validateActor(a); err != nil {
+	if err := validateSigningKeyActor(a); err != nil {
 		return verificationdomain.BackupManifest{}, err
 	}
 	request := application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}

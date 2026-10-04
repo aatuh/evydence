@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -18,6 +19,48 @@ type backupGenerationFake struct {
 	manifests                     []verificationdomain.BackupManifest
 	inside                        bool
 	transactions, commitmentReads int
+}
+
+func TestBackupGenerationReplayGuardReadsNoCommitmentAuditOrSigningMaterial(t *testing.T) {
+	for _, failure := range []string{"", "scope", "auth", "commit"} {
+		c, f := backupGenerationFixture(t)
+		f.fail = failure
+		c.config.Hasher, c.config.Verifier = nil, nil
+		c.config.Clock = application.ClockFunc(func() time.Time { panic("guard consulted clock") })
+		c.config.IDs = application.IDGeneratorFunc(func(string) string { panic("guard generated ID") })
+		err := c.AuthorizeBackupGeneration(t.Context(), identitydomain.Actor{TenantID: "tenant", KeyID: "caller"})
+		want := error(nil)
+		switch failure {
+		case "scope", "auth":
+			want = ErrForbidden
+		case "commit":
+			want = errVerificationTestFailure
+		}
+		if !errors.Is(err, want) || f.commitmentReads+f.payloadReads+f.pageReads != 0 || len(f.manifests)+len(f.audits)+len(f.jobs)+len(f.results) != 0 {
+			t.Fatal("guard read state or wrote", failure, err, f)
+		}
+		if failure == "" && f.transactions != 1 {
+			t.Fatal("guard skipped transaction", f)
+		}
+	}
+	for _, tenant := range []string{" tenant", "tenant\x00", string([]byte{255}), strings.Repeat("t", 1025)} {
+		c, f := backupGenerationFixture(t)
+		a := identitydomain.Actor{TenantID: tenant, KeyID: "caller"}
+		if err := c.AuthorizeBackupGeneration(t.Context(), a); !errors.Is(err, ErrValidation) {
+			t.Fatal("bad tenant accepted", err)
+		}
+		if _, err := c.GenerateBackupManifest(t.Context(), a); !errors.Is(err, ErrValidation) || f.transactions != 0 {
+			t.Fatal("bad tenant reached state reader", err)
+		}
+	}
+	c, f := backupGenerationFixture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for _, ctx := range []context.Context{nil, ctx} {
+		if err := c.AuthorizeBackupGeneration(ctx, identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}); !errors.Is(err, context.Canceled) || f.transactions != 0 {
+			t.Fatal("cancelled guard ran", err)
+		}
+	}
 }
 
 func (f *backupGenerationFake) ExecuteBackupGeneration(ctx context.Context, fn func(context.Context, BackupGenerationTransaction) error) error {

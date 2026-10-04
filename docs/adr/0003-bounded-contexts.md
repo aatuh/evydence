@@ -460,6 +460,16 @@ keeps the existing five-field canonical assertion hash; completed retries keep
 the original assertion without rehashing a later root. State remains `recorded`,
 not verified external publication, and no provider call is made. See
 [recorded checkpoints](../api.md#recorded-transparency-checkpoints).
+Backup-manifest generation now uses native durable HTTP execution as well.
+Its current tenant-admin replay guard reads only the tenant root; it does not
+stream the state commitment or inspect audit pages. Fresh generation retains
+the bounded v2 relational commitment and actual audit observations, while
+manifest/audit/replay commit atomically. The common fence precedes tenant and
+chain locks in both the commitment reader and audit-view repository entry
+points. Completed retries preserve the original manifest without rehashing
+later state. Explicit local memory retains its distinct v1 whole-state hash;
+neither profile creates a restorable backup. See
+[backup generation](../api.md#backup-manifest-generation).
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 
