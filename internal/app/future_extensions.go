@@ -776,49 +776,23 @@ func (l *Ledger) CreateMarketplaceCollector(ctx context.Context, actor domain.Ac
 	if err := ctx.Err(); err != nil {
 		return domain.MarketplaceCollector{}, err
 	}
-	if err := require(actor, ScopeCollectorAdmin); err != nil {
+	if err := l.AuthorizeCreateMarketplaceCollector(ctx, actor, in); err != nil {
 		return domain.MarketplaceCollector{}, err
 	}
-	name, provider, version, publisher := strings.TrimSpace(in.Name), strings.TrimSpace(in.Provider), strings.TrimSpace(in.Version), strings.TrimSpace(in.Publisher)
-	if name == "" || provider == "" || version == "" || publisher == "" || !validDigest(strings.TrimSpace(in.ManifestHash)) {
-		return domain.MarketplaceCollector{}, ErrValidation
+	normalized, err := experimentalapp.NormalizeMarketplaceCollectorInput(marketplaceCollectorInput(in))
+	if err != nil {
+		return domain.MarketplaceCollector{}, fromExperimentalCommandError(err)
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if in.SignatureID != "" {
-		sig, ok := l.signatures[strings.TrimSpace(in.SignatureID)]
-		if !ok || sig.TenantID != actor.TenantID {
-			return domain.MarketplaceCollector{}, ErrNotFound
-		}
+	if err := l.authorizeMarketplaceReferencesLocked(ctx, actor.TenantID, normalized); err != nil {
+		return domain.MarketplaceCollector{}, err
 	}
-	if in.SBOMID != "" {
-		sbom, ok := l.sboms[strings.TrimSpace(in.SBOMID)]
-		if !ok || sbom.TenantID != actor.TenantID {
-			return domain.MarketplaceCollector{}, ErrNotFound
-		}
+	projection, err := experimentalapp.BuildMarketplaceCollector(newID("mpc"), actor.TenantID, normalized, l.now())
+	if err != nil {
+		return domain.MarketplaceCollector{}, fromExperimentalCommandError(err)
 	}
-	if in.ScanID != "" {
-		scan, ok := l.scans[strings.TrimSpace(in.ScanID)]
-		if !ok || scan.TenantID != actor.TenantID {
-			return domain.MarketplaceCollector{}, ErrNotFound
-		}
-	}
-	collector := domain.MarketplaceCollector{
-		ID:            newID("mpc"),
-		TenantID:      actor.TenantID,
-		Name:          name,
-		Provider:      provider,
-		Version:       version,
-		Publisher:     publisher,
-		ManifestHash:  strings.TrimSpace(in.ManifestHash),
-		SignatureID:   strings.TrimSpace(in.SignatureID),
-		SBOMID:        strings.TrimSpace(in.SBOMID),
-		ScanID:        strings.TrimSpace(in.ScanID),
-		State:         "registered",
-		Limitations:   []string{"Registration records package metadata and does not imply marketplace trust or endorsement."},
-		SchemaVersion: domain.MarketplaceCollectorVersion,
-		CreatedAt:     l.now(),
-	}
+	collector := MarketplaceCollectorLegacyRecord(projection)
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -831,11 +805,11 @@ func (l *Ledger) CreateMarketplaceCollector(ctx context.Context, actor domain.Ac
 		}); err != nil {
 			return domain.MarketplaceCollector{}, err
 		}
-		l.marketplaceCollectors[collector.ID] = collector
+		l.marketplaceCollectors[collector.ID] = MarketplaceCollectorLegacyRecord(projection)
 		l.publishCommittedAuditEntryLocked(entry)
 		return collector, nil
 	}
-	l.marketplaceCollectors[collector.ID] = collector
+	l.marketplaceCollectors[collector.ID] = MarketplaceCollectorLegacyRecord(projection)
 	_, _ = l.appendChainLocked(actor.TenantID, "marketplace_collector.created", "marketplace_collector", collector.ID, actorType(actor), actorID(actor), collector.ManifestHash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.MarketplaceCollector{}, err
@@ -858,7 +832,7 @@ func (l *Ledger) ListMarketplaceCollectors(ctx context.Context, actor domain.Act
 	out := []domain.MarketplaceCollector{}
 	for _, collector := range l.marketplaceCollectors {
 		if collector.TenantID == actor.TenantID {
-			out = append(out, collector)
+			out = append(out, cloneLocalMarketplaceCollector(collector))
 		}
 	}
 	sortMarketplaceCollectors(out)
@@ -881,6 +855,7 @@ func (l *Ledger) MarketplaceCollectorHealth(ctx context.Context, actor domain.Ac
 	if !ok || collector.TenantID != actor.TenantID {
 		return domain.MarketplaceCollectorHealthReport{}, ErrNotFound
 	}
+	collector = cloneLocalMarketplaceCollector(collector)
 	checks := []domain.VerifyCheck{{Name: "manifest_digest", Result: "passed", Detail: "collector package manifest digest is recorded"}}
 	result := "verified"
 	if collector.SignatureID == "" {

@@ -548,6 +548,28 @@ for exact limits. Historical records are not rewritten. These restrictions
 require release compatibility review; this note is not an approved exception,
 provider verification evidence or proof of production Ledger retirement.
 
+## Unreleased Marketplace Collector Boundary
+
+`POST /v1/marketplace-collectors` now binds focused Experimental commands to
+tenant/reference ID-only PostgreSQL reads. Metadata trimming, digest hex
+case, `registered` state, schema, limitations, response casing/omission and
+manifest-hash audit binding remain unchanged. Optional evidence references
+remain optional; registration is not package verification or endorsement.
+
+Both profiles enforce tenant-wide human administration and current reference
+ownership before replay, strict exact non-null JSON fields, raw UTF-8/NUL-free
+byte bounds before trimming, and Origin for cookie mutations. Previously
+accepted oversized, ambiguous, NUL-containing or malformed UTF-8 input now
+returns `400`; whitespace-only optional references now return `400` rather
+than a reference miss. Product-scoped human administration now returns `403`.
+Durable timestamps use UTC microseconds. Returned local-memory limitations
+no longer alias stored records. Historical records are not rewritten.
+
+See [marketplace collector creation](../api.md#marketplace-collector-creation)
+for exact limits, duplicate metadata and raw-body replay behavior. These
+tightened boundaries require release compatibility review; this note is
+not an approved exception or proof of complete production Ledger retirement.
+
 ## Unreleased SaaS Profile Boundary
 
 `POST /v1/saas/profiles` now uses focused Experimental commands and a bounded

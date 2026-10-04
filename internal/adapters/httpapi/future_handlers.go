@@ -166,22 +166,30 @@ func (s *Server) fetchPublicTransparencyLogEntryProof(w http.ResponseWriter, r *
 }
 
 func (s *Server) createMarketplaceCollector(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name         string `json:"name"`
-		Provider     string `json:"provider"`
-		Version      string `json:"version"`
-		Publisher    string `json:"publisher"`
-		ManifestHash string `json:"manifest_hash"`
-		SignatureID  string `json:"signature_id"`
-		SBOMID       string `json:"sbom_id"`
-		ScanID       string `json:"scan_id"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.marketplaceCollectorCommands != nil {
+		s.createDurableMarketplaceCollector(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodeMarketplaceCollectorRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
-		collector, err := s.ledger.CreateMarketplaceCollector(ctx, actor, app.CreateMarketplaceCollectorInput{Name: req.Name, Provider: req.Provider, Version: req.Version, Publisher: req.Publisher, ManifestHash: req.ManifestHash, SignatureID: req.SignatureID, SBOMID: req.SBOMID, ScanID: req.ScanID})
+		collector, err := s.ledger.CreateMarketplaceCollector(ctx, actor, marketplaceCollectorLegacyInput(req))
 		return http.StatusCreated, collector, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodeMarketplaceCollectorRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeCreateMarketplaceCollector(r.Context(), a, marketplaceCollectorLegacyInput(in)); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

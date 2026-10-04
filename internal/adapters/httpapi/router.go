@@ -146,6 +146,7 @@ type Server struct {
 	anomalyReportCommands             AnomalyReportCommands
 	signingOperationCommands          SigningOperationCommands
 	saasProfileCommands               SaaSProfileCommands
+	marketplaceCollectorCommands      MarketplaceCollectorCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
 	questionnairePackageCommands      QuestionnairePackageCommands
 	portalAccessCommands              PortalAccessCommands
@@ -248,6 +249,8 @@ type ServerOptions struct {
 	SigningOperationCommands SigningOperationCommands
 	// SaaSProfileCommands records experimental deployment intent without Ledger.
 	SaaSProfileCommands SaaSProfileCommands
+	// MarketplaceCollectorCommands registers bounded metadata without Ledger.
+	MarketplaceCollectorCommands MarketplaceCollectorCommands
 	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
 	// QuestionnairePackageCommands generates bounded responses without Ledger state.
@@ -497,6 +500,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.SaaSProfileCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SaaS profiles require durable idempotency")
 	}
+	if opts.MarketplaceCollectorCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused marketplace collectors require durable idempotency")
+	}
 	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire drafts require durable idempotency")
 	}
@@ -630,6 +636,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.anomalyReportCommands = opts.AnomalyReportCommands
 	server.signingOperationCommands = opts.SigningOperationCommands
 	server.saasProfileCommands = opts.SaaSProfileCommands
+	server.marketplaceCollectorCommands = opts.MarketplaceCollectorCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
 	server.questionnairePackageCommands = opts.QuestionnairePackageCommands
 	server.portalAccessCommands = opts.PortalAccessCommands

@@ -1169,6 +1169,18 @@ Source snapshots, deployment records, signed incident webhook events, incident p
 
 Evidence summaries, questionnaire drafts, graph snapshots and anomaly reports organize stored records with their documented assumptions and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
 
+Experimental marketplace collector registration now uses focused commands and
+flat tenant/reference ID projections in PostgreSQL. The transaction acquires
+the actor-tenant worker/audit fence before locking current roots. Supplied
+signature, SBOM and scan rows are tenant-filtered and share-locked through the
+collector/audit/replay commit; the query never selects signature bytes, signing
+keys, component arrays or scan findings. Missing/foreign references fail closed
+and successful replay rechecks current human tenant grants and references.
+Pure metadata rules and deep-copied limitations are shared with explicit local
+memory. No package bytes are verified or published, and no provider is endorsed.
+See [marketplace collector creation](api.md#marketplace-collector-creation).
+Broad startup Ledger retirement remains EVY-905 work.
+
 Experimental SaaS profile creation now uses focused commands and at most two
 current tenant keys, with exact instance-admin authority. Profile, audit and
 replay writes are atomic and root deletion is locked through commit. Pure

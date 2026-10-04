@@ -1514,6 +1514,42 @@ Source/test evidence: `internal/evidence/app/contract_diff_commands.go`,
 
 Source snapshots capture submitted provider metadata. They do not call provider APIs or verify OIDC tokens.
 
+#### Marketplace Collector Creation
+
+`POST /v1/marketplace-collectors` requires authenticated `collector:admin`
+(or admin/wildcard scope); human sessions additionally need a current
+tenant-wide grant. Product, project, or release grants do not authorize this
+tenant-wide record. These checks and current reference ownership run before
+returning an idempotent replay.
+
+The request is a strict JSON object: exact snake-case fields, no unknown or
+duplicate fields, no null values, and at most 64 KiB including whitespace.
+All text must be valid UTF-8 without NUL. Bounds apply to raw bytes before
+trimming: `name`, `provider`, and `publisher` are 256 bytes each; `version`
+and `manifest_hash` are 128 bytes each; optional `signature_id`, `sbom_id`,
+and `scan_id` are 1024 bytes each. The five metadata fields are required and
+nonblank. The trimmed digest is `sha256:` plus 64 hexadecimal characters;
+hex case is preserved. Optional references may be omitted or empty, but
+not whitespace-only or null. Each supplied reference must currently belong
+to the actor's tenant; foreign or missing references return `404`.
+
+Successful registration returns `201`, state `registered`, the existing
+schema and limitation, and omits empty reference fields. PostgreSQL writes
+the collector, audit binding to its declared manifest digest, and replay
+response atomically; durable timestamps use UTC microseconds. In PostgreSQL,
+a duplicate tenant/provider/name/version returns `409`; in both profiles,
+a changed raw request under the same idempotency key returns `409`.
+Invalid input returns `400`, insufficient
+authority `403`, and storage failures safe Problem Details without a success
+record. Cookie-authenticated mutations require Origin; Bearer authentication
+takes precedence. Local memory shares normalization and authorization rules
+and copies returned limitations rather than exposing stored slices.
+
+Registration records metadata and references only. It does not retrieve or
+verify package bytes, publish a package, establish marketplace trust, or
+endorse a provider. See [API versioning](reference/api-versioning.md#unreleased-marketplace-collector-boundary)
+for release-review requirements on tightened input and authorization.
+
 Build creation rejects NUL characters in scalar text and provider-metadata
 JSON keys or string values with `400`; scalar text must also be valid UTF-8.
 Metadata must be JSON-serializable. Invalid input is rejected before repository

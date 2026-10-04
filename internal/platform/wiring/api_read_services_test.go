@@ -82,6 +82,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.SaaSProfileCommands != nil {
 		t.Fatal("local memory bound durable SaaS profiles")
 	}
+	if memory.MarketplaceCollectorCommands != nil {
+		t.Fatal("local memory bound durable marketplace collectors")
+	}
 	if memory.QuestionnaireDraftCommands != nil {
 		t.Fatal("local memory bound durable questionnaire drafts")
 	}
@@ -362,6 +365,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.SaaSProfileCommands == nil {
 		t.Fatal("PostgreSQL SaaS profiles still use Ledger")
+	}
+	if options.MarketplaceCollectorCommands == nil {
+		t.Fatal("PostgreSQL marketplace collectors still use Ledger")
 	}
 	if options.ReleaseBundleVerification == nil {
 		t.Fatal("PostgreSQL bundle verification still uses Ledger")

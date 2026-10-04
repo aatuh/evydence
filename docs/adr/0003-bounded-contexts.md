@@ -197,6 +197,14 @@ tenant-filtered PostgreSQL reads, with current evidence-reference ownership
 resolved in one statement. Human sessions need a current tenant-level
 `collector:read` grant in both runtime profiles. These presence checks do not
 prove package safety, marketplace trust, or provider endorsement.
+Marketplace collector creation now uses Experimental-owned commands with
+flat tenant/signature/SBOM/scan ID ports. PostgreSQL composition takes the
+actor-tenant mutation fence before current-reference share locks and commits
+metadata, manifest-bound audit and replay together. The command never loads
+signature/key bytes, components or findings. Both runtime profiles require
+tenant-wide human administration and current ownership before replay. This
+records package metadata only; public-transparency commands and broad Ledger
+startup retirement still require migration.
 Governance framework pages, control points, and the static starter-template
 catalog use risk-owned queries. Template listing does not read tenant state;
 the installation command remains on the compatibility Ledger path. A

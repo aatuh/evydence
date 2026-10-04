@@ -1127,14 +1127,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CommercialCollectorDefinitionEnvelope", dataEnvelopeSchema("#/components/schemas/CommercialCollectorDefinition"))
 	registry.RegisterSchema("CommercialCollectorDefinitionListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/CommercialCollectorDefinition"))
 	registry.RegisterSchema("CreateMarketplaceCollectorRequest", objectSchema(map[string]any{
-		"name":          map[string]any{"type": "string"},
-		"provider":      map[string]any{"type": "string"},
-		"version":       map[string]any{"type": "string"},
-		"publisher":     map[string]any{"type": "string"},
-		"manifest_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
-		"signature_id":  map[string]any{"type": "string"},
-		"sbom_id":       map[string]any{"type": "string"},
-		"scan_id":       map[string]any{"type": "string"},
+		"name":          map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxMarketplaceLabelBytes, "description": "Nonblank package label; raw NUL-free UTF-8 is capped at 256 bytes before trimming."},
+		"provider":      map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxMarketplaceLabelBytes, "description": "Nonblank provider label; raw NUL-free UTF-8 is capped at 256 bytes before trimming. Registration does not endorse a provider."},
+		"version":       map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxMarketplaceVersionBytes, "description": "Nonblank package version; raw NUL-free UTF-8 is capped at 128 bytes before trimming."},
+		"publisher":     map[string]any{"type": "string", "minLength": 1, "maxLength": experimentalapp.MaxMarketplaceLabelBytes, "description": "Nonblank publisher label; raw NUL-free UTF-8 is capped at 256 bytes before trimming."},
+		"manifest_hash": map[string]any{"type": "string", "maxLength": experimentalapp.MaxMarketplaceDigestBytes, "pattern": `^\s*sha256:[A-Fa-f0-9]{64}\s*$`, "description": "Raw NUL-free UTF-8 is capped at 128 bytes before trimming; sha256: plus 64 hexadecimal characters, preserving hex case. This records a declared digest without verifying package bytes."},
+		"signature_id":  map[string]any{"type": "string", "maxLength": experimentalapp.MaxMarketplaceIDBytes, "description": "Optional current tenant-owned signature reference; omission or empty string is allowed, whitespace-only is rejected. Raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
+		"sbom_id":       map[string]any{"type": "string", "maxLength": experimentalapp.MaxMarketplaceIDBytes, "description": "Optional current tenant-owned SBOM reference; omission or empty string is allowed, whitespace-only is rejected. Raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
+		"scan_id":       map[string]any{"type": "string", "maxLength": experimentalapp.MaxMarketplaceIDBytes, "description": "Optional current tenant-owned scan reference; omission or empty string is allowed, whitespace-only is rejected. Raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
 	}, "name", "provider", "version", "publisher", "manifest_hash"))
 	registry.RegisterSchema("MarketplaceCollector", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
