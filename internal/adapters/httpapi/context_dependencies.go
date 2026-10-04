@@ -218,6 +218,7 @@ type SubjectVerification interface {
 }
 
 type TransparencyCheckpointCommands interface {
+	AuthorizeTransparencyCheckpoint(context.Context, identitydomain.Actor, string) error
 	CreateTransparencyCheckpoint(context.Context, identitydomain.Actor, verificationapp.CreateTransparencyCheckpointInput) (verificationdomain.TransparencyCheckpoint, error)
 }
 

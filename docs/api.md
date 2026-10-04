@@ -2780,6 +2780,39 @@ authority rules but retains nondurable storage. Creating a batch commits stored
 hashes; it does not independently verify every audit record, establish external
 publication, prove release security or make a legal compliance conclusion.
 
+### Recorded Transparency Checkpoints
+
+`POST /v1/transparency-checkpoints` requires current tenant-wide `keys:admin`
+authority and returns `201` with state `recorded`. Human sessions need a
+matching tenant grant. Required fields are nonblank `batch_id` and `provider`;
+at least one of `external_url` or `external_id` must also be nonblank. Text is
+trimmed after validating NUL-free UTF-8 and raw byte limits: 1024 bytes for
+`batch_id`, and 1 MiB combined across all four application input fields. The
+HTTP body has a stricter 64 KiB limit. Both profiles reject unknown, duplicate,
+case-aliased, explicitly null and malformed fields. Cookie-authenticated
+mutations require same-origin protection; explicit bearer credentials take
+precedence.
+
+PostgreSQL uses focused native durable execution. Before reservation and every
+replay, a current tenant-admin guard checks a flat tenant-owned batch row;
+missing or foreign batches return `404`. The common writer fence precedes
+tenant and batch locks, held through the enclosing transaction. Fresh creation
+reads only the bounded stored root, not batch leaves, signature arrays or
+unrelated tenant state. Its existing canonical hash binds `batch_id`,
+`root_hash`, `provider`, `external_url` and `external_id`. The checkpoint,
+caller audit and successful replay commit together; write, replay-completion
+or commit failures do not return partial success.
+
+Completed retries return the original assertion without reading the current
+root or hashing again. Later root corruption does not rewrite that result or
+make it current-validity evidence. Changed request bytes return `409`; revoked
+grants return `403` and revoked sessions `401`. Explicit local memory keeps
+nondurable storage and rechecks current tenant authority before replay.
+Provider labels and external coordinates are operator assertions: this command
+does not fetch a URL, contact or authenticate a provider, verify publication or
+timestamp authenticity, prove release security or make a legal compliance
+conclusion. Do not put credentials or secret material in recorded coordinates.
+
 ### Signed Release Bundle Creation
 
 `POST /v1/release-bundles` requires `bundle:write` (or `admin`) and current

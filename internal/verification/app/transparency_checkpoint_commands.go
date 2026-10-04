@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -19,6 +20,12 @@ type TransparencyCheckpointSource struct {
 }
 type TransparencyCheckpointReader interface {
 	ReadTransparencyCheckpointSource(context.Context, string, string) (TransparencyCheckpointSource, error)
+}
+
+// TransparencyCheckpointScopeLocker is a native replay extension. Ownership
+// checks must not read mutable root/hash, leaves, signatures or audit bodies.
+type TransparencyCheckpointScopeLocker interface {
+	LockTransparencyCheckpointScope(context.Context, string, string) error
 }
 type TransparencyCheckpointTransaction interface {
 	TransparencyCheckpointReader
@@ -44,18 +51,46 @@ func NewTransparencyCheckpointCommands(c TransparencyCheckpointConfig) (*Transpa
 	}
 	return &TransparencyCheckpointCommands{config: c}, nil
 }
+
+func (s *TransparencyCheckpointCommands) AuthorizeTransparencyCheckpoint(ctx context.Context, actor identitydomain.Actor, raw string) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateSigningKeyActor(actor); err != nil {
+		return err
+	}
+	id, err := NormalizeSigningKeyID(raw)
+	if err != nil {
+		return err
+	}
+	request := application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}
+	if err := s.config.Authorizer.Authorize(ctx, actor, request); err != nil {
+		return err
+	}
+	return s.config.Transactions.ExecuteTransparencyCheckpoint(ctx, func(ctx context.Context, tx TransparencyCheckpointTransaction) error {
+		if err := tx.Authorize(ctx, actor, request); err != nil {
+			return err
+		}
+		locker, ok := tx.(TransparencyCheckpointScopeLocker)
+		if !ok {
+			return ErrValidation
+		}
+		return locker.LockTransparencyCheckpointScope(ctx, actor.TenantID, id)
+	})
+}
+
 func (s *TransparencyCheckpointCommands) CreateTransparencyCheckpoint(ctx context.Context, actor identitydomain.Actor, input CreateTransparencyCheckpointInput) (verificationdomain.TransparencyCheckpoint, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
-	if err := validateActor(actor); err != nil {
+	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
 	request := application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, actor, request); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
-	input, err := normalizeTransparencyCheckpointInput(input)
+	input, err := NormalizeTransparencyCheckpointInput(input)
 	if err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
@@ -88,20 +123,25 @@ func (s *TransparencyCheckpointCommands) CreateTransparencyCheckpoint(ctx contex
 	return result, nil
 }
 
-func normalizeTransparencyCheckpointInput(input CreateTransparencyCheckpointInput) (CreateTransparencyCheckpointInput, error) {
-	input.BatchID = strings.TrimSpace(input.BatchID)
-	input.Provider = strings.TrimSpace(input.Provider)
-	input.ExternalURL = strings.TrimSpace(input.ExternalURL)
-	input.ExternalID = strings.TrimSpace(input.ExternalID)
-	if !validSigningKeyText(input.BatchID) || len(input.BatchID) > 1024 || !validSigningKeyText(input.Provider) || input.ExternalURL == "" && input.ExternalID == "" {
+// NormalizeTransparencyCheckpointInput bounds raw UTF-8 text before trimming.
+// These are recorded coordinates, not fetched URLs or verified provider claims.
+func NormalizeTransparencyCheckpointInput(input CreateTransparencyCheckpointInput) (CreateTransparencyCheckpointInput, error) {
+	if len(input.BatchID) > 1024 {
 		return input, ErrValidation
 	}
 	budget := MaxRecordedCheckpointTextBytes
 	for _, value := range []string{input.BatchID, input.Provider, input.ExternalURL, input.ExternalID} {
-		if value != "" && !validSigningKeyText(value) || len(value) > budget {
+		if !utf8.ValidString(value) || strings.ContainsRune(value, 0) || len(value) > budget {
 			return input, ErrValidation
 		}
 		budget -= len(value)
+	}
+	input.BatchID = strings.TrimSpace(input.BatchID)
+	input.Provider = strings.TrimSpace(input.Provider)
+	input.ExternalURL = strings.TrimSpace(input.ExternalURL)
+	input.ExternalID = strings.TrimSpace(input.ExternalID)
+	if input.BatchID == "" || input.Provider == "" || input.ExternalURL == "" && input.ExternalID == "" {
+		return input, ErrValidation
 	}
 	return input, nil
 }

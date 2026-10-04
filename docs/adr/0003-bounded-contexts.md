@@ -452,6 +452,14 @@ commit together. Completed retries preserve the original range without signing
 again. This is a stored-hash commitment, not verification of every audit record
 or proof of external publication. See
 [Merkle creation](../api.md#merkle-batch-creation).
+Recorded transparency-checkpoint creation also bypasses Ledger replay. Its
+current tenant-admin guard locks flat owned batch coordinates without reading
+the mutable root, leaves or signature arrays. The common fence precedes tenant
+and batch locks, and checkpoint/audit/replay commit atomically. Fresh creation
+keeps the existing five-field canonical assertion hash; completed retries keep
+the original assertion without rehashing a later root. State remains `recorded`,
+not verified external publication, and no provider call is made. See
+[recorded checkpoints](../api.md#recorded-transparency-checkpoints).
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 

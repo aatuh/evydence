@@ -14,12 +14,12 @@ import (
 )
 
 type recordedCheckpointFake struct {
-	point               TransparencyCheckpointSource
-	checkpoints         []verificationdomain.TransparencyCheckpoint
-	audits              []application.AuditEvent
-	fail                string
-	reads, transactions int
-	inside              bool
+	point                      TransparencyCheckpointSource
+	checkpoints                []verificationdomain.TransparencyCheckpoint
+	audits                     []application.AuditEvent
+	fail                       string
+	reads, transactions, locks int
+	inside                     bool
 }
 
 func (f *recordedCheckpointFake) ExecuteTransparencyCheckpoint(ctx context.Context, fn func(context.Context, TransparencyCheckpointTransaction) error) error {
@@ -29,6 +29,7 @@ func (f *recordedCheckpointFake) ExecuteTransparencyCheckpoint(ctx context.Conte
 	copy.checkpoints, copy.audits = nil, nil
 	err := fn(ctx, &copy)
 	f.reads = copy.reads
+	f.locks = copy.locks
 	if err != nil {
 		return err
 	}
@@ -36,6 +37,16 @@ func (f *recordedCheckpointFake) ExecuteTransparencyCheckpoint(ctx context.Conte
 		return errVerificationTestFailure
 	}
 	f.checkpoints, f.audits = copy.checkpoints, copy.audits
+	return nil
+}
+func (f *recordedCheckpointFake) LockTransparencyCheckpointScope(_ context.Context, tenant, id string) error {
+	f.locks++
+	if f.fail == "lock" {
+		return errVerificationTestFailure
+	}
+	if tenant != f.point.TenantID || id != f.point.ID {
+		return ErrNotFound
+	}
 	return nil
 }
 func (f *recordedCheckpointFake) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
@@ -184,11 +195,11 @@ func TestRecordedTransparencyCheckpointRequiresFocusedDependencies(t *testing.T)
 func TestRecordedTransparencyCheckpointInputBudgetAndLocalMemoryHashCompatibility(t *testing.T) {
 	input := CreateTransparencyCheckpointInput{BatchID: "batch", Provider: "provider", ExternalID: "record"}
 	input.ExternalURL = strings.Repeat("u", MaxRecordedCheckpointTextBytes-len(input.BatchID)-len(input.Provider)-len(input.ExternalID))
-	if _, err := normalizeTransparencyCheckpointInput(input); err != nil {
+	if _, err := NormalizeTransparencyCheckpointInput(input); err != nil {
 		t.Fatal("exact combined budget rejected", err)
 	}
 	input.ExternalURL += "u"
-	if _, err := normalizeTransparencyCheckpointInput(input); !errors.Is(err, ErrValidation) {
+	if _, err := NormalizeTransparencyCheckpointInput(input); !errors.Is(err, ErrValidation) {
 		t.Fatal("combined budget overflow accepted", err)
 	}
 	input = CreateTransparencyCheckpointInput{BatchID: "batch", Provider: "provider", ExternalID: "record"}
@@ -205,5 +216,65 @@ func TestRecordedTransparencyCheckpointInputBudgetAndLocalMemoryHashCompatibilit
 	durable, err := c.CreateTransparencyCheckpoint(t.Context(), a, input)
 	if err != nil || local.TimestampHash != durable.TimestampHash || local.State != durable.State || local.SchemaVersion != durable.SchemaVersion || local.Provider != durable.Provider || local.ExternalID != durable.ExternalID || local.ExternalURL != durable.ExternalURL {
 		t.Fatal("local and focused checkpoint policies diverged", local, durable, err)
+	}
+}
+
+func TestRecordedCheckpointRejectsRawBudgetBeforeTrimming(t *testing.T) {
+	for _, in := range []CreateTransparencyCheckpointInput{
+		{BatchID: strings.Repeat(" ", 1024) + "b", Provider: "provider", ExternalID: "record"},
+		{BatchID: "batch", Provider: strings.Repeat(" ", MaxRecordedCheckpointTextBytes) + "p", ExternalID: "record"},
+		{BatchID: "batch", Provider: "provider", ExternalURL: strings.Repeat(" ", MaxRecordedCheckpointTextBytes) + "url"},
+		{BatchID: "batch", Provider: "provider", ExternalID: strings.Repeat(" ", MaxRecordedCheckpointTextBytes) + "id"},
+	} {
+		c, f, _ := recordedCheckpointFixture(t)
+		if _, err := c.CreateTransparencyCheckpoint(t.Context(), identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}, in); !errors.Is(err, ErrValidation) || f.reads+f.transactions != 0 {
+			t.Fatal("raw over-budget assertion reached source/hash", err, f)
+		}
+	}
+}
+
+func TestRecordedCheckpointReplayGuardNeverReadsRootHashesOrWrites(t *testing.T) {
+	for _, failure := range []string{"", "scope", "auth", "lock", "commit"} {
+		c, f, h := recordedCheckpointFixture(t)
+		f.fail = failure
+		f.point.RootHash = strings.Repeat("private-root", 1024*1024)
+		c.config.Clock = application.ClockFunc(func() time.Time { panic("guard consulted clock") })
+		c.config.IDs = application.IDGeneratorFunc(func(string) string { panic("guard generated ID") })
+		err := c.AuthorizeTransparencyCheckpoint(t.Context(), identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}, " batch ")
+		want := error(nil)
+		if failure == "scope" || failure == "auth" {
+			want = ErrForbidden
+		} else if failure != "" {
+			want = errVerificationTestFailure
+		}
+		if !errors.Is(err, want) || f.reads != 0 || h.input != nil || len(f.checkpoints)+len(f.audits) != 0 {
+			t.Fatal("guard read mutable source or wrote", failure, err, f)
+		}
+		if failure == "" && f.locks != 1 {
+			t.Fatal("guard skipped batch ownership", f)
+		}
+	}
+	for _, tenant := range []string{" tenant", "tenant\x00", string([]byte{255}), strings.Repeat("t", 1025)} {
+		c, f, _ := recordedCheckpointFixture(t)
+		a := identitydomain.Actor{TenantID: tenant, KeyID: "caller"}
+		if err := c.AuthorizeTransparencyCheckpoint(t.Context(), a, "batch"); !errors.Is(err, ErrValidation) {
+			t.Fatal("malformed tenant accepted", err)
+		}
+		if _, err := c.CreateTransparencyCheckpoint(t.Context(), a, CreateTransparencyCheckpointInput{BatchID: "batch", Provider: "provider", ExternalID: "record"}); !errors.Is(err, ErrValidation) || f.transactions != 0 {
+			t.Fatal("malformed tenant reached transaction", err)
+		}
+	}
+	c, f, _ := recordedCheckpointFixture(t)
+	a := identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}
+	if err := c.AuthorizeTransparencyCheckpoint(t.Context(), a, "foreign"); !errors.Is(err, ErrNotFound) || f.reads != 0 {
+		t.Fatal("foreign batch accepted", err)
+	}
+	before := f.transactions
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for _, ctx := range []context.Context{ctx, nil} {
+		if err := c.AuthorizeTransparencyCheckpoint(ctx, a, "batch"); !errors.Is(err, context.Canceled) || f.transactions != before {
+			t.Fatal("cancelled guard executed", err)
+		}
 	}
 }

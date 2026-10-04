@@ -526,6 +526,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.MerkleCreationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused Merkle creation requires durable idempotency")
 	}
+	if opts.TransparencyCheckpointCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused checkpoints require durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -3922,29 +3925,6 @@ func (s *Server) verifyMerkleBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, result)
-}
-
-func (s *Server) createTransparencyCheckpoint(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		BatchID     string `json:"batch_id"`
-		Provider    string `json:"provider"`
-		ExternalURL string `json:"external_url"`
-		ExternalID  string `json:"external_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.transparencyCheckpointCommands != nil {
-			if err := validateNonNullableObjectFields(body, "batch_id", "provider", "external_url", "external_id"); err != nil {
-				return 0, nil, err
-			}
-			checkpoint, err := s.transparencyCheckpointCommands.CreateTransparencyCheckpoint(ctx, actor, verificationapp.CreateTransparencyCheckpointInput{BatchID: req.BatchID, Provider: req.Provider, ExternalURL: req.ExternalURL, ExternalID: req.ExternalID})
-			return http.StatusCreated, domain.TransparencyCheckpoint{ID: checkpoint.ID, TenantID: checkpoint.TenantID, BatchID: checkpoint.BatchID, Provider: checkpoint.Provider, ExternalURL: checkpoint.ExternalURL, ExternalID: checkpoint.ExternalID, TimestampHash: checkpoint.TimestampHash, State: checkpoint.State, SchemaVersion: checkpoint.SchemaVersion, CreatedAt: checkpoint.CreatedAt}, mapVerificationCommandError(err)
-		}
-		checkpoint, err := s.verification.CreateTransparencyCheckpoint(ctx, actor, app.CreateTransparencyCheckpointInput{BatchID: req.BatchID, Provider: req.Provider, ExternalURL: req.ExternalURL, ExternalID: req.ExternalID})
-		return http.StatusCreated, checkpoint, err
-	})
 }
 
 func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Request) {

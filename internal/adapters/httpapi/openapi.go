@@ -306,12 +306,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "from_sequence", "to_sequence", "entry_count", "leaf_hashes", "root_hash", "schema_version", "created_at"))
 	registry.RegisterSchema("MerkleBatchEnvelope", dataEnvelopeSchema("#/components/schemas/MerkleBatch"))
-	registry.RegisterSchema("CreateTransparencyCheckpointRequest", objectSchema(map[string]any{
-		"batch_id":     map[string]any{"type": "string"},
-		"provider":     map[string]any{"type": "string"},
-		"external_url": map[string]any{"type": "string"},
-		"external_id":  map[string]any{"type": "string"},
-	}, "batch_id", "provider"))
+	recordedCheckpointRequest := objectSchema(map[string]any{
+		"batch_id":     map[string]any{"type": "string", "minLength": 1, "maxLength": 1024, "description": "Tenant-owned batch ID; raw NUL-free UTF-8 is limited to 1024 bytes before trimming and must be nonblank."},
+		"provider":     map[string]any{"type": "string", "minLength": 1, "maxLength": verificationapp.MaxRecordedCheckpointTextBytes, "description": "Nonblank operator-supplied provider label. This does not authenticate or contact the provider."},
+		"external_url": map[string]any{"type": "string", "maxLength": verificationapp.MaxRecordedCheckpointTextBytes, "description": "Optional recorded coordinate, not fetched or validated as a URL. At least one nonblank external_url or external_id is required."},
+		"external_id":  map[string]any{"type": "string", "maxLength": verificationapp.MaxRecordedCheckpointTextBytes, "description": "Optional recorded external coordinate. At least one nonblank external_url or external_id is required."},
+	}, "batch_id", "provider")
+	recordedCheckpointRequest["description"] = "Records an operator assertion about a tenant-owned Merkle batch, with state recorded; it is not proof of external publication or provider verification. PostgreSQL uses native durable execution with current tenant-wide keys:admin authority and flat tenant/batch ownership checked before reservation and replay; human sessions need a matching tenant grant. The common writer fence precedes tenant and batch locks. Fresh creation selects only the bounded stored root, preserving the canonical assertion hash; checkpoint, caller audit and successful replay commit together. Completed retries return the original assertion without reading the current root or rehashing. Changed request bytes conflict. Both profiles reject unknown, duplicate, case-aliased, explicitly null, invalid UTF-8/NUL and malformed fields; the HTTP body is capped at 64 KiB. The application input budget is 1 MiB across all raw text fields before trimming. Cookie mutations require same-origin protection. Local memory remains nondurable. No provider network call or legal compliance conclusion is introduced."
+	registry.RegisterSchema("CreateTransparencyCheckpointRequest", recordedCheckpointRequest)
 	registry.RegisterSchema("TransparencyCheckpoint", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},

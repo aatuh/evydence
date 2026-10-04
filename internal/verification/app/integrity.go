@@ -141,7 +141,7 @@ func (s *Service) CreateTransparencyCheckpoint(ctx context.Context, actor identi
 	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
-	input, err := normalizeTransparencyCheckpointInput(input)
+	input, err := NormalizeTransparencyCheckpointInput(input)
 	if err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
