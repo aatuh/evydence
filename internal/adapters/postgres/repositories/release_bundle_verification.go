@@ -81,6 +81,10 @@ func (r verification) ReadReleaseBundleVerification(ctx context.Context, subject
 // readVerificationSigningMaterial is shared by signed bundle and Merkle
 // projections. The caller's selected bytes count towards the same budget.
 func (r verification) readVerificationSigningMaterial(ctx context.Context, subject verificationapp.SubjectReference, refs []string, bytes int) (verificationapp.ReleaseBundleVerificationSnapshot, error) {
+	return r.readVerificationSigningMaterialWithLocks(ctx, subject, refs, bytes, true)
+}
+
+func (r verification) readVerificationSigningMaterialWithLocks(ctx context.Context, subject verificationapp.SubjectReference, refs []string, bytes int, lock bool) (verificationapp.ReleaseBundleVerificationSnapshot, error) {
 	snapshot := verificationapp.ReleaseBundleVerificationSnapshot{Subject: subject, SignatureRefs: refs}
 	if len(refs) > verificationapp.MaxBundleVerificationSignatures || bytes > verificationapp.MaxBundleVerificationBytes {
 		return snapshot, app.ErrConflict
@@ -96,9 +100,13 @@ func (r verification) readVerificationSigningMaterial(ctx context.Context, subje
 		return snapshot, nil
 	}
 	var oversized bool
+	rowLock := ""
+	if lock {
+		rowLock = " FOR SHARE"
+	}
 	rows, err := r.tx.Query(ctx, `SELECT left(id,1025),left(tenant_id,1025),left(subject_type,65),left(subject_id,1025),left(key_id,1025),left(algorithm,65),left(value,16385),created_at,
 		(octet_length(id)>1024 OR octet_length(tenant_id)>1024 OR octet_length(subject_type)>64 OR octet_length(subject_id)>1024 OR octet_length(key_id)>1024 OR octet_length(algorithm)>64 OR octet_length(value)>16384)
-		FROM signatures WHERE tenant_id=$1 AND id=ANY($2) ORDER BY id LIMIT $3 FOR SHARE`, subject.TenantID, snapshot.SignatureRefs, verificationapp.MaxBundleVerificationSignatures+1)
+		FROM signatures WHERE tenant_id=$1 AND id=ANY($2) ORDER BY id LIMIT $3`+rowLock, subject.TenantID, snapshot.SignatureRefs, verificationapp.MaxBundleVerificationSignatures+1)
 	if err != nil {
 		return snapshot, fmt.Errorf("read bundle signatures: %w", err)
 	}
@@ -132,7 +140,7 @@ func (r verification) readVerificationSigningMaterial(ctx context.Context, subje
 	sort.Strings(ids)
 	rows, err = r.tx.Query(ctx, `SELECT left(id,1025),left(tenant_id,1025),left(algorithm,65),left(public_key,16385),left(status,65),created_at,valid_from,valid_until,revoked_at,left(revocation_semantics,65),left(historical_validity_policy,65),compromised_at,
 		(octet_length(id)>1024 OR octet_length(tenant_id)>1024 OR octet_length(algorithm)>64 OR octet_length(public_key)>16384 OR octet_length(status)>64 OR octet_length(revocation_semantics)>64 OR octet_length(historical_validity_policy)>64)
-		FROM signing_keys WHERE tenant_id=$1 AND id=ANY($2) ORDER BY id LIMIT $3 FOR SHARE`, subject.TenantID, ids, verificationapp.MaxBundleVerificationSignatures+1)
+		FROM signing_keys WHERE tenant_id=$1 AND id=ANY($2) ORDER BY id LIMIT $3`+rowLock, subject.TenantID, ids, verificationapp.MaxBundleVerificationSignatures+1)
 	if err != nil {
 		return snapshot, fmt.Errorf("read bundle public keys: %w", err)
 	}

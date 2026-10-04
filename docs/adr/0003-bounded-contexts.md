@@ -75,9 +75,17 @@ package expiry, and signing-key validity. Missing decision, exception, and
 package identifiers share pre-transfer row/byte bounds; package product and
 release ownership must agree. The final public check representation is
 charged to the shared metadata budget without persisting an evaluation or
-receipt. Product-only packages retain no release-readiness checks. Verification
-material and complete reader assembly still need to be implemented before
-production binding.
+receipt. Product-only packages retain no release-readiness checks. The private
+audit-summary component uses Verification's canonical, sequence, predecessor,
+subject-bound signature, and historical-key checks over bounded read-only
+database pages. It takes no mutation fence or row lock. Canonical audit details
+stay inside the verifier; only the existing aggregate result, count, head hash,
+and public integrity check reach the package. Private signing-key ciphertext is
+never selected. Source inspection has its own 8 MiB budget and JSON structure
+limits, while only the public summary charges the shared manifest budget.
+The aggregate does not prove external anchoring or third-party log inclusion.
+Remaining verification/retention metadata and complete reader assembly still
+need to be implemented before production binding.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and
 API startup still reach Ledger. See

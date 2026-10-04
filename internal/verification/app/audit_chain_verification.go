@@ -32,9 +32,12 @@ type AuditChainVerificationPage struct {
 	Keys       []verificationdomain.SigningKey
 	BytesRead  int
 }
-type AuditChainVerificationReader interface {
-	LockAuditChainVerification(context.Context, string) (AuditChainVerificationView, error)
+type AuditChainSnapshotReader interface {
 	ReadAuditChainVerificationPage(context.Context, AuditChainVerificationView, *int64, int) (AuditChainVerificationPage, error)
+}
+type AuditChainVerificationReader interface {
+	AuditChainSnapshotReader
+	LockAuditChainVerification(context.Context, string) (AuditChainVerificationView, error)
 }
 type AuditChainVerificationTransaction interface {
 	AuditChainVerificationReader
@@ -97,7 +100,21 @@ func (s *AuditChainVerificationCommands) VerifyAuditChain(ctx context.Context, a
 	return cloneVerificationResult(result), nil
 }
 
-func inspectAuditChainView(ctx context.Context, reader AuditChainVerificationReader, view AuditChainVerificationView, tenant string, now time.Time, hasher CanonicalHasher, verifier PayloadSignatureVerifier, collect func(verificationdomain.AuditChainEntry)) (SubjectInspection, error) {
+// InspectAuditChainSnapshot preserves the canonical audit/signature rules using
+// only bounded page reads from one caller-owned committed view. It cannot take
+// locks or persist a verification receipt. The caller controls output redaction.
+func InspectAuditChainSnapshot(ctx context.Context, reader AuditChainSnapshotReader, view AuditChainVerificationView, tenant string, now time.Time, hasher CanonicalHasher, verifier PayloadSignatureVerifier) (SubjectInspection, error) {
+	if err := contextError(ctx); err != nil {
+		return SubjectInspection{}, err
+	}
+	now = now.UTC()
+	if reader == nil || hasher == nil || verifier == nil || now.IsZero() || now.Year() < 1 || now.Year() > 9999 {
+		return SubjectInspection{}, ErrValidation
+	}
+	return inspectAuditChainView(ctx, reader, view, tenant, now, hasher, verifier, nil)
+}
+
+func inspectAuditChainView(ctx context.Context, reader AuditChainSnapshotReader, view AuditChainVerificationView, tenant string, now time.Time, hasher CanonicalHasher, verifier PayloadSignatureVerifier, collect func(verificationdomain.AuditChainEntry)) (SubjectInspection, error) {
 	if view.TenantID != tenant {
 		return SubjectInspection{}, ErrNotFound
 	}
