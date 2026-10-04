@@ -130,6 +130,7 @@ type Server struct {
 	merkleCreationCommands            MerkleCreationCommands
 	signingCustodyQuery               SigningCustodyQuery
 	retentionCommands                 RetentionCommands
+	retentionMarkerCommands           RetentionMarkerCommands
 	trustConfigurationCommands        TrustConfigurationCommands
 	releaseReadinessReportQuery       ReleaseReadinessReportQuery
 	releaseSecuritySummaryQuery       ReleaseSecuritySummaryQuery
@@ -372,6 +373,9 @@ type ServerOptions struct {
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
 	RetentionCommands RetentionCommands
+	// RetentionMarkerCommands appends Operations-owned holds and extensions
+	// through native durable replay, without a Ledger command clone.
+	RetentionMarkerCommands RetentionMarkerCommands
 	// TrustConfigurationCommands creates tenant-owned provider metadata and public
 	// trust roots. It requires DurableCommandExecutor, never Ledger replay.
 	TrustConfigurationCommands TrustConfigurationCommands
@@ -518,6 +522,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
+	}
+	if opts.RetentionMarkerCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused retention markers require durable idempotency")
 	}
 	if opts.SaaSProfileCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SaaS profiles require durable idempotency")
@@ -698,6 +705,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.merkleCreationCommands = opts.MerkleCreationCommands
 	server.signingCustodyQuery = opts.SigningCustodyQuery
 	server.retentionCommands = opts.RetentionCommands
+	server.retentionMarkerCommands = opts.RetentionMarkerCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
 	server.bindLedger(ledger)

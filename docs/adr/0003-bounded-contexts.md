@@ -407,6 +407,16 @@ not rolled back by database failure and local intent is not enforcement proof.
 Explicit local memory retains nondurable compatibility storage. API startup
 and the remaining command wrappers still require EVY-905 migration. See
 [retention commands](../api.md#object-retention-policy-creation-and-verification).
+Operations-owned legal-hold and retention-extension appends now use narrow
+transactions with flat tenant/subject locks, current tenant-wide administration,
+and native durable replay. The actor-tenant fence precedes subject share locks,
+held through marker/audit/replay commit. No subject metadata, payload bytes,
+provider retention state, or Ledger clone is read. Explicit local memory reuses
+the input normalizers with its compatibility store. Extension freshness is a
+new-command rule, not a replay-expiry rule. The temporary Governance persistence
+bridge exposes only the two append methods to this service; neither marker is
+storage enforcement or a legal conclusion. See
+[retention markers](../api.md#legal-holds-and-retention-extensions).
 Signing-key pages use a verification-owned tenant-scoped query that selects
 only public lifecycle metadata and applies a keyset limit in PostgreSQL;
 human sessions need a current tenant-level `verify:read` grant.

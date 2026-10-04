@@ -377,6 +377,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create retention commands: %w", err)
 	}
+	options.RetentionMarkerCommands, err = BuildRetentionMarkerCommands(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create retention marker commands: %w", err)
+	}
 	options.TrustConfigurationCommands, err = BuildTrustConfigurationCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create trust configuration commands: %w", err)

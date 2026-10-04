@@ -11,6 +11,7 @@ import (
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -159,10 +160,11 @@ func (l *Ledger) CreateLegalHold(ctx context.Context, actor domain.Actor, in Cre
 	if err := require(actor, ScopeAdmin); err != nil {
 		return domain.LegalHold{}, err
 	}
-	in.ScopeType, in.ScopeID, in.Reason, in.Owner = strings.TrimSpace(in.ScopeType), strings.TrimSpace(in.ScopeID), strings.TrimSpace(in.Reason), strings.TrimSpace(in.Owner)
-	if !validRetentionScope(in.ScopeType) || in.ScopeID == "" || in.Reason == "" || in.Owner == "" {
+	normalized, normalizeErr := operationsapp.NormalizeRetentionMarkerInput(operationsapp.RetentionMarkerInput{ScopeType: in.ScopeType, ScopeID: in.ScopeID, Reason: in.Reason, Owner: in.Owner})
+	if normalizeErr != nil {
 		return domain.LegalHold{}, ErrValidation
 	}
+	in = CreateLegalHoldInput(normalized)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if err := l.ensureRetentionScopeLocked(actor.TenantID, in.ScopeType, in.ScopeID); err != nil {
@@ -200,10 +202,11 @@ func (l *Ledger) CreateRetentionOverride(ctx context.Context, actor domain.Actor
 	if err := require(actor, ScopeAdmin); err != nil {
 		return domain.RetentionOverride{}, err
 	}
-	in.ScopeType, in.ScopeID, in.Reason, in.Owner = strings.TrimSpace(in.ScopeType), strings.TrimSpace(in.ScopeID), strings.TrimSpace(in.Reason), strings.TrimSpace(in.Owner)
-	if !validRetentionScope(in.ScopeType) || in.ScopeID == "" || in.Reason == "" || in.Owner == "" || !in.RetentionUntil.After(l.now()) {
+	normalized, normalizeErr := operationsapp.NormalizeRetentionOverrideInput(operationsapp.RetentionOverrideInput{RetentionMarkerInput: operationsapp.RetentionMarkerInput{ScopeType: in.ScopeType, ScopeID: in.ScopeID, Reason: in.Reason, Owner: in.Owner}, RetentionUntil: in.RetentionUntil})
+	if normalizeErr != nil || !normalized.RetentionUntil.After(l.now()) {
 		return domain.RetentionOverride{}, ErrValidation
 	}
+	in = CreateRetentionOverrideInput{ScopeType: normalized.ScopeType, ScopeID: normalized.ScopeID, Reason: normalized.Reason, Owner: normalized.Owner, RetentionUntil: normalized.RetentionUntil}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if err := l.ensureRetentionScopeLocked(actor.TenantID, in.ScopeType, in.ScopeID); err != nil {
@@ -1367,15 +1370,6 @@ func normalizeJWKS(jwks map[string]any) (map[string]any, error) {
 func normalizeSAMLSigningCertificates(certs []string) ([]string, error) {
 	value, err := (identityapp.PublicTrustMaterialValidator{}).NormalizeSAMLSigningCertificates(certs)
 	return value, fromIdentityContextError(err)
-}
-
-func validRetentionScope(value string) bool {
-	switch value {
-	case "tenant", "product", "project", "release", "evidence":
-		return true
-	default:
-		return false
-	}
 }
 
 func cloneStringMap(in map[string]string) map[string]string {

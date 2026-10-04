@@ -122,6 +122,12 @@ type RetentionCommands interface {
 	VerifyObjectRetentionPolicy(context.Context, identitydomain.Actor, string) (verificationdomain.ObjectRetentionPolicy, error)
 }
 
+type RetentionMarkerCommands interface {
+	AuthorizeRetentionMarker(context.Context, identitydomain.Actor, string, string) error
+	CreateLegalHold(context.Context, identitydomain.Actor, operationsapp.RetentionMarkerInput) (operationsdomain.LegalHold, error)
+	CreateRetentionOverride(context.Context, identitydomain.Actor, operationsapp.RetentionOverrideInput) (operationsdomain.RetentionOverride, error)
+}
+
 type TrustConfigurationCommands interface {
 	AuthorizeTrustConfiguration(context.Context, identitydomain.Actor) error
 	CreateSigningProvider(context.Context, identitydomain.Actor, verificationapp.CreateSigningProviderInput) (verificationdomain.SigningProvider, error)

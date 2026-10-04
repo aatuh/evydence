@@ -2748,6 +2748,40 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### Legal Holds And Retention Extensions
+
+`POST /v1/legal-holds` and `POST /v1/retention-overrides` append tenant-scoped
+records; they do not edit prior markers, enforce external storage lifecycle,
+or establish legal sufficiency. Both require current tenant-wide `admin`
+authority. Human sessions need a matching tenant grant; product/project/release
+grants do not authorize these administrative records.
+
+Supported subjects are `tenant`, `product`, `project`, `release`, and `evidence`.
+PostgreSQL uses Operations-owned commands and native durable replay, without a
+Ledger clone or whole-state read. Before reservation and every replay, the
+command checks current authority, fences the actor tenant, and locks only the
+tenant-owned subject identity. These locks survive through the outer commit;
+the marker, caller audit entry, and successful replay are atomic. Audit subjects
+remain the original scope type/ID, not the newly generated marker ID. Missing
+or foreign subjects return `404`; revoked grants return `403` and revoked
+sessions `401`. Failed writes may retain only a safe failed-key marker; replay
+completion or outer commit failures roll back entirely.
+
+The JSON body has a 64 KiB limit. Both profiles reject unknown, duplicate,
+case-aliased, explicitly null, invalid UTF-8/NUL, and over-budget fields before
+execution. Raw UTF-8 bounds before trimming are 64 bytes for `scope_type`,
+1024 bytes for `scope_id`, and 64 KiB each for nonblank `reason` and `owner`.
+Cookie mutations require same-host HTTPS Origin; explicit bearer credentials
+retain precedence. Local memory retains nondurable compatibility storage.
+
+Extensions require a nonzero RFC3339 `retention_until`, normalized to UTC and
+later than the fresh command's creation time. JSON-representable UTC years are
+`1..9999`. Replay checks input shape and current access, but does not recheck
+that historical extension date against today's clock or generate another
+marker/audit. Changed request bytes conflict with the existing key. Saved
+responses retain ordinary secret/PII redaction; do not put credentials in
+reason or owner fields. Retention reports remain records, not provider proof.
+
 ### Object Retention Policy Creation And Verification
 
 `POST /v1/object-retention-policies` requires current tenant-wide `admin`

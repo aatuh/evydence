@@ -363,12 +363,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":               map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "name", "object_prefix", "mode", "retention_days", "max_verification_age_hours", "status", "schema_version", "created_at"))
 	registry.RegisterSchema("ObjectRetentionPolicyEnvelope", dataEnvelopeSchema("#/components/schemas/ObjectRetentionPolicy"))
-	registry.RegisterSchema("CreateLegalHoldRequest", objectSchema(map[string]any{
-		"scope_type": map[string]any{"type": "string"},
-		"scope_id":   map[string]any{"type": "string"},
-		"reason":     map[string]any{"type": "string"},
-		"owner":      map[string]any{"type": "string"},
-	}, "scope_type", "scope_id", "reason", "owner"))
+	registry.RegisterSchema("CreateLegalHoldRequest", retentionMarkerCreationSchema(false))
 	registry.RegisterSchema("LegalHold", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -381,13 +376,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "scope_type", "scope_id", "reason", "owner", "schema_version", "created_at"))
 	registry.RegisterSchema("LegalHoldEnvelope", dataEnvelopeSchema("#/components/schemas/LegalHold"))
-	registry.RegisterSchema("CreateRetentionOverrideRequest", objectSchema(map[string]any{
-		"scope_type":      map[string]any{"type": "string"},
-		"scope_id":        map[string]any{"type": "string"},
-		"retention_until": map[string]any{"type": "string", "format": "date-time"},
-		"reason":          map[string]any{"type": "string"},
-		"owner":           map[string]any{"type": "string"},
-	}, "scope_type", "scope_id", "retention_until", "reason", "owner"))
+	registry.RegisterSchema("CreateRetentionOverrideRequest", retentionMarkerCreationSchema(true))
 	registry.RegisterSchema("RetentionOverride", objectSchema(map[string]any{
 		"id":              map[string]any{"type": "string"},
 		"tenant_id":       map[string]any{"type": "string"},
