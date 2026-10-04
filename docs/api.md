@@ -1111,13 +1111,63 @@ retroactively scrubbed; see the
 | `GET` | `/v1/reports/vulnerability-decision-summary` | Customer-safe active vulnerability decision summary for a release. |
 | `GET` | `/v1/reports/release-readiness` | Deterministic readiness report. |
 | `GET` | `/v1/reports/missing-evidence` | Missing evidence report for review. |
-| `POST` | `/v1/reports/anomaly` | Generate deterministic evidence anomaly signals. |
+| `POST` | `/v1/reports/anomaly` | Generate deterministic evidence anomaly signals; see [anomaly report generation](#anomaly-report-generation). |
 | `POST` | `/v1/release-candidates` | Create release candidate. |
 | `GET` | `/v1/release-candidates` | List release candidates. |
 | `GET` | `/v1/release-candidates/{id}` | Read release candidate. |
 | `POST` | `/v1/release-candidates/{id}/promote` | Promote release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/remediation-tasks` | Create remediation task. |
+
+### Anomaly Report Generation
+
+`POST /v1/reports/anomaly` remains experimental. It requires `report:read`,
+an `Idempotency-Key`, and nonblank `subject_type` and `subject_id`. Supported
+canonical types are `tenant`, `product`, `release`, `evidence`, `build` and
+`customer_package`. Raw NUL-free UTF-8 type/ID values are capped at 128/1024
+bytes before trimming. Malformed/non-object JSON, null, duplicate/unknown or
+mixed-case fields, unsupported types and invalid raw text return `400`.
+The independent HTTP body limit remains in force. Cookie-authenticated
+mutations require a single same-host HTTPS Origin; bearer credentials retain
+precedence over cookies.
+
+PostgreSQL binds focused Experimental commands. Coordinate-only reads resolve
+current tenant ownership before reading facts; missing or foreign subjects
+return `404`. Human sessions need a matching current tenant, product, project,
+release or customer-package grant as appropriate. Tenant-wide subjects and
+unscoped evidence need a tenant grant. The same checks run before cached replay.
+Report, audit and replay completion share one transaction. Root locks and the
+shared writer/worker projection fence remain held through commit. Failed reads,
+inserts, audit writes, cancellation or commit publish no successful report.
+Operator SQL writes must coordinate with those fences; this is not a claim that
+uncoordinated external database edits are serialized automatically.
+
+Release reports use three fixed-size facts from SQL predicates shared with
+readiness, not a full readiness snapshot or tenant Ledger. No raw evidence,
+scanner details, report packages or signing-key material are returned by the
+fact port. The signals, in order, are:
+
+- `missing_passed_build` (medium): no passed build output matches a registered,
+  tenant-owned artifact digest linked to release evidence.
+- `missing_matching_attestation` (medium): no matching attestation has a passed
+  receipt for the current DSSE-attestation signature profile/schema.
+- `unhandled_critical_finding` (high): an open critical finding has no current
+  matching fixed/not-affected decision or approved unexpired scoped exception.
+
+Malformed stored findings fail validation rather than silently becoming clear.
+Decision supersession and exception expiry are evaluated at report creation.
+The query result is bounded; database work still scales with the relevant
+release records. Other supported subject types currently have no anomaly
+checks and return `clear` with omitted `signals`. `attention_required` means
+at least one of the three signals was found. Neither result is a malicious-
+behavior, evidence-completeness, security or compliance conclusion.
+
+Replay returns the original report without recalculating signals after facts
+change. Different request bytes with the same key conflict with `409`; a new
+key creates a fresh immutable report. Signal text/order, assumptions,
+limitations, schema version and audit type are unchanged. Durable timestamps
+use UTC microseconds. Explicit local memory shares the pure signal builder and
+input validation, but retains in-process persistence and locking limitations.
 
 ### Incident Commands
 

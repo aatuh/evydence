@@ -73,6 +73,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.PDFReportCommands != nil {
 		t.Fatal("local memory bound durable PDF creation")
 	}
+	if memory.AnomalyReportCommands != nil {
+		t.Fatal("local memory bound durable anomaly creation")
+	}
 	if memory.QuestionnaireDraftCommands != nil {
 		t.Fatal("local memory bound durable questionnaire drafts")
 	}
@@ -317,6 +320,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.PDFReportCommands == nil {
 		t.Fatal("PostgreSQL PDF creation is Ledger-backed")
+	}
+	if options.AnomalyReportCommands == nil {
+		t.Fatal("PostgreSQL anomaly creation is Ledger-backed")
 	}
 	if options.QuestionnaireDraftCommands == nil {
 		t.Fatal("PostgreSQL drafts still use Ledger")

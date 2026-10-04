@@ -257,16 +257,30 @@ func (s *Server) createPDFReportPackage(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) generateAnomalyReport(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		SubjectType string `json:"subject_type"`
-		SubjectID   string `json:"subject_id"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.anomalyReportCommands != nil {
+		s.generateDurableAnomalyReport(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodeAnomalyReportRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
 		report, err := s.ledger.GenerateAnomalyReport(ctx, actor, app.AnomalyReportInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID})
 		return http.StatusCreated, report, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodeAnomalyReportRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeGenerateAnomalyReport(r.Context(), a, app.AnomalyReportInput{SubjectType: in.SubjectType, SubjectID: in.SubjectID}); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

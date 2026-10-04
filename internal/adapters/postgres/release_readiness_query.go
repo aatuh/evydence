@@ -58,44 +58,15 @@ func readReleaseReadinessSnapshotTx(ctx context.Context, tx pgx.Tx, tenantID, re
 	if err != nil {
 		return empty, fmt.Errorf("resolve readiness release: %w", err)
 	}
-	// Only the linked, registered artifact digest can be used for build and
-	// attestation matching. A free-form subject_ref digest is not trusted.
-	linkedDigests := `SELECT a.digest FROM evidence_items AS e
-		CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.subject_refs)='array' THEN e.subject_refs ELSE '[]'::jsonb END) AS ref(value)
-		JOIN artifacts AS a ON a.id=ref.value->>'id' AND a.tenant_id=e.tenant_id
-		WHERE e.tenant_id=$1 AND e.release_id=$2 AND ref.value->>'type'='artifact'
-		AND a.digest ~ '^sha256:[0-9a-fA-F]{64}$'`
-	err = tx.QueryRow(ctx, `SELECT
-		EXISTS(SELECT 1 FROM evidence_items AS e CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.subject_refs)='array' THEN e.subject_refs ELSE '[]'::jsonb END) AS ref(value) WHERE e.tenant_id=$1 AND e.release_id=$2 AND ref.value->>'type'='artifact' AND coalesce(ref.value->>'id','')<>''),
-		EXISTS(SELECT 1 FROM evidence_items WHERE tenant_id=$1 AND release_id=$2 AND type='sbom'),
-		EXISTS(SELECT 1 FROM evidence_items WHERE tenant_id=$1 AND release_id=$2 AND type='vulnerability_scan'),
-		EXISTS(`+linkedDigests+`),
-		EXISTS(SELECT 1 FROM build_runs AS b CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(b.outputs)='array' THEN b.outputs ELSE '[]'::jsonb END) AS output(value) WHERE b.tenant_id=$1 AND b.release_id=$2 AND b.status='passed' AND output.value->>'digest' IN (`+linkedDigests+`)),
-		EXISTS(SELECT 1 FROM build_attestations AS a JOIN build_runs AS b ON b.id=a.build_id AND b.tenant_id=a.tenant_id JOIN verification_results AS v ON v.tenant_id=a.tenant_id AND v.subject_type='build_attestation' AND v.subject_id=a.id AND v.result='passed' AND v.assurance_profile->>'id'=$3 AND v.schema_version=$4 CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(a.subject_digests)='array' THEN a.subject_digests ELSE '[]'::jsonb END) AS digest(value) WHERE a.tenant_id=$1 AND b.release_id=$2 AND digest.value IN (`+linkedDigests+`))`,
-		tenantID, releaseID, verificationdomain.VerificationProfileDSSEAttestationSignature, verificationdomain.VerificationResultSchemaVersion,
-	).Scan(&snapshot.HasArtifact, &snapshot.HasSBOM, &snapshot.HasVulnerabilityScan, &snapshot.HasArtifactDigest, &snapshot.HasPassedBuild, &snapshot.HasVerifiedBuildAttestation)
+	presence, err := readReleasePresenceFacts(ctx, tx, tenantID, releaseID)
 	if err != nil {
-		return empty, fmt.Errorf("read readiness presence: %w", err)
+		return empty, err
 	}
-	var invalidFindings bool
-	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM vulnerability_scans AS s
-		WHERE s.tenant_id=$1 AND s.release_id=$2 AND (
-			jsonb_typeof(s.findings)<>'array' OR EXISTS(
-				SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(s.findings)='array' THEN s.findings ELSE '[]'::jsonb END) AS f(value)
-				WHERE jsonb_typeof(f.value)<>'object' OR btrim(coalesce(f.value->>'id',''))='' OR btrim(coalesce(f.value->>'severity',''))=''
-			)
-		))`, tenantID, releaseID).Scan(&invalidFindings)
+	snapshot.HasArtifact, snapshot.HasSBOM, snapshot.HasVulnerabilityScan = presence.HasArtifact, presence.HasSBOM, presence.HasVulnerabilityScan
+	snapshot.HasArtifactDigest, snapshot.HasPassedBuild, snapshot.HasVerifiedBuildAttestation = presence.HasArtifactDigest, presence.HasPassedBuild, presence.HasVerifiedBuildAttestation
+	snapshot.UnhandledCritical, snapshot.UnhandledHigh, err = readReleaseUnhandledPresence(ctx, tx, tenantID, releaseID, now)
 	if err != nil {
-		return empty, fmt.Errorf("validate readiness findings: %w", err)
-	}
-	if invalidFindings {
-		return empty, riskapp.ErrValidation
-	}
-	// A current decision or a scoped approved exception handles a finding.
-	// This is an existence projection; scanner payload bytes never leave SQL.
-	err = tx.QueryRow(ctx, releaseUnhandledFindingsCTE+` SELECT coalesce(bool_or(severity='critical'),false),coalesce(bool_or(severity='high'),false) FROM unhandled`, tenantID, releaseID, now).Scan(&snapshot.UnhandledCritical, &snapshot.UnhandledHigh)
-	if err != nil {
-		return empty, fmt.Errorf("read readiness findings: %w", err)
+		return empty, err
 	}
 	// IDs are the only decision/exception data returned to policy evaluation.
 	remainingIDs := maxReadinessIDs

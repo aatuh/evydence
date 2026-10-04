@@ -32,7 +32,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"graph_snapshot_creation.go":       {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked"},
 		"product_release_authorization.go": {"authorizeProductReleaseLocked"},
 		"pdf_report_creation.go":           {"AuthorizeCreatePDFReportPackage"},
-		"future_extensions.go":             {"CreateGraphSnapshot", "CreatePDFReportPackage"},
+		"anomaly_report_creation.go":       {"AuthorizeGenerateAnomalyReport"},
+		"future_extensions.go":             {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport"},
 		"answer_library_creation.go": {
 			"AuthorizeQuestionnaireAnswerLibraryCreate",
 			"authorizeAnswerLibraryCreateLocked",

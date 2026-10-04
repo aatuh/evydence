@@ -1161,6 +1161,13 @@ Source snapshots, deployment records, signed incident webhook events, incident p
 
 Evidence summaries, questionnaire drafts, graph snapshots and anomaly reports organize stored records with their documented assumptions and limitations. Customer-facing packages require explicit package scope, redaction profile, expiry, and access auditing. Customer package JSON and ZIP download paths return scoped manifest metadata and verification guidance; raw tenant evidence payload bytes are not returned.
 
+Experimental anomaly reports bind focused commands and current scoped SQL facts
+to the report/audit/replay transaction. Release checks share readiness presence
+predicates without loading full readiness or Ledger snapshots. Other subjects
+currently have no checks; `clear` is not a security conclusion. See
+[anomaly report generation](api.md#anomaly-report-generation) for exact signals,
+input limits, current-grant replay and local-memory limitations.
+
 PDF report packaging binds focused Package commands and current product/release
 coordinates in PostgreSQL. Verified staging, lifecycle metadata, finalizer job,
 report, audit and replay completion commit together; failures publish no report

@@ -143,6 +143,7 @@ type Server struct {
 	evidenceSummaryCommands           EvidenceSummaryCommands
 	graphSnapshotCommands             GraphSnapshotCommands
 	pdfReportCommands                 PDFReportCommands
+	anomalyReportCommands             AnomalyReportCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
 	questionnairePackageCommands      QuestionnairePackageCommands
 	portalAccessCommands              PortalAccessCommands
@@ -239,6 +240,8 @@ type ServerOptions struct {
 	GraphSnapshotCommands GraphSnapshotCommands
 	// PDFReportCommands persists bounded PDF metadata without Ledger state.
 	PDFReportCommands PDFReportCommands
+	// AnomalyReportCommands persists bounded deterministic signals without Ledger.
+	AnomalyReportCommands AnomalyReportCommands
 	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
 	// QuestionnairePackageCommands generates bounded responses without Ledger state.
@@ -479,6 +482,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.PDFReportCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused PDF reports require durable idempotency")
 	}
+	if opts.AnomalyReportCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused anomaly reports require durable idempotency")
+	}
 	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire drafts require durable idempotency")
 	}
@@ -609,6 +615,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.evidenceSummaryCommands = opts.EvidenceSummaryCommands
 	server.graphSnapshotCommands = opts.GraphSnapshotCommands
 	server.pdfReportCommands = opts.PDFReportCommands
+	server.anomalyReportCommands = opts.AnomalyReportCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
 	server.questionnairePackageCommands = opts.QuestionnairePackageCommands
 	server.portalAccessCommands = opts.PortalAccessCommands

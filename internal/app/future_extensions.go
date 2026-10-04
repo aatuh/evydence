@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -1299,10 +1300,11 @@ func (s packageReportService) GenerateAnomalyReport(ctx context.Context, actor d
 	if err := require(actor, ScopeReportRead); err != nil {
 		return domain.AnomalyReport{}, err
 	}
-	subjectType, subjectID := strings.TrimSpace(in.SubjectType), strings.TrimSpace(in.SubjectID)
-	if subjectType == "" || subjectID == "" {
-		return domain.AnomalyReport{}, ErrValidation
+	v, err := experimentalapp.NormalizeAnomalyInput(experimentalapp.AnomalyReportInput{SubjectType: in.SubjectType, SubjectID: in.SubjectID})
+	if err != nil {
+		return domain.AnomalyReport{}, fromExperimentalCommandError(err)
 	}
+	subjectType, subjectID := v.SubjectType, v.SubjectID
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	refs, err := l.ensureFutureSubjectLocked(actor.TenantID, subjectType, subjectID)
@@ -1312,23 +1314,11 @@ func (s packageReportService) GenerateAnomalyReport(ctx context.Context, actor d
 	if err := l.authorizeResourceLocked(actor, ScopeReportRead, refs); err != nil {
 		return domain.AnomalyReport{}, err
 	}
-	signals := []domain.AnomalySignal{}
+	var facts experimentalapp.AnomalyReleaseFacts
 	if subjectType == "release" {
-		if l.checkReleaseHasPassedBuildLocked(actor.TenantID, subjectID).Result != "passed" {
-			signals = append(signals, domain.AnomalySignal{Name: "missing_passed_build", Severity: "medium", Detail: "No passed build run is linked to this release."})
-		}
-		if l.checkReleaseHasBuildAttestationLocked(actor.TenantID, subjectID).Result != "passed" {
-			signals = append(signals, domain.AnomalySignal{Name: "missing_matching_attestation", Severity: "medium", Detail: "No passed trusted-attestation receipt covers a registered release artifact digest."})
-		}
-		if len(l.unhandledCriticalFindingsLocked(actor.TenantID, subjectID)) > 0 {
-			signals = append(signals, domain.AnomalySignal{Name: "unhandled_critical_finding", Severity: "high", Detail: "An open critical finding lacks a valid decision or approved exception."})
-		}
+		facts = experimentalapp.AnomalyReleaseFacts{TenantID: actor.TenantID, ReleaseID: subjectID, HasPassedBuild: l.checkReleaseHasPassedBuildLocked(actor.TenantID, subjectID).Result == "passed", HasVerifiedBuildAttestation: l.checkReleaseHasBuildAttestationLocked(actor.TenantID, subjectID).Result == "passed", UnhandledCritical: len(l.unhandledCriticalFindingsLocked(actor.TenantID, subjectID)) > 0}
 	}
-	result := "clear"
-	if len(signals) > 0 {
-		result = "attention_required"
-	}
-	report := domain.AnomalyReport{ID: newID("ano"), TenantID: actor.TenantID, SubjectType: subjectType, SubjectID: subjectID, Result: result, Signals: signals, Assumptions: []string{"Signals are deterministic checks over stored Evydence records."}, Limitations: []string{"This report identifies evidence anomalies only and does not infer malicious behavior or release security."}, SchemaVersion: domain.AnomalyReportVersion, CreatedAt: l.now()}
+	report := anomalyReportFromContext(experimentalapp.BuildAnomalyReport(newID("ano"), actor.TenantID, v, l.now(), facts))
 	if l.unitOfWork != nil {
 		var entry domain.AuditChainEntry
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -1341,11 +1331,11 @@ func (s packageReportService) GenerateAnomalyReport(ctx context.Context, actor d
 		}); err != nil {
 			return domain.AnomalyReport{}, err
 		}
-		l.anomalyReports[report.ID] = report
+		l.anomalyReports[report.ID] = cloneLocalAnomalyReport(report)
 		l.publishCommittedAuditEntryLocked(entry)
 		return report, nil
 	}
-	l.anomalyReports[report.ID] = report
+	l.anomalyReports[report.ID] = cloneLocalAnomalyReport(report)
 	_, _ = l.appendChainLocked(actor.TenantID, "anomaly_report.created", "anomaly_report", report.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.AnomalyReport{}, err

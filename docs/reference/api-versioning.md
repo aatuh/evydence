@@ -548,6 +548,28 @@ for exact limits. Historical records are not rewritten. These restrictions
 require release compatibility review; this note is not an approved exception,
 provider verification evidence or proof of production Ledger retirement.
 
+## Unreleased Anomaly Report Boundary
+
+`POST /v1/reports/anomaly` now binds focused Experimental commands and bounded
+transactional PostgreSQL facts. The route remains experimental. Supported
+subject types, response fields, omission of empty signals, signal ordering and
+text, schema version and audit type are preserved. Local memory shares the
+pure evaluator and no longer exposes mutable stored report slices.
+
+Both profiles reject malformed, duplicate/unknown/null or mixed-case JSON
+fields and overlong or invalid raw UTF-8/NUL text before trimming. Current
+ownership/grants are checked before replay; cookie mutations require Origin.
+Durable timestamps use UTC microseconds. No historical report is rewritten.
+Only releases have checks; `clear` for other roots is not a security conclusion.
+PostgreSQL critical-finding handling uses the readiness predicates: decisions
+must match the finding's scan and release, with current supersession/expiry
+semantics, rather than the legacy finding-ID-only lookup.
+
+See [anomaly report generation](../api.md#anomaly-report-generation) for bounds,
+trusted-build/attestation rules, current critical-finding handling and replay.
+Tightened inputs need release compatibility review; this note is not an
+approved exception or proof of complete production Ledger retirement.
+
 ## Unreleased PDF Report Boundary
 
 `POST /v1/reports/pdf` now binds focused Package commands and coordinate-only

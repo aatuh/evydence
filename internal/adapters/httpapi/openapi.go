@@ -2467,8 +2467,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "report_type", "template_version", "product_id", "release_id", "summary", "assumptions", "limitations", "generated_at"))
 	registry.RegisterSchema("SecurityUpdateEvidenceReportEnvelope", dataEnvelopeSchema("#/components/schemas/SecurityUpdateEvidenceReport"))
 	registry.RegisterSchema("CreateAnomalyReportRequest", objectSchema(map[string]any{
-		"subject_type": map[string]any{"type": "string"},
-		"subject_id":   map[string]any{"type": "string"},
+		"subject_type": map[string]any{"type": "string", "enum": []string{"tenant", "product", "release", "evidence", "build", "customer_package"}, "maxLength": 128, "description": "Canonical subject kind; raw NUL-free UTF-8 is capped at 128 bytes before trimming. Only release subjects currently receive anomaly checks."},
+		"subject_id":   map[string]any{"type": "string", "minLength": 1, "maxLength": 1024, "description": "Current tenant-owned subject ID; raw NUL-free UTF-8 is capped at 1024 bytes before trimming. Current ownership and grants are rechecked before replay."},
 	}, "subject_type", "subject_id"))
 	registry.RegisterSchema("AnomalySignal", objectSchema(map[string]any{
 		"name":     map[string]any{"type": "string"},

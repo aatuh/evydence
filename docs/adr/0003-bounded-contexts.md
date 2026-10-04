@@ -9,6 +9,14 @@ legacy-facade retirement remain assigned to EVY-905 and EVY-906.
 
 ## Context
 
+Experimental-owned `AnomalyCommands` now binds flat subject-coordinate,
+release-fact and insert ports without extending the mixed Future repository.
+Adapters reuse fixed-size readiness SQL predicates, but no full readiness
+snapshot enters the command. The composition root supplies the existing
+resolved report-grant policy through a transport-neutral port. Pure signal
+generation is shared with local memory; this does not graduate anomaly reports
+from experimental status or add checks for non-release subjects.
+
 Package-owned `PDFReportCommands` owns minimal title-only report packaging,
 not an evidence renderer. Flat coordinate, staged-payload and insert ports
 bind PostgreSQL creation without extending `FutureExtensionsRepository`.
