@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -29,7 +30,9 @@ import (
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
 	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -159,25 +162,40 @@ func runWithContext(ctx context.Context) error {
 	if production {
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(cfg.Signer)})
 	}
+	bootstrapDisabled := strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true")
+	printBootstrapSecret := strings.EqualFold(os.Getenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET"), "true")
+	bootstrapInput := tenantBootstrapInputFromEnv()
+	if profile == wiring.PostgreSQL && !bootstrapDisabled {
+		commands, err := wiring.BuildTenantBootstrapCommands(runtime.Postgres, pepper, production)
+		if err != nil {
+			return fmt.Errorf("compose tenant bootstrap: %w", err)
+		}
+		bootstrapContext, cancelBootstrap := context.WithTimeout(ctx, 30*time.Second)
+		bootstrap, err := commands.BootstrapFirstTenant(bootstrapContext, bootstrapInput)
+		cancelBootstrap()
+		if err != nil {
+			return fmt.Errorf("bootstrap tenant: %w", err)
+		}
+		// Publish any explicitly requested local secret immediately after the
+		// durable commit; later compatibility startup failures cannot hide it.
+		if err := writeTenantBootstrapResult(os.Stdout, bootstrap, production, printBootstrapSecret); err != nil {
+			return err
+		}
+	}
 	ledgerContext, cancelLedgerLoad := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelLedgerLoad()
 	ledger, err := app.NewLedgerWithContext(ledgerContext, cfg)
 	if err != nil {
 		return fmt.Errorf("create ledger: %w", err)
 	}
-	if !ledger.HasTenants(ctx) && !strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true") {
-		tenant, key, secret, err := ledger.BootstrapTenant(ctx, envDefault("EVYDENCE_BOOTSTRAP_TENANT", "Local Tenant"), "local-admin", []string{"*"})
+	if profile == wiring.LocalMemory && !bootstrapDisabled && !ledger.HasTenants(ctx) {
+		tenant, key, secret, err := ledger.BootstrapTenant(ctx, bootstrapInput.TenantName, bootstrapInput.APIKeyName, bootstrapInput.Scopes)
 		if err != nil {
 			return fmt.Errorf("bootstrap tenant: %w", err)
 		}
-		if strings.EqualFold(os.Getenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET"), "true") {
-			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{
-				"tenant_id": tenant.ID,
-				"api_key":   key,
-				"secret":    secret,
-			})
-		} else {
-			log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", tenant.ID, key.ID)
+		bootstrap := wiring.TenantBootstrapResult{Created: true, Tenant: identitydomain.Tenant(tenant), Key: identitydomain.APIKey(key), Secret: secret}
+		if err := writeTenantBootstrapResult(os.Stdout, bootstrap, production, printBootstrapSecret); err != nil {
+			return err
 		}
 	}
 	options, err := wiring.BuildAPIReadServices(runtime, pepper, cfg.ReadinessChecks)
@@ -202,6 +220,35 @@ func runWithContext(ctx context.Context) error {
 	httpServer := newHTTPServer(addr, server.Handler(), httpConfig)
 	log.Printf("evydence api listening on %s", addr)
 	return serveHTTP(ctx, httpServer, httpConfig.ShutdownTimeout)
+}
+
+func tenantBootstrapInputFromEnv() identityapp.BootstrapTenantInput {
+	// Keep the raw value until the Identity command has applied its byte and
+	// text bounds. Trimming first would hide oversized operator input.
+	name := os.Getenv("EVYDENCE_BOOTSTRAP_TENANT")
+	if name == "" {
+		name = "Local Tenant"
+	}
+	return identityapp.BootstrapTenantInput{TenantName: name, APIKeyName: "local-admin", Scopes: []string{"*"}}
+}
+
+func writeTenantBootstrapResult(output io.Writer, result wiring.TenantBootstrapResult, production, printSecret bool) error {
+	if production && printSecret {
+		return errors.New("production refuses EVYDENCE_PRINT_BOOTSTRAP_SECRET=true")
+	}
+	if !result.Created {
+		return nil
+	}
+	if printSecret {
+		key := domain.APIKey(result.Key)
+		key.Hash = ""
+		if err := json.NewEncoder(output).Encode(map[string]any{"tenant_id": result.Tenant.ID, "api_key": key, "secret": result.Secret}); err != nil {
+			return errors.New("bootstrap credentials could not be written")
+		}
+		return nil
+	}
+	log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", result.Tenant.ID, result.Key.ID)
+	return nil
 }
 
 func openSigningExecutor(ctx context.Context) (app.SigningExecutor, error) {

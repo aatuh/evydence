@@ -217,64 +217,16 @@ func (p PreparedTenantBootstrap) PublicResult() (identitydomain.Tenant, identity
 // does not persist anything; the composition layer combines it with the
 // Verification-owned initial signing key in one shared transaction.
 func (s *Service) PrepareTenantBootstrap(ctx context.Context, input BootstrapTenantInput) (PreparedTenantBootstrap, error) {
-	if err := contextError(ctx); err != nil {
-		return PreparedTenantBootstrap{}, err
-	}
-	input.TenantName = strings.TrimSpace(input.TenantName)
-	input.APIKeyName = strings.TrimSpace(input.APIKeyName)
-	if input.TenantName == "" || input.APIKeyName == "" {
-		return PreparedTenantBootstrap{}, ErrValidation
-	}
-	if len(input.Scopes) == 0 {
-		input.Scopes = []string{"*"}
-	}
-	input.Scopes = sortedStrings(input.Scopes)
-	credential, err := s.credentials.Generate()
-	if err != nil || strings.TrimSpace(credential.Secret) == "" || strings.TrimSpace(credential.Prefix) == "" || strings.TrimSpace(credential.Hash) == "" {
-		if err != nil {
-			return PreparedTenantBootstrap{}, err
-		}
-		return PreparedTenantBootstrap{}, ErrValidation
-	}
-	now := s.clock.Now().UTC()
-	tenant := identitydomain.Tenant{ID: s.ids.NewID("ten"), Name: input.TenantName, CreatedAt: now}
-	key := identitydomain.APIKey{
-		ID: s.ids.NewID("key"), TenantID: tenant.ID, Name: input.APIKeyName, Prefix: credential.Prefix,
-		Scopes: append([]string(nil), input.Scopes...), CreatedAt: now, Hash: credential.Hash,
-	}
-	return PreparedTenantBootstrap{Tenant: tenant, APIKey: key, Secret: credential.Secret}, nil
+	return (&TenantBootstrapCommands{TenantBootstrapConfig{Credentials: s.credentials, Clock: s.clock, IDs: s.ids}}).PrepareTenantBootstrap(ctx, input)
 }
 
 // CommitTenantBootstrap writes only Identity-owned bootstrap records and their
 // audit entry into a transaction supplied by the composition layer.
 func (s *Service) CommitTenantBootstrap(ctx context.Context, tx Transaction, prepared PreparedTenantBootstrap) error {
-	if err := contextError(ctx); err != nil {
-		return err
-	}
-	if tx == nil || !s.validPreparedTenantBootstrap(prepared) {
+	if tx == nil {
 		return ErrValidation
 	}
-	if err := tx.Identity().InsertTenant(ctx, prepared.Tenant); err != nil {
-		return err
-	}
-	if err := tx.Identity().InsertAPIKey(ctx, prepared.APIKey); err != nil {
-		return err
-	}
-	_, err := tx.Audit().AppendAudit(ctx, application.AuditEvent{
-		ID: s.ids.NewID("ace"), TenantID: prepared.Tenant.ID, EntryType: "tenant.created", SubjectType: "tenant", SubjectID: prepared.Tenant.ID,
-		ActorType: "system", ActorID: "bootstrap", OccurredAt: prepared.Tenant.CreatedAt.UTC(),
-	})
-	return err
-}
-
-func (s *Service) validPreparedTenantBootstrap(prepared PreparedTenantBootstrap) bool {
-	tenant := prepared.Tenant
-	key := prepared.APIKey
-	secret := strings.TrimSpace(prepared.Secret)
-	if tenant.ID == "" || strings.TrimSpace(tenant.Name) == "" || tenant.CreatedAt.IsZero() || key.ID == "" || key.TenantID != tenant.ID || strings.TrimSpace(key.Name) == "" || strings.TrimSpace(key.Prefix) == "" || strings.TrimSpace(key.Hash) == "" || key.CreatedAt.IsZero() || !key.CreatedAt.Equal(tenant.CreatedAt) || len(key.Scopes) == 0 || secret == "" {
-		return false
-	}
-	return s.credentials.Prefix(secret) == key.Prefix && s.credentials.Equal(key.Hash, s.credentials.Hash(secret))
+	return (&TenantBootstrapCommands{TenantBootstrapConfig{Credentials: s.credentials, Clock: s.clock, IDs: s.ids}}).CommitTenantBootstrap(ctx, serviceTenantBootstrapTransaction{tx}, prepared)
 }
 
 type CreateAPIKeyInput struct {

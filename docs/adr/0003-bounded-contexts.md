@@ -435,6 +435,21 @@ signing-key preparation and commit in the same unit of work. This preserves
 the existing all-or-nothing bootstrap and bearer-secret issuance contract;
 Identity has no signing-key repository capability.
 
+PostgreSQL API first-start bootstrap now uses
+`wiring.BuildTenantBootstrapCommands` directly, before any transitional Ledger
+construction. `identity/app.TenantBootstrapCommands` receives only tenant,
+API-key, and audit writes; `verification/app.InitialSigningKeyCommands` receives
+only its key factory, clock, and initial-key writer. Both legacy service facades
+delegate to these same implementations. The installation-wide empty-table
+guard and all writes share one top-level startup transaction, with no ambient
+command or Ledger publication. The guard selects only a boolean and uses a
+tenant-table lock that also fences ordinary inserts. Public identity and secret
+are returned only after commit; existing installations receive neither.
+Local-memory bootstrap remains explicit compatibility behavior. This removes
+bootstrap's production aggregate dependency, not the remaining Ledger startup
+or handler composition. See [First-Tenant Bootstrap](../reference/configuration.md#first-tenant-bootstrap)
+for operator bounds, lock-wait, output, and key-custody limitations.
+
 Build-attestation upload is the second exception. The public compatibility
 contract atomically creates a release-owned `BuildAttestation` and its
 evidence-owned `EvidenceItem`; the attestation repository requires the evidence

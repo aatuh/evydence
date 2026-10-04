@@ -194,42 +194,13 @@ func NewService(config Config) (*Service, error) {
 // for a new tenant. It performs no writes so the composition layer can combine
 // it atomically with the Identity-owned bootstrap records.
 func (s *Service) PrepareInitialSigningKey(ctx context.Context, tenantID string) (PreparedSigningKey, error) {
-	if err := contextError(ctx); err != nil {
-		return PreparedSigningKey{}, err
-	}
-	tenantID = strings.TrimSpace(tenantID)
-	if tenantID == "" {
-		return PreparedSigningKey{}, ErrValidation
-	}
-	now := s.clock.Now().UTC()
-	prepared, err := s.keyFactory.GenerateSigningKey(ctx, tenantID, verificationdomain.SigningKeyDefaultProvider, 1, now)
-	if err != nil {
-		return PreparedSigningKey{}, err
-	}
-	prepared = clonePreparedSigningKey(prepared)
-	if !validPreparedSigningKey(prepared, tenantID, verificationdomain.SigningKeyDefaultProvider, 1, now) {
-		clear(prepared.PrivateMaterial)
-		return PreparedSigningKey{}, ErrValidation
-	}
-	return prepared, nil
+	return (&InitialSigningKeyCommands{InitialSigningKeyConfig{KeyFactory: s.keyFactory, Clock: s.clock}}).PrepareInitialSigningKey(ctx, tenantID)
 }
 
 // CommitInitialSigningKey writes a prepared bootstrap key through the
 // Verification repository participating in the shared tenant transaction.
 func (s *Service) CommitInitialSigningKey(ctx context.Context, repository Repository, tenantID string, prepared PreparedSigningKey) error {
-	if err := contextError(ctx); err != nil {
-		return err
-	}
-	tenantID = strings.TrimSpace(tenantID)
-	if repository == nil || tenantID == "" {
-		return ErrValidation
-	}
-	prepared = clonePreparedSigningKey(prepared)
-	defer clear(prepared.PrivateMaterial)
-	if !validPreparedSigningKey(prepared, tenantID, verificationdomain.SigningKeyDefaultProvider, 1, s.clock.Now().UTC()) {
-		return ErrValidation
-	}
-	return repository.InsertSigningKey(ctx, prepared)
+	return (&InitialSigningKeyCommands{InitialSigningKeyConfig{KeyFactory: s.keyFactory, Clock: s.clock}}).CommitInitialSigningKey(ctx, repository, tenantID, prepared)
 }
 
 func (s *Service) VerifySubject(ctx context.Context, actor identitydomain.Actor, subjectType, subjectID string) (verificationdomain.VerificationResult, error) {

@@ -62,7 +62,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS` | No | `false` | Optional hardening mode for non-VEX parser-backed uploads. When set to `true`, the API stores accepted records and the outbox worker populates parser-derived fields from tenant-prefixed raw payloads after digest verification. VEX documents are normalized during upload and their decisions are always created post-commit by the worker from a versioned normalized request; a stored raw payload adds independent replay verification. |
 | `EVYDENCE_SKIP_MIGRATIONS` | No | unset | Set to `true` only when migrations are applied by a separate release process. API and worker startup still verify that no committed migrations are pending and fail closed if the database is behind. |
 | `EVYDENCE_MIGRATIONS_DIR` | No | `migrations` | Migration directory for API startup and `cmd/evydence-migrate`. |
-| `EVYDENCE_BOOTSTRAP_TENANT` | No | `Local Tenant` | Tenant name used when bootstrapping an empty store. |
+| `EVYDENCE_BOOTSTRAP_TENANT` | No | `Local Tenant` | Tenant name used when bootstrapping an empty store; raw value must be valid UTF-8 without NUL bytes, at most 65,536 bytes, and nonblank after trimming. |
 | `EVYDENCE_BOOTSTRAP_DISABLED` | No | unset | Set to `true` to prevent startup bootstrap on an empty store. |
 | `EVYDENCE_PRINT_BOOTSTRAP_SECRET` | Local only | `true` in `.api.env.example` | Prints the one-time bootstrap secret. Rejected when `ENV=production`. |
 | `EVYDENCE_WORKER_POLL_INTERVAL` | No | `1s` | Worker outbox polling interval. |
@@ -106,6 +106,46 @@ process, or equivalent deployment control.
 | `EVYDENCE_TEST_S3_ACCESS_KEY_ID` | Live MinIO tests | `.test.env.example` value | Test-only credential for the disposable MinIO service. Never point it at a production or shared object-store account. |
 | `EVYDENCE_TEST_S3_SECRET_ACCESS_KEY` | Live MinIO tests | `.test.env.example` value | Test-only secret for the disposable MinIO service. The integration summary redacts credentials. Never commit a real value. |
 | `EVYDENCE_TEST_S3_USE_SSL` | Live MinIO tests | `false` | Boolean transport setting for the loopback test service. |
+
+## First-Tenant Bootstrap
+
+With `EVYDENCE_RUNTIME_PROFILE=postgres`, API startup composes focused Identity
+and Verification bootstrap commands before the transitional Ledger load. A
+single startup transaction locks the `tenants` table in
+`SHARE ROW EXCLUSIVE` mode and checks existence with `SELECT EXISTS`; it does
+not select tenant names, credential inventories, or signing keys. If any tenant
+exists, bootstrap returns no identity or secret and creates nothing. The table
+lock covers an empty installation and conflicts with ordinary tenant inserts,
+so concurrent first-start attempts cannot each create an administrator. The
+API bounds this transaction, including lock wait, to 30 seconds or the earlier
+shutdown deadline. The lock can briefly delay unrelated tenant mutations; this
+does not change the supported single-API-writer deployment profile.
+
+On an empty installation, tenant, initial wildcard API-key hash, the
+`tenant.created` system audit entry, and the initial local Ed25519 signing key
+commit together. Write, cancellation, and commit failures return no bootstrap
+identity or secret. The initial signing key retains the existing local storage
+format; its creation is not external signing-provider custody or a new
+encryption-at-rest guarantee. Generated transient private-key byte buffers are
+cleared after use. Go credential strings are not guaranteed to be erased from
+process memory.
+
+Set `EVYDENCE_BOOTSTRAP_DISABLED=true` to bypass startup bootstrap. In explicit
+`local_memory` mode the compatibility bootstrap remains in-process and has no
+durability or cross-process coordination guarantee. Bootstrap names are bounded
+at 65,536 raw bytes; scopes at 1024 entries of at most 128 bytes each. Text must
+be valid UTF-8 without NUL bytes. These checks reject malformed operator inputs
+before credential generation.
+
+Neither bootstrap path logs secrets or stored hashes. Only the explicit,
+non-production `EVYDENCE_PRINT_BOOTSTRAP_SECRET=true` option writes the existing
+`tenant_id`, `api_key`, and `secret` JSON response. Durable bootstrap emits that
+response immediately after commit, before later compatibility startup work;
+restarts never reissue it. Output failure is reported with a safe error but
+cannot undo an already committed bootstrap. Retain the one-time local output
+securely; otherwise operator credential provisioning/recovery is required.
+The production API still constructs the transitional Ledger for other paths;
+this migration does not yet complete EVY-905 startup retirement.
 
 ## Request-Body Limits
 

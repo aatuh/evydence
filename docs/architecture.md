@@ -13,6 +13,17 @@ Evydence follows a ports-and-adapters shape:
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
 - `cmd/*` contains process entry points.
 
+PostgreSQL API first-tenant bootstrap is composed directly from focused Identity
+and Verification commands, independently of Ledger construction or inventories.
+The boolean empty-installation check and tenant/API-key/audit/initial-signing-key
+writes use one startup transaction; an empty-table-safe lock prevents concurrent
+or ordinary tenant inserts from racing the bootstrap decision. Credentials are
+returned only after commit and never on restart. Local-memory bootstrap still
+uses its explicit compatibility path, and other API startup Ledger dependencies
+remain EVY-905 work. The [bootstrap configuration reference](reference/configuration.md#first-tenant-bootstrap)
+owns the input bounds, lock timing, secret-output policy, and local signing-key
+storage limitations.
+
 Both object-store adapters expose `app.BoundedObjectReader.GetBounded` for
 workflows that require a payload budget. It checks actual file/provider size
 before reading and reads at most the requested limit plus one overflow byte,
