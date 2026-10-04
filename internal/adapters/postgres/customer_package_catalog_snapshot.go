@@ -105,7 +105,11 @@ func readCustomerSnapshotMetadataRows(ctx context.Context, tx pgx.Tx, projection
 // Time-sensitive sections use the caller's fixed generation time, rather than
 // observing different wall clocks between queries in the same snapshot.
 func readCustomerSnapshotMetadataRowsAt(ctx context.Context, tx pgx.Tx, projection, tenant, product, release string, budget *customerSnapshotBudget, generatedAt time.Time) ([]map[string]any, error) {
-	rows, err := tx.Query(ctx, customerSnapshotMetadataQuery(projection), tenant, product, release, budget.remainingBytes, packageapp.MaxSecurityReviewEvidenceIDs+1, generatedAt.UTC())
+	return readCustomerSnapshotMetadataRowsAtLimit(ctx, tx, projection, tenant, product, release, budget, generatedAt, packageapp.MaxSecurityReviewEvidenceIDs)
+}
+
+func readCustomerSnapshotMetadataRowsAtLimit(ctx context.Context, tx pgx.Tx, projection, tenant, product, release string, budget *customerSnapshotBudget, generatedAt time.Time, maxRows int) ([]map[string]any, error) {
+	rows, err := tx.Query(ctx, customerSnapshotMetadataQuery(projection), tenant, product, release, budget.remainingBytes, maxRows+1, generatedAt.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("read customer-package snapshot metadata: %w", err)
 	}
@@ -118,7 +122,7 @@ func readCustomerSnapshotMetadataRowsAt(ctx context.Context, tx pgx.Tx, projecti
 		if err := rows.Scan(&raw, &rejected); err != nil {
 			return nil, fmt.Errorf("scan customer-package snapshot metadata: %w", err)
 		}
-		if rejected || len(raw) == 0 || len(raw) > budget.remainingBytes-used || len(out) == packageapp.MaxSecurityReviewEvidenceIDs ||
+		if rejected || len(raw) == 0 || len(raw) > budget.remainingBytes-used || len(out) == maxRows ||
 			jsonbounds.Validate(raw, jsonbounds.Limits{MaxDepth: 32, MaxObjectKeys: 4096, MaxArrayItems: packageapp.MaxSecurityReviewEvidenceIDs, MaxStringBytes: packageapp.MaxCustomerPackageManifestBytes}) != nil {
 			return nil, packageapp.ErrConflict
 		}

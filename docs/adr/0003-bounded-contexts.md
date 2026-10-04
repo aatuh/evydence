@@ -100,8 +100,18 @@ and private keys are not selected. Subject inventories, public row/list counts,
 metadata bytes, JSON types, and timestamps are bounded before transfer. The shared
 reader materializes both the selected page and its budget aggregate; an actual
 query-plan regression checks that the aggregate runs once rather than once per
-output row, retaining the same exact-capacity and overflow assertions. Retention
-metadata and complete reader assembly still need to be implemented before
+output row, retaining the same exact-capacity and overflow assertions. The private
+retention component now shares a bounded public fact decoder with release-bundle
+reads and uses Verification's canonical proof renderer at the fixed generation
+time. Observations remain tenant-wide metadata after package-root validation;
+product or release ownership of storage settings is not inferred. Only location
+presence markers and known check fields cross the driver, not object prefixes,
+sample object keys, provider bucket names, or private check extensions. Source
+detail counts, policy rows, bytes, array shapes, scalar sizes, and timestamps are
+bounded before transfer; canonical expiry checks and proof-text growth also
+charge the shared manifest budget. The reader takes no writer fence, calls no
+provider, and persists no observation or receipt. Its recorded states and explicit
+non-claims are unchanged. Complete reader assembly is still required before
 production binding.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and
