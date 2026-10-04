@@ -121,10 +121,18 @@ detail counts, policy rows, bytes, array shapes, scalar sizes, and timestamps ar
 bounded before transfer; canonical expiry checks and proof-text growth also
 charge the shared manifest budget. The reader takes no writer fence, calls no
 provider, and persists no observation or receipt. Its recorded states and explicit
-non-claims are unchanged. Complete reader assembly is still required before
-production binding.
-Production creation is **not yet migrated**: the bounded database snapshot
-reader and HTTP binding are outstanding, and the existing creation route and
+non-claims are unchanged. The native `CustomerPackageCreationSnapshotReader`
+now composes the selected profile and every section in one read-only
+repeatable-read transaction with a shared byte budget and fixed generation
+time. A separate whole-snapshot JSON limit includes static container/limitation
+overhead before publication. Catalog and parsed-summary timestamp projections
+also reject non-finite dates or UTC years outside 1–9999 before transfer. The
+composition root must inject canonical hashing
+and signature verification; there is no Ledger or memory-mode fallback. Begin,
+section, cancellation, or commit failure returns no partial view, with bounded
+cancellation-independent rollback cleanup.
+Production creation is **not yet migrated**: focused HTTP/runtime binding is
+outstanding, and the existing creation route and
 API startup still reach Ledger. See
 [customer-package creation](../api.md#customer-package-creation) for limits and
 the remaining boundary.

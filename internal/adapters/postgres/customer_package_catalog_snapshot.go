@@ -161,27 +161,27 @@ func customerSnapshotMetadataQuery(projection string) string {
 	FROM records CROSS JOIN bounds ORDER BY records.sort_id COLLATE "C"`
 }
 
-const customerCatalogRootsSQL = `SELECT p.id AS sort_id,
+var customerCatalogRootsSQL = `SELECT p.id AS sort_id,
 	jsonb_build_object('tenant',jsonb_build_object('id',t.id,'name',t.name),
 	'product',jsonb_build_object('id',p.id,'name',p.name,'slug',p.slug,
 	'created_at',to_char(p.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'))) AS metadata,
-	NOT isfinite(p.created_at) AS invalid
+	` + customerGovernanceTimeInvalidSQL("p.created_at") + ` AS invalid
 	FROM scope s JOIN tenants t ON t.id=s.tenant_id JOIN products p ON p.tenant_id=t.id AND p.id=s.product_id
 	ORDER BY p.id`
 
-const customerCatalogReleaseSQL = `SELECT r.id AS sort_id,
+var customerCatalogReleaseSQL = `SELECT r.id AS sort_id,
 	jsonb_strip_nulls(jsonb_build_object('id',r.id,'product_id',r.product_id,'version',r.version,'state',r.state,
 	'created_at',to_char(r.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 	'frozen_at',to_char(r.frozen_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 	'approved_at',to_char(r.approved_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'))) AS metadata,
-	(NOT isfinite(r.created_at) OR coalesce(NOT isfinite(r.frozen_at),false) OR coalesce(NOT isfinite(r.approved_at),false)) AS invalid
+	(` + customerGovernanceTimeInvalidSQL("r.created_at") + ` OR ` + customerGovernanceTimeInvalidSQL("r.frozen_at") + ` OR ` + customerGovernanceTimeInvalidSQL("r.approved_at") + `) AS invalid
 	FROM scope s JOIN releases r ON r.tenant_id=s.tenant_id AND r.product_id=s.product_id AND r.id=s.release_id
 	ORDER BY r.id`
 
-const customerCatalogOrganizationsSQL = `SELECT o.id AS sort_id,
+var customerCatalogOrganizationsSQL = `SELECT o.id AS sort_id,
 	jsonb_build_object('id',o.id,'name',o.name,'slug',o.slug,'status',o.status,
 	'created',to_char(o.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS metadata,
-	(octet_length(o.id)>1024 OR btrim(o.id)='' OR o.id<>btrim(o.id) OR NOT isfinite(o.created_at)) AS invalid
+	(octet_length(o.id)>1024 OR btrim(o.id)='' OR o.id<>btrim(o.id) OR ` + customerGovernanceTimeInvalidSQL("o.created_at") + `) AS invalid
 	FROM scope s JOIN organizations o ON o.tenant_id=s.tenant_id ORDER BY o.id`
 
 // Optional parent IDs must either be absent or resolve in this same tenant
@@ -243,10 +243,10 @@ func checkCustomerCatalogAssociationBudget(ctx context.Context, tx pgx.Tx, tenan
 	return nil
 }
 
-const customerCatalogArtifactsSQL = `SELECT a.id AS sort_id,
+var customerCatalogArtifactsSQL = `SELECT a.id AS sort_id,
 	jsonb_build_object('id',a.id,'name',a.name,'media_type',a.media_type,'size',a.size,'digest',a.digest,
 	'created_at',to_char(a.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS metadata,
-	(octet_length(a.id)>1024 OR btrim(a.id)='' OR a.id<>btrim(a.id) OR a.size<0 OR NOT isfinite(a.created_at)) AS invalid
+	(octet_length(a.id)>1024 OR btrim(a.id)='' OR a.id<>btrim(a.id) OR a.size<0 OR ` + customerGovernanceTimeInvalidSQL("a.created_at") + `) AS invalid
 	FROM scope s JOIN artifacts a ON a.tenant_id=s.tenant_id
 	WHERE EXISTS(SELECT 1 FROM evidence_items e WHERE ` + customerCatalogEvidenceScopeSQL + `
 	 AND e.subject_refs @> jsonb_build_array(jsonb_build_object('type','artifact','id',a.id)))

@@ -2446,13 +2446,18 @@ current scope without reading evidence or allocating a new package. The guard
 does not reject an expired original request merely because time has passed;
 fresh creation and package access still enforce expiry.
 
-The production snapshot reader and focused HTTP binding are **outstanding**.
+The complete native database snapshot reader is implemented, but its production
+HTTP/runtime binding is **outstanding**. It reads the selected profile and all
+public package sections in one bounded, read-only repeatable-read view with a
+fixed generation time, and publishes nothing on section or transaction failure.
 The existing route still uses the Ledger compatibility reader and command
 envelope; the native guard is not yet the route's replay guard. The legacy
 profile and snapshot are separate reads with a write-time policy recheck,
-whereas the native reader contract requires one committed database view. Native
-write-boundary tests use an immutable fixture and do not prove production
-snapshot completeness or Ledger-free startup. EVY-905 remains incomplete.
+whereas native reader tests cover the complete database view, scope, privacy,
+shared/final byte limits, concurrent commits and transaction failures. These
+checks do not prove the existing route is migrated or that startup is Ledger-free.
+EVY-905 remains incomplete; see the
+[bounded-context ADR](adr/0003-bounded-contexts.md) for the ownership boundary.
 
 ### Customer Package Archive Download
 

@@ -195,11 +195,11 @@ const customerEvidenceArtifactScopeSQL = `(coalesce(d.artifact_id,'')='' OR EXIS
 	 AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(e.subject_refs)='array' THEN e.subject_refs ELSE '[]'::jsonb END) ref
 	 WHERE ref->>'type'='artifact' AND coalesce(ref->>'id','')<>'' AND ref->>'id'<>d.artifact_id))`
 
-const customerEvidenceSBOMSQL = `SELECT d.id AS sort_id,
+var customerEvidenceSBOMSQL = `SELECT d.id AS sort_id,
 	jsonb_build_object('id',d.id,'evidence_id',d.evidence_id,'release_id',coalesce(d.release_id,''),'artifact_id',coalesce(d.artifact_id,''),
 	'format',d.format,'spec_version',d.spec_version,'component_count',d.component_count,
 	'created_at',to_char(d.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS metadata,
-	(octet_length(d.id)>1024 OR octet_length(d.evidence_id)>1024 OR octet_length(coalesce(d.artifact_id,''))>1024 OR d.component_count<0 OR NOT isfinite(d.created_at)) AS invalid
+	(octet_length(d.id)>1024 OR octet_length(d.evidence_id)>1024 OR octet_length(coalesce(d.artifact_id,''))>1024 OR d.component_count<0 OR ` + customerGovernanceTimeInvalidSQL("d.created_at") + `) AS invalid
 	FROM scope s JOIN sboms d ON d.tenant_id=s.tenant_id JOIN evidence_items e ON ` + customerEvidenceParsedScopeSQL + ` AND e.type='sbom'
 	WHERE ` + customerEvidenceArtifactScopeSQL + ` ORDER BY d.id`
 
@@ -210,7 +210,7 @@ var customerEvidenceScanSQL = `SELECT d.id AS sort_id,
 	'scanner',d.scanner,'target_ref',d.target_ref,'summary',coalesce(nullif(d.summary,'null'::jsonb),'{}'::jsonb),
 	'finding_count',CASE WHEN jsonb_typeof(d.findings)='array' THEN jsonb_array_length(d.findings) ELSE 0 END,
 	'created_at',to_char(d.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS metadata,
-	(octet_length(d.id)>1024 OR octet_length(d.evidence_id)>1024 OR NOT isfinite(d.created_at)
+	(octet_length(d.id)>1024 OR octet_length(d.evidence_id)>1024 OR ` + customerGovernanceTimeInvalidSQL("d.created_at") + `
 	OR coalesce(jsonb_typeof(d.findings) NOT IN ('array','null'),true) OR ` + customerSnapshotCountMapInvalidSQL("d.summary") + `) AS invalid
 	FROM scope s JOIN vulnerability_scans d ON d.tenant_id=s.tenant_id JOIN evidence_items e ON ` + customerEvidenceParsedScopeSQL + ` AND e.type='vulnerability_scan'
 	WHERE NOT coalesce(e.subject_refs,'[]') @> '[{"type":"artifact"}]'::jsonb ORDER BY d.id`
@@ -219,7 +219,7 @@ var customerEvidenceVEXSQL = `SELECT d.id AS sort_id,
 	jsonb_build_object('id',d.id,'evidence_id',d.evidence_id,'release_id',coalesce(d.release_id,''),'artifact_id',coalesce(d.artifact_id,''),
 	'format',d.format,'version',coalesce(d.version,''),'statement_count',d.statement_count,'status_summary',coalesce(nullif(d.status_summary,'null'::jsonb),'{}'::jsonb),'schema_version',d.schema_version,
 	'created_at',to_char(d.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS metadata,
-	(octet_length(d.id)>1024 OR octet_length(d.evidence_id)>1024 OR octet_length(coalesce(d.artifact_id,''))>1024 OR d.statement_count<0 OR NOT isfinite(d.created_at)
+	(octet_length(d.id)>1024 OR octet_length(d.evidence_id)>1024 OR octet_length(coalesce(d.artifact_id,''))>1024 OR d.statement_count<0 OR ` + customerGovernanceTimeInvalidSQL("d.created_at") + `
 	OR ` + customerSnapshotCountMapInvalidSQL("d.status_summary") + `) AS invalid
 	FROM scope s JOIN vex_documents d ON d.tenant_id=s.tenant_id JOIN evidence_items e ON ` + customerEvidenceParsedScopeSQL + ` AND e.type='vex'
 	WHERE ` + customerEvidenceArtifactScopeSQL + ` ORDER BY d.id`
@@ -266,7 +266,7 @@ var customerEvidenceContractsSQL = `SELECT c.id AS sort_id,
 	 'request_body_required',o->'request_body_required','required_request_fields',o->'required_request_fields','response_statuses',o->'response_statuses')),'[]'::jsonb) FROM jsonb_array_elements(c.operations)o) ELSE '[]'::jsonb END
 	 ELSE '[]'::jsonb END,
 	'created_at',to_char(c.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS metadata,
-	(octet_length(c.id)>1024 OR octet_length(c.evidence_id)>1024 OR c.path_count<0 OR NOT isfinite(c.created_at)
+	(octet_length(c.id)>1024 OR octet_length(c.evidence_id)>1024 OR c.path_count<0 OR ` + customerGovernanceTimeInvalidSQL("c.created_at") + `
 	OR CASE WHEN jsonb_typeof(c.operations)='null' THEN false WHEN jsonb_typeof(c.operations) IS DISTINCT FROM 'array' THEN true
 	 WHEN jsonb_array_length(c.operations)>4096 OR octet_length(c.operations::text)>8388608 THEN true
 	 ELSE EXISTS(SELECT 1 FROM jsonb_array_elements(c.operations)o WHERE ` + customerSnapshotOperationInvalidSQL + `) END) AS invalid
@@ -278,7 +278,7 @@ var customerEvidenceDiffsSQL = `SELECT d.id AS sort_id,
 	'product_id',d.product_id,'release_id',coalesce(d.release_id,''),'result',d.result,
 	'breaking_changes',d.document->'breaking_changes','non_breaking_changes',d.document->'non_breaking_changes',
 	'schema_version',d.schema_version,'created_at',to_char(d.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS metadata,
-	(octet_length(d.id)>1024 OR octet_length(d.base_contract_id)>1024 OR octet_length(d.target_contract_id)>1024 OR NOT isfinite(d.created_at)
+	(octet_length(d.id)>1024 OR octet_length(d.base_contract_id)>1024 OR octet_length(d.target_contract_id)>1024 OR ` + customerGovernanceTimeInvalidSQL("d.created_at") + `
 	OR jsonb_typeof(d.document) IS DISTINCT FROM 'object'
 	OR ` + customerSnapshotStringListInvalidSQL("d.document->'breaking_changes'") + `
 	OR ` + customerSnapshotStringListInvalidSQL("d.document->'non_breaking_changes'") + `) AS invalid
