@@ -693,11 +693,17 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "kid", "version", "provider", "algorithm", "status", "public_key", "valid_from", "created_at"))
 	registry.RegisterSchema("SigningKeyEnvelope", dataEnvelopeSchema("#/components/schemas/SigningKey"))
 	registry.RegisterSchema("SigningKeyListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/SigningKey"))
-	registry.RegisterSchema("SigningKeyTransitionRequest", objectSchema(map[string]any{
-		"reason":                     map[string]any{"type": "string", "minLength": 1},
-		"semantics":                  map[string]any{"type": "string", "enum": []string{"ordinary", "compromised"}},
-		"historical_validity_policy": map[string]any{"type": "string", "enum": []string{"preserve", "invalidate_from_compromise", "invalidate_all"}},
-	}, "reason"))
+	keyReason := map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Nonblank operator reason; raw NUL-free UTF-8 is capped at 4096 bytes before trimming."}
+	keyRotation := objectSchema(map[string]any{"reason": keyReason}, "reason")
+	keyRotation["description"] = "Rotates a local Ed25519 key and returns public metadata only. PostgreSQL uses native durable execution, with current tenant-wide keys:admin authority checked before reservation and replay; human sessions need a matching tenant grant. The common writer fence precedes tenant/key/audit locks, and lifecycle, audit and successful replay commit together. Completed replay returns the original result without reading key inventory or generating key material; changed request bytes conflict. Both profiles reject unknown, duplicate, case-aliased, explicitly null, invalid UTF-8/NUL or over-budget fields; the JSON body is capped at 64 KiB. Unsafe cookie-authenticated mutations require same-origin protection. Local memory remains nondurable."
+	registry.RegisterSchema("SigningKeyRotationRequest", keyRotation)
+	keyRevocation := objectSchema(map[string]any{
+		"reason":                     keyReason,
+		"semantics":                  map[string]any{"type": "string", "enum": []string{"ordinary", "compromised"}, "maxLength": 64, "description": "Defaults to ordinary; raw input is capped at 64 bytes before trimming."},
+		"historical_validity_policy": map[string]any{"type": "string", "enum": []string{"preserve", "invalidate_from_compromise", "invalidate_all"}, "maxLength": 64, "description": "Defaults to preserve; ordinary revocation requires preserve. Raw input is capped at 64 bytes before trimming."},
+	}, "reason")
+	keyRevocation["description"] = "Revokes a tenant-owned signing key while preserving existing historical-validity semantics. PostgreSQL checks current tenant-wide keys:admin authority and flat key ownership before reservation and replay, without selecting private material. Tenant/key guard locks remain through atomic lifecycle/audit/replay commit. Completed replay returns the original public result without applying revocation again or decoding current lifecycle metadata; it does not assert present key validity. Both profiles use exact non-null JSON fields, a 64 KiB body limit and raw NUL-free UTF-8 bounds before trimming; key IDs are capped at 1024 bytes. Cookie mutations require same-origin protection. Local memory remains nondurable."
+	registry.RegisterSchema("SigningKeyTransitionRequest", keyRevocation)
 	createSigningProviderRequest := objectSchema(map[string]any{
 		"name":      map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Nonblank name; raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
 		"type":      map[string]any{"type": "string", "enum": []string{"local_encrypted_dev", "aws_kms", "gcp_kms", "azure_key_vault", "pkcs11_hsm", "native_pkcs11_hsm"}, "maxLength": 4096, "description": "Supported provider type; raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},

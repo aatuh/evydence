@@ -31,10 +31,12 @@ type signingKeyTransactions struct{ factory app.UnitOfWorkFactory }
 func (t signingKeyTransactions) ExecuteSigningKeyCommand(ctx context.Context, command func(context.Context, verificationapp.SigningKeyTransaction) error) error {
 	return mapSigningKeyWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
 		reader, ok := repos.Signatures.(signingKeyMetadataLocker)
-		if !ok || repos.Audit == nil {
+		guard, guarded := repos.Identity.(trustConfigurationTenantGuard)
+		locker, scoped := repos.Signatures.(verificationapp.SigningKeyScopeLocker)
+		if !ok || !guarded || !scoped || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, signingKeyTransaction{reader, repos.Signatures, repos.Audit})
+		return command(ctx, signingKeyTransaction{reader: reader, signatures: repos.Signatures, audit: repos.Audit, guard: guard, locker: locker})
 	}))
 }
 
@@ -42,6 +44,12 @@ type signingKeyTransaction struct {
 	reader     signingKeyMetadataLocker
 	signatures app.SignatureRepository
 	audit      app.AuditRepository
+	guard      trustConfigurationTenantGuard
+	locker     verificationapp.SigningKeyScopeLocker
+}
+
+func (t signingKeyTransaction) LockSigningKeyScope(ctx context.Context, tenant, id string) error {
+	return mapSigningKeyWriteError(t.locker.LockSigningKeyScope(ctx, tenant, id))
 }
 
 func (t signingKeyTransaction) ListLocalSigningKeysForUpdate(ctx context.Context, tenant string) ([]verificationdomain.SigningKey, error) {
@@ -61,7 +69,12 @@ func (t signingKeyTransaction) InsertSigningKey(ctx context.Context, prepared ve
 	return mapSigningKeyWriteError(t.signatures.InsertSigningKey(ctx, key))
 }
 func (t signingKeyTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	return verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, actor, request)
+	if err := verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, actor, request); err != nil {
+		return err
+	}
+	// The common writer fence must precede tenant, key and audit locks,
+	// including current-access checks before durable replay.
+	return mapSigningKeyWriteError(t.guard.LockAPIKeyCreation(ctx, actor.TenantID))
 }
 func (t signingKeyTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
 	receipt, err := appendAuditEvent(ctx, t.audit, event)

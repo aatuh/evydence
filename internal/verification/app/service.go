@@ -314,8 +314,12 @@ type SigningKeyRevocationInput struct {
 	HistoricalValidityPolicy string
 }
 
-func normalizeRevocationInput(input SigningKeyRevocationInput) (SigningKeyRevocationInput, error) {
-	input.Reason = strings.TrimSpace(input.Reason)
+func NormalizeSigningKeyRevocationInput(input SigningKeyRevocationInput) (SigningKeyRevocationInput, error) {
+	reason, err := NormalizeSigningKeyReason(input.Reason)
+	if err != nil || len(input.Semantics) > 64 || len(input.HistoricalValidityPolicy) > 64 {
+		return SigningKeyRevocationInput{}, ErrValidation
+	}
+	input.Reason = reason
 	input.Semantics = strings.TrimSpace(input.Semantics)
 	input.HistoricalValidityPolicy = strings.TrimSpace(input.HistoricalValidityPolicy)
 	if !validSigningKeyText(input.Reason) {

@@ -143,7 +143,7 @@
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
         <div class="summary-card"><strong>172</strong><span>registered paths</span></div>
         <div class="summary-card"><strong>189</strong><span>operations</span></div>
-        <div class="summary-card"><strong>392</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>393</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -2791,7 +2791,7 @@
               <div><dt>Auth</dt><dd>BearerAuth</dd></div>
               <div><dt>Scopes</dt><dd>keys:admin</dd></div>
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
-              <div><dt>Request</dt><dd>application/json: SigningKeyTransitionRequest</dd></div>
+              <div><dt>Request</dt><dd>application/json: SigningKeyRotationRequest</dd></div>
               <div><dt>Responses</dt><dd>201 application/json: SigningKeyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
@@ -5009,6 +5009,11 @@
             <td><code>SigningKeyListEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>SigningKeyRotationRequest</code></td>
+            <td>object</td>
+            <td>reason</td>
           </tr>
           <tr>
             <td><code>SigningKeyTransitionRequest</code></td>

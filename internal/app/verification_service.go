@@ -3,10 +3,30 @@ package app
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
+
+// AuthorizeSigningKeyRevocation is only the explicit local-memory replay
+// guard. Native HTTP uses the flat transactional ownership guard instead.
+func (l *Ledger) AuthorizeSigningKeyRevocation(ctx context.Context, a domain.Actor, raw string) error {
+	if err := application.AuthorizeTenantWideScope(ctx, a, ScopeKeysAdmin); err != nil {
+		return fromVerificationContextError(err)
+	}
+	id, err := verificationapp.NormalizeSigningKeyID(raw)
+	if err != nil {
+		return ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	key, ok := l.signingKeys[id]
+	if !ok || key.TenantID != a.TenantID {
+		return ErrNotFound
+	}
+	return nil
+}
 
 func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectType, subjectID string) (domain.VerificationResult, error) {
 	value, err := l.verificationCommands.VerifySubject(ctx, actor, subjectType, subjectID)

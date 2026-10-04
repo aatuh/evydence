@@ -161,7 +161,7 @@ Generated from 189 operations: 189 precise, 0 broad.
 | POST | /v1/security-documents | uploadManualSecurityDocument | Bearer | security:write | required | - | application/json:UploadManualSecurityDocumentRequest | 201:application/json:ManualSecurityDocumentEnvelope | precise | experimental |
 | POST | /v1/security-scans | uploadSecurityScan | Bearer | security:write | required | - | application/json:UploadSecurityScanRequest | 201:application/json:SecurityScanEnvelope | precise | experimental |
 | GET | /v1/signing-keys | listSigningKeys | Bearer | verify:read | - | query:cursor, query:direction, query:page_size, query:sort | - | 200:application/json:SigningKeyListEnvelope | precise | experimental |
-| POST | /v1/signing-keys/rotate | rotateSigningKey | Bearer | keys:admin | required | - | application/json:SigningKeyTransitionRequest | 201:application/json:SigningKeyEnvelope | precise | experimental |
+| POST | /v1/signing-keys/rotate | rotateSigningKey | Bearer | keys:admin | required | - | application/json:SigningKeyRotationRequest | 201:application/json:SigningKeyEnvelope | precise | experimental |
 | POST | /v1/signing-keys/{id}/revoke | revokeSigningKey | Bearer | keys:admin | required | path:id | application/json:SigningKeyTransitionRequest | 200:application/json:SigningKeyEnvelope | precise | experimental |
 | POST | /v1/signing-operations | createSigningOperation | Bearer | keys:admin | required | - | application/json:CreateSigningOperationRequest | 201:application/json:SigningOperationEnvelope | precise | experimental |
 | POST | /v1/signing-providers | createSigningProvider | Bearer | keys:admin | required | - | application/json:CreateSigningProviderRequest | 201:application/json:SigningProviderEnvelope | precise | experimental |

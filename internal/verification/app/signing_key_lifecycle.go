@@ -14,14 +14,14 @@ func (s *SigningKeyCommands) RotateSigningKey(ctx context.Context, actor identit
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.SigningKey{}, err
 	}
-	if err := validateActor(actor); err != nil {
+	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.SigningKey{}, err
 	}
 	if err := s.authorize(ctx, actor); err != nil {
 		return verificationdomain.SigningKey{}, err
 	}
-	if !validSigningKeyText(reason) {
-		return verificationdomain.SigningKey{}, ErrValidation
+	if _, err := NormalizeSigningKeyReason(reason); err != nil {
+		return verificationdomain.SigningKey{}, err
 	}
 	var rotated verificationdomain.SigningKey
 	err := s.config.Transactions.ExecuteSigningKeyCommand(ctx, func(ctx context.Context, tx SigningKeyTransaction) error {
@@ -99,15 +99,18 @@ func (s *SigningKeyCommands) RevokeSigningKey(ctx context.Context, actor identit
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.SigningKey{}, err
 	}
-	if err := validateActor(actor); err != nil {
+	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.SigningKey{}, err
 	}
 	if err := s.authorize(ctx, actor); err != nil {
 		return verificationdomain.SigningKey{}, err
 	}
-	keyID = strings.TrimSpace(keyID)
-	input, err := normalizeRevocationInput(input)
-	if !validSigningKeyText(keyID) || err != nil {
+	keyID, err := NormalizeSigningKeyID(keyID)
+	if err != nil {
+		return verificationdomain.SigningKey{}, err
+	}
+	input, err = NormalizeSigningKeyRevocationInput(input)
+	if err != nil {
 		return verificationdomain.SigningKey{}, ErrValidation
 	}
 	var revoked verificationdomain.SigningKey

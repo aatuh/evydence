@@ -3113,6 +3113,39 @@ retains in-process persistence/locking limitations. No executor means new
 operation creation is disabled with `400`. A passed operation does not verify
 uploaded artifact bytes, release security, key custody or legal compliance.
 
+### Signing-Key Lifecycle Commands
+
+`POST /v1/signing-keys/rotate` accepts only a nonblank `reason` and returns
+`201` with public key metadata. `POST /v1/signing-keys/{id}/revoke` returns
+`200` and additionally accepts `semantics` and `historical_validity_policy`.
+Their defaults remain `ordinary` and `preserve`; ordinary revocation requires
+`preserve`. Compromised keys can use `preserve`, `invalidate_from_compromise`
+or `invalidate_all`. Existing local Ed25519 formats and signature-validity
+rules are unchanged; these commands do not call an external signing provider.
+
+Both profiles reject unknown, duplicate, case-aliased or explicitly null fields,
+invalid UTF-8/NUL and over-budget input. The JSON body is capped at 64 KiB;
+raw reasons at 4096 bytes, key IDs at 1024 bytes, and policy fields at 64 bytes
+before trimming. Unsafe cookie-authenticated requests require same-origin
+protection; an explicit bearer credential takes precedence.
+
+In PostgreSQL, focused durable execution checks current tenant-wide
+`keys:admin` access before reservation and replay. Human sessions need a current
+matching tenant grant. Missing or foreign revocation keys return `404`; denied
+authority returns `403`. The common tenant writer fence precedes tenant/key/audit
+locks. Revocation replay locks a flat owned key row, without decoding lifecycle
+metadata or selecting private bytes. Guard locks remain through the enclosing
+transaction, and lifecycle changes, caller audit and successful replay commit
+together. Read, write, completion or commit failure publishes no successful
+result or partial lifecycle change.
+
+Completed retries return the original public result without generating another
+key or repeating revocation. Changed request bytes conflict with `409`.
+Replay does not assert current key validity: later key revocation, rotation or
+oversized metadata does not rewrite a historical response. Current access and
+revocation-target ownership are still required. Explicit local memory uses the
+same input rules and current access checks but retains nondurable persistence.
+
 The signing-key list pages public lifecycle metadata by tenant in PostgreSQL. It does not select encrypted private key bytes; local-memory mode retains the compatibility list and in-memory pagination. A human session must have a current tenant-level `verify:read` grant, while issued credentials use their `verify:read` scope.
 
 In the PostgreSQL profile, both release-bundle reads use a single bundle/release/product

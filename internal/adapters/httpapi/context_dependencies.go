@@ -112,6 +112,8 @@ type EvidenceBundleCommands interface {
 }
 
 type SigningKeyCommands interface {
+	AuthorizeSigningKeyRotation(context.Context, identitydomain.Actor) error
+	AuthorizeSigningKeyRevocation(context.Context, identitydomain.Actor, string) error
 	RotateSigningKey(context.Context, identitydomain.Actor, string) (verificationdomain.SigningKey, error)
 	RevokeSigningKey(context.Context, identitydomain.Actor, string, verificationapp.SigningKeyRevocationInput) (verificationdomain.SigningKey, error)
 }
@@ -641,6 +643,7 @@ type verificationService interface {
 	VerifyBackupManifest(context.Context, domain.Actor, string) (domain.VerificationResult, error)
 	ListSigningKeys(context.Context, domain.Actor) ([]domain.SigningKey, error)
 	RotateSigningKey(context.Context, domain.Actor, string) (domain.SigningKey, error)
+	AuthorizeSigningKeyRevocation(context.Context, domain.Actor, string) error
 	RevokeSigningKeyWithPolicy(context.Context, domain.Actor, string, app.SigningKeyRevocationInput) (domain.SigningKey, error)
 	CreateSigningProvider(context.Context, domain.Actor, app.CreateSigningProviderInput) (domain.SigningProvider, error)
 }

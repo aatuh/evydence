@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -11,6 +12,20 @@ import (
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
+
+// LockSigningKeyScope checks only tenant/key ownership; completed retries do
+// not decode mutable public metadata or select private signing material.
+func (r signatures) LockSigningKeyScope(ctx context.Context, tenant, raw string) error {
+	id, err := verificationapp.NormalizeSigningKeyID(raw)
+	_, tenantErr := verificationapp.NormalizeSigningKeyID(tenant)
+	if ctx == nil || r.tx == nil || err != nil || tenantErr != nil || strings.TrimSpace(tenant) != tenant {
+		return app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return requireRow(ctx, r.tx, `SELECT 1 FROM signing_keys WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenant, id)
+}
 
 // Public lifecycle fields only: private key material is never selected.
 const signingAdminColumns = `left(id,1025),left(tenant_id,1025),left(kid,1025),version,left(provider,65),left(algorithm,65),left(status,65),left(public_key,16385),left(public_key_fingerprint,1025),valid_from,valid_until,created_at,revoked_at,left(revocation_reason,4097),left(revocation_semantics,65),left(historical_validity_policy,65),compromised_at,

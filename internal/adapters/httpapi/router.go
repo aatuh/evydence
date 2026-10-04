@@ -520,6 +520,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.TrustConfigurationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused trust configuration requires durable idempotency")
 	}
+	if opts.SigningKeyCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused signing keys require durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -4058,59 +4061,6 @@ func (s *Server) listSigningKeys(w http.ResponseWriter, r *http.Request) {
 	}
 	writeCreatedAtPaginated(s, w, r, actor, "signing-keys", nil, keys, func(key domain.SigningKey) (string, time.Time) {
 		return key.ID, key.CreatedAt
-	})
-}
-
-func (s *Server) rotateSigningKey(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Reason string `json:"reason"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if len(bytes.TrimSpace(body)) > 0 {
-			if err := decodeJSON(body, &req); err != nil {
-				return 0, nil, err
-			}
-		}
-		if strings.TrimSpace(req.Reason) == "" {
-			return 0, nil, app.ErrValidation
-		}
-		if s.signingKeyCommands != nil {
-			key, err := s.signingKeyCommands.RotateSigningKey(ctx, actor, req.Reason)
-			return http.StatusCreated, signingKeyFromQuery(key), mapSigningKeyCommandError(err)
-		}
-		key, err := s.verification.RotateSigningKey(ctx, actor, req.Reason)
-		return http.StatusCreated, key, err
-	})
-}
-
-func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Reason                   string `json:"reason"`
-		Semantics                string `json:"semantics"`
-		HistoricalValidityPolicy string `json:"historical_validity_policy"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if len(bytes.TrimSpace(body)) > 0 {
-			if err := decodeJSON(body, &req); err != nil {
-				return 0, nil, err
-			}
-		}
-		if err := validateNonNullableObjectFields(body, "reason", "semantics", "historical_validity_policy"); err != nil {
-			return 0, nil, err
-		}
-		if strings.TrimSpace(req.Reason) == "" {
-			return 0, nil, app.ErrValidation
-		}
-		if s.signingKeyCommands != nil {
-			key, err := s.signingKeyCommands.RevokeSigningKey(ctx, actor, r.PathValue("id"), verificationapp.SigningKeyRevocationInput{Reason: req.Reason, Semantics: req.Semantics, HistoricalValidityPolicy: req.HistoricalValidityPolicy})
-			return http.StatusOK, signingKeyFromQuery(key), mapSigningKeyCommandError(err)
-		}
-		key, err := s.verification.RevokeSigningKeyWithPolicy(ctx, actor, r.PathValue("id"), app.SigningKeyRevocationInput{
-			Reason:                   req.Reason,
-			Semantics:                req.Semantics,
-			HistoricalValidityPolicy: req.HistoricalValidityPolicy,
-		})
-		return http.StatusOK, key, err
 	})
 }
 

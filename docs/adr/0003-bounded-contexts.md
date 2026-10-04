@@ -434,6 +434,15 @@ storage enforcement or a legal conclusion. See
 Signing-key pages use a verification-owned tenant-scoped query that selects
 only public lifecycle metadata and applies a keyset limit in PostgreSQL;
 human sessions need a current tenant-level `verify:read` grant.
+Signing-key rotation/revocation now use native durable HTTP execution, current
+tenant-wide `keys:admin` guards and atomic lifecycle/audit/replay transactions.
+The shared writer fence precedes tenant/key locks; revocation replay checks
+only a flat owned key row, not lifecycle metadata or private material. Completed
+replay neither generates keys nor changes revocation semantics, and still
+requires current authority. Explicit local memory retains nondurable storage
+and its narrow ownership guard. This does not finish broad API startup or the
+remaining command-wrapper cutover. See
+[key lifecycle commands](../api.md#signing-key-lifecycle-commands).
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 
