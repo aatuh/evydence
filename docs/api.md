@@ -2748,6 +2748,46 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### Signing Provider And DSSE Trust Configuration
+
+`POST /v1/signing-providers` records a provider type and credential-free key
+reference; it makes no provider request and does not establish key custody.
+`POST /v1/dsse-trust-roots` records an operator-supplied 32-byte Ed25519 public
+key and policy. Registration does not verify builder identity or provenance.
+Never submit private keys, passwords, tokens, or embedded reference credentials.
+
+Both operations require current tenant-wide `keys:admin` authority. Human
+sessions need a matching tenant grant; product/release grants cannot administer
+trust configuration. PostgreSQL routes use focused commands and native durable
+replay, with no Ledger read or command clone. Authorization and tenant existence
+are checked before reservation and every replay. The common tenant mutation
+fence precedes tenant/audit locks and remains held through metadata, audit, and
+successful replay commit. A same-key retry returns the original record; changed
+request bytes return `409`. Revoked grants return `403`, revoked sessions `401`,
+and missing tenant roots `404`, without creating a record or successful replay.
+Command failure can retain only a safe failed-key marker, without a result;
+replay-write and outer commit failures roll back entirely.
+
+The whole JSON body is capped at 64 KiB. Both profiles reject unknown,
+duplicate, case-aliased, explicitly null, invalid UTF-8/NUL, and over-budget
+fields before execution; trust-root arrays also reject null items. Provider
+name/type/reference and trust-root name/algorithm are bounded at 4096 raw UTF-8
+bytes before trimming; trust-root key ID is bounded at 1024 bytes and its base64
+public key at 128 bytes. Provider types and trust-policy values are enumerated
+in OpenAPI. `encrypted` remains optional (default `false`); local encrypted
+development and native PKCS#11 types require it to be `true`.
+
+The three trust-policy lists share a raw budget of 4096 entries and 1 MiB of
+UTF-8 text, with 4096 bytes per entry; the smaller HTTP body limit still applies.
+Existing trimming and sorting are preserved; normalized lists must be nonempty
+and contain no blank or duplicate values. Newly rejected oversized
+whitespace-padded scalars, aliases, and null array items are malformed-input
+compatibility restrictions, not stored-record or schema changes. Unsafe
+cookie-authenticated requests require a matching HTTPS origin; explicit bearer
+credentials retain precedence. Local memory shares validation and current
+tenant-admin checks but retains nondurable replay. Broad API startup and other
+unmigrated operations still depend on Ledger; EVY-905 is not complete.
+
 ### Public Transparency Metadata
 
 `POST /v1/public-transparency-logs` and `POST /v1/public-transparency-log-entries`

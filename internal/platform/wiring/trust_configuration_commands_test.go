@@ -6,7 +6,9 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
@@ -16,6 +18,112 @@ import (
 
 func wiringTrustRootInput() verificationapp.CreateDSSETrustRootInput {
 	return verificationapp.CreateDSSETrustRootInput{Name: "Builder", KeyID: "builder-key", Algorithm: "Ed25519", PublicKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"https://ci.example.test/builder"}, RequiredClaims: []string{"external_parameters", "builder_id"}}
+}
+
+func TestPostgresTrustConfigurationGuardRequiresCurrentTenantWithoutEffects(t *testing.T) {
+	store, p := openHTMLReportWiringStore(t)
+	if _, err := p.Exec(t.Context(), `INSERT INTO tenants(id,name)VALUES('tenant','Tenant')`); err != nil {
+		t.Fatal(err)
+	}
+	c, err := BuildTrustConfigurationCommands(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := identitydomain.Actor{TenantID: "missing", KeyID: "key", Scopes: []string{"keys:admin"}}
+	if err := c.AuthorizeTrustConfiguration(t.Context(), a); !errors.Is(err, verificationapp.ErrNotFound) {
+		t.Fatal("missing tenant authorized replay", err)
+	}
+	a.TenantID = "tenant"
+	if err := c.AuthorizeTrustConfiguration(t.Context(), a); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := p.QueryRow(t.Context(), `SELECT(SELECT count(*)FROM signing_providers)+(SELECT count(*)FROM dsse_trust_roots)+(SELECT count(*)FROM audit_chain_entries)+(SELECT count(*)FROM idempotency_records)`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("replay guard generated metadata", count, err)
+	}
+}
+
+func TestPostgresTrustConfigurationFencePrecedesTenantLock(t *testing.T) {
+	for _, stage := range []string{"guard", "provider", "root"} {
+		t.Run(stage, func(t *testing.T) {
+			store, p := openHTMLReportWiringStore(t)
+			if _, err := p.Exec(t.Context(), `INSERT INTO tenants(id,name)VALUES('tenant','Tenant')`); err != nil {
+				t.Fatal(err)
+			}
+			c, err := BuildTrustConfigurationCommands(store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			leader, err := p.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = leader.Rollback(context.WithoutCancel(ctx)) }()
+			if err := coordination.LockWorkerProjection(ctx, leader, "tenant"); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() {
+				a := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"keys:admin"}}
+				var err error
+				switch stage {
+				case "guard":
+					err = c.AuthorizeTrustConfiguration(ctx, a)
+				case "provider":
+					_, err = c.CreateSigningProvider(ctx, a, verificationapp.CreateSigningProviderInput{Name: "KMS", Type: "aws_kms", KeyRef: "key"})
+				case "root":
+					_, err = c.CreateDSSETrustRoot(ctx, a, wiringTrustRootInput())
+				}
+				done <- err
+			}()
+			ticker := time.NewTicker(5 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case err := <-done:
+					t.Fatal("trust command bypassed tenant fence", err)
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				case <-ticker.C:
+					var blocked bool
+					if err := p.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND $1=ANY(pg_blocking_pids(pid)))`, leader.Conn().PgConn().PID()).Scan(&blocked); err != nil {
+						t.Fatal(err)
+					}
+					if !blocked {
+						continue
+					}
+					if _, err := leader.Exec(ctx, `SELECT id FROM tenants WHERE id='tenant'FOR UPDATE NOWAIT`); err != nil {
+						t.Fatal("tenant lock preceded writer fence", err)
+					}
+					if err := leader.Commit(ctx); err != nil {
+						t.Fatal(err)
+					}
+					select {
+					case err := <-done:
+						if err != nil {
+							t.Fatal(err)
+						}
+					case <-ctx.Done():
+						t.Fatal("trust command did not resume", ctx.Err())
+					}
+					var count int
+					if err := p.QueryRow(ctx, `SELECT(SELECT count(*)FROM signing_providers)+(SELECT count(*)FROM dsse_trust_roots)+(SELECT count(*)FROM audit_chain_entries)`).Scan(&count); err != nil {
+						t.Fatal(err)
+					}
+					want := 2
+					if stage == "guard" {
+						want = 0
+					}
+					if count != want {
+						t.Fatal("fenced command changed wrong records", count)
+					}
+					return
+				}
+			}
+		})
+	}
 }
 func TestPostgresTrustConfigurationCommandsPersistAtomicallyAndReplay(t *testing.T) {
 	store, pool := openHTMLReportWiringStore(t)

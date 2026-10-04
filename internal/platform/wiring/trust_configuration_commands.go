@@ -25,16 +25,22 @@ type trustConfigurationTransactions struct{ factory app.UnitOfWorkFactory }
 
 func (t trustConfigurationTransactions) ExecuteTrustConfigurationCommand(ctx context.Context, command func(context.Context, verificationapp.TrustConfigurationTransaction) error) error {
 	return mapSigningKeyWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
-		if repos.Integrity == nil || repos.Audit == nil {
+		guard, ok := repos.Identity.(trustConfigurationTenantGuard)
+		if !ok || repos.Integrity == nil || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, trustConfigurationTransaction{repos.Integrity, repos.Audit})
+		return command(ctx, trustConfigurationTransaction{integrity: repos.Integrity, audit: repos.Audit, guard: guard})
 	}))
+}
+
+type trustConfigurationTenantGuard interface {
+	LockAPIKeyCreation(context.Context, string) error
 }
 
 type trustConfigurationTransaction struct {
 	integrity app.IntegrityRepository
 	audit     app.AuditRepository
+	guard     trustConfigurationTenantGuard
 }
 
 func (t trustConfigurationTransaction) InsertSigningProvider(ctx context.Context, provider verificationdomain.SigningProvider) error {
@@ -44,7 +50,13 @@ func (t trustConfigurationTransaction) InsertDSSETrustRoot(ctx context.Context, 
 	return mapSigningKeyWriteError(t.integrity.InsertDSSETrustRoot(ctx, domain.DSSETrustRootFromContextModel(root)))
 }
 func (t trustConfigurationTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	return verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, actor, request)
+	if err := verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, actor, request); err != nil {
+		return err
+	}
+	// Reuse only Identity's tenant-existence/mutation guard, not credential
+	// inventories. The common writer fence precedes tenant and audit locks;
+	// the enclosing durable unit of work holds it through replay/commit.
+	return mapSigningKeyWriteError(t.guard.LockAPIKeyCreation(ctx, actor.TenantID))
 }
 func (t trustConfigurationTransaction) AppendAudit(ctx context.Context, event application.AuditEvent) (application.AuditReceipt, error) {
 	receipt, err := appendAuditEvent(ctx, t.audit, event)

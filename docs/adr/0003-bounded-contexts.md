@@ -382,6 +382,17 @@ Governance framework pages, control points, and the static starter-template
 catalog use risk-owned queries. Template listing does not read tenant state;
 the installation command remains on the compatibility Ledger path. A
 control must resolve to a framework in the same tenant before it is returned.
+Signing-provider and DSSE trust-root creation now use Verification-owned
+commands with current tenant-wide administration before native durable replay.
+The Identity adapter supplies only a tenant-existence/mutation guard: the
+common tenant writer fence precedes tenant/audit locks and survives through
+metadata, audit and replay commit. These routes never clone or read Ledger,
+load credential inventories, or contact a signing provider. Both runtime
+profiles share strict bounded decoding and public-metadata normalization;
+explicit local memory retains nondurable replay. Registration establishes
+neither key custody nor authenticated builder identity. Broad API startup
+and other compatibility-backed operations remain EVY-905 work. See
+[trust configuration](../api.md#signing-provider-and-dsse-trust-configuration).
 Signing-key pages use a verification-owned tenant-scoped query that selects
 only public lifecycle metadata and applies a keyset limit in PostgreSQL;
 human sessions need a current tenant-level `verify:read` grant.

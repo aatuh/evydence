@@ -50,6 +50,24 @@ func NewTrustConfigurationCommands(config TrustConfigurationConfig) (*TrustConfi
 func (s *TrustConfigurationCommands) authorize(ctx context.Context, actor identitydomain.Actor) error {
 	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true})
 }
+
+// AuthorizeTrustConfiguration checks current tenant-wide authority before
+// durable reservation or replay, without generating metadata or audit entries.
+// A native transaction keeps the tenant fence/root lock until outer commit.
+func (s *TrustConfigurationCommands) AuthorizeTrustConfiguration(ctx context.Context, actor identitydomain.Actor) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateActor(actor); err != nil {
+		return err
+	}
+	if err := s.authorize(ctx, actor); err != nil {
+		return err
+	}
+	return s.transactions.ExecuteTrustConfigurationCommand(ctx, func(ctx context.Context, tx TrustConfigurationTransaction) error {
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true})
+	})
+}
 func (s *TrustConfigurationCommands) auditEvent(actor identitydomain.Actor, at time.Time, kind, subject, id string) application.AuditEvent {
 	return application.AuditEvent{ID: s.ids.NewID("ace"), TenantID: actor.TenantID, EntryType: kind, SubjectType: subject, SubjectID: id, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: at.UTC()}
 }
@@ -96,6 +114,21 @@ type CreateSigningProviderInput struct {
 	Encrypted bool
 }
 
+// NormalizeSigningProviderInput bounds raw operator input before trimming it.
+// Provider references are metadata, never embedded credential material.
+func NormalizeSigningProviderInput(input CreateSigningProviderInput) (CreateSigningProviderInput, error) {
+	if !validRetentionText(input.Name, 4096) || !validRetentionText(input.Type, 4096) || !validRetentionText(input.KeyRef, 4096) {
+		return CreateSigningProviderInput{}, ErrValidation
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	input.Type = strings.TrimSpace(input.Type)
+	input.KeyRef = strings.TrimSpace(input.KeyRef)
+	if !validSigningProviderInput(input) {
+		return CreateSigningProviderInput{}, ErrValidation
+	}
+	return input, nil
+}
+
 func (s *TrustConfigurationCommands) CreateSigningProvider(ctx context.Context, actor identitydomain.Actor, input CreateSigningProviderInput) (verificationdomain.SigningProvider, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.SigningProvider{}, err
@@ -106,11 +139,9 @@ func (s *TrustConfigurationCommands) CreateSigningProvider(ctx context.Context, 
 	if err := s.authorize(ctx, actor); err != nil {
 		return verificationdomain.SigningProvider{}, err
 	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.Type = strings.TrimSpace(input.Type)
-	input.KeyRef = strings.TrimSpace(input.KeyRef)
-	if !validSigningProviderInput(input) {
-		return verificationdomain.SigningProvider{}, ErrValidation
+	input, err := NormalizeSigningProviderInput(input)
+	if err != nil {
+		return verificationdomain.SigningProvider{}, err
 	}
 	now := s.clock.Now().UTC()
 	provider := verificationdomain.SigningProvider{
@@ -118,7 +149,7 @@ func (s *TrustConfigurationCommands) CreateSigningProvider(ctx context.Context, 
 		Status: "active", KeyRef: input.KeyRef, Encrypted: input.Encrypted,
 		SchemaVersion: verificationdomain.SigningProviderSchemaVersion, CreatedAt: now,
 	}
-	err := s.transactions.ExecuteTrustConfigurationCommand(ctx, func(ctx context.Context, tx TrustConfigurationTransaction) error {
+	err = s.transactions.ExecuteTrustConfigurationCommand(ctx, func(ctx context.Context, tx TrustConfigurationTransaction) error {
 		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
 			return err
 		}
@@ -144,6 +175,25 @@ type CreateDSSETrustRootInput struct {
 	RequiredClaims        []string
 }
 
+// NormalizeDSSETrustRootInput preserves sorted, unique public policy
+// metadata, while enforcing combined raw policy budgets before allocation.
+func NormalizeDSSETrustRootInput(input CreateDSSETrustRootInput) (CreateDSSETrustRootInput, error) {
+	if !validRetentionText(input.Name, 4096) || !validRetentionText(input.KeyID, 1024) || !validRetentionText(input.Algorithm, 4096) || !validRetentionText(input.PublicKey, 128) || !boundedTrustPolicy(input) {
+		return CreateDSSETrustRootInput{}, ErrValidation
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	input.KeyID = strings.TrimSpace(input.KeyID)
+	input.Algorithm = strings.TrimSpace(input.Algorithm)
+	input.PublicKey = strings.TrimSpace(input.PublicKey)
+	input.AllowedPredicateTypes = sortedTrimmedStrings(input.AllowedPredicateTypes)
+	input.ExpectedBuilderIDs = sortedTrimmedStrings(input.ExpectedBuilderIDs)
+	input.RequiredClaims = sortedTrimmedStrings(input.RequiredClaims)
+	if !validDSSETrustRootInput(input) {
+		return CreateDSSETrustRootInput{}, ErrValidation
+	}
+	return input, nil
+}
+
 func (s *TrustConfigurationCommands) CreateDSSETrustRoot(ctx context.Context, actor identitydomain.Actor, input CreateDSSETrustRootInput) (verificationdomain.DSSETrustRoot, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.DSSETrustRoot{}, err
@@ -154,18 +204,9 @@ func (s *TrustConfigurationCommands) CreateDSSETrustRoot(ctx context.Context, ac
 	if err := s.authorize(ctx, actor); err != nil {
 		return verificationdomain.DSSETrustRoot{}, err
 	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.KeyID = strings.TrimSpace(input.KeyID)
-	input.Algorithm = strings.TrimSpace(input.Algorithm)
-	input.PublicKey = strings.TrimSpace(input.PublicKey)
-	if !boundedTrustPolicy(input) {
-		return verificationdomain.DSSETrustRoot{}, ErrValidation
-	}
-	input.AllowedPredicateTypes = sortedTrimmedStrings(input.AllowedPredicateTypes)
-	input.ExpectedBuilderIDs = sortedTrimmedStrings(input.ExpectedBuilderIDs)
-	input.RequiredClaims = sortedTrimmedStrings(input.RequiredClaims)
-	if !validDSSETrustRootInput(input) {
-		return verificationdomain.DSSETrustRoot{}, ErrValidation
+	input, err := NormalizeDSSETrustRootInput(input)
+	if err != nil {
+		return verificationdomain.DSSETrustRoot{}, err
 	}
 	now := s.clock.Now().UTC()
 	root := verificationdomain.DSSETrustRoot{
@@ -175,7 +216,7 @@ func (s *TrustConfigurationCommands) CreateDSSETrustRoot(ctx context.Context, ac
 		ExpectedBuilderIDs:    append([]string(nil), input.ExpectedBuilderIDs...), RequiredClaims: append([]string(nil), input.RequiredClaims...),
 		Status: "active", SchemaVersion: verificationdomain.DSSETrustRootSchemaVersion, CreatedAt: now,
 	}
-	err := s.transactions.ExecuteTrustConfigurationCommand(ctx, func(ctx context.Context, tx TrustConfigurationTransaction) error {
+	err = s.transactions.ExecuteTrustConfigurationCommand(ctx, func(ctx context.Context, tx TrustConfigurationTransaction) error {
 		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
 			return err
 		}

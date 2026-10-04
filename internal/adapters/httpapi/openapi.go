@@ -707,12 +707,14 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"semantics":                  map[string]any{"type": "string", "enum": []string{"ordinary", "compromised"}},
 		"historical_validity_policy": map[string]any{"type": "string", "enum": []string{"preserve", "invalidate_from_compromise", "invalidate_all"}},
 	}, "reason"))
-	registry.RegisterSchema("CreateSigningProviderRequest", objectSchema(map[string]any{
-		"name":      map[string]any{"type": "string"},
-		"type":      map[string]any{"type": "string"},
-		"key_ref":   map[string]any{"type": "string"},
+	createSigningProviderRequest := objectSchema(map[string]any{
+		"name":      map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Nonblank name; raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
+		"type":      map[string]any{"type": "string", "enum": []string{"local_encrypted_dev", "aws_kms", "gcp_kms", "azure_key_vault", "pkcs11_hsm", "native_pkcs11_hsm"}, "maxLength": 4096, "description": "Supported provider type; raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
+		"key_ref":   map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Nonblank key reference, never embedded credentials; raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
 		"encrypted": map[string]any{"type": "boolean"},
-	}, "name", "type", "key_ref"))
+	}, "name", "type", "key_ref")
+	createSigningProviderRequest["description"] = "Records signing-provider metadata only; does not contact a provider or establish key custody. PostgreSQL uses a focused durable command without Ledger replay. Current tenant-wide keys:admin authority is checked before reservation and replay; human sessions need a matching tenant grant. The tenant mutation fence precedes tenant/audit locks, and metadata, audit and successful replay commit together. Same-key replay returns the original result; changed request bytes conflict. Both runtime profiles reject unknown, duplicate, case-aliased, explicitly null, invalid UTF-8/NUL or over-budget fields before command execution; the entire JSON body is capped at 64 KiB. Unsafe cookie-authenticated mutations require same-origin protection. Local memory keeps its explicit nondurable compatibility binding."
+	registry.RegisterSchema("CreateSigningProviderRequest", createSigningProviderRequest)
 	registry.RegisterSchema("SigningProvider", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},
 		"tenant_id":      map[string]any{"type": "string"},
@@ -847,15 +849,17 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":          map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "build_id", "evidence_id", "payload_hash", "payload_size", "payload_type", "predicate_type", "subject_digests", "signature_count", "verification_status", "schema_version", "created_at"))
 	registry.RegisterSchema("BuildAttestationEnvelope", dataEnvelopeSchema("#/components/schemas/BuildAttestation"))
-	registry.RegisterSchema("CreateDSSETrustRootRequest", objectSchema(map[string]any{
-		"name":                    map[string]any{"type": "string"},
-		"key_id":                  map[string]any{"type": "string"},
-		"algorithm":               map[string]any{"type": "string", "enum": []string{"Ed25519"}},
-		"public_key":              map[string]any{"type": "string", "description": "Base64-encoded Ed25519 public key."},
-		"allowed_predicate_types": map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "enum": []string{"https://slsa.dev/provenance/v1"}}},
-		"expected_builder_ids":    map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "minLength": 1}},
-		"required_claims":         map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string", "enum": []string{"builder_id", "build_type", "external_parameters"}}},
-	}, "name", "key_id", "algorithm", "public_key", "allowed_predicate_types", "expected_builder_ids", "required_claims"))
+	createDSSETrustRootRequest := objectSchema(map[string]any{
+		"name":                    map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Nonblank name; raw NUL-free UTF-8 is capped at 4096 bytes before trimming."},
+		"key_id":                  map[string]any{"type": "string", "minLength": 1, "maxLength": 1024, "description": "Nonblank tenant-local key ID; raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
+		"algorithm":               map[string]any{"type": "string", "enum": []string{"Ed25519"}, "maxLength": 4096},
+		"public_key":              map[string]any{"type": "string", "maxLength": 128, "description": "Base64-encoded 32-byte Ed25519 public key; raw NUL-free UTF-8 is capped at 128 bytes before trimming."},
+		"allowed_predicate_types": map[string]any{"type": "array", "minItems": 1, "maxItems": verificationapp.MaxTrustPolicyEntries, "uniqueItems": true, "items": map[string]any{"type": "string", "maxLength": 4096, "enum": []string{"https://slsa.dev/provenance/v1"}}},
+		"expected_builder_ids":    map[string]any{"type": "array", "minItems": 1, "maxItems": verificationapp.MaxTrustPolicyEntries, "uniqueItems": true, "items": map[string]any{"type": "string", "minLength": 1, "maxLength": 4096}},
+		"required_claims":         map[string]any{"type": "array", "minItems": 1, "maxItems": verificationapp.MaxTrustPolicyEntries, "uniqueItems": true, "items": map[string]any{"type": "string", "maxLength": 4096, "enum": []string{"builder_id", "build_type", "external_parameters"}}},
+	}, "name", "key_id", "algorithm", "public_key", "allowed_predicate_types", "expected_builder_ids", "required_claims")
+	createDSSETrustRootRequest["description"] = "Records an operator-supplied public key and DSSE policy, not verified builder identity or provenance. PostgreSQL uses a focused durable command without Ledger replay, checks current tenant-wide keys:admin authority before reservation/replay, and holds the tenant mutation fence/root lock through metadata/audit/replay commit. Human sessions need a matching tenant grant. Raw NUL-free UTF-8 policy entries are capped at 4096 bytes each, with a combined 4096 entries and 1 MiB across all three lists before trimming and sorting. Each normalized list must be nonempty and contain no blank or duplicate values; accepted surrounding whitespace retains its existing normalization. The whole JSON body is capped at 64 KiB. Unknown, duplicate, case-aliased, explicitly null fields and null array items fail validation before command execution. Same-key replay returns the original record; changed request bytes conflict. Unsafe cookie-authenticated mutations require same-origin protection. Local memory retains its explicit nondurable compatibility binding."
+	registry.RegisterSchema("CreateDSSETrustRootRequest", createDSSETrustRootRequest)
 	registry.RegisterSchema("DSSETrustRoot", objectSchema(map[string]any{
 		"id":                      map[string]any{"type": "string"},
 		"tenant_id":               map[string]any{"type": "string"},

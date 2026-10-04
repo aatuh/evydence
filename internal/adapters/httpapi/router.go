@@ -372,7 +372,8 @@ type ServerOptions struct {
 	SigningCustodyQuery SigningCustodyQuery
 	// RetentionCommands atomically persists durable retention intent and observations.
 	RetentionCommands RetentionCommands
-	// TrustConfigurationCommands creates tenant-owned provider metadata and public trust roots.
+	// TrustConfigurationCommands creates tenant-owned provider metadata and public
+	// trust roots. It requires DurableCommandExecutor, never Ledger replay.
 	TrustConfigurationCommands TrustConfigurationCommands
 	// ReleaseSecuritySummaryQuery reads one committed report snapshot.
 	ReleaseSecuritySummaryQuery ReleaseSecuritySummaryQuery
@@ -511,6 +512,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	}
 	if opts.SigningOperationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused signing operations require durable idempotency")
+	}
+	if opts.TrustConfigurationCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused trust configuration requires durable idempotency")
 	}
 	if opts.SaaSProfileCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SaaS profiles require durable idempotency")
@@ -1728,32 +1732,6 @@ func (s *Server) verifyBuildAttestationSignature(w http.ResponseWriter, r *http.
 		}
 		result, err := s.verification.VerifyDSSEAttestationSignature(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, result, err
-	})
-}
-
-func (s *Server) createDSSETrustRoot(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name                  string   `json:"name"`
-		KeyID                 string   `json:"key_id"`
-		Algorithm             string   `json:"algorithm"`
-		PublicKey             string   `json:"public_key"`
-		AllowedPredicateTypes []string `json:"allowed_predicate_types"`
-		ExpectedBuilderIDs    []string `json:"expected_builder_ids"`
-		RequiredClaims        []string `json:"required_claims"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body, "name", "key_id", "algorithm", "public_key", "allowed_predicate_types", "expected_builder_ids", "required_claims"); err != nil {
-			return 0, nil, err
-		}
-		if s.trustConfigurationCommands != nil {
-			root, err := s.trustConfigurationCommands.CreateDSSETrustRoot(ctx, actor, verificationapp.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey, AllowedPredicateTypes: req.AllowedPredicateTypes, ExpectedBuilderIDs: req.ExpectedBuilderIDs, RequiredClaims: req.RequiredClaims})
-			return http.StatusCreated, domain.DSSETrustRootFromContextModel(root), mapSigningKeyCommandError(err)
-		}
-		root, err := s.verification.CreateDSSETrustRoot(ctx, actor, app.CreateDSSETrustRootInput{Name: req.Name, KeyID: req.KeyID, Algorithm: req.Algorithm, PublicKey: req.PublicKey, AllowedPredicateTypes: req.AllowedPredicateTypes, ExpectedBuilderIDs: req.ExpectedBuilderIDs, RequiredClaims: req.RequiredClaims})
-		return http.StatusCreated, root, err
 	})
 }
 
@@ -4185,29 +4163,6 @@ func (s *Server) revokeSigningKey(w http.ResponseWriter, r *http.Request) {
 			HistoricalValidityPolicy: req.HistoricalValidityPolicy,
 		})
 		return http.StatusOK, key, err
-	})
-}
-
-func (s *Server) createSigningProvider(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name      string `json:"name"`
-		Type      string `json:"type"`
-		KeyRef    string `json:"key_ref"`
-		Encrypted bool   `json:"encrypted"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body, "name", "type", "key_ref", "encrypted"); err != nil {
-			return 0, nil, err
-		}
-		if s.trustConfigurationCommands != nil {
-			provider, err := s.trustConfigurationCommands.CreateSigningProvider(ctx, actor, verificationapp.CreateSigningProviderInput{Name: req.Name, Type: req.Type, KeyRef: req.KeyRef, Encrypted: req.Encrypted})
-			return http.StatusCreated, domain.SigningProviderFromContextModel(provider), mapSigningKeyCommandError(err)
-		}
-		provider, err := s.verification.CreateSigningProvider(ctx, actor, app.CreateSigningProviderInput{Name: req.Name, Type: req.Type, KeyRef: req.KeyRef, Encrypted: req.Encrypted})
-		return http.StatusCreated, provider, err
 	})
 }
 

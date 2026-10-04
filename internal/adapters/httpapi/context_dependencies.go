@@ -121,6 +121,7 @@ type RetentionCommands interface {
 }
 
 type TrustConfigurationCommands interface {
+	AuthorizeTrustConfiguration(context.Context, identitydomain.Actor) error
 	CreateSigningProvider(context.Context, identitydomain.Actor, verificationapp.CreateSigningProviderInput) (verificationdomain.SigningProvider, error)
 	CreateDSSETrustRoot(context.Context, identitydomain.Actor, verificationapp.CreateDSSETrustRootInput) (verificationdomain.DSSETrustRoot, error)
 }
