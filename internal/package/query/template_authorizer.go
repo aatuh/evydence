@@ -25,6 +25,12 @@ func NewQuestionnaireTemplateAuthorizer() application.Authorizer {
 	return tenantWideCommandAuthorizer{scope: "package:write"}
 }
 
+// Redaction profiles define tenant-wide package policy; a product or release
+// grant alone cannot create policy definitions for the whole tenant.
+func NewRedactionProfileAuthorizer() application.Authorizer {
+	return tenantWideCommandAuthorizer{scope: "package:write"}
+}
+
 type tenantWideCommandAuthorizer struct{ scope string }
 
 func (a tenantWideCommandAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {

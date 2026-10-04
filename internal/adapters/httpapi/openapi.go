@@ -1199,13 +1199,15 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"created_at":     map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "repository", "digest", "schema_version", "created_at"))
 	registry.RegisterSchema("ContainerImageEnvelope", dataEnvelopeSchema("#/components/schemas/ContainerImage"))
-	registry.RegisterSchema("CreateRedactionProfileRequest", objectSchema(map[string]any{
-		"name":            map[string]any{"type": "string"},
-		"description":     map[string]any{"type": "string"},
-		"preset":          map[string]any{"type": "string", "enum": []string{"customer_safe", "security_review"}, "description": "Optional standard profile preset. When set, allowed_types and excluded_fields are server-defined and must be omitted."},
-		"allowed_types":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-		"excluded_fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-	}))
+	redactionProfileRequest := objectSchema(map[string]any{
+		"name":            map[string]any{"type": "string", "maxLength": packageapp.MaxRedactionProfileTextBytes},
+		"description":     map[string]any{"type": "string", "maxLength": packageapp.MaxRedactionProfileTextBytes},
+		"preset":          map[string]any{"type": "string", "maxLength": packageapp.MaxRedactionProfileTextBytes, "enum": []string{"customer_safe", "security_review"}, "description": "Optional standard profile preset. When set, allowed_types and excluded_fields are server-defined and must be omitted."},
+		"allowed_types":   map[string]any{"type": "array", "maxItems": packageapp.MaxRedactionProfileEntries, "items": map[string]any{"type": "string", "maxLength": packageapp.MaxRedactionProfileEntryBytes}},
+		"excluded_fields": map[string]any{"type": "array", "maxItems": packageapp.MaxRedactionProfileEntries, "items": map[string]any{"type": "string", "maxLength": packageapp.MaxRedactionProfileEntryBytes}},
+	})
+	redactionProfileRequest["description"] = "New profiles require a supported preset or a nonblank name and nonempty allowed_types. Raw name, description, and preset are limited to 65536 UTF-8 bytes before trimming; each allow/exclude entry to 1024 bytes, and each array to 1024 entries before deduplication. NUL and malformed UTF-8 are rejected. Normalized types are sorted and deduplicated; blank excluded_fields are discarded. Unknown type/field names remain metadata, not additional permission. Requests retain the 64 KiB JSON body limit. Duplicate/case-aliased keys and explicit null fields/items are rejected. Historical profile responses are not restricted by these creation bounds."
+	registry.RegisterSchema("CreateRedactionProfileRequest", redactionProfileRequest)
 	registry.RegisterSchema("RedactionProfile", objectSchema(map[string]any{
 		"id":              map[string]any{"type": "string"},
 		"tenant_id":       map[string]any{"type": "string"},

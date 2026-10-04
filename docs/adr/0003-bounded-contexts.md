@@ -9,6 +9,17 @@ legacy-facade retirement remain assigned to EVY-905 and EVY-906.
 
 ## Context
 
+Package-owned `RedactionProfileCommands` now creates tenant-wide redaction
+definitions through flat insert/audit ports. PostgreSQL wiring fences and locks
+only the actor's tenant identity, joins the durable replay transaction, and
+does not read existing profiles, evidence, manifests, or signing material.
+Current tenant-wide package-write authority is checked before replay. The local
+Package service delegates to the same preset, normalization, and record rules;
+its broad transaction adapter is compatibility-only. Customer-package creation,
+archive download, and broad API startup remain separate EVY-905 work. See
+[profile creation](../api.md#redaction-profile-creation) for bounds and malformed
+request compatibility limits.
+
 Experimental-owned `SaaSProfileCommands` records configuration intent using
 flat two-tenant-key, insert and audit ports, with exact instance authority.
 The composition root binds current roots, actor-tenant projection fencing and

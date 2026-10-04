@@ -2370,6 +2370,45 @@ token hashes, and internal decision notes. Redaction profiles can be created
 from explicit `allowed_types` or the `customer_safe` / `security_review`
 presets; preset policy fields cannot be overridden in the create request.
 
+### Redaction Profile Creation
+
+`POST /v1/redaction-profiles` requires `package:write` and an `Idempotency-Key`.
+Human sessions need a current tenant-wide grant; product/release grants alone
+cannot create tenant-wide policy. Use a `customer_safe` or `security_review`
+preset, or supply a nonblank `name` and nonempty `allowed_types`. Presets retain
+their server-owned names, descriptions, allowlists, and excluded fields.
+Nonempty `allowed_types`/`excluded_fields` cannot override a preset.
+
+Both profiles validate raw, NUL-free UTF-8 before trimming or deduplication:
+
+- `name`, `description`, and `preset`: at most 65536 bytes each.
+- `allowed_types` and `excluded_fields`: at most 1024 submitted entries each,
+  with at most 1024 bytes per entry.
+- HTTP JSON body: the existing 64 KiB limit; newly encoded profile records:
+  at most 4 MiB. OpenAPI character limits do not replace UTF-8 byte limits.
+
+Allowed types are trimmed, sorted, and deduplicated; blank allowed types fail
+validation. Excluded fields are also trimmed, sorted, and deduplicated, with
+blank entries discarded. Unknown type and field names remain metadata, not new
+authorization or proof that a customer export is safe.
+
+Malformed/non-object JSON, duplicate or case-aliased keys, null fields/items,
+unknown fields, invalid text, and exceeded bounds return `400`. Some malformed
+values previously decoded as omissions are now rejected. Cookie mutations
+require a same-host HTTPS Origin; bearer credentials retain precedence.
+The established snake_case response and omitted empty optional fields remain.
+Creation timestamps use PostgreSQL's microsecond precision. Existing profiles
+are neither rewritten nor constrained by these new creation rules.
+
+PostgreSQL creation uses a focused command with no evidence, manifest, signing,
+or existing-profile read port. It locks the current tenant identity under the
+shared writer/audit fence. Profile, audit, and durable replay writes commit in
+one transaction; insert, audit, or commit failure returns no successful profile.
+Replay rechecks current package-write authority and tenant existence, returns
+the original result without duplicating effects, and rejects changed request
+content with `409`. Local memory shares policy rules and current replay
+authorization but retains its documented nondurable storage limitation.
+
 ### PDF Report Packaging
 
 `POST /v1/reports/pdf` requires `report:read`, an `Idempotency-Key`, nonblank

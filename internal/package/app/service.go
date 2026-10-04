@@ -180,36 +180,11 @@ var redactionProfilePresets = map[string]redactionProfilePreset{
 }
 
 func (s *Service) CreateRedactionProfile(ctx context.Context, actor identitydomain.Actor, input CreateRedactionProfileInput) (packagedomain.RedactionProfile, error) {
-	if err := contextError(ctx); err != nil {
-		return packagedomain.RedactionProfile{}, err
-	}
-	if err := validateActor(actor); err != nil {
-		return packagedomain.RedactionProfile{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopePackageWrite, application.ResourceReferences{}, true); err != nil {
-		return packagedomain.RedactionProfile{}, err
-	}
-	normalized, err := normalizeRedactionProfileInput(input)
+	commands, err := NewRedactionProfileCommands(RedactionProfileCommandConfig{Transactions: serviceRedactionTransactions{s.transactions}, Authorizer: s.authorizer, Clock: s.clock, IDs: s.ids})
 	if err != nil {
 		return packagedomain.RedactionProfile{}, err
 	}
-	now := s.clock.Now().UTC()
-	profile := packagedomain.RedactionProfile{
-		ID: s.ids.NewID("rp"), TenantID: actor.TenantID, Name: normalized.Name, Description: normalized.Description,
-		AllowedTypes: normalized.AllowedTypes, ExcludedFields: normalized.ExcludedFields,
-		SchemaVersion: packagedomain.RedactionProfileSchemaVersion, CreatedAt: now,
-	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Packages().InsertRedactionProfile(ctx, profile); err != nil {
-			return err
-		}
-		_, err := tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "redaction_profile.created", "redaction_profile", profile.ID, ""))
-		return err
-	})
-	if err != nil {
-		return packagedomain.RedactionProfile{}, err
-	}
-	return cloneRedactionProfile(profile), nil
+	return commands.CreateRedactionProfile(ctx, actor, input)
 }
 
 type CreateCustomerPackageInput struct {

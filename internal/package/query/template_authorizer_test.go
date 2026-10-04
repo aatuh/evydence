@@ -36,16 +36,22 @@ func TestQTemplateAuthorizerRequiresTenantWideWriteGrant(t *testing.T) {
 	} {
 		t.Run(tc.kind+tc.id+tc.scope, func(t *testing.T) {
 			a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"package:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: tc.kind, ResourceID: tc.id, Scopes: []string{tc.scope}}}}
-			err := NewQuestionnaireTemplateAuthorizer().Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "package:write", TenantWide: true})
-			if tc.allowed && err != nil || !tc.allowed && !errors.Is(err, application.ErrForbidden) {
-				t.Fatal("incorrect template authority", err)
+			for _, authorizer := range []application.Authorizer{NewQuestionnaireTemplateAuthorizer(), NewRedactionProfileAuthorizer()} {
+				for _, request := range []application.AuthorizationRequest{{Scope: "package:write", TenantWide: true}, {Scope: "package:write", ScopeOnly: true}} {
+					err := authorizer.Authorize(t.Context(), a, request)
+					if tc.allowed && err != nil || !tc.allowed && !errors.Is(err, application.ErrForbidden) {
+						t.Fatal("incorrect tenant-wide package authority", err)
+					}
+				}
 			}
 		})
 	}
 	a := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"package:write"}}
 	for _, r := range []application.AuthorizationRequest{{Scope: "report:read", TenantWide: true}, {Scope: "package:write", TenantWide: true, Resources: application.ResourceReferences{ProductID: "p"}}, {Scope: "package:write"}} {
-		if err := NewQuestionnaireTemplateAuthorizer().Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
-			t.Fatal("invalid authorization coordinates accepted", err)
+		for _, authorizer := range []application.Authorizer{NewQuestionnaireTemplateAuthorizer(), NewRedactionProfileAuthorizer()} {
+			if err := authorizer.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
+				t.Fatal("invalid authorization coordinates accepted", err)
+			}
 		}
 	}
 }

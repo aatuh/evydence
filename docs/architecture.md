@@ -1283,6 +1283,18 @@ validation and exact encoded-byte bounds apply before persistence. The shared
 worker/audit fence precedes parent locks, and template/audit/replay effects
 commit together. Both profiles recheck current template-create authority on
 replay. See [template creation](api.md#questionnaire-template-creation).
+
+Redaction-profile creation now binds Package-owned focused commands directly
+in the PostgreSQL profile. Flat ports permit only one profile insert and its
+caller audit. The tenant writer fence precedes the selected tenant row lock,
+and profile/audit/replay commit atomically. Creation does not read evidence,
+existing profiles, customer manifests, or signing keys. Both profiles share
+preset/normalization rules and recheck tenant-wide package-write authority
+before replay. Historical profiles are not rewritten or subjected to new
+creation bounds. Customer-package creation, archive download, and API startup
+still have Ledger dependencies; this migration does not remove them. See
+[redaction-profile creation](api.md#redaction-profile-creation).
+
 Answer-library creation also binds a focused Package command. Its flat ports
 resolve only current root/reference ownership, authorize tenant/product/release
 grants, and insert one bounded draft plus caller audit. Selected controls have

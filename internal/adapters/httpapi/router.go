@@ -155,6 +155,7 @@ type Server struct {
 	portalAccessCommands              PortalAccessCommands
 	portalTokenCommands               PortalTokenCommands
 	questionnaireTemplateCommands     QuestionnaireTemplateCommands
+	redactionProfileCommands          RedactionProfileCommands
 	answerLibraryCommands             AnswerLibraryCommands
 	releaseCatalog                    releaseCatalogService
 	productQuery                      ProductQuery
@@ -270,6 +271,8 @@ type ServerOptions struct {
 	PortalTokenCommands PortalTokenCommands
 	// QuestionnaireTemplateCommands creates bounded tenant definitions without Ledger.
 	QuestionnaireTemplateCommands QuestionnaireTemplateCommands
+	// RedactionProfileCommands creates tenant policy without Ledger state.
+	RedactionProfileCommands RedactionProfileCommands
 	// AnswerLibraryCommands creates scoped drafts without reading Ledger state.
 	AnswerLibraryCommands AnswerLibraryCommands
 	// ReadinessQuery probes production dependencies independently of Ledger state.
@@ -533,6 +536,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.QuestionnaireTemplateCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire templates require durable idempotency")
 	}
+	if opts.RedactionProfileCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused redaction profiles require durable idempotency")
+	}
 	if opts.AnswerLibraryCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused answer library requires durable idempotency")
 	}
@@ -663,6 +669,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.portalAccessCommands = opts.PortalAccessCommands
 	server.portalTokenCommands = opts.PortalTokenCommands
 	server.questionnaireTemplateCommands = opts.QuestionnaireTemplateCommands
+	server.redactionProfileCommands = opts.RedactionProfileCommands
 	server.answerLibraryCommands = opts.AnswerLibraryCommands
 	server.durableStreamedCommandExecutor, _ = opts.DurableCommandExecutor.(DurableStreamedCommandExecutor)
 	server.deploymentEnvironmentCommands = opts.DeploymentEnvironmentCommands
@@ -2313,19 +2320,29 @@ func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name           string   `json:"name"`
-		Description    string   `json:"description"`
-		Preset         string   `json:"preset"`
-		AllowedTypes   []string `json:"allowed_types"`
-		ExcludedFields []string `json:"excluded_fields"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.redactionProfileCommands != nil {
+		s.createDurableRedactionProfile(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodeRedactionProfileRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
 		profile, err := s.packages.CreateRedactionProfile(ctx, actor, app.CreateRedactionProfileInput{Name: req.Name, Description: req.Description, Preset: req.Preset, AllowedTypes: req.AllowedTypes, ExcludedFields: req.ExcludedFields})
 		return http.StatusCreated, profile, err
+	}, func(r *http.Request, actor domain.Actor, body []byte) ([]byte, error) {
+		if _, err := decodeRedactionProfileRequest(body); err != nil {
+			return nil, err
+		}
+		if err := mapCustomerPackageAccessError(application.AuthorizeTenantWideScope(r.Context(), actor, app.ScopePackageWrite)); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 
