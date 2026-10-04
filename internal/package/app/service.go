@@ -420,6 +420,9 @@ func sanitizeManifestValue(value any, excluded map[string]bool) any {
 		}
 		return result
 	default:
+		if copy, ok := cloneCustomerPlainMetadataValue(typed); ok {
+			return copy
+		}
 		return typed
 	}
 }

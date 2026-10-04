@@ -30,6 +30,20 @@ type customerCreationFake struct {
 
 type customerCreationAuthorizerFunc func(context.Context, identitydomain.Actor, application.AuthorizationRequest) error
 
+type customerChangingMetadata struct{ calls *int }
+
+type customerTextMetadata struct{ Name string }
+
+func (customerTextMetadata) MarshalText() ([]byte, error) { return []byte("public text"), nil }
+
+func (m customerChangingMetadata) MarshalJSON() ([]byte, error) {
+	*m.calls++
+	if *m.calls == 1 {
+		return []byte(`{"name":"safe"}`), nil
+	}
+	return []byte(`{"token":"changing-secret-marker"}`), nil
+}
+
 func (f customerCreationAuthorizerFunc) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
 	return f(ctx, a, r)
 }
@@ -336,5 +350,76 @@ func TestFocusedCustomerCreationRedactsTypedJSONWithoutLosingIntegerPrecision(t 
 	f.view.Snapshot.Product["typed_map"].(map[string]string)["name"] = "mutated"
 	if strings.Contains(string(mustCustomerJSON(t, v.Manifest)), "mutated") {
 		t.Fatal("manifest aliases typed snapshot data")
+	}
+}
+
+func TestFocusedCustomerCreationPreservesEstablishedManifestCollectionShapes(t *testing.T) {
+	s, f, in := customerCreationFixture(t)
+	type publicProfile struct {
+		ID             string
+		RequiredChecks []string
+	}
+	f.view.Snapshot.VerificationMaterial["verification_results"] = []map[string]any{{"id": "verification", "checks": []map[string]any{{"name": "check", "result": "passed"}}, "profile": map[string]any{"required_checks": []string{"check"}}}}
+	f.view.Snapshot.VerificationMaterial["verification_results"].([]map[string]any)[0]["public_profile"] = publicProfile{ID: "profile", RequiredChecks: []string{"check"}}
+	f.view.Snapshot.VulnerabilityScans = []map[string]any{{"summary": map[string]int{"high": 2}}}
+	f.view.Profile.AllowedTypes = append(f.view.Profile.AllowedTypes, "vulnerability_scan")
+	v, err := s.CreateCustomerSecurityPackage(t.Context(), packageTestActor(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, ok := v.Manifest["verification_material"].(map[string]any)["verification_results"].([]map[string]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("verification result shape=%T", v.Manifest["verification_material"].(map[string]any)["verification_results"])
+	}
+	if _, ok := results[0]["checks"].([]map[string]any); !ok {
+		t.Fatal("verification checks shape changed")
+	}
+	if _, ok := results[0]["profile"].(map[string]any)["required_checks"].([]string); !ok {
+		t.Fatal("profile list shape changed")
+	}
+	scans := v.Manifest["vulnerability_scans"].([]map[string]any)
+	if _, ok := scans[0]["summary"].(map[string]int); !ok {
+		t.Fatal("scan summary shape changed")
+	}
+	results[0]["checks"].([]map[string]any)[0]["result"] = "changed"
+	if f.packages[0].Manifest["verification_material"].(map[string]any)["verification_results"].([]map[string]any)[0]["checks"].([]map[string]any)[0]["result"] != "passed" {
+		t.Fatal("restored collections alias stored record")
+	}
+	profile, ok := results[0]["public_profile"].(publicProfile)
+	if !ok || profile.ID != "profile" {
+		t.Fatal("public value struct shape changed")
+	}
+	profile.RequiredChecks[0] = "mutated"
+	stored := f.packages[0].Manifest["verification_material"].(map[string]any)["verification_results"].([]map[string]any)[0]["public_profile"].(publicProfile)
+	if stored.RequiredChecks[0] != "check" {
+		t.Fatal("public profile slice aliases stored record")
+	}
+}
+
+func TestFocusedCustomerCreationDoesNotRetainHiddenOrCustomMetadata(t *testing.T) {
+	s, f, in := customerCreationFixture(t)
+	calls := 0
+	f.view.Snapshot.Product["custom"] = customerChangingMetadata{calls: &calls}
+	f.view.Snapshot.Product["custom_text"] = customerTextMetadata{Name: "hidden Go field"}
+	f.view.Snapshot.Product["hidden"] = struct {
+		Name   string
+		Secret string `json:"-"`
+	}{"safe", "hidden-secret-marker"}
+	v, err := s.CreateCustomerSecurityPackage(t.Context(), packageTestActor(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatal("custom metadata marshaler retained after normalization", calls)
+	}
+	product := v.Manifest["product"].(map[string]any)
+	if text, ok := product["custom_text"].(string); !ok || text != "public text" {
+		t.Fatal("custom text encoder retained after JSON normalization")
+	}
+	if _, ok := product["hidden"].(map[string]any); !ok {
+		t.Fatal("nonserialized hidden fields retained in public record")
+	}
+	if strings.Contains(string(mustCustomerJSON(t, v.Manifest)), "secret-marker") {
+		t.Fatal("custom or hidden metadata leaked")
 	}
 }

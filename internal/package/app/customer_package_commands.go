@@ -170,6 +170,7 @@ func (s *CustomerPackageCommands) CreateCustomerSecurityPackage(ctx context.Cont
 	if err := decoder.Decode(&snapshot); err != nil {
 		return empty, ErrConflict
 	}
+	snapshot = restoreCustomerSnapshotMetadata(view.Snapshot, snapshot, view.Profile.ExcludedFields)
 	profile := cloneRedactionProfile(view.Profile)
 	profile.CreatedAt = profile.CreatedAt.UTC()
 	id := s.config.IDs.NewID("csp")

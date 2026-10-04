@@ -14,8 +14,10 @@ Customer-package creation now owns its orchestration in Package's focused
 inputs and policy; flat transaction ports permit only current-scope
 authorization, selected-policy reads, package insertion, and audit append.
 The legacy Package service delegates to these same rules rather than retaining
-a second creation implementation. A native PostgreSQL write adapter takes the
-common worker/audit fence before tenant/product/release/policy locks and joins
+a second creation implementation. Bounded JSON normalization retains existing
+collection/public-profile shapes with owned mutable slices; opaque/custom
+metadata uses the sanitized public JSON tree. A native PostgreSQL write adapter
+takes the common worker/audit fence before tenant/product/release/policy locks and joins
 the durable executor's active unit of work. Focused tests cover rollback,
 outer-commit failure, and lock-order behavior using an immutable snapshot
 fixture, not a production reader.
