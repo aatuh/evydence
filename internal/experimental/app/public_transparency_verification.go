@@ -210,32 +210,39 @@ func (c *PublicTransparencyVerificationCommands) VerifyPublicTransparencyLogEntr
 		if err := ValidatePublicTransparencyVerificationSource(a.TenantID, id, v); err != nil {
 			return err
 		}
-		at := c.config.Clock.Now().UTC().Truncate(time.Microsecond)
-		out, err = BuildPublicTransparencyVerification(v, in, "", at)
-		if err != nil {
-			return err
-		}
-		if err := tx.UpdatePublicTransparencyVerification(ctx, out, v); err != nil {
-			return err
-		}
-		if err := AuthorizePublicTransparencyMetadataActor(ctx, a); err != nil {
-			return err
-		}
-		auditID := c.config.IDs.NewID("ace")
-		if !anomalyID(auditID) {
-			return ErrValidation
-		}
-		kind, actorID := anomalyActor(a)
-		_, err = tx.AppendAudit(ctx, application.AuditEvent{ID: auditID, TenantID: a.TenantID, EntryType: "public_transparency_log_entry." + out.State, SubjectType: "public_transparency_log_entry", SubjectID: id, ActorType: kind, ActorID: actorID, PayloadHash: out.InclusionProofHash, OccurredAt: at})
-		if err != nil {
-			return err
-		}
-		return ctx.Err()
+		out, err = commitPublicTransparencyAssessment(ctx, tx, a, v, in, "", c.config.Clock, c.config.IDs)
+		return err
 	})
 	if err != nil {
 		return d.PublicTransparencyLogEntry{}, err
 	}
 	return ClonePublicTransparencyEntry(out), nil
+}
+func commitPublicTransparencyAssessment(ctx context.Context, tx PublicTransparencyVerificationTransaction, a identitydomain.Actor, v d.PublicTransparencyLogEntry, in PublicTransparencyProofInput, source string, clock application.Clock, ids application.IDGenerator) (d.PublicTransparencyLogEntry, error) {
+	at := clock.Now().UTC().Truncate(time.Microsecond)
+	out, err := BuildPublicTransparencyVerification(v, in, source, at)
+	if err != nil {
+		return d.PublicTransparencyLogEntry{}, err
+	}
+	if err := tx.UpdatePublicTransparencyVerification(ctx, out, v); err != nil {
+		return d.PublicTransparencyLogEntry{}, err
+	}
+	if err := AuthorizePublicTransparencyMetadataActor(ctx, a); err != nil {
+		return d.PublicTransparencyLogEntry{}, err
+	}
+	auditID := ids.NewID("ace")
+	if !anomalyID(auditID) {
+		return d.PublicTransparencyLogEntry{}, ErrValidation
+	}
+	kind, actorID := anomalyActor(a)
+	_, err = tx.AppendAudit(ctx, application.AuditEvent{ID: auditID, TenantID: a.TenantID, EntryType: "public_transparency_log_entry." + out.State, SubjectType: "public_transparency_log_entry", SubjectID: v.ID, ActorType: kind, ActorID: actorID, PayloadHash: out.InclusionProofHash, OccurredAt: at})
+	if err != nil {
+		return d.PublicTransparencyLogEntry{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return d.PublicTransparencyLogEntry{}, err
+	}
+	return out, nil
 }
 func VerifyPublicTransparencyProof(leafHash, rootHash string, leafIndex, treeSize int, proof []string) bool {
 	if treeSize <= 0 || leafIndex < 0 || leafIndex >= treeSize || len(proof) > MaxPublicTransparencyProofNodes || !publicTransparencyDigest(leafHash) || !publicTransparencyDigest(rootHash) {

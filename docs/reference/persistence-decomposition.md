@@ -70,7 +70,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateSigningOperation` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `GenerateAnomalyReport` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `PublishPublicTransparencyLogEntry` | `persistLocked` |
-| future extensions and generated reports | `internal/app/future_extensions.go` | `VerifyPublicTransparencyLogEntry` | `persistLocked` |
+| future extensions and generated reports | `internal/app/future_extensions.go` | `verifyPublicTransparencyEntryLocked` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `InstallControlFrameworkTemplatePack` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateArtifactSignature` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateDeploymentEnvironment` | `persistLocked` |

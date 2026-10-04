@@ -190,9 +190,28 @@ func (s *Server) verifyPublicTransparencyLogEntry(w http.ResponseWriter, r *http
 }
 
 func (s *Server) fetchPublicTransparencyLogEntryProof(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	if s.publicTransparencyFetch != nil {
+		s.fetchDurablePublicTransparencyLogEntryProof(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		if err := decodePublicTransparencyFetch(body, r.PathValue("id")); err != nil {
+			return 0, nil, err
+		}
 		entry, err := s.ledger.FetchAndVerifyPublicTransparencyLogEntry(ctx, actor, r.PathValue("id"))
 		return http.StatusOK, entry, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		if err := decodePublicTransparencyFetch(body, r.PathValue("id")); err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeFetchPublicTransparencyLogEntryProof(r.Context(), a, r.PathValue("id")); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

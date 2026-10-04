@@ -20,6 +20,8 @@ type AnomalyReportCommands interface {
 
 func mapAnomalyReportError(err error) error {
 	switch {
+	case errors.Is(err, experimentalapp.ErrVerificationFailed):
+		return app.ErrVerificationFailed
 	case errors.Is(err, experimentalapp.ErrValidation):
 		return app.ErrValidation
 	case errors.Is(err, experimentalapp.ErrNotFound):

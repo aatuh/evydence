@@ -12,6 +12,8 @@ import (
 
 func fromExperimentalCommandError(err error) error {
 	switch {
+	case errors.Is(err, experimentalapp.ErrVerificationFailed):
+		return ErrVerificationFailed
 	case errors.Is(err, experimentalapp.ErrValidation):
 		return ErrValidation
 	case errors.Is(err, experimentalapp.ErrNotFound):

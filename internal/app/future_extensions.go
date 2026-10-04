@@ -20,6 +20,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/domain"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
+	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -514,6 +515,10 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 	if err != nil {
 		return domain.PublicTransparencyLogEntry{}, err
 	}
+	return l.verifyPublicTransparencyEntryLocked(ctx, actor, in, current)
+}
+
+func (l *Ledger) verifyPublicTransparencyEntryLocked(ctx context.Context, actor domain.Actor, in VerifyPublicTransparencyLogEntryInput, current experimentaldomain.PublicTransparencyLogEntry) (domain.PublicTransparencyLogEntry, error) {
 	now := l.now()
 	verified, err := experimentalapp.BuildPublicTransparencyVerification(current, publicTransparencyProofInput(in), strings.TrimSpace(in.Source), now)
 	if err != nil {
@@ -543,61 +548,6 @@ func (l *Ledger) VerifyPublicTransparencyLogEntry(ctx context.Context, actor dom
 		return domain.PublicTransparencyLogEntry{}, err
 	}
 	return PublicTransparencyVerificationLegacyRecord(verified), nil
-}
-
-func (l *Ledger) FetchAndVerifyPublicTransparencyLogEntry(ctx context.Context, actor domain.Actor, id string) (domain.PublicTransparencyLogEntry, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.PublicTransparencyLogEntry{}, err
-	}
-	if err := require(actor, ScopeKeysAdmin); err != nil {
-		return domain.PublicTransparencyLogEntry{}, err
-	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return domain.PublicTransparencyLogEntry{}, ErrValidation
-	}
-	fetcher := l.transparencyProofs
-	if fetcher == nil {
-		return domain.PublicTransparencyLogEntry{}, ErrValidation
-	}
-	l.mu.Lock()
-	entry, ok := l.publicLogEntries[id]
-	if !ok || entry.TenantID != actor.TenantID {
-		l.mu.Unlock()
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	logRecord, ok := l.publicLogs[entry.LogID]
-	if !ok || logRecord.TenantID != actor.TenantID {
-		l.mu.Unlock()
-		return domain.PublicTransparencyLogEntry{}, ErrNotFound
-	}
-	l.mu.Unlock()
-
-	proof, err := fetcher.FetchTransparencyProof(ctx, TransparencyProofRequest{
-		TenantID:   actor.TenantID,
-		LogID:      logRecord.ID,
-		EntryID:    entry.ID,
-		Endpoint:   logRecord.Endpoint,
-		ExternalID: entry.ExternalID,
-		EntryHash:  entry.EntryHash,
-	})
-	if err != nil {
-		return domain.PublicTransparencyLogEntry{}, ErrVerificationFailed
-	}
-	if proof.ExternalID != "" && proof.ExternalID != entry.ExternalID {
-		return domain.PublicTransparencyLogEntry{}, ErrVerificationFailed
-	}
-	if strings.TrimSpace(proof.LeafHash) == "" {
-		proof.LeafHash = entry.EntryHash
-	}
-	return l.VerifyPublicTransparencyLogEntry(ctx, actor, entry.ID, VerifyPublicTransparencyLogEntryInput{
-		LeafHash:       proof.LeafHash,
-		RootHash:       proof.RootHash,
-		LeafIndex:      proof.LeafIndex,
-		TreeSize:       proof.TreeSize,
-		InclusionProof: proof.InclusionProof,
-		Source:         "fetched",
-	})
 }
 
 func verifyRFC6962StyleProof(leafHash, rootHash string, leafIndex, treeSize int, proof []string) bool {

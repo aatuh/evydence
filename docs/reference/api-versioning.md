@@ -567,8 +567,8 @@ timestamps use UTC microseconds. Historical records are not rewritten.
 
 See [public transparency metadata](../api.md#public-transparency-metadata)
 for exact bounds and non-claims. These tightened boundaries require release
-compatibility review; this note is not an approved exception. Proof fetching
-and complete production Ledger retirement remain migration work.
+compatibility review; this note is not an approved exception. Complete
+production Ledger retirement remains migration work.
 
 ## Unreleased Public Transparency Proof Boundary
 
@@ -589,8 +589,35 @@ timestamps use UTC microseconds. Historical records are not rewritten.
 
 See [proof verification](../api.md#public-transparency-proof-verification).
 These input/authorization restrictions require release compatibility review;
-this note is not an approved exception. Proof fetching and production startup
-Ledger retirement remain EVY-905 work.
+this note is not an approved exception. Production startup Ledger retirement
+remains EVY-905 work.
+
+## Unreleased Public Transparency Fetch Boundary
+
+Proof fetching now binds focused commands to bounded current PostgreSQL entry/
+endpoint projections and the runtime-configured fetcher. It preserves fetched
+proof hashes, empty-proof JSON `null` normalization, passing/failing assessment
+states, response fields, and omission of untrusted provider diagnostics.
+Replays recheck current authority/root ownership and do not contact a provider.
+The source is frozen and compared again after fetching, including endpoint
+and prior assessment. Assessment, audit and replay commit together.
+
+Both profiles accept absent/whitespace bodies and exact empty JSON objects,
+but no ignored input fields, null/scalar/array values, duplicates or trailing
+JSON. The 64 KiB body limit and bounded IDs/endpoints are enforced before
+fetching. Human product-only authority returns `403`; missing/foreign/broken
+root chains return `404`, including on replay. Unsafe/oversized persisted HTTPS
+endpoints return `400`; invalid/unavailable provider input returns safe `422`.
+The provider call is capped at 30 seconds (or earlier configured/parent
+deadlines), and PostgreSQL retains tenant fences/root locks through the call.
+This bounds, but does not eliminate, same-tenant administrative write latency.
+Historical audit records are not rewritten. Remote observation cannot be
+rolled back, so a failed-commit retry may contact the provider again.
+
+See [proof fetching](../api.md#public-transparency-proof-fetching). These
+restrictions require release compatibility review; this note is not an approved
+exception or evidence of authenticated public-log trust. Production startup
+Ledger retirement remains EVY-905 work.
 
 ## Unreleased Marketplace Collector Boundary
 

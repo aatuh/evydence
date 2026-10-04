@@ -120,6 +120,7 @@ func runWithContext(ctx context.Context) error {
 		OIDC:               cfg.OIDC,
 		ProviderAPI:        cfg.ProviderAPI,
 		SigningExecutor:    cfg.Signer,
+		TransparencyProofs: cfg.Transparency,
 	})
 	if err != nil {
 		return err

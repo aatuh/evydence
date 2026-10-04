@@ -216,6 +216,7 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"createDurableMarketplaceCollector",
 		"createDurablePublicTransparencyLog", "publishDurablePublicTransparencyLogEntry",
 		"verifyDurablePublicTransparencyLogEntry",
+		"fetchDurablePublicTransparencyLogEntryProof",
 		"createDurableQuestionnairePackage",
 		"createDurablePortalAccess", "revokeDurablePortalAccess",
 		"createDurableQuestionnaireTemplate",

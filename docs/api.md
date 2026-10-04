@@ -2679,8 +2679,47 @@ the existing canonical field names, omission of operator-source metadata,
 and empty-proof JSON `null` normalization. Changed raw request bytes under the
 same key return `409`; changed authority or ownership cannot reuse a saved
 success. Storage/commit failures return safe Problem Details, not a success
-assessment. Historical audit entries are not rewritten. Proof fetching and
-production startup Ledger retirement remain EVY-905 work.
+assessment. Historical audit entries are not rewritten. Production startup
+Ledger retirement remains EVY-905 work.
+
+### Public Transparency Proof Fetching
+
+`POST /v1/public-transparency-log-entries/{id}/fetch-proof` accepts no input
+parameters. An absent/whitespace-only body or an exact empty JSON object is
+accepted; other values, duplicate/unknown fields, and trailing JSON are rejected
+before fetching. The body limit is 64 KiB and IDs are capped at 1024 raw,
+NUL-free UTF-8 bytes before trimming. Raw request bytes remain the idempotency
+fingerprint, so changing an empty body to `{}` under the same key returns `409`.
+
+Both profiles enforce the same current tenant-wide authority, owned root chain,
+and cookie-Origin policy as [operator verification](#public-transparency-proof-verification),
+before fetching or returning a saved result. PostgreSQL selects one bounded
+entry and at most 4096 raw bytes of log endpoint text, without log public keys,
+names, old diagnostics, or Merkle leaves. The endpoint must be structured HTTPS
+without credentials/fragments. Existing direct/gateway HTTP adapters retain
+their outbound-host, redirect, address and response-size checks. A disabled
+fetcher returns `400` without a provider request.
+
+The fetch call has a 30-second maximum context deadline, or an earlier parent/
+adapter deadline. PostgreSQL holds the actor-tenant worker/audit fence and
+entry/root-chain locks during the call and through local audit/replay commit;
+this administrative operation can delay other mutations in that tenant while
+the provider responds. Current entry commitments, assessment hash/time, and
+endpoint are compared again before writing. Local memory freezes the same
+snapshot and rejects changes during fetching.
+
+Provider material is input to the existing local proof verifier, not an
+authenticated public-log trust assertion. Optional returned external IDs must
+match; digest strings and proof-node counts use the operator-verification
+bounds. Provider checks/limitations are discarded, not copied into assurance.
+Successful local processing returns `200` with the passing/failing assessment
+and the preserved `source: fetched` proof commitment. Invalid/unavailable
+provider material returns safe `422`; request cancellation propagates without
+publishing an assessment. A replay does not refetch. Local transaction rollback
+cannot undo remote observation/logging; a retry after a failed commit may fetch
+again. Production startup Ledger retirement remains EVY-905 work. See
+[API versioning](reference/api-versioning.md#unreleased-public-transparency-fetch-boundary)
+for compatibility review.
 
 ### SaaS Profile Creation
 

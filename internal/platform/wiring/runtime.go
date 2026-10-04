@@ -43,6 +43,7 @@ type RuntimeConfig struct {
 	OIDC               app.OIDCDiscoveryClient
 	ProviderAPI        app.ProviderIdentityValidator
 	SigningExecutor    app.SigningExecutor
+	TransparencyProofs app.TransparencyProofFetcher
 }
 
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
@@ -58,6 +59,7 @@ type Runtime struct {
 	OIDC               app.OIDCDiscoveryClient
 	ProviderAPI        app.ProviderIdentityValidator
 	SigningExecutor    app.SigningExecutor
+	TransparencyProofs app.TransparencyProofFetcher
 	lease              func()
 	closed             sync.Once
 }
@@ -96,7 +98,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 		if backend != "" && backend != "filesystem" {
 			return nil, errors.New("EVYDENCE_RUNTIME_PROFILE=local_memory supports only EVYDENCE_OBJECT_STORE=filesystem")
 		}
-		runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor}
+		runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs}
 		if backend != "" {
 			objects, _, err := OpenObjectStore(ctx, config.ObjectStore)
 			if err != nil {
@@ -122,7 +124,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if err != nil {
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}
-	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor}
+	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs}
 	defer func() {
 		if err != nil {
 			runtime.Close()

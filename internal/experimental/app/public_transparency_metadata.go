@@ -66,12 +66,24 @@ func NormalizePublicTransparencyLogInput(in PublicTransparencyLogInput) (PublicT
 	if !anomalyText(in.Name, MaxPublicTransparencyNameBytes) || !anomalyText(in.Endpoint, MaxPublicTransparencyEndpointBytes) || !anomalyText(in.PublicKey, MaxPublicTransparencyKeyBytes) {
 		return in, ErrValidation
 	}
-	in.Name, in.Endpoint, in.PublicKey = strings.TrimSpace(in.Name), strings.TrimSpace(in.Endpoint), strings.TrimSpace(in.PublicKey)
-	u, err := url.Parse(in.Endpoint)
-	if err != nil || in.Name == "" || in.PublicKey == "" || !strings.HasPrefix(in.Endpoint, "https://") || u.Scheme != "https" || u.Hostname() == "" || u.Opaque != "" || u.User != nil || u.Fragment != "" {
+	in.Name, in.PublicKey = strings.TrimSpace(in.Name), strings.TrimSpace(in.PublicKey)
+	var err error
+	in.Endpoint, err = normalizePublicTransparencyEndpoint(in.Endpoint)
+	if err != nil || in.Name == "" || in.PublicKey == "" {
 		return in, ErrValidation
 	}
 	return in, nil
+}
+func normalizePublicTransparencyEndpoint(raw string) (string, error) {
+	if !anomalyText(raw, MaxPublicTransparencyEndpointBytes) {
+		return "", ErrValidation
+	}
+	endpoint := strings.TrimSpace(raw)
+	u, err := url.Parse(endpoint)
+	if err != nil || !strings.HasPrefix(endpoint, "https://") || u.Scheme != "https" || u.Hostname() == "" || u.Opaque != "" || u.User != nil || u.Fragment != "" {
+		return "", ErrValidation
+	}
+	return endpoint, nil
 }
 func NormalizePublicTransparencyPublicationInput(in PublicTransparencyPublicationInput) (PublicTransparencyPublicationInput, error) {
 	for _, id := range []string{in.LogID, in.CheckpointID, in.ExternalID} {

@@ -1186,9 +1186,20 @@ the local result, proof-bound audit and replay together. Old diagnostic arrays,
 log endpoints/keys and Merkle leaves are not selected. Same-state updates
 compare previous proof commitments as well as publication coordinates. Local
 memory shares the pure proof/hash rules and deep-copies returned assessments.
-No authenticated public-log root or provider identity is implied. Proof fetching
-and startup Ledger retirement remain EVY-905 work; see
+No authenticated public-log root or provider identity is implied. Startup Ledger
+retirement remains EVY-905 work; see
 [proof verification](api.md#public-transparency-proof-verification).
+
+Public-log proof fetching now uses focused Experimental commands, current
+bounded entry/endpoint ports, and the runtime's configured direct/gateway
+fetcher. Endpoint/root locks and the actor-tenant fence survive the bounded
+provider call and assessment/audit/replay commit. A frozen source is compared
+again before writing; provider diagnostics never become local authority.
+Replays perform current authorization but no network request. The transaction
+does not roll back remote observation, so a failed-commit retry may refetch.
+Explicit local memory shares snapshot/validation rules. See
+[proof fetching](api.md#public-transparency-proof-fetching) for timeout,
+tenant-mutation latency, input and provider-trust limits.
 
 Experimental marketplace collector registration now uses focused commands and
 flat tenant/reference ID projections in PostgreSQL. The transaction acquires

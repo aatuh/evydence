@@ -215,7 +215,13 @@ entry/root locks held through assessment/audit/replay commit. Previous proof
 commitments participate in same-state compare-and-swap. Local memory shares
 pure proof/hash rules; old diagnostic arrays are not command authority.
 Neither this result nor metadata creation authenticates public-log trust.
-Proof fetching and startup retirement remain separate EVY-905 work.
+Focused Experimental proof fetching now uses a bounded entry/endpoint reader
+and a provider port carrying proof fields only, not provider diagnostics.
+The configured runtime fetcher, current source locks and actor-tenant fence
+cover the bounded provider call and assessment/audit/replay commit. Shared
+snapshot comparison and local proof/hash rules prevent stale-source assessment.
+Provider observation is not rolled back by database failure. Startup retirement
+remains separate EVY-905 work.
 Governance framework pages, control points, and the static starter-template
 catalog use risk-owned queries. Template listing does not read tenant state;
 the installation command remains on the compatibility Ledger path. A

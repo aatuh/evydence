@@ -149,6 +149,7 @@ type Server struct {
 	marketplaceCollectorCommands      MarketplaceCollectorCommands
 	publicTransparencyMetadata        PublicTransparencyMetadataCommands
 	publicTransparencyProofs          PublicTransparencyProofCommands
+	publicTransparencyFetch           PublicTransparencyFetchCommands
 	questionnaireDraftCommands        QuestionnaireDraftCommands
 	questionnairePackageCommands      QuestionnairePackageCommands
 	portalAccessCommands              PortalAccessCommands
@@ -257,6 +258,8 @@ type ServerOptions struct {
 	PublicTransparencyMetadataCommands PublicTransparencyMetadataCommands
 	// PublicTransparencyProofCommands verifies operator-supplied proofs without Ledger.
 	PublicTransparencyProofCommands PublicTransparencyProofCommands
+	// PublicTransparencyFetchCommands fetches and verifies proofs without Ledger.
+	PublicTransparencyFetchCommands PublicTransparencyFetchCommands
 	// QuestionnaireDraftCommands selects authorized bounded answers without Ledger state.
 	QuestionnaireDraftCommands QuestionnaireDraftCommands
 	// QuestionnairePackageCommands generates bounded responses without Ledger state.
@@ -515,6 +518,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.PublicTransparencyProofCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused public transparency proofs require durable idempotency")
 	}
+	if opts.PublicTransparencyFetchCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused public transparency fetching requires durable idempotency")
+	}
 	if opts.QuestionnaireDraftCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused questionnaire drafts require durable idempotency")
 	}
@@ -651,6 +657,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.marketplaceCollectorCommands = opts.MarketplaceCollectorCommands
 	server.publicTransparencyMetadata = opts.PublicTransparencyMetadataCommands
 	server.publicTransparencyProofs = opts.PublicTransparencyProofCommands
+	server.publicTransparencyFetch = opts.PublicTransparencyFetchCommands
 	server.questionnaireDraftCommands = opts.QuestionnaireDraftCommands
 	server.questionnairePackageCommands = opts.QuestionnairePackageCommands
 	server.portalAccessCommands = opts.PortalAccessCommands
