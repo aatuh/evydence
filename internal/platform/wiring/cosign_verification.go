@@ -35,17 +35,24 @@ type cosignVerificationTransactions struct{ factory app.UnitOfWorkFactory }
 func (t cosignVerificationTransactions) ExecuteCosignVerification(ctx context.Context, fn func(context.Context, verificationapp.CosignVerificationTransaction) error) error {
 	return mapSigningKeyWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
 		reader, ok := repos.Verification.(verificationapp.CosignSnapshotReader)
-		if !ok || repos.Integrity == nil || repos.Audit == nil {
+		locker, canLock := repos.Verification.(verificationapp.CosignVerificationScopeLocker)
+		if !ok || !canLock || repos.Integrity == nil || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return fn(ctx, cosignVerificationTransaction{reader: reader, integrity: repos.Integrity, verificationReceiptWriter: verificationReceiptWriter{verification: repos.Verification, audit: repos.Audit}})
+		return fn(ctx, cosignVerificationTransaction{reader: reader, locker: locker, integrity: repos.Integrity, verificationReceiptWriter: verificationReceiptWriter{verification: repos.Verification, audit: repos.Audit}})
 	}))
 }
 
 type cosignVerificationTransaction struct {
 	reader    verificationapp.CosignSnapshotReader
+	locker    verificationapp.CosignVerificationScopeLocker
 	integrity app.IntegrityRepository
 	verificationReceiptWriter
+}
+
+func (t cosignVerificationTransaction) LockCosignVerificationScope(ctx context.Context, tenant, id string) (application.ResourceReferences, error) {
+	refs, err := t.locker.LockCosignVerificationScope(ctx, tenant, id)
+	return refs, mapSigningKeyWriteError(err)
 }
 
 func (t cosignVerificationTransaction) ResolveCosignSubject(ctx context.Context, tenant, id string) (verificationapp.CosignSubject, error) {

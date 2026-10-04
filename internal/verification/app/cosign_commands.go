@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -31,6 +32,12 @@ type CosignSnapshotReader interface {
 	CosignSubjectResolver
 	ReadCosignSnapshot(context.Context, CosignSubject) (CosignSnapshot, error)
 }
+
+// Replay needs only current tenant/signature/artifact ownership, not digest,
+// image, payload, trust-root or prior verification metadata.
+type CosignVerificationScopeLocker interface {
+	LockCosignVerificationScope(context.Context, string, string) (application.ResourceReferences, error)
+}
 type cosignReceiptTransaction interface {
 	application.AuditAppender
 	InsertVerificationResult(context.Context, verificationdomain.VerificationResult) error
@@ -38,6 +45,7 @@ type cosignReceiptTransaction interface {
 }
 type CosignVerificationTransaction interface {
 	CosignSnapshotReader
+	CosignVerificationScopeLocker
 	application.Authorizer
 	cosignReceiptTransaction
 }
@@ -62,25 +70,64 @@ func NewCosignVerificationCommands(c CosignVerificationConfig) (*CosignVerificat
 	}
 	return &CosignVerificationCommands{c}, nil
 }
+
+func NormalizeVerifyCosignInput(input VerifyCosignInput) (VerifyCosignInput, error) {
+	if len(input.ArtifactSignatureID) > 1024 || len(input.ExpectedIdentity) > 4096 || len(input.ExpectedIssuer) > 4096 || !validSigningKeyText(input.ArtifactSignatureID) || !utf8.ValidString(input.ExpectedIdentity) || !utf8.ValidString(input.ExpectedIssuer) || strings.ContainsRune(input.ExpectedIdentity, 0) || strings.ContainsRune(input.ExpectedIssuer, 0) {
+		return VerifyCosignInput{}, ErrValidation
+	}
+	input.ArtifactSignatureID = strings.TrimSpace(input.ArtifactSignatureID)
+	input.ExpectedIdentity = strings.TrimSpace(input.ExpectedIdentity)
+	input.ExpectedIssuer = strings.TrimSpace(input.ExpectedIssuer)
+	if !validCosignInput(input) {
+		return VerifyCosignInput{}, ErrValidation
+	}
+	return input, nil
+}
+
+func (c *CosignVerificationCommands) AuthorizeCosignVerification(ctx context.Context, actor identitydomain.Actor, input VerifyCosignInput) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateSigningKeyActor(actor); err != nil {
+		return err
+	}
+	input, err := NormalizeVerifyCosignInput(input)
+	if err != nil {
+		return err
+	}
+	if err := c.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+		return err
+	}
+	return c.config.Transactions.ExecuteCosignVerification(ctx, func(ctx context.Context, tx CosignVerificationTransaction) error {
+		refs, err := tx.LockCosignVerificationScope(ctx, actor.TenantID, input.ArtifactSignatureID)
+		if err != nil {
+			return err
+		}
+		if refs != (application.ResourceReferences{ArtifactID: refs.ArtifactID}) || !validRetentionText(refs.ArtifactID, 1024) || strings.TrimSpace(refs.ArtifactID) != refs.ArtifactID {
+			return ErrNotFound
+		}
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: refs})
+	})
+}
+
 func (c *CosignVerificationCommands) VerifyCosign(ctx context.Context, actor identitydomain.Actor, input VerifyCosignInput) (verificationdomain.CosignVerification, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
-	if err := validateActor(actor); err != nil {
+	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
 	if err := c.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
-	input.ArtifactSignatureID = strings.TrimSpace(input.ArtifactSignatureID)
-	input.ExpectedIdentity = strings.TrimSpace(input.ExpectedIdentity)
-	input.ExpectedIssuer = strings.TrimSpace(input.ExpectedIssuer)
-	if !validCosignInput(input) || !validRetentionText(input.ArtifactSignatureID, 1024) || len(input.ExpectedIdentity) > 4096 || len(input.ExpectedIssuer) > 4096 || !validOptionalCosignText(input.ExpectedIdentity) || !validOptionalCosignText(input.ExpectedIssuer) {
-		return verificationdomain.CosignVerification{}, ErrValidation
+	var err error
+	input, err = NormalizeVerifyCosignInput(input)
+	if err != nil {
+		return verificationdomain.CosignVerification{}, err
 	}
 	var record verificationdomain.CosignVerification
 	var outcome string
-	err := c.config.Transactions.ExecuteCosignVerification(ctx, func(ctx context.Context, tx CosignVerificationTransaction) error {
+	err = c.config.Transactions.ExecuteCosignVerification(ctx, func(ctx context.Context, tx CosignVerificationTransaction) error {
 		subject, err := tx.ResolveCosignSubject(ctx, actor.TenantID, input.ArtifactSignatureID)
 		if err != nil {
 			return err

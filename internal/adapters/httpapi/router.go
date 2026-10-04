@@ -532,6 +532,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.BackupGenerationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused backup generation requires durable idempotency")
 	}
+	if opts.CosignVerification != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused Cosign verification requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -1614,35 +1617,6 @@ func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, sig)
-}
-
-func (s *Server) verifyCosignSignature(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ExpectedIdentity string `json:"expected_identity"`
-		ExpectedIssuer   string `json:"expected_issuer"`
-		Mode             string `json:"mode"`
-		Offline          bool   `json:"offline"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body, "mode", "offline", "expected_identity", "expected_issuer"); err != nil {
-			return 0, nil, err
-		}
-		if s.cosignVerification != nil {
-			result, err := s.cosignVerification.VerifyCosign(ctx, actor, verificationapp.VerifyCosignInput{ArtifactSignatureID: r.PathValue("id"), ExpectedIdentity: req.ExpectedIdentity, ExpectedIssuer: req.ExpectedIssuer, Mode: verificationapp.CosignVerificationMode(req.Mode), Offline: req.Offline})
-			return http.StatusOK, cosignVerificationFromFocused(result), mapVerificationCommandError(err)
-		}
-		result, err := s.verification.VerifyCosignSignature(ctx, actor, app.VerifyCosignInput{
-			ArtifactSignatureID: r.PathValue("id"),
-			ExpectedIdentity:    req.ExpectedIdentity,
-			ExpectedIssuer:      req.ExpectedIssuer,
-			Mode:                app.CosignVerificationMode(req.Mode),
-			Offline:             req.Offline,
-		})
-		return http.StatusOK, result, err
-	})
 }
 
 func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {

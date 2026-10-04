@@ -470,6 +470,17 @@ points. Completed retries preserve the original manifest without rehashing
 later state. Explicit local memory retains its distinct v1 whole-state hash;
 neither profile creates a restorable backup. See
 [backup generation](../api.md#backup-manifest-generation).
+Offline Cosign verification now also uses native durable HTTP execution.
+Current verification authority and flat tenant/signature/artifact ownership
+locks precede reservation and every replay. The common fence precedes parent
+and signature share locks, including the direct subject resolver used by
+artifact-signature verification. Guard execution reads no digest, image,
+payload or trust material; completed delivery preserves the original receipt
+without verification again. Fresh execution retains the existing bounded
+finalized-object and full offline Sigstore profile. Both receipts, audit and
+successful replay commit together; failed HTTP inspection rolls back business
+effects. Local memory remains nondurable and other verification wrappers still
+require migration. See [offline Cosign verification](../api.md#offline-cosign-verification).
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 

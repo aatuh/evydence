@@ -2748,6 +2748,46 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### Offline Cosign Verification
+
+`POST /v1/artifact-signatures/{id}/verify-cosign` requires `verify:read` (or
+`admin`) and returns `200` only when the full offline profile passes. Humans
+need a current tenant-wide verification grant: product or release grants do
+not authorize a tenant-owned artifact. The request requires `mode` (`key` or
+`keyless`) and `offline: true`. Keyless mode also requires `expected_identity`
+and `expected_issuer`; key mode rejects nonblank identity/issuer values.
+
+Both profiles cap the body at 64 KiB, signature IDs at 1024 bytes and optional
+identity/issuer values at 4096 UTF-8 bytes before trimming. They reject unknown,
+duplicate, case-aliased, null, invalid UTF-8 and malformed fields, as well as
+unsupported modes and online requests. Cookie mutations require same-origin
+protection; explicit bearer credentials take precedence.
+
+PostgreSQL uses native durable execution. Current authority and flat owned
+tenant/signature/artifact coordinates are checked before reservation and every
+replay. The common writer fence precedes tenant, artifact and signature locks,
+which remain held through the enclosing commit. This replay guard reads no
+digest, image, payload, trust-root or previous-verification metadata.
+Fresh execution retains finalized tenant/digest-bound object reads capped at
+4 MiB, configured Sigstore trust material and the full embedded Rekor-proof
+requirement. Both verification receipts, caller audit and successful replay
+commit together. Failed or unavailable inspection returns `422`, never a
+success envelope, and the HTTP transaction rolls back receipt/audit writes.
+The standalone focused command retains its existing failed-observation receipt
+semantics; it does not imply a successful HTTP delivery.
+
+Completed replay returns the original receipt without re-reading changed
+digests, image metadata, payload lifecycle or trust material, or verifying
+again. Changed request bytes return `409`; changed ownership returns `404`,
+revoked grants `403` and revoked sessions `401`. A durable failed delivery key
+retains its existing `409` failure policy; recovery uses a new key. Explicit
+local memory retains nondurable compatibility storage, with current
+tenant-level authority checked before replay.
+
+This offline receipt does not prove current trust validity, artifact safety,
+provenance completeness, provider runtime integrity or legal compliance. It
+does not fetch online trust or silently downgrade an unavailable full profile.
+
 ### Merkle Batch Creation
 
 `POST /v1/merkle-batches` requires current tenant-wide `keys:admin` authority

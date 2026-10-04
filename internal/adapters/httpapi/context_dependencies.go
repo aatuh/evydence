@@ -150,6 +150,7 @@ type DSSEVerification interface {
 }
 
 type CosignVerification interface {
+	AuthorizeCosignVerification(context.Context, identitydomain.Actor, verificationapp.VerifyCosignInput) error
 	VerifyCosign(context.Context, identitydomain.Actor, verificationapp.VerifyCosignInput) (verificationdomain.CosignVerification, error)
 }
 

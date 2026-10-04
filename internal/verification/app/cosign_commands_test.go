@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -13,10 +14,107 @@ import (
 
 type cosignCommandFake struct {
 	bundleVerificationFake
-	selected    CosignSnapshot
-	inspection  CosignInspection
-	cosign      []verificationdomain.CosignVerification
-	inspections int
+	selected                             CosignSnapshot
+	inspection                           CosignInspection
+	cosign                               []verificationdomain.CosignVerification
+	inspections, scopeReads, resolutions int
+}
+
+func (f *cosignCommandFake) LockCosignVerificationScope(context.Context, string, string) (application.ResourceReferences, error) {
+	f.scopeReads++
+	if f.fail == "scope" {
+		return application.ResourceReferences{}, ErrNotFound
+	}
+	return f.selected.Subject.Resources, nil
+}
+
+func TestCosignCommandsReplayGuardReadsOnlyFlatOwnership(t *testing.T) {
+	for _, failure := range []string{"", "scope", "auth", "commit"} {
+		c, f, in := cosignCommandFixture(t)
+		f.fail = failure
+		c.config.Inspector = nil
+		c.config.Clock = application.ClockFunc(func() time.Time { panic("guard consulted clock") })
+		c.config.IDs = application.IDGeneratorFunc(func(string) string { panic("guard generated receipt ID") })
+		guard, ok := any(c).(interface {
+			AuthorizeCosignVerification(context.Context, identitydomain.Actor, VerifyCosignInput) error
+		})
+		if !ok {
+			t.Fatal("missing focused replay authorization")
+		}
+		err := guard.AuthorizeCosignVerification(t.Context(), identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}, in)
+		var want error
+		switch failure {
+		case "scope":
+			want = ErrNotFound
+		case "auth":
+			want = application.ErrForbidden
+		case "commit":
+			want = errVerificationTestFailure
+		}
+		if !errors.Is(err, want) || f.scopeReads != 1 || f.resolutions+f.payloadReads+f.inspections != 0 || len(f.cosign)+len(f.results)+len(f.audits)+len(f.jobs) != 0 {
+			t.Fatal("guard inspected mutable verification state or wrote effects", failure, err, f)
+		}
+	}
+	for _, refs := range []application.ResourceReferences{{}, {ArtifactID: "artifact", ReleaseID: "unrelated"}, {ArtifactID: " artifact"}, {ArtifactID: strings.Repeat("a", 1025)}} {
+		c, f, in := cosignCommandFixture(t)
+		f.selected.Subject.Resources = refs
+		if err := c.AuthorizeCosignVerification(t.Context(), identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}, in); !errors.Is(err, ErrNotFound) || f.resolutions+f.payloadReads+f.inspections != 0 {
+			t.Fatal("guard accepted malformed or unrelated ownership", err)
+		}
+	}
+	c, f, in := cosignCommandFixture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for _, ctx := range []context.Context{nil, ctx} {
+		if err := c.AuthorizeCosignVerification(ctx, identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}, in); !errors.Is(err, context.Canceled) || f.scopeReads+f.resolutions+f.payloadReads+f.inspections != 0 {
+			t.Fatal("cancelled guard reached storage", err)
+		}
+	}
+}
+
+func TestCosignCommandsBoundRawPolicyAndCanonicalActorBeforeReading(t *testing.T) {
+	for _, mutate := range []func(*identitydomain.Actor, *VerifyCosignInput){
+		func(a *identitydomain.Actor, _ *VerifyCosignInput) { a.TenantID = " tenant" },
+		func(a *identitydomain.Actor, _ *VerifyCosignInput) { a.TenantID = "tenant\x00" },
+		func(a *identitydomain.Actor, _ *VerifyCosignInput) { a.TenantID = string([]byte{255}) },
+		func(a *identitydomain.Actor, _ *VerifyCosignInput) { a.TenantID = strings.Repeat("t", 1025) },
+		func(_ *identitydomain.Actor, i *VerifyCosignInput) {
+			i.ArtifactSignatureID = strings.Repeat(" ", 1024) + "sig"
+		},
+		func(_ *identitydomain.Actor, i *VerifyCosignInput) {
+			i.Mode, i.ExpectedIdentity, i.ExpectedIssuer = CosignVerificationModeKeyless, strings.Repeat(" ", 4096)+"identity", "issuer"
+		},
+		func(_ *identitydomain.Actor, i *VerifyCosignInput) {
+			i.Mode, i.ExpectedIdentity, i.ExpectedIssuer = CosignVerificationModeKeyless, "identity", string([]byte{255})
+		},
+	} {
+		c, f, in := cosignCommandFixture(t)
+		a := identitydomain.Actor{TenantID: "tenant", KeyID: "caller"}
+		mutate(&a, &in)
+		if _, err := c.VerifyCosign(t.Context(), a, in); !errors.Is(err, ErrValidation) || f.scopeReads+f.resolutions+f.payloadReads+f.inspections != 0 {
+			t.Fatal("unbounded or noncanonical input reached verification", err, f)
+		}
+		if err := c.AuthorizeCosignVerification(t.Context(), a, in); !errors.Is(err, ErrValidation) || f.scopeReads+f.resolutions+f.payloadReads+f.inspections != 0 {
+			t.Fatal("unbounded or noncanonical input reached replay guard", err, f)
+		}
+	}
+}
+
+func TestNormalizeVerifyCosignInputPreservesWhitespaceAndUTF8ByteBoundaries(t *testing.T) {
+	for _, in := range []VerifyCosignInput{
+		{ArtifactSignatureID: " sig ", Mode: CosignVerificationModeKey, Offline: true, ExpectedIdentity: " ", ExpectedIssuer: "\t"},
+		{ArtifactSignatureID: "sig", Mode: CosignVerificationModeKeyless, Offline: true, ExpectedIdentity: " identity ", ExpectedIssuer: " issuer "},
+		{ArtifactSignatureID: "sig", Mode: CosignVerificationModeKeyless, Offline: true, ExpectedIdentity: strings.Repeat("é", 2048), ExpectedIssuer: "issuer"},
+	} {
+		got, err := NormalizeVerifyCosignInput(in)
+		if err != nil || got.ArtifactSignatureID != strings.TrimSpace(in.ArtifactSignatureID) || got.ExpectedIdentity != strings.TrimSpace(in.ExpectedIdentity) || got.ExpectedIssuer != strings.TrimSpace(in.ExpectedIssuer) {
+			t.Fatal("valid normalized policy changed", err)
+		}
+	}
+	in := VerifyCosignInput{ArtifactSignatureID: "sig", Mode: CosignVerificationModeKeyless, Offline: true, ExpectedIdentity: strings.Repeat("é", 2049), ExpectedIssuer: "issuer"}
+	if _, err := NormalizeVerifyCosignInput(in); !errors.Is(err, ErrValidation) {
+		t.Fatal("Unicode character count bypassed byte budget", err)
+	}
 }
 
 func (f *cosignCommandFake) ExecuteCosignVerification(ctx context.Context, fn func(context.Context, CosignVerificationTransaction) error) error {
@@ -24,6 +122,7 @@ func (f *cosignCommandFake) ExecuteCosignVerification(ctx context.Context, fn fu
 	copy.results, copy.audits, copy.cosign = nil, nil, nil
 	err := fn(ctx, &copy)
 	f.payloadReads = copy.payloadReads
+	f.scopeReads, f.resolutions = copy.scopeReads, copy.resolutions
 	if err != nil {
 		return err
 	}
@@ -34,6 +133,7 @@ func (f *cosignCommandFake) ExecuteCosignVerification(ctx context.Context, fn fu
 	return nil
 }
 func (f *cosignCommandFake) ResolveCosignSubject(context.Context, string, string) (CosignSubject, error) {
+	f.resolutions++
 	return f.selected.Subject, nil
 }
 func (f *cosignCommandFake) ReadCosignSnapshot(context.Context, CosignSubject) (CosignSnapshot, error) {
