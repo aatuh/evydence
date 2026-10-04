@@ -221,6 +221,7 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"createMerkleBatch", "verifyMerkleBatch", "createTransparencyCheckpoint", "createObjectRetentionPolicy",
 		"verifyObjectRetentionPolicy", "signingCustodyReviewReport", "generateBackupManifest", "verifyBackupManifest",
 		"listSigningKeys", "rotateSigningKey", "revokeSigningKey", "createSigningProvider", "verifySubject",
+		"createDurableSigningOperation",
 	} {
 		handlers[name] = struct{}{}
 	}

@@ -1128,6 +1128,14 @@ Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE 
 
 ## Verification And Trust
 
+PostgreSQL signing-operation creation binds focused Verification commands to
+bounded provider metadata and owned subject coordinates. Canonical request
+hashing and receipt validation are shared with explicit local memory. The
+provider call, receipt/operation/audit writes and replay completion run under
+current root/provider locks and the projection fence. Database rollback cannot
+undo a provider call. See [signing operation creation](api.md#signing-operation-creation)
+for bounds, replay authorization, retry limitations and non-claims.
+
 Release readiness is deterministic and evidence-scoped. Open critical vulnerability findings block readiness unless the latest decision marks the finding `not_affected` or `fixed`, or an approved unexpired exception applies to the release or finding. Passed build provenance and a structurally valid build attestation must link to release artifact digests.
 
 DSSE attestation signatures can be verified against configured Ed25519 trust roots when raw attestation bytes are available. The Cosign route verifies a finalized stored offline Sigstore bundle with operator-configured Fulcio/public-key trust material, the artifact digest, signature bytes, keyless caller-supplied identity/issuer policy when applicable, and an embedded Rekor inclusion proof. It records a safe library and trust-root version receipt, never raw trust material or bundle bytes. Requests requiring online verification fail rather than downgrading; missing trust material returns `COSIGN_FULL_VERIFICATION_UNAVAILABLE`. Signing keys support revocation and valid-at-signing semantics for historical signatures.

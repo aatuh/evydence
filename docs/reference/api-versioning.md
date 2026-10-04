@@ -548,6 +548,30 @@ for exact limits. Historical records are not rewritten. These restrictions
 require release compatibility review; this note is not an approved exception,
 provider verification evidence or proof of production Ledger retirement.
 
+## Unreleased Signing Operation Boundary
+
+`POST /v1/signing-operations` now binds focused Verification commands to
+bounded current-provider and owned-subject reads in PostgreSQL. Canonical
+request JSON field order/profile, request and nonce correlation, signature
+reference, response field casing/omission, schema version and audit binding
+are preserved. Local memory shares canonical hashing/receipt validation and
+no longer exposes mutable stored check slices.
+
+Both profiles require tenant-wide human administration and current ownership
+before replay, strict non-null exact JSON fields, bounded raw UTF-8/NUL-free
+input before trimming, and Origin for cookie mutations. Inactive providers
+cannot authorize replay. Receipt/check output is bounded, diagnostic metadata
+is redacted, and malformed/mismatched/failed-check receipts publish no operation,
+including direct calls that previously could persist failed-check records.
+Durable timestamps use UTC microseconds. Historical records are not rewritten.
+
+Successful replay does not re-sign; database rollback cannot undo a provider
+call, and a fresh attempt may use a new request ID/nonce. See
+[signing operation creation](../api.md#signing-operation-creation) for exact
+bounds, retry behavior and non-claims. These tightened boundaries require
+release compatibility review; this note is not an approved exception, live
+provider evidence or proof of complete production Ledger retirement.
+
 ## Unreleased Anomaly Report Boundary
 
 `POST /v1/reports/anomaly` now binds focused Experimental commands and bounded

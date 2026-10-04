@@ -155,6 +155,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create signing-key commands: %w", err)
 	}
+	options.SigningOperationCommands, err = BuildSigningOperationCommands(store, runtime.SigningExecutor)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create signing operation commands: %w", err)
+	}
 	options.ReleaseBundleVerification, err = BuildReleaseBundleVerificationCommands(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create release bundle verification: %w", err)

@@ -76,6 +76,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	if memory.AnomalyReportCommands != nil {
 		t.Fatal("local memory bound durable anomaly creation")
 	}
+	if memory.SigningOperationCommands != nil {
+		t.Fatal("local memory bound durable signing operations")
+	}
 	if memory.QuestionnaireDraftCommands != nil {
 		t.Fatal("local memory bound durable questionnaire drafts")
 	}
@@ -350,6 +353,9 @@ func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T)
 	}
 	if options.SigningKeyCommands == nil {
 		t.Fatal("PostgreSQL signing-key lifecycle still uses Ledger")
+	}
+	if options.SigningOperationCommands == nil {
+		t.Fatal("PostgreSQL signing operations still use Ledger")
 	}
 	if options.ReleaseBundleVerification == nil {
 		t.Fatal("PostgreSQL bundle verification still uses Ledger")

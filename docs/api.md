@@ -2554,7 +2554,7 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/signing-keys/rotate` | Rotate signing key. |
 | `POST` | `/v1/signing-keys/{id}/revoke` | Revoke key for new signatures. |
 | `POST` | `/v1/signing-providers` | Record external signing-provider metadata. |
-| `POST` | `/v1/signing-operations` | Record external signing-provider operation receipt and signature ref. |
+| `POST` | `/v1/signing-operations` | Invoke the configured signing executor and record a bound receipt; see [signing operation creation](#signing-operation-creation). |
 | `POST` | `/v1/provider-verifications` | Verify stored provider identity metadata and optional local OIDC ID-token signature/claims. |
 | `POST` | `/v1/saas/profiles` | Create explicit-instance-admin SaaS edition profile record. |
 | `POST` | `/v1/artifact-signatures` | Create artifact signature metadata. |
@@ -2575,6 +2575,63 @@ they are not redacted customer packages or compliance conclusions.
 | `GET` | `/v1/reports/custody-review` | Review tenant signing-provider and object-lock verification metadata for deployment custody review. |
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
+
+### Signing Operation Creation
+
+`POST /v1/signing-operations` requires `keys:admin` (or admin), an
+`Idempotency-Key`, and exactly `provider_id`, `subject_type`, `subject_id`,
+and `payload_hash`. Human sessions also need a current tenant-wide grant;
+a product/release grant is insufficient. Supported canonical subjects are
+`tenant`, `product`, `release`, `evidence`, `build`, and `customer_package`.
+The provider and subject must currently belong to the actor's tenant. Missing
+or foreign roots return `404`; inactive providers return `422` without signing.
+These checks also run before completed replay. Cookie-authenticated mutations
+require a single same-host HTTPS Origin; bearer credentials take precedence.
+
+Both profiles reject malformed/non-object JSON, duplicate/unknown/mixed-case
+fields, null and caller-supplied signature fields with `400`. Raw values must
+be NUL-free UTF-8: provider/subject IDs are capped at 1024 bytes, subject type
+and payload hash at 128 bytes, all before trimming. The normalized hash is
+`sha256:` followed by exactly 64 hexadecimal digits; hexadecimal case is
+preserved. The independent 64 KiB JSON body limit returns `400` with a
+`/body` `invalid_size` violation before command invocation when exceeded.
+
+PostgreSQL binds focused Verification commands. A bounded provider point read
+and coordinate-only subject reads replace tenant Ledger reconstruction.
+Provider metadata selects only type/status/key reference, with 128/128/4096
+byte caps. Parent/provider locks and the shared writer/worker projection fence
+remain held through signing, receipt/operation/audit writes, and replay commit.
+No provider private key or raw evidence payload is selected. Operator SQL writes
+must respect the same fences; external database edits are not automatically
+serialized by this contract.
+
+The configured executor signs the canonical `evydence-provider-signing.v1`
+request, not raw uploaded bytes. Its SHA-256 commitment includes tenant,
+provider/type/key reference, subject/type, the declared payload hash, a fresh
+request ID, and nonce. The response must match provider/type/key reference,
+canonical hash, and request ID. Signature text is capped at 32768 bytes;
+algorithm labels at 128; optional executor key/receipt IDs at 1024. At most
+64 executor checks are accepted, each with a 128-byte nonblank name, a
+`passed` or `skipped` result, and at most 4096 bytes of detail. Malformed,
+mismatched, oversized or failed-check responses return `422` before ledger
+writes. Optional provider diagnostic metadata is redacted before persistence.
+The operation exposes a signature reference, not signature bytes or key material.
+
+Receipt, operation, audit and successful replay completion are atomic in the
+database. Cancellation or a failed read/write/commit publishes no successful
+operation. A retryable provider failure returns `503` without a terminal replay
+marker. Completed replay returns the original result without invoking the
+signer; different request bytes using that key conflict with `409`.
+
+A completed provider call cannot be rolled back with the database transaction.
+After an ambiguous provider failure or database commit failure, another attempt
+may invoke the provider again with a fresh request ID/nonce. This is not a claim
+of provider-side exactly-once execution. Durable timestamps use UTC microseconds.
+Explicit local memory shares canonical hashing and receipt validation, checks
+provider status/key binding again after signing, and copies stored checks, but
+retains in-process persistence/locking limitations. No executor means new
+operation creation is disabled with `400`. A passed operation does not verify
+uploaded artifact bytes, release security, key custody or legal compliance.
 
 The signing-key list pages public lifecycle metadata by tenant in PostgreSQL. It does not select encrypted private key bytes; local-memory mode retains the compatibility list and in-memory pagination. A human session must have a current tenant-level `verify:read` grant, while issued credentials use their `verify:read` scope.
 

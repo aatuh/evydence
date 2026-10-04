@@ -5,6 +5,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
 func NewSpecRegistry() *specs.Registry {
@@ -744,10 +745,10 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "report_type", "tenant_id", "checks", "assumptions", "limitations", "generated_at"))
 	registry.RegisterSchema("SigningCustodyReviewReportEnvelope", dataEnvelopeSchema("#/components/schemas/SigningCustodyReviewReport"))
 	registry.RegisterSchema("CreateSigningOperationRequest", objectSchema(map[string]any{
-		"provider_id":  map[string]any{"type": "string"},
-		"subject_type": map[string]any{"type": "string"},
-		"subject_id":   map[string]any{"type": "string"},
-		"payload_hash": map[string]any{"type": "string", "pattern": "^sha256:"},
+		"provider_id":  map[string]any{"type": "string", "minLength": 1, "maxLength": verificationapp.MaxSigningOperationIDBytes, "description": "Tenant-owned current active provider; raw NUL-free UTF-8 is capped at 1024 bytes before trimming, including replay."},
+		"subject_type": map[string]any{"type": "string", "enum": []string{"tenant", "product", "release", "evidence", "build", "customer_package"}, "maxLength": 128, "description": "Canonical supported subject; raw UTF-8 is capped at 128 bytes before trimming."},
+		"subject_id":   map[string]any{"type": "string", "minLength": 1, "maxLength": verificationapp.MaxSigningOperationIDBytes, "description": "Current tenant-owned subject; raw NUL-free UTF-8 is capped at 1024 bytes before trimming."},
+		"payload_hash": map[string]any{"type": "string", "maxLength": 128, "pattern": "^\\s*sha256:[0-9a-fA-F]{64}\\s*$", "description": "Declared SHA-256 payload digest, not raw payload bytes; raw NUL-free UTF-8 is capped at 128 bytes before trimming."},
 	}, "provider_id", "subject_type", "subject_id", "payload_hash"))
 	registry.RegisterSchema("SigningOperation", objectSchema(map[string]any{
 		"id":                     map[string]any{"type": "string"},

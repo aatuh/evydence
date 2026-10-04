@@ -42,12 +42,13 @@ func TestOpenRuntimeRejectsUnsafeConfigurationBeforeOpeningAdapters(t *testing.T
 
 func TestOpenRuntimeBuildsExplicitLocalMemoryMode(t *testing.T) {
 	discovery := &ssoDiscoveryWiringFake{}
-	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: LocalMemory, WorkerOwnedParsers: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}, OIDC: discovery})
+	signer := &signingOperationWiringSigner{}
+	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: LocalMemory, WorkerOwnedParsers: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}, OIDC: discovery, SigningExecutor: signer})
 	if err != nil || runtime == nil {
 		t.Fatalf("local runtime=%#v error=%v", runtime, err)
 	}
 	defer runtime.Close()
-	if runtime.Process != API || runtime.Production || runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || !runtime.WorkerOwnedParsers || len(runtime.Profile.Limitations()) == 0 || runtime.OIDC != discovery {
+	if runtime.Process != API || runtime.Production || runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || !runtime.WorkerOwnedParsers || len(runtime.Profile.Limitations()) == 0 || runtime.OIDC != discovery || runtime.SigningExecutor != signer {
 		t.Fatalf("local runtime did not retain explicit limitations: %#v", runtime)
 	}
 }

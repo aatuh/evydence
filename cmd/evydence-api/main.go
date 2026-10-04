@@ -119,6 +119,7 @@ func runWithContext(ctx context.Context) error {
 		Cosign:             cosignVerifier,
 		OIDC:               cfg.OIDC,
 		ProviderAPI:        cfg.ProviderAPI,
+		SigningExecutor:    cfg.Signer,
 	})
 	if err != nil {
 		return err

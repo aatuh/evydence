@@ -285,18 +285,30 @@ func (s *Server) generateAnomalyReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSigningOperation(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProviderID  string `json:"provider_id"`
-		SubjectType string `json:"subject_type"`
-		SubjectID   string `json:"subject_id"`
-		PayloadHash string `json:"payload_hash"`
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
+	if s.signingOperationCommands != nil {
+		s.createDurableSigningOperation(w, r)
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
+		req, err := decodeSigningOperationRequest(body)
+		if err != nil {
 			return 0, nil, err
 		}
 		op, err := s.ledger.CreateSigningOperation(ctx, actor, app.CreateSigningOperationInput{ProviderID: req.ProviderID, SubjectType: req.SubjectType, SubjectID: req.SubjectID, PayloadHash: req.PayloadHash})
 		return http.StatusCreated, op, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		in, err := decodeSigningOperationRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ledger.AuthorizeCreateSigningOperation(r.Context(), a, app.CreateSigningOperationInput{ProviderID: in.ProviderID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, PayloadHash: in.PayloadHash}); err != nil {
+			return nil, err
+		}
+		return body, nil
 	})
 }
 

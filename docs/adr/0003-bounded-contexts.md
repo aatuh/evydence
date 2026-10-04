@@ -9,6 +9,14 @@ legacy-facade retirement remain assigned to EVY-905 and EVY-906.
 
 ## Context
 
+Verification-owned `SigningOperationCommands` uses flat bounded provider,
+subject-coordinate, executor, insert and audit ports. The runtime supplies the
+configured executor; no service locator or mixed Future interface expansion
+enters the core. Current SQL root/provider locks and the projection fence cover
+receipt/operation/audit/replay commit. Canonical hashing and receipt validation
+are shared with explicit local memory. Database atomicity does not imply
+rollback or exactly-once execution at an external signing provider.
+
 Experimental-owned `AnomalyCommands` now binds flat subject-coordinate,
 release-fact and insert ports without extending the mixed Future repository.
 Adapters reuse fixed-size readiness SQL predicates, but no full readiness
