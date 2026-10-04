@@ -32,11 +32,7 @@ func customerSnapshotID(value string, optional bool) bool {
 
 func readCustomerPackageCatalogTx(ctx context.Context, tx pgx.Tx, tenant, product, release string, budget *customerSnapshotBudget) (customerPackageCatalogSnapshot, error) {
 	var empty customerPackageCatalogSnapshot
-	if ctx == nil || tx == nil || budget == nil || budget.remainingBytes < 0 || budget.remainingBytes > packageapp.MaxCustomerPackageManifestBytes ||
-		!customerSnapshotID(tenant, false) || !customerSnapshotID(product, false) || !customerSnapshotID(release, true) {
-		return empty, packageapp.ErrValidation
-	}
-	if err := ctx.Err(); err != nil {
+	if err := validateCustomerSnapshotRead(ctx, tx, tenant, product, release, budget); err != nil {
 		return empty, err
 	}
 	// Publish consumption only after this complete component succeeds.
@@ -97,7 +93,7 @@ func readCustomerPackageCatalogTx(ctx context.Context, tx pgx.Tx, tenant, produc
 	return out, nil
 }
 
-// The projection SQL is a private constant, not caller-provided SQL. All scope
+// The projection SQL is fixed internally, not caller-provided SQL. All scope
 // coordinates and limits stay bound parameters. PostgreSQL computes the row,
 // metadata-byte, and validity budgets before transferring any selected JSON;
 // on overflow only null metadata and a rejection flag cross the driver.
@@ -172,9 +168,15 @@ const customerCatalogOrganizationsSQL = `SELECT o.id AS sort_id,
 
 // Optional parent IDs must either be absent or resolve in this same tenant
 // and selected product. A matching release ID alone is not product authority.
-const customerCatalogEvidenceScopeSQL = `e.tenant_id=s.tenant_id AND e.product_id=s.product_id
-	AND (s.release_id='' OR e.release_id=s.release_id)
-	AND (coalesce(e.project_id,'')='' OR EXISTS(SELECT 1 FROM projects p WHERE p.id=e.project_id AND p.tenant_id=s.tenant_id AND p.product_id=s.product_id))
+const customerCatalogEvidenceOwnershipSQL = `e.tenant_id=s.tenant_id
+	AND (e.product_id=s.product_id OR (coalesce(e.product_id,'')='' AND (
+	 EXISTS(SELECT 1 FROM projects p WHERE p.id=e.project_id AND p.tenant_id=s.tenant_id AND p.product_id=s.product_id)
+	 OR EXISTS(SELECT 1 FROM releases r WHERE r.id=e.release_id AND r.tenant_id=s.tenant_id AND r.product_id=s.product_id)
+	 OR EXISTS(SELECT 1 FROM build_runs b JOIN projects p ON p.id=b.project_id AND p.tenant_id=b.tenant_id AND p.product_id=s.product_id JOIN releases r ON r.id=b.release_id AND r.tenant_id=b.tenant_id AND r.product_id=s.product_id WHERE b.id=e.build_id AND b.tenant_id=s.tenant_id)
+	 OR EXISTS(SELECT 1 FROM deployment_events d JOIN deployment_environments v ON v.id=d.environment_id AND v.tenant_id=d.tenant_id AND v.product_id=s.product_id JOIN releases r ON r.id=d.release_id AND r.tenant_id=d.tenant_id AND r.product_id=s.product_id WHERE d.id=e.deployment_id AND d.tenant_id=s.tenant_id)
+	)))` + customerEvidenceParentConsistencySQL
+
+const customerEvidenceParentConsistencySQL = `AND (coalesce(e.project_id,'')='' OR EXISTS(SELECT 1 FROM projects p WHERE p.id=e.project_id AND p.tenant_id=s.tenant_id AND p.product_id=s.product_id))
 	AND (coalesce(e.release_id,'')='' OR EXISTS(SELECT 1 FROM releases r WHERE r.id=e.release_id AND r.tenant_id=s.tenant_id AND r.product_id=s.product_id))
 	AND (coalesce(e.build_id,'')='' OR EXISTS(SELECT 1 FROM build_runs b
 	 JOIN projects p ON p.id=b.project_id AND p.tenant_id=b.tenant_id AND p.product_id=s.product_id
@@ -188,6 +190,8 @@ const customerCatalogEvidenceScopeSQL = `e.tenant_id=s.tenant_id AND e.product_i
 	 WHERE d.id=e.deployment_id AND d.tenant_id=s.tenant_id
 	 AND (coalesce(e.release_id,'')='' OR e.release_id=d.release_id)
 	 AND (coalesce(e.build_id,'')='' OR EXISTS(SELECT 1 FROM build_runs b WHERE b.id=e.build_id AND b.tenant_id=s.tenant_id AND b.release_id=d.release_id))))`
+
+const customerCatalogEvidenceScopeSQL = customerCatalogEvidenceOwnershipSQL + ` AND (s.release_id='' OR e.release_id=s.release_id)`
 
 const customerCatalogEvidenceSQL = `SELECT e.id AS sort_id,jsonb_build_object('id',e.id,'type',e.type) AS metadata,
 	(octet_length(e.id)>1024 OR btrim(e.id)='' OR e.id<>btrim(e.id) OR octet_length(e.type)>1024 OR btrim(e.type)='' OR e.type<>btrim(e.type)) AS invalid

@@ -28,9 +28,19 @@ associations inside the selected tenant/product, binds build-output artifact
 digests, and rejects row/byte overflow before transferring selected metadata.
 It neither loads Ledger state nor acquires the writer fence on its read
 connection. This catalog component is tested against live PostgreSQL but is
-not yet a complete snapshot reader: evidence summaries, governance,
-verification, provenance, readiness, and the selected policy still need to be
-composed in that same view.
+not yet a complete snapshot reader. Its evidence component now selects SBOM,
+scan, VEX, and API-contract/diff summaries in that same caller-owned view and
+shares the metadata byte budget. It excludes raw findings, components,
+documents, payload locations, VEX authors, and private operation extensions;
+malformed public list/count fields are rejected before metadata transfer.
+Operation normalization is shared with the explicit local reader. Legacy
+product ownership is resolved from coherent source parents, or from the
+contract's declared product when optional source coordinates are absent.
+Product-only document summaries remain unreleased-only and product-scoped;
+contract diffs may reference other releases of that same product. Live tests
+cover these compatibility cases, unambiguous artifact binding, and concurrent
+commits. Governance, verification, provenance, readiness, and the selected
+policy still need to be composed before the reader can be bound to production.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and
 API startup still reach Ledger. See

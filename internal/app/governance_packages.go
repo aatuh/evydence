@@ -14,6 +14,7 @@ import (
 
 	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
@@ -325,30 +326,15 @@ func (l *Ledger) packageAPIContractMetadataLocked(tenantID, releaseID string) ma
 }
 
 func packageOpenAPIOperations(operations []domain.OpenAPIOperation) []map[string]any {
-	out := make([]map[string]any, 0, len(operations))
+	inputs := make([]packageapp.CustomerPackageAPIOperation, 0, len(operations))
 	for _, operation := range operations {
-		method := strings.ToUpper(strings.TrimSpace(operation.Method))
-		path := strings.TrimSpace(operation.Path)
-		if method == "" || path == "" {
-			continue
-		}
-		out = append(out, map[string]any{
-			"label":                   method + " " + path,
-			"path":                    path,
-			"method":                  method,
-			"operation_id":            operation.OperationID,
-			"deprecated":              operation.Deprecated,
-			"request_body_required":   operation.RequestBodyRequired,
-			"required_request_fields": append([]string(nil), operation.RequiredRequestFields...),
-			"response_statuses":       append([]string(nil), operation.ResponseStatuses...),
+		inputs = append(inputs, packageapp.CustomerPackageAPIOperation{
+			Path: operation.Path, Method: operation.Method, OperationID: operation.OperationID,
+			Deprecated: operation.Deprecated, RequestBodyRequired: operation.RequestBodyRequired,
+			RequiredRequestFields: operation.RequiredRequestFields, ResponseStatuses: operation.ResponseStatuses,
 		})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		left, _ := out[i]["label"].(string)
-		right, _ := out[j]["label"].(string)
-		return left < right
-	})
-	return out
+	return packageapp.CustomerPackageOperationSummaries(inputs)
 }
 
 func (l *Ledger) packageApprovalSummariesLocked(tenantID, productID, releaseID string) []map[string]any {

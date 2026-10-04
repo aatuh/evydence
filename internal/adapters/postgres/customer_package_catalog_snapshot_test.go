@@ -123,7 +123,8 @@ func TestCustomerPackageCatalogSnapshotScopesAllAssociations(t *testing.T) {
 
 type customerMetadataWatchTx struct {
 	pgx.Tx
-	largest int
+	largest      int
+	privateFound bool
 }
 
 func (w *customerMetadataWatchTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
@@ -144,8 +145,11 @@ func (r customerMetadataWatchRows) Scan(dest ...any) error {
 		return err
 	}
 	for _, value := range dest {
-		if raw, ok := value.(*[]byte); ok && len(*raw) > r.watch.largest {
-			r.watch.largest = len(*raw)
+		if raw, ok := value.(*[]byte); ok {
+			if len(*raw) > r.watch.largest {
+				r.watch.largest = len(*raw)
+			}
+			r.watch.privateFound = r.watch.privateFound || strings.Contains(string(*raw), "private-")
 		}
 	}
 	return nil
@@ -318,5 +322,21 @@ func TestCustomerPackageCatalogSnapshotValidatesBuildAndDeploymentParents(t *tes
 	v, err := readCustomerPackageCatalogTx(t.Context(), customerCatalogReadTx(t, s), "tenant", "product", "release", &customerSnapshotBudget{remainingBytes: packageapp.MaxCustomerPackageManifestBytes})
 	if err != nil || !reflect.DeepEqual(v.Evidence, []packageapp.EvidenceReference{{ID: "ev_selected", Type: "document"}, {ID: "valid_parents", Type: "document"}}) {
 		t.Fatalf("invalid cross-context parents admitted: evidence=%#v err=%v", v.Evidence, err)
+	}
+}
+
+func TestCustomerPackageCatalogSnapshotResolvesLegacyProductCoordinates(t *testing.T) {
+	s := customerCatalogFixture(t)
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO evidence_items(id,tenant_id,product_id,project_id,release_id,type,title,source_system,observed_at,schema_version,payload_hash,canonical_hash,canonicalization,trust_level,verification_status)
+		VALUES('derived_release','tenant',NULL,NULL,'release','document','Legacy','test',now(),'evidence.v1','sha256:fixture','sha256:fixture','json','L2','pending'),('derived_project','tenant',NULL,'project',NULL,'document','Legacy','test',now(),'evidence.v1','sha256:fixture','sha256:fixture','json','L2','pending'),('derived_sibling','tenant',NULL,'sibling_project',NULL,'document','Legacy','test',now(),'evidence.v1','sha256:fixture','sha256:fixture','json','L2','pending'),('unscoped_legacy','tenant',NULL,NULL,NULL,'document','Legacy','test',now(),'evidence.v1','sha256:fixture','sha256:fixture','json','L2','pending')`); err != nil {
+		t.Fatal(err)
+	}
+	v, err := readCustomerPackageCatalogTx(t.Context(), customerCatalogReadTx(t, s), "tenant", "product", "release", &customerSnapshotBudget{remainingBytes: packageapp.MaxCustomerPackageManifestBytes})
+	if err != nil || !reflect.DeepEqual(v.Evidence, []packageapp.EvidenceReference{{ID: "derived_release", Type: "document"}, {ID: "ev_selected", Type: "document"}}) {
+		t.Fatalf("derived release ownership lost: evidence=%#v err=%v", v.Evidence, err)
+	}
+	v, err = readCustomerPackageCatalogTx(t.Context(), customerCatalogReadTx(t, s), "tenant", "product", "", &customerSnapshotBudget{remainingBytes: packageapp.MaxCustomerPackageManifestBytes})
+	if err != nil || !reflect.DeepEqual(v.Evidence, []packageapp.EvidenceReference{{ID: "derived_project", Type: "document"}, {ID: "derived_release", Type: "document"}, {ID: "ev_other_release", Type: "document"}, {ID: "ev_product_only", Type: "document"}, {ID: "ev_selected", Type: "document"}}) {
+		t.Fatalf("derived product ownership lost or overbroad: evidence=%#v err=%v", v.Evidence, err)
 	}
 }
