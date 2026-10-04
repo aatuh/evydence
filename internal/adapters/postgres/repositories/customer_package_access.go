@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -19,10 +21,15 @@ import (
 // rather than allocating an arbitrary stored JSON value in the API process.
 func (r packages) GetCustomerSecurityPackageForUpdate(ctx context.Context, tenantID, id string) (domain.CustomerSecurityPackage, error) {
 	var empty domain.CustomerSecurityPackage
-	if ctx == nil || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(id) == "" {
+	if ctx == nil || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(id) == "" || len(tenantID) > packageapp.MaxCustomerPackageIDBytes || len(id) > packageapp.MaxCustomerPackageIDBytes || !utf8.ValidString(tenantID) || !utf8.ValidString(id) || strings.ContainsRune(tenantID, 0) || strings.ContainsRune(id, 0) {
 		return empty, app.ErrValidation
 	}
 	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
+	// Portal and worker/audit writers take this fence before selected row locks.
+	// Taking the package row first can deadlock against those command paths.
+	if err := coordination.LockWorkerProjection(ctx, r.tx, tenantID); err != nil {
 		return empty, err
 	}
 	var pkg domain.CustomerSecurityPackage

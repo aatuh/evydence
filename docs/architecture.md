@@ -1291,9 +1291,18 @@ and profile/audit/replay commit atomically. Creation does not read evidence,
 existing profiles, customer manifests, or signing keys. Both profiles share
 preset/normalization rules and recheck tenant-wide package-write authority
 before replay. Historical profiles are not rewritten or subjected to new
-creation bounds. Customer-package creation, archive download, and API startup
+creation bounds. Customer-package creation and API startup
 still have Ledger dependencies; this migration does not remove them. See
 [redaction-profile creation](api.md#redaction-profile-creation).
+
+Authenticated customer-package downloads now use the same focused audited
+access command as package JSON reads, followed by the existing bounded
+record-only ZIP renderer. PostgreSQL access takes the common worker/audit fence
+before locking the selected package row, consistent with portal-token access.
+No evidence reload, full tenant snapshot, or Ledger archive lookup is needed.
+The successful access count/audit commits before rendering; failed rendering
+or delivery may therefore retain an access audit, not a delivery receipt. See
+[archive download](api.md#customer-package-archive-download).
 
 Answer-library creation also binds a focused Package command. Its flat ports
 resolve only current root/reference ownership, authorize tenant/product/release

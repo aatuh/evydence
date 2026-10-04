@@ -909,7 +909,7 @@ func customerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackage
 }
 
 // RenderCustomerPackageArchive is a bounded, record-only compatibility utility.
-// Durable portal commands supply the authorized committed package; rendering
+// Durable package/portal commands supply the authorized committed package; rendering
 // performs no Ledger lookup, transaction, token verification, or state mutation.
 func RenderCustomerPackageArchive(pkg domain.CustomerSecurityPackage) (CustomerPackageArchive, error) {
 	return customerPackageArchive(pkg)

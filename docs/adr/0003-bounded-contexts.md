@@ -15,10 +15,19 @@ only the actor's tenant identity, joins the durable replay transaction, and
 does not read existing profiles, evidence, manifests, or signing material.
 Current tenant-wide package-write authority is checked before replay. The local
 Package service delegates to the same preset, normalization, and record rules;
-its broad transaction adapter is compatibility-only. Customer-package creation,
-archive download, and broad API startup remain separate EVY-905 work. See
+its broad transaction adapter is compatibility-only. Customer-package creation
+and broad API startup remain separate EVY-905 work. See
 [profile creation](../api.md#redaction-profile-creation) for bounds and malformed
 request compatibility limits.
+
+Authenticated customer-package archive download now reuses Package-owned
+`AccessCommands` for selected-package ownership, expiry, count, and audit,
+then renders only the committed public record. PostgreSQL takes the common
+worker/audit fence before the package row lock, matching portal access and
+avoiding the reverse lock order. The existing bounded record-only archive
+renderer has no Ledger authority. Access auditing is not a delivery receipt:
+rendering or network failure after access commit does not undo that audit. See
+[archive download](../api.md#customer-package-archive-download).
 
 Experimental-owned `SaaSProfileCommands` records configuration intent using
 flat two-tenant-key, insert and audit ports, with exact instance authority.

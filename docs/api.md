@@ -2409,6 +2409,39 @@ the original result without duplicating effects, and rejects changed request
 content with `409`. Local memory shares policy rules and current replay
 authorization but retains its documented nondurable storage limitation.
 
+### Customer Package Archive Download
+
+`GET /v1/customer-packages/{id}/download` requires `package:read` and the current
+tenant, product, release, or customer-package grant applicable to the selected
+package. It checks current tenant-owned product/release parents and expiry;
+foreign or missing packages return `404`, denied grants `403`, and expired or
+invalid stored package state `409`. Package IDs used by focused access must be
+NUL-free UTF-8 and at most 1024 raw bytes before trimming. Invalid raw IDs return
+`400`, as does an unsafe or oversized archive render.
+
+The PostgreSQL profile reads and locks only the selected package, bounding its
+manifest to 8 MiB before transfer. The shared worker/audit fence is taken before
+the package row lock. Access count and `customer_package.accessed` audit commit
+together, including on repeated or restarted download requests; this GET has
+the same established audited-access side effect as the package JSON read.
+Audit or transaction-commit failure returns no ZIP and rolls back the count.
+
+After access commits, the existing record-only renderer produces fixed ZIP
+entry names, scoped public manifest metadata, verification guidance and HTML.
+It does not fetch evidence payloads or rebuild a package from current tenant
+state. Existing rendering bounds remain: 10 MiB per file, 4 MiB for generated
+HTML, 40 MiB expanded ZIP content, and 32 MiB archive bytes. Responses retain
+`Content-Type: application/zip`, attachment filename, `Content-Length`, and
+`X-Evydence-Archive-Hash` over the returned bytes. The frozen stored manifest
+is not rewritten by access or rendering.
+
+Access auditing is not proof of delivery: a later render or network failure can
+leave the already committed access count/audit. No archive headers or bytes are
+returned on access or rendering errors. Explicit local memory retains its
+storage facade and the same record-only renderer; this does not make local
+memory durable or establish a compliance, certification, or secure-release
+conclusion.
+
 ### PDF Report Packaging
 
 `POST /v1/reports/pdf` requires `report:read`, an `Idempotency-Key`, nonblank

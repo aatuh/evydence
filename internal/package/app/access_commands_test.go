@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,16 @@ func newAccessTestCommands(t *testing.T, state *packageTestState) *AccessCommand
 		t.Fatal(err)
 	}
 	return commands
+}
+
+func TestFocusedPackageAccessRejectsInvalidRawIDsBeforeTransactions(t *testing.T) {
+	for _, id := range []string{"bad\x00", string([]byte{0xff}), strings.Repeat("x", 1025), strings.Repeat(" ", 1024) + "id"} {
+		state := newPackageTestState()
+		commands := newAccessTestCommands(t, state)
+		if result, err := commands.AccessCustomerSecurityPackage(t.Context(), packageTestActor(), id); !errors.Is(err, ErrValidation) || result.ID != "" || state.executeCalls != 0 {
+			t.Fatal("invalid raw ID reached storage", err)
+		}
+	}
 }
 
 func accessTestPackage() packagedomain.CustomerSecurityPackage {

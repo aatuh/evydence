@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -9,6 +10,20 @@ import (
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
+
+// Authentication is owned by the handler; the focused command resolves scope,
+// expiry and committed access auditing. Rendering only consumes that frozen
+// result, using the same bounded utility as the portal download path.
+func (s *Server) customerPackageArchive(ctx context.Context, actor domain.Actor, id string) (app.CustomerPackageArchive, error) {
+	if s.customerPackageAccessCommands == nil {
+		return s.ledger.ExportCustomerSecurityPackageArchive(ctx, actor, id)
+	}
+	pkg, err := s.customerPackageAccessCommands.AccessCustomerSecurityPackage(ctx, actor, id)
+	if err != nil {
+		return app.CustomerPackageArchive{}, mapCustomerPackageAccessError(err)
+	}
+	return app.RenderCustomerPackageArchive(customerPackageFromAccess(pkg))
+}
 
 func mapCustomerPackageAccessError(err error) error {
 	switch {

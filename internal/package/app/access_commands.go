@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -13,6 +14,7 @@ import (
 const (
 	MaxCustomerPackageManifestBytes = 8 << 20
 	MaxSecurityReviewEvidenceIDs    = 4096
+	MaxCustomerPackageIDBytes       = 1024
 )
 
 type AccessTransaction interface {
@@ -64,6 +66,9 @@ func (s *AccessCommands) access(ctx context.Context, actor identitydomain.Actor,
 	}
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePackageRead, ScopeOnly: true}); err != nil {
 		return empty, err
+	}
+	if len(id) > MaxCustomerPackageIDBytes || !utf8.ValidString(id) || strings.ContainsRune(id, 0) {
+		return empty, ErrValidation
 	}
 	id = strings.TrimSpace(id)
 	if id == "" {

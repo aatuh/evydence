@@ -32,6 +32,15 @@ func TestCustomerPackageLockedReadScopesAndBoundsManifest(t *testing.T) {
 	exec(`INSERT INTO redaction_profiles(id,tenant_id,name,allowed_types,excluded_fields,schema_version,created_at)VALUES('rp_package','ten_package','Review',ARRAY['sbom'],'{}','redaction.v1',$1)`, now)
 	exec(`INSERT INTO customer_security_packages(id,tenant_id,product_id,release_id,redaction_profile_id,title,state,manifest,manifest_hash,expires_at,schema_version,created_at)VALUES('csp_package','ten_package','prod_package','rel_package','rp_package','Review','generated','{"evidence_ids":["ev_1"]}','sha256:fixture',$1,'package.v1',$2)`, now.Add(time.Hour), now)
 	repository := postgresrepositories.New(tx).Packages
+	for _, input := range []struct{ tenant, id string }{
+		{"ten_package", "bad\x00"}, {"bad\x00", "csp_package"},
+		{"ten_package", string([]byte{0xff})}, {"ten_package", strings.Repeat("x", 1025)},
+		{strings.Repeat("x", 1025), "csp_package"},
+	} {
+		if result, err := repository.GetCustomerSecurityPackageForUpdate(ctx, input.tenant, input.id); !errors.Is(err, app.ErrValidation) || result.ID != "" {
+			t.Fatal("invalid raw coordinates reached SQL", err)
+		}
+	}
 	pkg, err := repository.GetCustomerSecurityPackageForUpdate(ctx, "ten_package", "csp_package")
 	if err != nil || pkg.ID != "csp_package" || pkg.ReleaseID != "rel_package" || pkg.Manifest["evidence_ids"] == nil {
 		t.Fatalf("pkg=%#v err=%v", pkg, err)

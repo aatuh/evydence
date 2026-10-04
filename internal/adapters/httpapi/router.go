@@ -2390,7 +2390,7 @@ func (s *Server) downloadCustomerPackage(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	archive, err := s.ledger.ExportCustomerSecurityPackageArchive(r.Context(), actor, r.PathValue("id"))
+	archive, err := s.customerPackageArchive(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
 		writeProblem(w, r, err)
 		return
