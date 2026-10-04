@@ -62,9 +62,15 @@ selecting source identity, raw payloads, storage locations, builder identity, or
 signature bytes. Public output sorting is shared with local memory. Null-list and
 timestamp shapes, recorded verification states, and the existing requirement for
 an included build before attestation inclusion are preserved. This metadata
-projection does not itself verify an attestation or signature. Verification,
-readiness, and the selected policy still need to be composed before
-the reader can be bound to production.
+projection does not itself verify an attestation or signature. The private
+selected-policy component reads only the tenant-owned redaction profile in
+that same view and budget. Its bounded decoder is shared with the write-time
+policy comparison, preserving exact microsecond timestamps, list ordering,
+and optional descriptions. Only the write path takes the mutation fence and
+policy row lock. Invalid array shapes, oversized values, and out-of-range
+timestamps are rejected before policy JSON crosses the database driver.
+Verification and readiness still need to be composed before the reader can
+be bound to production.
 Production creation is **not yet migrated**: the bounded database snapshot
 reader and HTTP binding are outstanding, and the existing creation route and
 API startup still reach Ledger. See
