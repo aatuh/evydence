@@ -32,6 +32,7 @@ func TestPostgresControlCreationHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 	actor := domain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"controls:admin", "controls:read", "report:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: "tenant", Scopes: []string{"controls:admin", "controls:read", "report:read"}}}}
 	auth := &attestationHTTPActor{actor: actor}
 	var ledgers []*app.Ledger
+	var reloads []*decisionHTTPNoReloadStore
 	newServer := func() http.Handler {
 		t.Helper()
 		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
@@ -39,7 +40,9 @@ func TestPostgresControlCreationHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 			t.Fatal(err)
 		}
 		opts.Authenticator = auth
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{UnitOfWork: store})
+		noReload := &decisionHTTPNoReloadStore{}
+		reloads = append(reloads, noReload)
+		ledger, err := app.NewLedgerWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +63,7 @@ func TestPostgresControlCreationHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 		}
 		rec := httptest.NewRecorder()
 		newServer().ServeHTTP(rec, req)
-		if rec.Code != want || strings.Contains(rec.Body.String(), "private control SQL") {
+		if rec.Code != want || reloads[len(reloads)-1].loads != 1 || strings.Contains(rec.Body.String(), "private control SQL") {
 			t.Fatalf("HTTP %s %s got %d want %d: %s", method, path, rec.Code, want, rec.Body.String())
 		}
 		return rec.Body.String()

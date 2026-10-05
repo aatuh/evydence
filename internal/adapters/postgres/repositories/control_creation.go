@@ -20,6 +20,14 @@ var _ riskapp.ControlTemplateReader = controls{}
 // fence precedes the tenant lock, including standalone installation/guards,
 // and both locks join the enclosing durable replay transaction.
 func (r controls) LockControlTemplateTenant(ctx context.Context, tenant string) error {
+	return r.lockControlTenant(ctx, tenant)
+}
+
+func (r controls) LockControlCreationTenant(ctx context.Context, tenant string) error {
+	return r.lockControlTenant(ctx, tenant)
+}
+
+func (r controls) lockControlTenant(ctx context.Context, tenant string) error {
 	if ctx == nil || r.tx == nil || !validRetentionCoordinate(tenant) {
 		return app.ErrValidation
 	}
@@ -67,7 +75,7 @@ func (r controls) ControlFrameworkExists(ctx context.Context, tenant, id string)
 	var exists bool
 	// Lock the tenant-owned parent without transferring its potentially large
 	// name/description. Foreign IDs and missing IDs have the same result.
-	err := r.tx.QueryRow(ctx, `SELECT true FROM control_frameworks WHERE tenant_id=$1 AND id=$2 FOR KEY SHARE`, tenant, id).Scan(&exists)
+	err := r.tx.QueryRow(ctx, `SELECT true FROM control_frameworks WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenant, id).Scan(&exists)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}

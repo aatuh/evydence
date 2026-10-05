@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -18,6 +17,7 @@ const ScopeControlsAdmin = "controls:admin"
 // or an inventory of controls. All reads occur in the active write transaction.
 type ControlCreationReader interface {
 	FrameworkVersionReader
+	LockControlCreationTenant(context.Context, string) error
 	ControlFrameworkExists(context.Context, string, string) (bool, error)
 	SecurityControlCodeExists(context.Context, string, string, string) (bool, error)
 }
@@ -75,19 +75,19 @@ func (s *ControlCommands) CreateControlFramework(ctx context.Context, actor iden
 	if err := s.preflight(ctx, actor); err != nil {
 		return riskdomain.ControlFramework{}, err
 	}
-	in.Name, in.Slug, in.Version, in.Description = strings.TrimSpace(in.Name), strings.TrimSpace(in.Slug), strings.TrimSpace(in.Version), strings.TrimSpace(in.Description)
-	if in.Slug == "" {
-		in.Slug = riskdomain.ControlFrameworkSlug(in.Name)
-	}
-	if !validControlText(actor.TenantID, 1024, true) || !validControlText(in.Name, 65536, true) || !validControlText(in.Slug, 1024, true) || !validControlText(in.Version, 1024, true) || len(in.Slug)+len(in.Version) > 1024 || !validControlText(in.Description, 65536, false) {
+	in, err := NormalizeControlFrameworkInput(in)
+	if err != nil || !validControlTenant(actor.TenantID) {
 		return riskdomain.ControlFramework{}, ErrValidation
 	}
 	v := riskdomain.ControlFramework{ID: s.config.IDs.NewID("fw"), TenantID: actor.TenantID, Name: in.Name, Slug: in.Slug, Version: in.Version, Description: in.Description, Status: "active", SchemaVersion: riskdomain.ControlFrameworkSchemaVersion, CreatedAt: s.config.Clock.Now().UTC()}
 	if !validControlText(v.ID, 1024, true) || v.CreatedAt.IsZero() {
 		return riskdomain.ControlFramework{}, ErrValidation
 	}
-	err := s.config.Transactions.ExecuteControls(ctx, func(ctx context.Context, tx ControlTransaction) error {
+	err = s.config.Transactions.ExecuteControls(ctx, func(ctx context.Context, tx ControlTransaction) error {
 		if err := tx.Authorize(ctx, actor, controlAdminRequest()); err != nil {
+			return err
+		}
+		if err := tx.LockControlCreationTenant(ctx, actor.TenantID); err != nil {
 			return err
 		}
 		if exists, err := tx.FrameworkVersionExists(ctx, actor.TenantID, v.Slug, v.Version); err != nil {
@@ -111,31 +111,19 @@ func (s *ControlCommands) CreateSecurityControl(ctx context.Context, actor ident
 	if err := s.preflight(ctx, actor); err != nil {
 		return riskdomain.SecurityControl{}, err
 	}
-	in.FrameworkID, in.Code, in.Title, in.Objective = strings.TrimSpace(in.FrameworkID), strings.TrimSpace(in.Code), strings.TrimSpace(in.Title), strings.TrimSpace(in.Objective)
-	if !validControlText(actor.TenantID, 1024, true) || !validControlText(in.FrameworkID, 1024, true) || !validControlText(in.Code, 1024, true) || len(actor.TenantID)+len(in.FrameworkID)+len(in.Code) > 2048 || !validControlText(in.Title, 65536, true) || !validControlText(in.Objective, 65536, true) || len(in.EvidenceRequirements) > 10 || !validControlLists(in.Applicability, in.Limitations) {
+	in, err := NormalizeSecurityControlInput(in)
+	if err != nil || !validControlTenant(actor.TenantID) || len(actor.TenantID)+len(in.FrameworkID)+len(in.Code) > 2048 {
 		return riskdomain.SecurityControl{}, ErrValidation
 	}
-	requirements, err := riskdomain.NormalizeControlRequirements(in.EvidenceRequirements)
-	if err != nil {
-		return riskdomain.SecurityControl{}, ErrValidation
-	}
-	applicability := append([]string(nil), in.Applicability...)
-	for i := range applicability {
-		applicability[i] = strings.TrimSpace(applicability[i])
-	}
-	sort.Strings(applicability)
-	limitations := []string{}
-	for _, text := range in.Limitations {
-		if trimmed := strings.TrimSpace(text); trimmed != "" {
-			limitations = append(limitations, trimmed)
-		}
-	}
-	v := riskdomain.SecurityControl{ID: s.config.IDs.NewID("ctrl"), TenantID: actor.TenantID, FrameworkID: in.FrameworkID, Code: in.Code, Title: in.Title, Objective: in.Objective, EvidenceRequirements: requirements, Applicability: applicability, Limitations: limitations, SchemaVersion: riskdomain.SecurityControlSchemaVersion, CreatedAt: s.config.Clock.Now().UTC()}
+	v := riskdomain.SecurityControl{ID: s.config.IDs.NewID("ctrl"), TenantID: actor.TenantID, FrameworkID: in.FrameworkID, Code: in.Code, Title: in.Title, Objective: in.Objective, EvidenceRequirements: in.EvidenceRequirements, Applicability: in.Applicability, Limitations: in.Limitations, SchemaVersion: riskdomain.SecurityControlSchemaVersion, CreatedAt: s.config.Clock.Now().UTC()}
 	if !validControlText(v.ID, 1024, true) || v.CreatedAt.IsZero() {
 		return riskdomain.SecurityControl{}, ErrValidation
 	}
 	err = s.config.Transactions.ExecuteControls(ctx, func(ctx context.Context, tx ControlTransaction) error {
 		if err := tx.Authorize(ctx, actor, controlAdminRequest()); err != nil {
+			return err
+		}
+		if err := tx.LockControlCreationTenant(ctx, actor.TenantID); err != nil {
 			return err
 		}
 		if exists, err := tx.ControlFrameworkExists(ctx, actor.TenantID, v.FrameworkID); err != nil {

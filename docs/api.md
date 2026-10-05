@@ -2296,16 +2296,23 @@ and unknown decision values return 400. Local-memory mode retains its explicit
 compatibility command; it is not proof of durable operation.
 
 Manual framework/control creation in PostgreSQL uses focused commands and
-existence-only reads in the active transaction, not Ledger inventories. Each
-record and its audit append commit together; same-key replay returns the
-original response and changed request bytes conflict. Duplicate framework
+native durable HTTP replay, not Ledger cloning or inventories. Read-only guards
+check current tenant-wide administration and tenant existence before every
+fresh request and replay; control creation additionally checks its current
+tenant-owned framework. The common writer fence precedes tenant/framework
+share locks held through outer replay commit, blocking parent reparenting.
+Replay does not check duplicate keys or reread installed metadata. Each record,
+principal audit and replay result commit together, without an outbox job;
+same-key replay returns the original response and changed request bytes
+conflict. Duplicate framework
 `slug`/`version` or framework/control `code` identities return `409`. Missing or
 foreign frameworks return `404`, and denied administration grants return `403`.
 New timestamps use microsecond-precision UTC.
 
-Creation text is trimmed, NUL-free UTF-8. Framework names/descriptions and
-control titles/objectives are each bounded at 64 KiB; framework slug/version
-text together is bounded at 1024 bytes. A blank/omitted slug uses the existing
+Creation text is NUL-free UTF-8 and bounded before trimming. Framework
+names/descriptions and control titles/objectives are each bounded at 64 KiB; framework slug/version
+fields are each bounded at 1024 raw bytes, and their normalized text together
+at 1024 bytes. A blank/omitted slug uses the existing
 ASCII name-derived slug; explicit slugs are retained. Framework IDs and control
 codes are each bounded at 1024 bytes, and tenant ID plus framework ID plus code
 at 2048 bytes. The whole HTTP JSON body remains limited to 64 KiB including
@@ -2314,12 +2321,16 @@ or audit writes.
 
 Evidence requirements preserve request order, reject repeated or unsupported
 types, and accept freshness from 0 through 3650 days. Each requirement must
-include its non-null `required` boolean; `false` is valid. Applicability is
-trimmed and sorted without removing duplicates or empty entries; limitations
+include its non-null `required` boolean; `false` is valid. At most ten
+requirements are accepted, with each raw type bounded at 1024 bytes.
+Applicability is trimmed and sorted without removing duplicates or empty entries; limitations
 retain order/duplicates but omit trimmed blanks. Together these two lists are
 bounded at 1024 input entries and 64 KiB of input text. Optional arrays may be
 omitted; explicit null fields/items are rejected in both runtime profiles.
-Local-memory creation retains its compatibility command. Evidence linking
+Both profiles require a same-host HTTPS `Origin` for cookie-authenticated
+writes; explicit bearer authentication takes precedence. Local-memory creation
+retains compatibility storage and nondurable replay, with the same input bounds
+and tenant-wide human administration checks. Evidence linking
 remains a separate compatibility command at this stage.
 
 PostgreSQL template installation uses a focused transaction with the same

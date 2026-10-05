@@ -63,10 +63,7 @@ type CRAReadinessReportInput struct {
 }
 
 func (l *Ledger) CreateControlFramework(ctx context.Context, actor domain.Actor, in CreateControlFrameworkInput) (domain.ControlFramework, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ControlFramework{}, err
-	}
-	if err := require(actor, ScopeControlsAdmin); err != nil {
+	if err := l.AuthorizeControlFrameworkCreation(ctx, actor, in); err != nil {
 		return domain.ControlFramework{}, err
 	}
 	name := strings.TrimSpace(in.Name)
@@ -148,10 +145,7 @@ func (l *Ledger) ListControlFrameworks(ctx context.Context, actor domain.Actor) 
 }
 
 func (l *Ledger) CreateSecurityControl(ctx context.Context, actor domain.Actor, in CreateSecurityControlInput) (domain.SecurityControl, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.SecurityControl{}, err
-	}
-	if err := require(actor, ScopeControlsAdmin); err != nil {
+	if err := l.AuthorizeSecurityControlCreation(ctx, actor, in); err != nil {
 		return domain.SecurityControl{}, err
 	}
 	in.FrameworkID = strings.TrimSpace(in.FrameworkID)

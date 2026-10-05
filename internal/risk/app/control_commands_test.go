@@ -30,6 +30,10 @@ func (f *controlCommandFixture) LockControlTemplateTenant(context.Context, strin
 	return f.tenantError
 }
 
+func (f *controlCommandFixture) LockControlCreationTenant(ctx context.Context, tenant string) error {
+	return f.LockControlTemplateTenant(ctx, tenant)
+}
+
 func (f *controlCommandFixture) ExecuteControls(ctx context.Context, command func(context.Context, ControlTransaction) error) error {
 	f.transactions++
 	beforeF, beforeC, beforeA := len(f.frameworks), len(f.controls), len(f.audits)
@@ -83,6 +87,101 @@ func newControlCommandFixture(t *testing.T) (*ControlCommands, *controlCommandFi
 		t.Fatal(err)
 	}
 	return s, f, identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"controls:admin"}}, now
+}
+
+func TestControlCreationBoundsRawIdentifiersBeforeTrim(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		framework bool
+		value     string
+	}{
+		{"framework slug", true, strings.Repeat(" ", 1025) + "f"},
+		{"framework name", true, strings.Repeat(" ", 65537) + "F"},
+		{"control parent", false, strings.Repeat(" ", 1025) + "fw"},
+		{"control requirement", false, strings.Repeat(" ", 1025) + "sbom"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f, a, _ := newControlCommandFixture(t)
+			var err error
+			if tc.framework {
+				in := CreateControlFrameworkInput{Name: "F", Version: "1"}
+				if tc.name == "framework slug" {
+					in.Slug = tc.value
+				} else {
+					in.Name = tc.value
+				}
+				_, err = s.CreateControlFramework(t.Context(), a, in)
+			} else {
+				in := CreateSecurityControlInput{FrameworkID: "fw", Code: "C", Title: "T", Objective: "O"}
+				if tc.name == "control parent" {
+					in.FrameworkID = tc.value
+				} else {
+					in.EvidenceRequirements = []riskdomain.ControlEvidenceRequirement{{Type: tc.value}}
+				}
+				_, err = s.CreateSecurityControl(t.Context(), a, in)
+			}
+			if !errors.Is(err, ErrValidation) || f.transactions != 0 {
+				t.Fatal("raw input bypassed budget", err, f.transactions)
+			}
+		})
+	}
+}
+
+func TestControlCreationHasReadOnlyCurrentScopeGuards(t *testing.T) {
+	s, _, _, _ := newControlCommandFixture(t)
+	if _, ok := any(s).(interface {
+		AuthorizeControlFrameworkCreation(context.Context, identitydomain.Actor, CreateControlFrameworkInput) error
+		AuthorizeSecurityControlCreation(context.Context, identitydomain.Actor, CreateSecurityControlInput) error
+	}); !ok {
+		t.Fatal("manual control creation has no current-scope replay guards")
+	}
+}
+
+func TestControlCreationReplayGuardsIgnoreDuplicateKeysAndNeverWrite(t *testing.T) {
+	for _, control := range []bool{false, true} {
+		_, f, a, _ := newControlCommandFixture(t)
+		f.versionExists, f.codeExists = true, true
+		s, err := NewControlCommands(ControlCommandConfig{Authorizer: f, Transactions: f, Clock: application.ClockFunc(func() time.Time { panic("guard read clock") }), IDs: application.IDGeneratorFunc(func(string) string { panic("guard generated ID") })})
+		if err != nil {
+			t.Fatal(err)
+		}
+		reads := 0
+		if control {
+			err = s.AuthorizeSecurityControlCreation(t.Context(), a, CreateSecurityControlInput{FrameworkID: "fw", Code: "C", Title: "T", Objective: "O"})
+			reads = 1
+		} else {
+			err = s.AuthorizeControlFrameworkCreation(t.Context(), a, CreateControlFrameworkInput{Name: "F", Version: "1"})
+		}
+		if err != nil || f.reads != reads || f.tenantLocks != 1 || f.authorizations != 2 || f.transactions != 1 || len(f.frameworks)+len(f.controls)+len(f.audits) != 0 {
+			t.Fatal("replay consulted duplicate keys or wrote", control, err, f)
+		}
+	}
+}
+
+func TestControlCreationReplayGuardsFailClosedBeforeParentReads(t *testing.T) {
+	for _, control := range []bool{false, true} {
+		for _, tenantMissing := range []bool{false, true} {
+			s, f, a, _ := newControlCommandFixture(t)
+			want := application.ErrForbidden
+			locks := 0
+			if tenantMissing {
+				f.tenantError = ErrNotFound
+				want = ErrNotFound
+				locks = 1
+			} else {
+				f.authFailAt = 2
+			}
+			var err error
+			if control {
+				err = s.AuthorizeSecurityControlCreation(t.Context(), a, CreateSecurityControlInput{FrameworkID: "fw", Code: "C", Title: "T", Objective: "O"})
+			} else {
+				err = s.AuthorizeControlFrameworkCreation(t.Context(), a, CreateControlFrameworkInput{Name: "F", Version: "1"})
+			}
+			if !errors.Is(err, want) || f.reads != 0 || f.tenantLocks != locks || len(f.frameworks)+len(f.controls)+len(f.audits) != 0 {
+				t.Fatal("failed guard read parent or wrote", control, tenantMissing, err, f)
+			}
+		}
+	}
 }
 
 func TestControlCommandsPreserveFieldsAndNormalizeWithoutCallerMutation(t *testing.T) {

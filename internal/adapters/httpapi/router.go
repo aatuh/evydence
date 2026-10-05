@@ -545,6 +545,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.ControlTemplateCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused control template installation requires durable idempotency")
 	}
+	if opts.ControlCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused control creation requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -884,34 +887,6 @@ func (s *Server) collectorHealthReport(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, report)
 }
 
-func (s *Server) createControlFramework(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name        string `json:"name"`
-		Slug        string `json:"slug"`
-		Version     string `json:"version"`
-		Description string `json:"description"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body, "name", "slug", "version", "description"); err != nil {
-			return 0, nil, err
-		}
-		if s.controlCommands != nil {
-			framework, err := s.controlCommands.CreateControlFramework(ctx, actor, riskapp.CreateControlFrameworkInput{Name: req.Name, Slug: req.Slug, Version: req.Version, Description: req.Description})
-			return http.StatusCreated, controlFrameworkFromQuery(framework), mapControlCommandError(err)
-		}
-		framework, err := s.ledger.CreateControlFramework(ctx, actor, app.CreateControlFrameworkInput{
-			Name:        req.Name,
-			Slug:        req.Slug,
-			Version:     req.Version,
-			Description: req.Description,
-		})
-		return http.StatusCreated, framework, err
-	})
-}
-
 func (s *Server) listControlFrameworks(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -976,44 +951,6 @@ func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *htt
 	}
 	writePaginated(s, w, r, actor, "control-framework-template-packs", nil, packs, func(pack domain.ControlFrameworkTemplatePack, sort appquery.Sort) appquery.SortKey {
 		return appquery.RecordSortKey(pack.ID, time.Time{}, sort)
-	})
-}
-
-func (s *Server) createSecurityControl(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		FrameworkID          string                              `json:"framework_id"`
-		Code                 string                              `json:"code"`
-		Title                string                              `json:"title"`
-		Objective            string                              `json:"objective"`
-		EvidenceRequirements []domain.ControlEvidenceRequirement `json:"evidence_requirements"`
-		Applicability        []string                            `json:"applicability"`
-		Limitations          []string                            `json:"limitations"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if err := validateSecurityControlJSON(body); err != nil {
-			return 0, nil, err
-		}
-		if s.controlCommands != nil {
-			requirements := make([]riskdomain.ControlEvidenceRequirement, 0, len(req.EvidenceRequirements))
-			for _, v := range req.EvidenceRequirements {
-				requirements = append(requirements, riskdomain.ControlEvidenceRequirement{Type: v.Type, FreshnessDays: v.FreshnessDays, Required: v.Required})
-			}
-			control, err := s.controlCommands.CreateSecurityControl(ctx, actor, riskapp.CreateSecurityControlInput{FrameworkID: req.FrameworkID, Code: req.Code, Title: req.Title, Objective: req.Objective, EvidenceRequirements: requirements, Applicability: req.Applicability, Limitations: req.Limitations})
-			return http.StatusCreated, securityControlFromQuery(control), mapControlCommandError(err)
-		}
-		control, err := s.ledger.CreateSecurityControl(ctx, actor, app.CreateSecurityControlInput{
-			FrameworkID:          req.FrameworkID,
-			Code:                 req.Code,
-			Title:                req.Title,
-			Objective:            req.Objective,
-			EvidenceRequirements: req.EvidenceRequirements,
-			Applicability:        req.Applicability,
-			Limitations:          req.Limitations,
-		})
-		return http.StatusCreated, control, err
 	})
 }
 

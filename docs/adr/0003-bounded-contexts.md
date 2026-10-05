@@ -388,6 +388,12 @@ installation alone checks the version key and atomically appends the framework,
 all starter controls, principal audit and replay response, without a job.
 Explicit local memory retains compatibility storage and nondurable replay.
 A control must resolve to a framework in the same tenant before it is returned.
+Manual framework/control creation also binds focused Risk commands with native
+durable replay. Flat current tenant/parent guards retain share locks through
+commit without consulting version/code duplicates or installed metadata on
+replay. Fresh records, principal audits and replay results commit atomically,
+without a job or Ledger projection. Both profiles share bounded raw-input
+normalization; local memory keeps compatibility storage and nondurable replay.
 Signing-provider and DSSE trust-root creation now use Verification-owned
 commands with current tenant-wide administration before native durable replay.
 The Identity adapter supplies only a tenant-existence/mutation guard: the

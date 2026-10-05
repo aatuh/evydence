@@ -900,11 +900,16 @@ tenant-wide administration grants, insertion, and audit share that transaction.
 The commands preserve slug derivation, requirement order, applicability sorting
 with duplicates, limitation order, and existing schema versions. They reject
 unsupported text/index sizes and excessive list work before persistence.
-PostgreSQL HTTP creation routes bind these commands directly: separate server
-instances can create, replay, read, and report a framework/control without
-publishing authoritative Ledger maps. Local-memory mode retains its explicit
-compatibility command binding. Control-evidence linking now has a focused risk
-command core with transaction-only control/subject/duplicate readers and one
+PostgreSQL HTTP creation routes bind these commands with native durable replay,
+without cloning or publishing Ledger state. Read-only guards check current
+tenant administration/existence and, for controls, framework ownership before
+replay. They hold tenant/parent share locks through outer commit, without
+reading duplicate keys or mutable metadata. Live regressions cover restart and
+role revocation, parent reparenting, record/audit/replay/commit failures,
+concurrent delivery and cancellation. Both profiles share raw-text bounds and
+strict JSON decoding; local memory retains compatibility storage and nondurable
+replay. Broad startup retirement remains open. Control-evidence linking now has
+a focused risk command core with transaction-only control/subject/duplicate readers and one
 atomic link/audit append. It checks current subject-derived coordinates before
 duplicate disclosure, preserves supplied scope and original duplicate results,
 and bounds text and the indexed natural key. Its PostgreSQL composition now

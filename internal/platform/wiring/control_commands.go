@@ -47,6 +47,10 @@ func (t controlTransaction) FrameworkVersionExists(ctx context.Context, tenant, 
 	v, err := t.reader.FrameworkVersionExists(ctx, tenant, slug, version)
 	return v, mapControlWriteError(err)
 }
+
+func (t controlTransaction) LockControlCreationTenant(ctx context.Context, tenant string) error {
+	return mapControlWriteError(t.reader.LockControlCreationTenant(ctx, tenant))
+}
 func (t controlTransaction) ControlFrameworkExists(ctx context.Context, tenant, id string) (bool, error) {
 	v, err := t.reader.ControlFrameworkExists(ctx, tenant, id)
 	return v, mapControlWriteError(err)
