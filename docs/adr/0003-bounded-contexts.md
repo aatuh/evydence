@@ -268,6 +268,17 @@ memory retains its nondurable workflow. This is submitted metadata, not provider
 verification; broader startup and CI paths remain EVY-905 work. See
 [provider source snapshots](../api.md#provider-source-snapshots).
 
+Release-owned build creation also uses native durable HTTP execution. Its
+read-only guard locks current tenant/product/project/release and supplied
+artifact ownership coordinates through the outer replay transaction and
+rechecks current grants without versions, digests, build metadata, clocks or
+IDs. Fresh creation retains its bounded digest checks and derived, explicitly
+unverified CI identity. Build, caller audit and replay completion are atomic;
+current ownership/grant denial prevents disclosure of a historical response.
+Local memory shares raw bounds and current guards but remains nondurable.
+API startup loading and other workflows are still transitional. See
+[build creation](../api.md#build-creation).
+
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
 Together they own all 142 models assigned in the table below. Schema and policy

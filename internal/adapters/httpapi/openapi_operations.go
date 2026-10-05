@@ -251,7 +251,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Artifact envelope.", "#/components/schemas/ArtifactEnvelope")
 	case "createBuild":
-		operation.Description = "Records an immutable CI build run. Collector identity is derived from the authenticated key when present."
+		operation.Description = "Records an immutable CI build run requiring build:write and current tenant-owned product/project/release and output-artifact authority. PostgreSQL uses native durable execution with a read-only ownership/grant guard on every retry, without cached Ledger reads or refresh. The guard locks parents and supplied artifacts but does not reread release versions, artifact digests or historical build metadata; fresh creation still checks output digests and atomically commits build, audit and replay effects. Identical request bytes replay the original response; changed bytes under the same key conflict. Strict non-null JSON and raw input bounds apply in both profiles. Unsafe cookie mutations require same-host HTTPS Origin; Bearer takes precedence. Collector identity comes from the authenticated key. Submitted CI/OIDC metadata is unverified and cannot set oidc_verified to true. Local memory remains nondurable."
 		operation.RequestBody = jsonRequest("Build run creation request.", "#/components/schemas/CreateBuildRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created build run envelope.", "#/components/schemas/BuildRunEnvelope")
 	case "getBuild":

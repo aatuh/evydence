@@ -920,6 +920,30 @@ These restrictions require release compatibility review; this note does not
 approve an exception, claim production Ledger retirement, establish customer
 redaction or provide compliance conclusions.
 
+## Unreleased Build Creation Boundary
+
+`POST /v1/builds` now uses native PostgreSQL durable execution rather than
+aggregate-backed replay. Routes, response fields, schema versions, immutable
+build records and original request-byte fingerprints remain unchanged; no
+database migration or historical rewrite is required. Identical authorized
+retries return the stored response without recomputing CI identity or
+reverifying historical digest metadata. Fresh creation still checks output
+digests against current tenant-owned artifacts.
+
+Every replay now requires current tenant/product/project/release ownership
+and applicable human parent/output grants, including current artifact
+associations. Cookie writes require same-host HTTPS Origin protection, with
+Bearer precedence. Both profiles reject null fields/items, case aliases,
+unknown/duplicate fields, raw oversized text, negative run attempts and
+timestamps outside the supported submitted/UTC year range. Omit optional
+`finished_at` instead of sending null. See [build creation](../api.md#build-creation)
+for exact bounds and errors.
+
+These input and authorization restrictions require release compatibility
+review; this note does not approve an exception or claim that a public release
+already includes them. Local memory remains nondurable, submitted provider/OIDC
+metadata remains unverified, and production Ledger retirement is not claimed.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

@@ -133,6 +133,13 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 	build.CreatedAt = commandAt
 
 	err = s.transactions.ExecuteBuild(ctx, func(ctx context.Context, tx BuildTransaction) error {
+		// Native transactions share the same locked scope guard on direct
+		// fresh calls too. The old local service bridge has no such port.
+		if _, native := tx.(BuildCreationGuardReader); native {
+			if err := authorizeBuildCreationScope(ctx, tx, actor, build); err != nil {
+				return err
+			}
+		}
 		currentProject, err := tx.GetProject(ctx, actor.TenantID, project.ID)
 		if err != nil {
 			return err

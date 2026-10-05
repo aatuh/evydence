@@ -390,6 +390,9 @@ func (s *Service) RegisterContainerImage(ctx context.Context, actor identitydoma
 }
 
 func normalizeBuildInput(input CreateBuildRunInput) (releasedomain.BuildRun, error) {
+	if err := validateBuildRawBounds(input); err != nil {
+		return releasedomain.BuildRun{}, err
+	}
 	for _, text := range []string{input.ProjectID, input.ReleaseID, input.Provider, input.CommitSHA, input.Repository, input.WorkflowRef, input.RunID, input.JobID, input.GitHubActor, input.Ref, input.OIDCSubject, input.Status, input.ParametersHash, input.EnvironmentHash} {
 		if !validBuildText(text) {
 			return releasedomain.BuildRun{}, ErrValidation
@@ -432,6 +435,46 @@ func normalizeBuildInput(input CreateBuildRunInput) (releasedomain.BuildRun, err
 		}
 	}
 	return build, nil
+}
+
+// NormalizeBuildCreationInput exposes the shared pure HTTP/command preflight.
+func NormalizeBuildCreationInput(input CreateBuildRunInput) (releasedomain.BuildRun, error) {
+	return normalizeBuildInput(input)
+}
+
+const MaxBuildOutputs = 4096
+
+func validateBuildRawBounds(in CreateBuildRunInput) error {
+	if in.RunAttempt < 0 {
+		return ErrValidation
+	}
+	for _, id := range []string{in.ProjectID, in.ReleaseID} {
+		if len(id) > 1024 {
+			return ErrValidation
+		}
+	}
+	for _, text := range []string{in.Provider, in.CommitSHA, in.Repository, in.WorkflowRef, in.RunID, in.JobID, in.GitHubActor, in.Ref, in.OIDCSubject, in.Status, in.ParametersHash, in.EnvironmentHash} {
+		if len(text) > 65536 {
+			return ErrValidation
+		}
+	}
+	if len(in.Outputs) > MaxBuildOutputs || !validBuildTime(in.StartedAt) || in.FinishedAt != nil && !validBuildTime(*in.FinishedAt) {
+		return ErrValidation
+	}
+	for _, out := range in.Outputs {
+		if len(out.ArtifactID) > 1024 || len(out.Digest) > 128 || !validBuildText(out.ArtifactID) || !validBuildText(out.Digest) {
+			return ErrValidation
+		}
+	}
+	metadata, err := json.Marshal(in.ProviderMetadata)
+	if err != nil || len(metadata) > 65536 {
+		return ErrValidation
+	}
+	return nil
+}
+
+func validBuildTime(t time.Time) bool {
+	return t.Year() >= 1 && t.Year() <= 9999 && t.UTC().Year() >= 1 && t.UTC().Year() <= 9999
 }
 
 func validBuildText(text string) bool {

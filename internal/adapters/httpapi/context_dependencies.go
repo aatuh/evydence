@@ -19,6 +19,7 @@ import (
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
@@ -566,6 +567,7 @@ type releaseCatalogService interface {
 	RegisterArtifact(context.Context, domain.Actor, string, string, string, int64) (domain.Artifact, error)
 	GetArtifact(context.Context, domain.Actor, string) (domain.Artifact, error)
 	RegisterContainerImage(context.Context, domain.Actor, app.RegisterContainerImageInput) (domain.ContainerImage, error)
+	AuthorizeBuildCreation(context.Context, domain.Actor, releaseapp.CreateBuildRunInput) error
 	CreateBuildRun(context.Context, domain.Actor, app.CreateBuildRunInput) (domain.BuildRun, error)
 	GetBuildRun(context.Context, domain.Actor, string) (domain.BuildRun, error)
 	UploadBuildAttestation(context.Context, domain.Actor, string, []byte) (domain.BuildAttestation, error)

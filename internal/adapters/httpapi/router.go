@@ -31,7 +31,6 @@ import (
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
-	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
@@ -557,6 +556,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	}
 	if opts.SourceSnapshotCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused source snapshots require durable idempotency")
+	}
+	if opts.BuildCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused build creation requires durable idempotency")
 	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
@@ -1481,72 +1483,6 @@ func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, sig)
-}
-
-func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProjectID        string               `json:"project_id"`
-		ReleaseID        string               `json:"release_id"`
-		Provider         string               `json:"provider"`
-		CommitSHA        string               `json:"commit_sha"`
-		Repository       string               `json:"repository"`
-		WorkflowRef      string               `json:"workflow_ref"`
-		RunID            string               `json:"run_id"`
-		RunAttempt       int                  `json:"run_attempt"`
-		JobID            string               `json:"job_id"`
-		GitHubActor      string               `json:"actor"`
-		Ref              string               `json:"ref"`
-		OIDCSubject      string               `json:"oidc_subject"`
-		Status           string               `json:"status"`
-		StartedAt        time.Time            `json:"started_at"`
-		FinishedAt       *time.Time           `json:"finished_at"`
-		ParametersHash   string               `json:"parameters_hash"`
-		EnvironmentHash  string               `json:"environment_hash"`
-		ProviderMetadata map[string]any       `json:"provider_metadata"`
-		Outputs          []domain.BuildOutput `json:"outputs"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.buildCommands != nil {
-			outputs := make([]releasedomain.BuildOutput, 0, len(req.Outputs))
-			for _, output := range req.Outputs {
-				outputs = append(outputs, releasedomain.BuildOutput{ArtifactID: output.ArtifactID, Digest: output.Digest})
-			}
-			build, err := s.buildCommands.CreateBuildRun(ctx, actor, releaseapp.CreateBuildRunInput{
-				ProjectID: req.ProjectID, ReleaseID: req.ReleaseID, Provider: req.Provider, CommitSHA: req.CommitSHA,
-				Repository: req.Repository, WorkflowRef: req.WorkflowRef, RunID: req.RunID, RunAttempt: req.RunAttempt,
-				JobID: req.JobID, GitHubActor: req.GitHubActor, Ref: req.Ref, OIDCSubject: req.OIDCSubject,
-				Status: req.Status, StartedAt: req.StartedAt, FinishedAt: req.FinishedAt,
-				ParametersHash: req.ParametersHash, EnvironmentHash: req.EnvironmentHash,
-				ProviderMetadata: req.ProviderMetadata, Outputs: outputs,
-			})
-			return http.StatusCreated, buildRunFromQuery(build), mapBuildAttestationCommandError(err)
-		}
-		build, err := s.releaseCatalog.CreateBuildRun(ctx, actor, app.CreateBuildRunInput{
-			ProjectID:        req.ProjectID,
-			ReleaseID:        req.ReleaseID,
-			Provider:         req.Provider,
-			CommitSHA:        req.CommitSHA,
-			Repository:       req.Repository,
-			WorkflowRef:      req.WorkflowRef,
-			RunID:            req.RunID,
-			RunAttempt:       req.RunAttempt,
-			JobID:            req.JobID,
-			GitHubActor:      req.GitHubActor,
-			Ref:              req.Ref,
-			OIDCSubject:      req.OIDCSubject,
-			Status:           req.Status,
-			StartedAt:        req.StartedAt,
-			FinishedAt:       req.FinishedAt,
-			ParametersHash:   req.ParametersHash,
-			EnvironmentHash:  req.EnvironmentHash,
-			ProviderMetadata: req.ProviderMetadata,
-			Outputs:          req.Outputs,
-		})
-		return http.StatusCreated, build, err
-	})
 }
 
 func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {

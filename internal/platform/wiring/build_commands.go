@@ -142,6 +142,23 @@ type buildTransaction struct {
 	authorizer application.Authorizer
 }
 
+func (t buildTransaction) ReadBuildCreationScope(ctx context.Context, tenant, project, release string) (releaseapp.BuildCreationCoordinates, error) {
+	r, ok := t.reader.(releaseapp.BuildCreationGuardReader)
+	if !ok {
+		return releaseapp.BuildCreationCoordinates{}, releaseapp.ErrValidation
+	}
+	v, err := r.ReadBuildCreationScope(ctx, tenant, project, release)
+	return v, mapProductWriteError(err)
+}
+func (t buildTransaction) ReadBuildCreationArtifact(ctx context.Context, tenant, id string) (releasedomain.Artifact, error) {
+	r, ok := t.reader.(releaseapp.BuildCreationGuardReader)
+	if !ok {
+		return releasedomain.Artifact{}, releaseapp.ErrValidation
+	}
+	v, err := r.ReadBuildCreationArtifact(ctx, tenant, id)
+	return v, mapProductWriteError(err)
+}
+
 func (t buildTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	if t.authorizer == nil {
 		return releaseapp.ErrValidation

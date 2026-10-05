@@ -1555,11 +1555,46 @@ verify package bytes, publish a package, establish marketplace trust, or
 endorse a provider. See [API versioning](reference/api-versioning.md#unreleased-marketplace-collector-boundary)
 for release-review requirements on tightened input and authorization.
 
-Build creation rejects NUL characters in scalar text and provider-metadata
-JSON keys or string values with `400`; scalar text must also be valid UTF-8.
-Metadata must be JSON-serializable. Invalid input is rejected before repository
-reads or writes, without exposing database errors. Submitted CI identity remains
-unverified metadata; it cannot set `oidc_verified` to `true`.
+### Build Creation
+
+`POST /v1/builds` records an immutable build and requires `build:write`.
+The project and release must belong to the current tenant and the same product;
+supplied output artifacts must also belong to that tenant. Human sessions need
+a current grant covering the parents and each output artifact through its
+current authorized build/evidence associations. Missing or foreign parents
+and artifacts return `404`, product mismatch or invalid input `400`, and
+insufficient grants `403`.
+
+The PostgreSQL route uses native durable execution. Every retry checks current
+parent and artifact ownership and grants, retaining their share locks through
+the outer transaction. This read-only guard does not read release versions,
+artifact digests, historical build metadata, clocks or new IDs. Fresh creation
+still verifies that each supplied artifact's stored digest matches its output.
+Build, audit and completed replay records commit together. Identical request
+bytes under the same key replay the original response; changed bytes return
+`409`. Empty output arrays remain omitted from responses.
+
+Both HTTP profiles reject malformed/non-object JSON, unknown or duplicate
+fields, case aliases, explicit null fields (including `finished_at`) and null
+output items. Omit optional fields instead of sending null. Text must be
+NUL-free UTF-8; raw project/release/output-artifact IDs are limited to 1024
+bytes before trimming, other text to 64 KiB, and output digest text to 128
+bytes. Provider metadata must be JSON-serializable, NUL-free in keys and string
+values, and at most 64 KiB encoded. There are at most 4096 outputs; the whole
+HTTP body is still limited to 64 KiB including syntax and escapes. Run attempts
+are nonnegative. Submitted timestamps and their UTC representation must be
+within years 1 through 9999. Invalid input is rejected before ownership reads
+or writes, without exposing database errors.
+
+Collector attribution comes from the authenticated key. Submitted CI and OIDC
+identity remains unverified metadata; it cannot set `oidc_verified` to `true`
+or override derived source fields. No provider call or signature verification
+is performed. Cookie-authenticated mutations require same-host HTTPS Origin;
+Bearer authentication takes precedence. Local memory uses current map-based
+ownership guards and remains nondurable. See the
+[unreleased compatibility boundary](reference/api-versioning.md#unreleased-build-creation-boundary).
+
+### Container Image Registration
 
 Container-image registration in the PostgreSQL profile uses current durable
 artifact coordinates and grants, not cached Ledger artifacts. It requires

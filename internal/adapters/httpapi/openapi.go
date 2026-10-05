@@ -1950,7 +1950,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"provider_metadata": map[string]any{"type": "object"},
 		"outputs":           map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/BuildOutput"}},
 	}, "project_id", "release_id", "provider", "commit_sha", "status", "started_at")
-	createBuildRequest["description"] = "Scalar text must be valid UTF-8 without NUL characters. Provider metadata must be JSON-serializable, with no NUL characters in keys or string values. Invalid input returns 400. Submitted CI identity is unverified metadata."
+	createBuildRequest["description"] = "Strict JSON accepts only exact declared field names, without unknown/duplicate fields, case aliases, explicit null fields or null output items. Scalar text must be NUL-free UTF-8. Before trimming, project/release/output-artifact IDs are bounded at 1024 bytes, other text at 64 KiB, and output digests at 128 bytes. Provider metadata must be JSON-serializable, NUL-free in keys and string values, and at most 64 KiB encoded; outputs are limited to 4096. The whole HTTP body is capped at 64 KiB including syntax/escapes. Run attempts must be nonnegative; timestamps must be representable in years 1 through 9999 both as submitted and in UTC. Commit SHA is 40 hexadecimal characters; nonempty hashes and output digests use SHA-256. GitHub Actions requires repository, workflow_ref, run_id and positive run_attempt; GitLab CI requires repository and run_id. Invalid input returns 400 before ownership reads or writes. Submitted CI identity is unverified metadata."
 	registry.RegisterSchema("CreateBuildRequest", createBuildRequest)
 	registry.RegisterSchema("BuildRun", objectSchema(map[string]any{
 		"id":             map[string]any{"type": "string"},

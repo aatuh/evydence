@@ -636,8 +636,17 @@ HTTP profile now binds this focused command. Tests in
 `internal/platform/wiring/build_creation_commands_test.go` cover pending parent
 visibility, build and audit failures, and the HTTP build-to-evidence-to-attestation
 flow without cached parents or builds. The explicit local-memory profile keeps
-the compatibility command binding. Startup loading and the outer Ledger replay
-and refresh envelope remain migration work; this binding does not remove them.
+the compatibility command binding. Build creation now uses native HTTP durable
+execution rather than the outer Ledger replay/refresh envelope. Its read-only
+`BuildCreationGuardReader` returns locked parent and artifact ownership only;
+every retry rechecks current grants without rereading versions, digests or build
+metadata. The common writer fence precedes tenant/parent/artifact share locks,
+which join the outer replay transaction. Raw input normalization is shared with
+the explicit local map guard. Live native HTTP and fence suites cover current
+grants, historical exact-number replay, large unrelated metadata, all four
+write/replay/commit failure stages, concurrent delivery and cancellation.
+Startup aggregate loading and other unmigrated workflows remain EVY-905 work;
+this build boundary does not claim that the production Ledger is retired.
 
 Build-attestation upload orchestration now lives in the standalone Release
 `BuildAttestationCommands`. Its four-read, fixed-shape transaction port rechecks
