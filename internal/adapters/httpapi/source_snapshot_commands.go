@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -10,16 +11,57 @@ import (
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 )
 
-func (s *Server) recordSourceSnapshot(ctx requestContext, actor domain.Actor, provider string, body []byte) (int, any, error) {
-	in, err := decodeSourceSnapshot(body)
-	if err != nil {
-		return 0, nil, err
+func (s *Server) recordSourceSnapshot(w http.ResponseWriter, r *http.Request, provider string) {
+	if err := validateSSOCookieMutation(r); err != nil {
+		writeProblem(w, r, err)
+		return
 	}
-	v, err := s.sourceSnapshotCommands.RecordSourceSnapshot(ctx, actor, provider, in)
-	if err != nil {
-		return 0, nil, mapSourceRepositoryCommandError(err)
+	var in integrationapp.SourceSnapshotInput
+	decode := func(body []byte) error {
+		var err error
+		in, err = decodeSourceSnapshot(body)
+		if err != nil {
+			return err
+		}
+		return mapSourceRepositoryCommandError(integrationapp.ValidateSourceSnapshotRequest(provider, in))
 	}
-	return http.StatusCreated, map[string]any{"repository": sourceRepositoryFromQuery(v.Repository), "commit": sourceCommitFromCommand(v.Commit), "branch": sourceBranchFromCommand(v.Branch), "pull_request": pullRequestFromCommand(v.PullRequest)}, nil
+	if s.sourceSnapshotCommands != nil {
+		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+			if err := decode(body); err != nil {
+				return err
+			}
+			if err := integrationapp.ValidateSourceSnapshotKeys(a.TenantID, provider, in); err != nil {
+				return mapSourceRepositoryCommandError(err)
+			}
+			return mapSourceRepositoryCommandError(s.sourceSnapshotCommands.AuthorizeSourceSnapshot(ctx, a, provider, in))
+		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+			v, err := s.sourceSnapshotCommands.RecordSourceSnapshot(ctx, a, provider, in)
+			return http.StatusCreated, sourceSnapshotPublic(v), mapSourceRepositoryCommandError(err)
+		})
+		return
+	}
+	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
+		var v map[string]any
+		var err error
+		if provider == "github" {
+			v, err = s.ledger.UploadGitHubSourceSnapshot(ctx, a, body)
+		} else {
+			v, err = s.ledger.UploadGitLabSourceSnapshot(ctx, a, body)
+		}
+		return http.StatusCreated, v, err
+	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+		if err := decode(body); err != nil {
+			return nil, err
+		}
+		if err := integrationapp.ValidateSourceSnapshotKeys(a.TenantID, provider, in); err != nil {
+			return nil, mapSourceRepositoryCommandError(err)
+		}
+		return body, s.ledger.AuthorizeSourceRepositoryCreation(r.Context(), a, localSourceRepositoryInput(integrationapp.CreateSourceRepositoryInput{ProjectID: in.ProjectID, Provider: provider, FullName: in.Repository.FullName, CloneURL: in.Repository.CloneURL, DefaultBranch: in.Repository.DefaultBranch}))
+	})
+}
+
+func sourceSnapshotPublic(v integrationapp.SourceSnapshotResult) map[string]any {
+	return map[string]any{"repository": sourceRepositoryFromQuery(v.Repository), "commit": sourceCommitFromCommand(v.Commit), "branch": sourceBranchFromCommand(v.Branch), "pull_request": pullRequestFromCommand(v.PullRequest)}
 }
 
 func decodeSourceSnapshot(body []byte) (integrationapp.SourceSnapshotInput, error) {
@@ -50,10 +92,10 @@ func decodeSourceSnapshot(body []byte) (integrationapp.SourceSnapshotInput, erro
 			ReviewDecision string `json:"review_decision"`
 		} `json:"pull_request"`
 	}
-	if err := decodeJSON(body, &req); err != nil {
+	if err := decodeMembershipJSON(body, &req); err != nil {
 		return integrationapp.SourceSnapshotInput{}, err
 	}
-	if err := validateNonNullableObjectFields(body, "project_id", "repository", "commit", "branch", "pull_request"); err != nil {
+	if err := validateExactNonNullableObjectFields(body, "project_id", "repository", "commit", "branch", "pull_request"); err != nil {
 		return integrationapp.SourceSnapshotInput{}, err
 	}
 	if req.Repository == nil {
@@ -70,7 +112,7 @@ func decodeSourceSnapshot(body []byte) (integrationapp.SourceSnapshotInput, erro
 		"pull_request": {"provider_id", "title", "state", "source_branch", "target_branch", "review_decision"},
 	} {
 		if raw, ok := objects[object]; ok {
-			if err := validateNonNullableObjectFields(raw, fields...); err != nil {
+			if err := validateExactNonNullableObjectFields(raw, fields...); err != nil {
 				return integrationapp.SourceSnapshotInput{}, err
 			}
 		}

@@ -253,8 +253,20 @@ commit-reuse, branch-replacement and append-only PR behavior remains in the
 owning command; each domain/audit/replay effect is atomic. Input bounds precede
 trimming and cookie writes require Origin protection. Local memory shares
 current guards but retains its nondurable store; production startup and the
-CI/source-snapshot HTTP wrappers remain migration work. See the
+CI HTTP wrappers remain migration work. See the
 [source-write replay boundary](../api.md#source-write-replay-boundary).
+
+GitHub/GitLab source-snapshot HTTP routes now use the same native durable replay
+boundary. Their focused transaction exposes four child commands and one
+read-only repository-creation authority guard; all ports bind to the same
+repositories. The guard holds current tenant/submitted/existing ownership
+through the outer commit without child metadata, writes, clocks or IDs. Fresh
+children enforce actual derived IDs and their own immutable/replacement/append
+semantics. Raw nested input is bounded before any composed write; completed
+replay preserves original public JSON without reapplying branch state. Local
+memory retains its nondurable workflow. This is submitted metadata, not provider
+verification; broader startup and CI paths remain EVY-905 work. See
+[provider source snapshots](../api.md#provider-source-snapshots).
 
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.

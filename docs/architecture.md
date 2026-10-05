@@ -1426,13 +1426,20 @@ local memory retains nondurable map storage. See the
 [shared replay boundary](api.md#source-write-replay-boundary).
 
 PostgreSQL-profile GitHub/GitLab source snapshots compose those four focused
-Integration commands through a four-method transaction port. The composition
+Integration commands and one read-only creation-scope guard through a focused
+transaction port. Native durable HTTP replay bypasses Ledger clones. The guard
+locks only current tenant/submitted-project and existing repository ownership,
+without reading child metadata or calling child writes, clocks or IDs. The composition
 adapter binds every child to the same transaction-scoped repositories rather
 than opening nested units of work or accessing Ledger state. Late failures roll
 back earlier inserts and existing branch changes. All reads retain the child
 commands' bounded projections and current ownership checks; replay shares the
 same transaction and adds no component or audit effects. Submitted provider
-labels are not promoted to verified origin. See
+labels are not promoted to verified origin. Both HTTP profiles bound all raw
+nested input before trimming, validate shape and business input before replay,
+and require current grants and cookie Origin protection. Local memory retains
+nondurable map storage. This does not finish broad API startup or remaining CI
+wrappers. See
 [provider source snapshots](api.md#provider-source-snapshots) for optional
 component defaults, response compatibility and trust limitations.
 

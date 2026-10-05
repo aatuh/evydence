@@ -1789,7 +1789,7 @@ writes require same-host HTTPS `Origin`; explicit bearer credentials take
 precedence. Local memory shares decoding, input bounds and current ownership
 guards but retains nondurable replay and map storage, not PostgreSQL locking or
 bounded stored-metadata guarantees. This migration does not finish API startup
-or the remaining CI/source-snapshot HTTP wrappers.
+or the remaining CI HTTP wrappers.
 
 Tests: `internal/platform/wiring/source_writes_native_http_test.go`,
 `internal/platform/wiring/source_writes_fence_test.go`,
@@ -1942,13 +1942,23 @@ Source/test evidence: `internal/integration/app/pull_request_commands.go`,
 
 `POST /v1/collectors/github/source-snapshots` and
 `POST /v1/collectors/gitlab/source-snapshots` in the PostgreSQL profile use an
-Integration-owned orchestration command, not Ledger. The route fixes the
+Integration-owned orchestration command and native durable HTTP replay, not
+a Ledger command clone or publication. The route fixes the
 provider label. The required `repository` object and optional `commit`, `branch`
 and `pull_request` objects reuse the focused source commands above, including
 current submitted-project and actual-repository ownership checks. IDs for
 repository and head relationships come from command results, never supplied
 nested IDs. Access to a submitted project does not authorize reuse of a
 repository owned by another project.
+
+Before reservation and completed replay, the read-only guard checks the
+current tenant, submitted project/product, and any existing natural-key
+repository's actual project/product. It holds those parent identities through
+the outer replay commit, with the common writer fence acquired first. It never
+reads clone URLs, commit author/message metadata, branch state, or PR snapshots,
+and never calls child writes, clocks or ID generators. The guard is a creation
+scope check, not verification of historical child evidence or current branch
+state. Fresh execution checks each child's actual generated relationship IDs.
 
 All supplied components, their audit entries and successful HTTP idempotency
 state commit in one transaction. This also holds for direct command callers
@@ -1970,6 +1980,14 @@ or replay response. Repository reuse and new creation expose the same UTC
 timestamp representation.
 
 The existing 64 KiB HTTP envelope limit and focused source field limits apply.
+Raw nested fields are bounded before a composed transaction can write and
+before trimming; HTTP validates all component shapes/business inputs before
+calling the replay guard. Standalone commands retain child-owned semantic
+validation and transactional rollback for late failures. Original request-byte
+fingerprints and public replay JSON remain unchanged, including exact integers;
+completed replay does not reread oversized metadata or restore older branches.
+Early command failures retain a failed-key marker; replay-completion and
+outer-commit failures roll back the reservation.
 Non-object bodies, unknown/duplicate fields, wrong types and explicit null
 components or fields fail validation. Omit optional components/fields instead
 of sending null; this tightens the legacy nullable decoding to the existing
@@ -1981,9 +1999,18 @@ These are collector-submitted records, not authenticated provider fetches or
 verified webhooks. Recording does not prove GitHub/GitLab origin, signature
 validity, repository contents, branch protection or review/merge authority.
 Local-memory mode retains its compatibility workflow.
+Both HTTP profiles share strict decoding, raw input/key bounds and current
+repository-creation authority on replay. Cookie-authenticated writes require a
+same-host HTTPS `Origin`, with explicit bearer precedence. Local memory retains
+nondurable replay and map storage, not PostgreSQL locking or bounded
+stored-metadata guarantees. Broad API startup and CI wrappers remain EVY-905
+work.
 
 Source/test evidence: `internal/integration/app/source_snapshot_commands.go`,
-`internal/platform/wiring/source_snapshot_commands_test.go` and
+`internal/integration/app/source_snapshot_guard.go`,
+`internal/platform/wiring/source_snapshot_commands_test.go`,
+`internal/platform/wiring/source_snapshot_native_http_test.go`,
+`internal/platform/wiring/source_snapshot_fence_test.go` and
 `internal/adapters/httpapi/source_snapshot_commands_test.go`.
 
 ### Deployment Environment Creation

@@ -555,6 +555,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if (opts.SourceCommitCommands != nil || opts.SourceBranchCommands != nil || opts.PullRequestCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused source writes require durable idempotency")
 	}
+	if opts.SourceSnapshotCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused source snapshots require durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -1613,23 +1616,11 @@ func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) uploadGitHubSourceSnapshot(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if s.sourceSnapshotCommands != nil {
-			return s.recordSourceSnapshot(ctx, actor, "github", body)
-		}
-		result, err := s.ledger.UploadGitHubSourceSnapshot(ctx, actor, body)
-		return http.StatusCreated, result, err
-	})
+	s.recordSourceSnapshot(w, r, "github")
 }
 
 func (s *Server) uploadGitLabSourceSnapshot(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if s.sourceSnapshotCommands != nil {
-			return s.recordSourceSnapshot(ctx, actor, "gitlab", body)
-		}
-		result, err := s.ledger.UploadGitLabSourceSnapshot(ctx, actor, body)
-		return http.StatusCreated, result, err
-	})
+	s.recordSourceSnapshot(w, r, "gitlab")
 }
 
 func (s *Server) createDeploymentEnvironment(w http.ResponseWriter, r *http.Request) {

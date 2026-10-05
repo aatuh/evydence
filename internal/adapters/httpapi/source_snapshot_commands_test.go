@@ -16,10 +16,42 @@ import (
 )
 
 type sourceSnapshotHTTPFake struct {
+	guards   int
+	guardErr error
 	calls    int
 	provider string
 	input    integrationapp.SourceSnapshotInput
 	err      error
+}
+
+func (f *sourceSnapshotHTTPFake) AuthorizeSourceSnapshot(context.Context, identitydomain.Actor, string, integrationapp.SourceSnapshotInput) error {
+	f.guards++
+	return f.guardErr
+}
+
+func TestSourceSnapshotHTTPRequiresNativeDurableReplay(t *testing.T) {
+	s, _ := testServer(t)
+	if v, err := NewServerWithOptions(s.ledger, ServerOptions{SourceSnapshotCommands: &sourceSnapshotHTTPFake{}}); err == nil || v != nil {
+		t.Fatal("snapshot accepted aggregate-backed replay")
+	}
+}
+
+func TestSourceSnapshotHTTPChecksCurrentGuardBeforeReplay(t *testing.T) {
+	for _, provider := range []string{"github", "gitlab"} {
+		s, secret := testServer(t)
+		f := &sourceSnapshotHTTPFake{}
+		s.sourceSnapshotCommands = f
+		s.durableCommandExecutor = newTrustHTTPReplayExecutor(t, s, secret)
+		path := "/v1/collectors/" + provider + "/source-snapshots"
+		body := []byte(`{"repository":{"full_name":"org/api"}}`)
+		one := postRaw(t, s, secret, path, "current", body, 201)
+		assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "current", body, 201))
+		f.guardErr = application.ErrForbidden
+		out := postRaw(t, s, secret, path, "current", body, 403)
+		if f.calls != 1 || f.guards != 3 || strings.Contains(out, `"data"`) {
+			t.Fatal("snapshot replay ignored current authority", f, out)
+		}
+	}
 }
 
 func (f *sourceSnapshotHTTPFake) RecordSourceSnapshot(_ context.Context, a identitydomain.Actor, provider string, in integrationapp.SourceSnapshotInput) (integrationapp.SourceSnapshotResult, error) {
@@ -32,7 +64,7 @@ func TestSourceSnapshotHTTPUsesFocusedCommandsAndRejectsMalformedNestedInputs(t 
 		t.Run(provider, func(t *testing.T) {
 			local, secret := testServer(t)
 			f := &sourceSnapshotHTTPFake{}
-			s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceSnapshotCommands: f})
+			s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -47,7 +79,8 @@ func TestSourceSnapshotHTTPUsesFocusedCommandsAndRejectsMalformedNestedInputs(t 
 					t.Fatal("missing compatibility result component", body)
 				}
 			}
-			if again := postJSON(t, s, secret, path, "snapshot-replay", in, 201); again != body || f.calls != 1 {
+			assertTrustHTTPReplay(t, body, postJSON(t, s, secret, path, "snapshot-replay", in, 201))
+			if f.calls != 1 {
 				t.Fatal("replay ran commands", f)
 			}
 			postJSON(t, s, secret, path, "snapshot-replay", map[string]any{"repository": map[string]any{"full_name": "changed"}}, 409)
@@ -110,7 +143,7 @@ func TestSourceSnapshotOpenAPIMatchesDefaultsAndAtomicity(t *testing.T) {
 	for _, provider := range []string{"github", "gitlab"} {
 		op := operationMap(t, asStringAnyMap(t, doc["paths"]), "/v1/collectors/"+provider+"/source-snapshots", "post")
 		desc, _ := op["description"].(string)
-		for _, want := range []string{"one transaction", "ownership", "message hash", "does not verify", "omitted commit time"} {
+		for _, want := range []string{"one transaction", "ownership", "message hash", "does not verify", "omitted commit time", "native durable replay", "before reservation and completed replay", "Raw nested input", "Origin", "nondurable"} {
 			if !strings.Contains(desc, want) {
 				t.Fatal("missing snapshot contract", desc)
 			}

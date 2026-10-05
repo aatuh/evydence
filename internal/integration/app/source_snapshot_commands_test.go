@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
@@ -13,6 +14,8 @@ import (
 )
 
 type sourceSnapshotFake struct {
+	guards          int
+	guardErr        error
 	failure         string
 	transactions    int
 	stages          []string
@@ -20,6 +23,12 @@ type sourceSnapshotFake struct {
 	commitInput     RecordSourceCommitInput
 	branchInput     UpsertSourceBranchInput
 	prInput         RecordPullRequestInput
+}
+
+func (f *sourceSnapshotFake) AuthorizeSourceRepositoryCreation(_ context.Context, _ identitydomain.Actor, in CreateSourceRepositoryInput) error {
+	f.guards++
+	f.repositoryInput = in
+	return f.guardErr
 }
 
 func (f *sourceSnapshotFake) ExecuteSourceSnapshot(ctx context.Context, fn func(context.Context, SourceSnapshotTransaction) error) error {
@@ -33,7 +42,45 @@ func (f *sourceSnapshotFake) ExecuteSourceSnapshot(ctx context.Context, fn func(
 		return errors.New("injected transaction failure")
 	}
 	f.stages, f.repositoryInput, f.commitInput, f.branchInput, f.prInput = c.stages, c.repositoryInput, c.commitInput, c.branchInput, c.prInput
+	f.guards = c.guards
 	return nil
+}
+
+func TestSourceSnapshotRejectsRawOversizedNestedTextBeforeTransaction(t *testing.T) {
+	for _, mutate := range []func(*SourceSnapshotInput){func(in *SourceSnapshotInput) { in.ProjectID = strings.Repeat(" ", 1025) + "project" }, func(in *SourceSnapshotInput) { in.Repository.CloneURL = strings.Repeat(" ", MaxSourceTextBytes+1) }, func(in *SourceSnapshotInput) { in.Commit.Author = strings.Repeat(" ", MaxSourceTextBytes+1) + "Author" }, func(in *SourceSnapshotInput) {
+		in.Branch.ProtectionHash = strings.Repeat(" ", MaxSourceTextBytes+1) + "hash"
+	}, func(in *SourceSnapshotInput) {
+		in.PullRequest.Title = strings.Repeat(" ", MaxSourceTextBytes+1) + "Change"
+	}} {
+		c, f, a, in := sourceSnapshotFixture(t)
+		mutate(&in)
+		if v, err := c.RecordSourceSnapshot(t.Context(), a, "github", in); !errors.Is(err, ErrValidation) || v != (SourceSnapshotResult{}) || f.transactions != 0 {
+			t.Fatal("raw snapshot input reached composed writes", v, err, f)
+		}
+	}
+}
+
+func TestSourceSnapshotReplayGuardUsesOnlyRepositoryAuthority(t *testing.T) {
+	c, f, a, in := sourceSnapshotFixture(t)
+	in.Commit.SHA = strings.Repeat("a", 40)
+	guard, ok := any(c).(interface {
+		AuthorizeSourceSnapshot(context.Context, identitydomain.Actor, string, SourceSnapshotInput) error
+	})
+	if !ok {
+		t.Fatal("snapshot has no read-only replay guard")
+	}
+	if err := guard.AuthorizeSourceSnapshot(t.Context(), a, "github", in); err != nil || f.guards != 1 || len(f.stages) != 0 || f.repositoryInput.Provider != "github" || f.repositoryInput.ProjectID != "project" {
+		t.Fatal("snapshot guard executed child commands", err, f)
+	}
+	f.guardErr = application.ErrForbidden
+	if err := guard.AuthorizeSourceSnapshot(t.Context(), a, "github", in); !errors.Is(err, application.ErrForbidden) || len(f.stages) != 0 {
+		t.Fatal("snapshot guard ignored current ownership", err, f)
+	}
+	in.PullRequest.State = "invalid"
+	before := f.transactions
+	if err := guard.AuthorizeSourceSnapshot(t.Context(), a, "github", in); !errors.Is(err, ErrValidation) || f.transactions != before {
+		t.Fatal("guard accepted malformed nested input", err, f)
+	}
 }
 func (f *sourceSnapshotFake) stage(stage string) error {
 	if f.failure == stage {

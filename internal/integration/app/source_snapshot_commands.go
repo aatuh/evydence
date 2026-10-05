@@ -9,10 +9,12 @@ import (
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
 
-// SourceSnapshotTransaction exposes only Integration's four source commands.
+// SourceSnapshotTransaction exposes Integration's four source commands and a
+// read-only repository-creation scope guard.
 // Implementations bind all four commands to the same transaction; they must
 // not commit individual components or expose partial results.
 type SourceSnapshotTransaction interface {
+	AuthorizeSourceRepositoryCreation(context.Context, identitydomain.Actor, CreateSourceRepositoryInput) error
 	CreateSourceRepository(context.Context, identitydomain.Actor, CreateSourceRepositoryInput) (integrationdomain.SourceRepository, error)
 	RecordSourceCommit(context.Context, identitydomain.Actor, RecordSourceCommitInput) (integrationdomain.SourceCommit, error)
 	UpsertSourceBranch(context.Context, identitydomain.Actor, UpsertSourceBranchInput) (integrationdomain.SourceBranch, error)
@@ -60,17 +62,14 @@ func NewSourceSnapshotCommands(c SourceSnapshotConfig) (*SourceSnapshotCommands,
 	return &SourceSnapshotCommands{c}, nil
 }
 func (s *SourceSnapshotCommands) RecordSourceSnapshot(ctx context.Context, a identitydomain.Actor, provider string, in SourceSnapshotInput) (SourceSnapshotResult, error) {
-	if ctx == nil {
+	if s == nil {
 		return SourceSnapshotResult{}, ErrValidation
 	}
-	if err := ctx.Err(); err != nil {
+	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
 		return SourceSnapshotResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}); err != nil {
+	if err := ValidateSourceSnapshotRaw(provider, in); err != nil {
 		return SourceSnapshotResult{}, err
-	}
-	if provider != "github" && provider != "gitlab" {
-		return SourceSnapshotResult{}, ErrValidation
 	}
 	var result SourceSnapshotResult
 	err := s.config.Transactions.ExecuteSourceSnapshot(ctx, func(ctx context.Context, tx SourceSnapshotTransaction) error {

@@ -193,6 +193,7 @@ type PullRequestCommands interface {
 }
 
 type SourceSnapshotCommands interface {
+	AuthorizeSourceSnapshot(context.Context, identitydomain.Actor, string, integrationapp.SourceSnapshotInput) error
 	RecordSourceSnapshot(context.Context, identitydomain.Actor, string, integrationapp.SourceSnapshotInput) (integrationapp.SourceSnapshotResult, error)
 }
 
