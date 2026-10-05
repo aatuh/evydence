@@ -563,6 +563,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.BuildAttestationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused build attestations require durable idempotency")
 	}
+	if (opts.ProductCommands != nil || opts.ProjectCommands != nil || opts.ReleaseCreationCommands != nil) && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused catalog creation requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -1025,21 +1028,6 @@ func (s *Server) listControlEvidence(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) createProduct(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Name, Slug string }
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.productCommands != nil {
-			product, err := s.productCommands.CreateProduct(ctx, actor, releaseapp.CreateProductInput{Name: req.Name, Slug: req.Slug})
-			return http.StatusCreated, productFromCommand(product), mapBuildAttestationCommandError(err)
-		}
-		product, err := s.releaseCatalog.CreateProduct(ctx, actor, req.Name, req.Slug)
-		return http.StatusCreated, product, err
-	})
-}
-
 func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -1113,24 +1101,6 @@ func (s *Server) getProduct(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, product)
 }
 
-func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProductID string `json:"product_id"`
-		Name      string `json:"name"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.projectCommands != nil {
-			project, err := s.projectCommands.CreateProject(ctx, actor, releaseapp.CreateProjectInput{ProductID: req.ProductID, Name: req.Name})
-			return http.StatusCreated, projectFromCommand(project), mapBuildAttestationCommandError(err)
-		}
-		project, err := s.releaseCatalog.CreateProject(ctx, actor, req.ProductID, req.Name)
-		return http.StatusCreated, project, err
-	})
-}
-
 func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -1151,24 +1121,6 @@ func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, project)
-}
-
-func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProductID string `json:"product_id"`
-		Version   string `json:"version"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.releaseCreationCommands != nil {
-			release, err := s.releaseCreationCommands.CreateRelease(ctx, actor, releaseapp.CreateReleaseInput{ProductID: req.ProductID, Version: req.Version})
-			return http.StatusCreated, releaseFromCommand(release), mapBuildAttestationCommandError(err)
-		}
-		release, err := s.releaseCatalog.CreateRelease(ctx, actor, req.ProductID, req.Version)
-		return http.StatusCreated, release, err
-	})
 }
 
 func (s *Server) getRelease(w http.ResponseWriter, r *http.Request) {

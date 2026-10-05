@@ -967,6 +967,26 @@ review; this note does not approve an exception or claim a published release
 already includes them. Structural acceptance is not signature verification,
 and this migration does not retire all production Ledger usage.
 
+## Unreleased Catalog Creation Boundary
+
+Product, project and release creation now use native PostgreSQL durable
+execution instead of Ledger replay/refresh. Routes, response fields, stored
+schemas, request-byte fingerprints, product-slug and release-version uniqueness,
+project-name non-uniqueness and new release draft/revision semantics remain.
+No database migration or historical rewrite is required.
+
+Completed retries now require current tenant/product creation authority.
+Strict JSON rejects case aliases, null, unknown/duplicate fields and malformed
+UTF-8. Raw names/slugs/versions are capped at 64 KiB before trimming; normalized
+slugs keep the existing 1024-byte limit. Raw parent IDs are capped at 1024 bytes.
+Cookie writes require same-host HTTPS Origin with Bearer precedence. A submitted
+release version outside PostgreSQL's encoded index capacity now returns `400`,
+not an internal server failure. See [catalog creation](../api.md#1-create-product-project-and-release).
+
+These input and authority restrictions require release compatibility review;
+this note does not approve an exception or claim publication. Local memory
+remains nondurable; production Ledger retirement is not yet established.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

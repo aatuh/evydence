@@ -486,7 +486,22 @@ owns the atomic reservation, command, and redacted replay protocol without
 loading Ledger state; the current HTTP compatibility adapter uses that same
 protocol but still clones and reloads Ledger state for its command view.
 Migrating the HTTP command bindings to focused services remains EVY-905 work.
-The release context now has standalone product-, project-, and release-create
+Product, project and release HTTP creation now use native durable execution.
+Their shared read-only guard port locks the current tenant and, for children,
+the tenant-owned product through the outer replay transaction after the
+common writer fence. It projects no name, slug, version or existing child,
+performs no uniqueness query and allocates no clock/ID. Current tenant/product
+authority is rechecked on every retry and inside native writes. Input bounds
+precede trimming; the existing trimmed product-slug limit is preserved.
+Local maps and the explicit memory transaction adapter retain nondurable
+semantics; neither supplies PostgreSQL lock guarantees. Live tests cover all
+three native routes, exact historical numbers, large unrelated metadata,
+four failure/recovery stages each, current grants, parent lock lifetimes,
+concurrent one-time creation and cancellation. Broader API startup and other
+unmigrated wrappers remain EVY-905 work. See
+[catalog creation](api.md#1-create-product-project-and-release).
+
+The release context has standalone product-, project-, and release-create
 commands with narrow tenant-scoped repositories and audit transactions.
 Durable product creation uses a boolean slug-existence port; it never loads an
 existing product's name, slug, or creation metadata to detect a duplicate.

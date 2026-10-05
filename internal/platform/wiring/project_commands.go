@@ -54,14 +54,16 @@ type projectTransactions struct{ factory app.UnitOfWorkFactory }
 func (t projectTransactions) ExecuteProject(ctx context.Context, fn func(context.Context, releaseapp.ProjectTransaction) error) error {
 	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
 		reader, ok := repos.ReleaseCatalog.(releaseapp.ProductCoordinateReader)
-		if !ok || repos.Audit == nil {
+		guard, valid := repos.ReleaseCatalog.(releaseapp.CatalogCreationGuardReader)
+		if !ok || !valid || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return fn(ctx, projectTransaction{reader: reader, writer: repos.ReleaseCatalog, audit: repos.Audit})
+		return fn(ctx, projectTransaction{catalogCreationGuard: catalogCreationGuard{reader: guard}, reader: reader, writer: repos.ReleaseCatalog, audit: repos.Audit})
 	}))
 }
 
 type projectTransaction struct {
+	catalogCreationGuard
 	reader releaseapp.ProductCoordinateReader
 	writer interface {
 		InsertProject(context.Context, domain.Project) error

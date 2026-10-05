@@ -16,10 +16,17 @@ import (
 )
 
 type releaseCreationHTTPFake struct {
-	calls int
-	actor identitydomain.Actor
-	input releaseapp.CreateReleaseInput
-	err   error
+	guards   int
+	guardErr error
+	calls    int
+	actor    identitydomain.Actor
+	input    releaseapp.CreateReleaseInput
+	err      error
+}
+
+func (f *releaseCreationHTTPFake) AuthorizeReleaseCreation(context.Context, identitydomain.Actor, releaseapp.CreateReleaseInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *releaseCreationHTTPFake) CreateRelease(_ context.Context, actor identitydomain.Actor, in releaseapp.CreateReleaseInput) (releasedomain.Release, error) {
@@ -35,7 +42,7 @@ func (f *releaseCreationHTTPFake) CreateRelease(_ context.Context, actor identit
 func TestReleaseCreationHTTPMapsFocusedDTOReplayAndPrivateErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &releaseCreationHTTPFake{}
-	server, err := NewServerWithOptions(local.ledger, ServerOptions{ReleaseCreationCommands: commands})
+	server, err := NewServerWithOptions(local.ledger, ServerOptions{ReleaseCreationCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,8 +59,9 @@ func TestReleaseCreationHTTPMapsFocusedDTOReplayAndPrivateErrors(t *testing.T) {
 	if strings.Contains(response, `"frozen_at"`) || strings.Contains(response, `"approved_at"`) {
 		t.Fatal("draft lifecycle field omission changed", response)
 	}
-	if replay := postRaw(t, server, secret, "/v1/releases", "create-release", body, 201); replay != response || commands.calls != 1 {
-		t.Fatal("release replay changed result or repeated command", replay, commands.calls)
+	assertTrustHTTPReplay(t, response, postRaw(t, server, secret, "/v1/releases", "create-release", body, 201))
+	if commands.calls != 1 {
+		t.Fatal("release replay repeated command", commands.calls)
 	}
 	postRaw(t, server, secret, "/v1/releases", "create-release", append(body, ' '), 409)
 	for i, tc := range []struct {

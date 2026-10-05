@@ -60,10 +60,10 @@ func (s *ReleaseCommands) CreateRelease(ctx context.Context, actor identitydomai
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.Release{}, err
 	}
-	input.ProductID = strings.TrimSpace(input.ProductID)
-	input.Version = strings.TrimSpace(input.Version)
-	if input.ProductID == "" || input.Version == "" {
-		return releasedomain.Release{}, ErrValidation
+	var err error
+	input, err = NormalizeReleaseCreationInput(input)
+	if err != nil {
+		return releasedomain.Release{}, err
 	}
 	product, err := s.reader.ReadProductCoordinates(ctx, actor.TenantID, input.ProductID)
 	if err != nil {
@@ -82,6 +82,11 @@ func (s *ReleaseCommands) CreateRelease(ctx context.Context, actor identitydomai
 		return releasedomain.Release{}, ErrValidation
 	}
 	err = s.transactions.ExecuteReleaseCreation(ctx, func(ctx context.Context, tx ReleaseCreationTransaction) error {
+		if guard, ok := tx.(catalogCreationGuardTransaction); ok {
+			if err := authorizeCatalogCreationScope(ctx, guard, actor, ScopeReleaseWrite, input.ProductID); err != nil {
+				return err
+			}
+		}
 		current, err := tx.ReadProductCoordinates(ctx, actor.TenantID, product.ID)
 		if err != nil {
 			return err

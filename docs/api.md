@@ -265,21 +265,44 @@ Product create, read, and list responses contain `id`, `tenant_id`, `name`,
 `slug`, and `created_at`. They do not return `schema_version`; the corrected
 OpenAPI schema no longer advertises or requires that unsupported field.
 
-In the PostgreSQL profile, product creation uses a focused durable command,
-not cached Ledger products. It requires `product:write`; human sessions also
+In the PostgreSQL profile, product creation uses native durable execution,
+not Ledger replay, refresh or cached products. It requires `product:write`; human sessions also
 need a matching tenant-level grant, not a grant on an existing product. The
 write transaction rechecks authorization before testing the tenant's slug
 identity through a boolean existence query. Product and audit effects commit
 together. A different-key request for an existing tenant/slug returns `409`;
 same-key replay returns the original product, while changed request bytes
-with that key conflict. Different tenants can use the same slug.
+with that key conflict. Different tenants can use the same slug. Every retry
+checks current tenant authority through a read-only guard, without slug
+uniqueness queries, product metadata, clocks or IDs.
 
-Names and slugs are trimmed, non-empty, NUL-free UTF-8. New names are bounded
-at 64 KiB of UTF-8 bytes and slugs at 1024 bytes; the entire HTTP JSON body is
+Names and slugs are trimmed, non-empty, NUL-free UTF-8. Raw names and slugs are
+bounded at 64 KiB before trimming; the normalized slug retains its existing
+1024-byte limit. The entire HTTP JSON body is
 also limited to 64 KiB, including JSON syntax and escapes. Invalid input
 returns `400` without product/audit writes. Creation timestamps use UTC at
 microsecond precision. Explicit local-memory mode retains its compatibility
-binding.
+binding and shares raw preflight/current-authority checks, but remains
+nondurable.
+
+Project and release creation also use native durable execution. They require
+`project:write` or `release:write` respectively, and human sessions need a
+current grant on the submitted tenant-owned product. Every retry checks and
+share-locks only the tenant and product ownership coordinates, not names,
+slugs, release versions or existing children. Missing/foreign parents return
+`404`, insufficient authority `403`. Fresh creation retains current product
+slug-drift checks; release versions remain unique per product. A project name
+does not become a reuse key: different keys can create separate projects.
+Record, caller audit and successful replay completion commit together.
+
+Both profiles reject malformed/non-object JSON, unknown/duplicate fields,
+case aliases and explicit null fields. Raw parent IDs are limited to 1024
+NUL-free UTF-8 bytes, and project names/release versions to 64 KiB before
+trimming. PostgreSQL can reject a long, noncompressible release version that
+exceeds its encoded uniqueness-index budget even within that text cap; this
+returns safe `400` without a release/audit write. Cookie-authenticated mutations
+require same-host HTTPS Origin, with Bearer precedence. See the
+[unreleased catalog boundary](reference/api-versioning.md#unreleased-catalog-creation-boundary).
 
 Representative response shape:
 

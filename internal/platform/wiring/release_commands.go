@@ -36,14 +36,16 @@ func (t releaseCreationCommandTransactions) ExecuteReleaseCreation(ctx context.C
 	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
 		parent, ok := repos.ReleaseCatalog.(releaseapp.ProductCoordinateReader)
 		versions, valid := repos.ReleaseCatalog.(releaseapp.ReleaseVersionReader)
-		if !ok || !valid || repos.Audit == nil {
+		guard, guarded := repos.ReleaseCatalog.(releaseapp.CatalogCreationGuardReader)
+		if !ok || !valid || !guarded || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return fn(ctx, releaseCreationCommandTransaction{parent: parent, versions: versions, writer: repos.ReleaseCatalog, audit: repos.Audit})
+		return fn(ctx, releaseCreationCommandTransaction{catalogCreationGuard: catalogCreationGuard{reader: guard}, parent: parent, versions: versions, writer: repos.ReleaseCatalog, audit: repos.Audit})
 	}))
 }
 
 type releaseCreationCommandTransaction struct {
+	catalogCreationGuard
 	parent   releaseapp.ProductCoordinateReader
 	versions releaseapp.ReleaseVersionReader
 	writer   interface {

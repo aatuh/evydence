@@ -17,10 +17,17 @@ import (
 )
 
 type productHTTPFake struct {
-	calls int
-	actor identitydomain.Actor
-	input releaseapp.CreateProductInput
-	err   error
+	guards   int
+	guardErr error
+	calls    int
+	actor    identitydomain.Actor
+	input    releaseapp.CreateProductInput
+	err      error
+}
+
+func (f *productHTTPFake) AuthorizeProductCreation(context.Context, identitydomain.Actor, releaseapp.CreateProductInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *productHTTPFake) CreateProduct(_ context.Context, actor identitydomain.Actor, in releaseapp.CreateProductInput) (releasedomain.Product, error) {
@@ -32,7 +39,7 @@ func (f *productHTTPFake) CreateProduct(_ context.Context, actor identitydomain.
 func TestProductHTTPMapsFocusedDTOReplayValidationAndPrivateErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &productHTTPFake{}
-	server, err := NewServerWithOptions(local.ledger, ServerOptions{ProductCommands: commands})
+	server, err := NewServerWithOptions(local.ledger, ServerOptions{ProductCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +60,9 @@ func TestProductHTTPMapsFocusedDTOReplayValidationAndPrivateErrors(t *testing.T)
 		t.Fatal(err)
 	}
 	assertProductSchemaFields(t, server, envelope.Data)
-	if replay := postRaw(t, server, secret, "/v1/products", "create-product", body, 201); replay != response || commands.calls != 1 {
-		t.Fatal("product replay changed response or repeated command", replay, commands.calls)
+	assertTrustHTTPReplay(t, response, postRaw(t, server, secret, "/v1/products", "create-product", body, 201))
+	if commands.calls != 1 {
+		t.Fatal("product replay repeated command", commands.calls)
 	}
 	postRaw(t, server, secret, "/v1/products", "create-product", append(body, ' '), 409)
 	// Null objects and missing scalar values are application validation, covered

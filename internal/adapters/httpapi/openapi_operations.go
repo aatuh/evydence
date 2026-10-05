@@ -171,7 +171,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Control evidence list envelope.", "#/components/schemas/ControlEvidenceListEnvelope")
 	case "createProduct":
-		operation.Description = "Creates a tenant-scoped product. Product slugs must be unique per tenant."
+		operation.Description = "Creates a tenant-scoped product requiring product:write and a current tenant-wide human grant. PostgreSQL uses native durable execution without Ledger replay/refresh. Every retry checks and locks current tenant authority without product metadata or slug uniqueness reads; fresh creation retains unique tenant/slugs and atomic product/audit/replay effects. Identical request bytes replay the original response; changed bytes conflict. Strict non-null exact JSON applies in both profiles. Raw NUL-free UTF-8 name/slug text is capped at 64 KiB before trimming; the normalized slug retains its 1024-byte limit, and the whole JSON body remains capped at 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 		operation.RequestBody = jsonRequest("Product creation request.", "#/components/schemas/CreateProductRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created product envelope.", "#/components/schemas/ProductEnvelope")
 	case "listProducts":
@@ -182,7 +182,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Product id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Product envelope.", "#/components/schemas/ProductEnvelope")
 	case "createProject":
-		operation.Description = "Creates a tenant-scoped project under a product."
+		operation.Description = "Creates a tenant-scoped project requiring project:write and current product authority. PostgreSQL uses native durable execution; every retry holds current tenant/product ownership locks through the outer transaction without loading product names/slugs or existing child metadata. Fresh creation retains product slug-drift checks and atomic project/audit/replay effects. Project names are not reuse keys. Identical bytes replay the original response; changed bytes conflict. Both profiles use strict non-null exact JSON, NUL-free UTF-8 raw parent IDs capped at 1024 bytes and raw names capped at 64 KiB before trimming; the whole body remains capped at 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 		operation.RequestBody = jsonRequest("Project creation request.", "#/components/schemas/CreateProjectRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created project envelope.", "#/components/schemas/ProjectEnvelope")
 	case "getProject":
@@ -190,7 +190,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Project id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Project envelope.", "#/components/schemas/ProjectEnvelope")
 	case "createRelease":
-		operation.Description = "Creates an append-only release record under a product."
+		operation.Description = "Creates an append-only draft release at revision 1, requiring release:write and current product authority. PostgreSQL uses native durable execution; every retry holds current tenant/product ownership locks without names, slugs, versions or existing child reads. Fresh creation retains product slug-drift checks, unique per-product versions and atomic release/audit/replay effects. Identical bytes replay the original response; changed bytes conflict. Both profiles use strict non-null exact JSON, NUL-free UTF-8 raw parent IDs capped at 1024 bytes and raw versions capped at 64 KiB before trimming; the whole body remains capped at 64 KiB. Versions exceeding PostgreSQL encoded index capacity return safe 400 without writes. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 		operation.RequestBody = jsonRequest("Release creation request.", "#/components/schemas/CreateReleaseRequest")
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"release-candidate": specs.Example{

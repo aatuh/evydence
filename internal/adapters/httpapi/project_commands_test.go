@@ -16,10 +16,17 @@ import (
 )
 
 type projectHTTPFake struct {
-	calls int
-	actor identitydomain.Actor
-	input releaseapp.CreateProjectInput
-	err   error
+	guards   int
+	guardErr error
+	calls    int
+	actor    identitydomain.Actor
+	input    releaseapp.CreateProjectInput
+	err      error
+}
+
+func (f *projectHTTPFake) AuthorizeProjectCreation(context.Context, identitydomain.Actor, releaseapp.CreateProjectInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *projectHTTPFake) CreateProject(_ context.Context, actor identitydomain.Actor, in releaseapp.CreateProjectInput) (releasedomain.Project, error) {
@@ -31,7 +38,7 @@ func (f *projectHTTPFake) CreateProject(_ context.Context, actor identitydomain.
 func TestProjectHTTPMapsFocusedDTOReplayAndPrivateErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &projectHTTPFake{}
-	server, err := NewServerWithOptions(local.ledger, ServerOptions{ProjectCommands: commands})
+	server, err := NewServerWithOptions(local.ledger, ServerOptions{ProjectCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,8 +52,9 @@ func TestProjectHTTPMapsFocusedDTOReplayAndPrivateErrors(t *testing.T) {
 			t.Fatal("project response lost field", field, response)
 		}
 	}
-	if replay := postRaw(t, server, secret, "/v1/projects", "create-project", body, 201); replay != response || commands.calls != 1 {
-		t.Fatal("project replay changed result or repeated command", replay, commands.calls)
+	assertTrustHTTPReplay(t, response, postRaw(t, server, secret, "/v1/projects", "create-project", body, 201))
+	if commands.calls != 1 {
+		t.Fatal("project replay repeated command", commands.calls)
 	}
 	postRaw(t, server, secret, "/v1/projects", "create-project", append(body, ' '), 409)
 	for i, tc := range []struct {

@@ -35,14 +35,16 @@ type productTransactions struct{ factory app.UnitOfWorkFactory }
 func (t productTransactions) ExecuteProduct(ctx context.Context, command func(context.Context, releaseapp.ProductTransaction) error) error {
 	return mapProductWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repositories app.Repositories) error {
 		slugs, ok := repositories.ReleaseCatalog.(releaseapp.ProductSlugReader)
-		if !ok || repositories.Audit == nil {
+		guard, valid := repositories.ReleaseCatalog.(releaseapp.CatalogCreationGuardReader)
+		if !ok || !valid || repositories.Audit == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, productTransaction{slugs: slugs, writer: repositories.ReleaseCatalog, audit: repositories.Audit})
+		return command(ctx, productTransaction{catalogCreationGuard: catalogCreationGuard{reader: guard}, slugs: slugs, writer: repositories.ReleaseCatalog, audit: repositories.Audit})
 	}))
 }
 
 type productTransaction struct {
+	catalogCreationGuard
 	slugs  releaseapp.ProductSlugReader
 	writer interface {
 		InsertProduct(context.Context, domain.Product) error

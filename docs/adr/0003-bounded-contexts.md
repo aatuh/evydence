@@ -290,6 +290,15 @@ responses. Internal payload lifecycle and worker-pending records remain intact.
 Local memory retains its explicit nondurable store. See
 [attestation upload](../api.md#build-attestation-upload).
 
+Product/project/release creation now binds native durable HTTP execution too.
+A shared ownership-only port checks current tenant/product creation authority
+through the outer transaction without metadata, uniqueness reads, clocks or
+IDs. Fresh commands retain unique product slugs, non-unique project names and
+unique per-product release versions, alongside the existing slug-drift checks.
+Raw input normalization is shared with the explicit local profile. This does
+not retire startup aggregate loading or remaining command wrappers. See
+[catalog creation](../api.md#1-create-product-project-and-release).
+
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
 Together they own all 142 models assigned in the table below. Schema and policy

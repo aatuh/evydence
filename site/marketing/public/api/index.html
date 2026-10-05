@@ -1741,13 +1741,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ProductListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/products create product creates a tenant-scoped product. product slugs must be unique per tenant. createproduct evydence product:write">
+          <article class="operation" data-operation data-search="post /v1/products create product creates a tenant-scoped product requiring product:write and a current tenant-wide human grant. postgresql uses native durable execution without ledger replay/refresh. every retry checks and locks current tenant authority without product metadata or slug uniqueness reads; fresh creation retains unique tenant/slugs and atomic product/audit/replay effects. identical request bytes replay the original response; changed bytes conflict. strict non-null exact json applies in both profiles. raw nul-free utf-8 name/slug text is capped at 64 kib before trimming; the normalized slug retains its 1024-byte limit, and the whole json body remains capped at 64 kib. cookie writes require same-host https origin with bearer precedence. local memory remains nondurable. createproduct evydence product:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/products</code>
             </div>
             <h3>Create product</h3>
-            <p>Creates a tenant-scoped product. Product slugs must be unique per tenant.</p>
+            <p>Creates a tenant-scoped product requiring product:write and a current tenant-wide human grant. PostgreSQL uses native durable execution without Ledger replay/refresh. Every retry checks and locks current tenant authority without product metadata or slug uniqueness reads; fresh creation retains unique tenant/slugs and atomic product/audit/replay effects. Identical request bytes replay the original response; changed bytes conflict. Strict non-null exact JSON applies in both profiles. Raw NUL-free UTF-8 name/slug text is capped at 64 KiB before trimming; the normalized slug retains its 1024-byte limit, and the whole JSON body remains capped at 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createProduct</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1775,13 +1775,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ProductEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/projects create project creates a tenant-scoped project under a product. createproject evydence project:write">
+          <article class="operation" data-operation data-search="post /v1/projects create project creates a tenant-scoped project requiring project:write and current product authority. postgresql uses native durable execution; every retry holds current tenant/product ownership locks through the outer transaction without loading product names/slugs or existing child metadata. fresh creation retains product slug-drift checks and atomic project/audit/replay effects. project names are not reuse keys. identical bytes replay the original response; changed bytes conflict. both profiles use strict non-null exact json, nul-free utf-8 raw parent ids capped at 1024 bytes and raw names capped at 64 kib before trimming; the whole body remains capped at 64 kib. cookie writes require same-host https origin with bearer precedence. local memory remains nondurable. createproject evydence project:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/projects</code>
             </div>
             <h3>Create project</h3>
-            <p>Creates a tenant-scoped project under a product.</p>
+            <p>Creates a tenant-scoped project requiring project:write and current product authority. PostgreSQL uses native durable execution; every retry holds current tenant/product ownership locks through the outer transaction without loading product names/slugs or existing child metadata. Fresh creation retains product slug-drift checks and atomic project/audit/replay effects. Project names are not reuse keys. Identical bytes replay the original response; changed bytes conflict. Both profiles use strict non-null exact JSON, NUL-free UTF-8 raw parent IDs capped at 1024 bytes and raw names capped at 64 KiB before trimming; the whole body remains capped at 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createProject</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2166,13 +2166,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseCandidateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/releases create release creates an append-only release record under a product. createrelease evydence release:write">
+          <article class="operation" data-operation data-search="post /v1/releases create release creates an append-only draft release at revision 1, requiring release:write and current product authority. postgresql uses native durable execution; every retry holds current tenant/product ownership locks without names, slugs, versions or existing child reads. fresh creation retains product slug-drift checks, unique per-product versions and atomic release/audit/replay effects. identical bytes replay the original response; changed bytes conflict. both profiles use strict non-null exact json, nul-free utf-8 raw parent ids capped at 1024 bytes and raw versions capped at 64 kib before trimming; the whole body remains capped at 64 kib. versions exceeding postgresql encoded index capacity return safe 400 without writes. cookie writes require same-host https origin with bearer precedence. local memory remains nondurable. createrelease evydence release:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/releases</code>
             </div>
             <h3>Create release</h3>
-            <p>Creates an append-only release record under a product.</p>
+            <p>Creates an append-only draft release at revision 1, requiring release:write and current product authority. PostgreSQL uses native durable execution; every retry holds current tenant/product ownership locks without names, slugs, versions or existing child reads. Fresh creation retains product slug-drift checks, unique per-product versions and atomic release/audit/replay effects. Identical bytes replay the original response; changed bytes conflict. Both profiles use strict non-null exact JSON, NUL-free UTF-8 raw parent IDs capped at 1024 bytes and raw versions capped at 64 KiB before trimming; the whole body remains capped at 64 KiB. Versions exceeding PostgreSQL encoded index capacity return safe 400 without writes. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createRelease</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

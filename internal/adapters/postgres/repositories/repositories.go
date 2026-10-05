@@ -863,6 +863,12 @@ func (r releaseCatalog) InsertRelease(ctx context.Context, release domain.Releas
 		WHERE product.id = $3 AND product.tenant_id = $2
 	`, release.ID, release.TenantID, release.ProductID, release.Version, release.State, release.FrozenAt, release.ApprovedAt, release.Revision, release.CreatedAt)
 	if err != nil {
+		// The version participates in a btree uniqueness index. Even bounded
+		// text can exceed its encoded tuple limit when not compressible.
+		var databaseError *pgconn.PgError
+		if errors.As(err, &databaseError) && databaseError.Code == "54000" {
+			return app.ErrValidation
+		}
 		return writeError("insert release", err)
 	}
 	if result.RowsAffected() != 1 {

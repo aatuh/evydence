@@ -550,6 +550,9 @@ type identityAccessService interface {
 // release context. Verification, decision, package, and platform operations
 // remain on their separate migration paths.
 type releaseCatalogService interface {
+	AuthorizeProductCreation(context.Context, domain.Actor, releaseapp.CreateProductInput) error
+	AuthorizeProjectCreation(context.Context, domain.Actor, releaseapp.CreateProjectInput) error
+	AuthorizeReleaseCreation(context.Context, domain.Actor, releaseapp.CreateReleaseInput) error
 	CreateProduct(context.Context, domain.Actor, string, string) (domain.Product, error)
 	ListProducts(context.Context, domain.Actor) ([]domain.Product, error)
 	GetProduct(context.Context, domain.Actor, string) (domain.Product, error)

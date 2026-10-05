@@ -10,6 +10,7 @@ import (
 )
 
 type ProjectCommands interface {
+	AuthorizeProjectCreation(context.Context, identitydomain.Actor, releaseapp.CreateProjectInput) error
 	CreateProject(context.Context, identitydomain.Actor, releaseapp.CreateProjectInput) (releasedomain.Project, error)
 }
 

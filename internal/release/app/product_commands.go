@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"strings"
 
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -58,13 +57,18 @@ func (s *ProductCommands) CreateProduct(ctx context.Context, actor identitydomai
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductWrite, TenantWide: true}); err != nil {
 		return releasedomain.Product{}, err
 	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.Slug = strings.TrimSpace(input.Slug)
-	if input.Name == "" || input.Slug == "" || len(input.Slug) > 1024 {
-		return releasedomain.Product{}, ErrValidation
+	var err error
+	input, err = NormalizeProductCreationInput(input)
+	if err != nil {
+		return releasedomain.Product{}, err
 	}
 	product := releasedomain.Product{ID: s.ids.NewID("prod"), TenantID: actor.TenantID, Name: input.Name, Slug: input.Slug, CreatedAt: s.clock.Now().UTC()}
-	err := s.transactions.ExecuteProduct(ctx, func(ctx context.Context, tx ProductTransaction) error {
+	err = s.transactions.ExecuteProduct(ctx, func(ctx context.Context, tx ProductTransaction) error {
+		if guard, ok := tx.(catalogCreationGuardTransaction); ok {
+			if err := authorizeCatalogCreationScope(ctx, guard, actor, ScopeProductWrite, ""); err != nil {
+				return err
+			}
+		}
 		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductWrite, TenantWide: true}); err != nil {
 			return err
 		}

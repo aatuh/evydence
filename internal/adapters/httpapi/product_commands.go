@@ -12,6 +12,7 @@ import (
 // ProductCommands exposes product creation only, without catalog queries or
 // unrelated commands.
 type ProductCommands interface {
+	AuthorizeProductCreation(context.Context, identitydomain.Actor, releaseapp.CreateProductInput) error
 	CreateProduct(context.Context, identitydomain.Actor, releaseapp.CreateProductInput) (releasedomain.Product, error)
 }
 

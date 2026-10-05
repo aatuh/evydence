@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"strings"
 
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -55,10 +54,10 @@ func (s *ProjectCommands) CreateProject(ctx context.Context, actor identitydomai
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProjectWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.Project{}, err
 	}
-	input.ProductID = strings.TrimSpace(input.ProductID)
-	input.Name = strings.TrimSpace(input.Name)
-	if input.ProductID == "" || input.Name == "" {
-		return releasedomain.Project{}, ErrValidation
+	var err error
+	input, err = NormalizeProjectCreationInput(input)
+	if err != nil {
+		return releasedomain.Project{}, err
 	}
 	product, err := s.reader.ReadProductCoordinates(ctx, actor.TenantID, input.ProductID)
 	if err != nil {
@@ -74,6 +73,11 @@ func (s *ProjectCommands) CreateProject(ctx context.Context, actor identitydomai
 	}
 	project := releasedomain.Project{ID: s.ids.NewID("proj"), TenantID: actor.TenantID, ProductID: product.ID, Name: input.Name, CreatedAt: s.clock.Now().UTC()}
 	err = s.transactions.ExecuteProject(ctx, func(ctx context.Context, tx ProjectTransaction) error {
+		if guard, ok := tx.(catalogCreationGuardTransaction); ok {
+			if err := authorizeCatalogCreationScope(ctx, guard, actor, ScopeProjectWrite, input.ProductID); err != nil {
+				return err
+			}
+		}
 		current, err := tx.ReadProductCoordinates(ctx, actor.TenantID, product.ID)
 		if err != nil {
 			return err

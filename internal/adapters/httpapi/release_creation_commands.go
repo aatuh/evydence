@@ -11,6 +11,7 @@ import (
 
 // ReleaseCreationCommands does not expose transitions or unrelated catalogs.
 type ReleaseCreationCommands interface {
+	AuthorizeReleaseCreation(context.Context, identitydomain.Actor, releaseapp.CreateReleaseInput) error
 	CreateRelease(context.Context, identitydomain.Actor, releaseapp.CreateReleaseInput) (releasedomain.Release, error)
 }
 
