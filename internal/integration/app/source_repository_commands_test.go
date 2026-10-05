@@ -148,6 +148,67 @@ func TestSourceRepositoryCreationRejectsInvalidTextAndOversizedIndexKeys(t *test
 	}
 }
 
+func TestSourceRepositoryCreationBoundsRawTextBeforeTrimming(t *testing.T) {
+	for name, mutate := range map[string]func(*CreateSourceRepositoryInput){
+		"project": func(in *CreateSourceRepositoryInput) { in.ProjectID = strings.Repeat(" ", 1025) + "project" },
+		"provider": func(in *CreateSourceRepositoryInput) {
+			in.Provider = strings.Repeat(" ", MaxSourceTextBytes+1) + "github"
+		},
+		"name": func(in *CreateSourceRepositoryInput) {
+			in.FullName = strings.Repeat(" ", MaxSourceTextBytes+1) + "org/api"
+		},
+		"clone": func(in *CreateSourceRepositoryInput) { in.CloneURL = strings.Repeat(" ", MaxSourceTextBytes+1) },
+		"branch": func(in *CreateSourceRepositoryInput) {
+			in.DefaultBranch = strings.Repeat(" ", MaxSourceTextBytes+1) + "main"
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, f, a, in := sourceCreationFixture(t)
+			mutate(&in)
+			if v, err := c.CreateSourceRepository(t.Context(), a, in); !errors.Is(err, ErrValidation) || v.ID != "" || f.transactions != 0 {
+				t.Fatal("raw padded input reached persistence", v, err, f.transactions)
+			}
+		})
+	}
+}
+
+func TestSourceRepositoryReplayGuardReadsOnlyCurrentCoordinates(t *testing.T) {
+	c, f, a, in := sourceCreationFixture(t)
+	guard, ok := any(c).(interface {
+		AuthorizeSourceRepositoryCreation(context.Context, identitydomain.Actor, CreateSourceRepositoryInput) error
+	})
+	if !ok {
+		t.Fatal("source creation has no read-only replay guard")
+	}
+	c.config.Clock = application.ClockFunc(func() time.Time { panic("guard used clock") })
+	c.config.IDs = application.IDGeneratorFunc(func(string) string { panic("guard allocated identity") })
+	a.KeyID, a.UserID = "", "human"
+	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "project", ResourceID: "project", Scopes: []string{"source:write"}}}
+	f.identity = SourceRepositoryIdentity{ID: "repo", TenantID: "tenant", ProjectID: "project", ProductID: "product"}
+	f.failure = "read"
+	if err := guard.AuthorizeSourceRepositoryCreation(t.Context(), a, in); err != nil || f.reads != 0 || f.repository.ID != "" || len(f.audit) != 0 {
+		t.Fatal("guard read metadata or wrote state", err, f)
+	}
+	f.identity.ProjectID = "other-project"
+	if err := guard.AuthorizeSourceRepositoryCreation(t.Context(), a, in); !errors.Is(err, application.ErrForbidden) || f.reads != 0 {
+		t.Fatal("guard ignored current duplicate owner", err, f)
+	}
+	f.identity.TenantID = "other"
+	if err := guard.AuthorizeSourceRepositoryCreation(t.Context(), a, in); !errors.Is(err, ErrNotFound) {
+		t.Fatal("guard ignored foreign duplicate", err)
+	}
+	f.identity = SourceRepositoryIdentity{}
+	f.project.TenantID = "other"
+	if err := guard.AuthorizeSourceRepositoryCreation(t.Context(), a, in); !errors.Is(err, ErrNotFound) {
+		t.Fatal("guard ignored foreign project", err)
+	}
+	f.project.TenantID = "tenant"
+	f.failure = "lock"
+	if err := guard.AuthorizeSourceRepositoryCreation(t.Context(), a, in); !errors.Is(err, ErrNotFound) {
+		t.Fatal("guard ignored missing tenant", err)
+	}
+}
+
 func TestSourceRepositoryCreationRequiresDependenciesAndLiveContext(t *testing.T) {
 	for _, mutate := range []func(*SourceRepositoryCreationConfig){func(c *SourceRepositoryCreationConfig) { c.Transactions = nil }, func(c *SourceRepositoryCreationConfig) { c.Authorizer = nil }, func(c *SourceRepositoryCreationConfig) { c.Clock = nil }, func(c *SourceRepositoryCreationConfig) { c.IDs = nil }} {
 		c, _, _, _ := sourceCreationFixture(t)

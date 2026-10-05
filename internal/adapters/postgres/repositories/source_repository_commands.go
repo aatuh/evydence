@@ -47,6 +47,18 @@ func (r source) RepositoryIdentityByName(ctx context.Context, tenant, provider, 
 	if v.ProjectID != "" && v.ProductID == "" {
 		return integrationapp.SourceRepositoryIdentity{}, false, app.ErrNotFound
 	}
+	if v.ProjectID != "" {
+		// FOR SHARE OF r holds the repository's project link, but the outer
+		// joins above do not lock its parents. Hold those minimal identities
+		// too: reuse may resolve a different project than the submitted one.
+		project, err := r.LockRepositoryProject(ctx, tenant, v.ProjectID)
+		if err != nil {
+			return integrationapp.SourceRepositoryIdentity{}, false, err
+		}
+		if project.ProductID != v.ProductID {
+			return integrationapp.SourceRepositoryIdentity{}, false, app.ErrNotFound
+		}
+	}
 	return v, true, nil
 }
 func sourceIdentityError(err error, ids ...string) error {

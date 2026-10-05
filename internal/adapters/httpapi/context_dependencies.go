@@ -173,6 +173,7 @@ type DeploymentCommands interface {
 }
 
 type SourceRepositoryCommands interface {
+	AuthorizeSourceRepositoryCreation(context.Context, identitydomain.Actor, integrationapp.CreateSourceRepositoryInput) error
 	CreateSourceRepository(context.Context, identitydomain.Actor, integrationapp.CreateSourceRepositoryInput) (integrationdomain.SourceRepository, error)
 }
 

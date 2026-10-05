@@ -1713,8 +1713,11 @@ storage. New timestamps use UTC microseconds. See the
 ### Source Repository Creation
 
 `POST /v1/source/repositories` in the PostgreSQL profile uses an Integration-owned
-command with bounded, transaction-scoped ownership and metadata reads. It
-requires `source:write`. Human sessions need a current product/project grant
+command and native durable replay, without a Ledger clone or publication. Its
+read-only guard checks current tenant and ownership before reservation or
+completed replay, without reading clone URLs, branch metadata, or prior audit
+entries and without allocating IDs or timestamps. It requires `source:write`.
+Human sessions need a current product/project grant
 for a supplied project; detached creation requires a tenant-wide grant.
 Keys and collectors retain their tenant-scoped credential authorization.
 
@@ -1730,18 +1733,27 @@ corrections.
 
 Creation serializes name reuse even when no row exists yet. The PostgreSQL
 adapter takes the worker-projection fence before the tenant-row lock, then
-performs bounded parent and identity reads. Repository, audit and HTTP replay
-state commit together. A failed write/commit leaves no effects; replay adds no
-effects and creates no outbox job. The v1 stored schema and response fields are
-unchanged.
+holds share locks on the submitted project's product/project and, when present,
+the existing repository and its actual product/project through the outer replay
+commit. Repository, audit and HTTP replay state commit together. A failed write
+or commit leaves no repository/audit effects. Early command failures retain a
+failed-key marker; replay-completion and outer-commit failures roll back the
+reservation. Completed replay preserves the original public JSON, even when
+current metadata exceeds fresh-read bounds, and creates no outbox job. The v1
+stored schema, response fields, and original request-byte fingerprints remain.
 
 Tenant/project IDs are limited to 1024 UTF-8 bytes. The combined tenant ID,
 provider and normalized full name is limited to 2304 bytes so the unique index
 fits without text compression. Optional clone URL/default-branch metadata is
-limited to 64 KiB; text is trimmed, valid UTF-8 and NUL-free. The existing 64 KiB
+limited to 64 KiB; raw bounds are checked before trimming, and text must be valid
+UTF-8 and NUL-free. The existing 64 KiB
 HTTP envelope limit remains. Non-object envelopes, null string fields,
 duplicate fields and unknown fields fail validation. Oversized stored metadata
 returns conflict instead of a truncated record. Historical rows are unchanged.
+Cookie-authenticated writes require a same-host HTTPS `Origin`; an explicit
+bearer credential takes precedence. Local memory shares decoding, input bounds
+and current ownership/grant guards, but retains nondurable replay and map-based
+storage rather than PostgreSQL transaction guarantees.
 
 The endpoint records submitted metadata only. It does not contact the provider,
 fetch the clone URL, verify repository contents or establish provider trust.
@@ -1749,6 +1761,8 @@ Do not include credentials or secrets in repository metadata.
 
 Source/test evidence: `internal/integration/app/source_repository_commands.go`,
 `internal/platform/wiring/source_repository_commands_test.go`,
+`internal/platform/wiring/source_repository_native_http_test.go`,
+`internal/platform/wiring/source_repository_fence_test.go`,
 `internal/app/source_repository_creation_authz_test.go` and
 `internal/adapters/httpapi/source_repository_commands_test.go`.
 

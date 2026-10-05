@@ -235,6 +235,16 @@ repositories.
 
 ### Implemented model and command boundaries
 
+Integration-owned source-repository creation now uses native durable replay.
+The shared read-only guard checks current submitted and existing ownership,
+without reading private repository metadata, and its writer fence and parent
+locks join the replay transaction. New repository, audit and replay records
+commit atomically; completed replies preserve their original public JSON.
+Explicit local memory shares raw input bounds and current grants but retains
+its nondurable compatibility store. This does not remove broad API startup or
+the remaining command wrappers. See
+[source repository creation](../api.md#source-repository-creation).
+
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
 Together they own all 142 models assigned in the table below. Schema and policy

@@ -1373,12 +1373,18 @@ local memory retains its compatibility path. See
 reference-presence-only health labels.
 
 PostgreSQL-profile source repository creation uses an Integration-owned command
-with bounded ownership reads and a separately authorized existing-row read.
+and native durable replay, not a Ledger command clone. The read-only current
+guard and fresh command share bounded ownership checks; completed replay never
+reads repository metadata, allocates IDs, or appends audit entries.
 Tenant/provider/name reuse retains original metadata and commits new rows with
 their audit entry and replay state. The adapter acquires the projection fence
-before its relational serialization lock; this avoids reversing the audit and
-worker lock order. It does not load Ledger maps or invoke provider/network
-services. See [source repository creation](api.md#source-repository-creation)
+before its tenant serialization lock, then holds both submitted and existing
+product/project identities through the outer commit. This avoids reversing the
+audit and worker lock order. Both runtime profiles check raw input bounds before
+trimming and require current grants on retries; explicit local memory retains
+map storage and nondurable replay. This path does not load Ledger maps or invoke
+provider/network services. Other API compatibility paths and broad startup
+remain EVY-905 work. See [source repository creation](api.md#source-repository-creation)
 for grant boundaries, validation limits and metadata-only semantics.
 
 PostgreSQL-profile source commit recording uses the same Integration ownership

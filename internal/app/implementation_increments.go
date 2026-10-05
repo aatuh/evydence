@@ -351,36 +351,18 @@ func (l *Ledger) ListSourceRepositories(ctx context.Context, actor domain.Actor,
 }
 
 func (l *Ledger) CreateSourceRepository(ctx context.Context, actor domain.Actor, in CreateRepositoryInput) (domain.SourceRepository, error) {
-	if err := ctx.Err(); err != nil {
+	in, err := prepareLocalSourceRepositoryCreation(ctx, actor, in)
+	if err != nil {
 		return domain.SourceRepository{}, err
-	}
-	if err := require(actor, ScopeSourceWrite); err != nil {
-		return domain.SourceRepository{}, err
-	}
-	in.Provider, in.FullName = strings.TrimSpace(in.Provider), strings.TrimSpace(in.FullName)
-	if in.Provider == "" || in.FullName == "" {
-		return domain.SourceRepository{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if in.ProjectID != "" {
-		project, ok := l.projects[strings.TrimSpace(in.ProjectID)]
-		if !ok || project.TenantID != actor.TenantID {
-			return domain.SourceRepository{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProductID: project.ProductID, ProjectID: project.ID}); err != nil {
-			return domain.SourceRepository{}, err
-		}
-	} else if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{}); err != nil {
+	existing, err := l.authorizeSourceRepositoryCreationLocked(actor, in)
+	if err != nil {
 		return domain.SourceRepository{}, err
 	}
-	for _, existing := range l.repositories {
-		if existing.TenantID == actor.TenantID && existing.Provider == in.Provider && existing.FullName == in.FullName {
-			if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProjectID: existing.ProjectID, SourceRepositoryID: existing.ID}); err != nil {
-				return domain.SourceRepository{}, err
-			}
-			return existing, nil
-		}
+	if existing != "" {
+		return l.repositories[existing], nil
 	}
 	repo := domain.SourceRepository{
 		ID:            newID("repo"),

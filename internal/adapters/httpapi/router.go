@@ -550,6 +550,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.ControlEvidenceCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused control evidence linking requires durable idempotency")
 	}
+	if opts.SourceRepositoryCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused source repository creation requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -1571,32 +1574,6 @@ func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) 
 		}
 		attestation, err := s.releaseCatalog.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
 		return http.StatusCreated, attestation, err
-	})
-}
-
-func (s *Server) createSourceRepository(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProjectID     string `json:"project_id"`
-		Provider      string `json:"provider"`
-		FullName      string `json:"full_name"`
-		CloneURL      string `json:"clone_url"`
-		DefaultBranch string `json:"default_branch"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.sourceRepositoryCommands != nil {
-			if err := validateNonNullableObjectFields(body, "project_id", "provider", "full_name", "clone_url", "default_branch"); err != nil {
-				return 0, nil, err
-			}
-			repository, err := s.sourceRepositoryCommands.CreateSourceRepository(ctx, actor, integrationapp.CreateSourceRepositoryInput{ProjectID: req.ProjectID, Provider: req.Provider, FullName: req.FullName, CloneURL: req.CloneURL, DefaultBranch: req.DefaultBranch})
-			return http.StatusCreated, sourceRepositoryFromQuery(repository), mapSourceRepositoryCommandError(err)
-		}
-		repo, err := s.ledger.CreateSourceRepository(ctx, actor, app.CreateRepositoryInput{
-			ProjectID: req.ProjectID, Provider: req.Provider, FullName: req.FullName, CloneURL: req.CloneURL, DefaultBranch: req.DefaultBranch,
-		})
-		return http.StatusCreated, repo, err
 	})
 }
 

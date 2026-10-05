@@ -77,54 +77,105 @@ func sourceRepositoryAuthorization(project, product string) application.Authoriz
 	}
 	return r
 }
-func (s *SourceRepositoryCommands) CreateSourceRepository(ctx context.Context, a identitydomain.Actor, in CreateSourceRepositoryInput) (integrationdomain.SourceRepository, error) {
-	if ctx == nil {
-		return integrationdomain.SourceRepository{}, ErrValidation
-	}
-	if err := ctx.Err(); err != nil {
-		return integrationdomain.SourceRepository{}, err
-	}
-	scope := application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}
-	if err := s.config.Authorizer.Authorize(ctx, a, scope); err != nil {
-		return integrationdomain.SourceRepository{}, err
+
+// NormalizeSourceRepositoryInput checks raw byte bounds before normalization.
+// The natural-key budget is checked separately with the current tenant ID.
+func NormalizeSourceRepositoryInput(in CreateSourceRepositoryInput) (CreateSourceRepositoryInput, error) {
+	if !validSourceText(in.ProjectID, 1024, true) || !validSourceText(in.Provider, MaxSourceTextBytes, false) || !validSourceText(in.FullName, MaxSourceTextBytes, false) || !validSourceText(in.CloneURL, MaxSourceTextBytes, true) || !validSourceText(in.DefaultBranch, MaxSourceTextBytes, true) {
+		return in, ErrValidation
 	}
 	in.ProjectID, in.Provider, in.FullName, in.CloneURL, in.DefaultBranch = strings.TrimSpace(in.ProjectID), strings.TrimSpace(in.Provider), strings.TrimSpace(in.FullName), strings.TrimSpace(in.CloneURL), strings.TrimSpace(in.DefaultBranch)
-	if !validSourceText(a.TenantID, 1024, false) || !validSourceText(in.ProjectID, 1024, true) || !validSourceText(in.Provider, MaxSourceTextBytes, false) || !validSourceText(in.FullName, MaxSourceTextBytes, false) || !validSourceText(in.CloneURL, MaxSourceTextBytes, true) || !validSourceText(in.DefaultBranch, MaxSourceTextBytes, true) || len(a.TenantID)+len(in.Provider)+len(in.FullName) > MaxSourceRepositoryKeyBytes {
-		return integrationdomain.SourceRepository{}, ErrValidation
+	if in.Provider == "" || in.FullName == "" {
+		return in, ErrValidation
+	}
+	return in, nil
+}
+
+func ValidateSourceRepositoryKey(tenant string, in CreateSourceRepositoryInput) error {
+	if !validSourceText(tenant, 1024, false) || strings.TrimSpace(tenant) != tenant || len(tenant)+len(in.Provider)+len(in.FullName) > MaxSourceRepositoryKeyBytes {
+		return ErrValidation
+	}
+	return nil
+}
+
+func (s *SourceRepositoryCommands) prepareCreation(ctx context.Context, a identitydomain.Actor, in CreateSourceRepositoryInput) (CreateSourceRepositoryInput, error) {
+	if s == nil || ctx == nil {
+		return in, ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return in, err
+	}
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}); err != nil {
+		return in, err
+	}
+	in, err := NormalizeSourceRepositoryInput(in)
+	if err != nil {
+		return in, err
+	}
+	return in, ValidateSourceRepositoryKey(a.TenantID, in)
+}
+
+// authorizeSourceRepositoryCreation reads only current tenant/project and
+// natural-key ownership. It never reads repository metadata or allocates IDs.
+func authorizeSourceRepositoryCreation(ctx context.Context, tx SourceRepositoryCreationTransaction, a identitydomain.Actor, in CreateSourceRepositoryInput) (SourceRepositoryIdentity, bool, error) {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}); err != nil {
+		return SourceRepositoryIdentity{}, false, err
+	}
+	if err := tx.LockRepositoryCreation(ctx, a.TenantID); err != nil {
+		return SourceRepositoryIdentity{}, false, err
+	}
+	product := ""
+	if in.ProjectID != "" {
+		p, err := tx.LockRepositoryProject(ctx, a.TenantID, in.ProjectID)
+		if err != nil {
+			return SourceRepositoryIdentity{}, false, err
+		}
+		if p.ID != in.ProjectID || p.TenantID != a.TenantID || !validSourceText(p.ProductID, 1024, false) {
+			return SourceRepositoryIdentity{}, false, ErrNotFound
+		}
+		product = p.ProductID
+	}
+	if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(in.ProjectID, product)); err != nil {
+		return SourceRepositoryIdentity{}, false, err
+	}
+	identity, found, err := tx.RepositoryIdentityByName(ctx, a.TenantID, in.Provider, in.FullName)
+	if err != nil {
+		return identity, found, err
+	}
+	if found {
+		if err := validateSourceRepositoryIdentity(identity, a.TenantID, identity.ID); err != nil {
+			return identity, found, err
+		}
+		if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(identity.ProjectID, identity.ProductID)); err != nil {
+			return identity, found, err
+		}
+	}
+	return identity, found, nil
+}
+
+func (s *SourceRepositoryCommands) AuthorizeSourceRepositoryCreation(ctx context.Context, a identitydomain.Actor, in CreateSourceRepositoryInput) error {
+	in, err := s.prepareCreation(ctx, a, in)
+	if err != nil {
+		return err
+	}
+	return s.config.Transactions.ExecuteSourceRepository(ctx, func(ctx context.Context, tx SourceRepositoryCreationTransaction) error {
+		_, _, err := authorizeSourceRepositoryCreation(ctx, tx, a, in)
+		return err
+	})
+}
+
+func (s *SourceRepositoryCommands) CreateSourceRepository(ctx context.Context, a identitydomain.Actor, in CreateSourceRepositoryInput) (integrationdomain.SourceRepository, error) {
+	in, err := s.prepareCreation(ctx, a, in)
+	if err != nil {
+		return integrationdomain.SourceRepository{}, err
 	}
 	var result integrationdomain.SourceRepository
-	err := s.config.Transactions.ExecuteSourceRepository(ctx, func(ctx context.Context, tx SourceRepositoryCreationTransaction) error {
-		if err := tx.Authorize(ctx, a, scope); err != nil {
-			return err
-		}
-		if err := tx.LockRepositoryCreation(ctx, a.TenantID); err != nil {
-			return err
-		}
-		product := ""
-		if in.ProjectID != "" {
-			p, err := tx.LockRepositoryProject(ctx, a.TenantID, in.ProjectID)
-			if err != nil {
-				return err
-			}
-			if p.ID != in.ProjectID || p.TenantID != a.TenantID || !validSourceText(p.ProductID, 1024, false) {
-				return ErrNotFound
-			}
-			product = p.ProductID
-		}
-		if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(in.ProjectID, product)); err != nil {
-			return err
-		}
-		identity, found, err := tx.RepositoryIdentityByName(ctx, a.TenantID, in.Provider, in.FullName)
+	err = s.config.Transactions.ExecuteSourceRepository(ctx, func(ctx context.Context, tx SourceRepositoryCreationTransaction) error {
+		identity, found, err := authorizeSourceRepositoryCreation(ctx, tx, a, in)
 		if err != nil {
 			return err
 		}
 		if found {
-			if err := validateSourceRepositoryIdentity(identity, a.TenantID, identity.ID); err != nil {
-				return err
-			}
-			if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(identity.ProjectID, identity.ProductID)); err != nil {
-				return err
-			}
 			v, err := tx.ReadSourceRepository(ctx, a.TenantID, identity.ID)
 			if err != nil {
 				return err
