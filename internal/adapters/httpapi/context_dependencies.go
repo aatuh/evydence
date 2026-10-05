@@ -160,6 +160,7 @@ type ArtifactSignatureVerification interface {
 }
 
 type ArtifactSignatureCommands interface {
+	AuthorizeArtifactSignatureCreation(context.Context, identitydomain.Actor, verificationapp.CreateArtifactSignatureInput) error
 	CreateArtifactSignature(context.Context, identitydomain.Actor, verificationapp.CreateArtifactSignatureInput) (verificationdomain.ArtifactSignature, error)
 }
 

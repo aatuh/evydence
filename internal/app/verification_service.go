@@ -10,6 +10,94 @@ import (
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
+// AuthorizeArtifactSignatureCreation is only the local-memory replay guard.
+// It checks current artifact ownership and grants without staging payloads or
+// refreshing worker projections. Native HTTP uses the flat transaction port.
+func (l *Ledger) AuthorizeArtifactSignatureCreation(ctx context.Context, a domain.Actor, in verificationapp.CreateArtifactSignatureInput) error {
+	if ctx == nil {
+		return context.Canceled
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := require(a, ScopeEvidenceWrite); err != nil {
+		return err
+	}
+	tenant, err := verificationapp.NormalizeSigningKeyID(a.TenantID)
+	if err != nil || tenant != a.TenantID {
+		return ErrValidation
+	}
+	in, err = verificationapp.NormalizeArtifactSignatureInput(in)
+	if err != nil {
+		return ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if _, ok := l.tenants[tenant]; !ok {
+		return ErrNotFound
+	}
+	artifact, ok := l.artifacts[in.ArtifactID]
+	if !ok || artifact.TenantID != tenant {
+		return ErrNotFound
+	}
+	return l.authorizeArtifactSignatureCreationLocked(a, artifact)
+}
+
+// Local-only association matching mirrors the identity-only PostgreSQL write
+// query. Tenant grants need no narrower association; scoped grants require
+// current owned/coherent parents and build outputs matching the artifact digest.
+func (l *Ledger) authorizeArtifactSignatureCreationLocked(a domain.Actor, artifact domain.Artifact) error {
+	if !humanSessionActor(a) {
+		return nil
+	}
+	for _, grant := range a.ResourceGrants {
+		if !grantHasScope(grant, ScopeEvidenceWrite) {
+			continue
+		}
+		if (grant.ResourceType == "" || grant.ResourceType == "tenant") && (grant.ResourceID == "" || grant.ResourceID == a.TenantID) {
+			return nil
+		}
+		if grant.ResourceID == "" {
+			continue
+		}
+		matches := func(product, project, release string) bool {
+			switch grant.ResourceType {
+			case "product":
+				return grant.ResourceID == product
+			case "project":
+				return grant.ResourceID == project
+			case "release":
+				return grant.ResourceID == release
+			default:
+				return false
+			}
+		}
+		for _, item := range l.evidence {
+			if item.TenantID != a.TenantID || !evidenceReferencesArtifact(item, artifact.ID) || !matches(item.ProductID, item.ProjectID, item.ReleaseID) {
+				continue
+			}
+			if validateLedgerEvidenceScopeLocked(l, a.TenantID, evidenceapp.EvidenceScope{ProductID: item.ProductID, ProjectID: item.ProjectID, ReleaseID: item.ReleaseID}) == nil {
+				return nil
+			}
+		}
+		for _, build := range l.buildRuns {
+			if build.TenantID != a.TenantID {
+				continue
+			}
+			project, ok := l.projects[build.ProjectID]
+			if !ok || !matches(project.ProductID, build.ProjectID, build.ReleaseID) || validateLedgerEvidenceScopeLocked(l, a.TenantID, evidenceapp.EvidenceScope{ProductID: project.ProductID, ProjectID: build.ProjectID, ReleaseID: build.ReleaseID, BuildID: build.ID}) != nil {
+				continue
+			}
+			for _, output := range build.Outputs {
+				if output.ArtifactID == artifact.ID && output.Digest == artifact.Digest {
+					return nil
+				}
+			}
+		}
+	}
+	return ErrForbidden
+}
+
 // AuthorizeSubjectVerification is only the explicit local-memory replay guard.
 // It reads current map ownership/grants, never inspection metadata or worker
 // projections. Native generic verification uses the transactional scope port.

@@ -55,6 +55,11 @@ func (t artifactSignatureTransaction) LockSignatureArtifact(ctx context.Context,
 	a, err := t.reader.LockSignatureArtifact(ctx, tenant, id)
 	return a, mapSigningKeyWriteError(err)
 }
+
+func (t artifactSignatureTransaction) LockArtifactSignatureCreationScope(ctx context.Context, tenant, id string) (application.ResourceReferences, error) {
+	refs, err := t.reader.LockArtifactSignatureCreationScope(ctx, tenant, id)
+	return refs, mapSigningKeyWriteError(err)
+}
 func (t artifactSignatureTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
 	return mapArtifactSignatureGrantError(t.authorizer.Authorize(ctx, a, r))
 }

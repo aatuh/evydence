@@ -2748,6 +2748,45 @@ they are not redacted customer packages or compliance conclusions.
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
 
+### Artifact Signature Recording
+
+`POST /v1/artifact-signatures` requires `evidence:write` (or `admin`) and
+records detached signature evidence with status `recorded`; creation does
+not verify cryptographic trust. Human sessions retain the current tenant,
+product, project or release grant rule: narrower grants need a matching
+owned evidence or build association. A build association must match the
+artifact's current digest. Foreign/missing artifacts return `404`, and a
+removed or inconsistent grant association cannot authorize replay (`403`).
+
+Both profiles require a strict JSON object capped at the existing 64 KiB
+HTTP limit. Required fields are `artifact_id`, `algorithm` and `signature`;
+optional fields are `key_id`, `payload` and `payload_media_type`. The payload
+must be a non-null JSON object; its exact supplied bytes are staged without
+re-encoding numbers or fields. Raw IDs are capped at 1024 bytes, algorithm
+and signature text at 64 KiB, and media-type text at 4096 bytes before
+trimming. Text must be NUL-free UTF-8. Unknown, duplicate, case-aliased,
+null, ill-typed, malformed, trailing and oversized input returns `400`.
+Cookie mutations require same-origin protection; bearer credentials take
+precedence.
+
+PostgreSQL uses native durable execution, not Ledger replay. A read-only
+current artifact/grant guard runs before reservation and every replay. The
+common writer fence precedes tenant/artifact share locks held through the
+outer commit. Fresh signature, payload lifecycle, finalization job, caller
+audit and successful replay commit together. Completed retries return the
+original public DTO without selecting changed artifact metadata/digest or
+staging again. Replay retains only a canonical tenant/digest-bound payload
+reference from the versioned DTO; arbitrary paths and unknown sensitive
+response fields keep generic redaction. Changed request bytes return `409`,
+revoked grants `403` and revoked sessions `401`. Failed delivery keys retain
+their `409` policy; recovery uses a new key. Explicit local memory retains
+a current-map guard and nondurable replay.
+
+Staging is not finalization. A PostgreSQL failure rolls back durable rows,
+not the filesystem side effect; it can leave unreferenced staged bytes for
+object reconciliation. Recording or historical delivery does not establish
+current cryptographic trust, artifact safety or legal compliance.
+
 ### Offline Cosign Verification
 
 `POST /v1/artifact-signatures/{id}/verify-cosign` requires `verify:read` (or

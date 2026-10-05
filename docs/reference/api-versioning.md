@@ -65,6 +65,19 @@ the input and replay contract. These are input/authorization restrictions,
 not approved release-baseline exceptions; old receipts are not rewritten and
 the migration does not claim current trust or provider-runtime assurance.
 
+## Unreleased Artifact-Signature Creation Boundary
+
+Artifact-signature creation now uses native PostgreSQL execution and checks
+current artifact ownership and write-grant associations before replay. The
+recorded status, signature DTO, request-byte fingerprint and 64 KiB HTTP
+limit remain unchanged. Both profiles now enforce exact-case non-null fields,
+an optional object-shaped payload, raw byte limits before trimming, and cookie
+origins. See [Artifact Signature Recording](../api.md#artifact-signature-recording).
+The narrow public replay projector retains a canonical tenant/digest-bound
+payload reference, not arbitrary storage locations or raw payloads. Historical
+rows are not rewritten. These input/authorization restrictions are not
+approved release-baseline exceptions, and recording is not trust verification.
+
 ## Unreleased Answer-Library Creation Boundary
 
 Answer-library creation now uses focused PostgreSQL commands. Human

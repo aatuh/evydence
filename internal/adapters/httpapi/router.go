@@ -38,7 +38,6 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
-	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
@@ -539,6 +538,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	}
 	if opts.SubjectVerification != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused generic verification requires durable idempotency")
+	}
+	if opts.ArtifactSignatureCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused artifact signature creation requires durable idempotency")
 	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
@@ -1565,40 +1567,6 @@ func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) 
 			ArtifactID: req.ArtifactID, Repository: req.Repository, Tag: req.Tag, Digest: req.Digest, Platform: req.Platform,
 		})
 		return http.StatusCreated, image, err
-	})
-}
-
-func (s *Server) createArtifactSignature(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ArtifactID       string          `json:"artifact_id"`
-		Algorithm        string          `json:"algorithm"`
-		KeyID            string          `json:"key_id"`
-		Signature        string          `json:"signature"`
-		Payload          json.RawMessage `json:"payload"`
-		PayloadMediaType string          `json:"payload_media_type"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.artifactSignatureCommands != nil {
-			if err := validateNonNullableObjectFields(body, "artifact_id", "algorithm", "key_id", "signature", "payload", "payload_media_type"); err != nil {
-				return 0, nil, err
-			}
-			if len(req.Payload) > 0 {
-				var payload map[string]json.RawMessage
-				if json.Unmarshal(req.Payload, &payload) != nil || payload == nil {
-					return 0, nil, app.ErrValidation
-				}
-			}
-			sig, err := s.artifactSignatureCommands.CreateArtifactSignature(ctx, actor, verificationapp.CreateArtifactSignatureInput{ArtifactID: req.ArtifactID, Algorithm: req.Algorithm, KeyID: req.KeyID, Signature: req.Signature, RawPayload: req.Payload, PayloadMediaType: req.PayloadMediaType})
-			return http.StatusCreated, artifactSignatureFromQuery(sig), mapVerificationCommandError(err)
-		}
-		sig, err := s.ledger.CreateArtifactSignature(ctx, actor, app.CreateArtifactSignatureInput{
-			ArtifactID: req.ArtifactID, Algorithm: req.Algorithm, KeyID: req.KeyID, Signature: req.Signature,
-			RawPayload: req.Payload, PayloadMediaType: req.PayloadMediaType,
-		})
-		return http.StatusCreated, sig, err
 	})
 }
 

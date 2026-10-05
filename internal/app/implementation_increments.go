@@ -246,7 +246,7 @@ func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor
 		l.mu.Unlock()
 		return domain.ArtifactSignature{}, ErrNotFound
 	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ArtifactID: artifact.ID}); err != nil {
+	if err := l.authorizeArtifactSignatureCreationLocked(actor, artifact); err != nil {
 		l.mu.Unlock()
 		return domain.ArtifactSignature{}, err
 	}

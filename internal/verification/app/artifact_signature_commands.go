@@ -31,6 +31,7 @@ type SignaturePayloadStager interface {
 }
 type ArtifactSignatureCreationReader interface {
 	LockSignatureArtifact(context.Context, string, string) (SignatureArtifact, error)
+	LockArtifactSignatureCreationScope(context.Context, string, string) (application.ResourceReferences, error)
 }
 type ArtifactSignatureTransaction interface {
 	ArtifactSignatureCreationReader
@@ -68,31 +69,20 @@ func (s *ArtifactSignatureCommands) CreateArtifactSignature(ctx context.Context,
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.ArtifactSignature{}, err
 	}
-	if err := validateActor(a); err != nil {
+	if err := validateSigningKeyActor(a); err != nil {
 		return verificationdomain.ArtifactSignature{}, err
 	}
 	request := application.AuthorizationRequest{Scope: "evidence:write", ScopeOnly: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, request); err != nil {
 		return verificationdomain.ArtifactSignature{}, err
 	}
-	in.ArtifactID, in.Algorithm, in.KeyID, in.Signature = strings.TrimSpace(in.ArtifactID), strings.TrimSpace(in.Algorithm), strings.TrimSpace(in.KeyID), strings.TrimSpace(in.Signature)
-	in.PayloadMediaType = strings.TrimSpace(in.PayloadMediaType)
-	if !validRetentionText(in.ArtifactID, 1024) || !validRetentionText(in.Algorithm, MaxArtifactSignatureTextBytes) || !validRetentionText(in.Signature, MaxArtifactSignatureTextBytes) || in.KeyID != "" && !validRetentionText(in.KeyID, 1024) || len(in.RawPayload) > MaxArtifactSignaturePayloadBytes {
-		return verificationdomain.ArtifactSignature{}, ErrValidation
-	}
-	if len(in.RawPayload) > 0 {
-		if in.PayloadMediaType == "" {
-			in.PayloadMediaType = "application/octet-stream"
-		}
-		if !validRetentionText(in.PayloadMediaType, 4096) || strings.ContainsAny(in.PayloadMediaType, "\r\n") {
-			return verificationdomain.ArtifactSignature{}, ErrValidation
-		}
-		if _, _, err := mime.ParseMediaType(in.PayloadMediaType); err != nil {
-			return verificationdomain.ArtifactSignature{}, ErrValidation
-		}
+	var err error
+	in, err = NormalizeArtifactSignatureInput(in)
+	if err != nil {
+		return verificationdomain.ArtifactSignature{}, err
 	}
 	var result verificationdomain.ArtifactSignature
-	err := s.config.Transactions.ExecuteArtifactSignature(ctx, func(ctx context.Context, tx ArtifactSignatureTransaction) error {
+	err = s.config.Transactions.ExecuteArtifactSignature(ctx, func(ctx context.Context, tx ArtifactSignatureTransaction) error {
 		if err := tx.Authorize(ctx, a, request); err != nil {
 			return err
 		}
@@ -142,4 +132,57 @@ func (s *ArtifactSignatureCommands) CreateArtifactSignature(ctx context.Context,
 		return verificationdomain.ArtifactSignature{}, err
 	}
 	return result, nil
+}
+
+// NormalizeArtifactSignatureInput bounds raw text before trimming. Raw payload
+// bytes remain untouched; HTTP separately requires an opaque JSON object.
+func NormalizeArtifactSignatureInput(in CreateArtifactSignatureInput) (CreateArtifactSignatureInput, error) {
+	if !validRetentionText(in.ArtifactID, 1024) || !validRetentionText(in.Algorithm, MaxArtifactSignatureTextBytes) || !validRetentionText(in.Signature, MaxArtifactSignatureTextBytes) || !operationText(in.KeyID, 1024) || !operationText(in.PayloadMediaType, 4096) || len(in.RawPayload) > MaxArtifactSignaturePayloadBytes {
+		return in, ErrValidation
+	}
+	in.ArtifactID, in.Algorithm, in.KeyID, in.Signature = strings.TrimSpace(in.ArtifactID), strings.TrimSpace(in.Algorithm), strings.TrimSpace(in.KeyID), strings.TrimSpace(in.Signature)
+	in.PayloadMediaType = strings.TrimSpace(in.PayloadMediaType)
+	if !validRetentionText(in.ArtifactID, 1024) || !validRetentionText(in.Algorithm, MaxArtifactSignatureTextBytes) || !validRetentionText(in.Signature, MaxArtifactSignatureTextBytes) || in.KeyID != "" && !validRetentionText(in.KeyID, 1024) || len(in.RawPayload) > MaxArtifactSignaturePayloadBytes {
+		return in, ErrValidation
+	}
+	if len(in.RawPayload) > 0 {
+		if in.PayloadMediaType == "" {
+			in.PayloadMediaType = "application/octet-stream"
+		}
+		if !validRetentionText(in.PayloadMediaType, 4096) || strings.ContainsAny(in.PayloadMediaType, "\r\n") {
+			return in, ErrValidation
+		}
+		if _, _, err := mime.ParseMediaType(in.PayloadMediaType); err != nil {
+			return in, ErrValidation
+		}
+	}
+	return in, nil
+}
+
+// AuthorizeArtifactSignatureCreation resolves current ownership and grants
+// before reservation/replay, without selecting a digest or staging a payload.
+func (s *ArtifactSignatureCommands) AuthorizeArtifactSignatureCreation(ctx context.Context, a identitydomain.Actor, in CreateArtifactSignatureInput) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := validateSigningKeyActor(a); err != nil {
+		return err
+	}
+	in, err := NormalizeArtifactSignatureInput(in)
+	if err != nil {
+		return err
+	}
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "evidence:write", ScopeOnly: true}); err != nil {
+		return err
+	}
+	return s.config.Transactions.ExecuteArtifactSignature(ctx, func(ctx context.Context, tx ArtifactSignatureTransaction) error {
+		refs, err := tx.LockArtifactSignatureCreationScope(ctx, a.TenantID, in.ArtifactID)
+		if err != nil {
+			return err
+		}
+		if refs != (application.ResourceReferences{ArtifactID: in.ArtifactID}) {
+			return ErrNotFound
+		}
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "evidence:write", Resources: refs})
+	})
 }

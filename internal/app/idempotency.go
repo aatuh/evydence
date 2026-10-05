@@ -308,6 +308,9 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 	if bundle, ok := publicSignedReleaseBundleReplay(decoded); ok {
 		return bundle, nil
 	}
+	if signature, ok := publicArtifactSignatureReplay(decoded); ok {
+		return signature, nil
+	}
 	if !changed {
 		return response, nil
 	}

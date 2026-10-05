@@ -53,6 +53,13 @@ func (f *signatureCreationFake) LockSignatureArtifact(context.Context, string, s
 	}
 	return f.artifact, nil
 }
+
+func (f *signatureCreationFake) LockArtifactSignatureCreationScope(_ context.Context, tenant, id string) (application.ResourceReferences, error) {
+	if f.artifact.TenantID != tenant || f.artifact.ID != id {
+		return application.ResourceReferences{}, ErrNotFound
+	}
+	return application.ResourceReferences{ArtifactID: id}, nil
+}
 func (f *signatureCreationFake) StageSignaturePayload(_ context.Context, tenant, media, digest string, raw []byte, at time.Time) (SignaturePayload, error) {
 	f.stages++
 	if f.failure == "stage" {
@@ -196,5 +203,61 @@ func TestArtifactSignatureCreationRequiresEveryDependency(t *testing.T) {
 		if _, err := NewArtifactSignatureCommands(config); !errors.Is(err, ErrValidation) {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestArtifactSignatureCreationBoundsRawInputBeforeTrimming(t *testing.T) {
+	for _, mutate := range []func(*CreateArtifactSignatureInput){
+		func(in *CreateArtifactSignatureInput) { in.ArtifactID = strings.Repeat(" ", 1025) + "artifact" },
+		func(in *CreateArtifactSignatureInput) { in.KeyID = strings.Repeat(" ", 1025) + "key" },
+		func(in *CreateArtifactSignatureInput) {
+			in.Algorithm = strings.Repeat(" ", MaxArtifactSignatureTextBytes+1) + "cosign"
+		},
+		func(in *CreateArtifactSignatureInput) {
+			in.Signature = strings.Repeat(" ", MaxArtifactSignatureTextBytes+1) + "signature"
+		},
+		func(in *CreateArtifactSignatureInput) {
+			in.PayloadMediaType = strings.Repeat(" ", 4097) + "application/json"
+		},
+	} {
+		s, f, a, in := newSignatureCreationFixture(t)
+		mutate(&in)
+		if v, err := s.CreateArtifactSignature(t.Context(), a, in); !errors.Is(err, ErrValidation) || v.ID != "" || f.transactions != 0 {
+			t.Fatal("raw whitespace bypassed signature bounds", err, f.transactions)
+		}
+	}
+}
+
+func TestArtifactSignatureCreationHasFlatReplayGuard(t *testing.T) {
+	s, _, _, _ := newSignatureCreationFixture(t)
+	if _, ok := any(s).(interface {
+		AuthorizeArtifactSignatureCreation(context.Context, identitydomain.Actor, CreateArtifactSignatureInput) error
+	}); !ok {
+		t.Fatal("artifact signature creation lacks current-ownership replay guard")
+	}
+}
+
+func TestArtifactSignatureCreationGuardNeverReadsDigestOrStages(t *testing.T) {
+	s, f, a, in := newSignatureCreationFixture(t)
+	f.failure = "read"
+	s.config.Clock = application.ClockFunc(func() time.Time { panic("guard used clock") })
+	s.config.IDs = application.IDGeneratorFunc(func(string) string { panic("guard allocated ID") })
+	if err := s.AuthorizeArtifactSignatureCreation(t.Context(), a, in); err != nil {
+		t.Fatal("guard read mutable digest", err)
+	}
+	if f.stages != 0 || len(f.signatures)+len(f.payloads)+len(f.audit)+len(f.jobs) != 0 {
+		t.Fatal("guard staged or wrote effects", f)
+	}
+	f.failure = "grant"
+	if err := s.AuthorizeArtifactSignatureCreation(t.Context(), a, in); !errors.Is(err, ErrForbidden) {
+		t.Fatal("guard skipped current grant", err)
+	}
+	f.failure = "commit"
+	if err := s.AuthorizeArtifactSignatureCreation(t.Context(), a, in); !errors.Is(err, errSignatureCreationTest) {
+		t.Fatal("guard lost outer failure", err)
+	}
+	f.artifact.TenantID = "other"
+	if err := s.AuthorizeArtifactSignatureCreation(t.Context(), a, in); !errors.Is(err, ErrNotFound) {
+		t.Fatal("foreign artifact authorized", err)
 	}
 }

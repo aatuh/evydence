@@ -508,6 +508,18 @@ nondurable replay. See [generic subject verification](../api.md#generic-subject-
 Local-memory mode and other unmigrated handlers still use the Ledger
 compatibility model.
 
+Artifact-signature creation now binds Verification-owned commands directly
+to native durable HTTP execution. The read-only replay guard takes the common
+writer fence before tenant/artifact ownership locks and evaluates current
+grant associations using the same transaction's identity-only projection.
+It never selects artifact metadata/digest or stages payload bytes. Fresh
+recording retains the bounded digest snapshot, payload staging/finalization
+job and atomic audit/replay semantics. The public replay projector permits
+only a canonical tenant/digest-derived payload reference on the versioned
+recorded-signature DTO, without weakening generic storage-reference
+redaction. Explicit local memory retains a current-map guard. See
+[artifact signature recording](../api.md#artifact-signature-recording).
+
 `internal/domain` remains a compatibility DTO boundary at the HTTP,
 persistence, and legacy-facade edges while remaining callers migrate in EVY-904
 through EVY-906. It retains the existing JSON tags and public field shapes,
