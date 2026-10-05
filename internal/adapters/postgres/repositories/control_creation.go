@@ -14,6 +14,23 @@ import (
 )
 
 var _ riskapp.ControlCreationReader = controls{}
+var _ riskapp.ControlTemplateReader = controls{}
+
+// LockControlTemplateTenant reads only current existence. The shared writer
+// fence precedes the tenant lock, including standalone installation/guards,
+// and both locks join the enclosing durable replay transaction.
+func (r controls) LockControlTemplateTenant(ctx context.Context, tenant string) error {
+	if ctx == nil || r.tx == nil || !validRetentionCoordinate(tenant) {
+		return app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := coordination.LockWorkerProjection(ctx, r.tx, tenant); err != nil {
+		return err
+	}
+	return requireRow(ctx, r.tx, `SELECT 1 FROM tenants WHERE id=$1 FOR SHARE`, tenant)
+}
 
 func (r controls) FrameworkVersionExists(ctx context.Context, tenant, slug, version string) (bool, error) {
 	tenant, slug, version = strings.TrimSpace(tenant), strings.TrimSpace(slug), strings.TrimSpace(version)

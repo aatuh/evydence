@@ -2328,14 +2328,22 @@ controls, and one installation audit attributed to the authenticated principal.
 Starter names, objectives, requirements, limitations, and schema versions are
 preserved. A different-key duplicate tenant/slug/version returns `409`; same-key
 replay returns the original framework, and changed request bytes conflict.
-The trimmed slug must be NUL-free UTF-8 of at most 1024 bytes; invalid paths are
-rejected with `400` before durable replay reservation, and unknown slugs return
-`404`. The body is optional; when supplied it must be an empty JSON object
+Current tenant existence and tenant-wide administration are checked on every
+retry, including completed-response replay. Revoked/downgraded human grants do
+not retain access to an earlier result. Replay neither rereads installed
+framework/control metadata nor rechecks duplicate versions, and does not clone
+Ledger state. Installation, principal audit and durable replay commit together;
+there is no background job. Unsafe cookie-authenticated requests need a
+same-host HTTPS `Origin`; explicit bearer authentication takes precedence.
+The raw slug must be NUL-free UTF-8 of at most 1024 bytes before trimming;
+invalid paths are rejected with `400` before durable replay reservation, and
+unknown slugs return `404`. The body is optional; when supplied it must be an empty JSON object
 (a blank body retains its existing empty-object behavior). Malformed bodies,
 null, arrays, and unknown fields now return `400` in both profiles instead of
 being ignored. Local-memory mode retains its compatibility installation
-command. Starter packs organize technical evidence, not compliance or control
-effectiveness conclusions.
+command and nondurable replay, enforcing the same tenant-wide human grant and
+raw-slug bounds. Starter packs organize technical evidence, not compliance or
+control effectiveness conclusions.
 
 | Method | Path | Notes |
 |--------|------|-------|

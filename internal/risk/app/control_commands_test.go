@@ -18,9 +18,16 @@ type controlCommandFixture struct {
 	authError, readError, insertError, auditError error
 	transactions, authorizations, reads           int
 	authFailAt                                    int
+	tenantLocks                                   int
+	tenantError                                   error
 	frameworks                                    []riskdomain.ControlFramework
 	controls                                      []riskdomain.SecurityControl
 	audits                                        []application.AuditEvent
+}
+
+func (f *controlCommandFixture) LockControlTemplateTenant(context.Context, string) error {
+	f.tenantLocks++
+	return f.tenantError
 }
 
 func (f *controlCommandFixture) ExecuteControls(ctx context.Context, command func(context.Context, ControlTransaction) error) error {

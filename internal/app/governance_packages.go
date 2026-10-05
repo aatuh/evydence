@@ -1211,10 +1211,7 @@ func (l *Ledger) ListControlFrameworkTemplatePacks(ctx context.Context, actor do
 }
 
 func (l *Ledger) InstallControlFrameworkTemplatePack(ctx context.Context, actor domain.Actor, slug string) (domain.ControlFramework, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ControlFramework{}, err
-	}
-	if err := require(actor, ScopeControlsAdmin); err != nil {
+	if err := l.AuthorizeControlTemplateInstallation(ctx, actor, slug); err != nil {
 		return domain.ControlFramework{}, err
 	}
 	var selected domain.ControlFrameworkTemplatePack

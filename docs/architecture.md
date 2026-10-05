@@ -878,13 +878,19 @@ build query joins its project, release, and product in one statement before
 the service applies resource grants.
 The built-in control-template catalog is owned by the risk context and read
 without the Ledger in the PostgreSQL profile. It contains static starter
-definitions, not tenant state. Installation now uses a focused risk command:
-one transaction checks the tenant/slug/version key, inserts the framework and
-every starter control, and appends a single installation audit attributed to
-the authenticated principal. The read port returns only version existence.
-Outer rollback, late control/audit failures, same-key replay, and competing
-installs preserve atomicity; a different-key duplicate version conflicts.
-Local-memory mode retains its explicit Ledger catalog/installation paths.
+definitions, not tenant state. Installation binds a focused risk command and
+native durable HTTP replay, without Ledger cloning or state publication. Its
+read-only guard checks current tenant-wide administration and tenant existence
+before both fresh installation and replay; it does not reread installed
+framework metadata, controls, or the version key on replay. The common writer
+fence precedes the tenant share lock and both survive the outer replay commit.
+Fresh installation checks the tenant/slug/version key, inserts every starter
+control, and appends one principal-attributed audit in that transaction, with
+no outbox job. Late control/audit, replay-completion and commit failures roll
+back the whole installation; concurrent same-key requests execute it once.
+A different-key duplicate version conflicts. Local-memory mode retains its
+explicit compatibility storage and nondurable replay, with the same tenant
+administration and raw-slug validation. Broad startup retirement remains open.
 Manual framework and security-control creation now also have focused risk
 commands composed solely from the active write transaction. Their readers
 return tenant-owned existence bits rather than framework metadata or control

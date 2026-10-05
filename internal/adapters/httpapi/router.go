@@ -542,6 +542,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.ArtifactSignatureCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused artifact signature creation requires durable idempotency")
 	}
+	if opts.ControlTemplateCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused control template installation requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -973,27 +976,6 @@ func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *htt
 	}
 	writePaginated(s, w, r, actor, "control-framework-template-packs", nil, packs, func(pack domain.ControlFrameworkTemplatePack, sort appquery.Sort) appquery.SortKey {
 		return appquery.RecordSortKey(pack.ID, time.Time{}, sort)
-	})
-}
-
-func (s *Server) installControlFrameworkTemplatePack(w http.ResponseWriter, r *http.Request) {
-	if err := validateControlTemplateSlug(r.PathValue("slug")); err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &struct{}{}); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body); err != nil {
-			return 0, nil, err
-		}
-		if s.controlTemplateCommands != nil {
-			framework, err := s.controlTemplateCommands.InstallControlFrameworkTemplatePack(ctx, actor, r.PathValue("slug"))
-			return http.StatusCreated, controlFrameworkFromQuery(framework), mapControlCommandError(err)
-		}
-		framework, err := s.ledger.InstallControlFrameworkTemplatePack(ctx, actor, r.PathValue("slug"))
-		return http.StatusCreated, framework, err
 	})
 }
 

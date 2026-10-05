@@ -9,12 +9,18 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
-// ControlTemplateTransaction installs one static pack atomically. Its only read
-// is version-key existence; it cannot read tenant inventories or foreign data.
+// ControlTemplateReader resolves current tenant existence and version-key
+// existence only; it cannot read inventories or installed framework metadata.
+type ControlTemplateReader interface {
+	FrameworkVersionReader
+	LockControlTemplateTenant(context.Context, string) error
+}
+
+// ControlTemplateTransaction installs one static pack atomically.
 type ControlTemplateTransaction interface {
 	application.Authorizer
 	application.AuditAppender
-	FrameworkVersionReader
+	ControlTemplateReader
 	InsertControlFramework(context.Context, riskdomain.ControlFramework) error
 	InsertSecurityControl(context.Context, riskdomain.SecurityControl) error
 }
@@ -36,19 +42,20 @@ func NewControlTemplateCommands(config ControlTemplateCommandConfig) (*ControlTe
 	return &ControlTemplateCommands{config: config}, nil
 }
 
-func (s *ControlTemplateCommands) InstallControlFrameworkTemplatePack(ctx context.Context, actor identitydomain.Actor, slug string) (riskdomain.ControlFramework, error) {
+func (s *ControlTemplateCommands) prepare(ctx context.Context, actor identitydomain.Actor, slug string) (riskdomain.ControlFrameworkTemplatePack, error) {
 	if s == nil {
-		return riskdomain.ControlFramework{}, ErrValidation
+		return riskdomain.ControlFrameworkTemplatePack{}, ErrValidation
 	}
 	if err := contextError(ctx); err != nil {
-		return riskdomain.ControlFramework{}, err
+		return riskdomain.ControlFrameworkTemplatePack{}, err
 	}
 	if err := s.config.Authorizer.Authorize(ctx, actor, controlAdminRequest()); err != nil {
-		return riskdomain.ControlFramework{}, err
+		return riskdomain.ControlFrameworkTemplatePack{}, err
 	}
-	slug = strings.TrimSpace(slug)
-	if !validControlText(slug, 1024, false) || !validControlText(actor.TenantID, 1024, true) {
-		return riskdomain.ControlFramework{}, ErrValidation
+	var err error
+	slug, err = NormalizeControlTemplateSlug(slug)
+	if err != nil || !validControlText(actor.TenantID, 1024, true) || strings.TrimSpace(actor.TenantID) != actor.TenantID {
+		return riskdomain.ControlFrameworkTemplatePack{}, ErrValidation
 	}
 	var selected riskdomain.ControlFrameworkTemplatePack
 	for _, pack := range riskdomain.BuiltinTemplatePacks() {
@@ -58,11 +65,46 @@ func (s *ControlTemplateCommands) InstallControlFrameworkTemplatePack(ctx contex
 		}
 	}
 	if selected.ID == "" {
-		return riskdomain.ControlFramework{}, ErrNotFound
+		return riskdomain.ControlFrameworkTemplatePack{}, ErrNotFound
+	}
+	return selected, nil
+}
+
+// NormalizeControlTemplateSlug bounds raw UTF-8 bytes before trimming. A blank
+// or unknown normalized slug remains a not-found catalog lookup, not a new pack.
+func NormalizeControlTemplateSlug(raw string) (string, error) {
+	if !validControlText(raw, 1024, false) {
+		return "", ErrValidation
+	}
+	return strings.TrimSpace(raw), nil
+}
+
+// AuthorizeControlTemplateInstallation joins the caller's durable replay unit.
+// It checks current administration and tenant ownership only, never duplicate
+// versions, installed controls, mutable metadata, clocks, IDs or audit writes.
+func (s *ControlTemplateCommands) AuthorizeControlTemplateInstallation(ctx context.Context, a identitydomain.Actor, slug string) error {
+	if _, err := s.prepare(ctx, a, slug); err != nil {
+		return err
+	}
+	return s.config.Transactions.ExecuteControlTemplate(ctx, func(ctx context.Context, tx ControlTemplateTransaction) error {
+		if err := tx.Authorize(ctx, a, controlAdminRequest()); err != nil {
+			return err
+		}
+		return tx.LockControlTemplateTenant(ctx, a.TenantID)
+	})
+}
+
+func (s *ControlTemplateCommands) InstallControlFrameworkTemplatePack(ctx context.Context, actor identitydomain.Actor, slug string) (riskdomain.ControlFramework, error) {
+	selected, err := s.prepare(ctx, actor, slug)
+	if err != nil {
+		return riskdomain.ControlFramework{}, err
 	}
 	var created riskdomain.ControlFramework
-	err := s.config.Transactions.ExecuteControlTemplate(ctx, func(ctx context.Context, tx ControlTemplateTransaction) error {
+	err = s.config.Transactions.ExecuteControlTemplate(ctx, func(ctx context.Context, tx ControlTemplateTransaction) error {
 		if err := tx.Authorize(ctx, actor, controlAdminRequest()); err != nil {
+			return err
+		}
+		if err := tx.LockControlTemplateTenant(ctx, actor.TenantID); err != nil {
 			return err
 		}
 		if exists, err := tx.FrameworkVersionExists(ctx, actor.TenantID, selected.Slug, selected.Version); err != nil {

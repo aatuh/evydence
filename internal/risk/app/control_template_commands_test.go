@@ -10,13 +10,16 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 type templateCommandFixture struct{ *controlCommandFixture }
 
 func (f templateCommandFixture) ExecuteControlTemplate(ctx context.Context, command func(context.Context, ControlTemplateTransaction) error) error {
-	return f.ExecuteControls(ctx, func(ctx context.Context, tx ControlTransaction) error { return command(ctx, tx) })
+	return f.ExecuteControls(ctx, func(ctx context.Context, tx ControlTransaction) error {
+		return command(ctx, tx.(ControlTemplateTransaction))
+	})
 }
 
 func TestControlTemplateCommandsPreserveEveryStarterPackAndSingleAudit(t *testing.T) {
@@ -101,5 +104,62 @@ func TestControlTemplateCommandsBoundIdentifiersAndRejectUnknownPacks(t *testing
 		if v, err := commands.InstallControlFrameworkTemplatePack(t.Context(), actor, tc.slug); !errors.Is(err, tc.want) || v.ID != "" || f.transactions != 0 {
 			t.Fatal("invalid slug crossed transaction", tc.slug, v, err)
 		}
+	}
+}
+
+func TestControlTemplateCommandsBoundRawSlugBeforeTrim(t *testing.T) {
+	_, f, a, now := newControlCommandFixture(t)
+	c, err := NewControlTemplateCommands(ControlTemplateCommandConfig{Authorizer: f, Transactions: templateCommandFixture{f}, Clock: application.ClockFunc(func() time.Time { return now }), IDs: application.IDGeneratorFunc(func(p string) string { return p + "-id" })})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, err := c.InstallControlFrameworkTemplatePack(t.Context(), a, strings.Repeat(" ", 1025)+riskdomain.BuiltinTemplatePacks()[0].Slug); !errors.Is(err, ErrValidation) || v.ID != "" || f.transactions != 0 {
+		t.Fatal("raw slug bypassed budget", err, f.transactions)
+	}
+}
+
+func TestControlTemplateCommandsHaveReadOnlyReplayGuard(t *testing.T) {
+	_, f, _, now := newControlCommandFixture(t)
+	c, err := NewControlTemplateCommands(ControlTemplateCommandConfig{Authorizer: f, Transactions: templateCommandFixture{f}, Clock: application.ClockFunc(func() time.Time { return now }), IDs: application.IDGeneratorFunc(func(p string) string { return p + "-id" })})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := any(c).(interface {
+		AuthorizeControlTemplateInstallation(context.Context, identitydomain.Actor, string) error
+	}); !ok {
+		t.Fatal("template installation has no current-tenant replay guard")
+	}
+}
+
+func TestControlTemplateReplayGuardUsesOnlyCurrentTenantAuthority(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*controlCommandFixture)
+		want   error
+		locks  int
+	}{
+		{"installed metadata unavailable", func(f *controlCommandFixture) {
+			f.versionExists = true
+			f.readError = errors.New("private inventory failure")
+		}, nil, 1},
+		{"revoked inside transaction", func(f *controlCommandFixture) { f.authFailAt = 2 }, application.ErrForbidden, 0},
+		{"tenant removed", func(f *controlCommandFixture) { f.tenantError = ErrNotFound }, ErrNotFound, 1},
+		{"tenant storage unavailable", func(f *controlCommandFixture) { f.tenantError = errors.New("private tenant failure") }, nil, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, f, a, _ := newControlCommandFixture(t)
+			tc.change(f)
+			want := tc.want
+			if tc.name == "tenant storage unavailable" {
+				want = f.tenantError
+			}
+			c, err := NewControlTemplateCommands(ControlTemplateCommandConfig{Authorizer: f, Transactions: templateCommandFixture{f}, Clock: application.ClockFunc(func() time.Time { panic("replay read clock") }), IDs: application.IDGeneratorFunc(func(string) string { panic("replay generated ID") })})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := c.AuthorizeControlTemplateInstallation(t.Context(), a, riskdomain.BuiltinTemplatePacks()[0].Slug); !errors.Is(err, want) || f.reads != 0 || f.tenantLocks != tc.locks || f.transactions != 1 || f.authorizations != 2 || len(f.frameworks)+len(f.controls)+len(f.audits) != 0 {
+				t.Fatal("replay consulted installed state or changed effects", err, f)
+			}
+		})
 	}
 }

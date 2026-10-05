@@ -23,26 +23,30 @@ type controlTemplateTransactions struct{ factory app.UnitOfWorkFactory }
 
 func (t controlTemplateTransactions) ExecuteControlTemplate(ctx context.Context, command func(context.Context, riskapp.ControlTemplateTransaction) error) error {
 	return mapControlWriteError(app.ExecuteUnitOfWork(ctx, t.factory, func(ctx context.Context, repos app.Repositories) error {
-		versions, ok := repos.Controls.(riskapp.FrameworkVersionReader)
+		reader, ok := repos.Controls.(riskapp.ControlTemplateReader)
 		if !ok || repos.Audit == nil {
 			return app.ErrValidation
 		}
-		return command(ctx, controlTemplateTransaction{versions: versions, writer: repos.Controls, audit: repos.Audit})
+		return command(ctx, controlTemplateTransaction{reader: reader, writer: repos.Controls, audit: repos.Audit})
 	}))
 }
 
 type controlTemplateTransaction struct {
-	versions riskapp.FrameworkVersionReader
-	writer   app.ControlRepository
-	audit    app.AuditRepository
+	reader riskapp.ControlTemplateReader
+	writer app.ControlRepository
+	audit  app.AuditRepository
 }
 
 func (t controlTemplateTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	return riskapp.NewControlAdminAuthorizer().Authorize(ctx, actor, request)
 }
 func (t controlTemplateTransaction) FrameworkVersionExists(ctx context.Context, tenant, slug, version string) (bool, error) {
-	v, err := t.versions.FrameworkVersionExists(ctx, tenant, slug, version)
+	v, err := t.reader.FrameworkVersionExists(ctx, tenant, slug, version)
 	return v, mapControlWriteError(err)
+}
+
+func (t controlTemplateTransaction) LockControlTemplateTenant(ctx context.Context, tenant string) error {
+	return mapControlWriteError(t.reader.LockControlTemplateTenant(ctx, tenant))
 }
 func (t controlTemplateTransaction) InsertControlFramework(ctx context.Context, v riskdomain.ControlFramework) error {
 	return (controlTransaction{writer: t.writer}).InsertControlFramework(ctx, v)

@@ -379,9 +379,15 @@ snapshot comparison and local proof/hash rules prevent stale-source assessment.
 Provider observation is not rolled back by database failure. Startup retirement
 remains separate EVY-905 work.
 Governance framework pages, control points, and the static starter-template
-catalog use risk-owned queries. Template listing does not read tenant state;
-the installation command remains on the compatibility Ledger path. A
-control must resolve to a framework in the same tenant before it is returned.
+catalog use risk-owned queries. Template listing does not read tenant state.
+Installation now binds focused Risk commands and native durable replay. The
+read-only current-tenant administration/existence guard takes the common writer
+fence before the tenant share lock and joins the outer replay transaction.
+Installed metadata and duplicate-version reads are not replay authority; fresh
+installation alone checks the version key and atomically appends the framework,
+all starter controls, principal audit and replay response, without a job.
+Explicit local memory retains compatibility storage and nondurable replay.
+A control must resolve to a framework in the same tenant before it is returned.
 Signing-provider and DSSE trust-root creation now use Verification-owned
 commands with current tenant-wide administration before native durable replay.
 The Identity adapter supplies only a tenant-existence/mutation guard: the

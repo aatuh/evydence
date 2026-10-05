@@ -39,7 +39,8 @@ func TestPostgresControlTemplateHTTPUsesFocusedInstallationAndFreshReads(t *test
 			t.Fatal(err)
 		}
 		opts.Authenticator = auth
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{UnitOfWork: store})
+		noReload := &decisionHTTPNoReloadStore{}
+		ledger, err := app.NewLedgerWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +56,7 @@ func TestPostgresControlTemplateHTTPUsesFocusedInstallationAndFreshReads(t *test
 		}
 		rec := httptest.NewRecorder()
 		server.Handler().ServeHTTP(rec, req)
-		if rec.Code != want || strings.Contains(rec.Body.String(), "private template SQL") {
+		if rec.Code != want || noReload.loads != 1 || strings.Contains(rec.Body.String(), "private template SQL") {
 			t.Fatalf("%s %s got %d want %d: %s", method, path, rec.Code, want, rec.Body.String())
 		}
 		return rec.Body.String()
