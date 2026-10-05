@@ -925,13 +925,19 @@ scope in an evidence/build association, including the artifact's build-output
 digest. That query accepts at most 4096 grant IDs and 64 KiB of grant identity
 text. Live tests cover every supported subject, focused-list visibility,
 uncommitted subject reads, outer rollback, replay, storage failures, and
-competing duplicates. PostgreSQL HTTP evidence-link writes now bind the focused
-command directly. Fresh-server tests create and list every supported subject
-without publishing Ledger maps, preserve replay and natural-duplicate DTOs,
-and prove link/audit rollback and safe error responses. The handler rejects
-null fields and invalid decoded control IDs before they reach storage.
-Local-memory mode retains its explicit compatibility path. These boundaries
-do not retire production Ledger startup or its remaining maps.
+competing duplicates. PostgreSQL HTTP evidence-link writes now bind focused
+commands with native durable replay, without Ledger cloning or publication.
+Shared read-only orchestration checks current tenant/control/framework/subject
+ownership and grants before fresh writes and replay; it never reads duplicate
+notes or allocates IDs. The actor-tenant fence and tenant/control/framework
+share locks survive outer replay commit. Live tests cover all sixteen subject
+kinds, current grants, restart replay, large unrelated metadata, natural
+duplicates, record/audit/replay/commit failures, concurrency and cancellation.
+Raw text is bounded before trimming and both profiles share strict JSON and
+cookie-origin checks. Local memory retains local-map reference behavior and
+nondurable replay, not PostgreSQL source/projection guarantees. These boundaries
+do not retire production Ledger startup or its remaining maps. See
+[control-evidence linking](api.md#control-evidence-linking).
 
 Approval creation also binds a transaction-only command and direct durable
 idempotency in PostgreSQL. Identifier-only queries resolve all five existing

@@ -227,41 +227,19 @@ func (l *Ledger) GetSecurityControl(ctx context.Context, actor domain.Actor, id 
 }
 
 func (l *Ledger) LinkControlEvidence(ctx context.Context, actor domain.Actor, controlID string, in LinkControlEvidenceInput) (domain.ControlEvidence, error) {
-	if err := ctx.Err(); err != nil {
+	controlID, in, err := prepareLocalControlEvidenceLink(ctx, actor, controlID, in)
+	if err != nil {
 		return domain.ControlEvidence{}, err
-	}
-	if err := require(actor, ScopeControlsWrite); err != nil {
-		return domain.ControlEvidence{}, err
-	}
-	controlID = strings.TrimSpace(controlID)
-	in.EvidenceType = strings.TrimSpace(in.EvidenceType)
-	in.SubjectType = strings.TrimSpace(in.SubjectType)
-	in.SubjectID = strings.TrimSpace(in.SubjectID)
-	in.ProductID = strings.TrimSpace(in.ProductID)
-	in.ReleaseID = strings.TrimSpace(in.ReleaseID)
-	in.Confidence = strings.TrimSpace(in.Confidence)
-	if controlID == "" || !supportedControlEvidenceType(in.EvidenceType) || in.SubjectType == "" || in.SubjectID == "" || !validControlConfidence(in.Confidence) {
-		return domain.ControlEvidence{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
 		return domain.ControlEvidence{}, err
 	}
-	control, ok := l.controls[controlID]
-	if !ok || control.TenantID != actor.TenantID {
-		return domain.ControlEvidence{}, ErrNotFound
-	}
-	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
+	if err := l.authorizeControlEvidenceLinkLocked(actor, controlID, in); err != nil {
 		return domain.ControlEvidence{}, err
 	}
-	refs := l.refsForControlEvidenceSubjectLocked(in.SubjectType, in.SubjectID, in.ProductID, in.ReleaseID)
-	if err := l.authorizeResourceLocked(actor, ScopeControlsWrite, refs); err != nil {
-		return domain.ControlEvidence{}, err
-	}
-	if !l.controlSubjectExistsLocked(actor.TenantID, in.SubjectType, in.SubjectID, in.ProductID, in.ReleaseID) {
-		return domain.ControlEvidence{}, ErrNotFound
-	}
+	control := l.controls[controlID]
 	for _, existing := range l.controlLinks {
 		if existing.TenantID == actor.TenantID && existing.ControlID == control.ID && existing.EvidenceType == in.EvidenceType && existing.SubjectType == in.SubjectType && existing.SubjectID == in.SubjectID && existing.ProductID == in.ProductID && existing.ReleaseID == in.ReleaseID {
 			return existing, nil
@@ -765,6 +743,8 @@ func (l *Ledger) controlSubjectExistsLocked(tenantID, subjectType, subjectID, pr
 func (l *Ledger) refsForControlEvidenceSubjectLocked(subjectType, subjectID, productID, releaseID string) resourceRefs {
 	refs := resourceRefs{ProductID: strings.TrimSpace(productID), ReleaseID: strings.TrimSpace(releaseID)}
 	switch strings.TrimSpace(subjectType) {
+	case "product":
+		refs.ProductID = nonEmpty(refs.ProductID, strings.TrimSpace(subjectID))
 	case "evidence", "evidence_item":
 		if item, ok := l.evidence[strings.TrimSpace(subjectID)]; ok {
 			refs.ProductID = nonEmpty(refs.ProductID, item.ProductID)
@@ -924,14 +904,6 @@ func normalizeControlRequirements(in []domain.ControlEvidenceRequirement) ([]dom
 		out = append(out, domain.ControlEvidenceRequirement{Type: req.Type, FreshnessDays: req.FreshnessDays, Required: req.Required})
 	}
 	return out, nil
-}
-
-func supportedControlEvidenceType(value string) bool {
-	return riskdomain.SupportedControlEvidenceType(value)
-}
-
-func validControlConfidence(value string) bool {
-	return riskdomain.ValidControlConfidence(value)
 }
 
 func aggregateConfidence(links []domain.ControlEvidence) string {

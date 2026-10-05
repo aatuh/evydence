@@ -76,6 +76,10 @@ func (t controlEvidenceTransaction) ControlEvidenceControlExists(ctx context.Con
 	v, err := t.reader.ControlEvidenceControlExists(ctx, tenant, id)
 	return v, mapControlWriteError(err)
 }
+
+func (t controlEvidenceTransaction) LockControlEvidenceTenant(ctx context.Context, tenant string) error {
+	return mapControlWriteError(t.reader.LockControlEvidenceTenant(ctx, tenant))
+}
 func (t controlEvidenceTransaction) ReadControlEvidenceSubject(ctx context.Context, tenant string, key riskapp.ControlEvidenceSubjectKey) (riskapp.ControlEvidenceSubjectCoordinates, error) {
 	v, err := t.reader.ReadControlEvidenceSubject(ctx, tenant, key)
 	return v, mapControlWriteError(err)

@@ -16,6 +16,10 @@ import (
 var _ riskapp.ControlEvidenceReader = controls{}
 var _ riskapp.ControlEvidenceArtifactGrantReader = controls{}
 
+func (r controls) LockControlEvidenceTenant(ctx context.Context, tenant string) error {
+	return r.lockControlTenant(ctx, tenant)
+}
+
 func (r controls) ControlEvidenceControlExists(ctx context.Context, tenant, id string) (bool, error) {
 	if err := validBuildIdentityRead(ctx, r.tx, tenant, id); err != nil {
 		return false, err

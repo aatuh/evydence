@@ -30,7 +30,8 @@ func TestPostgresControlEvidenceHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 			t.Fatal(err)
 		}
 		opts.Authenticator = auth
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{UnitOfWork: store})
+		noReload := &decisionHTTPNoReloadStore{}
+		ledger, err := app.NewLedgerWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +48,7 @@ func TestPostgresControlEvidenceHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 		}
 		rec := httptest.NewRecorder()
 		server.Handler().ServeHTTP(rec, req)
-		if rec.Code != want || strings.Contains(rec.Body.String(), "private link HTTP SQL") {
+		if rec.Code != want || noReload.loads != 1 || strings.Contains(rec.Body.String(), "private link HTTP SQL") {
 			t.Fatalf("%s %s got %d want %d: %s", method, path, rec.Code, want, rec.Body.String())
 		}
 		if want >= 400 && !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/problem+json") {

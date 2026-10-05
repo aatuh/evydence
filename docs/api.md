@@ -2330,8 +2330,44 @@ omitted; explicit null fields/items are rejected in both runtime profiles.
 Both profiles require a same-host HTTPS `Origin` for cookie-authenticated
 writes; explicit bearer authentication takes precedence. Local-memory creation
 retains compatibility storage and nondurable replay, with the same input bounds
-and tenant-wide human administration checks. Evidence linking
-remains a separate compatibility command at this stage.
+and tenant-wide human administration checks. Evidence linking has a separate
+`controls:write` policy described below.
+
+### Control-Evidence Linking
+
+`POST /v1/controls/{id}/evidence` in PostgreSQL mode binds focused Risk commands
+and native durable replay, without Ledger cloning or inventories. A read-only
+guard resolves the current tenant, control/framework ownership and subject
+coordinates before fresh execution and completed-response replay. Human
+sessions need a matching current tenant, product, project or release grant;
+supplied scope labels do not confer authority. Artifact grants must match a
+current evidence/build association, including the build-output digest. Parsed
+subjects require coherent source-evidence kind and tenant/parent relationships;
+ambiguous finding IDs return `409` rather than choose a scan.
+
+The actor-tenant writer fence precedes tenant/control/framework share locks;
+these remain held through outer replay commit. Subject projections use that
+shared writer coordination. Replay does not read stored link notes or duplicate
+metadata, allocate IDs, or append audit entries. Fresh natural-key reuse returns
+the original link without replacing notes/confidence or adding an audit. New
+links, principal audits and replay results commit together, with no outbox job.
+Changed request bytes under the same key return `409`.
+
+Raw path/subject/scope identifiers and kind labels are bounded at 1024 UTF-8
+bytes before trimming, confidence at 64 bytes and notes at 65536 bytes. The
+normalized tenant/control/evidence-kind/subject-kind/subject/product/release
+tuple is bounded at 2048 bytes. The entire JSON body is limited to 64 KiB;
+malformed, duplicate/trailing, unknown or null fields, NUL text and invalid
+UTF-8 return `400`. Unsupported subject kinds retain `404` behavior. Cookie
+writes require same-host HTTPS `Origin`; bearer authentication takes precedence.
+
+Local memory retains local-map reference behavior and nondurable storage/replay,
+with the shared input bounds, current control/framework ownership checks and
+local resource grants. It does not establish PostgreSQL parsed-source or writer
+coordination guarantees. Linking records technical evidence relationships, not
+control effectiveness or framework compliance.
+
+### Control-Framework Template Installation
 
 PostgreSQL template installation uses a focused transaction with the same
 tenant-wide administration policy. It appends the framework, all starter

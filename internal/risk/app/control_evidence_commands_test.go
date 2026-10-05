@@ -15,6 +15,8 @@ import (
 
 type controlEvidenceFixture struct {
 	controlExists                                                                 bool
+	tenantLocks                                                                   int
+	tenantError                                                                   error
 	subject                                                                       ControlEvidenceSubjectCoordinates
 	existing                                                                      riskdomain.ControlEvidence
 	readError, subjectError, duplicateError, insertError, auditError, commitError error
@@ -23,6 +25,11 @@ type controlEvidenceFixture struct {
 	keys                                                                          []ControlEvidenceLinkKey
 	links                                                                         []riskdomain.ControlEvidence
 	audits                                                                        []application.AuditEvent
+}
+
+func (f *controlEvidenceFixture) LockControlEvidenceTenant(context.Context, string) error {
+	f.tenantLocks++
+	return f.tenantError
 }
 
 func (f *controlEvidenceFixture) ExecuteControlEvidence(ctx context.Context, fn func(context.Context, ControlEvidenceTransaction) error) error {
@@ -90,6 +97,71 @@ func newControlEvidenceFixture(t *testing.T) (*ControlEvidenceCommands, *control
 }
 func controlEvidenceInput() LinkControlEvidenceInput {
 	return LinkControlEvidenceInput{EvidenceType: "sbom", SubjectType: "evidence", SubjectID: "subject", Confidence: "high", Notes: "reviewed"}
+}
+
+func TestControlEvidenceBoundsRawInputsBeforeTrim(t *testing.T) {
+	for _, field := range []string{"control", "subject", "evidence-type", "notes"} {
+		s, f, a, _ := newControlEvidenceFixture(t)
+		id, in := "control", controlEvidenceInput()
+		switch field {
+		case "control":
+			id = strings.Repeat(" ", 1025) + id
+		case "subject":
+			in.SubjectID = strings.Repeat(" ", 1025) + in.SubjectID
+		case "evidence-type":
+			in.EvidenceType = strings.Repeat(" ", 1025) + in.EvidenceType
+		case "notes":
+			in.Notes = strings.Repeat(" ", 65537) + in.Notes
+		}
+		if v, err := s.LinkControlEvidence(t.Context(), a, id, in); !errors.Is(err, ErrValidation) || v.ID != "" || f.transactions != 0 {
+			t.Fatal("raw link input bypassed budget", field, err, f.transactions)
+		}
+	}
+}
+
+func TestControlEvidenceHasReadOnlyCurrentScopeGuard(t *testing.T) {
+	s, _, _, _ := newControlEvidenceFixture(t)
+	if _, ok := any(s).(interface {
+		AuthorizeControlEvidenceLink(context.Context, identitydomain.Actor, string, LinkControlEvidenceInput) error
+	}); !ok {
+		t.Fatal("control linking has no current-scope replay guard")
+	}
+}
+
+func TestControlEvidenceReplayGuardNeverReadsDuplicateOrWrites(t *testing.T) {
+	_, f, a, _ := newControlEvidenceFixture(t)
+	f.existing = riskdomain.ControlEvidence{ID: "existing", Notes: strings.Repeat("private-", 1200000)}
+	f.duplicateError = errors.New("private duplicate unavailable")
+	s, err := NewControlEvidenceCommands(ControlEvidenceCommandConfig{Authorizer: f, Transactions: f, Clock: application.ClockFunc(func() time.Time { panic("guard read clock") }), IDs: application.IDGeneratorFunc(func(string) string { panic("guard generated ID") })})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AuthorizeControlEvidenceLink(t.Context(), a, "control", controlEvidenceInput()); err != nil || f.tenantLocks != 1 || f.reads != 2 || f.duplicateReads != 0 || f.authorizations != 3 || len(f.links)+len(f.audits) != 0 {
+		t.Fatal("link guard consulted duplicate state or wrote", err, f)
+	}
+}
+
+func TestControlEvidenceReplayGuardFailsBeforeDisclosure(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		change       func(*controlEvidenceFixture)
+		want         error
+		reads, locks int
+	}{
+		{"revoked credential", func(f *controlEvidenceFixture) { f.authFailAt = 2 }, application.ErrForbidden, 0, 0},
+		{"missing tenant", func(f *controlEvidenceFixture) { f.tenantError = ErrNotFound }, ErrNotFound, 0, 1},
+		{"foreign control", func(f *controlEvidenceFixture) { f.controlExists = false }, ErrNotFound, 1, 1},
+		{"foreign subject", func(f *controlEvidenceFixture) { f.subject.TenantID = "other" }, ErrNotFound, 2, 1},
+		{"revoked grant", func(f *controlEvidenceFixture) { f.authFailAt = 3 }, application.ErrForbidden, 2, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f, a, _ := newControlEvidenceFixture(t)
+			tc.change(f)
+			if err := s.AuthorizeControlEvidenceLink(t.Context(), a, "control", controlEvidenceInput()); !errors.Is(err, tc.want) || f.reads != tc.reads || f.tenantLocks != tc.locks || f.duplicateReads != 0 || len(f.links)+len(f.audits) != 0 {
+				t.Fatal("failed guard disclosed or wrote", err, f)
+			}
+		})
+	}
 }
 
 func TestControlEvidenceCommandsPreserveLinkAndUseSubjectCoordinates(t *testing.T) {

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -18,12 +20,111 @@ import (
 )
 
 type controlEvidenceCommandFake struct {
-	calls int
-	actor identitydomain.Actor
-	id    string
-	input riskapp.LinkControlEvidenceInput
-	err   error
-	value riskdomain.ControlEvidence
+	calls    int
+	guards   int
+	guardErr error
+	actor    identitydomain.Actor
+	id       string
+	input    riskapp.LinkControlEvidenceInput
+	err      error
+	value    riskdomain.ControlEvidence
+}
+
+func (f *controlEvidenceCommandFake) AuthorizeControlEvidenceLink(context.Context, identitydomain.Actor, string, riskapp.LinkControlEvidenceInput) error {
+	f.guards++
+	return f.guardErr
+}
+
+func TestControlEvidenceHTTPRequiresDurableReplay(t *testing.T) {
+	s, _ := testServer(t)
+	if v, err := NewServerWithOptions(s.ledger, ServerOptions{ControlEvidenceCommands: &controlEvidenceCommandFake{}}); err == nil || v != nil {
+		t.Fatal("focused control linking accepted Ledger replay")
+	}
+}
+
+func TestControlEvidenceHTTPChecksCurrentGuardBeforeReplay(t *testing.T) {
+	s, secret := testServer(t)
+	f := &controlEvidenceCommandFake{value: riskdomain.ControlEvidence{ID: "link", ControlID: "control", EvidenceType: "sbom", SubjectType: "product", SubjectID: "product", Confidence: "high", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion}}
+	s.controlEvidenceCommands = f
+	s.durableCommandExecutor = newTrustHTTPReplayExecutor(t, s, secret)
+	path, body := "/v1/controls/control/evidence", []byte(`{"evidence_type":"sbom","subject_type":"product","subject_id":"product","confidence":"high"}`)
+	one := postRaw(t, s, secret, path, "link", body, 201)
+	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "link", body, 201))
+	for _, tc := range []struct {
+		err    error
+		status int
+	}{{application.ErrForbidden, 403}, {riskapp.ErrNotFound, 404}, {errors.New("private-link password=secret"), 500}} {
+		f.guardErr = tc.err
+		out := postRaw(t, s, secret, path, "link", body, tc.status)
+		if f.calls != 1 || strings.Contains(out, "private-link") || strings.Contains(out, `"data"`) {
+			t.Fatal("link replay bypassed current authority", out, f)
+		}
+	}
+	if f.guards != 5 {
+		t.Fatal("link replay skipped guard", f.guards)
+	}
+}
+
+func TestControlEvidencePathBoundsRawBeforeTrim(t *testing.T) {
+	if err := validateControlEvidencePathID(strings.Repeat(" ", 1025) + "control"); err == nil {
+		t.Fatal("raw control path bypassed budget")
+	}
+}
+
+func TestControlEvidenceNativeHTTPRunsWithoutLedgerAndRejectsBadBodyBeforeGuard(t *testing.T) {
+	base, secret := testServer(t)
+	f := &controlEvidenceCommandFake{value: riskdomain.ControlEvidence{ID: "link", ControlID: "control", SubjectType: "product", SubjectID: "product", EvidenceType: "sbom", Confidence: "high", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion}}
+	s, err := NewServerWithOptions(base.ledger, ServerOptions{ControlEvidenceCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ledger, s.idempotency = nil, nil
+	path, body := "/v1/controls/control/evidence", `{"evidence_type":"sbom","subject_type":"product","subject_id":"product","confidence":"high"}`
+	one := postRaw(t, s, secret, path, "native", []byte(body), 201)
+	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "native", []byte(body), 201))
+	postRaw(t, s, secret, path, "native", []byte(body+" "), 409)
+	for i, bad := range []string{"", " ", "{", "[]", "null", body + " {}", string([]byte{0xff}), strings.Replace(body, `"product"`, `null`, 1), strings.Replace(body, `"high"`, `"high","notes":null`, 1), strings.Replace(body, `"high"`, `"high","notes":"x","notes":"y"`, 1), strings.Replace(body, `"high"`, `"high","tenant_id":"other"`, 1), strings.Replace(body, `"high"`, `"high","notes":"bad\u0000"`, 1), strings.Replace(body, `"subject_id":"product"`, `"subject_id":"`+strings.Repeat(" ", 1025)+`product"`, 1), strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1)} {
+		out := postRaw(t, s, secret, path, fmt.Sprintf("bad-%d", i), []byte(bad), 400)
+		if f.calls != 1 || f.guards != 3 || strings.Contains(out, `"data"`) {
+			t.Fatal("bad input crossed native link guard", out, f)
+		}
+	}
+}
+
+func TestControlEvidenceCookieOriginAndBearerPrecedence(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		s, secret := testServer(t)
+		f := &controlEvidenceCommandFake{value: riskdomain.ControlEvidence{ID: "link", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion}}
+		if native {
+			s.controlEvidenceCommands = f
+			s.durableCommandExecutor = newTrustHTTPReplayExecutor(t, s, secret)
+			s.ledger, s.idempotency = nil, nil
+		}
+		body := `{"evidence_type":"sbom","subject_type":"product","subject_id":"missing","confidence":"high"}`
+		for i, tc := range []struct {
+			origin string
+			bearer bool
+			want   int
+		}{{"", false, 403}, {"https://attacker.example", false, 403}, {"http://api.example", false, 403}, {"https://api.example", false, 404}, {"https://attacker.example", true, 404}} {
+			want := tc.want
+			if native && want == 404 {
+				want = 201
+			}
+			r := httptest.NewRequest("POST", "https://api.example/v1/controls/control/evidence", strings.NewReader(body))
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.Header.Set("Origin", tc.origin)
+			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
+			if tc.bearer {
+				r.Header.Set("Authorization", "Bearer "+secret)
+			}
+			w := httptest.NewRecorder()
+			before := f.guards + f.calls
+			s.Handler().ServeHTTP(w, r)
+			if w.Code != want || w.Header().Get("Set-Cookie") != "" || want == 403 && f.guards+f.calls != before {
+				t.Fatal("unsafe cookie link mutation", native, w.Code, w.Body.String())
+			}
+		}
+	}
 }
 
 func (f *controlEvidenceCommandFake) LinkControlEvidence(_ context.Context, actor identitydomain.Actor, id string, in riskapp.LinkControlEvidenceInput) (riskdomain.ControlEvidence, error) {
@@ -40,7 +141,11 @@ func TestControlEvidenceHTTPUsesNarrowCommandAndMapsDTOAndErrors(t *testing.T) {
 	}
 	value := riskdomain.ControlEvidence{ID: "link", TenantID: tenant.ID, ControlID: "control", EvidenceType: "sbom", SubjectType: "sbom", SubjectID: "sbom", ProductID: "product", ReleaseID: "release", Confidence: "medium", Notes: "reviewed", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion, CreatedAt: time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)}
 	commands := &controlEvidenceCommandFake{value: value}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{ControlEvidenceCommands: commands})
+	base, err := NewServer(ledger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{ControlEvidenceCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

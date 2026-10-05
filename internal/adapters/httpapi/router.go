@@ -34,7 +34,6 @@ import (
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
-	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -548,6 +547,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.ControlCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused control creation requires durable idempotency")
 	}
+	if opts.ControlEvidenceCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused control evidence linking requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -974,44 +976,6 @@ func (s *Server) getSecurityControl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, control)
-}
-
-func (s *Server) linkControlEvidence(w http.ResponseWriter, r *http.Request) {
-	if err := validateControlEvidencePathID(r.PathValue("id")); err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	var req struct {
-		EvidenceType string `json:"evidence_type"`
-		SubjectType  string `json:"subject_type"`
-		SubjectID    string `json:"subject_id"`
-		ProductID    string `json:"product_id"`
-		ReleaseID    string `json:"release_id"`
-		Confidence   string `json:"confidence"`
-		Notes        string `json:"notes"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body, "evidence_type", "subject_type", "subject_id", "product_id", "release_id", "confidence", "notes"); err != nil {
-			return 0, nil, err
-		}
-		if s.controlEvidenceCommands != nil {
-			link, err := s.controlEvidenceCommands.LinkControlEvidence(ctx, actor, r.PathValue("id"), riskapp.LinkControlEvidenceInput{EvidenceType: req.EvidenceType, SubjectType: req.SubjectType, SubjectID: req.SubjectID, ProductID: req.ProductID, ReleaseID: req.ReleaseID, Confidence: req.Confidence, Notes: req.Notes})
-			return http.StatusCreated, controlEvidenceFromQuery(link), mapControlCommandError(err)
-		}
-		link, err := s.ledger.LinkControlEvidence(ctx, actor, r.PathValue("id"), app.LinkControlEvidenceInput{
-			EvidenceType: req.EvidenceType,
-			SubjectType:  req.SubjectType,
-			SubjectID:    req.SubjectID,
-			ProductID:    req.ProductID,
-			ReleaseID:    req.ReleaseID,
-			Confidence:   req.Confidence,
-			Notes:        req.Notes,
-		})
-		return http.StatusCreated, link, err
-	})
 }
 
 func (s *Server) listControlEvidence(w http.ResponseWriter, r *http.Request) {

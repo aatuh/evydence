@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -35,6 +34,7 @@ type ControlEvidenceLinkKey struct {
 // Duplicate projections are bounded to the command's text budgets; readers
 // reject overflow rather than transfer or truncate arbitrary stored notes.
 type ControlEvidenceReader interface {
+	LockControlEvidenceTenant(context.Context, string) error
 	ControlEvidenceControlExists(context.Context, string, string) (bool, error)
 	ReadControlEvidenceSubject(context.Context, string, ControlEvidenceSubjectKey) (ControlEvidenceSubjectCoordinates, error)
 	ReadControlEvidenceLink(context.Context, string, ControlEvidenceLinkKey) (riskdomain.ControlEvidence, bool, error)
@@ -71,66 +71,13 @@ type LinkControlEvidenceInput struct {
 }
 
 func (s *ControlEvidenceCommands) LinkControlEvidence(ctx context.Context, actor identitydomain.Actor, controlID string, in LinkControlEvidenceInput) (riskdomain.ControlEvidence, error) {
-	if s == nil {
-		return riskdomain.ControlEvidence{}, ErrValidation
-	}
-	if err := contextError(ctx); err != nil {
+	_, in, key, err := s.prepareControlEvidenceLink(ctx, actor, controlID, in)
+	if err != nil {
 		return riskdomain.ControlEvidence{}, err
-	}
-	credential := application.AuthorizationRequest{Scope: ScopeControlsWrite, ScopeOnly: true}
-	if err := s.config.Authorizer.Authorize(ctx, actor, credential); err != nil {
-		return riskdomain.ControlEvidence{}, err
-	}
-	controlID = strings.TrimSpace(controlID)
-	in.EvidenceType, in.SubjectType, in.SubjectID = strings.TrimSpace(in.EvidenceType), strings.TrimSpace(in.SubjectType), strings.TrimSpace(in.SubjectID)
-	in.ProductID, in.ReleaseID, in.Confidence, in.Notes = strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID), strings.TrimSpace(in.Confidence), strings.TrimSpace(in.Notes)
-	key := ControlEvidenceLinkKey{ControlID: controlID, EvidenceType: in.EvidenceType, SubjectType: in.SubjectType, SubjectID: in.SubjectID, ProductID: in.ProductID, ReleaseID: in.ReleaseID}
-	if !ValidControlEvidenceLinkKey(actor.TenantID, key) || !riskdomain.SupportedControlEvidenceType(in.EvidenceType) || !riskdomain.ValidControlConfidence(in.Confidence) || !validControlText(in.Notes, 65536, false) {
-		return riskdomain.ControlEvidence{}, ErrValidation
-	}
-	// Retain the existing not-found policy for unsupported subject kinds.
-	if !riskdomain.SupportedControlEvidenceSubject(in.SubjectType) {
-		return riskdomain.ControlEvidence{}, ErrNotFound
 	}
 	var result riskdomain.ControlEvidence
-	err := s.config.Transactions.ExecuteControlEvidence(ctx, func(ctx context.Context, tx ControlEvidenceTransaction) error {
-		if err := contextError(ctx); err != nil {
-			return err
-		}
-		if err := tx.Authorize(ctx, actor, credential); err != nil {
-			return err
-		}
-		if exists, err := tx.ControlEvidenceControlExists(ctx, actor.TenantID, key.ControlID); err != nil {
-			return err
-		} else if !exists {
-			return ErrNotFound
-		}
-		subject, err := tx.ReadControlEvidenceSubject(ctx, actor.TenantID, ControlEvidenceSubjectKey{SubjectType: key.SubjectType, SubjectID: key.SubjectID, ProductID: key.ProductID, ReleaseID: key.ReleaseID})
-		if err != nil {
-			return err
-		}
-		if subject.TenantID != actor.TenantID || subject.SubjectType != key.SubjectType || subject.SubjectID != key.SubjectID {
-			return ErrNotFound
-		}
-		for _, text := range []string{subject.ProductID, subject.ProjectID, subject.ReleaseID} {
-			if !validControlText(text, 1024, false) {
-				return ErrValidation
-			}
-		}
-		if subject.ProductID == "" && (subject.ProjectID != "" || subject.ReleaseID != "") {
-			return ErrNotFound
-		}
-		if key.ProductID != "" && key.ProductID != subject.ProductID || key.ReleaseID != "" && key.ReleaseID != subject.ReleaseID {
-			return ErrNotFound
-		}
-		refs := application.ResourceReferences{ProductID: subject.ProductID, ProjectID: subject.ProjectID, ReleaseID: subject.ReleaseID}
-		if key.SubjectType == "artifact" {
-			// Do not choose an arbitrary first artifact association and deny
-			// access to another valid one. The artifact policy queries current
-			// matching grants before selecting a bounded association.
-			refs = application.ResourceReferences{ArtifactID: key.SubjectID, ProductID: key.ProductID, ReleaseID: key.ReleaseID}
-		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeControlsWrite, Resources: refs}); err != nil {
+	err = s.config.Transactions.ExecuteControlEvidence(ctx, func(ctx context.Context, tx ControlEvidenceTransaction) error {
+		if err := authorizeControlEvidenceLinkScope(ctx, actor, key, tx); err != nil {
 			return err
 		}
 		existing, found, err := tx.ReadControlEvidenceLink(ctx, actor.TenantID, key)

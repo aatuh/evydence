@@ -394,6 +394,14 @@ commit without consulting version/code duplicates or installed metadata on
 replay. Fresh records, principal audits and replay results commit atomically,
 without a job or Ledger projection. Both profiles share bounded raw-input
 normalization; local memory keeps compatibility storage and nondurable replay.
+Control-evidence linking now also uses native durable replay. Shared Risk
+orchestration resolves current control/framework/subject coordinates and grants
+without duplicate metadata reads on replay. The actor-tenant writer fence and
+tenant/control/framework share locks survive outer commit; fresh link, audit
+and replay writes are atomic. Artifact grants remain association-filtered and
+parsed sources retain their relational ownership checks. Local memory keeps
+local-map reference semantics and nondurable replay, not those PostgreSQL
+source/projection guarantees. See [control-evidence linking](../api.md#control-evidence-linking).
 Signing-provider and DSSE trust-root creation now use Verification-owned
 commands with current tenant-wide administration before native durable replay.
 The Identity adapter supplies only a tenant-existence/mutation guard: the
