@@ -68,17 +68,16 @@ func (s *ArtifactCommands) RegisterArtifact(ctx context.Context, actor identityd
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.Artifact{}, err
 	}
-	input.Name = strings.TrimSpace(input.Name)
-	input.MediaType = strings.TrimSpace(input.MediaType)
-	input.Digest = strings.TrimSpace(input.Digest)
-	if input.Name == "" || input.MediaType == "" || !validDigest(input.Digest) || input.Size < 0 {
-		return releasedomain.Artifact{}, ErrValidation
+	var err error
+	input, err = NormalizeArtifactRegistrationInput(input)
+	if err != nil {
+		return releasedomain.Artifact{}, err
 	}
 	artifact := releasedomain.Artifact{
 		ID: s.ids.NewID("art"), TenantID: actor.TenantID, Name: input.Name,
 		MediaType: input.MediaType, Size: input.Size, Digest: input.Digest, CreatedAt: s.clock.Now().UTC(),
 	}
-	err := s.transactions.ExecuteArtifact(ctx, func(ctx context.Context, tx ArtifactTransaction) error {
+	err = s.transactions.ExecuteArtifact(ctx, func(ctx context.Context, tx ArtifactTransaction) error {
 		if existing, exists, err := tx.ArtifactIdentityByDigest(ctx, actor.TenantID, input.Digest); err != nil {
 			return err
 		} else if exists {

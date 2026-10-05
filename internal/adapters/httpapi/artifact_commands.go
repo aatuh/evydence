@@ -10,5 +10,6 @@ import (
 
 // ArtifactCommands exposes registration without the unrelated release catalog.
 type ArtifactCommands interface {
+	AuthorizeArtifactRegistration(context.Context, identitydomain.Actor, releaseapp.RegisterArtifactInput) error
 	RegisterArtifact(context.Context, identitydomain.Actor, releaseapp.RegisterArtifactInput) (releasedomain.Artifact, error)
 }

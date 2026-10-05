@@ -2407,6 +2407,12 @@ func (r supplyChain) InsertContainerImage(ctx context.Context, image domain.Cont
 		INSERT INTO container_images (id, tenant_id, artifact_id, repository, tag, digest, platform, schema_version, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, image.ID, image.TenantID, nullableString(image.ArtifactID), image.Repository, nullableString(image.Tag), image.Digest, nullableString(image.Platform), image.SchemaVersion, image.CreatedAt)
+	// The natural identity includes repository in a btree uniqueness index.
+	// Bounded but poorly compressible input can exceed the encoded tuple limit.
+	var databaseError *pgconn.PgError
+	if errors.As(err, &databaseError) && databaseError.Code == "54000" {
+		return app.ErrValidation
+	}
 	return writeError("insert container image", err)
 }
 

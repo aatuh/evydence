@@ -395,20 +395,29 @@ Register an artifact:
 ```
 
 In the PostgreSQL profile, `POST /v1/artifacts` registers metadata through a
-focused durable command, without reading or updating cached Ledger artifacts.
+focused command and native durable HTTP execution, without Ledger replay,
+cloning or refresh.
 It requires `evidence:write`. Reuse of a tenant's existing digest also requires
 current artifact access: for human sessions, a tenant grant or a matching
 evidence/build association authorized by their resource grants. Reuse returns
 the original immutable name, media type, size, and timestamp without another
-audit entry; submitted metadata does not amend that record. Same-key replay
-returns the original result, while changed request bytes with that key conflict.
+audit entry; submitted metadata does not amend that record. Every replay checks
+current tenant authority and existing digest ownership/grants without selecting
+private artifact metadata, clocks or new IDs. The shared writer fence precedes
+tenant and selected artifact locks held through the outer transaction. Record,
+audit and successful replay commit together. Same-key replay returns the original
+result, including exact large integer sizes; changed request bytes conflict.
 
 Names and media types are trimmed and must be non-empty. The digest must be
 `sha256:` followed by 64 hexadecimal digits; size must be non-negative and
-defaults to zero when omitted. New stored names and media types must be NUL-free
-UTF-8, each at most 64 KiB of UTF-8 bytes. Unsupported new storage text returns
-`400`; oversized existing metadata returns `409`, never truncated values.
-Explicit local-memory mode keeps its compatibility path. Registration records
+defaults to zero when omitted. Both profiles reject malformed/non-object JSON,
+null, unknown, duplicate and case-aliased fields. Raw names and media types must
+be NUL-free UTF-8, each at most 64 KiB before trimming; raw digest text is limited
+to 128 bytes. The whole JSON body remains capped at 64 KiB. Unsupported text
+returns `400`; fresh reuse of oversized stored metadata returns `409`, never
+truncated values. Completed replay does not reload that metadata. Cookie writes
+require same-host HTTPS Origin; Bearer takes precedence. Explicit local-memory
+mode keeps its nondurable compatibility path. Registration records
 declared metadata only: it does not upload bytes or establish digest, signature,
 or provenance trust.
 
@@ -1663,14 +1672,22 @@ artifact coordinates and grants, not cached Ledger artifacts. It requires
 or an existing image's actual artifact association, even if `artifact_id` is
 omitted. Reuse of `(tenant, repository, digest)` returns the original immutable
 image without another audit entry; submitted tag and platform do not amend it.
-Same-key HTTP replay also returns the original result; changed input with that
-key conflicts.
+Native durable HTTP execution replaces Ledger replay/refresh. Each retry checks
+current tenant, supplied artifact and existing image attachment ownership and
+grants; it reads no tag, platform, schema, time or artifact digest metadata.
+The writer fence precedes tenant/image/artifact locks held through the outer
+transaction. Fresh execution still verifies artifact digests. Image, audit and
+successful replay commit together. Same-key replay returns the original result;
+changed request bytes conflict.
 
-Normalized artifact IDs are limited to 1 KiB of UTF-8 bytes and repository text
-to 64 KiB. New stored tag/platform text is limited to 64 KiB of UTF-8 bytes and
-must be NUL-free. Unsupported new storage text returns `400` without writes;
-oversized existing records return `409`, never truncated metadata. Explicit
-local-memory mode keeps its compatibility path. Registration records submitted
+Both profiles require exact non-null JSON fields within the 64 KiB body limit.
+Raw artifact IDs are limited to 1 KiB; repository/tag/platform text to 64 KiB;
+digest text to 128 bytes, all NUL-free UTF-8 before trimming. Unsupported text or
+a repository exceeding PostgreSQL's encoded index capacity returns safe `400`
+without business writes. Fresh reuse of oversized stored image metadata returns
+`409`, never truncated values; completed replay does not reload it. Cookie writes
+require same-host HTTPS Origin with Bearer precedence. Explicit local-memory
+mode retains nondurable storage/replay. Registration records submitted
 metadata; it does not download or verify a registry image.
 
 ### Evidence Summary Creation

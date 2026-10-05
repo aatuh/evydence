@@ -622,11 +622,14 @@ and SHA-256 digests at 71 bytes. Oversized stored fields return conflict, never
 truncated metadata; new records reject oversized, invalid UTF-8, or NUL-bearing
 fields. Unit tests verify authorization precedes metadata access, and live tests
 cover denied access, oversized stored fields, and immutable authorized reuse.
-Production artifact-registration HTTP now binds that focused command through a
-registration-only handler interface. Live HTTP tests use an empty Ledger with
-only a unit-of-work factory: artifact creation, fresh-instance replay and reuse,
-point reads, and build/evidence/container-image consumers use durable state.
-Explicit local-memory mode retains the compatibility binding. A
+Production artifact-registration HTTP uses a registration-only dependency and
+native durable execution, not Ledger cloning, replay or refresh. Its read-only
+guard locks the tenant and existing digest identity and checks current grants
+without private metadata, clocks or IDs. Fresh execution still reads bounded
+immutable metadata on natural-key reuse. Record, caller audit and replay are
+atomic. Live checks cover restart, current grants, exact integer sizes, oversized
+private metadata and record/audit/replay/outer-commit recovery. Explicit local
+memory retains nondurable replay with the same raw input and origin rules. A
 focused build-create command reads only project tenant/product ownership,
 release tenant/product/version coordinates, and output artifact tenant/digest
 identity, then rechecks them under share locks in the write transaction. Its
@@ -735,12 +738,16 @@ valid UTF-8 without NUL characters. The adapter takes the worker-projection fenc
 before relational locks and serializes absent repository/digest reuse with a
 tenant row lock. Live regressions cover giant unrelated artifact metadata,
 pending grants, compound rollback/replay, audit failure and concurrent reuse.
-The PostgreSQL HTTP profile now binds this command directly. Fresh-server HTTP
-tests use uncached artifacts and cover immutable replay/reuse, current grants,
-malformed input, private backend errors and atomic image/audit rollback. The
-explicit local-memory profile retains its compatibility binding. The outer
-Ledger replay/refresh envelope still needs migration; these checks do not
-establish Ledger retirement or multi-writer support.
+The PostgreSQL HTTP profile uses native durable execution without Ledger replay
+or refresh. Its ownership-only guard reads flat image identity and both supplied
+and existing attached artifacts, applying current grants without private image
+metadata or digest revalidation. These locks join the outer transaction; fresh
+execution retains digest checks and immutable natural-key reuse. Live tests
+cover record/audit/replay/outer-commit recovery, concurrent delivery, cancellation
+and lock lifetime. Raw input limits precede trimming; encoded repository index
+overflow maps to safe validation rather than a server error. Local memory keeps
+its explicit nondurable binding. Startup and other command wrappers still need
+migration; this does not establish Ledger retirement or multi-writer support.
 
 SSO trust normalization now lives in a stateless Identity application policy,
 shared by local compatibility and production callers. It rejects recognized

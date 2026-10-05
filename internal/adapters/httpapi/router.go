@@ -566,6 +566,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if (opts.ProductCommands != nil || opts.ProjectCommands != nil || opts.ReleaseCreationCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused catalog creation requires durable idempotency")
 	}
+	if (opts.ArtifactCommands != nil || opts.ContainerImageCommands != nil) && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused artifact/image registration requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -1349,28 +1352,6 @@ func (s *Server) transitionReleaseCandidate(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name      string `json:"name"`
-		MediaType string `json:"media_type"`
-		Digest    string `json:"digest"`
-		Size      int64  `json:"size"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.artifactCommands != nil {
-			artifact, err := s.artifactCommands.RegisterArtifact(ctx, actor, releaseapp.RegisterArtifactInput{
-				Name: req.Name, MediaType: req.MediaType, Digest: req.Digest, Size: req.Size,
-			})
-			return http.StatusCreated, artifactFromQuery(artifact), mapBuildAttestationCommandError(err)
-		}
-		artifact, err := s.releaseCatalog.RegisterArtifact(ctx, actor, req.Name, req.MediaType, req.Digest, req.Size)
-		return http.StatusCreated, artifact, err
-	})
-}
-
 func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -1391,31 +1372,6 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, artifact)
-}
-
-func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ArtifactID string `json:"artifact_id"`
-		Repository string `json:"repository"`
-		Tag        string `json:"tag"`
-		Digest     string `json:"digest"`
-		Platform   string `json:"platform"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.containerImageCommands != nil {
-			image, err := s.containerImageCommands.RegisterContainerImage(ctx, actor, releaseapp.RegisterContainerImageInput{
-				ArtifactID: req.ArtifactID, Repository: req.Repository, Tag: req.Tag, Digest: req.Digest, Platform: req.Platform,
-			})
-			return http.StatusCreated, containerImageFromCommand(image), mapBuildAttestationCommandError(err)
-		}
-		image, err := s.releaseCatalog.RegisterContainerImage(ctx, actor, app.RegisterContainerImageInput{
-			ArtifactID: req.ArtifactID, Repository: req.Repository, Tag: req.Tag, Digest: req.Digest, Platform: req.Platform,
-		})
-		return http.StatusCreated, image, err
-	})
 }
 
 func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {

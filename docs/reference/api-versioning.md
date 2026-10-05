@@ -987,6 +987,31 @@ These input and authority restrictions require release compatibility review;
 this note does not approve an exception or claim publication. Local memory
 remains nondurable; production Ledger retirement is not yet established.
 
+## Unreleased Artifact And Container Image Registration Boundary
+
+Artifact and container-image registration now use native PostgreSQL durable
+HTTP execution instead of Ledger cloning/replay/refresh. Routes, response
+fields, request-byte fingerprints, stored schemas, optional artifact/size
+defaults and immutable natural-key reuse remain unchanged; no migration or
+historical rewrite is required. Completed retries check current tenant and
+applicable existing/submitted artifact ownership and grants without private
+metadata or image digest revalidation. Fresh image creation retains digest
+checks. Exact JSON integer sizes are preserved on replay.
+
+Both profiles now reject null, unknown, duplicate, case-aliased and malformed
+JSON fields, including optional fields explicitly set to null. NUL-free UTF-8
+raw names/media types and repository/tag/platform text are limited to 64 KiB
+before trimming, digest text to 128 bytes and artifact IDs to 1024 bytes; the
+whole body remains limited to 64 KiB. Cookie writes require same-host HTTPS
+Origin with Bearer precedence. An indexed repository exceeding PostgreSQL's
+encoded tuple capacity returns safe `400` rather than `500`.
+
+These authority and input restrictions require release compatibility review;
+this note does not approve an exception or claim publication. Local memory is
+nondurable, broader Ledger retirement remains incomplete, and registration
+does not verify artifact bytes or registry images. See
+[registration behavior](../api.md#container-image-registration).
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

@@ -10,6 +10,7 @@ import (
 )
 
 type ContainerImageCommands interface {
+	AuthorizeContainerImageRegistration(context.Context, identitydomain.Actor, releaseapp.RegisterContainerImageInput) error
 	RegisterContainerImage(context.Context, identitydomain.Actor, releaseapp.RegisterContainerImageInput) (releasedomain.ContainerImage, error)
 }
 

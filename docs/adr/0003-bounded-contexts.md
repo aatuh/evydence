@@ -299,6 +299,17 @@ Raw input normalization is shared with the explicit local profile. This does
 not retire startup aggregate loading or remaining command wrappers. See
 [catalog creation](../api.md#1-create-product-project-and-release).
 
+Artifact and container-image registration use native durable HTTP execution,
+with Release-owned read-only replay guards instead of Ledger cloning/refresh.
+Artifact guards select only the current tenant/digest identity and grants;
+image guards select flat natural-key identity and current submitted/existing
+artifact ownership and grants. They do not load private metadata, reapply image
+artifact digests or allocate IDs. The common writer fence precedes relational
+locks held through the outer transaction. Fresh immutable reuse and record,
+audit and replay atomicity remain. Both profiles share raw input/origin rules;
+local memory remains nondurable. Startup aggregate composition is still
+transitional. See [registration behavior](../api.md#container-image-registration).
+
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
 Together they own all 142 models assigned in the table below. Schema and policy

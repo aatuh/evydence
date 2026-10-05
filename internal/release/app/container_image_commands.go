@@ -67,13 +67,10 @@ func (s *ContainerImageCommands) RegisterContainerImage(ctx context.Context, act
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.ContainerImage{}, err
 	}
-	input.ArtifactID = strings.TrimSpace(input.ArtifactID)
-	input.Repository = strings.TrimSpace(input.Repository)
-	input.Tag = strings.TrimSpace(input.Tag)
-	input.Digest = strings.TrimSpace(input.Digest)
-	input.Platform = strings.TrimSpace(input.Platform)
-	if input.Repository == "" || !validDigest(input.Digest) {
-		return releasedomain.ContainerImage{}, ErrValidation
+	var err error
+	input, err = NormalizeContainerImageRegistrationInput(input)
+	if err != nil {
+		return releasedomain.ContainerImage{}, err
 	}
 	var artifact releasedomain.Artifact
 	if input.ArtifactID != "" {
@@ -90,7 +87,12 @@ func (s *ContainerImageCommands) RegisterContainerImage(ctx context.Context, act
 		}
 	}
 	var image releasedomain.ContainerImage
-	err := s.transactions.ExecuteContainerImage(ctx, func(ctx context.Context, tx ContainerImageTransaction) error {
+	err = s.transactions.ExecuteContainerImage(ctx, func(ctx context.Context, tx ContainerImageTransaction) error {
+		if _, native := tx.(ContainerImageRegistrationGuardReader); native {
+			if err := authorizeContainerImageRegistrationScope(ctx, tx, actor, input); err != nil {
+				return err
+			}
+		}
 		if input.ArtifactID != "" {
 			current, err := tx.GetArtifact(ctx, actor.TenantID, artifact.ID)
 			if err != nil {

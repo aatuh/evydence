@@ -16,10 +16,17 @@ import (
 )
 
 type artifactHTTPFake struct {
-	calls int
-	actor identitydomain.Actor
-	input releaseapp.RegisterArtifactInput
-	err   error
+	guards   int
+	guardErr error
+	calls    int
+	actor    identitydomain.Actor
+	input    releaseapp.RegisterArtifactInput
+	err      error
+}
+
+func (f *artifactHTTPFake) AuthorizeArtifactRegistration(context.Context, identitydomain.Actor, releaseapp.RegisterArtifactInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *artifactHTTPFake) RegisterArtifact(_ context.Context, actor identitydomain.Actor, in releaseapp.RegisterArtifactInput) (releasedomain.Artifact, error) {
@@ -31,23 +38,25 @@ func (f *artifactHTTPFake) RegisterArtifact(_ context.Context, actor identitydom
 func TestArtifactHTTPMapsFocusedDTOReplayAndPrivateErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &artifactHTTPFake{}
-	server, err := NewServerWithOptions(local.ledger, ServerOptions{ArtifactCommands: commands})
+	server, err := NewServerWithOptions(local.ledger, ServerOptions{ArtifactCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"name":"Release artifact","media_type":"application/octet-stream","digest":"sha256:output","size":123}`)
+	digest := "sha256:" + strings.Repeat("a", 64)
+	body := []byte(`{"name":"Release artifact","media_type":"application/octet-stream","digest":"` + digest + `","size":123}`)
 	response := postRaw(t, server, secret, "/v1/artifacts", "create-artifact", body, 201)
-	want := releaseapp.RegisterArtifactInput{Name: "Release artifact", MediaType: "application/octet-stream", Digest: "sha256:output", Size: 123}
+	want := releaseapp.RegisterArtifactInput{Name: "Release artifact", MediaType: "application/octet-stream", Digest: digest, Size: 123}
 	if commands.calls != 1 || commands.actor.TenantID == "" || !reflect.DeepEqual(commands.input, want) {
 		t.Fatal("focused artifact input changed", commands)
 	}
-	for _, field := range []string{`"id":"durable-artifact"`, `"tenant_id":"` + commands.actor.TenantID + `"`, `"name":"Release artifact"`, `"media_type":"application/octet-stream"`, `"digest":"sha256:output"`, `"size":123`, `"created_at":"2026-01-02T03:04:05Z"`} {
+	for _, field := range []string{`"id":"durable-artifact"`, `"tenant_id":"` + commands.actor.TenantID + `"`, `"name":"Release artifact"`, `"media_type":"application/octet-stream"`, `"digest":"` + digest + `"`, `"size":123`, `"created_at":"2026-01-02T03:04:05Z"`} {
 		if !strings.Contains(response, field) {
 			t.Fatal("artifact response lost field", field, response)
 		}
 	}
-	if replay := postRaw(t, server, secret, "/v1/artifacts", "create-artifact", body, 201); replay != response || commands.calls != 1 {
-		t.Fatal("artifact replay changed result or repeated command", replay, commands.calls)
+	assertTrustHTTPReplay(t, response, postRaw(t, server, secret, "/v1/artifacts", "create-artifact", body, 201))
+	if commands.calls != 1 {
+		t.Fatal("artifact replay repeated command", commands.calls)
 	}
 	postRaw(t, server, secret, "/v1/artifacts", "create-artifact", append(body, ' '), 409)
 	for i, tc := range []struct {
@@ -61,7 +70,7 @@ func TestArtifactHTTPMapsFocusedDTOReplayAndPrivateErrors(t *testing.T) {
 		}
 	}
 	commands.err = nil
-	postRaw(t, server, secret, "/v1/artifacts", "omitted-artifact-size", []byte(`{"name":"empty","media_type":"text/plain","digest":"sha256:output"}`), 201)
+	postRaw(t, server, secret, "/v1/artifacts", "omitted-artifact-size", []byte(`{"name":"empty","media_type":"text/plain","digest":"`+digest+`"}`), 201)
 	if commands.input.Size != 0 {
 		t.Fatal("omitted size default changed", commands.input)
 	}

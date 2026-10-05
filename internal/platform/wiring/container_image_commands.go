@@ -56,6 +56,25 @@ type containerImageTransaction struct {
 	authorizer application.Authorizer
 }
 
+func (t containerImageTransaction) ContainerImageRegistrationIdentityByKey(ctx context.Context, tenant, repository, digest string) (releaseapp.ContainerImageRegistrationIdentity, bool, error) {
+	r, ok := t.images.(interface {
+		ContainerImageRegistrationIdentityByKey(context.Context, string, string, string) (releaseapp.ContainerImageRegistrationIdentity, bool, error)
+	})
+	if !ok {
+		return releaseapp.ContainerImageRegistrationIdentity{}, false, releaseapp.ErrValidation
+	}
+	v, found, err := r.ContainerImageRegistrationIdentityByKey(ctx, tenant, repository, digest)
+	return v, found, mapProductWriteError(err)
+}
+func (t containerImageTransaction) ReadContainerImageRegistrationArtifact(ctx context.Context, tenant, id string) (releasedomain.Artifact, error) {
+	r, ok := t.source.(releaseapp.BuildCreationGuardReader)
+	if !ok {
+		return releasedomain.Artifact{}, releaseapp.ErrValidation
+	}
+	v, err := r.ReadBuildCreationArtifact(ctx, tenant, id)
+	return v, mapProductWriteError(err)
+}
+
 func (t containerImageTransaction) ContainerImageByRepositoryDigest(ctx context.Context, tenant, repository, digest string) (releasedomain.ContainerImage, bool, error) {
 	v, found, err := t.images.ContainerImageByRepositoryDigest(ctx, tenant, repository, digest)
 	return v, found, mapProductWriteError(err)

@@ -243,7 +243,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "registerArtifact":
-		operation.Description = "Registers a tenant-scoped artifact digest for later evidence, build, and attestation matching."
+		operation.Description = "Registers declared artifact metadata requiring evidence:write. PostgreSQL uses native durable execution without Ledger replay/refresh. Current tenant authority and existing digest ownership/grants run on every retry without private metadata, clocks or IDs; locks join the outer record/audit/replay transaction. Natural-key reuse returns original immutable metadata without another audit. Identical request bytes replay the original result, including exact integer sizes; changed bytes conflict. Both profiles require strict non-null exact JSON within 64 KiB; raw NUL-free UTF-8 names/media types are capped at 64 KiB and digest text at 128 bytes before trimming. Size is nonnegative and defaults to zero when omitted. Fresh reuse of oversized stored metadata returns 409. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable. Registration does not verify uploaded bytes, signatures or provenance."
 		operation.RequestBody = jsonRequest("Artifact registration request.", "#/components/schemas/RegisterArtifactRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered artifact envelope.", "#/components/schemas/ArtifactEnvelope")
 	case "getArtifact":
@@ -725,7 +725,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody.Required = false
 		operation.Responses[http.StatusCreated] = jsonResponse("Installed control framework envelope.", "#/components/schemas/ControlFrameworkEnvelope")
 	case "registerContainerImage":
-		operation.Description = "Registers OCI/container image metadata and digest evidence linked to an optional artifact."
+		operation.Description = "Registers declared OCI/container image metadata requiring evidence:write and current supplied/existing artifact ownership and grants. PostgreSQL uses native durable execution without Ledger replay/refresh. Every retry locks flat tenant/image/artifact coordinates through the outer transaction without private image metadata or artifact digest revalidation; fresh execution retains digest checks. Immutable tenant/repository/digest reuse adds no audit. Image, audit and successful replay commit together; identical bytes replay the original result and changed bytes conflict. Both profiles require strict non-null exact JSON within 64 KiB. Raw NUL-free UTF-8 artifact IDs are capped at 1024 bytes, repository/tag/platform at 64 KiB and digest text at 128 bytes before trimming. Indexed repository capacity overflow returns safe 400; fresh oversized stored image metadata returns 409. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable. Registration does not download or verify registry images."
 		operation.RequestBody = jsonRequest("Container image registration request.", "#/components/schemas/RegisterContainerImageRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered container image envelope.", "#/components/schemas/ContainerImageEnvelope")
 	case "uploadSecurityScan", "uploadAPISecurityScan":

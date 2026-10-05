@@ -568,6 +568,8 @@ type releaseCatalogService interface {
 	GetReleaseCandidate(context.Context, domain.Actor, string) (domain.ReleaseCandidate, error)
 	UpdateReleaseCandidateState(context.Context, domain.Actor, string, string, string, int64) (domain.ReleaseCandidate, error)
 	RegisterArtifact(context.Context, domain.Actor, string, string, string, int64) (domain.Artifact, error)
+	AuthorizeArtifactRegistration(context.Context, domain.Actor, releaseapp.RegisterArtifactInput) error
+	AuthorizeContainerImageRegistration(context.Context, domain.Actor, releaseapp.RegisterContainerImageInput) error
 	GetArtifact(context.Context, domain.Actor, string) (domain.Artifact, error)
 	RegisterContainerImage(context.Context, domain.Actor, app.RegisterContainerImageInput) (domain.ContainerImage, error)
 	AuthorizeBuildCreation(context.Context, domain.Actor, releaseapp.CreateBuildRunInput) error
