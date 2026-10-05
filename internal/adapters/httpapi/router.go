@@ -30,7 +30,6 @@ import (
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
-	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
@@ -568,6 +567,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	}
 	if (opts.ArtifactCommands != nil || opts.ContainerImageCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused artifact/image registration requires durable idempotency")
+	}
+	if opts.CandidateCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused candidate creation requires durable idempotency")
 	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
@@ -1234,37 +1236,6 @@ func (s *Server) approveRelease(w http.ResponseWriter, r *http.Request) {
 		}
 		release, err := s.releaseCatalog.ApproveRelease(ctx, actor, r.PathValue("id"), expectedRevision)
 		return http.StatusOK, release, err
-	})
-}
-
-func (s *Server) createReleaseCandidate(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ReleaseID   string   `json:"release_id"`
-		Name        string   `json:"name"`
-		BuildIDs    []string `json:"build_ids"`
-		ArtifactIDs []string `json:"artifact_ids"`
-		SBOMIDs     []string `json:"sbom_ids"`
-		ScanIDs     []string `json:"scan_ids"`
-		VEXIDs      []string `json:"vex_ids"`
-		ContractIDs []string `json:"contract_ids"`
-		BundleIDs   []string `json:"bundle_ids"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.candidateCommands != nil {
-			candidate, err := s.candidateCommands.CreateReleaseCandidate(ctx, actor, releaseapp.CreateReleaseCandidateInput{
-				ReleaseID: req.ReleaseID, Name: req.Name, BuildIDs: req.BuildIDs, ArtifactIDs: req.ArtifactIDs,
-				SBOMIDs: req.SBOMIDs, ScanIDs: req.ScanIDs, VEXIDs: req.VEXIDs, ContractIDs: req.ContractIDs, BundleIDs: req.BundleIDs,
-			})
-			return http.StatusCreated, releaseCandidateFromQuery(candidate), mapBuildAttestationCommandError(err)
-		}
-		candidate, err := s.releaseCatalog.CreateReleaseCandidate(ctx, actor, app.CreateReleaseCandidateInput{
-			ReleaseID: req.ReleaseID, Name: req.Name, BuildIDs: req.BuildIDs, ArtifactIDs: req.ArtifactIDs,
-			SBOMIDs: req.SBOMIDs, ScanIDs: req.ScanIDs, VEXIDs: req.VEXIDs, ContractIDs: req.ContractIDs, BundleIDs: req.BundleIDs,
-		})
-		return http.StatusCreated, candidate, err
 	})
 }
 

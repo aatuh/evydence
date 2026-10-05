@@ -564,6 +564,7 @@ type releaseCatalogService interface {
 	FreezeRelease(context.Context, domain.Actor, string, int64) (domain.Release, error)
 	ApproveRelease(context.Context, domain.Actor, string, int64) (domain.Release, error)
 	CreateReleaseCandidate(context.Context, domain.Actor, app.CreateReleaseCandidateInput) (domain.ReleaseCandidate, error)
+	AuthorizeCandidateCreation(context.Context, domain.Actor, releaseapp.CreateReleaseCandidateInput) error
 	ListReleaseCandidates(context.Context, domain.Actor, string) ([]domain.ReleaseCandidate, error)
 	GetReleaseCandidate(context.Context, domain.Actor, string) (domain.ReleaseCandidate, error)
 	UpdateReleaseCandidateState(context.Context, domain.Actor, string, string, string, int64) (domain.ReleaseCandidate, error)

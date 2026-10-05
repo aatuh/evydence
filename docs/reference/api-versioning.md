@@ -1012,6 +1012,26 @@ nondurable, broader Ledger retirement remains incomplete, and registration
 does not verify artifact bytes or registry images. See
 [registration behavior](../api.md#container-image-registration).
 
+## Unreleased Release Candidate Creation Boundary
+
+Candidate creation now uses native PostgreSQL durable HTTP execution instead of
+Ledger cloning/replay/refresh. Routes, public DTOs, byte fingerprints, schema,
+open/revision-1 initialization, snapshot hash profile, and sorted references
+with intentional duplicates remain. Different keys still create distinct
+snapshots; names are not reuse keys. No migration or historical rewrite is
+required. Current parent/reference ownership, source coherence and human grants
+are now checked before every replay without reading stored candidate documents.
+
+Both profiles now reject explicit null fields/items, unknown/duplicate fields,
+case aliases and malformed JSON. NUL-free UTF-8 raw names are capped at 64 KiB,
+parent/reference IDs at 1024 bytes before trimming. The seven reference arrays
+share 4096-entry and 64 KiB raw-identifier-byte limits. The complete JSON body
+remains capped at 64 KiB. Cookie writes require same-host HTTPS Origin with
+Bearer precedence. These input and replay-authority restrictions require
+release compatibility review; this note does not approve an exception or claim
+publication. Local memory is nondurable, candidate transitions remain
+transitional, and a snapshot is not a release-safety or compliance conclusion.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

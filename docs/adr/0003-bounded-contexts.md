@@ -310,6 +310,15 @@ audit and replay atomicity remain. Both profiles share raw input/origin rules;
 local memory remains nondurable. Startup aggregate composition is still
 transitional. See [registration behavior](../api.md#container-image-registration).
 
+Release-candidate creation uses the Release command's native durable execution
+and ownership-only replay guard. Current parent/reference coherence and grants
+are checked without existing candidate documents, private metadata or hashing.
+The shared writer fence precedes locks held on selected tenant, parent, reference
+and source-evidence rows through snapshot/audit/replay commit. The bounded SQL
+validator returns one boolean and preserves duplicate snapshot references.
+Local memory shares raw input and origin rules but remains nondurable. Candidate
+state transitions and startup are still transitional. See [API behavior](../api.md).
+
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
 Together they own all 142 models assigned in the table below. Schema and policy

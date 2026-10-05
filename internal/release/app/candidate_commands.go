@@ -54,38 +54,17 @@ func (s *CandidateCommands) CreateReleaseCandidate(ctx context.Context, actor id
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	input.ReleaseID, input.Name = strings.TrimSpace(input.ReleaseID), strings.TrimSpace(input.Name)
-	// Reject excessive slice sizes before cloning and sorting caller input.
-	count := 0
-	for _, ids := range [][]string{input.BuildIDs, input.ArtifactIDs, input.SBOMIDs, input.ScanIDs, input.VEXIDs, input.ContractIDs, input.BundleIDs} {
-		if len(ids) > 4096-count {
-			return releasedomain.ReleaseCandidate{}, ErrValidation
-		}
-		count += len(ids)
+	var err error
+	input, err = NormalizeCandidateCreationInput(input)
+	if err != nil {
+		return releasedomain.ReleaseCandidate{}, err
 	}
-	refs := normalizeReleaseCandidateReferences(input)
-	if !validCandidateText(input.ReleaseID, 1024) || !validCandidateText(input.Name, 65536) || !ValidCandidateReferences(refs) {
-		return releasedomain.ReleaseCandidate{}, ErrValidation
-	}
+	refs := ReleaseCandidateReferences{BuildIDs: input.BuildIDs, ArtifactIDs: input.ArtifactIDs, SBOMIDs: input.SBOMIDs, ScanIDs: input.ScanIDs, VEXIDs: input.VEXIDs, ContractIDs: input.ContractIDs, BundleIDs: input.BundleIDs}
 	var candidate releasedomain.ReleaseCandidate
-	err := s.config.Transactions.ExecuteCandidateCreation(ctx, func(ctx context.Context, tx CandidateCreationTransaction) error {
-		parent, err := tx.ReadCandidateRelease(ctx, actor.TenantID, input.ReleaseID)
+	err = s.config.Transactions.ExecuteCandidateCreation(ctx, func(ctx context.Context, tx CandidateCreationTransaction) error {
+		parent, err := authorizeCandidateCreationScope(ctx, tx, actor, input)
 		if err != nil {
 			return err
-		}
-		if parent.ID != input.ReleaseID || parent.TenantID != actor.TenantID || parent.ProductID == "" {
-			return ErrNotFound
-		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: parent.ProductID, ReleaseID: parent.ID}}); err != nil {
-			return err
-		}
-		if err := tx.ValidateReleaseCandidateReferences(ctx, actor.TenantID, parent.ID, cloneReleaseCandidateReferences(refs)); err != nil {
-			return err
-		}
-		for _, id := range refs.ArtifactIDs {
-			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ArtifactID: id}}); err != nil {
-				return err
-			}
 		}
 		state, _ := releasedomain.ParseReleaseCandidateState("open")
 		candidate = releasedomain.ReleaseCandidate{ID: s.config.IDs.NewID("rc"), TenantID: actor.TenantID, ReleaseID: parent.ID, Name: input.Name, Revision: 1, State: state, BuildIDs: refs.BuildIDs, ArtifactIDs: refs.ArtifactIDs, SBOMIDs: refs.SBOMIDs, ScanIDs: refs.ScanIDs, VEXIDs: refs.VEXIDs, ContractIDs: refs.ContractIDs, BundleIDs: refs.BundleIDs, SchemaVersion: releasedomain.ReleaseCandidateSchemaVersion, CreatedAt: s.config.Clock.Now().UTC()}

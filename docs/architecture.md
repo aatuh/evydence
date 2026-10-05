@@ -595,13 +595,18 @@ profile is retained. Snapshot creation and audit append commit together, with
 microsecond-precision UTC times. Live tests verify pending parents and every
 reference type, compound rollback/replay, foreign/missing/wrong-release
 references, removed grants, artifact reuse, and insertion/audit failures.
-Production candidate-create HTTP now uses a creation-only dependency. Fresh
-empty-Ledger servers verify all snapshot fields/reference lists, durable
-point/list reads and replay, downstream promotion, adversarial input, foreign
-parents, removed grants, safe storage errors, and insertion/audit rollback.
-No authoritative candidate cache is published. Local-memory creation keeps
-its explicit compatibility binding; remaining production Ledger composition
-and full-state command-view reloads are still migration work.
+Production candidate creation uses a creation-only dependency and native durable
+HTTP execution, without Ledger cloning, replay or refresh. Its read-only guard
+rechecks current parents, all seven reference groups and grants without existing
+candidate documents, private metadata or snapshot hashing. The identifier-only
+SQL result now also holds selected references and their source-evidence parents
+under share locks through the outer transaction, after the common writer fence.
+Snapshot, principal audit and replay commit atomically. Live tests cover exact
+historical JSON, preserved duplicates/hash profile, current grants, ownership
+locks and four-stage rollback/recovery. Raw budgets precede normalization; local
+memory keeps explicit nondurable storage/replay and matching origin rules.
+Candidate transitions, startup composition and other wrappers remain migration
+work; this is not completed production Ledger retirement.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock
 the selected rows. Standalone artifact registration now looks up digests in

@@ -11,5 +11,6 @@ import (
 // CandidateCommands exposes snapshot creation only, not unrelated catalog
 // reads or lifecycle transitions.
 type CandidateCommands interface {
+	AuthorizeCandidateCreation(context.Context, identitydomain.Actor, releaseapp.CreateReleaseCandidateInput) error
 	CreateReleaseCandidate(context.Context, identitydomain.Actor, releaseapp.CreateReleaseCandidateInput) (releasedomain.ReleaseCandidate, error)
 }
