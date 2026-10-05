@@ -652,8 +652,22 @@ Build-attestation upload orchestration now lives in the standalone Release
 `BuildAttestationCommands`. Its four-read, fixed-shape transaction port rechecks
 the build, parent and output-artifact coordinates before committing evidence,
 attestation, audit and parser-job effects. The compatibility Release service
-delegates to the same command; it does not duplicate orchestration. The DSSE
-ingestion parser is independently composable from
+delegates to the same command; it does not duplicate orchestration.
+
+Its HTTP route now uses native durable replay and the application's existing
+20 MiB payload limit, with the shared upload concurrency budget. A separate
+read-only guard selects bounded build/parent/output-artifact ownership and
+current grants only, holding share locks through the outer replay transaction
+after the common writer fence. It never reparses or stages a completed upload,
+materializes build source identity or rereads historical ingestion records.
+Fresh and replayed HTTP responses both omit private payload storage coordinates;
+internal records retain them. Current tenant/grant checks, all nine database
+failure stages, malformed stored projections, concurrent one-time staging and
+cancellation are exercised by the native HTTP/guard/fence suites. Broader
+startup and unmigrated workflows remain transitional. See
+[attestation upload](api.md#build-attestation-upload) for the exact contract.
+
+The DSSE ingestion parser is independently composable from
 `internal/adapters/verification/dsse`, validates the observed bytes/size/digest
 within the existing 20 MiB limit, and performs structural parsing only, not
 signature verification. Worker-owned replayable uploads retain the parsed

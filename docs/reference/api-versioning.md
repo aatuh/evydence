@@ -944,6 +944,29 @@ review; this note does not approve an exception or claim that a public release
 already includes them. Local memory remains nondurable, submitted provider/OIDC
 metadata remains unverified, and production Ledger retirement is not claimed.
 
+## Unreleased Build Attestation Upload Boundary
+
+`POST /v1/builds/{id}/attestations` now uses native PostgreSQL durable replay
+and a current ownership/grant guard instead of a Ledger replay/refresh
+envelope. The HTTP body limit now matches the application's existing 20 MiB
+attestation limit, rather than the unrelated 64 KiB small-JSON cap. Upload
+concurrency limits also cover this route. Original request-byte fingerprints,
+stored schemas, subject/digest checks and worker ownership remain unchanged;
+no database migration or historical rewrite is required.
+
+Both profiles cap raw build IDs before trimming, reject empty/oversized bodies,
+require same-host HTTPS Origin for cookie writes and recheck current build,
+parent and output authority on completed retries. Fresh HTTP creation now
+omits the sensitive optional `payload_ref`, matching the existing centrally
+redacted replay contract. Internal storage/worker records retain the reference.
+Clients should use the public evidence ID, payload hash and size rather than
+depending on storage coordinates. See [attestation upload](../api.md#build-attestation-upload).
+
+These restrictions and the privacy omission require release compatibility
+review; this note does not approve an exception or claim a published release
+already includes them. Structural acceptance is not signature verification,
+and this migration does not retire all production Ledger usage.
+
 ## Deprecation Lifecycle
 
 No operation is currently marked deprecated. When one is, the operation must

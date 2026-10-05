@@ -18,7 +18,8 @@ import (
 const (
 	BuildAttestationMediaType        = "application/vnd.dsse.envelope+json"
 	BuildAttestationParserVersion    = "dsse-in-toto-json.v1.0.0"
-	buildAttestationPayloadLimit     = int64(20 << 20)
+	BuildAttestationPayloadLimit     = int64(20 << 20)
+	buildAttestationPayloadLimit     = BuildAttestationPayloadLimit
 	buildAttestationPayloadLifecycle = "object-payload.v1"
 )
 
@@ -155,9 +156,10 @@ func (s *BuildAttestationCommands) UploadBuildAttestationPayload(ctx context.Con
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.BuildAttestation{}, err
 	}
-	buildID = strings.TrimSpace(buildID)
-	if buildID == "" {
-		return releasedomain.BuildAttestation{}, ErrNotFound
+	var err error
+	buildID, err = NormalizeBuildAttestationBuildID(buildID)
+	if err != nil {
+		return releasedomain.BuildAttestation{}, err
 	}
 	if !validBuildAttestationPayloadSource(source) {
 		return releasedomain.BuildAttestation{}, ErrValidation

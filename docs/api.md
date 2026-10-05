@@ -1594,6 +1594,44 @@ Bearer authentication takes precedence. Local memory uses current map-based
 ownership guards and remains nondurable. See the
 [unreleased compatibility boundary](reference/api-versioning.md#unreleased-build-creation-boundary).
 
+### Build Attestation Upload
+
+`POST /v1/builds/{id}/attestations` accepts a nonempty DSSE/in-toto JSON
+envelope of at most 20 MiB, including encoding and whitespace. The raw build
+ID is bounded at 1024 NUL-free UTF-8 bytes before trimming. Oversized/empty
+bodies or malformed IDs return `400` before ownership reads or ingestion.
+The route uses the existing upload concurrency budget (`429` when exhausted).
+Unsafe cookie writes require same-host HTTPS Origin; Bearer takes precedence.
+
+PostgreSQL uses native durable execution. Every retry requires `build:write`
+and current tenant-owned build/product/project/release and output-artifact
+authority; human sessions need matching current grants and artifact
+associations. Missing or foreign coordinates return `404`, denial `403`.
+The read-only guard holds parent and artifact share locks through the outer
+transaction, selecting no build source identity, release version, output
+digest or historical attestation/evidence payload. Its selected artifact IDs
+are limited to 4096 entries, 1024 bytes each and 1 MiB encoded JSON. Malformed
+or oversized stored ownership projections return `409`, never truncation.
+
+Fresh ingestion still validates the observed payload bytes, hash and size,
+current output digests and subject coverage. Evidence, attestation, caller
+audits, payload lifecycle records, worker jobs and replay completion commit
+together. Failed transactions can leave staged object bytes for normal
+reconciliation, but no committed evidence or parser jobs. Identical bytes
+under the same key replay the original public response without parsing,
+staging or creating another record; changed bytes return `409`.
+
+HTTP creation and replay omit the private `payload_ref` storage coordinate;
+the internal/durable record retains it. Hash, size, evidence ID, subject and
+parser metadata remain public. The creation response is `structurally_valid`,
+not cryptographically verified. With worker-owned parsing and managed payload
+storage, persisted parser-owned fields remain pending (`accepted`) until the
+worker runs. Signature verification is the separate
+`POST /v1/build-attestations/{id}/verify-signature` operation. Explicit local
+memory shares the size/ID/origin rules and current map guard but remains
+nondurable. See the
+[unreleased compatibility boundary](reference/api-versioning.md#unreleased-build-attestation-upload-boundary).
+
 ### Container Image Registration
 
 Container-image registration in the PostgreSQL profile uses current durable

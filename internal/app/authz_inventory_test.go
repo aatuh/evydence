@@ -8,7 +8,8 @@ import (
 
 func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 	files := map[string][]string{
-		"build_creation_replay_guard.go": {"AuthorizeBuildCreation"},
+		"build_creation_replay_guard.go":      {"AuthorizeBuildCreation"},
+		"build_attestation_creation_guard.go": {"AuthorizeBuildAttestationCreation"},
 		"builds.go": {
 			"CreateBuildRun",
 			"GetBuildRun",

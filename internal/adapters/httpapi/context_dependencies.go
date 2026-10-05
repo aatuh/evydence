@@ -570,6 +570,7 @@ type releaseCatalogService interface {
 	AuthorizeBuildCreation(context.Context, domain.Actor, releaseapp.CreateBuildRunInput) error
 	CreateBuildRun(context.Context, domain.Actor, app.CreateBuildRunInput) (domain.BuildRun, error)
 	GetBuildRun(context.Context, domain.Actor, string) (domain.BuildRun, error)
+	AuthorizeBuildAttestationCreation(context.Context, domain.Actor, string) error
 	UploadBuildAttestation(context.Context, domain.Actor, string, []byte) (domain.BuildAttestation, error)
 }
 

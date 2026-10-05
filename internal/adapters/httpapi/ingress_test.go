@@ -139,6 +139,7 @@ func TestIngressLimitsInFlightRequestsAndNativeUploads(t *testing.T) {
 	}{
 		{name: "in-flight", wrap: server.inFlightMiddleware, path: "/v1/version"},
 		{name: "native upload", wrap: server.uploadConcurrencyMiddleware, path: "/v1/sboms"},
+		{name: "build attestation", wrap: server.uploadConcurrencyMiddleware, path: "/v1/builds/build/attestations"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			entered := make(chan struct{})

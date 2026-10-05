@@ -279,6 +279,17 @@ Local memory shares raw bounds and current guards but remains nondurable.
 API startup loading and other workflows are still transitional. See
 [build creation](../api.md#build-creation).
 
+Build-attestation HTTP upload uses native durable execution too. A bounded
+ownership-only guard locks the current build, parents and supplied output
+artifacts through replay and checks current grants without invoking parsing,
+staging, clocks or IDs. Fresh ingestion still uses the fixed-shape Evidence
+capability documented below; this change does not replace it with a new saga.
+The transport shares the existing 20 MiB application limit and upload budget,
+and omits private object coordinates from both fresh and replayed public
+responses. Internal payload lifecycle and worker-pending records remain intact.
+Local memory retains its explicit nondurable store. See
+[attestation upload](../api.md#build-attestation-upload).
+
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
 Together they own all 142 models assigned in the table below. Schema and policy

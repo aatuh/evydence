@@ -215,8 +215,8 @@ func TestPostgresBuildAttestationIngestionCommitsAtomicEvidencePayloadJobsAndRep
 	baseline = counts()
 	stages = objects.stages
 	replay := post(newServer(), "http-replay", raw, http.StatusCreated)
-	// Durable replay stores normalized, privacy-filtered JSON. Only the
-	// established payload_ref omission and member ordering may differ.
+	// Fresh transport and durable replay both omit sensitive storage
+	// coordinates; all public JSON fields must now agree exactly.
 	var originalJSON, replayJSON any
 	if err := json.Unmarshal(response, &originalJSON); err != nil {
 		t.Fatal(err)
@@ -226,13 +226,16 @@ func TestPostgresBuildAttestationIngestionCommitsAtomicEvidencePayloadJobsAndRep
 	}
 	originalData := originalJSON.(map[string]any)["data"].(map[string]any)
 	replayData := replayJSON.(map[string]any)["data"].(map[string]any)
-	if originalData["payload_ref"] != v.PayloadRef {
-		t.Fatal("initial payload reference changed", originalData)
+	if _, exposed := originalData["payload_ref"]; exposed {
+		t.Fatal("fresh response retained private payload reference", originalData)
 	}
 	if _, exposed := replayData["payload_ref"]; exposed {
 		t.Fatal("replay retained private payload reference", replayData)
 	}
-	delete(originalData, "payload_ref")
+	var storedReference string
+	if err := pool.QueryRow(ctx, `SELECT payload_ref FROM build_attestations WHERE id=$1`, result.Data.ID).Scan(&storedReference); err != nil || storedReference == "" || storedReference != v.PayloadRef {
+		t.Fatal("public privacy filtering changed the internal storage reference", storedReference, err)
+	}
 	if !reflect.DeepEqual(originalJSON, replayJSON) || counts() != baseline || objects.stages != stages {
 		t.Fatal("HTTP restart replay changed response or effects", string(response), string(replay), counts(), baseline, objects.stages, stages)
 	}

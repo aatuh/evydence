@@ -560,6 +560,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.BuildCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused build creation requires durable idempotency")
 	}
+	if opts.BuildAttestationCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused build attestations require durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -1505,17 +1508,6 @@ func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, build)
-}
-
-func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) {
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if s.buildAttestationCommands != nil {
-			attestation, err := s.buildAttestationCommands.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
-			return http.StatusCreated, buildAttestationFromCommand(attestation), mapBuildAttestationCommandError(err)
-		}
-		attestation, err := s.releaseCatalog.UploadBuildAttestation(ctx, actor, r.PathValue("id"), body)
-		return http.StatusCreated, attestation, err
-	})
 }
 
 func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) {

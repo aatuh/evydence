@@ -92,6 +92,15 @@ type attestationTransaction struct {
 	ids        application.IDGenerator
 }
 
+func (t attestationTransaction) ReadBuildAttestationCreationScope(ctx context.Context, tenant, id string) (releaseapp.BuildAttestationCreationCoordinates, error) {
+	r, ok := t.snapshots.(releaseapp.BuildAttestationCreationGuardReader)
+	if !ok {
+		return releaseapp.BuildAttestationCreationCoordinates{}, releaseapp.ErrValidation
+	}
+	v, err := r.ReadBuildAttestationCreationScope(ctx, tenant, id)
+	return v, mapAttestationWriteError(err)
+}
+
 func (t attestationTransaction) GetBuildRun(ctx context.Context, tenant, id string) (releasedomain.BuildRun, error) {
 	v, err := t.snapshots.ReadBuildAttestationBuild(ctx, tenant, id)
 	return v, mapAttestationWriteError(err)

@@ -238,7 +238,8 @@ func isNativeUploadRequest(r *http.Request) bool {
 	case "/v1/sboms", "/v1/sboms/spdx", "/v1/vex", "/v1/vex/cyclonedx", "/v1/vulnerability-scans", "/v1/openapi-contracts":
 		return true
 	default:
-		return false
+		parts := strings.Split(r.URL.EscapedPath(), "/")
+		return len(parts) == 5 && parts[1] == "v1" && parts[2] == "builds" && parts[3] != "" && parts[4] == "attestations"
 	}
 }
 

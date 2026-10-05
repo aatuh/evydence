@@ -19,6 +19,10 @@ func (s *Server) createDurable(w http.ResponseWriter, r *http.Request, authorize
 	s.createDurableAfterCommit(w, r, authorize, run, nil)
 }
 
+func (s *Server) createDurableWithLimit(w http.ResponseWriter, r *http.Request, limit int64, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error)) {
+	s.createDurableWithLimitAndFingerprint(w, r, limit, authorize, run, nil, nil)
+}
+
 func (s *Server) createDurableAfterCommit(w http.ResponseWriter, r *http.Request, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error), afterCommit func()) {
 	s.createDurableWithFingerprint(w, r, authorize, run, afterCommit, nil)
 }
@@ -26,11 +30,15 @@ func (s *Server) createDurableAfterCommit(w http.ResponseWriter, r *http.Request
 // Fingerprints may bind security-relevant request context while callbacks still
 // receive the original bytes. Current authorization always precedes replay.
 func (s *Server) createDurableWithFingerprint(w http.ResponseWriter, r *http.Request, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error), afterCommit func(), fingerprint func(domain.Actor, []byte) ([]byte, error)) {
+	s.createDurableWithLimitAndFingerprint(w, r, app.SmallJSONRequestLimit, authorize, run, afterCommit, fingerprint)
+}
+
+func (s *Server) createDurableWithLimitAndFingerprint(w http.ResponseWriter, r *http.Request, limit int64, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error), afterCommit func(), fingerprint func(domain.Actor, []byte) ([]byte, error)) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
 	}
-	body, err := readBodyLimit(r, app.SmallJSONRequestLimit)
+	body, err := readBodyLimit(r, limit)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
