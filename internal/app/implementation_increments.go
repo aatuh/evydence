@@ -400,28 +400,19 @@ func (l *Ledger) CreateSourceRepository(ctx context.Context, actor domain.Actor,
 }
 
 func (l *Ledger) RecordSourceCommit(ctx context.Context, actor domain.Actor, in RecordCommitInput) (domain.SourceCommit, error) {
-	if err := ctx.Err(); err != nil {
+	in, err := prepareLocalSourceCommit(ctx, actor, in)
+	if err != nil {
 		return domain.SourceCommit{}, err
-	}
-	if err := require(actor, ScopeSourceWrite); err != nil {
-		return domain.SourceCommit{}, err
-	}
-	in.RepositoryID, in.SHA = strings.TrimSpace(in.RepositoryID), strings.ToLower(strings.TrimSpace(in.SHA))
-	if in.RepositoryID == "" || !validCommitSHA(in.SHA) {
-		return domain.SourceCommit{}, ErrValidation
 	}
 	if in.CommittedAt.IsZero() {
 		in.CommittedAt = l.now()
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	repo, ok := l.repositories[in.RepositoryID]
-	if !ok || repo.TenantID != actor.TenantID {
-		return domain.SourceCommit{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProjectID: repo.ProjectID, SourceRepositoryID: repo.ID}); err != nil {
+	if err := l.authorizeLocalSourceWriteLocked(actor, in.RepositoryID, ""); err != nil {
 		return domain.SourceCommit{}, err
 	}
+	repo := l.repositories[in.RepositoryID]
 	for _, existing := range l.commits {
 		if existing.TenantID == actor.TenantID && existing.RepositoryID == repo.ID && existing.SHA == in.SHA {
 			return existing, nil
@@ -467,31 +458,16 @@ func (l *Ledger) RecordSourceCommit(ctx context.Context, actor domain.Actor, in 
 }
 
 func (l *Ledger) UpsertSourceBranch(ctx context.Context, actor domain.Actor, in UpsertBranchInput) (domain.SourceBranch, error) {
-	if err := ctx.Err(); err != nil {
+	in, err := prepareLocalSourceBranch(ctx, actor, in)
+	if err != nil {
 		return domain.SourceBranch{}, err
-	}
-	if err := require(actor, ScopeSourceWrite); err != nil {
-		return domain.SourceBranch{}, err
-	}
-	in.RepositoryID, in.Name = strings.TrimSpace(in.RepositoryID), strings.TrimSpace(in.Name)
-	if in.RepositoryID == "" || in.Name == "" {
-		return domain.SourceBranch{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	repo, ok := l.repositories[in.RepositoryID]
-	if !ok || repo.TenantID != actor.TenantID {
-		return domain.SourceBranch{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProjectID: repo.ProjectID, SourceRepositoryID: repo.ID}); err != nil {
+	if err := l.authorizeLocalSourceWriteLocked(actor, in.RepositoryID, in.HeadCommitID); err != nil {
 		return domain.SourceBranch{}, err
 	}
-	if in.HeadCommitID != "" {
-		commit, ok := l.commits[strings.TrimSpace(in.HeadCommitID)]
-		if !ok || commit.TenantID != actor.TenantID || commit.RepositoryID != repo.ID {
-			return domain.SourceBranch{}, ErrNotFound
-		}
-	}
+	repo := l.repositories[in.RepositoryID]
 	for id, existing := range l.branches {
 		if existing.TenantID == actor.TenantID && existing.RepositoryID == repo.ID && existing.Name == in.Name {
 			existing.HeadCommitID = strings.TrimSpace(in.HeadCommitID)
@@ -557,31 +533,16 @@ func (l *Ledger) UpsertSourceBranch(ctx context.Context, actor domain.Actor, in 
 }
 
 func (l *Ledger) RecordPullRequest(ctx context.Context, actor domain.Actor, in RecordPullRequestInput) (domain.PullRequest, error) {
-	if err := ctx.Err(); err != nil {
+	in, err := prepareLocalPullRequest(ctx, actor, in)
+	if err != nil {
 		return domain.PullRequest{}, err
-	}
-	if err := require(actor, ScopeSourceWrite); err != nil {
-		return domain.PullRequest{}, err
-	}
-	in.RepositoryID, in.ProviderID, in.Title, in.State = strings.TrimSpace(in.RepositoryID), strings.TrimSpace(in.ProviderID), strings.TrimSpace(in.Title), strings.TrimSpace(in.State)
-	if in.RepositoryID == "" || in.ProviderID == "" || in.Title == "" || !validPullRequestState(in.State) {
-		return domain.PullRequest{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	repo, ok := l.repositories[in.RepositoryID]
-	if !ok || repo.TenantID != actor.TenantID {
-		return domain.PullRequest{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeSourceWrite, resourceRefs{ProjectID: repo.ProjectID, SourceRepositoryID: repo.ID}); err != nil {
+	if err := l.authorizeLocalSourceWriteLocked(actor, in.RepositoryID, in.HeadCommitID); err != nil {
 		return domain.PullRequest{}, err
 	}
-	if in.HeadCommitID != "" {
-		commit, ok := l.commits[strings.TrimSpace(in.HeadCommitID)]
-		if !ok || commit.TenantID != actor.TenantID || commit.RepositoryID != repo.ID {
-			return domain.PullRequest{}, ErrNotFound
-		}
-	}
+	repo := l.repositories[in.RepositoryID]
 	pr := domain.PullRequest{
 		ID:             newID("pr"),
 		TenantID:       actor.TenantID,

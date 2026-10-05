@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/hex"
 	"sort"
 	"strings"
 	"time"
@@ -383,14 +382,6 @@ func validCollectorScopes(scopes []string) bool {
 
 func validCollectorType(typ string) bool {
 	return integrationapp.ValidCollectorType(typ)
-}
-
-func validCommitSHA(value string) bool {
-	if len(value) != 40 {
-		return false
-	}
-	_, err := hex.DecodeString(value)
-	return err == nil
 }
 
 func actorType(actor domain.Actor) string {

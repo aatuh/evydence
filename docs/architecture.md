@@ -1388,7 +1388,10 @@ remain EVY-905 work. See [source repository creation](api.md#source-repository-c
 for grant boundaries, validation limits and metadata-only semantics.
 
 PostgreSQL-profile source commit recording uses the same Integration ownership
-policy with a focused transaction port. Repository ownership and a single
+policy with a focused transaction port and native durable HTTP replay. Its
+read-only guard checks current flat ownership before replay without reading
+commit metadata, hashing messages or allocating IDs/timestamps. Repository
+ownership and a single
 commit are read through bounded projections; no clone URL or provider payload
 is loaded. The projection fence precedes the repository serialization lock.
 Lowercase SHA reuse returns the original record without new effects; new commit,
@@ -1398,7 +1401,8 @@ for hash inputs, grant boundaries and metadata-only limitations.
 
 PostgreSQL-profile source branch upserts share the repository ownership and
 serialization port with source commit recording. A bounded head-commit identity
-read enforces tenant/repository binding without loading author metadata. A
+read enforces tenant/repository binding without loading author metadata, and
+share-locks those coordinates through the native replay commit. A
 bounded branch read preserves creation identity while replacing current branch
 state. Each execution and audit is atomic, including unchanged updates; HTTP
 replay does not reapply old state. See [source branch upserts](api.md#source-branch-upserts)
@@ -1412,6 +1416,14 @@ a snapshot and audit atomically with replay state, even for an already-recorded
 provider ID. Title/review text stays in the scoped record, not the audit. See
 [pull-request recording](api.md#pull-request-recording) for metadata defaults,
 replay behavior and provider-trust limitations.
+
+All three source-write routes bypass Ledger-backed HTTP replay. Their shared
+writer fence precedes tenant, repository, product/project and optional-head
+locks; current grants are checked before fresh execution and completed replay.
+The guards never read mutable branch metadata, previous commits/PRs or provider
+defaults. Both runtime profiles check raw input bounds and cookie Origin rules;
+local memory retains nondurable map storage. See the
+[shared replay boundary](api.md#source-write-replay-boundary).
 
 PostgreSQL-profile GitHub/GitLab source snapshots compose those four focused
 Integration commands through a four-method transaction port. The composition

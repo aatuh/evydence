@@ -57,49 +57,54 @@ func NewSourceBranchCommands(c SourceBranchConfig) (*SourceBranchCommands, error
 	}
 	return &SourceBranchCommands{c}, nil
 }
-func (s *SourceBranchCommands) UpsertSourceBranch(ctx context.Context, a identitydomain.Actor, in UpsertSourceBranchInput) (integrationdomain.SourceBranch, error) {
-	if ctx == nil {
-		return integrationdomain.SourceBranch{}, ErrValidation
-	}
-	if err := ctx.Err(); err != nil {
-		return integrationdomain.SourceBranch{}, err
-	}
-	scope := application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}
-	if err := s.config.Authorizer.Authorize(ctx, a, scope); err != nil {
-		return integrationdomain.SourceBranch{}, err
+func NormalizeSourceBranchInput(in UpsertSourceBranchInput) (UpsertSourceBranchInput, error) {
+	if !validSourceText(in.RepositoryID, 1024, false) || !validSourceText(in.Name, MaxSourceTextBytes, false) || !validSourceText(in.HeadCommitID, 1024, true) || !validSourceText(in.ProtectionHash, MaxSourceTextBytes, true) {
+		return in, ErrValidation
 	}
 	headProvided := in.HeadCommitID != ""
 	in.RepositoryID, in.Name, in.HeadCommitID, in.ProtectionHash = strings.TrimSpace(in.RepositoryID), strings.TrimSpace(in.Name), strings.TrimSpace(in.HeadCommitID), strings.TrimSpace(in.ProtectionHash)
-	if !validSourceText(a.TenantID, 1024, false) || !validSourceText(in.RepositoryID, 1024, false) || !validSourceText(in.Name, MaxSourceTextBytes, false) || !validSourceText(in.HeadCommitID, 1024, true) || !validSourceText(in.ProtectionHash, MaxSourceTextBytes, true) || len(a.TenantID)+len(in.RepositoryID)+len(in.Name) > MaxSourceBranchKeyBytes {
+	if in.RepositoryID == "" || in.Name == "" {
+		return in, ErrValidation
+	}
+	if headProvided && in.HeadCommitID == "" {
+		return in, ErrNotFound
+	}
+	return in, nil
+}
+
+func ValidateSourceBranchKey(tenant string, in UpsertSourceBranchInput) error {
+	if !validSourceText(tenant, 1024, false) || strings.TrimSpace(tenant) != tenant || len(tenant)+len(in.RepositoryID)+len(in.Name) > MaxSourceBranchKeyBytes {
+		return ErrValidation
+	}
+	return nil
+}
+
+func (s *SourceBranchCommands) UpsertSourceBranch(ctx context.Context, a identitydomain.Actor, in UpsertSourceBranchInput) (integrationdomain.SourceBranch, error) {
+	if s == nil {
 		return integrationdomain.SourceBranch{}, ErrValidation
+	}
+	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+		return integrationdomain.SourceBranch{}, err
+	}
+	in, err := NormalizeSourceBranchInput(in)
+	if err != nil {
+		return integrationdomain.SourceBranch{}, err
+	}
+	if err := ValidateSourceBranchKey(a.TenantID, in); err != nil {
+		return integrationdomain.SourceBranch{}, err
 	}
 	now := s.config.Clock.Now().UTC().Truncate(time.Microsecond)
 	if !validSourceTime(now) {
 		return integrationdomain.SourceBranch{}, ErrValidation
 	}
 	var result integrationdomain.SourceBranch
-	err := s.config.Transactions.ExecuteSourceBranch(ctx, func(ctx context.Context, tx SourceBranchTransaction) error {
-		if err := tx.Authorize(ctx, a, scope); err != nil {
-			return err
-		}
-		r, err := tx.LockSourceRepositoryForWrite(ctx, a.TenantID, in.RepositoryID)
+	err = s.config.Transactions.ExecuteSourceBranch(ctx, func(ctx context.Context, tx SourceBranchTransaction) error {
+		r, err := authorizeSourceWriteRepository(ctx, tx, a, in.RepositoryID)
 		if err != nil {
 			return err
 		}
-		if err := validateSourceRepositoryIdentity(r, a.TenantID, in.RepositoryID); err != nil {
+		if err := authorizeSourceHead(ctx, tx, a, r.ID, in.HeadCommitID); err != nil {
 			return err
-		}
-		if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(r.ProjectID, r.ProductID)); err != nil {
-			return err
-		}
-		if headProvided {
-			h, err := tx.SourceCommitIdentityByID(ctx, a.TenantID, r.ID, in.HeadCommitID)
-			if err != nil {
-				return err
-			}
-			if err := validateSourceCommitIdentity(h, a.TenantID, r.ID, in.HeadCommitID); err != nil {
-				return err
-			}
 		}
 		v, found, err := tx.SourceBranchByName(ctx, a.TenantID, r.ID, in.Name)
 		if err != nil {

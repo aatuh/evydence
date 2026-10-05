@@ -15,9 +15,16 @@ import (
 )
 
 type sourceBranchHTTPFake struct {
-	calls int
-	err   error
-	input integrationapp.UpsertSourceBranchInput
+	calls    int
+	guards   int
+	guardErr error
+	err      error
+	input    integrationapp.UpsertSourceBranchInput
+}
+
+func (f *sourceBranchHTTPFake) AuthorizeSourceBranchUpsert(context.Context, identitydomain.Actor, integrationapp.UpsertSourceBranchInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *sourceBranchHTTPFake) UpsertSourceBranch(_ context.Context, a identitydomain.Actor, in integrationapp.UpsertSourceBranchInput) (integrationdomain.SourceBranch, error) {
@@ -28,7 +35,7 @@ func (f *sourceBranchHTTPFake) UpsertSourceBranch(_ context.Context, a identityd
 func TestSourceBranchHTTPUsesFocusedCommandAndPreservesReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &sourceBranchHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceBranchCommands: f})
+	s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceBranchCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,10 +44,11 @@ func TestSourceBranchHTTPUsesFocusedCommandAndPreservesReplay(t *testing.T) {
 	if !strings.Contains(body, `"id":"durable_branch"`) || !strings.Contains(body, `"protected":true`) || f.calls != 1 || f.input.HeadCommitID != "durable-head" || f.input.ProtectionHash != "opaque" {
 		t.Fatal(body, f)
 	}
-	if again := postJSON(t, s, secret, "/v1/source/branches", "branch-replay", in, 201); again != body || f.calls != 1 {
+	assertTrustHTTPReplay(t, body, postJSON(t, s, secret, "/v1/source/branches", "branch-replay", in, 201))
+	if f.calls != 1 {
 		t.Fatal("replay reran branch update", f)
 	}
-	postJSON(t, s, secret, "/v1/source/branches", "branch-replay", map[string]any{"repository_id": "different"}, 409)
+	postJSON(t, s, secret, "/v1/source/branches", "branch-replay", map[string]any{"repository_id": "different", "name": "main"}, 409)
 	for i, raw := range []string{`null`, `[]`, `{"repository_id":null}`, `{"name":null}`, `{"head_commit_id":null}`, `{"protected":null}`, `{"protected":"true"}`, `{"protection_hash":null}`, `{"unknown":true}`, `{"name":"a","name":"b"}`, `{} {}`} {
 		postRaw(t, s, secret, "/v1/source/branches", fmt.Sprintf("bad-branch-%d", i), []byte(raw), 400)
 	}

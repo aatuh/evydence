@@ -23,6 +23,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		},
 		"control_evidence_replay_guard.go":  {"AuthorizeControlEvidenceLink", "authorizeControlEvidenceLinkLocked"},
 		"source_repository_replay_guard.go": {"AuthorizeSourceRepositoryCreation", "authorizeSourceRepositoryCreationLocked"},
+		"source_write_replay_guard.go":      {"AuthorizeSourceCommitRecording", "AuthorizeSourceBranchUpsert", "AuthorizePullRequestRecording", "authorizeLocalSourceWriteLocked"},
 		"enterprise.go": {
 			"CreateCustomerPortalAccess",
 			"RevokeCustomerPortalAccess",
@@ -94,6 +95,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 				!strings.Contains(fn, "authorizeGraphSnapshotLocked") && !strings.Contains(fn, "authorizeProductReleaseLocked") &&
 				!strings.Contains(fn, "authorizeControlEvidenceLinkLocked") &&
 				!strings.Contains(fn, "authorizeSourceRepositoryCreationLocked") &&
+				!strings.Contains(fn, "authorizeLocalSourceWriteLocked") &&
 				!strings.Contains(fn, "verificationquery.NewSigningKeyAdminAuthorizer().Authorize") && !strings.Contains(fn, "l.AuthorizeCreateSigningOperation(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeSaaSProfileActor(") && !strings.Contains(fn, "l.AuthorizeCreateSaaSEditionProfile(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeMarketplaceCollectorActor(") && !strings.Contains(fn, "l.AuthorizeCreateMarketplaceCollector(") &&

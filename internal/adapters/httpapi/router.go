@@ -27,7 +27,6 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
-	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
@@ -552,6 +551,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	}
 	if opts.SourceRepositoryCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused source repository creation requires durable idempotency")
+	}
+	if (opts.SourceCommitCommands != nil || opts.SourceBranchCommands != nil || opts.PullRequestCommands != nil) && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused source writes require durable idempotency")
 	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
@@ -1607,89 +1609,6 @@ func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) 
 	}
 	writeCreatedAtPaginated(s, w, r, actor, "source-repositories", []string{"project_id"}, repos, func(repo domain.SourceRepository) (string, time.Time) {
 		return repo.ID, repo.CreatedAt
-	})
-}
-
-func (s *Server) recordSourceCommit(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RepositoryID string    `json:"repository_id"`
-		SHA          string    `json:"sha"`
-		Author       string    `json:"author"`
-		Message      string    `json:"message"`
-		CommittedAt  time.Time `json:"committed_at"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.sourceCommitCommands != nil {
-			if err := validateNonNullableObjectFields(body, "repository_id", "sha", "author", "message", "committed_at"); err != nil {
-				return 0, nil, err
-			}
-			v, err := s.sourceCommitCommands.RecordSourceCommit(ctx, actor, integrationapp.RecordSourceCommitInput{RepositoryID: req.RepositoryID, SHA: req.SHA, Author: req.Author, Message: req.Message, CommittedAt: req.CommittedAt})
-			return http.StatusCreated, sourceCommitFromCommand(v), mapSourceRepositoryCommandError(err)
-		}
-		commit, err := s.ledger.RecordSourceCommit(ctx, actor, app.RecordCommitInput{
-			RepositoryID: req.RepositoryID, SHA: req.SHA, Author: req.Author, Message: req.Message, CommittedAt: req.CommittedAt,
-		})
-		return http.StatusCreated, commit, err
-	})
-}
-
-func (s *Server) upsertSourceBranch(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RepositoryID   string `json:"repository_id"`
-		Name           string `json:"name"`
-		HeadCommitID   string `json:"head_commit_id"`
-		Protected      bool   `json:"protected"`
-		ProtectionHash string `json:"protection_hash"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.sourceBranchCommands != nil {
-			if err := validateNonNullableObjectFields(body, "repository_id", "name", "head_commit_id", "protected", "protection_hash"); err != nil {
-				return 0, nil, err
-			}
-			v, err := s.sourceBranchCommands.UpsertSourceBranch(ctx, actor, integrationapp.UpsertSourceBranchInput{RepositoryID: req.RepositoryID, Name: req.Name, HeadCommitID: req.HeadCommitID, Protected: req.Protected, ProtectionHash: req.ProtectionHash})
-			return http.StatusCreated, sourceBranchFromCommand(v), mapSourceRepositoryCommandError(err)
-		}
-		branch, err := s.ledger.UpsertSourceBranch(ctx, actor, app.UpsertBranchInput{
-			RepositoryID: req.RepositoryID, Name: req.Name, HeadCommitID: req.HeadCommitID, Protected: req.Protected, ProtectionHash: req.ProtectionHash,
-		})
-		return http.StatusCreated, branch, err
-	})
-}
-
-func (s *Server) recordPullRequest(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RepositoryID   string `json:"repository_id"`
-		Provider       string `json:"provider"`
-		ProviderID     string `json:"provider_id"`
-		Title          string `json:"title"`
-		State          string `json:"state"`
-		SourceBranch   string `json:"source_branch"`
-		TargetBranch   string `json:"target_branch"`
-		HeadCommitID   string `json:"head_commit_id"`
-		ReviewDecision string `json:"review_decision"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.pullRequestCommands != nil {
-			if err := validateNonNullableObjectFields(body, "repository_id", "provider", "provider_id", "title", "state", "source_branch", "target_branch", "head_commit_id", "review_decision"); err != nil {
-				return 0, nil, err
-			}
-			v, err := s.pullRequestCommands.RecordPullRequest(ctx, actor, integrationapp.RecordPullRequestInput{RepositoryID: req.RepositoryID, Provider: req.Provider, ProviderID: req.ProviderID, Title: req.Title, State: req.State, SourceBranch: req.SourceBranch, TargetBranch: req.TargetBranch, HeadCommitID: req.HeadCommitID, ReviewDecision: req.ReviewDecision})
-			return http.StatusCreated, pullRequestFromCommand(v), mapSourceRepositoryCommandError(err)
-		}
-		pr, err := s.ledger.RecordPullRequest(ctx, actor, app.RecordPullRequestInput{
-			RepositoryID: req.RepositoryID, Provider: req.Provider, ProviderID: req.ProviderID, Title: req.Title, State: req.State,
-			SourceBranch: req.SourceBranch, TargetBranch: req.TargetBranch, HeadCommitID: req.HeadCommitID, ReviewDecision: req.ReviewDecision,
-		})
-		return http.StatusCreated, pr, err
 	})
 }
 

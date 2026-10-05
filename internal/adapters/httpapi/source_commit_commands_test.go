@@ -15,9 +15,16 @@ import (
 )
 
 type sourceCommitHTTPFake struct {
-	calls int
-	err   error
-	input integrationapp.RecordSourceCommitInput
+	calls    int
+	guards   int
+	guardErr error
+	err      error
+	input    integrationapp.RecordSourceCommitInput
+}
+
+func (f *sourceCommitHTTPFake) AuthorizeSourceCommitRecording(context.Context, identitydomain.Actor, integrationapp.RecordSourceCommitInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *sourceCommitHTTPFake) RecordSourceCommit(_ context.Context, a identitydomain.Actor, in integrationapp.RecordSourceCommitInput) (integrationdomain.SourceCommit, error) {
@@ -28,7 +35,7 @@ func (f *sourceCommitHTTPFake) RecordSourceCommit(_ context.Context, a identityd
 func TestSourceCommitHTTPUsesFocusedCommandAndRejectsMalformedEnvelopes(t *testing.T) {
 	local, secret := testServer(t)
 	f := &sourceCommitHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceCommitCommands: f})
+	s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceCommitCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,10 +44,11 @@ func TestSourceCommitHTTPUsesFocusedCommandAndRejectsMalformedEnvelopes(t *testi
 	if !strings.Contains(body, `"id":"durable_commit"`) || strings.Contains(body, "sensitive message") || f.calls != 1 || f.input.RepositoryID != "not-in-ledger" || f.input.Message != " sensitive message " || !f.input.CommittedAt.IsZero() {
 		t.Fatal(body, f)
 	}
-	if again := postJSON(t, s, secret, "/v1/source/commits", "commit-replay", in, 201); again != body || f.calls != 1 {
+	assertTrustHTTPReplay(t, body, postJSON(t, s, secret, "/v1/source/commits", "commit-replay", in, 201))
+	if f.calls != 1 {
 		t.Fatal("replay reran commit command", f)
 	}
-	postJSON(t, s, secret, "/v1/source/commits", "commit-replay", map[string]any{"repository_id": "different"}, 409)
+	postJSON(t, s, secret, "/v1/source/commits", "commit-replay", map[string]any{"repository_id": "different", "sha": strings.Repeat("b", 40)}, 409)
 	for i, raw := range []string{`null`, `[]`, `{"repository_id":null}`, `{"sha":null}`, `{"message":null}`, `{"author":null}`, `{"committed_at":null}`, `{"committed_at":"not-a-date"}`, `{"sha":17}`, `{"unknown":true}`, `{"sha":"a","sha":"b"}`, `{} {}`} {
 		postRaw(t, s, secret, "/v1/source/commits", fmt.Sprintf("bad-commit-%d", i), []byte(raw), 400)
 	}

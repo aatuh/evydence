@@ -73,20 +73,28 @@ func sourceAuditIdentity(a identitydomain.Actor) (string, string) {
 	}
 	return "api_key", a.KeyID
 }
-func (s *SourceCommitCommands) RecordSourceCommit(ctx context.Context, a identitydomain.Actor, in RecordSourceCommitInput) (integrationdomain.SourceCommit, error) {
-	if ctx == nil {
-		return integrationdomain.SourceCommit{}, ErrValidation
-	}
-	if err := ctx.Err(); err != nil {
-		return integrationdomain.SourceCommit{}, err
-	}
-	scope := application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}
-	if err := s.config.Authorizer.Authorize(ctx, a, scope); err != nil {
-		return integrationdomain.SourceCommit{}, err
+func NormalizeSourceCommitInput(in RecordSourceCommitInput) (RecordSourceCommitInput, error) {
+	// Message is opaque hash input: preserve its exact bytes, including NUL.
+	if !validSourceText(in.RepositoryID, 1024, false) || !validSourceText(in.SHA, 1024, false) || !validSourceText(in.Author, MaxSourceTextBytes, true) || len(in.Message) > MaxSourceTextBytes || !in.CommittedAt.IsZero() && !validSourceTime(in.CommittedAt) {
+		return in, ErrValidation
 	}
 	in.RepositoryID, in.SHA, in.Author = strings.TrimSpace(in.RepositoryID), strings.ToLower(strings.TrimSpace(in.SHA)), strings.TrimSpace(in.Author)
-	if !validSourceText(a.TenantID, 1024, false) || !validSourceText(in.RepositoryID, 1024, false) || !validSourceCommitSHA(in.SHA) || !validSourceText(in.Author, MaxSourceTextBytes, true) || len(in.Message) > MaxSourceTextBytes {
+	if in.RepositoryID == "" || !validSourceCommitSHA(in.SHA) {
+		return in, ErrValidation
+	}
+	return in, nil
+}
+
+func (s *SourceCommitCommands) RecordSourceCommit(ctx context.Context, a identitydomain.Actor, in RecordSourceCommitInput) (integrationdomain.SourceCommit, error) {
+	if s == nil {
 		return integrationdomain.SourceCommit{}, ErrValidation
+	}
+	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+		return integrationdomain.SourceCommit{}, err
+	}
+	in, err := NormalizeSourceCommitInput(in)
+	if err != nil {
+		return integrationdomain.SourceCommit{}, err
 	}
 	now := s.config.Clock.Now().UTC().Truncate(time.Microsecond)
 	if in.CommittedAt.IsZero() {
@@ -97,18 +105,9 @@ func (s *SourceCommitCommands) RecordSourceCommit(ctx context.Context, a identit
 		return integrationdomain.SourceCommit{}, ErrValidation
 	}
 	var result integrationdomain.SourceCommit
-	err := s.config.Transactions.ExecuteSourceCommit(ctx, func(ctx context.Context, tx SourceCommitTransaction) error {
-		if err := tx.Authorize(ctx, a, scope); err != nil {
-			return err
-		}
-		r, err := tx.LockSourceRepositoryForWrite(ctx, a.TenantID, in.RepositoryID)
+	err = s.config.Transactions.ExecuteSourceCommit(ctx, func(ctx context.Context, tx SourceCommitTransaction) error {
+		r, err := authorizeSourceWriteRepository(ctx, tx, a, in.RepositoryID)
 		if err != nil {
-			return err
-		}
-		if err := validateSourceRepositoryIdentity(r, a.TenantID, in.RepositoryID); err != nil {
-			return err
-		}
-		if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(r.ProjectID, r.ProductID)); err != nil {
 			return err
 		}
 		v, found, err := tx.SourceCommitBySHA(ctx, a.TenantID, r.ID, in.SHA)

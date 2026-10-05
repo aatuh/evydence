@@ -1766,6 +1766,37 @@ Source/test evidence: `internal/integration/app/source_repository_commands.go`,
 `internal/app/source_repository_creation_authz_test.go` and
 `internal/adapters/httpapi/source_repository_commands_test.go`.
 
+### Source Write Replay Boundary
+
+Commit recording, branch upserts and pull-request recording use native durable
+HTTP execution in PostgreSQL, not a Ledger clone or publication. Their shared
+read-only guard checks current tenant/repository/product/project ownership and
+the authenticated actor's grants before reservation and completed replay. A
+supplied head is checked only by its current tenant/repository coordinates.
+The guard never reads commit author/message data, mutable branch metadata,
+provider defaults or PR snapshots, and never uses a clock or ID generator.
+
+The common writer fence precedes tenant, repository and parent locks. Tenant,
+product/project and supplied-head share locks survive through the outer replay
+commit; the repository serialization lock is held in that same transaction.
+Completed replay preserves original public JSON and request-byte fingerprints
+without reapplying branch state, adding snapshots or appending audit. Early
+command failures retain a failed-key marker; replay-completion and outer-commit
+failures roll back the reservation. No outbox job is created.
+
+All three paths check raw input bounds before trimming. Cookie-authenticated
+writes require same-host HTTPS `Origin`; explicit bearer credentials take
+precedence. Local memory shares decoding, input bounds and current ownership
+guards but retains nondurable replay and map storage, not PostgreSQL locking or
+bounded stored-metadata guarantees. This migration does not finish API startup
+or the remaining CI/source-snapshot HTTP wrappers.
+
+Tests: `internal/platform/wiring/source_writes_native_http_test.go`,
+`internal/platform/wiring/source_writes_fence_test.go`,
+`internal/integration/app/source_write_guard_test.go`,
+`internal/adapters/httpapi/source_writes_native_test.go` and
+`internal/app/source_write_replay_guard_test.go`.
+
 ### Source Commit Recording
 
 `POST /v1/source/commits` in the PostgreSQL profile uses an Integration-owned
@@ -1789,6 +1820,7 @@ author metadata is intentionally retained and must not contain secrets.
 Recording metadata does not verify provider identity, repository contents,
 commit signatures or provenance.
 
+The [source-write replay boundary](#source-write-replay-boundary) applies.
 The adapter takes the worker-projection fence before locking the tenant-owned
 repository, which serializes first creation and duplicate SHA reuse. Parent
 ownership and existing commit reads are bounded. Commit, audit and successful
@@ -1796,7 +1828,8 @@ HTTP replay state share a transaction; failures roll back, replay adds no
 effects, and no outbox job is created. This endpoint migration does not remove
 the remaining Ledger-backed CI workflows.
 
-Tenant/repository IDs are limited to 1024 UTF-8 bytes. Author metadata is trimmed,
+Tenant/repository IDs and raw SHA text are limited to 1024 UTF-8 bytes.
+Author metadata is trimmed,
 valid UTF-8, NUL-free and limited to 64 KiB; message input is limited to 64 KiB.
 The existing 64 KiB HTTP envelope limit remains. Non-object bodies, null fields,
 unknown/duplicate fields and malformed timestamps fail validation. Omitted
@@ -1825,8 +1858,9 @@ creation time, while replacing `head_commit_id`, `protected` and
 `protection_hash`. Omitted values clear the head and protection hash and set
 `protected` to false; this is replacement, not PATCH behavior. A supplied head
 must exist in the same tenant and repository. A whitespace-only supplied head
-fails lookup rather than silently clearing an existing head.
+returns not found rather than silently clearing an existing head.
 
+The [source-write replay boundary](#source-write-replay-boundary) applies.
 The shared source write adapter acquires the worker-projection fence before
 the repository-row lock, serializing first creation and subsequent updates.
 Only bounded ownership, head identity and branch metadata projections are
@@ -1864,6 +1898,7 @@ tenant/product/project ownership is authorized before provider or head-commit
 reads. Human sessions need a current product/project grant for attached
 repositories or a tenant-wide grant for detached ones. Foreign-tenant
 repositories and foreign/wrong-repository heads return not found.
+The [source-write replay boundary](#source-write-replay-boundary) applies.
 
 Records are append-only snapshots, not an upsert keyed by provider ID. Each
 executed call creates a new record and `pull_request.recorded` audit, even if
@@ -1879,7 +1914,7 @@ explicit provider remains submitted metadata and need not match that default.
 The default is read through a bounded projection only after authorization.
 Repository clone URLs, head-commit author/message metadata and earlier
 pull-request records are not loaded. A supplied head must exist in the same
-tenant and repository; whitespace-only supplied heads fail lookup instead of
+tenant and repository; whitespace-only supplied heads return not found instead of
 silently becoming an omitted head. Source/target branch names and review
 decisions remain opaque metadata, not resolved branch IDs or approval policy.
 

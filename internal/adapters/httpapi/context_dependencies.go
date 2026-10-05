@@ -178,14 +178,17 @@ type SourceRepositoryCommands interface {
 }
 
 type SourceCommitCommands interface {
+	AuthorizeSourceCommitRecording(context.Context, identitydomain.Actor, integrationapp.RecordSourceCommitInput) error
 	RecordSourceCommit(context.Context, identitydomain.Actor, integrationapp.RecordSourceCommitInput) (integrationdomain.SourceCommit, error)
 }
 
 type SourceBranchCommands interface {
+	AuthorizeSourceBranchUpsert(context.Context, identitydomain.Actor, integrationapp.UpsertSourceBranchInput) error
 	UpsertSourceBranch(context.Context, identitydomain.Actor, integrationapp.UpsertSourceBranchInput) (integrationdomain.SourceBranch, error)
 }
 
 type PullRequestCommands interface {
+	AuthorizePullRequestRecording(context.Context, identitydomain.Actor, integrationapp.RecordPullRequestInput) error
 	RecordPullRequest(context.Context, identitydomain.Actor, integrationapp.RecordPullRequestInput) (integrationdomain.PullRequest, error)
 }
 

@@ -19,6 +19,10 @@ func (r source) LockSourceRepositoryForWrite(ctx context.Context, tenant, id str
 	if err := coordination.LockWorkerProjection(ctx, r.tx, tenant); err != nil {
 		return integrationapp.SourceRepositoryIdentity{}, err
 	}
+	var one int
+	if err := r.tx.QueryRow(ctx, `SELECT 1 FROM tenants WHERE id=$1 FOR SHARE`, tenant).Scan(&one); err != nil {
+		return integrationapp.SourceRepositoryIdentity{}, sourceIdentityError(err)
+	}
 	var v integrationapp.SourceRepositoryIdentity
 	err := r.tx.QueryRow(ctx, `SELECT left(id,1025),left(tenant_id,1025),left(COALESCE(project_id,''),1025) FROM source_repositories WHERE tenant_id=$1 AND id=$2 FOR NO KEY UPDATE`, tenant, id).Scan(&v.ID, &v.TenantID, &v.ProjectID)
 	if err := sourceIdentityError(err, v.ID, v.TenantID, v.ProjectID); err != nil {

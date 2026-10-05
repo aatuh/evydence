@@ -15,9 +15,16 @@ import (
 )
 
 type pullRequestHTTPFake struct {
-	calls int
-	err   error
-	input integrationapp.RecordPullRequestInput
+	calls    int
+	guards   int
+	guardErr error
+	err      error
+	input    integrationapp.RecordPullRequestInput
+}
+
+func (f *pullRequestHTTPFake) AuthorizePullRequestRecording(context.Context, identitydomain.Actor, integrationapp.RecordPullRequestInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *pullRequestHTTPFake) RecordPullRequest(_ context.Context, a identitydomain.Actor, in integrationapp.RecordPullRequestInput) (integrationdomain.PullRequest, error) {
@@ -28,7 +35,7 @@ func (f *pullRequestHTTPFake) RecordPullRequest(_ context.Context, a identitydom
 func TestPullRequestHTTPUsesFocusedCommandAndRejectsMalformedEnvelopes(t *testing.T) {
 	local, secret := testServer(t)
 	f := &pullRequestHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{PullRequestCommands: f})
+	s, err := NewServerWithOptions(local.ledger, ServerOptions{PullRequestCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,10 +44,11 @@ func TestPullRequestHTTPUsesFocusedCommandAndRejectsMalformedEnvelopes(t *testin
 	if !strings.Contains(body, `"id":"durable_pr"`) || f.calls != 1 || f.input.Provider != "" || f.input.RepositoryID != "not-in-ledger" {
 		t.Fatal(body, f)
 	}
-	if again := postJSON(t, s, secret, "/v1/source/pull-requests", "pr-replay", in, 201); again != body || f.calls != 1 {
+	assertTrustHTTPReplay(t, body, postJSON(t, s, secret, "/v1/source/pull-requests", "pr-replay", in, 201))
+	if f.calls != 1 {
 		t.Fatal("replay reran recording", f)
 	}
-	postJSON(t, s, secret, "/v1/source/pull-requests", "pr-replay", map[string]any{"title": "changed"}, 409)
+	postJSON(t, s, secret, "/v1/source/pull-requests", "pr-replay", map[string]any{"repository_id": "not-in-ledger", "provider_id": "17", "title": "changed", "state": "open"}, 409)
 	for i, raw := range []string{`null`, `[]`, `{"repository_id":null}`, `{"provider":null}`, `{"provider_id":null}`, `{"title":null}`, `{"state":null}`, `{"source_branch":null}`, `{"target_branch":null}`, `{"head_commit_id":null}`, `{"review_decision":null}`, `{"state":17}`, `{"unknown":true}`, `{"title":"a","title":"b"}`, `{} {}`} {
 		postRaw(t, s, secret, "/v1/source/pull-requests", fmt.Sprintf("bad-pr-%d", i), []byte(raw), 400)
 	}

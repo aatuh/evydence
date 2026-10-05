@@ -14,7 +14,7 @@ import (
 
 func (r source) SourceCommitIdentityByID(ctx context.Context, tenant, repository, id string) (integrationapp.SourceCommitIdentity, error) {
 	var v integrationapp.SourceCommitIdentity
-	err := r.tx.QueryRow(ctx, `SELECT left(id,1025),left(tenant_id,1025),left(repository_id,1025) FROM source_commits WHERE tenant_id=$1 AND repository_id=$2 AND id=$3 FOR KEY SHARE`, tenant, repository, id).Scan(&v.ID, &v.TenantID, &v.RepositoryID)
+	err := r.tx.QueryRow(ctx, `SELECT left(id,1025),left(tenant_id,1025),left(repository_id,1025) FROM source_commits WHERE tenant_id=$1 AND repository_id=$2 AND id=$3 FOR SHARE`, tenant, repository, id).Scan(&v.ID, &v.TenantID, &v.RepositoryID)
 	if err := sourceIdentityError(err, v.ID, v.TenantID, v.RepositoryID); err != nil {
 		return integrationapp.SourceCommitIdentity{}, err
 	}

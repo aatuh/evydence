@@ -245,6 +245,17 @@ its nondurable compatibility store. This does not remove broad API startup or
 the remaining command wrappers. See
 [source repository creation](../api.md#source-repository-creation).
 
+Source commit recording, branch replacement and PR snapshot appends also use
+native durable HTTP replay. A shared Integration ownership guard holds current
+tenant/repository/parent and optional-head coordinates through the outer
+transaction without private metadata reads, clocks or identifiers. Distinct
+commit-reuse, branch-replacement and append-only PR behavior remains in the
+owning command; each domain/audit/replay effect is atomic. Input bounds precede
+trimming and cookie writes require Origin protection. Local memory shares
+current guards but retains its nondurable store; production startup and the
+CI/source-snapshot HTTP wrappers remain migration work. See the
+[source-write replay boundary](../api.md#source-write-replay-boundary).
+
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.
 Together they own all 142 models assigned in the table below. Schema and policy
