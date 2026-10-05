@@ -189,11 +189,11 @@ with `VERSION_CONFLICT` and a safe `current_revision` value in Problem Details;
 read the resource again before deciding whether to retry. These transitions
 append audit history and do not alter immutable evidence records.
 
-In the PostgreSQL profile, freeze and approval use focused durable commands,
-not cached Ledger release state. They require `release:write` and, for human
+In the PostgreSQL profile, freeze and approval use native durable execution,
+without Ledger cloning, replay or refresh. They require `release:write` and, for human
 sessions, a matching tenant, product, or release grant. The locked transaction
 checks current parent ownership, authorization, revision, and state; the state
-change and audit entry commit together. Draft freeze advances the revision by
+change, caller audit and replay completion commit together. Draft freeze advances the revision by
 one and sets `frozen_at`; frozen approval advances it once more and sets
 `approved_at`, preserving the immutable release metadata and freeze time.
 Foreign releases return `404`; grant denial returns `403` without revision
@@ -202,7 +202,7 @@ versions/product slugs to 64 KiB, rejecting oversized stored fields with a
 conflict rather than returning truncated values. Local-memory mode keeps its
 explicit compatibility binding.
 
-In the PostgreSQL profile, candidate promotion/rejection uses a focused durable
+In the PostgreSQL profile, candidate promotion/rejection uses native durable
 command with one locked candidate and its current tenant-owned release/product
 coordinate. It requires `release:write`; human sessions also need a matching
 tenant, product, or release grant. Grant denial returns `403` without current
@@ -210,15 +210,31 @@ revision metadata; a foreign or dangling-parent candidate returns `404`.
 Only an `open` candidate at the expected revision can transition, advancing
 the revision once and setting `promoted_at` or `rejected_at`. The candidate's
 name, reference lists, snapshot hash, schema version, and creation metadata
-remain unchanged, and the state change and audit append commit together.
+remain unchanged, and state, audit and replay completion commit together.
 
-The request `reason` is required, trimmed, non-empty, NUL-free UTF-8 and at most
-64 KiB of UTF-8 bytes; the entire HTTP JSON body is also capped at 64 KiB.
+For all four routes, every retry checks current tenant-owned subject and
+release/product parents and human grants. The read-only guard selects no state,
+revision, release version, product slug, candidate name, snapshot or timestamp.
+The shared writer fence precedes tenant/subject/parent share locks held through
+the outer transaction. Completed replay returns the original response without
+reapplying lifecycle rules or `If-Match` against a newer stored revision. The
+existing `conditional-action-v1` fingerprint still binds the canonical strong
+revision and original body bytes; changed revision/body conflicts. Fresh
+execution retains current revision/lifecycle and bounded metadata checks.
+
+The candidate request `reason` is required, trimmed, non-empty, NUL-free UTF-8
+and at most 64 KiB before trimming. Raw path IDs are capped at 1024 bytes;
+the entire JSON body remains capped at 64 KiB. Both profiles reject null,
+unknown, duplicate, case-aliased and malformed fields. Freeze/approval accept an
+empty JSON object; legacy absent/blank bodies remain accepted, but nonempty
+non-object or unknown-field bodies are rejected. Cookie writes require same-host
+HTTPS Origin with Bearer precedence.
 Stored candidate names are bounded at 64 KiB, IDs/schema identifiers at 1024
 bytes, state at 32 bytes, hash at 128 bytes, and the JSON snapshot at 1 MiB.
 Oversized or malformed stored snapshots return `409` rather than truncated
-values. Transition times use microsecond-precision UTC. Local-memory mode
-keeps its compatibility binding.
+values on fresh execution; completed replay does not reload that metadata.
+Transition times use microsecond-precision UTC. Local-memory mode shares
+current-map guards and input/origin rules but remains nondurable.
 
 Candidate creation in PostgreSQL uses focused native durable HTTP execution,
 without Ledger cloning, replay or refresh. It

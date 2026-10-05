@@ -316,8 +316,18 @@ are checked without existing candidate documents, private metadata or hashing.
 The shared writer fence precedes locks held on selected tenant, parent, reference
 and source-evidence rows through snapshot/audit/replay commit. The bounded SQL
 validator returns one boolean and preserves duplicate snapshot references.
-Local memory shares raw input and origin rules but remains nondurable. Candidate
-state transitions and startup are still transitional. See [API behavior](../api.md).
+Local memory shares raw input and origin rules but remains nondurable. Startup
+is still transitional. See [API behavior](../api.md).
+
+Release freeze/approval and candidate promotion/rejection use native conditional
+durable execution too. Ownership-only guard ports select current tenant, subject
+and release/product parents without lifecycle state, revision or private metadata.
+The common writer fence precedes locks held through state/audit/replay completion.
+Fresh revision/lifecycle checks remain; historical delivery does not rerun them.
+The existing canonical `If-Match`-plus-body fingerprint is retained. Local memory
+shares strict raw input/origin rules with nondurable replay. This does not retire
+startup or unrelated command wrappers. See
+[conditional transitions](../api.md#conditional-release-transitions).
 
 EVY-902 created tag-free, standard-library-only domain packages at
 `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain`.

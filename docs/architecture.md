@@ -554,11 +554,14 @@ the audit entry atomically. UTC transition times use microsecond precision.
 Live tests cover a pending product/release, freeze plus approval in one outer
 transaction, compound rollback and replay, wrong tenant/grants, stored-field
 bounds, and competing freezes with one state/audit winner. Production freeze
-and approval HTTP now depend on a transition-only focused interface. Fresh
+and approval HTTP use native durable execution through a transition-only interface. Fresh
 server instances with an empty Ledger verify the complete response metadata,
 durable replay and point reads, safe current-revision conflicts, tenant and
 grant denial, and rollback of state changes when update or audit insertion
-fails. Local memory keeps its explicit compatibility binding. Conditional
+fails. The read-only replay guard locks current tenant/release/product ownership
+without lifecycle state, revision, version, slug, clocks or IDs; these locks join
+the outer state/audit/replay transaction, with no Ledger cloning or refresh.
+Local memory keeps its explicit nondurable binding. Conditional
 action fingerprints include the validated strong `If-Match` revision; changing
 it under the same key conflicts rather than replaying a different intent.
 Standalone release-candidate promotion/rejection now has a factory-only
@@ -574,11 +577,18 @@ oversized, non-object, or incorrectly typed snapshot references fail closed
 with conflict rather than truncation. Live tests cover pending candidate
 visibility, compound rollback/replay, tenant/grant denial, write/audit failures,
 and competing transitions with one state/audit winner. Production candidate
-promotion/rejection HTTP now uses a transition-only dependency. Fresh-server
+promotion/rejection HTTP uses native durable execution and a transition-only dependency. Fresh-server
 tests with empty Ledger candidate maps verify immutable snapshot DTOs,
 durable point/list reads, conditional replay, safe revision metadata, and
-storage/audit rollback. Local-memory transitions retain their explicit
-compatibility path.
+storage/audit rollback. Its ownership-only guard holds current tenant/candidate/
+release/product share locks through the outer transaction without loading the
+candidate document, lifecycle/revision, private metadata, clocks or IDs.
+Completed delivery preserves the original response; fresh transitions retain
+revision/state validation. Raw budgets precede trimming, strict body/origin rules
+apply in both profiles, and the canonical revision-plus-body fingerprint is
+unchanged. Live tests cover all four update/audit/replay/outer-commit failure
+stages, concurrent once-only effects, cancellation and lock lifetime. Local
+memory remains nondurable; startup and other wrappers still need migration.
 Standalone candidate creation now has a factory-only transaction builder.
 It reads the current tenant-owned release/product coordinates without release
 version or product metadata, then validates all seven reference groups through
@@ -605,7 +615,7 @@ Snapshot, principal audit and replay commit atomically. Live tests cover exact
 historical JSON, preserved duplicates/hash profile, current grants, ownership
 locks and four-stage rollback/recovery. Raw budgets precede normalization; local
 memory keeps explicit nondurable storage/replay and matching origin rules.
-Candidate transitions, startup composition and other wrappers remain migration
+Startup composition and other wrappers remain migration
 work; this is not completed production Ledger retirement.
 The transactional catalog repositories now expose tenant-filtered project and
 release point reads that verify the parent product in the same read and lock

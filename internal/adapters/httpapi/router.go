@@ -571,6 +571,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.CandidateCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused candidate creation requires durable idempotency")
 	}
+	if (opts.ReleaseStateCommands != nil || opts.CandidateStateCommands != nil) && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused state transitions require durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -1209,36 +1212,6 @@ func (s *Server) releaseSecuritySummary(w http.ResponseWriter, r *http.Request) 
 	writeData(w, http.StatusOK, summary)
 }
 
-func (s *Server) freezeRelease(w http.ResponseWriter, r *http.Request) {
-	s.createConditional(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		expectedRevision, err := expectedRevisionFromIfMatch(r)
-		if err != nil {
-			return 0, nil, err
-		}
-		if s.releaseStateCommands != nil {
-			release, err := s.releaseStateCommands.FreezeRelease(ctx, actor, r.PathValue("id"), expectedRevision)
-			return http.StatusOK, releaseFromCommand(release), mapReleaseStateCommandError(err)
-		}
-		release, err := s.releaseCatalog.FreezeRelease(ctx, actor, r.PathValue("id"), expectedRevision)
-		return http.StatusOK, release, err
-	})
-}
-
-func (s *Server) approveRelease(w http.ResponseWriter, r *http.Request) {
-	s.createConditional(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		expectedRevision, err := expectedRevisionFromIfMatch(r)
-		if err != nil {
-			return 0, nil, err
-		}
-		if s.releaseStateCommands != nil {
-			release, err := s.releaseStateCommands.ApproveRelease(ctx, actor, r.PathValue("id"), expectedRevision)
-			return http.StatusOK, releaseFromCommand(release), mapReleaseStateCommandError(err)
-		}
-		release, err := s.releaseCatalog.ApproveRelease(ctx, actor, r.PathValue("id"), expectedRevision)
-		return http.StatusOK, release, err
-	})
-}
-
 func (s *Server) listReleaseCandidates(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -1300,27 +1273,6 @@ func (s *Server) promoteReleaseCandidate(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) rejectReleaseCandidate(w http.ResponseWriter, r *http.Request) {
 	s.transitionReleaseCandidate(w, r, "rejected")
-}
-
-func (s *Server) transitionReleaseCandidate(w http.ResponseWriter, r *http.Request, state string) {
-	var req struct {
-		Reason string `json:"reason"`
-	}
-	s.createConditional(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		expectedRevision, err := expectedRevisionFromIfMatch(r)
-		if err != nil {
-			return 0, nil, err
-		}
-		if s.candidateStateCommands != nil {
-			candidate, err := s.candidateStateCommands.UpdateReleaseCandidateState(ctx, actor, r.PathValue("id"), state, req.Reason, expectedRevision)
-			return http.StatusOK, releaseCandidateFromQuery(candidate), mapReleaseStateCommandError(err)
-		}
-		candidate, err := s.releaseCatalog.UpdateReleaseCandidateState(ctx, actor, r.PathValue("id"), state, req.Reason, expectedRevision)
-		return http.StatusOK, candidate, err
-	})
 }
 
 func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {

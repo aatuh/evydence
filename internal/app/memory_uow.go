@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -4307,8 +4308,16 @@ func cloneMemoryCustomerPortalAccess(access domain.CustomerPortalAccess) domain.
 
 func cloneMemoryIdempotencyRecord(record IdempotencyRecord) (IdempotencyRecord, error) {
 	cloned := record
-	response, err := cloneMemoryJSON(record.Response)
+	encoded, err := json.Marshal(record.Response)
 	if err != nil {
+		return IdempotencyRecord{}, err
+	}
+	// Responses are schema-free JSON. A generic float64 clone would round
+	// valid revisions/counts and decimals before they can be replayed safely.
+	var response any
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if err := decoder.Decode(&response); err != nil {
 		return IdempotencyRecord{}, err
 	}
 	cloned.Response = response

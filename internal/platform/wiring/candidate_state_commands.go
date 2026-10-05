@@ -46,6 +46,15 @@ type candidateStateTransaction struct {
 	audit app.AuditRepository
 }
 
+func (t candidateStateTransaction) ReadCandidateTransitionScope(ctx context.Context, tenant, id string) (releaseapp.CandidateTransitionScope, error) {
+	r, ok := t.reader.(releaseapp.CandidateTransitionGuardReader)
+	if !ok {
+		return releaseapp.CandidateTransitionScope{}, releaseapp.ErrValidation
+	}
+	v, err := r.ReadCandidateTransitionScope(ctx, tenant, id)
+	return v, mapReleaseStateWriteError(err)
+}
+
 func (t candidateStateTransaction) ReadCandidateState(ctx context.Context, tenant, id string) (releaseapp.CandidateStateRow, error) {
 	v, err := t.reader.ReadCandidateState(ctx, tenant, id)
 	return v, mapReleaseStateWriteError(err)

@@ -128,7 +128,6 @@ func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
 		{"router.go", "create", "createWithLimit", ""},
 		{"router.go", "createWithLimit", "createWithFingerprint", "nil"},
 		{"router.go", "createWithFingerprint", "createWithActorFingerprint", "actorFingerprint"},
-		{"conditional_idempotency.go", "createConditional", "createWithFingerprint", "conditionalActionFingerprint"},
 	} {
 		file, err := parser.ParseFile(token.NewFileSet(), tc.filename, nil, 0)
 		if err != nil {
@@ -174,6 +173,52 @@ func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
 		}
 		if !found || calls != 1 {
 			t.Errorf("%s delegation found=%t calls=%d, want true and one", tc.function, found, calls)
+		}
+	}
+}
+
+func TestConditionalTransitionsRetireLedgerWrapperAndUseNativeFingerprintExecutor(t *testing.T) {
+	t.Parallel()
+	old, err := parser.ParseFile(token.NewFileSet(), "conditional_idempotency.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, decl := range old.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == "createConditional" {
+			t.Fatal("retired Ledger conditional wrapper returned")
+		}
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), "state_transitions.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"transitionRelease", "transitionReleaseCandidate"} {
+		found, native, fingerprints := false, 0, 0
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Name.Name != name || fn.Body == nil {
+				continue
+			}
+			found = true
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				if selector, ok := node.(*ast.SelectorExpr); ok && (selector.Sel.Name == "ledger" || selector.Sel.Name == "bindLedger" || selector.Sel.Name == "createConditional") {
+					t.Errorf("%s reaches retired aggregate conditional path", name)
+				}
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				if selector, ok := call.Fun.(*ast.SelectorExpr); ok && selector.Sel.Name == "createDurableWithFingerprint" {
+					native++
+				}
+				if ident, ok := call.Fun.(*ast.Ident); ok && ident.Name == "conditionalActionFingerprint" {
+					fingerprints++
+				}
+				return true
+			})
+		}
+		if !found || native != 1 || fingerprints != 2 {
+			t.Errorf("%s found=%t native=%d fingerprints=%d; want one native and both profile fingerprints", name, found, native, fingerprints)
 		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 // ReleaseStateCommands exposes lifecycle transitions only, without catalog
 // creation, queries, or unrelated workflows.
 type ReleaseStateCommands interface {
+	AuthorizeReleaseTransition(context.Context, identitydomain.Actor, string) error
 	FreezeRelease(context.Context, identitydomain.Actor, string, int64) (releasedomain.Release, error)
 	ApproveRelease(context.Context, identitydomain.Actor, string, int64) (releasedomain.Release, error)
 }

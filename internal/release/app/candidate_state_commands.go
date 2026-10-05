@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"math"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -61,15 +59,13 @@ func (s *CandidateStateCommands) UpdateReleaseCandidateState(ctx context.Context
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	id, state, reason = strings.TrimSpace(id), strings.TrimSpace(state), strings.TrimSpace(reason)
-	if id == "" {
-		return releasedomain.ReleaseCandidate{}, ErrNotFound
+	in, err := NormalizeCandidateTransitionInput(CandidateTransitionInput{ID: id, State: state, Reason: reason, ExpectedRevision: expectedRevision})
+	if err != nil {
+		return releasedomain.ReleaseCandidate{}, err
 	}
-	if len(id) > 1024 || !utf8.ValidString(id) || strings.ContainsRune(id, 0) || reason == "" || len(reason) > 65536 || !utf8.ValidString(reason) || strings.ContainsRune(reason, 0) || expectedRevision < 1 || (state != "promoted" && state != "rejected") {
-		return releasedomain.ReleaseCandidate{}, ErrValidation
-	}
+	id, state = in.ID, in.State
 	var updated releasedomain.ReleaseCandidate
-	err := s.config.Transactions.ExecuteCandidateState(ctx, func(ctx context.Context, tx CandidateStateTransaction) error {
+	err = s.config.Transactions.ExecuteCandidateState(ctx, func(ctx context.Context, tx CandidateStateTransaction) error {
 		row, err := tx.ReadCandidateState(ctx, actor.TenantID, id)
 		if err != nil {
 			return err

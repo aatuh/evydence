@@ -15,6 +15,8 @@ const focusedVEXPreviewDescription = " In PostgreSQL mode, one read-only repeata
 
 const focusedSecurityDocumentDescription = " In PostgreSQL mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. No request reloads the Ledger aggregate. Wrapped JSON remains limited to 64 KiB and rejects null metadata/payload, duplicate keys, and unknown envelope fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. Same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. Raw payload bytes are never included in responses. Failed commands roll back document effects; a response-free failed-key record can remain. Local-memory mode retains its explicit compatibility command."
 
+const focusedStateTransitionDescription = " PostgreSQL uses native durable execution without Ledger cloning/replay/refresh. Every retry checks current tenant/subject/release/product ownership and grants without lifecycle state, revision, private metadata, clocks or IDs; the shared writer fence precedes locks held through state/audit/replay commit. Completed replay returns the original response without reapplying lifecycle rules against newer state; fresh execution retains bounded revision/state checks. The unchanged conditional-action-v1 fingerprint binds canonical strong If-Match and original body bytes, so changed intent conflicts. Raw NUL-free UTF-8 IDs are limited to 1024 bytes before trimming and JSON to 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
+
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
 	switch operation.OperationID {
@@ -234,11 +236,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = jsonResponse("Release security summary envelope.", "#/components/schemas/ReleaseSecuritySummaryEnvelope")
 	case "freezeRelease":
 		operation.Description = "Freezes a release as an append-only transition. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Description += focusedStateTransitionDescription + " Nonempty bodies must be empty JSON objects; legacy absent/blank bodies remain accepted."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Frozen release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "approveRelease":
 		operation.Description = "Approves a release as an append-only transition. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Description += focusedStateTransitionDescription + " Nonempty bodies must be empty JSON objects; legacy absent/blank bodies remain accepted."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved release envelope.", "#/components/schemas/ReleaseEnvelope")
@@ -623,6 +627,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = jsonResponse("Release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "promoteReleaseCandidate", "rejectReleaseCandidate":
 		operation.Description = "Records a release-candidate lifecycle transition without mutating the original snapshot. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Description += focusedStateTransitionDescription + " Strict JSON accepts only non-null reason text, NUL-free UTF-8 capped at 64 KiB before trimming. Snapshot fields/hash remain unchanged."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release candidate id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Release candidate transition request.", "#/components/schemas/ReleaseCandidateTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Transitioned release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")

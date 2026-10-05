@@ -8,6 +8,7 @@ import (
 
 func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 	files := map[string][]string{
+		"state_transition_replay_guard.go":    {"AuthorizeReleaseTransition", "AuthorizeCandidateTransition", "authorizeStateTransition"},
 		"candidate_creation_replay_guard.go":  {"AuthorizeCandidateCreation"},
 		"artifact_image_replay_guard.go":      {"AuthorizeArtifactRegistration", "AuthorizeContainerImageRegistration"},
 		"catalog_creation_replay_guard.go":    {"AuthorizeProductCreation", "AuthorizeProjectCreation", "AuthorizeReleaseCreation", "authorizeCatalogCreation"},
@@ -102,6 +103,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 				!strings.Contains(fn, "authorizeSourceRepositoryCreationLocked") &&
 				!strings.Contains(fn, "authorizeLocalSourceWriteLocked") &&
 				!strings.Contains(fn, "l.authorizeCatalogCreation(") &&
+				!strings.Contains(fn, "l.authorizeStateTransition(") &&
 				!strings.Contains(fn, "verificationquery.NewSigningKeyAdminAuthorizer().Authorize") && !strings.Contains(fn, "l.AuthorizeCreateSigningOperation(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeSaaSProfileActor(") && !strings.Contains(fn, "l.AuthorizeCreateSaaSEditionProfile(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeMarketplaceCollectorActor(") && !strings.Contains(fn, "l.AuthorizeCreateMarketplaceCollector(") &&

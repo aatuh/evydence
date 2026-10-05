@@ -75,9 +75,10 @@ func (s *ReleaseStateCommands) transitionRelease(ctx context.Context, actor iden
 	if expectedRevision < 1 {
 		return releasedomain.Release{}, ErrValidation
 	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return releasedomain.Release{}, ErrNotFound
+	var err error
+	id, err = NormalizeTransitionID(id)
+	if err != nil {
+		return releasedomain.Release{}, err
 	}
 	release, err := s.reader.ReadReleaseState(ctx, actor.TenantID, id)
 	if err != nil {

@@ -16,10 +16,17 @@ import (
 
 type releaseStateHTTPFake struct {
 	calls    int
+	guards   int
+	guardErr error
 	actor    identitydomain.Actor
 	id       string
 	revision int64
 	err      error
+}
+
+func (f *releaseStateHTTPFake) AuthorizeReleaseTransition(context.Context, identitydomain.Actor, string) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *releaseStateHTTPFake) FreezeRelease(_ context.Context, actor identitydomain.Actor, id string, revision int64) (releasedomain.Release, error) {
@@ -43,7 +50,7 @@ func (f *releaseStateHTTPFake) ApproveRelease(ctx context.Context, actor identit
 func TestReleaseStateHTTPMapsFocusedTransitionsReplayRevisionAndErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &releaseStateHTTPFake{}
-	server, err := NewServerWithOptions(local.ledger, ServerOptions{ReleaseStateCommands: commands})
+	server, err := NewServerWithOptions(local.ledger, ServerOptions{ReleaseStateCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +67,9 @@ func TestReleaseStateHTTPMapsFocusedTransitionsReplayRevisionAndErrors(t *testin
 	if strings.Contains(response, `"approved_at"`) {
 		t.Fatal("freeze unexpectedly approved", response)
 	}
-	if replay := postJSONWithIfMatch(t, server, secret, freezePath, "focused-freeze", 1, map[string]any{}, 200); replay != response || commands.calls != 1 {
-		t.Fatal("transition replay changed result or executed twice", replay, commands.calls)
+	assertTrustHTTPReplay(t, response, postJSONWithIfMatch(t, server, secret, freezePath, "focused-freeze", 1, map[string]any{}, 200))
+	if commands.calls != 1 {
+		t.Fatal("transition replay executed twice", commands.calls)
 	}
 	postJSONWithIfMatch(t, server, secret, freezePath, "focused-freeze", 2, map[string]any{}, 409)
 	approved := postJSONWithIfMatch(t, server, secret, "/v1/releases/uncached-release/approve", "focused-approve", 2, map[string]any{}, 200)

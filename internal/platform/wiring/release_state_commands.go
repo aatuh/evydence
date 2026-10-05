@@ -72,6 +72,15 @@ func (t releaseStateCommandTransaction) Authorize(ctx context.Context, actor ide
 	return releasequery.NewCatalogAuthorizer().Authorize(ctx, actor, request)
 }
 
+func (t releaseStateCommandTransaction) ReadReleaseTransitionScope(ctx context.Context, tenant, id string) (releaseapp.ReleaseTransitionScope, error) {
+	r, ok := t.reader.(releaseapp.ReleaseTransitionGuardReader)
+	if !ok {
+		return releaseapp.ReleaseTransitionScope{}, releaseapp.ErrValidation
+	}
+	v, err := r.ReadReleaseTransitionScope(ctx, tenant, id)
+	return v, mapReleaseStateWriteError(err)
+}
+
 func (t releaseStateCommandTransaction) ReadReleaseState(ctx context.Context, tenantID, id string) (releasedomain.Release, error) {
 	release, err := t.reader.ReadReleaseState(ctx, tenantID, id)
 	if err != nil {

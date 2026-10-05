@@ -562,6 +562,8 @@ type releaseCatalogService interface {
 	GetRelease(context.Context, domain.Actor, string) (domain.Release, error)
 	ReleaseEvidenceFlowPlan(context.Context, domain.Actor, string) (domain.ReleaseEvidenceFlow, error)
 	FreezeRelease(context.Context, domain.Actor, string, int64) (domain.Release, error)
+	AuthorizeReleaseTransition(context.Context, domain.Actor, string) error
+	AuthorizeCandidateTransition(context.Context, domain.Actor, string) error
 	ApproveRelease(context.Context, domain.Actor, string, int64) (domain.Release, error)
 	CreateReleaseCandidate(context.Context, domain.Actor, app.CreateReleaseCandidateInput) (domain.ReleaseCandidate, error)
 	AuthorizeCandidateCreation(context.Context, domain.Actor, releaseapp.CreateReleaseCandidateInput) error

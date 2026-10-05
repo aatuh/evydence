@@ -1029,8 +1029,29 @@ share 4096-entry and 64 KiB raw-identifier-byte limits. The complete JSON body
 remains capped at 64 KiB. Cookie writes require same-host HTTPS Origin with
 Bearer precedence. These input and replay-authority restrictions require
 release compatibility review; this note does not approve an exception or claim
-publication. Local memory is nondurable, candidate transitions remain
+publication. Local memory is nondurable, broader startup composition remains
 transitional, and a snapshot is not a release-safety or compliance conclusion.
+
+## Unreleased Conditional Transition Boundary
+
+Release freeze/approval and candidate promotion/rejection now use native
+PostgreSQL durable execution instead of Ledger cloning/replay/refresh. Routes,
+response fields, schemas, timestamps, immutable snapshot fields, state/revision
+rules and the existing `conditional-action-v1` fingerprint remain. The canonical
+strong `If-Match` revision and original body bytes still identify replay intent.
+No migration or historical rewrite is required. Completed retry checks current
+tenant/subject/parent ownership and grants, not current lifecycle or private
+metadata; fresh execution retains bounded state/revision checks.
+
+Both profiles require NUL-free UTF-8 raw IDs within 1024 bytes and candidate
+reason text within 64 KiB before trimming. Strict candidate JSON rejects null,
+unknown, duplicate and case-aliased fields. Freeze/approval now reject nonempty
+non-object and unknown-field bodies; legacy absent/blank bodies remain accepted.
+Cookie writes require same-host HTTPS Origin with Bearer precedence. These input
+and replay-authority restrictions require release compatibility review; this
+note does not approve an exception or claim publication. Local memory remains
+nondurable and broader production composition is unfinished. See
+[conditional transitions](../api.md#conditional-release-transitions).
 
 ## Deprecation Lifecycle
 
