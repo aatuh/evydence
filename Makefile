@@ -594,6 +594,7 @@ sdk-check: error-catalog-check ## Validate SDK helper and generated route-catalo
 	@test -f sdk/typescript/client.ts
 	@test -f sdk/python/evydence_client.py
 	@test -f sdk/openapi-route-catalog.json
+	@python3 scripts/test_sdk_check.py
 	@python3 scripts/sdk_check.py
 
 demo-check: ## Validate checked end-to-end evidence demo fixtures

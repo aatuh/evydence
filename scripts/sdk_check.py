@@ -77,6 +77,7 @@ class RequestFieldContract:
     typescript_type: str
     handler_file: pathlib.Path
     handler_name: str
+    decoder_name: str = ""
 
 
 REQUEST_FIELD_CONTRACTS = (
@@ -85,24 +86,27 @@ REQUEST_FIELD_CONTRACTS = (
         "CreateReleaseRequest",
         "CreateReleaseRequest",
         "CreateReleaseRequest",
-        ROOT / "internal/adapters/httpapi/router.go",
+        ROOT / "internal/adapters/httpapi/catalog_creation_commands.go",
         "createRelease",
+        "decodeReleaseCreation",
     ),
     RequestFieldContract(
         "registerArtifact",
         "RegisterArtifactRequest",
         "RegisterArtifactRequest",
         "RegisterArtifactRequest",
-        ROOT / "internal/adapters/httpapi/router.go",
+        ROOT / "internal/adapters/httpapi/artifact_image_registration.go",
         "registerArtifact",
+        "decodeArtifactRegistration",
     ),
     RequestFieldContract(
         "createBuild",
         "CreateBuildRequest",
         "CreateBuildRequest",
         "CreateBuildRequest",
-        ROOT / "internal/adapters/httpapi/router.go",
+        ROOT / "internal/adapters/httpapi/build_commands.go",
         "createBuild",
+        "decodeBuildCreation",
     ),
 )
 
@@ -183,14 +187,24 @@ def typescript_request_fields(source: str, type_name: str) -> tuple[set[str], se
     return fields, required
 
 
-def handler_request_fields(source: str, handler_name: str) -> set[str]:
-    marker = f"func (s *Server) {handler_name}("
+def go_function_source(source: str, name: str, server_method: bool = False) -> str:
+    receiver = "(s *Server) " if server_method else ""
+    marker = f"func {receiver}{name}("
     start = source.find(marker)
     if start == -1:
-        fail(f"handler missing {handler_name}")
+        fail(f"Go function missing {name}")
     end = source.find("\nfunc ", start + len(marker))
-    handler = source[start:] if end == -1 else source[start:end]
-    match = re.search(r"(?ms)var req struct \{(?P<body>.*?)^\t\}", handler)
+    return source[start:] if end == -1 else source[start:end]
+
+
+def handler_request_fields(source: str, handler_name: str, decoder_name: str = "") -> set[str]:
+    handler = go_function_source(source, handler_name, server_method=True)
+    request_source = handler
+    if decoder_name:
+        if not re.search(rf"\b{re.escape(decoder_name)}\s*\(", handler):
+            fail(f"handler {handler_name} does not call request decoder {decoder_name}")
+        request_source = go_function_source(source, decoder_name)
+    match = re.search(r"(?ms)var req struct \{(?P<body>.*?)^\t\}", request_source)
     if not match:
         fail(f"handler {handler_name} missing tagged request struct")
     return set(re.findall(r'`json:"([^,"]+)', match.group("body")))
@@ -202,7 +216,11 @@ def validate_request_field_contracts(spec: dict, go_client: str, typescript_clie
         schema_fields, schema_required = properties_and_required(spec, contract.schema_name)
         go_fields, go_required = go_request_fields(go_client, contract.go_type)
         typescript_fields, typescript_required = typescript_request_fields(typescript_client, contract.typescript_type)
-        handler_fields = handler_request_fields(contract.handler_file.read_text(encoding="utf-8"), contract.handler_name)
+        handler_source = contract.handler_file.read_text(encoding="utf-8")
+        if contract.decoder_name:
+            handler_fields = handler_request_fields(handler_source, contract.handler_name, contract.decoder_name)
+        else:
+            handler_fields = handler_request_fields(handler_source, contract.handler_name)
         for label, fields in (("Go SDK", go_fields), ("TypeScript SDK", typescript_fields), ("handler", handler_fields)):
             if fields != schema_fields:
                 failures.append(

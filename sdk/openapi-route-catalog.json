@@ -2755,7 +2755,7 @@
       "method": "POST",
       "operation_id": "rotateSigningKey",
       "path": "/v1/signing-keys/rotate",
-      "request_schema": "#/components/schemas/SigningKeyTransitionRequest",
+      "request_schema": "#/components/schemas/SigningKeyRotationRequest",
       "response_schemas": [
         "#/components/schemas/Problem",
         "#/components/schemas/SigningKeyEnvelope"
