@@ -98,7 +98,9 @@ type Server struct {
 	contractDiffCommands              ContractDiffCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
+	evidenceRelationshipCommands      EvidenceRelationshipCommands
 	localEvidenceCreation             localEvidenceCreationCommands
+	localEvidenceRelationships        localEvidenceRelationshipCommands
 	localReportTemplates              localReportTemplateCommands
 	localBundleImport                 localBundleImportCommand
 	localEvidenceBundles              localEvidenceBundleCommands
@@ -345,6 +347,7 @@ type ServerOptions struct {
 	ContractDiffCommands          ContractDiffCommands
 	DurableCommandExecutor        DurableCommandExecutor
 	EvidenceCreationCommands      EvidenceCreationCommands
+	EvidenceRelationshipCommands  EvidenceRelationshipCommands
 	OpenAPIIngestionCommands      OpenAPIIngestionCommands
 	SBOMIngestionCommands         SBOMIngestionCommands
 	ScanIngestionCommands         VulnerabilityScanIngestionCommands
@@ -584,6 +587,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.EvidenceCreationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused evidence creation requires durable idempotency")
 	}
+	if opts.EvidenceRelationshipCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused evidence relationships require durable idempotency")
+	}
 	if opts.ReportTemplateCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused report templates require durable idempotency")
 	}
@@ -736,6 +742,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.contractDiffCommands = opts.ContractDiffCommands
 	server.durableCommandExecutor = opts.DurableCommandExecutor
 	server.evidenceCreationCommands = opts.EvidenceCreationCommands
+	server.evidenceRelationshipCommands = opts.EvidenceRelationshipCommands
 	server.openAPIIngestionCommands = opts.OpenAPIIngestionCommands
 	server.sbomIngestionCommands = opts.SBOMIngestionCommands
 	server.scanIngestionCommands = opts.ScanIngestionCommands
@@ -809,6 +816,7 @@ func (s *Server) bindLedger(ledger *app.Ledger) {
 	s.releaseCatalog = ledger
 	s.localDeployments = ledger
 	s.localEvidenceCreation = ledger
+	s.localEvidenceRelationships = ledger
 	s.localReportTemplates = ledger
 	s.localBundleImport = ledger
 	s.localEvidenceBundles = ledger
@@ -2063,52 +2071,6 @@ func (s *Server) getEvidence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, http.StatusOK, item)
-}
-
-func (s *Server) supersedeEvidence(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ReplacementEvidenceID string `json:"replacement_evidence_id"`
-		Reason                string `json:"reason"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		item, err := s.evidenceIngestion.SupersedeEvidence(ctx, actor, r.PathValue("id"), req.ReplacementEvidenceID, req.Reason)
-		return http.StatusCreated, item, err
-	})
-}
-
-func (s *Server) linkEvidence(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		TargetType string `json:"target_type"`
-		TargetID   string `json:"target_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		item, err := s.evidenceIngestion.LinkEvidence(ctx, actor, r.PathValue("id"), req.TargetType, req.TargetID)
-		return http.StatusCreated, item, err
-	})
-}
-
-func (s *Server) recordEvidenceLifecycleEvent(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Action        string         `json:"action"`
-		Reason        string         `json:"reason"`
-		Details       map[string]any `json:"details"`
-		ReplacementID string         `json:"replacement_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		event, err := s.evidenceIngestion.RecordEvidenceLifecycleEvent(ctx, actor, r.PathValue("id"), app.RecordEvidenceLifecycleInput{
-			Action: req.Action, Reason: req.Reason, Details: req.Details, ReplacementID: req.ReplacementID,
-		})
-		return http.StatusCreated, event, err
-	})
 }
 
 func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Request) {

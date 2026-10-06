@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -317,339 +316,26 @@ func (s *Service) ListEvidence(ctx context.Context, actor identitydomain.Actor, 
 	return result, nil
 }
 
-func (s *Service) SupersedeEvidence(ctx context.Context, actor identitydomain.Actor, id, replacementID, reason string) (evidencedomain.EvidenceItem, error) {
-	if err := contextError(ctx); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	id = strings.TrimSpace(id)
-	replacementID = strings.TrimSpace(replacementID)
-	reason = strings.TrimSpace(reason)
-	if id == "" || replacementID == "" || id == replacementID || reason == "" {
-		return evidencedomain.EvidenceItem{}, ErrValidation
-	}
-	item, err := s.reader.GetEvidence(ctx, actor.TenantID, id)
+func (s *Service) SupersedeEvidence(ctx context.Context, a identitydomain.Actor, id, replacement, reason string) (evidencedomain.EvidenceItem, error) {
+	c, err := s.relationshipCommands()
 	if err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, id, item); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	replacement, err := s.reader.GetEvidence(ctx, actor.TenantID, replacementID)
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, replacementID, replacement); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if !s.supportsMutableRelationships(item) || !s.supportsMutableRelationships(replacement) {
-		return evidencedomain.EvidenceItem{}, ErrConflict
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(item), false); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(replacement), false); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	itemOrigin, err := s.relationshipCanonicalOrigin(ctx, actor.TenantID, item)
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	replacementOrigin, err := s.relationshipCanonicalOrigin(ctx, actor.TenantID, replacement)
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	now := s.clock.Now().UTC()
-	safeReason, safeDetails, err := s.lifecycleSanitizer.SanitizeLifecycle(ctx, reason, map[string]any{
-		"operation": "supersede", "replacement_evidence_id": replacementID,
-	})
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if strings.TrimSpace(safeReason) == "" {
-		return evidencedomain.EvidenceItem{}, ErrValidation
-	}
-	safeDetails = cloneMap(safeDetails)
-	if safeDetails == nil {
-		safeDetails = map[string]any{}
-	}
-	if itemOrigin != nil {
-		safeDetails[legacyCanonicalOriginDetail] = *itemOrigin
-	}
-	event := evidencedomain.EvidenceLifecycleEvent{
-		ID: s.ids.NewID("elc"), TenantID: actor.TenantID, EvidenceID: id,
-		Action: lifecycleState(evidencedomain.EvidenceLifecycleAmendmentValue), Reason: safeReason,
-		Details: cloneMap(safeDetails), ReplacementID: replacementID, ActorID: auditActorID(actor),
-		SchemaVersion: evidencedomain.EvidenceRelationshipLifecycleSchemaVersion, CreatedAt: now,
-	}
-	var replacementEvent *evidencedomain.EvidenceLifecycleEvent
-	if replacementOrigin != nil {
-		replacementDetails := cloneMap(safeDetails)
-		replacementDetails["role"] = "replacement"
-		replacementDetails["original_evidence_id"] = id
-		replacementDetails[legacyCanonicalOriginDetail] = *replacementOrigin
-		value := evidencedomain.EvidenceLifecycleEvent{
-			ID: s.ids.NewID("elc"), TenantID: actor.TenantID, EvidenceID: replacementID,
-			Action: lifecycleState(evidencedomain.EvidenceLifecycleAmendmentValue), Reason: safeReason,
-			Details: replacementDetails, ActorID: auditActorID(actor),
-			SchemaVersion: evidencedomain.EvidenceRelationshipLifecycleSchemaVersion, CreatedAt: now,
-		}
-		replacementEvent = &value
-	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		current, err := tx.Evidence().GetEvidence(ctx, actor.TenantID, id)
-		if err != nil {
-			return err
-		}
-		if err := validateReturnedEvidence(ctx, tx.Evidence(), actor.TenantID, id, current); err != nil {
-			return err
-		}
-		currentReplacement, err := tx.Evidence().GetEvidence(ctx, actor.TenantID, replacementID)
-		if err != nil {
-			return err
-		}
-		if err := validateReturnedEvidence(ctx, tx.Evidence(), actor.TenantID, replacementID, currentReplacement); err != nil {
-			return err
-		}
-		if evidenceReferences(current) != evidenceReferences(item) || evidenceReferences(currentReplacement) != evidenceReferences(replacement) {
-			return ErrConflict
-		}
-		if !s.supportsMutableRelationships(current) || !s.supportsMutableRelationships(currentReplacement) {
-			return ErrConflict
-		}
-		if current.SupersededBy != "" || currentReplacement.Supersedes != "" {
-			return ErrConflict
-		}
-		current.SupersededBy = currentReplacement.ID
-		currentReplacement.Supersedes = current.ID
-		if err := tx.Evidence().RecordSupersession(ctx, current, currentReplacement); err != nil {
-			return err
-		}
-		if err := tx.Evidence().AppendLifecycle(ctx, event); err != nil {
-			return err
-		}
-		if replacementEvent != nil {
-			if err := tx.Evidence().AppendLifecycle(ctx, *replacementEvent); err != nil {
-				return err
-			}
-		}
-		_, err = tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "evidence.superseded", current.ID, current.PayloadHash))
-		if err == nil {
-			item = current
-		}
-		return err
-	})
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	return cloneEvidence(item), nil
+	return c.SupersedeEvidence(ctx, a, id, replacement, reason)
 }
-
-func (s *Service) LinkEvidence(ctx context.Context, actor identitydomain.Actor, id, targetType, targetID string) (evidencedomain.EvidenceItem, error) {
-	if err := contextError(ctx); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	id = strings.TrimSpace(id)
-	targetType = strings.TrimSpace(targetType)
-	targetID = strings.TrimSpace(targetID)
-	if id == "" || targetID == "" || (targetType != "release" && targetType != "product") {
-		return evidencedomain.EvidenceItem{}, ErrValidation
-	}
-	item, err := s.reader.GetEvidence(ctx, actor.TenantID, id)
+func (s *Service) LinkEvidence(ctx context.Context, a identitydomain.Actor, id, kind, target string) (evidencedomain.EvidenceItem, error) {
+	c, err := s.relationshipCommands()
 	if err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, id, item); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if !s.supportsMutableRelationships(item) {
-		return evidencedomain.EvidenceItem{}, ErrConflict
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(item), false); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if err := s.reader.ValidateLinkTarget(ctx, actor.TenantID, targetType, targetID); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	targetReferences := application.ResourceReferences{}
-	if targetType == "release" {
-		targetReferences.ReleaseID = targetID
-	} else {
-		targetReferences.ProductID = targetID
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, targetReferences, false); err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	itemOrigin, err := s.relationshipCanonicalOrigin(ctx, actor.TenantID, item)
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	now := s.clock.Now().UTC()
-	safeReason, safeDetails, err := s.lifecycleSanitizer.SanitizeLifecycle(ctx, "linked evidence to "+targetType, map[string]any{
-		"operation": "link", "target_type": targetType, "target_id": targetID,
-	})
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	if strings.TrimSpace(safeReason) == "" {
-		return evidencedomain.EvidenceItem{}, ErrValidation
-	}
-	safeDetails = cloneMap(safeDetails)
-	if safeDetails == nil {
-		safeDetails = map[string]any{}
-	}
-	if itemOrigin != nil {
-		safeDetails[legacyCanonicalOriginDetail] = *itemOrigin
-	}
-	event := evidencedomain.EvidenceLifecycleEvent{
-		ID: s.ids.NewID("elc"), TenantID: actor.TenantID, EvidenceID: id,
-		Action: lifecycleState(evidencedomain.EvidenceLifecycleAmendmentValue), Reason: safeReason,
-		Details: cloneMap(safeDetails), ActorID: auditActorID(actor),
-		SchemaVersion: evidencedomain.EvidenceRelationshipLifecycleSchemaVersion, CreatedAt: now,
-	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		current, err := tx.Evidence().GetEvidence(ctx, actor.TenantID, id)
-		if err != nil {
-			return err
-		}
-		if err := validateReturnedEvidence(ctx, tx.Evidence(), actor.TenantID, id, current); err != nil {
-			return err
-		}
-		if evidenceReferences(current) != evidenceReferences(item) {
-			return ErrConflict
-		}
-		if !s.supportsMutableRelationships(current) {
-			return ErrConflict
-		}
-		if err := tx.Evidence().ValidateLinkTarget(ctx, actor.TenantID, targetType, targetID); err != nil {
-			return err
-		}
-		expected := cloneEvidence(current)
-		if targetType == "release" {
-			current.ReleaseID = targetID
-		} else {
-			current.ProductID = targetID
-		}
-		current.RelatedEvidenceRefs = append(current.RelatedEvidenceRefs, evidencedomain.EvidenceRef{Type: targetType, ID: targetID, Relationship: "linked_to"})
-		if err := tx.Evidence().ValidateScope(ctx, actor.TenantID, evidenceScope(current)); err != nil {
-			return err
-		}
-		if err := tx.Evidence().CompareAndSwapEvidenceLinks(ctx, expected, current); err != nil {
-			return err
-		}
-		if err := tx.Evidence().AppendLifecycle(ctx, event); err != nil {
-			return err
-		}
-		_, err = tx.Audit().AppendAudit(ctx, s.auditEvent(actor, now, "evidence.linked", current.ID, current.PayloadHash))
-		if err == nil {
-			item = current
-		}
-		return err
-	})
-	if err != nil {
-		return evidencedomain.EvidenceItem{}, err
-	}
-	return cloneEvidence(item), nil
+	return c.LinkEvidence(ctx, a, id, kind, target)
 }
-
-type RecordLifecycleInput struct {
-	Action        string
-	Reason        string
-	Details       map[string]any
-	ReplacementID string
-}
-
-func (s *Service) RecordLifecycleEvent(ctx context.Context, actor identitydomain.Actor, evidenceID string, input RecordLifecycleInput) (evidencedomain.EvidenceLifecycleEvent, error) {
-	if err := contextError(ctx); err != nil {
-		return evidencedomain.EvidenceLifecycleEvent{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
-		return evidencedomain.EvidenceLifecycleEvent{}, err
-	}
-	evidenceID = strings.TrimSpace(evidenceID)
-	input.Reason = strings.TrimSpace(input.Reason)
-	input.ReplacementID = strings.TrimSpace(input.ReplacementID)
-	if _, reserved := input.Details[legacyCanonicalOriginDetail]; reserved {
-		return evidencedomain.EvidenceLifecycleEvent{}, ErrValidation
-	}
-	action, err := evidencedomain.ParseEvidenceLifecycleState(input.Action)
-	if evidenceID == "" || input.Reason == "" || err != nil {
-		return evidencedomain.EvidenceLifecycleEvent{}, ErrValidation
-	}
-	item, err := s.reader.GetEvidence(ctx, actor.TenantID, evidenceID)
+func (s *Service) RecordLifecycleEvent(ctx context.Context, a identitydomain.Actor, id string, in RecordLifecycleInput) (evidencedomain.EvidenceLifecycleEvent, error) {
+	c, err := s.relationshipCommands()
 	if err != nil {
 		return evidencedomain.EvidenceLifecycleEvent{}, err
 	}
-	if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, evidenceID, item); err != nil {
-		return evidencedomain.EvidenceLifecycleEvent{}, err
-	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(item), false); err != nil {
-		return evidencedomain.EvidenceLifecycleEvent{}, err
-	}
-	var replacement evidencedomain.EvidenceItem
-	if input.ReplacementID != "" {
-		replacement, err = s.reader.GetEvidence(ctx, actor.TenantID, input.ReplacementID)
-		if err != nil {
-			return evidencedomain.EvidenceLifecycleEvent{}, err
-		}
-		if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, input.ReplacementID, replacement); err != nil {
-			return evidencedomain.EvidenceLifecycleEvent{}, err
-		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(replacement), false); err != nil {
-			return evidencedomain.EvidenceLifecycleEvent{}, err
-		}
-	}
-	safeReason, safeDetails, err := s.lifecycleSanitizer.SanitizeLifecycle(ctx, input.Reason, cloneMap(input.Details))
-	if err != nil {
-		return evidencedomain.EvidenceLifecycleEvent{}, err
-	}
-	now := s.clock.Now().UTC()
-	event := evidencedomain.EvidenceLifecycleEvent{
-		ID: s.ids.NewID("elc"), TenantID: actor.TenantID, EvidenceID: item.ID, Action: action,
-		Reason: safeReason, Details: cloneMap(safeDetails), ReplacementID: input.ReplacementID,
-		ActorID: auditActorID(actor), SchemaVersion: evidencedomain.EvidenceLifecycleSchemaVersion, CreatedAt: now,
-	}
-	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		current, err := tx.Evidence().GetEvidence(ctx, actor.TenantID, item.ID)
-		if err != nil {
-			return err
-		}
-		if err := validateReturnedEvidence(ctx, tx.Evidence(), actor.TenantID, item.ID, current); err != nil {
-			return err
-		}
-		if evidenceReferences(current) != evidenceReferences(item) {
-			return ErrConflict
-		}
-		if input.ReplacementID != "" {
-			currentReplacement, err := tx.Evidence().GetEvidence(ctx, actor.TenantID, input.ReplacementID)
-			if err != nil {
-				return err
-			}
-			if err := validateReturnedEvidence(ctx, tx.Evidence(), actor.TenantID, input.ReplacementID, currentReplacement); err != nil {
-				return err
-			}
-			if evidenceReferences(currentReplacement) != evidenceReferences(replacement) {
-				return ErrConflict
-			}
-		}
-		if err := tx.Evidence().AppendLifecycle(ctx, event); err != nil {
-			return err
-		}
-		audit := s.auditEvent(actor, now, "evidence."+action.String(), current.ID, current.PayloadHash)
-		audit.ActorType = auditActorType(actor)
-		audit.ActorID = auditActorID(actor)
-		_, err = tx.Audit().AppendAudit(ctx, audit)
-		return err
-	})
-	if err != nil {
-		return evidencedomain.EvidenceLifecycleEvent{}, err
-	}
-	return cloneLifecycleEvent(event), nil
+	return c.RecordLifecycleEvent(ctx, a, id, in)
 }
 
 func (s *Service) ListLifecycleEvents(ctx context.Context, actor identitydomain.Actor, evidenceID string) ([]evidencedomain.EvidenceLifecycleEvent, error) {
@@ -709,10 +395,6 @@ func (s *Service) validateAndAuthorizeArtifactReference(ctx context.Context, act
 	return s.creation.preparer.validateAndAuthorizeArtifactReference(ctx, actor, scope, artifactID, digest)
 }
 
-func (s *Service) auditEvent(actor identitydomain.Actor, at time.Time, entryType, evidenceID, payloadHash string) application.AuditEvent {
-	return s.creation.preparer.auditEvent(actor, at, entryType, evidenceID, payloadHash)
-}
-
 func evidenceReferences(item evidencedomain.EvidenceItem) application.ResourceReferences {
 	return application.ResourceReferences{
 		ProductID: item.ProductID, ProjectID: item.ProjectID, ReleaseID: item.ReleaseID,
@@ -767,13 +449,6 @@ func validateReturnedLifecycleEvent(tenantID, evidenceID string, event evidenced
 	return nil
 }
 
-func (s *Service) supportsMutableRelationships(item evidencedomain.EvidenceItem) bool {
-	if workerOwnedEvidenceType(item.Type) {
-		return false
-	}
-	return item.Canonicalization == s.canonicalizationProfile || item.Canonicalization == evidencedomain.LegacyEvidenceCanonicalizationProfileVersion
-}
-
 func workerOwnedEvidenceType(evidenceType string) bool {
 	return evidencedomain.RequiresWorkerProjection(evidenceType)
 }
@@ -787,53 +462,6 @@ type canonicalRelationshipOrigin struct {
 	RelatedEvidenceRefs []evidencedomain.EvidenceRef `json:"related_evidence_refs,omitempty"`
 	Supersedes          string                       `json:"supersedes,omitempty"`
 	SupersededBy        string                       `json:"superseded_by,omitempty"`
-}
-
-func (s *Service) relationshipCanonicalOrigin(ctx context.Context, tenantID string, item evidencedomain.EvidenceItem) (*canonicalRelationshipOrigin, error) {
-	if item.Canonicalization == s.canonicalizationProfile {
-		return nil, nil
-	}
-	if item.Canonicalization != evidencedomain.LegacyEvidenceCanonicalizationProfileVersion {
-		return nil, ErrConflict
-	}
-	origin := canonicalOriginFromEvidence(item)
-	events, err := s.reader.ListLifecycleEvents(ctx, tenantID, item.ID)
-	if err != nil {
-		return nil, err
-	}
-	var recorded *canonicalRelationshipOrigin
-	for _, event := range events {
-		if err := validateReturnedLifecycleEvent(tenantID, item.ID, event); err != nil {
-			return nil, err
-		}
-		if event.SchemaVersion != evidencedomain.EvidenceRelationshipLifecycleSchemaVersion {
-			continue
-		}
-		raw, ok := event.Details[legacyCanonicalOriginDetail]
-		if !ok {
-			continue
-		}
-		decoded, err := decodeCanonicalRelationshipOrigin(raw)
-		if err != nil {
-			return nil, ErrConflict
-		}
-		if recorded != nil && !reflect.DeepEqual(*recorded, decoded) {
-			return nil, ErrConflict
-		}
-		recorded = &decoded
-	}
-	if recorded != nil {
-		origin = *recorded
-	}
-	candidate := applyCanonicalRelationshipOrigin(item, origin)
-	hash, err := s.canonicalizer.HashEvidence(ctx, candidate)
-	if err != nil {
-		return nil, err
-	}
-	if hash != item.CanonicalHash {
-		return nil, ErrConflict
-	}
-	return &origin, nil
 }
 
 func canonicalOriginFromEvidence(item evidencedomain.EvidenceItem) canonicalRelationshipOrigin {

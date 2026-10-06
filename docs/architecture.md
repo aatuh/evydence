@@ -1172,9 +1172,9 @@ counts from a consistent snapshot, then current resource grants are checked
 before the response is returned. The local-memory profile keeps the Ledger
 count path. The counts describe recorded evidence, not its completeness or
 security assurance.
-The production process still reconstructs broad Ledger state at startup for
-remaining compatibility operations; removing that startup load and migrating
-remaining evidence relationship/lifecycle commands remain open EVY-905 work.
+The production process still reconstructs broad Ledger state at startup;
+removing that startup load and auditing residual API/worker fallbacks remain
+open EVY-905 work.
 Evidence list and search pages now use focused Evidence query services and
 bounded PostgreSQL identity batches. SQL-side candidate grants precede keyset
 limits; current ownership and selected worker provenance are checked before
@@ -1186,6 +1186,21 @@ and 4096 facts, while encoded returned items have a 16 MiB page budget. Stored
 JSON numbers remain exact for transport without changing normalized hashes.
 See [evidence collection reads](api.md#evidence-collection-reads). Full startup
 load removal remains open.
+
+Evidence supersession, linking and lifecycle-event creation now bind a focused
+Evidence relationship service and native durable HTTP execution. Current
+tenant-owned evidence coordinates, coherent parents, optional replacement and
+link targets are share-locked and authorized before every fresh request or
+completed retry. The common writer fence precedes these locks and survives the
+outer transaction. Replay does not read evidence metadata, lifecycle history,
+legacy origins, clocks or IDs. Fresh execution uses bounded item/provenance
+reads and selects only authoritative legacy origins (8 MiB, at most 4096 rows),
+not a complete timeline. Relationship fields, append-only event(s), audit and
+safe replay completion commit together; immutable core fields and canonical
+hash profiles stay unchanged. Both profiles share strict raw-bounded input and
+cookie-Origin protection. Explicit local memory uses current-map guards and
+nondurable compatibility storage, not the native transaction guarantees. See
+[evidence relationship writes](api.md#evidence-relationship-writes).
 
 Evidence point reads and lifecycle pages in the PostgreSQL profile also use
 focused queries, including parser-owned items and replay markers; neither

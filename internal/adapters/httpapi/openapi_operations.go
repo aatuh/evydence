@@ -17,6 +17,8 @@ const focusedSecurityDocumentDescription = " In PostgreSQL mode, focused securit
 
 const focusedStateTransitionDescription = " PostgreSQL uses native durable execution without Ledger cloning/replay/refresh. Every retry checks current tenant/subject/release/product ownership and grants without lifecycle state, revision, private metadata, clocks or IDs; the shared writer fence precedes locks held through state/audit/replay commit. Completed replay returns the original response without reapplying lifecycle rules against newer state; fresh execution retains bounded revision/state checks. The unchanged conditional-action-v1 fingerprint binds canonical strong If-Match and original body bytes, so changed intent conflicts. Raw NUL-free UTF-8 IDs are limited to 1024 bytes before trimming and JSON to 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 
+const focusedEvidenceRelationshipDescription = " PostgreSQL uses focused native durable execution without Ledger cloning or reload. Every retry checks current tenant-owned evidence/parent/replacement/target coordinates and evidence:write grants; the writer fence precedes ownership locks held through relationship/event/audit/replay commit. Completed retries do not reread metadata or lifecycle history, rehash legacy origins, or allocate event IDs. Original request bytes remain the fingerprint. Strict non-null JSON rejects duplicate, unknown and case-aliased fields; raw NUL-free UTF-8 IDs are capped at 1024 bytes before trimming, action/target-type at 128 bytes and reason/details at 64 KiB, with existing 64 KiB body and 16 KiB JSON-string limits. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
+
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
 	switch operation.OperationID {
@@ -633,16 +635,19 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = jsonResponse("Transitioned release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "supersedeEvidence":
 		operation.Description = "Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead."
+		operation.Description += focusedEvidenceRelationshipDescription
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence supersession request.", "#/components/schemas/SupersedeEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Superseded evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "linkEvidence":
 		operation.Description = "Creates an append-only relationship from evidence to another tenant-scoped subject. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead."
+		operation.Description += focusedEvidenceRelationshipDescription + " Targets are product or release; a new key appends another link, while a completed retry adds no effects."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence link request.", "#/components/schemas/LinkEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Linked evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "recordEvidenceLifecycleEvent":
 		operation.Description = "Appends an evidence lifecycle event such as amendment, redaction marker, tombstone, or retention marker."
+		operation.Description += focusedEvidenceRelationshipDescription + " Reasons/details are redacted; details cannot contain the reserved evydence_canonical_origin_v1 key. Ordinary events may mark worker-owned evidence without changing its projection."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence lifecycle event request.", "#/components/schemas/RecordEvidenceLifecycleEventRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence lifecycle event envelope.", "#/components/schemas/EvidenceLifecycleEventEnvelope")

@@ -512,6 +512,42 @@ Tests: `internal/platform/wiring/evidence_creation_native_test.go`,
 `internal/evidence/app/creation_guard_test.go` and
 `internal/adapters/httpapi/evidence_creation_native_test.go`.
 
+#### Evidence Relationship Writes
+
+`POST /v1/evidence/{id}/supersede`, `/link` and `/lifecycle-events` require
+`evidence:write`. PostgreSQL uses focused native durable commands, without
+Ledger cloning or reload. Every retry checks current tenant ownership, coherent
+evidence parents and human resource grants, including replacement evidence and
+link targets. Ownership locks follow the common writer fence and remain held
+through evidence/event/audit/replay commit. A foreign evidence ID is not found;
+broken stored parent ownership fails closed as an integrity conflict.
+
+Completed retries return the original privacy-safe response without checking
+new supersession state, reading metadata or lifecycle history, rehashing a
+legacy origin, or allocating event IDs. Changed original body bytes under the
+same key conflict. A different key represents a new command: repeated links
+append another relationship/event, while an already-superseded pair conflicts.
+Supersession and link changes preserve immutable core fields and canonical
+hashes. Fresh legacy amendments reproduce the original hash from bounded,
+authoritative origin records; they do not trust ordinary lifecycle details.
+Worker-owned parser and build-attestation relationships remain fixed. Ordinary
+lifecycle events can mark those records without rewriting their projections.
+
+Both profiles reject explicit null fields, duplicate/unknown/case-aliased
+fields, invalid UTF-8 and NUL text. Raw IDs are capped at 1024 bytes before
+trimming, action/target-type labels at 128 bytes, and reason/details at 64 KiB;
+the existing 64 KiB request and 16 KiB JSON-string limits still apply. Link
+targets are `product` or `release`. Lifecycle actions use the documented state
+labels; supplied details cannot contain the reserved
+`evydence_canonical_origin_v1` key. Reasons/details are redacted before append,
+and JSON integers remain exact in transport. Cookie writes require same-host
+HTTPS `Origin`, with explicit Bearer precedence. Local memory retains
+nondurable storage and current-map guards, not native database guarantees.
+
+Tests: `internal/evidence/app/relationship_commands_test.go`,
+`internal/adapters/httpapi/evidence_relationship_commands_test.go` and
+`internal/platform/wiring/evidence_relationship_native_test.go`.
+
 ### 3. Upload SBOM And Vulnerability Evidence
 
 CycloneDX SBOM:

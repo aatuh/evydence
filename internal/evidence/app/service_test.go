@@ -435,9 +435,7 @@ func TestSupersedeEvidenceAuthorizesBothRecordsAndCommitsTogether(t *testing.T) 
 	if updated.SupersededBy != replacement.ID || fixture.transactions.state.evidence[replacement.ID].Supersedes != first.ID {
 		t.Fatalf("supersession state = %#v", fixture.transactions.state.evidence)
 	}
-	if fixture.authorizer.calls != 3 {
-		t.Fatalf("authorization calls = %d, want base plus both records", fixture.authorizer.calls)
-	}
+	assertRelationshipPairAuthorization(t, fixture.authorizer.requests, evidenceReferences(first), evidenceReferences(replacement))
 	if len(fixture.transactions.state.lifecycle) != 1 {
 		t.Fatalf("supersession lifecycle = %#v", fixture.transactions.state.lifecycle)
 	}
@@ -725,9 +723,7 @@ func TestRecordLifecycleEventSanitizesAndCommitsAuditAtomically(t *testing.T) {
 	if len(event.Details) != 1 || event.Details["safe"] != true {
 		t.Fatalf("details = %#v", event.Details)
 	}
-	if fixture.authorizer.calls != 3 {
-		t.Fatalf("authorization calls = %d, want base plus both records", fixture.authorizer.calls)
-	}
+	assertRelationshipPairAuthorization(t, fixture.authorizer.requests, evidenceReferences(item), evidenceReferences(replacement))
 	if fixture.sanitizer.calls != 1 || len(fixture.transactions.state.lifecycle) != 1 || len(fixture.transactions.state.audit) != 1 || fixture.transactions.commits != 1 {
 		t.Fatalf("sanitizer=%d state=%#v transactions=%#v", fixture.sanitizer.calls, fixture.transactions.state, fixture.transactions)
 	}
