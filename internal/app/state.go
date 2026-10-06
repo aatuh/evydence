@@ -378,10 +378,6 @@ func (l *Ledger) releaseLedgerMutationLocked() (ReleaseLedgerMutation, error) {
 	return releaseLedgerMutationFromState(state), nil
 }
 
-func ReleaseLedgerMutationFromState(state PersistedState) ReleaseLedgerMutation {
-	return releaseLedgerMutationFromState(state)
-}
-
 func (l *Ledger) persistCriticalStateLocked(ctx context.Context) error {
 	mutation, err := l.criticalMutationLocked()
 	if err != nil {

@@ -37,8 +37,8 @@ func TestLegacyLedgerServiceShellsAreRetired(t *testing.T) {
 					t.Errorf("%s declares retired Ledger service shell %s", name, n.Name.Name)
 				}
 			case *ast.FuncDecl:
-				if retired[n.Name.Name] || n.Name.Name == "NewLedger" {
-					t.Errorf("%s declares retired Ledger factory %s", name, n.Name.Name)
+				if retired[n.Name.Name] || n.Name.Name == "NewLedger" || n.Name.Name == "ReleaseLedgerMutationFromState" {
+					t.Errorf("%s declares retired Ledger helper %s", name, n.Name.Name)
 				}
 			case *ast.SelectorExpr:
 				if retired[n.Sel.Name] {
