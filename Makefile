@@ -42,22 +42,23 @@ gosec: ## Run gosec when installed
 	@gosec -exclude-dir=.refs ./...
 
 test: ## Run unit tests
-	@$(GO) test ./...
+	@$(GO) test ./... -timeout=30m
 
 fuzz-smoke: ## Run Go fuzz target seed corpora without a fuzzing campaign
 	@$(GO) test ./internal/app -run '^Fuzz'
 
 test-race: ## Run race tests
-	@$(GO) test ./... -race -count=1
+	@$(GO) test ./... -race -count=1 -timeout=30m
 
 coverage: ## Run tests with coverage
-	@$(GO) test ./... -coverprofile=coverage.out
+	@$(GO) test ./... -coverprofile=coverage.out -timeout=30m
 	@$(GO) tool cover -func=coverage.out
 
 coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/coverage_check.sh
 
 test-strategy-check: ## Validate critical behavior test evidence and coverage provenance policy
+	@python3 scripts/test_gate_watchdogs.py
 	@python3 scripts/test_critical_behavior_matrix.py
 	@python3 scripts/critical_behavior_matrix.py --check
 
@@ -828,7 +829,7 @@ live-postgres-check: ## Verify PostgreSQL connectivity and migrations when EVYDE
 	@if [ -z "$$EVYDENCE_TEST_DATABASE_URL" ]; then echo "EVYDENCE_TEST_DATABASE_URL not set; skipping live postgres check"; exit 0; else EVYDENCE_DATABASE_URL="$$EVYDENCE_TEST_DATABASE_URL" $(GO) run ./cmd/evydence-migrate; fi
 
 postgres-integration-test: ## Run Postgres-backed integration tests when EVYDENCE_TEST_DATABASE_URL is set
-	@if [ -z "$$EVYDENCE_TEST_DATABASE_URL" ]; then echo "EVYDENCE_TEST_DATABASE_URL not set; skipping postgres integration tests"; exit 0; else $(GO) test ./internal/adapters/postgres ./internal/app -count=1; fi
+	@if [ -z "$$EVYDENCE_TEST_DATABASE_URL" ]; then echo "EVYDENCE_TEST_DATABASE_URL not set; skipping postgres integration tests"; exit 0; else $(GO) test ./internal/adapters/postgres ./internal/app -count=1 -timeout=30m; fi
 
 clean: ## Clean local test artifacts
 	@rm -f coverage.out

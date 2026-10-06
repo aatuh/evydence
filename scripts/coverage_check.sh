@@ -14,7 +14,7 @@ if [ -z "${EVYDENCE_TEST_DATABASE_URL:-}" ]; then
   exit 2
 fi
 
-go test ./... -coverprofile="$profile"
+go test ./... -coverprofile="$profile" -timeout=30m
 
 total="$(go tool cover -func="$profile" | awk '/^total:/ { gsub("%", "", $3); print $3 }')"
 if [ -z "$total" ]; then

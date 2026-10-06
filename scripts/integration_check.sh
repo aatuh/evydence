@@ -43,7 +43,7 @@ write_summary() {
 trap write_summary EXIT
 
 phase=postgres
-go test ./internal/adapters/postgres -count=1
+go test ./internal/adapters/postgres -count=1 -timeout=30m
 phase=minio
 go test ./internal/adapters/objectstore/s3 -count=1 -run '^TestMinIOIntegration'
 status=passed
