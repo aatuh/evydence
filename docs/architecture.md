@@ -58,6 +58,35 @@ superseded by this section; they are not descriptions of current native producti
 wiring. Explicit local compatibility paths remain. See the [runtime configuration reference](reference/configuration.md#first-tenant-bootstrap)
 for current operator behavior.
 
+## Architecture enforcement (EVY-906 in progress)
+
+`make architecture-check` tests the source inspector and policy, then scans
+non-test Go source under `cmd`, `internal`, `pkg`, `sdk` and `examples` with the
+Go AST. Build-tagged source is included regardless of the current platform;
+tests, testdata, vendored and hidden directories are excluded. Selected source
+is never compiled or executed. Child symlinks, non-regular source and files
+over 8 MiB fail inspection; errors do not quote source tokens.
+
+Import cycles and inward-boundary violations fail the check, including indirect
+paths through helpers. Context domains remain independent; application/query
+packages cannot import concrete transport/storage/provider adapters, foreign
+application/query services, or production dependencies on experimental contexts.
+Scoped foreign-context domain read models remain allowed. The neutral legacy
+pagination package `internal/app/query` is not an aggregate service. Generated
+source must obey the same import policy.
+
+Non-generated files above 800 lines and public interfaces above 12 declared
+methods plus embeddings produce review flags, not automatic rejections.
+This metric does not expand embedded method sets; reviewers must inspect those
+as well. Generated declaration size is exempt, not generated imports. These
+are review triggers, not proof of cohesive architecture.
+
+The gate currently exposes legacy DSSE adapter imports and the Package-to-Risk
+application dependency. These are remediation work, not approved exemptions.
+EVY-906 remains incomplete until those dependencies and the obsolete Ledger
+surface are removed and all required final validation passes. The gate will
+join broad validation once that remediation is complete.
+
 ## Storage and workflow adapters
 
 Both object-store adapters expose `app.BoundedObjectReader.GetBounded` for

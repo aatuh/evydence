@@ -3,6 +3,7 @@ GOTOOLCHAIN ?= local
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
+.PHONY: architecture-check
 GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
@@ -732,6 +733,11 @@ integration-check: ## Run guarded live PostgreSQL and MinIO adapter checks
 domain-context-check: ## Validate bounded-context model ownership and compatibility
 	@python3 scripts/test_domain_context_check.py
 	@python3 scripts/domain_context_check.py
+
+architecture-check: ## Enforce inward imports and flag large source/interface surfaces
+	@$(GO) test ./internal/architecturecheck ./cmd/architecture-inspect
+	@GO='$(GO)' python3 scripts/test_architecture_check.py
+	@GO='$(GO)' python3 scripts/architecture_check.py
 
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test

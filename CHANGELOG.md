@@ -38,7 +38,10 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 - Added a read-only Go AST source inspector for architecture enforcement. It
   includes build-tagged imports, identifies generated source and public
   interface declarations, and rejects source symlinks and oversized files.
-  EVY-906 boundary enforcement and legacy aggregate removal remain in progress.
+  `make architecture-check` now rejects import cycles and direct/indirect
+  inward-boundary violations and flags non-generated files/interfaces for
+  architectural review. Existing violations and legacy aggregate removal
+  remain EVY-906 work; this is not a passing final architecture gate.
 
 - PostgreSQL SSO session revocation/logout now use focused, hash-free locked
   metadata and an atomic lifecycle/audit/replay transaction. Cookie-only

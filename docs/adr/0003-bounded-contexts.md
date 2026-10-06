@@ -941,8 +941,10 @@ Go dependency cycles are prohibited. A context domain package may depend only
 on standard library and small shared value/event packages. An application
 package may depend on its own domain and inward-facing ports. Adapters and
 `cmd/*` depend inward only. Neither domain nor application may import HTTP,
-PostgreSQL, object-store, worker, or provider adapters. The future
-`architecture-check` from EVY-906 will enforce these rules.
+PostgreSQL, object-store, worker, or provider adapters. EVY-906 has introduced
+`make architecture-check` with syntax-aware import-graph enforcement and review
+thresholds. The remaining violations and Ledger retirement are still incomplete;
+see [current enforcement scope](../architecture.md#architecture-enforcement-evy-906-in-progress).
 
 ### Migration and retirement sequence
 
