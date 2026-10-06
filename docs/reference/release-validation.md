@@ -87,7 +87,7 @@ production deployment. Keep the pinned image from `docker-compose.yml`, leave
 `fsync`, `synchronous_commit` and `full_page_writes` enabled, and retain the
 same package/fixture deadlines, race checks and coverage thresholds.
 
-The example bounds database files to 2 GiB and total container memory to 3 GiB.
+The example bounds database files to 2 GiB and total container memory to 5 GiB.
 Allow enough available memory for PostgreSQL and the test processes. The
 container name and loopback port must be unused; do not remove an existing
 service to make the example run. Start it from the repository root:
@@ -95,7 +95,7 @@ service to make the example run. Start it from the repository root:
 ```sh
 validation_pg_image=$(docker compose config --format json | jq -r '.services.postgres.image')
 docker run -d --name evydence-validation-postgres \
-  --memory=3g --memory-swap=3g \
+  --memory=5g --memory-swap=5g \
   --tmpfs /var/lib/postgresql/data:rw,size=2g \
   --publish 127.0.0.1:55439:55439 \
   --env POSTGRES_USER=evydence --env POSTGRES_PASSWORD=change-me \
@@ -124,6 +124,14 @@ export ENV=''
 export EVYDENCE_TEST_DATABASE_URL='postgres://evydence:change-me@127.0.0.1:55439/evydence?sslmode=disable'
 make production-check
 ```
+
+The data mount counts against the container memory ceiling. Leave additional
+headroom for backend allocations: oversized-projection rejection fixtures can
+temporarily exceed a GiB even though invalid data is never transferred to the
+application. Accumulated WAL/data and backend memory together exhausted an
+earlier 3 GiB ceiling during coverage. Treat the example as a starting bound,
+not a portable resource guarantee; monitor container/host memory and retain the
+original adversarial fixtures and deadlines.
 
 The complete gate is still required; an out-of-memory event, full tmpfs or timeout
 is a failure, not a reason to omit tests. Record the ephemeral storage choice
