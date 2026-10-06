@@ -42,6 +42,9 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.releaseCatalog != ledger {
 		t.Fatal("release catalog service was not rebound")
 	}
+	if server.localDeployments != ledger {
+		t.Fatal("local deployment dependency was not rebound")
+	}
 	if server.evidenceIngestion != ledger {
 		t.Fatal("evidence ingestion service was not rebound")
 	}

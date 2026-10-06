@@ -28,6 +28,7 @@ type DeploymentEnvironmentReader interface {
 	EnvironmentByName(context.Context, string, string, string) (operationsdomain.DeploymentEnvironment, bool, error)
 }
 type DeploymentEnvironmentTransaction interface {
+	DeploymentTenantLocker
 	DeploymentEnvironmentReader
 	application.Authorizer
 	application.AuditAppender
@@ -65,23 +66,21 @@ func (s *DeploymentEnvironmentCommands) CreateDeploymentEnvironment(ctx context.
 	if err := s.config.Authorizer.Authorize(ctx, a, scope); err != nil {
 		return operationsdomain.DeploymentEnvironment{}, err
 	}
-	in.ProductID, in.Name, in.Kind = strings.TrimSpace(in.ProductID), strings.TrimSpace(in.Name), strings.TrimSpace(in.Kind)
-	if !validEnvironmentText(a.TenantID, 1024) || !validEnvironmentText(in.ProductID, 1024) || !validEnvironmentText(in.Name, MaxEnvironmentTextBytes) || !validEnvironmentText(in.Kind, MaxEnvironmentTextBytes) || len(a.TenantID)+len(in.ProductID)+len(in.Name) > MaxEnvironmentKeyBytes {
+	if err := validateDeploymentActor(ctx, a); err != nil {
+		return operationsdomain.DeploymentEnvironment{}, err
+	}
+	var err error
+	in, err = NormalizeEnvironmentCreationInput(in)
+	if err != nil {
+		return operationsdomain.DeploymentEnvironment{}, err
+	}
+	if len(a.TenantID)+len(in.ProductID)+len(in.Name) > MaxEnvironmentKeyBytes {
 		return operationsdomain.DeploymentEnvironment{}, ErrValidation
 	}
 	var result operationsdomain.DeploymentEnvironment
-	err := s.config.Transactions.ExecuteEnvironment(ctx, func(ctx context.Context, tx DeploymentEnvironmentTransaction) error {
-		if err := tx.Authorize(ctx, a, scope); err != nil {
-			return err
-		}
-		p, err := tx.LockEnvironmentProduct(ctx, a.TenantID, in.ProductID)
+	err = s.config.Transactions.ExecuteEnvironment(ctx, func(ctx context.Context, tx DeploymentEnvironmentTransaction) error {
+		p, err := authorizeEnvironmentCreationScope(ctx, tx, a, in)
 		if err != nil {
-			return err
-		}
-		if p.ID != in.ProductID || p.TenantID != a.TenantID {
-			return ErrNotFound
-		}
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", Resources: application.ResourceReferences{ProductID: p.ID}}); err != nil {
 			return err
 		}
 		v, found, err := tx.EnvironmentByName(ctx, a.TenantID, p.ID, in.Name)

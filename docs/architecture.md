@@ -1507,7 +1507,11 @@ PostgreSQL-profile deployment-environment creation uses an operations-owned
 command with tenant/product grants and bounded parent/name reads. The
 product-row lock serializes creation and original-row reuse without blocking
 foreign-key readers; environment and audit append commit together with replay
-state. It does not build Ledger maps. See
+state. Native HTTP uses durable execution rather than Ledger replay/refresh.
+Current tenant/product grants are checked on every retry without name reuse,
+metadata, clocks or IDs; the shared writer fence precedes ownership locks held
+through the outer commit. Durable creation/reuse timestamps use UTC microsecond
+precision. See
 [deployment environment creation](api.md#deployment-environment-creation)
 for input bounds, identity reuse and the metadata-only boundary.
 Deployment-event recording also uses an Operations-owned command and bounded
@@ -1515,6 +1519,11 @@ transaction-scoped identity reads. The only cross-context write is the ADR 0003
 fixed-shape deployment evidence capability: an Evidence-owned writer prepares
 the versioned commitment and audit entry in the same transaction as the event.
 No Ledger aggregate or arbitrary evidence mutation is exposed to the command.
+Native HTTP checks current parent, artifact and rollback ownership/grants on
+every retry, without private metadata or new evidence generation during replay.
+Its locks remain held through the event/evidence/audit/replay commit. Both
+profiles use strict raw-bounded input and cookie-Origin protection; local memory
+remains nondurable. Startup composition and other wrappers still need migration.
 See [deployment event recording](api.md#deployment-event-recording) for
 authorization, timestamp precision and atomic replay semantics. EVY-906 owns
 the compatible transition from this synchronous exception to a durable saga.

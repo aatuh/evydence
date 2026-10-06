@@ -13,7 +13,7 @@ import (
 
 func (r deployments) LockDeploymentEnvironment(ctx context.Context, tenant, id string) (operationsapp.DeploymentEnvironmentIdentity, error) {
 	var v operationsapp.DeploymentEnvironmentIdentity
-	err := r.tx.QueryRow(ctx, `SELECT left(id,1025),left(tenant_id,1025),left(product_id,1025) FROM deployment_environments WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenant, id).Scan(&v.ID, &v.TenantID, &v.ProductID)
+	err := r.tx.QueryRow(ctx, `SELECT left(e.id,1025),left(e.tenant_id,1025),left(p.id,1025) FROM deployment_environments e JOIN products p ON p.id=e.product_id AND p.tenant_id=e.tenant_id WHERE e.tenant_id=$1 AND e.id=$2 FOR SHARE OF e,p`, tenant, id).Scan(&v.ID, &v.TenantID, &v.ProductID)
 	if err := deploymentIdentityError(err, v.ID, v.TenantID, v.ProductID); err != nil {
 		return operationsapp.DeploymentEnvironmentIdentity{}, err
 	}
@@ -21,7 +21,7 @@ func (r deployments) LockDeploymentEnvironment(ctx context.Context, tenant, id s
 }
 func (r deployments) LockDeploymentRelease(ctx context.Context, tenant, id string) (operationsapp.DeploymentReleaseIdentity, error) {
 	var v operationsapp.DeploymentReleaseIdentity
-	err := r.tx.QueryRow(ctx, `SELECT left(id,1025),left(tenant_id,1025),left(product_id,1025) FROM releases WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenant, id).Scan(&v.ID, &v.TenantID, &v.ProductID)
+	err := r.tx.QueryRow(ctx, `SELECT left(r.id,1025),left(r.tenant_id,1025),left(p.id,1025) FROM releases r JOIN products p ON p.id=r.product_id AND p.tenant_id=r.tenant_id WHERE r.tenant_id=$1 AND r.id=$2 FOR SHARE OF r,p`, tenant, id).Scan(&v.ID, &v.TenantID, &v.ProductID)
 	if err := deploymentIdentityError(err, v.ID, v.TenantID, v.ProductID); err != nil {
 		return operationsapp.DeploymentReleaseIdentity{}, err
 	}

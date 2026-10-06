@@ -36,6 +36,25 @@ The gate never fetches a baseline or resolves external OpenAPI references. It
 uses only the checked-in release artifact and invokes `oasdiff` with structured
 arguments and external-reference loading disabled.
 
+## Unreleased Deployment Creation Boundary
+
+Environment creation and deployment recording now use native PostgreSQL durable
+execution. Current tenant/product/release and referenced-resource ownership and
+grants are required before completed replay; newer private metadata and clocks
+are not replay authority. Routes, schemas, original-byte fingerprints, natural
+environment-name reuse, duplicate artifact references and timestamp defaults
+remain unchanged. New durable environment timestamps and reuse reads use UTC
+microsecond precision to avoid response drift after persistence.
+
+Both profiles now enforce raw byte limits before trimming, exact-case non-null
+JSON and same-host HTTPS cookie origins with Bearer precedence. UTC-normalized
+deployment timestamps must remain in years 1 through 9999; no timestamp-ordering
+rule was added. See [Deployment Environment Creation](../api.md#deployment-environment-creation)
+and [Deployment Event Recording](../api.md#deployment-event-recording). Clients
+should omit optional fields rather than send null. These restrictions are not
+approved release-baseline exceptions. Historical records are not rewritten;
+recording is not verification of an actual deployment or runtime security.
+
 ## Unreleased Dedicated DSSE Verification Boundary
 
 The dedicated attestation-signature route now uses focused PostgreSQL

@@ -50,6 +50,14 @@ type deploymentTransaction struct {
 func (t deploymentTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
 	return operationsquery.NewDeploymentWriteAuthorizer().Authorize(ctx, a, r)
 }
+
+func (t deploymentTransaction) LockDeploymentTenant(ctx context.Context, tenant string) error {
+	r, ok := t.reader.(operationsapp.DeploymentTenantLocker)
+	if !ok {
+		return operationsapp.ErrValidation
+	}
+	return mapDeploymentWriteError(r.LockDeploymentTenant(ctx, tenant))
+}
 func (t deploymentTransaction) LockDeploymentEnvironment(ctx context.Context, tenant, id string) (operationsapp.DeploymentEnvironmentIdentity, error) {
 	v, err := t.reader.LockDeploymentEnvironment(ctx, tenant, id)
 	return v, mapDeploymentWriteError(err)

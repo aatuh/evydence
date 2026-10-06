@@ -2157,7 +2157,11 @@ Source/test evidence: `internal/integration/app/source_snapshot_commands.go`,
 `deployment:write` authorization. Human sessions need a current tenant or
 product grant; release/project-only grants do not authorize creation of a
 product-wide environment. The product lookup is tenant-scoped and selects only
-identity, not product metadata or all environments.
+identity, not product metadata or all environments. Native durable HTTP execution
+does not clone or refresh Ledger state. Before reservation and every completed
+replay, a read-only guard checks current tenant/product ownership and grants,
+without name reuse, installed metadata, clocks or IDs. The shared writer fence
+precedes tenant/product locks held through the outer replay commit.
 
 The normalized `(tenant, product_id, name)` identifies an environment. Requests
 for an existing name return the original row, including its original `kind`,
@@ -2165,23 +2169,33 @@ without another audit entry. PostgreSQL serializes name reuse with a product-row
 no-key-update lock, including the initially empty set. Different tenant or
 product identities cannot reuse that row. Creation and its audit append commit
 atomically with HTTP idempotency state; replay adds no effects and creates no
-outbox job. `deployment-environment.v1.0.0` and response fields are unchanged.
+outbox job. New durable timestamps and name-reuse reads use UTC microsecond
+precision so every public field matches. `deployment-environment.v1.0.0` and
+response fields are unchanged. Original request bytes remain the idempotency
+fingerprint; changed bytes under the same key conflict.
 
-Tenant/product IDs are bounded at 1024 bytes and kind text at 64 KiB. The sum
+Raw tenant/product IDs are bounded at 1024 bytes and name/kind text at 64 KiB
+before trimming. The sum
 of tenant ID, product ID and normalized name is limited to 2304 UTF-8 bytes,
 so the unique PostgreSQL key fits without relying on text compression. This
 rejects oversized names with validation instead of a database insertion error;
 historical rows are not changed. The existing 64 KiB HTTP JSON-envelope limit
 still applies. Required text is trimmed and
 must be non-empty, valid UTF-8 and NUL-free. Non-object envelopes, explicit
-nulls, duplicate fields and unknown fields are rejected. Oversized stored
-environment metadata fails with conflict rather than returning a truncated row.
+nulls, duplicate fields, mixed-case aliases and unknown fields are rejected.
+Fresh name reuse of oversized stored environment metadata fails with conflict
+rather than returning a truncated row; completed replay does not read that
+metadata. Cookie writes require same-host HTTPS `Origin`; explicit Bearer
+authentication takes precedence.
 The environment is metadata, not evidence that an actual deployment occurred.
-Explicit local-memory mode retains its compatibility path.
+Explicit local-memory mode uses the same input/current-grant guards and retains
+nondurable local-map storage.
 
 Source/test evidence: `internal/operations/app/deployment_environment_commands.go`,
 `internal/platform/wiring/deployment_environment_commands_test.go` and
-`internal/adapters/httpapi/deployment_environment_commands_test.go`.
+`internal/adapters/httpapi/deployment_environment_commands_test.go`,
+`internal/platform/wiring/deployment_creation_native_test.go` and
+`internal/platform/wiring/deployment_creation_native_fence_test.go`.
 
 ### Deployment Event Recording
 
@@ -2192,7 +2206,12 @@ project/environment-only grants do not authorize recording. Bounded,
 transaction-scoped identity reads check that the environment and release share
 the tenant and product, each artifact belongs to the tenant, and an optional
 rollback target belongs to the same tenant and environment. Unrelated resource
-metadata and tenant collections are not loaded.
+metadata and tenant collections are not loaded. Native durable HTTP execution
+checks these current identities and grants before reservation and every
+completed replay, without Ledger cloning/refresh, stored lifecycle or private
+metadata reads, clocks or IDs. The shared writer fence precedes tenant, owned
+product, environment, release, referenced-artifact and rollback locks held
+through the outer transaction.
 
 The deployment, fixed `deployment/event` evidence and two audit entries commit
 together with HTTP replay state. The returned `evidence_id` is immediately
@@ -2203,22 +2222,29 @@ payload. The synchronous fixed-shape bridge is the explicit ADR 0003 exception;
 it does not allow arbitrary evidence mutations. EVY-906 owns its future saga
 transition.
 
-Reference IDs are non-empty, NUL-free UTF-8 text bounded at 1024 bytes. Artifact
+Raw reference IDs are non-empty, NUL-free UTF-8 text bounded at 1024 bytes before
+trimming; raw status text is bounded at 64 bytes. Artifact
 lists are limited to 1024 supplied entries, normalized and sorted while
 preserving duplicate IDs. Status remains `started`, `succeeded`, `failed` or
 `rolled_back`. Omitted `started_at` defaults to command time; supplied times are
 normalized to UTC and PostgreSQL microsecond precision before evidence hashing.
-No new timestamp-ordering rule is imposed. JSON nulls, null artifact elements,
-duplicate/unknown fields and non-object envelopes are rejected; the existing
+UTC-normalized timestamps must have years 1 through 9999. No new
+timestamp-ordering rule is imposed. JSON nulls, null artifact elements,
+duplicate/unknown fields, mixed-case aliases and non-object envelopes are
+rejected; cookie writes require same-host HTTPS `Origin` with Bearer precedence;
+the existing
 64 KiB HTTP envelope limit remains. Event/evidence schemas, response fields,
 metadata-only limitations and canonicalization profile are unchanged; historical
 rows are not rewritten. Recording does not prove runtime security or availability.
-Explicit local-memory mode retains its compatibility path.
+Explicit local-memory mode uses the same input/current-grant guards and retains
+nondurable local-map storage.
 
 Source/test evidence: `internal/operations/app/deployment_commands.go`,
 `internal/evidence/app/deployment_evidence.go`,
 `internal/platform/wiring/deployment_commands_test.go` and
-`internal/adapters/httpapi/deployment_commands_test.go`.
+`internal/adapters/httpapi/deployment_commands_test.go`,
+`internal/adapters/httpapi/deployment_native_test.go` and
+`internal/platform/wiring/deployment_creation_native_test.go`.
 
 ### Controls, Reports, Packages, And Governance
 

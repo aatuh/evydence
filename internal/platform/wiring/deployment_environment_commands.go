@@ -18,7 +18,7 @@ func BuildDeploymentEnvironmentCommands(factory app.UnitOfWorkFactory) (*operati
 	if factory == nil {
 		return nil, errors.New("environment transactions are required")
 	}
-	return operationsapp.NewDeploymentEnvironmentCommands(operationsapp.DeploymentEnvironmentConfig{Transactions: environmentTransactions{factory}, Authorizer: operationsquery.NewDeploymentWriteAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return operationsapp.NewDeploymentEnvironmentCommands(operationsapp.DeploymentEnvironmentConfig{Transactions: environmentTransactions{factory}, Authorizer: operationsquery.NewDeploymentWriteAuthorizer(), Clock: application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type environmentTransactions struct{ factory app.UnitOfWorkFactory }
@@ -37,6 +37,14 @@ type environmentTransaction struct {
 	reader      operationsapp.DeploymentEnvironmentReader
 	deployments app.DeploymentRepository
 	audit       app.AuditRepository
+}
+
+func (t environmentTransaction) LockDeploymentTenant(ctx context.Context, tenant string) error {
+	r, ok := t.reader.(operationsapp.DeploymentTenantLocker)
+	if !ok {
+		return operationsapp.ErrValidation
+	}
+	return mapEnvironmentWriteError(r.LockDeploymentTenant(ctx, tenant))
 }
 
 func (t environmentTransaction) LockEnvironmentProduct(ctx context.Context, tenant, id string) (operationsapp.EnvironmentProduct, error) {

@@ -8,6 +8,7 @@ import (
 
 func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 	files := map[string][]string{
+		"deployment_creation_replay_guard.go": {"AuthorizeEnvironmentCreation", "AuthorizeDeploymentRecording"},
 		"state_transition_replay_guard.go":    {"AuthorizeReleaseTransition", "AuthorizeCandidateTransition", "authorizeStateTransition"},
 		"candidate_creation_replay_guard.go":  {"AuthorizeCandidateCreation"},
 		"artifact_image_replay_guard.go":      {"AuthorizeArtifactRegistration", "AuthorizeContainerImageRegistration"},

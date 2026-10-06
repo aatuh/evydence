@@ -14,9 +14,16 @@ import (
 )
 
 type deploymentHTTPFake struct {
-	calls int
-	input operationsapp.RecordDeploymentInput
-	err   error
+	calls    int
+	guards   int
+	guardErr error
+	input    operationsapp.RecordDeploymentInput
+	err      error
+}
+
+func (f *deploymentHTTPFake) AuthorizeDeploymentRecording(context.Context, identitydomain.Actor, operationsapp.RecordDeploymentInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func (f *deploymentHTTPFake) RecordDeployment(_ context.Context, a identitydomain.Actor, in operationsapp.RecordDeploymentInput) (operationsdomain.DeploymentEvent, error) {
@@ -27,7 +34,7 @@ func (f *deploymentHTTPFake) RecordDeployment(_ context.Context, a identitydomai
 func TestDeploymentHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &deploymentHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{DeploymentCommands: f})
+	s, err := NewServerWithOptions(local.ledger, ServerOptions{DeploymentCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +43,8 @@ func TestDeploymentHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	if !strings.Contains(body, `"evidence_id":"durable_evidence"`) || f.calls != 1 || f.input.EnvironmentID != "not-in-ledger" {
 		t.Fatal(body, f)
 	}
-	if again := postJSON(t, s, secret, "/v1/deployments", "deployment-replay", in, 201); again != body || f.calls != 1 {
+	assertTrustHTTPReplay(t, body, postJSON(t, s, secret, "/v1/deployments", "deployment-replay", in, 201))
+	if f.calls != 1 {
 		t.Fatal("replay reran command", f)
 	}
 	for i, raw := range []string{`null`, `[]`, `{"status":null}`, `{"artifact_ids":[null]}`, `{"artifact_ids":null}`, `{"finished_at":null}`, `{"unknown":true}`, `{"status":"a","status":"b"}`, `{} {}`} {

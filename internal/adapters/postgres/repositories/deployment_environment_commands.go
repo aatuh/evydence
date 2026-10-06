@@ -44,5 +44,6 @@ func (r deployments) EnvironmentByName(ctx context.Context, tenant, product, nam
 	if large {
 		return operationsdomain.DeploymentEnvironment{}, false, app.ErrConflict
 	}
+	v.CreatedAt = v.CreatedAt.UTC()
 	return v, true, nil
 }

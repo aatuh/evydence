@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
@@ -31,6 +29,7 @@ type DeploymentEvidenceInput struct {
 	ObservedAt, CreatedAt                                     time.Time
 }
 type DeploymentTransaction interface {
+	DeploymentTenantLocker
 	DeploymentReader
 	application.Authorizer
 	application.AuditAppender
@@ -72,61 +71,19 @@ func (s *DeploymentCommands) RecordDeployment(ctx context.Context, a identitydom
 	if err := s.config.Authorizer.Authorize(ctx, a, scope); err != nil {
 		return operationsdomain.DeploymentEvent{}, err
 	}
-	in.EnvironmentID, in.ReleaseID, in.Status, in.RollbackOf = strings.TrimSpace(in.EnvironmentID), strings.TrimSpace(in.ReleaseID), strings.TrimSpace(in.Status), strings.TrimSpace(in.RollbackOf)
-	if !validEnvironmentText(a.TenantID, 1024) || !validEnvironmentText(in.EnvironmentID, 1024) || !validEnvironmentText(in.ReleaseID, 1024) || in.RollbackOf != "" && !validEnvironmentText(in.RollbackOf, 1024) || len(in.ArtifactIDs) > MaxDeploymentArtifacts {
-		return operationsdomain.DeploymentEvent{}, ErrValidation
+	if err := validateDeploymentActor(ctx, a); err != nil {
+		return operationsdomain.DeploymentEvent{}, err
 	}
-	switch in.Status {
-	case "started", "succeeded", "failed", "rolled_back":
-	default:
-		return operationsdomain.DeploymentEvent{}, ErrValidation
+	var err error
+	in, err = NormalizeDeploymentRecordingInput(in)
+	if err != nil {
+		return operationsdomain.DeploymentEvent{}, err
 	}
-	if !validDeploymentTime(in.StartedAt) || in.FinishedAt != nil && !validDeploymentTime(*in.FinishedAt) {
-		return operationsdomain.DeploymentEvent{}, ErrValidation
-	}
-	ids := append([]string(nil), in.ArtifactIDs...)
-	for i, id := range ids {
-		id = strings.TrimSpace(id)
-		if !validEnvironmentText(id, 1024) {
-			return operationsdomain.DeploymentEvent{}, ErrValidation
-		}
-		ids[i] = id
-	}
-	sort.Strings(ids)
-	in.ArtifactIDs = ids
 	var result operationsdomain.DeploymentEvent
-	err := s.config.Transactions.ExecuteDeployment(ctx, func(ctx context.Context, tx DeploymentTransaction) error {
-		if err := tx.Authorize(ctx, a, scope); err != nil {
-			return err
-		}
-		env, err := tx.LockDeploymentEnvironment(ctx, a.TenantID, in.EnvironmentID)
+	err = s.config.Transactions.ExecuteDeployment(ctx, func(ctx context.Context, tx DeploymentTransaction) error {
+		env, r, err := authorizeDeploymentRecordingScope(ctx, tx, a, in)
 		if err != nil {
 			return err
-		}
-		if env.ID != in.EnvironmentID || env.TenantID != a.TenantID || !validEnvironmentText(env.ProductID, 1024) {
-			return ErrNotFound
-		}
-		r, err := tx.LockDeploymentRelease(ctx, a.TenantID, in.ReleaseID)
-		if err != nil {
-			return err
-		}
-		if r.ID != in.ReleaseID || r.TenantID != a.TenantID || r.ProductID != env.ProductID {
-			return ErrNotFound
-		}
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", Resources: application.ResourceReferences{ProductID: env.ProductID, ReleaseID: r.ID, EnvironmentID: env.ID}}); err != nil {
-			return err
-		}
-		if err := tx.CheckDeploymentArtifacts(ctx, a.TenantID, in.ArtifactIDs); err != nil {
-			return err
-		}
-		if in.RollbackOf != "" {
-			prior, err := tx.LockDeploymentRollback(ctx, a.TenantID, in.RollbackOf)
-			if err != nil {
-				return err
-			}
-			if prior.ID != in.RollbackOf || prior.TenantID != a.TenantID || prior.EnvironmentID != env.ID {
-				return ErrNotFound
-			}
 		}
 		at := s.config.Clock.Now().UTC().Truncate(time.Microsecond)
 		started := in.StartedAt.UTC().Truncate(time.Microsecond)

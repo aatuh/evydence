@@ -14,9 +14,16 @@ import (
 )
 
 type environmentCommandHTTPFake struct {
-	calls int
-	err   error
-	input operationsapp.CreateEnvironmentInput
+	calls    int
+	guards   int
+	guardErr error
+	err      error
+	input    operationsapp.CreateEnvironmentInput
+}
+
+func (f *environmentCommandHTTPFake) AuthorizeEnvironmentCreation(context.Context, identitydomain.Actor, operationsapp.CreateEnvironmentInput) error {
+	f.guards++
+	return f.guardErr
 }
 
 func TestDeploymentEnvironmentOpenAPIDeclaresDurableNameReuse(t *testing.T) {
@@ -45,7 +52,7 @@ func (f *environmentCommandHTTPFake) CreateDeploymentEnvironment(_ context.Conte
 func TestDeploymentEnvironmentHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &environmentCommandHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{DeploymentEnvironmentCommands: f})
+	s, err := NewServerWithOptions(local.ledger, ServerOptions{DeploymentEnvironmentCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +61,8 @@ func TestDeploymentEnvironmentHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) 
 	if !strings.Contains(body, `"id":"durable_environment"`) || f.calls != 1 || f.input.ProductID != "not-in-ledger" {
 		t.Fatal(body, f)
 	}
-	if replay := postJSON(t, s, secret, "/v1/environments", "environment-replay", in, 201); replay != body || f.calls != 1 {
+	assertTrustHTTPReplay(t, body, postJSON(t, s, secret, "/v1/environments", "environment-replay", in, 201))
+	if f.calls != 1 {
 		t.Fatal("replay reran creation", f)
 	}
 	for i, raw := range []string{`null`, `[]`, `{"name":null}`, `{"unknown":true}`, `{"name":"a","name":"b"}`, `{} {}`} {

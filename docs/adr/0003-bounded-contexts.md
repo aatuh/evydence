@@ -879,6 +879,17 @@ saga, an explicit pending-evidence state, and a compatible API transition before
 the architecture boundary check becomes mandatory. No other operations command
 may use this exception.
 
+Environment creation and deployment recording now use native durable HTTP
+execution with Operations-owned current-identity/grant guards before reservation
+and replay. These guards never read natural-name reuse metadata, generate
+evidence or allocate clock/ID values. The shared writer fence precedes tenant
+and referenced ownership locks held through the outer transaction. Environment
+creation retains natural-name reuse; deployment recording retains this fixed
+evidence capability, artifact duplicates and timestamp semantics. Local-memory
+guards remain explicit compatibility utilities, not production composition.
+This migration does not complete EVY-905 startup/remaining-wrapper work or the
+EVY-906 saga transition.
+
 Go dependency cycles are prohibited. A context domain package may depend only
 on standard library and small shared value/event packages. An application
 package may depend on its own domain and inward-facing ports. Adapters and

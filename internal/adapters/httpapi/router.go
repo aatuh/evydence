@@ -27,7 +27,6 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
-	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
@@ -114,6 +113,7 @@ type Server struct {
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
+	localDeployments                  localDeploymentCommands
 	sourceRepositoryCommands          SourceRepositoryCommands
 	sourceCommitCommands              SourceCommitCommands
 	sourceBranchCommands              SourceBranchCommands
@@ -574,6 +574,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if (opts.ReleaseStateCommands != nil || opts.CandidateStateCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused state transitions require durable idempotency")
 	}
+	if (opts.DeploymentEnvironmentCommands != nil || opts.DeploymentCommands != nil) && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused deployment writes require durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -785,6 +788,7 @@ func (s *Server) bindLedger(ledger *app.Ledger) {
 	s.idempotency = ledgerIdempotencyExecutor{ledger: ledger}
 	s.identityAccess = ledger
 	s.releaseCatalog = ledger
+	s.localDeployments = ledger
 	s.evidenceIngestion = ledger
 	s.riskDecisions = ledger
 	s.packages = ledger
@@ -1382,28 +1386,6 @@ func (s *Server) uploadGitLabSourceSnapshot(w http.ResponseWriter, r *http.Reque
 	s.recordSourceSnapshot(w, r, "gitlab")
 }
 
-func (s *Server) createDeploymentEnvironment(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProductID string `json:"product_id"`
-		Name      string `json:"name"`
-		Kind      string `json:"kind"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.deploymentEnvironmentCommands != nil {
-			if err := validateNonNullableObjectFields(body, "product_id", "name", "kind"); err != nil {
-				return 0, nil, err
-			}
-			env, err := s.deploymentEnvironmentCommands.CreateDeploymentEnvironment(ctx, actor, operationsapp.CreateEnvironmentInput{ProductID: req.ProductID, Name: req.Name, Kind: req.Kind})
-			return http.StatusCreated, deploymentEnvironmentFromQuery(env), mapDeploymentCommandError(err)
-		}
-		env, err := s.ledger.CreateDeploymentEnvironment(ctx, actor, app.CreateEnvironmentInput{ProductID: req.ProductID, Name: req.Name, Kind: req.Kind})
-		return http.StatusCreated, env, err
-	})
-}
-
 func (s *Server) listDeploymentEnvironments(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
@@ -1434,38 +1416,6 @@ func (s *Server) listDeploymentEnvironments(w http.ResponseWriter, r *http.Reque
 	}
 	writeCreatedAtPaginated(s, w, r, actor, "deployment-environments", []string{"product_id"}, envs, func(environment domain.DeploymentEnvironment) (string, time.Time) {
 		return environment.ID, environment.CreatedAt
-	})
-}
-
-func (s *Server) recordDeployment(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		EnvironmentID string     `json:"environment_id"`
-		ReleaseID     string     `json:"release_id"`
-		ArtifactIDs   []string   `json:"artifact_ids"`
-		Status        string     `json:"status"`
-		StartedAt     time.Time  `json:"started_at"`
-		FinishedAt    *time.Time `json:"finished_at"`
-		RollbackOf    string     `json:"rollback_of"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.deploymentCommands != nil {
-			if err := validateNonNullableObjectFields(body, "environment_id", "release_id", "artifact_ids", "status", "started_at", "finished_at", "rollback_of"); err != nil {
-				return 0, nil, err
-			}
-			if err := validateNonNullableArrayItems(body, "artifact_ids"); err != nil {
-				return 0, nil, err
-			}
-			deployment, err := s.deploymentCommands.RecordDeployment(ctx, actor, operationsapp.RecordDeploymentInput{EnvironmentID: req.EnvironmentID, ReleaseID: req.ReleaseID, ArtifactIDs: req.ArtifactIDs, Status: req.Status, StartedAt: req.StartedAt, FinishedAt: req.FinishedAt, RollbackOf: req.RollbackOf})
-			return http.StatusCreated, deploymentEventFromQuery(deployment), mapDeploymentCommandError(err)
-		}
-		deployment, err := s.ledger.RecordDeployment(ctx, actor, app.RecordDeploymentInput{
-			EnvironmentID: req.EnvironmentID, ReleaseID: req.ReleaseID, ArtifactIDs: req.ArtifactIDs,
-			Status: req.Status, StartedAt: req.StartedAt, FinishedAt: req.FinishedAt, RollbackOf: req.RollbackOf,
-		})
-		return http.StatusCreated, deployment, err
 	})
 }
 

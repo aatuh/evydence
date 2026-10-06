@@ -22,6 +22,8 @@ type environmentCommandFake struct {
 
 var errEnvironmentCommandTest = errors.New("environment command failure")
 
+func (f *environmentCommandFake) LockDeploymentTenant(context.Context, string) error { return nil }
+
 func (f *environmentCommandFake) ExecuteEnvironment(ctx context.Context, fn func(context.Context, DeploymentEnvironmentTransaction) error) error {
 	f.transactions++
 	tx := *f

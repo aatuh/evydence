@@ -25,6 +25,8 @@ type deploymentCommandFake struct {
 	audit        []application.AuditEvent
 }
 
+func (f *deploymentCommandFake) LockDeploymentTenant(context.Context, string) error { return nil }
+
 func (f *deploymentCommandFake) ExecuteDeployment(ctx context.Context, fn func(context.Context, DeploymentTransaction) error) error {
 	f.transactions++
 	c := *f
