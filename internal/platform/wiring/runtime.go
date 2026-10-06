@@ -47,7 +47,7 @@ type RuntimeConfig struct {
 }
 
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
-// transitional Ledger and the worker's job processor compose on these ports.
+// focused native services and the worker's job processor compose on these ports.
 type Runtime struct {
 	Process            Process
 	Profile            Profile

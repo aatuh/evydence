@@ -47,13 +47,37 @@ func TestStartupRestrictsLedgerBootstrapToExplicitLocalMemory(t *testing.T) {
 		}
 		return matches(expr)
 	}
-	legacyCalls, durableCalls := 0, 0
+	legacyCalls, durableCalls, nativeConstructors := 0, 0, 0
 	var ledgerConstruction, durableBootstrap token.Pos
 	var inspect func(ast.Node, bool, bool)
 	inspect = func(node ast.Node, local, durable bool) {
 		ast.Inspect(node, func(n ast.Node) bool {
 			if n == nil {
 				return false
+			}
+			if branch, ok := n.(*ast.SwitchStmt); ok {
+				tag, isProfile := branch.Tag.(*ast.Ident)
+				if isProfile && tag.Name == "profile" {
+					if branch.Init != nil {
+						inspect(branch.Init, local, durable)
+					}
+					for _, node := range branch.Body.List {
+						clause := node.(*ast.CaseClause)
+						localCase, durableCase := false, false
+						// A mixed/default case does not guarantee either profile.
+						if len(clause.List) == 1 {
+							if value, ok := clause.List[0].(*ast.SelectorExpr); ok {
+								if owner, ok := value.X.(*ast.Ident); ok && owner.Name == "wiring" {
+									localCase, durableCase = value.Sel.Name == "LocalMemory", value.Sel.Name == "PostgreSQL"
+								}
+							}
+						}
+						for _, statement := range clause.Body {
+							inspect(statement, local || localCase, durable || durableCase)
+						}
+					}
+					return false
+				}
 			}
 			if branch, ok := n.(*ast.IfStmt); ok {
 				if branch.Init != nil {
@@ -97,14 +121,26 @@ func TestStartupRestrictsLedgerBootstrapToExplicitLocalMemory(t *testing.T) {
 				durableBootstrap = call.Pos()
 			}
 			if selector.Sel.Name == "NewLedgerWithContext" {
+				if !local {
+					t.Error("Ledger construction is reachable outside explicit local-memory mode")
+				}
 				ledgerConstruction = call.Pos()
+			}
+			if selector.Sel.Name == "NewServerWithOptionsContext" && !local {
+				t.Error("local server constructor is reachable outside explicit local-memory mode")
+			}
+			if selector.Sel.Name == "NewNativeServerWithOptionsContext" {
+				nativeConstructors++
+				if !durable {
+					t.Error("native server constructor is not guarded by the PostgreSQL profile")
+				}
 			}
 			return true
 		})
 	}
 	inspect(run.Body, false, false)
-	if legacyCalls != 2 || durableCalls != 2 {
-		t.Fatalf("startup bootstrap bindings: local=%d durable=%d", legacyCalls, durableCalls)
+	if legacyCalls != 2 || durableCalls != 2 || nativeConstructors != 1 {
+		t.Fatalf("startup bindings: local-bootstrap=%d durable-bootstrap=%d native-constructor=%d", legacyCalls, durableCalls, nativeConstructors)
 	}
 	if ledgerConstruction != 0 && (durableBootstrap == 0 || durableBootstrap > ledgerConstruction) {
 		t.Error("durable bootstrap depends on prior Ledger construction")

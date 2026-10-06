@@ -110,7 +110,7 @@ process, or equivalent deployment control.
 ## First-Tenant Bootstrap
 
 With `EVYDENCE_RUNTIME_PROFILE=postgres`, API startup composes focused Identity
-and Verification bootstrap commands before the transitional Ledger load. A
+and Verification bootstrap commands without loading the Ledger aggregate. A
 single startup transaction locks the `tenants` table in
 `SHARE ROW EXCLUSIVE` mode and checks existence with `SELECT EXISTS`; it does
 not select tenant names, credential inventories, or signing keys. If any tenant
@@ -140,12 +140,18 @@ before credential generation.
 Neither bootstrap path logs secrets or stored hashes. Only the explicit,
 non-production `EVYDENCE_PRINT_BOOTSTRAP_SECRET=true` option writes the existing
 `tenant_id`, `api_key`, and `secret` JSON response. Durable bootstrap emits that
-response immediately after commit, before later compatibility startup work;
+response immediately after commit, before later native server startup work;
 restarts never reissue it. Output failure is reported with a safe error but
 cannot undo an already committed bootstrap. Retain the one-time local output
 securely; otherwise operator credential provisioning/recovery is required.
-The production API still constructs the transitional Ledger for other paths;
-this migration does not yet complete EVY-905 startup retirement.
+The PostgreSQL API binds `NewNativeServerWithOptionsContext`, which requires
+the complete command/query/authentication surface, streamed and historical
+durable replay capabilities, and a stable pagination secret of at least 16
+bytes. Missing or typed-nil dependencies fail startup instead of enabling a
+local fallback. Only the explicit `local_memory` branch constructs a Ledger.
+API routes and response schemas are unchanged. This is an API composition
+boundary, not proof that worker fallback retirement or EVY-905's full validation
+gates are complete.
 
 ## Request-Body Limits
 

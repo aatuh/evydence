@@ -476,6 +476,10 @@ func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, erro
 }
 
 func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions) (*Server, error) {
+	return newServerWithOptionsContext(ctx, ledger, opts, true)
+}
+
+func newServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions, local bool) (*Server, error) {
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
@@ -663,7 +667,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil || opts.CustomPolicyCommands != nil || opts.PolicyEvaluationCommands != nil || opts.SBOMDiffCommands != nil || opts.ContractDiffCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused commands require durable idempotency")
 	}
-	if ledger == nil {
+	if local && ledger == nil {
 		var err error
 		ledger, err = app.NewLedgerWithContext(ctx, app.Config{})
 		if err != nil {
@@ -794,7 +798,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.retentionMarkerCommands = opts.RetentionMarkerCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
-	server.bindLedger(ledger)
+	if local {
+		server.bindLedger(ledger)
+	}
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
 	}

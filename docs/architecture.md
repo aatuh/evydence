@@ -8,7 +8,7 @@ Evydence follows a ports-and-adapters shape:
 - `internal/app` is the deprecated Ledger compatibility facade, the shared transaction and storage port surface, and the temporary home of contexts not yet migrated.
 - `internal/adapters/httpapi` adapts application services to HTTP and OpenAPI; migrated Identity, Release, Evidence, Decision, Package, and Verification handlers depend on context-specific interfaces.
 - `internal/adapters/postgres` provides the durable ledger-state store, migration runner, tenant-scoped relational resource projection, and persisted outbox.
-- `internal/platform/wiring` validates the explicit API/worker runtime profile, opens PostgreSQL and object-store adapters, and composes the API's focused durable authentication/query ports from that runtime. Local-memory mode deliberately has no durable query ports and retains the compatibility Ledger path.
+- `internal/platform/wiring` validates the explicit API/worker runtime profile, opens PostgreSQL and object-store adapters, and composes the API's focused durable authentication/command/query ports from that runtime. Local-memory mode deliberately has no durable query ports and retains the compatibility Ledger path.
 - `internal/adapters/objectstore/filesystem` stores raw uploaded payload bytes under tenant-prefixed object keys for local and self-hosted deployments.
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
 - `cmd/*` contains process entry points.
@@ -19,10 +19,36 @@ The boolean empty-installation check and tenant/API-key/audit/initial-signing-ke
 writes use one startup transaction; an empty-table-safe lock prevents concurrent
 or ordinary tenant inserts from racing the bootstrap decision. Credentials are
 returned only after commit and never on restart. Local-memory bootstrap still
-uses its explicit compatibility path, and other API startup Ledger dependencies
-remain EVY-905 work. The [bootstrap configuration reference](reference/configuration.md#first-tenant-bootstrap)
+uses its explicit compatibility path. The [bootstrap configuration reference](reference/configuration.md#first-tenant-bootstrap)
 owns the input bounds, lock timing, secret-output policy, and local signing-key
 storage limitations.
+
+## Current runtime composition
+
+The PostgreSQL API entry point binds
+`httpapi.NewNativeServerWithOptionsContext`, without constructing a Ledger.
+The constructor requires every focused authentication, command and query port,
+streamed/historical durable replay, and a stable pagination key. Missing or
+typed-nil ports fail startup; no local-memory adapter or aggregate replay is
+installed. Request middleware, route registration and response contracts are
+shared with the explicit local-memory server. Only the `local_memory` entry-point
+branch constructs the compatibility Ledger.
+
+Constructor tests cover every missing dependency and typed-nil case. The live
+native route sweep uses a deliberately invalid compatibility snapshot: aggregate
+loading must fail, while all 189 routes, valid product creation, restart replay
+and current-grant revocation remain functional. The canary stays invalid after
+writes. This is focused API evidence, not complete production-gate evidence.
+Worker fallback retirement, remaining architecture enforcement and full EVY-905
+closure validation remain outstanding.
+
+Per-route transition notes below include historical migration checkpoints.
+Their statements that API startup retirement remains outstanding are superseded
+by this section; they are not descriptions of the current PostgreSQL API
+startup path. See the [runtime configuration reference](reference/configuration.md#first-tenant-bootstrap)
+for current operator behavior.
+
+## Storage and workflow adapters
 
 Both object-store adapters expose `app.BoundedObjectReader.GetBounded` for
 workflows that require a payload budget. It checks actual file/provider size
@@ -46,7 +72,7 @@ profile, not a fresh state-export comparison or restore proof. Backup generation
 remains separate migration work. See
 [recorded backup verification](reference/verification-results.md#recorded-backup-manifest-verification).
 
-Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, queues, KMS providers, provider clients, or UI frameworks. PostgreSQL persistence currently stores a versioned ledger snapshot and rebuilds tenant-scoped relational projection rows plus forward-compatible per-resource tables for implemented release, evidence, source, deployment, and control resources. Identity, idempotency, and customer portal token records are synchronized into relational rows with non-secret hashes and tenant-scoped constraints. Release-ledger core rows are also synchronized for products, projects, releases, artifacts, evidence, audit-chain entries, signing keys, signatures, SBOMs, vulnerability scans, OpenAPI contracts, policy evaluations, release bundles, and verification receipts. Collector/build provenance, source/deployment, incident, security evidence, SBOM diff, vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE trust-root, collector release, Cosign verification, signing provider, Merkle batch, transparency checkpoint, evidence lifecycle, release candidate, VEX/risk decision, control, package, report, retention, provider verification, signing operation, and future-extension records are synchronized into their migration-backed relational tables. Production API and worker startup defaults to relational-only reconstruction and disables compatibility snapshot writes; local development defaults to snapshot-preferred compatibility. In production, API startup also takes a PostgreSQL advisory writer lease so an accidental second API writer fails closed while the supported profile remains single-writer. The accepted [database-authoritative command-transaction decision](adr/0001-database-authoritative-transactions.md) requires a command to commit its domain, audit, idempotency, and outbox effects before publication, and defines staged/finalized object-storage handling. Existing focused and broad call sites remain tracked in the generated [persistence decomposition inventory](reference/persistence-decomposition.md); this is production hardening work, not a completed maturity claim.
+Core logic does not depend on HTTP routers, SQL drivers, object storage SDKs, queues, KMS providers, provider clients, or UI frameworks. PostgreSQL persistence currently stores a versioned ledger snapshot and rebuilds tenant-scoped relational projection rows plus forward-compatible per-resource tables for implemented release, evidence, source, deployment, and control resources. Identity, idempotency, and customer portal token records are synchronized into relational rows with non-secret hashes and tenant-scoped constraints. Release-ledger core rows are also synchronized for products, projects, releases, artifacts, evidence, audit-chain entries, signing keys, signatures, SBOMs, vulnerability scans, OpenAPI contracts, policy evaluations, release bundles, and verification receipts. Collector/build provenance, source/deployment, incident, security evidence, SBOM diff, vulnerability workflow, contract diff, custom policy, waiver, approval, DSSE trust-root, collector release, Cosign verification, signing provider, Merkle batch, transparency checkpoint, evidence lifecycle, release candidate, VEX/risk decision, control, package, report, retention, provider verification, signing operation, and future-extension records are synchronized into their migration-backed relational tables. PostgreSQL API startup uses focused native composition without aggregate reconstruction. Production database adapters retain relational-only load policy and disable compatibility snapshot writes for worker/import/recovery paths; non-production adapters retain snapshot-preferred compatibility when explicitly used. In production, API startup also takes a PostgreSQL advisory writer lease so an accidental second API writer fails closed while the supported profile remains single-writer. The accepted [database-authoritative command-transaction decision](adr/0001-database-authoritative-transactions.md) requires a command to commit its domain, audit, idempotency, and outbox effects before publication, and defines staged/finalized object-storage handling. Existing focused and broad call sites remain tracked in the generated [persistence decomposition inventory](reference/persistence-decomposition.md); this is production hardening work, not a completed maturity claim.
 
 The PostgreSQL-profile missing-evidence report reads release-readiness facts in a tenant-scoped, repeatable-read transaction and evaluates them without writing a policy receipt. The release security summary uses that same bounded readiness projection together with release workflow, finding, decision, approval, and exception facts in one committed view. The release-readiness report gathers canonical readiness facts, unhandled critical findings, approved unexpired exceptions, and decision/package counters in one read-only transaction, then uses the shared policy evaluator and report renderer. It requires `verify:read` (or admin scope) and matching tenant, product, or release grants for human actors; projections above 4096 combined detail rows and policy identifiers, or oversized selected text fields, fail closed rather than truncate evidence. Explicit policy-evaluation commands still persist their own evaluation and audit records. Local-memory mode retains its compatibility report paths while EVY-905 completes the remaining query migration.
 
@@ -1172,9 +1198,9 @@ counts from a consistent snapshot, then current resource grants are checked
 before the response is returned. The local-memory profile keeps the Ledger
 count path. The counts describe recorded evidence, not its completeness or
 security assurance.
-The production process still reconstructs broad Ledger state at startup;
-removing that startup load and auditing residual API/worker fallbacks remain
-open EVY-905 work.
+The PostgreSQL API no longer reconstructs broad Ledger state at startup;
+remaining worker fallbacks and final closure validation remain open EVY-905
+work. See [current runtime composition](#current-runtime-composition).
 Evidence list and search pages now use focused Evidence query services and
 bounded PostgreSQL identity batches. SQL-side candidate grants precede keyset
 limits; current ownership and selected worker provenance are checked before
@@ -1184,8 +1210,8 @@ use Ledger authorization maps, tenant-wide projection refreshes or caches.
 They unconditionally roll back; selected item/provenance budgets remain 8 MiB
 and 4096 facts, while encoded returned items have a 16 MiB page budget. Stored
 JSON numbers remain exact for transport without changing normalized hashes.
-See [evidence collection reads](api.md#evidence-collection-reads). Full startup
-load removal remains open.
+See [evidence collection reads](api.md#evidence-collection-reads) and
+[current runtime composition](#current-runtime-composition).
 
 Evidence supersession, linking and lifecycle-event creation now bind a focused
 Evidence relationship service and native durable HTTP execution. Current

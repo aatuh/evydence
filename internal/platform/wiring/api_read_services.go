@@ -13,9 +13,10 @@ import (
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
-// BuildAPIReadServices composes the API's durable authentication, focused
-// queries, and operator replay command from one validated runtime. Local
-// memory deliberately keeps the explicit Ledger fallback.
+// BuildAPIReadServices composes the complete durable authentication, focused
+// command/query and replay surface from one validated runtime. PostgreSQL
+// entry points pass these ports to the native server constructor. Local memory
+// returns empty durable options for its explicit compatibility constructor.
 func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app.ReadinessCheck) (httpapi.ServerOptions, error) {
 	if runtime == nil {
 		return httpapi.ServerOptions{}, errors.New("API runtime is required")

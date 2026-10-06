@@ -32,8 +32,10 @@ Known hardening work remains:
   VEX/risk decision, control, audit-chain, signing, bundle, policy,
   verification, package, report, retention, provider verification, signing
   operation, and future-extension rows alongside the compatibility snapshot.
-  When `ENV=production` and `EVYDENCE_POSTGRES_LOAD_MODE` is unset, API and
-  worker startup load from relational reconstruction only. Production refuses
+  PostgreSQL API startup binds focused native services without constructing a
+  Ledger or loading aggregate state. When `ENV=production` and
+  `EVYDENCE_POSTGRES_LOAD_MODE` is unset, worker/import/recovery adapters use
+  relational-only loading. Production refuses
   snapshot fallback modes and disables compatibility snapshot writes; local
   development still defaults to snapshot-preferred loading and snapshot writes.
   Critical runtime mutations for tenants, API-key hashes, SSO-session hashes,
@@ -233,7 +235,8 @@ because they are hardening work on already implemented capabilities:
   decision, control, audit-chain, signing, bundle, policy, verification,
   package, report, retention, provider verification, signing operation, and
   future-extension rows are synchronized into relational tables. Production
-  startup defaults to relational-only loading, production writes skip the
+  database adapters default to relational-only loading, native API startup
+  does not reconstruct a Ledger, production writes skip the
   compatibility snapshot, and missing-snapshot recovery can rebuild identity,
   SSO session, customer portal token,
   release-ledger core, build provenance, source/deployment, incident, security

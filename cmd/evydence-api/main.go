@@ -132,12 +132,6 @@ func runWithContext(ctx context.Context) error {
 	if profile == wiring.PostgreSQL {
 		pgStore := runtime.Postgres
 		objectStore := runtime.Objects
-		cfg.Store = pgStore
-		cfg.UnitOfWork = pgStore
-		cfg.Outbox = pgStore
-		cfg.OutboxAdmin = pgStore
-		cfg.ReconciliationMetrics = pgStore
-		cfg.ObjectStore = objectStore
 		cfg.ReadinessChecks = append(cfg.ReadinessChecks,
 			app.ReadinessCheck{Name: "postgres", Timeout: runtimeReadinessTimeout, FailureDetail: "database connectivity is unavailable", Check: pgStore.CheckReadiness},
 			app.ReadinessCheck{Name: "migrations", Timeout: runtimeReadinessTimeout, FailureDetail: "database migration state is unavailable", Check: func(checkCtx context.Context) error {
@@ -177,23 +171,7 @@ func runWithContext(ctx context.Context) error {
 			return fmt.Errorf("bootstrap tenant: %w", err)
 		}
 		// Publish any explicitly requested local secret immediately after the
-		// durable commit; later compatibility startup failures cannot hide it.
-		if err := writeTenantBootstrapResult(os.Stdout, bootstrap, production, printBootstrapSecret); err != nil {
-			return err
-		}
-	}
-	ledgerContext, cancelLedgerLoad := context.WithTimeout(ctx, 30*time.Second)
-	defer cancelLedgerLoad()
-	ledger, err := app.NewLedgerWithContext(ledgerContext, cfg)
-	if err != nil {
-		return fmt.Errorf("create ledger: %w", err)
-	}
-	if profile == wiring.LocalMemory && !bootstrapDisabled && !ledger.HasTenants(ctx) {
-		tenant, key, secret, err := ledger.BootstrapTenant(ctx, bootstrapInput.TenantName, bootstrapInput.APIKeyName, bootstrapInput.Scopes)
-		if err != nil {
-			return fmt.Errorf("bootstrap tenant: %w", err)
-		}
-		bootstrap := wiring.TenantBootstrapResult{Created: true, Tenant: identitydomain.Tenant(tenant), Key: identitydomain.APIKey(key), Secret: secret}
+		// durable commit; later server startup failures cannot hide it.
 		if err := writeTenantBootstrapResult(os.Stdout, bootstrap, production, printBootstrapSecret); err != nil {
 			return err
 		}
@@ -212,7 +190,31 @@ func runWithContext(ctx context.Context) error {
 	options.MaxConcurrentUploads = httpConfig.MaxConcurrentUploads
 	options.BuildIdentity = identity
 	options.PaginationSecret = []byte(pepper)
-	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, options)
+	var server *httpapi.Server
+	switch profile {
+	case wiring.PostgreSQL:
+		server, err = httpapi.NewNativeServerWithOptionsContext(ctx, options)
+	case wiring.LocalMemory:
+		ledgerContext, cancelLedgerLoad := context.WithTimeout(ctx, 30*time.Second)
+		ledger, loadErr := app.NewLedgerWithContext(ledgerContext, cfg)
+		cancelLedgerLoad()
+		if loadErr != nil {
+			return fmt.Errorf("create local ledger: %w", loadErr)
+		}
+		if !bootstrapDisabled && !ledger.HasTenants(ctx) {
+			tenant, key, secret, bootstrapErr := ledger.BootstrapTenant(ctx, bootstrapInput.TenantName, bootstrapInput.APIKeyName, bootstrapInput.Scopes)
+			if bootstrapErr != nil {
+				return fmt.Errorf("bootstrap tenant: %w", bootstrapErr)
+			}
+			bootstrap := wiring.TenantBootstrapResult{Created: true, Tenant: identitydomain.Tenant(tenant), Key: identitydomain.APIKey(key), Secret: secret}
+			if err := writeTenantBootstrapResult(os.Stdout, bootstrap, production, printBootstrapSecret); err != nil {
+				return err
+			}
+		}
+		server, err = httpapi.NewServerWithOptionsContext(ctx, ledger, options)
+	default:
+		return errors.New("unsupported API runtime profile")
+	}
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}
