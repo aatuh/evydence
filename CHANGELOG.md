@@ -35,6 +35,11 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Added
 
+- Added a read-only Go AST source inspector for architecture enforcement. It
+  includes build-tagged imports, identifies generated source and public
+  interface declarations, and rejects source symlinks and oversized files.
+  EVY-906 boundary enforcement and legacy aggregate removal remain in progress.
+
 - PostgreSQL SSO session revocation/logout now use focused, hash-free locked
   metadata and an atomic lifecycle/audit/replay transaction. Cookie-only
   mutations require a matching HTTPS Origin in both profiles; durable logout
