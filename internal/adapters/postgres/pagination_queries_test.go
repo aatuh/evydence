@@ -225,7 +225,7 @@ func TestStoreListEvidencePageUsesTenantBoundKeyset(t *testing.T) {
 	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET product_id = 'prod_hidden' WHERE id = 'ev_a'`); err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "test", Store: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test", Store: store})
 	if err != nil {
 		t.Fatal(err)
 	}

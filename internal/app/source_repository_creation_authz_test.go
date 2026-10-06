@@ -10,7 +10,7 @@ import (
 )
 
 func TestSourceRepositoryCreationAuthorizesExistingOwnerAndDetachedScope(t *testing.T) {
-	ledger := NewLedger(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
+	ledger := newLegacyLedgerFixture(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
 	_, _, _, admin := bootstrapEnterpriseTestTenant(t, ledger)
 	product, err := ledger.CreateProduct(t.Context(), admin, "Source", "source")
 	if err != nil {
@@ -37,7 +37,7 @@ func TestSourceRepositoryCreationAuthorizesExistingOwnerAndDetachedScope(t *test
 }
 
 func TestLocalSourceRepositoryCreationGuardUsesCurrentCoordinatesAndRawBounds(t *testing.T) {
-	l := NewLedger(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
+	l := newLegacyLedgerFixture(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
 	_, _, _, a := bootstrapEnterpriseTestTenant(t, l)
 	p, err := l.CreateProduct(t.Context(), a, "Source", "source")
 	if err != nil {

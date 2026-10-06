@@ -7,7 +7,7 @@ import (
 )
 
 func TestAnswerLibraryLocalListCannotMutateStoredDraft(t *testing.T) {
-	l := NewLedger(Config{})
+	l := newLegacyLedgerFixture(Config{})
 	l.answerLibrary["answer"] = domain.QuestionnaireAnswerLibraryEntry{ID: "answer", TenantID: "tenant", Answer: "Draft", EvidenceIDs: []string{"evidence"}, Limitations: []string{"Review"}}
 	items, err := l.ListQuestionnaireAnswerLibrary(t.Context(), domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopePackageRead}}, ListQuestionnaireAnswerLibraryInput{})
 	if err != nil || len(items) != 1 {

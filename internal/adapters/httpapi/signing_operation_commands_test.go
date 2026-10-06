@@ -89,7 +89,7 @@ func (f *signingOperationHTTPLocalSigner) Sign(_ context.Context, r app.SigningR
 func localSigningOperationHTTPFixture(t *testing.T) (*Server, string, string, *signingOperationHTTPLocalSigner) {
 	t.Helper()
 	f := &signingOperationHTTPLocalSigner{}
-	l := app.NewLedger(app.Config{APIKeyPepper: "test", Signer: f})
+	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Signer: f})
 	tenant, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

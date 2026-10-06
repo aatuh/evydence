@@ -108,7 +108,7 @@ func TestPostgresBuildCreationHTTPAndConsumersUseDurableStateWithoutLedgerBuild(
 			t.Fatal("missing focused build chain")
 		}
 		opts.Authenticator = auth
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{UnitOfWork: store, ObjectStore: objects})
+		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store, ObjectStore: objects})
 		if err != nil {
 			t.Fatal(err)
 		}

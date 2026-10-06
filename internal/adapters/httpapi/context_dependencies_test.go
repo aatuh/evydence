@@ -13,8 +13,8 @@ import (
 func TestBindLedgerReplacesEveryContextDependency(t *testing.T) {
 	t.Parallel()
 
-	first := app.NewLedger(app.Config{APIKeyPepper: "first-test-pepper"})
-	second := app.NewLedger(app.Config{APIKeyPepper: "second-test-pepper"})
+	first := newLegacyLedgerFixture(app.Config{APIKeyPepper: "first-test-pepper"})
+	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "second-test-pepper"})
 	server, err := NewServer(first)
 	if err != nil {
 		t.Fatalf("new server: %v", err)

@@ -8,7 +8,7 @@ import (
 )
 
 func TestCollectorHealthRequiresTenantWideHumanGrant(t *testing.T) {
-	ledger := NewLedger(Config{})
+	ledger := newLegacyLedgerFixture(Config{})
 	actor := domain.Actor{TenantID: "ten_1", KeyID: "key_admin", Scopes: []string{ScopeCollectorAdmin}}
 	collector, _, _, err := ledger.CreateCollector(t.Context(), actor, CreateCollectorInput{Name: "health-scope", Type: collectorTypeGenericCI, Version: "1", Scopes: []string{ScopeEvidenceWrite}})
 	if err != nil {

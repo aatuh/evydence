@@ -67,21 +67,23 @@ const (
 const customerPortalFailedAccessLimit = 5
 
 type Config struct {
-	APIKeyPepper          string
-	Now                   func() time.Time
-	Store                 Store
-	UnitOfWork            UnitOfWorkFactory
-	ObjectStore           ObjectStore
-	Retention             ObjectRetentionVerifier
-	Signer                SigningExecutor
-	OIDC                  OIDCDiscoveryClient
-	ProviderAPI           ProviderIdentityValidator
-	Transparency          TransparencyProofFetcher
-	Cosign                CosignPolicyVerifier
-	Outbox                Outbox
-	OutboxAdmin           OutboxAdmin
-	ReconciliationMetrics ObjectReconciliationMetricsStore
-	ReadinessChecks       []ReadinessCheck
+	BuildAttestationParser releaseapp.BuildAttestationParser
+	DSSEPolicyVerifier     verificationapp.DSSEPolicyVerifier
+	APIKeyPepper           string
+	Now                    func() time.Time
+	Store                  Store
+	UnitOfWork             UnitOfWorkFactory
+	ObjectStore            ObjectStore
+	Retention              ObjectRetentionVerifier
+	Signer                 SigningExecutor
+	OIDC                   OIDCDiscoveryClient
+	ProviderAPI            ProviderIdentityValidator
+	Transparency           TransparencyProofFetcher
+	Cosign                 CosignPolicyVerifier
+	Outbox                 Outbox
+	OutboxAdmin            OutboxAdmin
+	ReconciliationMetrics  ObjectReconciliationMetricsStore
+	ReadinessChecks        []ReadinessCheck
 	// WorkerOwnedParserSideEffects stores accepted parser records first and
 	// lets outbox workers populate parser-derived fields from raw payloads.
 	WorkerOwnedParserSideEffects bool
@@ -94,30 +96,32 @@ type Ledger struct {
 	mu              sync.Mutex
 	transactionGate sync.RWMutex
 
-	pepper                []byte
-	now                   func() time.Time
-	store                 Store
-	evidencePages         EvidencePageStore
-	workerProjections     WorkerProjectionStore
-	unitOfWork            UnitOfWorkFactory
-	objects               ObjectStore
-	retention             ObjectRetentionVerifier
-	signer                SigningExecutor
-	oidc                  OIDCDiscoveryClient
-	providerAPI           ProviderIdentityValidator
-	transparencyProofs    TransparencyProofFetcher
-	cosign                CosignPolicyVerifier
-	outbox                Outbox
-	outboxAdmin           OutboxAdmin
-	reconciliationMetrics ObjectReconciliationMetricsStore
-	readinessChecks       []ReadinessCheck
-	workerOwnedParsers    bool
-	releaseCommands       *releaseapp.Service
-	evidenceCommands      *evidenceapp.Service
-	identityCommands      *identityapp.Service
-	riskCommands          *riskapp.Service
-	packageCommands       *packageapp.Service
-	verificationCommands  *verificationapp.Service
+	pepper                 []byte
+	now                    func() time.Time
+	store                  Store
+	evidencePages          EvidencePageStore
+	workerProjections      WorkerProjectionStore
+	unitOfWork             UnitOfWorkFactory
+	objects                ObjectStore
+	retention              ObjectRetentionVerifier
+	signer                 SigningExecutor
+	oidc                   OIDCDiscoveryClient
+	providerAPI            ProviderIdentityValidator
+	transparencyProofs     TransparencyProofFetcher
+	cosign                 CosignPolicyVerifier
+	outbox                 Outbox
+	outboxAdmin            OutboxAdmin
+	reconciliationMetrics  ObjectReconciliationMetricsStore
+	readinessChecks        []ReadinessCheck
+	workerOwnedParsers     bool
+	buildAttestationParser releaseapp.BuildAttestationParser
+	dssePolicyVerifier     verificationapp.DSSEPolicyVerifier
+	releaseCommands        *releaseapp.Service
+	evidenceCommands       *evidenceapp.Service
+	identityCommands       *identityapp.Service
+	riskCommands           *riskapp.Service
+	packageCommands        *packageapp.Service
+	verificationCommands   *verificationapp.Service
 
 	tenants               map[string]domain.Tenant
 	organizations         map[string]domain.Organization
@@ -232,7 +236,13 @@ func NewLedger(cfg Config) *Ledger {
 // NewLedgerWithContext creates a ledger and honors cancellation while loading
 // configured durable state.
 func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
+	if ctx == nil {
+		return nil, ErrValidation
+	}
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := validateLedgerDSSEPorts(cfg); err != nil {
 		return nil, err
 	}
 	now := cfg.Now
@@ -256,116 +266,118 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		}
 	}
 	ledger := &Ledger{
-		pepper:                []byte(pepper),
-		now:                   now,
-		store:                 cfg.Store,
-		evidencePages:         evidencePageStore(cfg.Store),
-		workerProjections:     workerProjectionStore(cfg.Store),
-		unitOfWork:            unitOfWork,
-		objects:               cfg.ObjectStore,
-		retention:             retention,
-		signer:                cfg.Signer,
-		oidc:                  cfg.OIDC,
-		providerAPI:           cfg.ProviderAPI,
-		transparencyProofs:    cfg.Transparency,
-		cosign:                cfg.Cosign,
-		outbox:                cfg.Outbox,
-		outboxAdmin:           cfg.OutboxAdmin,
-		reconciliationMetrics: cfg.ReconciliationMetrics,
-		readinessChecks:       normalizedReadinessChecks(cfg.ReadinessChecks),
-		workerOwnedParsers:    cfg.WorkerOwnedParserSideEffects,
-		tenants:               map[string]domain.Tenant{},
-		organizations:         map[string]domain.Organization{},
-		users:                 map[string]domain.HumanUser{},
-		roleBindings:          map[string]domain.RoleBinding{},
-		ssoProviders:          map[string]domain.SSOProvider{},
-		identityLinks:         map[string]domain.UserIdentityLink{},
-		ssoSessions:           map[string]domain.SSOSession{},
-		apiKeys:               map[string]domain.APIKey{},
-		collectors:            map[string]domain.Collector{},
-		collectorReleases:     map[string]domain.CollectorRelease{},
-		products:              map[string]domain.Product{},
-		projects:              map[string]domain.Project{},
-		releases:              map[string]domain.Release{},
-		artifacts:             map[string]domain.Artifact{},
-		buildRuns:             map[string]domain.BuildRun{},
-		attestations:          map[string]domain.BuildAttestation{},
-		evidence:              map[string]domain.EvidenceItem{},
-		lifecycle:             map[string]domain.EvidenceLifecycleEvent{},
-		candidates:            map[string]domain.ReleaseCandidate{},
-		images:                map[string]domain.ContainerImage{},
-		artifactSigs:          map[string]domain.ArtifactSignature{},
-		repositories:          map[string]domain.SourceRepository{},
-		commits:               map[string]domain.SourceCommit{},
-		branches:              map[string]domain.SourceBranch{},
-		pullRequests:          map[string]domain.PullRequest{},
-		environments:          map[string]domain.DeploymentEnvironment{},
-		deployments:           map[string]domain.DeploymentEvent{},
-		incidents:             map[string]domain.Incident{},
-		timeline:              map[string]domain.IncidentTimelineEvent{},
-		webhookReceivers:      map[string]domain.IncidentWebhookReceiver{},
-		webhookEvents:         map[string]domain.IncidentWebhookEvent{},
-		tasks:                 map[string]domain.RemediationTask{},
-		securityScans:         map[string]domain.SecurityScan{},
-		manualDocs:            map[string]domain.ManualSecurityDocument{},
-		sbomDiffs:             map[string]domain.SBOMDiff{},
-		depChanges:            map[string]domain.DependencyChange{},
-		vulnWorkflow:          map[string]domain.VulnerabilityWorkflowRecord{},
-		contractDiffs:         map[string]domain.ContractDiff{},
-		customPolicies:        map[string]domain.CustomPolicy{},
-		customPolicyEvals:     map[string]domain.CustomPolicyEvaluation{},
-		waivers:               map[string]domain.Waiver{},
-		approvals:             map[string]domain.ApprovalRecord{},
-		redactions:            map[string]domain.RedactionProfile{},
-		customerPackages:      map[string]domain.CustomerSecurityPackage{},
-		htmlReports:           map[string]domain.HTMLReportPackage{},
-		reportTemplates:       map[string]domain.CustomReportTemplate{},
-		renderedReports:       map[string]domain.RenderedCustomReport{},
-		evidenceBundles:       map[string]domain.EvidenceBundle{},
-		bundleImports:         map[string]domain.EvidenceBundleImport{},
-		dsseTrustRoots:        map[string]domain.DSSETrustRoot{},
-		cosignVerifs:          map[string]domain.CosignVerification{},
-		signingProviders:      map[string]domain.SigningProvider{},
-		merkleBatches:         map[string]domain.MerkleBatch{},
-		transparency:          map[string]domain.TransparencyCheckpoint{},
-		retentionPolicies:     map[string]domain.ObjectRetentionPolicy{},
-		backupManifests:       map[string]domain.BackupManifest{},
-		legalHolds:            map[string]domain.LegalHold{},
-		retentionOverrides:    map[string]domain.RetentionOverride{},
-		portalAccess:          map[string]domain.CustomerPortalAccess{},
-		questionTemplates:     map[string]domain.QuestionnaireTemplate{},
-		questionPackages:      map[string]domain.QuestionnairePackage{},
-		answerLibrary:         map[string]domain.QuestionnaireAnswerLibraryEntry{},
-		commercialCollectors:  map[string]domain.CommercialCollectorDefinition{},
-		evidenceSummaries:     map[string]domain.EvidenceSummary{},
-		questionDrafts:        map[string]domain.QuestionnaireDraft{},
-		graphSnapshots:        map[string]domain.EvidenceGraphSnapshot{},
-		saasProfiles:          map[string]domain.SaaSEditionProfile{},
-		publicLogs:            map[string]domain.PublicTransparencyLog{},
-		publicLogEntries:      map[string]domain.PublicTransparencyLogEntry{},
-		marketplaceCollectors: map[string]domain.MarketplaceCollector{},
-		pdfReports:            map[string]domain.PDFReportPackage{},
-		anomalyReports:        map[string]domain.AnomalyReport{},
-		providerVerifications: map[string]domain.ProviderVerification{},
-		signingOperations:     map[string]domain.SigningOperation{},
-		frameworks:            map[string]domain.ControlFramework{},
-		controls:              map[string]domain.SecurityControl{},
-		controlLinks:          map[string]domain.ControlEvidence{},
-		sboms:                 map[string]domain.SBOM{},
-		scans:                 map[string]domain.VulnerabilityScan{},
-		vexDocuments:          map[string]domain.VEXDocument{},
-		vexImportReports:      map[string]domain.VEXImportReport{},
-		decisions:             map[string]domain.VulnerabilityDecision{},
-		contracts:             map[string]domain.OpenAPIContract{},
-		policies:              map[string]domain.PolicyEvaluation{},
-		exceptions:            map[string]domain.Exception{},
-		bundles:               map[string]domain.ReleaseBundle{},
-		signingKeys:           map[string]domain.SigningKey{},
-		signatures:            map[string]domain.Signature{},
-		verifications:         map[string]domain.VerificationResult{},
-		chain:                 map[string][]domain.AuditChainEntry{},
-		idempotency:           map[string]IdempotencyRecord{},
-		localVEXJobs:          map[string]OutboxJob{},
+		pepper:                 []byte(pepper),
+		now:                    now,
+		store:                  cfg.Store,
+		evidencePages:          evidencePageStore(cfg.Store),
+		workerProjections:      workerProjectionStore(cfg.Store),
+		unitOfWork:             unitOfWork,
+		objects:                cfg.ObjectStore,
+		retention:              retention,
+		signer:                 cfg.Signer,
+		oidc:                   cfg.OIDC,
+		providerAPI:            cfg.ProviderAPI,
+		transparencyProofs:     cfg.Transparency,
+		cosign:                 cfg.Cosign,
+		outbox:                 cfg.Outbox,
+		outboxAdmin:            cfg.OutboxAdmin,
+		reconciliationMetrics:  cfg.ReconciliationMetrics,
+		readinessChecks:        normalizedReadinessChecks(cfg.ReadinessChecks),
+		workerOwnedParsers:     cfg.WorkerOwnedParserSideEffects,
+		buildAttestationParser: cfg.BuildAttestationParser,
+		dssePolicyVerifier:     cfg.DSSEPolicyVerifier,
+		tenants:                map[string]domain.Tenant{},
+		organizations:          map[string]domain.Organization{},
+		users:                  map[string]domain.HumanUser{},
+		roleBindings:           map[string]domain.RoleBinding{},
+		ssoProviders:           map[string]domain.SSOProvider{},
+		identityLinks:          map[string]domain.UserIdentityLink{},
+		ssoSessions:            map[string]domain.SSOSession{},
+		apiKeys:                map[string]domain.APIKey{},
+		collectors:             map[string]domain.Collector{},
+		collectorReleases:      map[string]domain.CollectorRelease{},
+		products:               map[string]domain.Product{},
+		projects:               map[string]domain.Project{},
+		releases:               map[string]domain.Release{},
+		artifacts:              map[string]domain.Artifact{},
+		buildRuns:              map[string]domain.BuildRun{},
+		attestations:           map[string]domain.BuildAttestation{},
+		evidence:               map[string]domain.EvidenceItem{},
+		lifecycle:              map[string]domain.EvidenceLifecycleEvent{},
+		candidates:             map[string]domain.ReleaseCandidate{},
+		images:                 map[string]domain.ContainerImage{},
+		artifactSigs:           map[string]domain.ArtifactSignature{},
+		repositories:           map[string]domain.SourceRepository{},
+		commits:                map[string]domain.SourceCommit{},
+		branches:               map[string]domain.SourceBranch{},
+		pullRequests:           map[string]domain.PullRequest{},
+		environments:           map[string]domain.DeploymentEnvironment{},
+		deployments:            map[string]domain.DeploymentEvent{},
+		incidents:              map[string]domain.Incident{},
+		timeline:               map[string]domain.IncidentTimelineEvent{},
+		webhookReceivers:       map[string]domain.IncidentWebhookReceiver{},
+		webhookEvents:          map[string]domain.IncidentWebhookEvent{},
+		tasks:                  map[string]domain.RemediationTask{},
+		securityScans:          map[string]domain.SecurityScan{},
+		manualDocs:             map[string]domain.ManualSecurityDocument{},
+		sbomDiffs:              map[string]domain.SBOMDiff{},
+		depChanges:             map[string]domain.DependencyChange{},
+		vulnWorkflow:           map[string]domain.VulnerabilityWorkflowRecord{},
+		contractDiffs:          map[string]domain.ContractDiff{},
+		customPolicies:         map[string]domain.CustomPolicy{},
+		customPolicyEvals:      map[string]domain.CustomPolicyEvaluation{},
+		waivers:                map[string]domain.Waiver{},
+		approvals:              map[string]domain.ApprovalRecord{},
+		redactions:             map[string]domain.RedactionProfile{},
+		customerPackages:       map[string]domain.CustomerSecurityPackage{},
+		htmlReports:            map[string]domain.HTMLReportPackage{},
+		reportTemplates:        map[string]domain.CustomReportTemplate{},
+		renderedReports:        map[string]domain.RenderedCustomReport{},
+		evidenceBundles:        map[string]domain.EvidenceBundle{},
+		bundleImports:          map[string]domain.EvidenceBundleImport{},
+		dsseTrustRoots:         map[string]domain.DSSETrustRoot{},
+		cosignVerifs:           map[string]domain.CosignVerification{},
+		signingProviders:       map[string]domain.SigningProvider{},
+		merkleBatches:          map[string]domain.MerkleBatch{},
+		transparency:           map[string]domain.TransparencyCheckpoint{},
+		retentionPolicies:      map[string]domain.ObjectRetentionPolicy{},
+		backupManifests:        map[string]domain.BackupManifest{},
+		legalHolds:             map[string]domain.LegalHold{},
+		retentionOverrides:     map[string]domain.RetentionOverride{},
+		portalAccess:           map[string]domain.CustomerPortalAccess{},
+		questionTemplates:      map[string]domain.QuestionnaireTemplate{},
+		questionPackages:       map[string]domain.QuestionnairePackage{},
+		answerLibrary:          map[string]domain.QuestionnaireAnswerLibraryEntry{},
+		commercialCollectors:   map[string]domain.CommercialCollectorDefinition{},
+		evidenceSummaries:      map[string]domain.EvidenceSummary{},
+		questionDrafts:         map[string]domain.QuestionnaireDraft{},
+		graphSnapshots:         map[string]domain.EvidenceGraphSnapshot{},
+		saasProfiles:           map[string]domain.SaaSEditionProfile{},
+		publicLogs:             map[string]domain.PublicTransparencyLog{},
+		publicLogEntries:       map[string]domain.PublicTransparencyLogEntry{},
+		marketplaceCollectors:  map[string]domain.MarketplaceCollector{},
+		pdfReports:             map[string]domain.PDFReportPackage{},
+		anomalyReports:         map[string]domain.AnomalyReport{},
+		providerVerifications:  map[string]domain.ProviderVerification{},
+		signingOperations:      map[string]domain.SigningOperation{},
+		frameworks:             map[string]domain.ControlFramework{},
+		controls:               map[string]domain.SecurityControl{},
+		controlLinks:           map[string]domain.ControlEvidence{},
+		sboms:                  map[string]domain.SBOM{},
+		scans:                  map[string]domain.VulnerabilityScan{},
+		vexDocuments:           map[string]domain.VEXDocument{},
+		vexImportReports:       map[string]domain.VEXImportReport{},
+		decisions:              map[string]domain.VulnerabilityDecision{},
+		contracts:              map[string]domain.OpenAPIContract{},
+		policies:               map[string]domain.PolicyEvaluation{},
+		exceptions:             map[string]domain.Exception{},
+		bundles:                map[string]domain.ReleaseBundle{},
+		signingKeys:            map[string]domain.SigningKey{},
+		signatures:             map[string]domain.Signature{},
+		verifications:          map[string]domain.VerificationResult{},
+		chain:                  map[string][]domain.AuditChainEntry{},
+		idempotency:            map[string]IdempotencyRecord{},
+		localVEXJobs:           map[string]OutboxJob{},
 	}
 	if ledger.outbox == nil {
 		ledger.outbox = nopOutbox{}

@@ -37,7 +37,7 @@ func (f *approvalHTTPFake) CreateApprovalRecord(_ context.Context, a identitydom
 }
 
 func TestApprovalHTTPUsesNarrowPortAndPreservesDTOAndSafeErrors(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	tenant, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

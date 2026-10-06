@@ -42,7 +42,7 @@ func TestPostgresControlCreationHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 		opts.Authenticator = auth
 		noReload := &decisionHTTPNoReloadStore{}
 		reloads = append(reloads, noReload)
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
+		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}

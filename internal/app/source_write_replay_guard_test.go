@@ -10,7 +10,7 @@ import (
 )
 
 func TestLocalSourceWriteGuardsCheckCurrentParentsAndGrants(t *testing.T) {
-	l := NewLedger(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
+	l := newLegacyLedgerFixture(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
 	_, _, _, a := bootstrapEnterpriseTestTenant(t, l)
 	p, err := l.CreateProduct(t.Context(), a, "Source", "source")
 	if err != nil {
@@ -86,7 +86,7 @@ func TestLocalSourceWriteGuardsCheckCurrentParentsAndGrants(t *testing.T) {
 }
 
 func TestLocalSourceWritesRejectRawPaddingBeforeLookup(t *testing.T) {
-	l := NewLedger(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
+	l := newLegacyLedgerFixture(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
 	_, _, _, a := bootstrapEnterpriseTestTenant(t, l)
 	repository := strings.Repeat(" ", 1025) + "repo"
 	if _, err := l.RecordSourceCommit(t.Context(), a, RecordCommitInput{RepositoryID: repository, SHA: strings.Repeat("a", 40)}); !errors.Is(err, ErrValidation) {

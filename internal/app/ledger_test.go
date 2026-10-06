@@ -100,7 +100,7 @@ func (s *contextRecordingStore) SaveState(context.Context, PersistedState) error
 
 func newLedgerWithStore(t testing.TB, cfg Config) *Ledger {
 	t.Helper()
-	ledger, err := NewLedgerWithContext(context.Background(), cfg)
+	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("create ledger with store: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestNewLedgerWithContextHonorsCanceledLoad(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	store := &contextRecordingStore{}
-	if _, err := NewLedgerWithContext(ctx, Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, context.Canceled) {
+	if _, err := newLegacyLedgerFixtureWithContext(ctx, Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("constructor err=%v, want context canceled", err)
 	}
 	if store.seen != nil {
@@ -136,7 +136,7 @@ func TestNewLedgerWithContextHonorsExpiredLoadDeadline(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 	store := &contextRecordingStore{}
-	if _, err := NewLedgerWithContext(ctx, Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := newLegacyLedgerFixtureWithContext(ctx, Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("constructor err=%v, want context deadline exceeded", err)
 	}
 	if store.seen != nil {
@@ -146,7 +146,7 @@ func TestNewLedgerWithContextHonorsExpiredLoadDeadline(t *testing.T) {
 
 func TestNewLedgerWithContextRejectsUncloneablePersistedState(t *testing.T) {
 	store := &contextRecordingStore{state: PersistedState{Chain: map[string][]domain.AuditChainEntry{"tenant": {{Metadata: map[string]any{"invalid": math.NaN()}}}}}, ok: true}
-	if _, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test", Store: store}); err == nil {
+	if _, err := newLegacyLedgerFixtureWithContext(context.Background(), Config{APIKeyPepper: "test", Store: store}); err == nil {
 		t.Fatal("expected malformed persisted state to be rejected")
 	}
 	if store.seen == nil {
@@ -157,7 +157,7 @@ func TestNewLedgerWithContextRejectsUncloneablePersistedState(t *testing.T) {
 func TestNewLedgerWithContextReturnsLoadFailure(t *testing.T) {
 	want := errors.New("state load failed")
 	store := &contextRecordingStore{loadErr: want}
-	if _, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, want) {
+	if _, err := newLegacyLedgerFixtureWithContext(context.Background(), Config{APIKeyPepper: "test", Store: store}); !errors.Is(err, want) {
 		t.Fatalf("constructor err=%v, want load error", err)
 	}
 	if store.seen == nil {
@@ -457,7 +457,7 @@ func requireVEXDecisionRequest(t *testing.T, payload map[string]any, wantStateme
 }
 
 func TestTenantScopedEvidenceAndAPIKeyAuth(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secretA, err := ledger.BootstrapTenant(ctx, "Tenant A", "admin-a", []string{"*"})
 	if err != nil {
@@ -511,7 +511,7 @@ func TestTenantScopedEvidenceAndAPIKeyAuth(t *testing.T) {
 }
 
 func TestScopedAPIKeyCannotWriteEvidence(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, adminSecret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -537,7 +537,7 @@ func TestScopedAPIKeyCannotWriteEvidence(t *testing.T) {
 
 func TestUploadSBOMEnqueuesParserVersion(t *testing.T) {
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -572,7 +572,7 @@ func TestUploadSBOMEnqueuesParserVersion(t *testing.T) {
 }
 
 func TestReleaseSecuritySummaryIsTenantScopedAndRedacted(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
@@ -921,7 +921,7 @@ func TestUploadBuildAttestationCanDeferParserSideEffectsToWorker(t *testing.T) {
 }
 
 func TestIdempotencyReplayAndConflict(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -958,7 +958,7 @@ func TestIdempotencyReplayAndConflict(t *testing.T) {
 }
 
 func TestIdempotencyIsScopedByHumanSessionActor(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -1031,7 +1031,7 @@ func TestIdempotencyIsScopedByHumanSessionActor(t *testing.T) {
 }
 
 func TestEvidenceCanonicalHashAndAuditChainVerification(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -1062,7 +1062,7 @@ func TestEvidenceCanonicalHashAndAuditChainVerification(t *testing.T) {
 }
 
 func TestAuditChainVerificationRecomputesStoredEntryFields(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -1091,7 +1091,7 @@ func TestAuditChainVerificationRecomputesStoredEntryFields(t *testing.T) {
 }
 
 func TestAuditChainVerificationRejectsUnknownSchemaVersion(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, _, _ := setupReleaseRiskFixture(t, ledger)
 
@@ -1165,7 +1165,7 @@ func TestAuditChainCanonicalV2CoversAllStoredEntryFields(t *testing.T) {
 }
 
 func TestAuditChainLegacyV1EntriesRemainVerifiable(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -1205,7 +1205,7 @@ func TestAuditChainLegacyV1EntriesRemainVerifiable(t *testing.T) {
 }
 
 func TestAuditChainVerificationRejectsInvalidReferencedSignature(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
@@ -1231,7 +1231,7 @@ func TestAuditChainVerificationRejectsInvalidReferencedSignature(t *testing.T) {
 }
 
 func TestAuditChainCheckpointVerificationDetectsTruncation(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 
@@ -1285,7 +1285,7 @@ func TestAuditChainCheckpointVerificationDetectsTruncation(t *testing.T) {
 }
 
 func TestReleaseBundleSignatureVerification(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -1322,7 +1322,7 @@ func TestReleaseBundleSignatureVerification(t *testing.T) {
 func TestMemoryStorePersistsLedgerState(t *testing.T) {
 	store := NewMemoryStore()
 	ctx := context.Background()
-	ledger, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("new ledger: %v", err)
 	}
@@ -1347,7 +1347,7 @@ func TestMemoryStorePersistsLedgerState(t *testing.T) {
 		t.Fatalf("bundle: %v", err)
 	}
 
-	restarted, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	restarted, err := newLegacyLedgerFixtureWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("restart ledger: %v", err)
 	}
@@ -1368,7 +1368,7 @@ func TestMemoryStorePersistsLedgerState(t *testing.T) {
 }
 
 func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1468,7 +1468,7 @@ func TestReleaseReadinessRequiresHandledCriticalFinding(t *testing.T) {
 }
 
 func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1550,7 +1550,7 @@ func TestCustomerVisibleDecisionRequiresImpactAndRedactsInternalNotes(t *testing
 }
 
 func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveVisible(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	supporting, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
@@ -1653,7 +1653,7 @@ func TestVulnerabilityDecisionSummaryReportRedactsInternalAndOnlyIncludesActiveV
 }
 
 func TestVulnerabilityDecisionLifecycleSupersedesAndPackagesOnlyActive(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1738,7 +1738,7 @@ func TestVulnerabilityDecisionLifecycleSupersedesAndPackagesOnlyActive(t *testin
 }
 
 func TestListVulnerabilityDecisionsFiltersHistoryAndTenantScope(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1817,7 +1817,7 @@ func TestListVulnerabilityDecisionsFiltersHistoryAndTenantScope(t *testing.T) {
 }
 
 func TestVulnerabilityDecisionEvidenceLinksAreTenantAndReleaseScoped(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	supporting, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
@@ -1917,7 +1917,7 @@ func TestVulnerabilityDecisionEvidenceLinksAreTenantAndReleaseScoped(t *testing.
 
 func TestOpenVEXIngestionQueuesNoObjectDecisionRequestAndRejectsMalformedInput(t *testing.T) {
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -1975,7 +1975,7 @@ func TestOpenVEXIngestionQueuesNoObjectDecisionRequestAndRejectsMalformedInput(t
 
 func TestOpenVEXPreviewTracksSupersessionAndMappingFailuresBeforeAsyncUpload(t *testing.T) {
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -2152,7 +2152,7 @@ func TestUploadVEXQueuesDecisionSideEffectsAndPersistsNormalizedDocument(t *test
 }
 
 func TestExceptionApprovalControlsReadinessAndTenantScope(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actorA, releaseA, artifactA := setupReleaseRiskFixture(t, ledger)
 	_, _, secretB, err := ledger.BootstrapTenant(ctx, "Tenant B", "admin-b", []string{"*"})
@@ -2206,7 +2206,7 @@ func TestExceptionApprovalControlsReadinessAndTenantScope(t *testing.T) {
 }
 
 func TestCollectorBuildAttestationReadinessFlow(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
@@ -2294,7 +2294,7 @@ func TestCollectorBuildAttestationReadinessFlow(t *testing.T) {
 }
 
 func TestBuildValidationTenantIsolationAndMalformedAttestation(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actorA, releaseA, artifactA := setupReleaseRiskFixture(t, ledger)
 	projectA, err := ledger.CreateProject(ctx, actorA, releaseA.ProductID, "api")
@@ -2345,7 +2345,7 @@ func TestBuildValidationTenantIsolationAndMalformedAttestation(t *testing.T) {
 }
 
 func TestParsersRejectMalformedInputs(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {

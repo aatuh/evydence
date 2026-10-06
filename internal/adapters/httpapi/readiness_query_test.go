@@ -14,7 +14,7 @@ import (
 )
 
 func TestReadinessHandlersUseFocusedProbeWithoutLedgerConfiguration(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

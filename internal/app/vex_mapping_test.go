@@ -25,7 +25,7 @@ func TestOpenVEXStatusMappingFixtures(t *testing.T) {
 
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+			ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 			ctx := context.Background()
 			actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 			vulnerability := fmt.Sprintf("CVE-2026-%04d", index+100)
@@ -58,7 +58,7 @@ func TestOpenVEXStatusMappingFixtures(t *testing.T) {
 }
 
 func TestOpenVEXMappingMultipleProductsAndReleaseScope(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, releaseA, artifact := setupReleaseRiskFixture(t, ledger)
 	releaseB, err := ledger.CreateRelease(ctx, actor, releaseA.ProductID, "2.0.0")
@@ -102,7 +102,7 @@ func TestOpenVEXMappingMultipleProductsAndReleaseScope(t *testing.T) {
 }
 
 func TestOpenVEXDuplicateStatementIsIdempotentWithinImport(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	vulnerability := "CVE-2026-0300"
@@ -136,7 +136,7 @@ func TestOpenVEXDuplicateStatementIsIdempotentWithinImport(t *testing.T) {
 }
 
 func TestOpenVEXAmbiguousFindingIsReportedWithoutDecision(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	const vulnerability = "CVE-2026-0350"
@@ -189,7 +189,7 @@ func TestUnambiguousVEXMatchesPolicy(t *testing.T) {
 }
 
 func TestOpenVEXMappingSupersedesExistingDecisionFixture(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	vulnerability := "CVE-2026-0400"
@@ -228,7 +228,7 @@ func TestOpenVEXMappingSupersedesExistingDecisionFixture(t *testing.T) {
 }
 
 func TestOpenVEXValidationFixturesReturnUsefulSafeErrors(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	tests := []struct {

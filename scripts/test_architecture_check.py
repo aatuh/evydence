@@ -24,6 +24,13 @@ def source(package: str, imports: tuple[str, ...] = (), **extra: object) -> dict
 
 
 class ArchitectureCheckTests(unittest.TestCase):
+    def test_broad_project_gates_include_architecture_enforcement(self) -> None:
+        makefile = (check.ROOT / "Makefile").read_text(encoding="utf-8")
+        for target in ("fast-check", "finalize"):
+            with self.subTest(target=target):
+                recipe = makefile.split("\n" + target + ":", 1)[1].split("\n\n", 1)[0]
+                self.assertIn("\n\t@$(MAKE) architecture-check", recipe)
+
     def test_core_cannot_import_adapters_even_in_generated_source(self) -> None:
         for package in ("internal/application", "internal/app", "internal/release/app", "internal/evidence/query", "internal/risk/domain"):
             with self.subTest(package=package):

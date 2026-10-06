@@ -27,7 +27,7 @@ func TestCosignMerkleTransparencyAndKeyRevocationFlow(t *testing.T) {
 			{Name: "rekor_inclusion_proof", Result: "passed"},
 		},
 	}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: newTestObjectStore(), Cosign: verifier})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: newTestObjectStore(), Cosign: verifier})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	image, err := ledger.RegisterContainerImage(ctx, actor, RegisterContainerImageInput{ArtifactID: artifact.ID, Repository: "registry.example.com/payments", Tag: "1.0.0", Digest: artifact.Digest})
@@ -86,7 +86,7 @@ func TestCosignMerkleTransparencyAndKeyRevocationFlow(t *testing.T) {
 }
 
 func TestVerifyMerkleBatchRejectsReplayedSignatureSubject(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, _, _ := setupReleaseRiskFixture(t, ledger)
 	batch, err := ledger.CreateMerkleBatch(ctx, actor, CreateMerkleBatchInput{})
@@ -116,7 +116,7 @@ func (f *fakeCosignPolicyVerifier) VerifyCosign(_ context.Context, in CosignVeri
 }
 
 func TestVerifyCosignSignatureRejectsHumanSessionOutsideArtifactGrant(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, _, artifact := setupReleaseRiskFixture(t, ledger)
 	sig, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "recorded"})
@@ -131,7 +131,7 @@ func TestVerifyCosignSignatureRejectsHumanSessionOutsideArtifactGrant(t *testing
 
 func TestVerifyCosignSignatureRejectsInvalidPolicyBeforeVerifier(t *testing.T) {
 	verifier := &fakeCosignPolicyVerifier{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Cosign: verifier})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Cosign: verifier})
 	ctx := context.Background()
 	actor, _, artifact := setupReleaseRiskFixture(t, ledger)
 	sig, err := ledger.CreateArtifactSignature(ctx, actor, CreateArtifactSignatureInput{ArtifactID: artifact.ID, Algorithm: "cosign", Signature: "recorded"})
@@ -155,7 +155,7 @@ func TestVerifyCosignSignatureRejectsInvalidPolicyBeforeVerifier(t *testing.T) {
 }
 
 func TestRuntimeRetentionBackupReadinessMetricsAndAudit(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "dev", Type: "local_encrypted_dev", KeyRef: "file://dev.keys", Encrypted: true}); err != nil {
@@ -236,7 +236,7 @@ func TestObjectRetentionVerifierRecordsProviderChecks(t *testing.T) {
 		},
 		Limitations: []string{"Bucket-level settings checked only."},
 	}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -279,7 +279,7 @@ func TestSigningCustodyReviewAndObjectLockProofExports(t *testing.T) {
 		},
 		Limitations: []string{"Operator must review bucket IAM, lifecycle, and legal requirements."},
 	}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 
@@ -369,7 +369,7 @@ func TestObjectRetentionVerifierReceivesLegalHoldRequirement(t *testing.T) {
 		Checks:        []domain.VerifyCheck{{Name: "s3_object_legal_hold", Result: "passed"}},
 		Limitations:   []string{"Sample object legal hold checked only."},
 	}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -404,7 +404,7 @@ func TestObjectRetentionSampleObjectRequiresObservedLegalHoldState(t *testing.T)
 		Enforced:      true,
 		Checks:        []domain.VerifyCheck{{Name: "s3_object_retention_until", Result: "passed"}},
 	}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -430,7 +430,7 @@ func TestObjectRetentionSampleObjectRequiresObservedLegalHoldState(t *testing.T)
 }
 
 func TestObjectRetentionVerifierMarksProviderFailure(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: &fakeObjectRetentionVerifier{result: ObjectRetentionResult{
 		Provider:    "s3",
 		Enforced:    false,
 		Checks:      []domain.VerifyCheck{{Name: "s3_object_lock_retention", Result: "failed"}},
@@ -465,7 +465,7 @@ func TestObjectRetentionRequiresCompleteProviderObservation(t *testing.T) {
 		Enforced:   true,
 		Checks:     []domain.VerifyCheck{{Name: "s3_bucket_versioning", Result: "passed"}},
 	}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: verifier})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -492,7 +492,7 @@ func TestObjectRetentionRequiresCompleteProviderObservation(t *testing.T) {
 }
 
 func TestObjectRetentionProviderUnavailableIsRecordedWithoutLeakingError(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: &fakeObjectRetentionVerifier{err: errors.New("s3 credential secret must not leak")}})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Retention: &fakeObjectRetentionVerifier{err: errors.New("s3 credential secret must not leak")}})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -529,7 +529,7 @@ func TestObjectRetentionStaleProofNoLongerCountsAsCurrent(t *testing.T) {
 		Enforced:      true,
 		Checks:        []domain.VerifyCheck{{Name: "s3_bucket_versioning", Result: "passed"}},
 	}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }, Retention: verifier})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }, Retention: verifier})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -561,7 +561,7 @@ func TestObjectRetentionStaleProofNoLongerCountsAsCurrent(t *testing.T) {
 }
 
 func TestObjectRetentionVerificationAgeInputIsBounded(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -678,7 +678,7 @@ func TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads(t *testing.T) {
 }
 
 func TestSigningProviderRejectsPlaintextLocalDev(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, _, _ := setupReleaseRiskFixture(t, ledger)
 	_, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "bad", Type: "local_encrypted_dev", KeyRef: "file://dev.keys"})

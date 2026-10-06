@@ -98,7 +98,7 @@ func TestPublicTransparencyFetchHTTPStrictBodyPrivateErrorsAndCookiePolicy(t *te
 
 func TestPublicTransparencyFetchHTTPLocalReplayDoesNotRefetchOrKeepRevokedAuthority(t *testing.T) {
 	f := &fakeTransparencyProofHTTP{}
-	l := app.NewLedger(app.Config{APIKeyPepper: "test", Transparency: f})
+	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Transparency: f})
 	_, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

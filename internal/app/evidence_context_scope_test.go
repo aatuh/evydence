@@ -198,7 +198,7 @@ func (s *evidenceScopeRepositorySpy) GetOpenAPIContract(_ context.Context, tenan
 func newEvidenceScopeLedger(t *testing.T) *Ledger {
 	t.Helper()
 	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
 	ledger.tenants["ten_a"] = domain.Tenant{ID: "ten_a"}
 	ledger.products["prod_a"] = domain.Product{ID: "prod_a", TenantID: "ten_a"}
 	ledger.products["prod_b"] = domain.Product{ID: "prod_b", TenantID: "ten_a"}

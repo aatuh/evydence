@@ -28,6 +28,7 @@ import (
 	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
+	"github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -80,7 +81,7 @@ func runWithContext(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	cfg := app.Config{APIKeyPepper: pepper}
+	cfg := app.Config{APIKeyPepper: pepper, BuildAttestationParser: dsse.BuildAttestationIngestionParser{}, DSSEPolicyVerifier: dsse.PolicyVerifier{}}
 	cfg.WorkerOwnedParserSideEffects = boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS")
 	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
 		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"),

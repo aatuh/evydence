@@ -11,7 +11,7 @@ import (
 )
 
 func TestControlFrameworkControlEvidenceAndCoverageFlow(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/payments-api"}]}`))
@@ -97,7 +97,7 @@ func TestControlFrameworkControlEvidenceAndCoverageFlow(t *testing.T) {
 }
 
 func TestCRATemplateReportsForVulnerabilityHandlingAndSecurityUpdates(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -183,7 +183,7 @@ func TestCRATemplateReportsForVulnerabilityHandlingAndSecurityUpdates(t *testing
 }
 
 func TestControlValidationScopeAndWaivedCoverage(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actorA, releaseA, artifactA := setupReleaseRiskFixture(t, ledger)
 	actorB, _, _ := setupReleaseRiskFixture(t, ledger)
@@ -254,7 +254,7 @@ func TestControlValidationScopeAndWaivedCoverage(t *testing.T) {
 func TestControlStatePersistsAcrossRestart(t *testing.T) {
 	store := NewMemoryStore()
 	ctx := context.Background()
-	ledger, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("new ledger: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestControlStatePersistsAcrossRestart(t *testing.T) {
 	if _, err := ledger.LinkControlEvidence(ctx, actor, control.ID, LinkControlEvidenceInput{EvidenceType: "sbom", SubjectType: "sbom", SubjectID: sbom.ID, ProductID: release.ProductID, ReleaseID: release.ID, Confidence: "high"}); err != nil {
 		t.Fatalf("link: %v", err)
 	}
-	restarted, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	restarted, err := newLegacyLedgerFixtureWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("restart: %v", err)
 	}

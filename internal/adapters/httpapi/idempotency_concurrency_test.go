@@ -23,7 +23,7 @@ type concurrentHTTPResult struct {
 // that arrives before the owner completes; those callers retry below using the
 // same key and receive the one completed response.
 func TestCreateProductConcurrentIdempotencyRetriesOneStoredResponse(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Concurrent HTTP", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)

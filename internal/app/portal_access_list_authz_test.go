@@ -10,7 +10,7 @@ import (
 )
 
 func TestListCustomerPortalAccessEnforcesCurrentResourceGrants(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	now := fixedNow()
 	ledger.products["product_a"] = domain.Product{ID: "product_a", TenantID: "tenant_a"}
 	ledger.products["product_b"] = domain.Product{ID: "product_b", TenantID: "tenant_a"}

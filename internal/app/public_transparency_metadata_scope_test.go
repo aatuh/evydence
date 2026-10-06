@@ -9,7 +9,7 @@ import (
 )
 
 func TestPublicTransparencyMetadataLocalRequiresTenantWideHumanGrantAndSafeInput(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test"})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test"})
 	_, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestPublicTransparencyMetadataLocalRequiresTenantWideHumanGrantAndSafeInput
 }
 
 func TestPublicTransparencyMetadataLocalPublicationRequiresCurrentTenant(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test"})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test"})
 	_, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

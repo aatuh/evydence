@@ -134,7 +134,7 @@ func (f *controlEvidenceCommandFake) LinkControlEvidence(_ context.Context, acto
 }
 
 func TestControlEvidenceHTTPUsesNarrowCommandAndMapsDTOAndErrors(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	tenant, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

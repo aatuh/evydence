@@ -44,7 +44,7 @@ func retentionHTTP(t *testing.T, store *postgres.Store, provider *retentionProvi
 		t.Fatal("native retention wiring missing", err)
 	}
 	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 	if err != nil {
 		t.Fatal(err)
 	}

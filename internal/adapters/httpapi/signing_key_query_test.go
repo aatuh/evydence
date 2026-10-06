@@ -32,7 +32,7 @@ func (f *signingKeyQueryFake) ListPage(_ context.Context, actor identitydomain.A
 }
 
 func TestSigningKeyHandlerUsesFocusedQueryAndRejectsMalformedPagination(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

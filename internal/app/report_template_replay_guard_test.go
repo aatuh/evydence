@@ -10,7 +10,7 @@ import (
 )
 
 func TestLocalReportTemplateGuardsCheckCurrentTenantAndTemplateNotDefinition(t *testing.T) {
-	l := NewLedger(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
+	l := newLegacyLedgerFixture(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
 	_, _, _, a := bootstrapEnterpriseTestTenant(t, l)
 	v, err := l.CreateCustomReportTemplate(t.Context(), a, CreateReportTemplateInput{Name: "Definition", Version: "1", ReportType: "metadata", AllowedFields: []string{"subject_id"}})
 	if err != nil {

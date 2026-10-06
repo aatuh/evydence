@@ -11,7 +11,7 @@ import (
 )
 
 func TestEvidenceIDsForRefsBoundedStopsBeforeUnboundedTraversal(t *testing.T) {
-	ledger := NewLedger(Config{})
+	ledger := newLegacyLedgerFixture(Config{})
 	ledger.evidence = map[string]domain.EvidenceItem{
 		"ev_1": {ID: "ev_1", TenantID: "ten_1", ProductID: "prod_1"},
 		"ev_2": {ID: "ev_2", TenantID: "ten_1", ProductID: "prod_1"},
@@ -24,7 +24,7 @@ func TestEvidenceIDsForRefsBoundedStopsBeforeUnboundedTraversal(t *testing.T) {
 }
 
 func TestGeneratedReportsRejectOversizedOutput(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	oversized := strings.Repeat("r", MaxGeneratedReportBytes)
@@ -94,7 +94,7 @@ func TestCustomerPackageArchiveRejectsSensitiveManifestFields(t *testing.T) {
 }
 
 func TestEvidenceLifecycleAuditDetailsRemoveSensitiveCanaries(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	evidence, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
@@ -142,7 +142,7 @@ func TestEvidenceLifecycleAuditDetailsRemoveSensitiveCanaries(t *testing.T) {
 }
 
 func TestCustomReportTemplatesAreDataOnlyAndBounded(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	templateCanary := `{{range .Items}}{{template "recursive" .}}{{end}}(a+)+$`

@@ -95,7 +95,7 @@ func providerReceiptHTTP(t *testing.T, store *postgres.Store, live app.ProviderI
 		t.Fatal("provider receipts remain Ledger-backed", err)
 	}
 	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 	if err != nil {
 		t.Fatal(err)
 	}

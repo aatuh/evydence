@@ -112,13 +112,16 @@ func (i ledgerVerificationInspector) inspectBuildAttestation(ctx context.Context
 	if hashBytes(object.Bytes) != attestation.PayloadHash {
 		return verificationapp.SubjectInspection{}, verificationapp.ErrValidation
 	}
-	verification, err := verifyDSSEAgainstConfiguredRoots(ctx, object.Bytes, roots, expectedSubjects)
+	contextRoots := make([]verificationdomain.DSSETrustRoot, 0, len(roots))
+	for _, root := range roots {
+		contextRoots = append(contextRoots, domain.DSSETrustRootToContextModel(root))
+	}
+	facts, err := l.dssePolicyVerifier.VerifyDSSEPolicies(ctx, verificationapp.DSSEPolicyVerification{
+		TenantID: subject.TenantID, Envelope: object.Bytes,
+		Roots: contextRoots, ExpectedSubjectDigests: expectedSubjects,
+	})
 	if err != nil {
 		return verificationapp.SubjectInspection{}, verificationapp.ErrValidation
-	}
-	facts := verificationapp.DSSEVerificationFacts{AcceptedRootIDs: verification.AcceptedRootIDs}
-	for _, check := range verification.Checks {
-		facts.Checks = append(facts.Checks, verificationdomain.VerifyCheck{Name: check.Name, Result: check.Result, Detail: check.Detail})
 	}
 	return verificationapp.DSSEInspection(facts, attestation.PayloadHash), nil
 }

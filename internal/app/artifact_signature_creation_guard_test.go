@@ -10,7 +10,7 @@ import (
 )
 
 func TestLocalArtifactSignatureCreationGuardIsReadOnlyAndCurrent(t *testing.T) {
-	l := NewLedger(Config{})
+	l := newLegacyLedgerFixture(Config{})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	l.artifacts["artifact"] = domain.Artifact{ID: "artifact", TenantID: a.TenantID, Digest: "sha256:opaque"}
 	l.projects["project"] = domain.Project{ID: "project", TenantID: a.TenantID, ProductID: release.ProductID}

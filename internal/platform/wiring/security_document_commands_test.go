@@ -53,7 +53,7 @@ func TestPostgresSecurityDocumentsUseFocusedAtomicCommandsWithoutLedger(t *testi
 		}
 		opts.Authenticator = auth
 		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
+		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}

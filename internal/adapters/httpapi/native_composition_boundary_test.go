@@ -60,7 +60,7 @@ func TestNativeCompositionCoreDoesNotAcceptOrConstructLedger(t *testing.T) {
 }
 
 func TestLocalConstructorKeepsExplicitAuthenticatorAfterLegacyBinding(t *testing.T) {
-	ledger := app.NewLedger(app.Config{})
+	ledger := newLegacyLedgerFixture(app.Config{})
 	authenticator := &configuredAuthenticator{}
 	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{Authenticator: authenticator})
 	if err != nil || server.ledger != ledger || server.authn != authenticator || server.idempotency == nil {

@@ -10,7 +10,7 @@ import (
 )
 
 func TestImplementationIncrementReadListAndHelperBranches(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
@@ -202,7 +202,7 @@ func TestSearchAndControlHelperBranches(t *testing.T) {
 }
 
 func TestControlSubjectResolutionCoversAllSupportedSubjects(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")

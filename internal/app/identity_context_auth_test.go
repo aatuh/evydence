@@ -43,7 +43,7 @@ func TestLedgerIdentityTransactionRejectsStalePreloadedUser(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
+			ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
 			user := domain.HumanUser{ID: "usr_1", TenantID: "ten_1", Email: "user@example.test", Status: "active"}
 			session := domain.SSOSession{
 				ID: "sess_1", TenantID: user.TenantID, UserID: user.ID, ProviderID: "sso_1",
@@ -84,7 +84,7 @@ func TestLedgerIdentityTransactionRejectsAPIKeyExpiredBeforeActivityCommit(t *te
 		Hash: "stored-hash", Scopes: []string{"evidence:read"}, ExpiresAt: &expiresAt,
 		CreatedAt: activityAt.Add(-time.Hour),
 	}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return activityAt }})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return activityAt }})
 	ledger.apiKeys[preloaded.ID] = preloaded
 	activity := preloaded
 	activity.LastUsedAt = &activityAt

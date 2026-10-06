@@ -13,7 +13,7 @@ import (
 
 func TestFocusedContextCompatibilityWritesRestoreCachesAfterPersistenceFailure(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	store := &failingParserReleaseStore{err: errors.New("persistence unavailable")}
 	ledger.store = store
@@ -96,7 +96,7 @@ func TestRiskContextCompatibilityConversionsPreservePolicyAndApprovalHistory(t *
 
 func TestRiskContextReaderEnforcesTenantOwnershipAcrossLegacyResources(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	evidence, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
 		ProductID: release.ProductID, ReleaseID: release.ID, Type: "security_review", Title: "Review", PayloadHash: sampleDigest("review"),

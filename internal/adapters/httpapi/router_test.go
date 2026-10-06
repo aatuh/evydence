@@ -21,7 +21,7 @@ import (
 )
 
 func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	server, err := NewServer(ledger)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
@@ -507,7 +507,7 @@ func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
 		Issuer: "https://idp.example.test",
 		JWKS:   map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-route", "x": base64.RawURLEncoding.EncodeToString(pub)}}},
 	}}
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", OIDC: discovery})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", OIDC: discovery})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -532,7 +532,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keygen: %v", err)
 	}
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -609,7 +609,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 
 func TestPublicTransparencyProofFetchRoute(t *testing.T) {
 	fetcher := &fakeTransparencyProofHTTP{}
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", Transparency: fetcher})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Transparency: fetcher})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -814,7 +814,7 @@ func TestRegisterArtifactRequiresMediaType(t *testing.T) {
 }
 
 func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	server, err := NewServerWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
 	if err != nil {
 		t.Fatalf("NewServerWithOptions: %v", err)
@@ -980,7 +980,7 @@ func TestCosignVerificationRejectsLegacyMetadataFields(t *testing.T) {
 }
 
 func TestCrossTenantEvidenceReadDenied(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, secretA, err := ledger.BootstrapTenant(t.Context(), "Tenant A", "admin-a", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap A: %v", err)
@@ -1008,7 +1008,7 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 }
 
 func TestInstanceAdminHTTPRequiresExplicitScope(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -1046,7 +1046,7 @@ func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
 		replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: time.Now().UTC()},
 		diag:   app.OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: time.Now().UTC()},
 	}
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", OutboxAdmin: operator})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", OutboxAdmin: operator})
 	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -1943,7 +1943,7 @@ func TestCustomerPortalPackageFormValidation(t *testing.T) {
 }
 
 func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*", app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -2123,7 +2123,7 @@ func TestSourceSnapshotAndSystemHTTPGaps(t *testing.T) {
 }
 
 func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", ReadinessChecks: []app.ReadinessCheck{{
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", ReadinessChecks: []app.ReadinessCheck{{
 		Name:          "postgres",
 		Timeout:       time.Second,
 		FailureDetail: "database connectivity is unavailable",
@@ -2212,7 +2212,7 @@ func TestReleaseTransitionsRequireIfMatchAndReportCurrentRevision(t *testing.T) 
 
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)

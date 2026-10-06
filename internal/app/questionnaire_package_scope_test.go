@@ -9,7 +9,7 @@ import (
 )
 
 func TestQuestionnairePackageLocalSelectionRequiresRootGrant(t *testing.T) {
-	l := NewLedger(Config{})
+	l := newLegacyLedgerFixture(Config{})
 	l.products["product"] = domain.Product{ID: "product", TenantID: "tenant"}
 	l.products["other-product"] = domain.Product{ID: "other-product", TenantID: "tenant"}
 	l.questionTemplates["template"] = domain.QuestionnaireTemplate{ID: "template", TenantID: "tenant", Questions: []domain.QuestionnaireQuestion{{ID: "q", Prompt: "Review?", EvidenceType: "sbom"}}}
@@ -26,7 +26,7 @@ func TestQuestionnairePackageLocalSelectionRequiresRootGrant(t *testing.T) {
 	}
 }
 func TestQuestionnairePackageLocalResultCannotMutateCommittedResponses(t *testing.T) {
-	l := NewLedger(Config{})
+	l := newLegacyLedgerFixture(Config{})
 	l.questionTemplates["template"] = domain.QuestionnaireTemplate{ID: "template", TenantID: "tenant", Questions: []domain.QuestionnaireQuestion{{ID: "q", Prompt: "Review?"}}}
 	l.answerLibrary["answer"] = domain.QuestionnaireAnswerLibraryEntry{ID: "answer", TenantID: "tenant", QuestionID: "q", Answer: "Reviewed", EvidenceIDs: []string{"e"}, Limitations: []string{"Human review"}, CreatedAt: time.Unix(1, 0)}
 	l.evidence["e"] = domain.EvidenceItem{ID: "e", TenantID: "tenant"}

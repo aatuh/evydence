@@ -55,7 +55,7 @@ func TestSSOTrustMaterialPrivateImportCannotCreateRotateOrRefreshProvider(t *tes
 	public := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "fixture", "crv": "Ed25519", "x": "public-only"}}}
 	private := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "kid": "fixture", "crv": "Ed25519", "x": "public-only", "d": "private-jwks-canary"}}}
 	discovery := &fakeOIDCDiscovery{result: OIDCDiscoveryResult{Issuer: "https://issuer.example.test", JWKS: private}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OIDC: discovery})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OIDC: discovery})
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
 	counts := func() [2]int {
 		ledger.mu.Lock()
@@ -105,7 +105,7 @@ func safePublicSSOFixture(t *testing.T, provider domain.SSOProvider) bool {
 }
 
 func TestSSOProviderCreationRejectsUnsafePublicMetadata(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
 	base := CreateSSOProviderInput{Name: "Fixture", Type: "oidc", Issuer: "https://issuer.example.test/tenant", ClientID: "client"}
 	counts := func() [2]int {

@@ -10,7 +10,7 @@ import (
 
 func TestReleaseDuplicateAuthorizationDoesNotReenterLedgerMutex(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, _, artifact := setupReleaseRiskFixture(t, ledger)
 
 	t.Run("artifact", func(t *testing.T) {

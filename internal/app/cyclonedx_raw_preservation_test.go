@@ -10,7 +10,7 @@ import (
 func TestValidatedCycloneDXUploadPreservesRawBytesExactly(t *testing.T) {
 	ctx := context.Background()
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: objects})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: objects})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

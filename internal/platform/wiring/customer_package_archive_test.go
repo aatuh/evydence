@@ -52,7 +52,7 @@ func packageArchiveHTTP(t *testing.T, store *postgres.Store, path string, want i
 		t.Fatal("missing focused package access", err)
 	}
 	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 	if err != nil {
 		t.Fatal(err)
 	}

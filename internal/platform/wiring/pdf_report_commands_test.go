@@ -135,7 +135,7 @@ func TestPostgresPDFHTTPRestartReplayCurrentGrantAndNoLedgerReload(t *testing.T)
 			t.Fatal("durable PDF still Ledger-backed", err)
 		}
 		notLoaded := &decisionHTTPNoReloadStore{}
-		l, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: notLoaded, UnitOfWork: store})
+		l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: notLoaded, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}

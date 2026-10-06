@@ -118,7 +118,7 @@ func TestPostgresSaaSProfileHTTPRestartReplayCurrentIssuedScopeAndTenantExistenc
 			t.Fatal("profile remains Ledger-backed", err)
 		}
 		noReload := &decisionHTTPNoReloadStore{}
-		l, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+		l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -281,7 +281,7 @@ func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
 	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1690,7 +1690,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := app.NewLedgerWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
+	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1753,7 +1753,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := app.NewLedgerWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: targetStore, ObjectStore: targetObjects})
+	restored, err := newLegacyLedgerFixtureWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: targetStore, ObjectStore: targetObjects})
 	if err != nil {
 		t.Fatal(err)
 	}

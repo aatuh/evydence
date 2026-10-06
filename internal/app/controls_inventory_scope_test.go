@@ -8,7 +8,7 @@ import (
 )
 
 func TestControlsInventoryRequiresTenantWideHumanGrant(t *testing.T) {
-	ledger := NewLedger(Config{})
+	ledger := newLegacyLedgerFixture(Config{})
 	actor := domain.Actor{
 		TenantID: "ten_1", UserID: "usr_1", Scopes: []string{ScopeControlsRead},
 		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_1", Scopes: []string{ScopeControlsRead}}},

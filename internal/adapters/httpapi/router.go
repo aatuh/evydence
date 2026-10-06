@@ -18,6 +18,7 @@ import (
 	"github.com/aatuh/api-toolkit/v3/routecontracts"
 	"github.com/aatuh/api-toolkit/v3/specs"
 
+	"github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	application "github.com/aatuh/evydence/internal/application"
@@ -481,7 +482,7 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 		return nil, err
 	}
 	if ledger == nil {
-		ledger, err = app.NewLedgerWithContext(ctx, app.Config{})
+		ledger, err = app.NewLedgerWithContext(ctx, app.Config{BuildAttestationParser: dsse.BuildAttestationIngestionParser{}, DSSEPolicyVerifier: dsse.PolicyVerifier{}})
 		if err != nil {
 			return nil, err
 		}

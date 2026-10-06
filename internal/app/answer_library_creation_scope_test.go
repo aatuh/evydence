@@ -12,7 +12,7 @@ import (
 func TestAnswerLibraryLocalCreationRejectsStaleParentsAndMutableAliases(t *testing.T) {
 	for _, kind := range []string{"project", "release", "build", "deployment", "framework", "answer", "alias"} {
 		t.Run(kind, func(t *testing.T) {
-			l := NewLedger(Config{})
+			l := newLegacyLedgerFixture(Config{})
 			l.tenants["tenant"] = domain.Tenant{ID: "tenant"}
 			l.products["product"] = domain.Product{ID: "product", TenantID: "tenant"}
 			l.releases["release"] = domain.Release{ID: "release", TenantID: "tenant", ProductID: "product"}
@@ -58,7 +58,7 @@ func TestAnswerLibraryLocalCreationRejectsStaleParentsAndMutableAliases(t *testi
 }
 
 func TestAnswerLibraryLocalCreationBoundsSelectedCitationCoordinates(t *testing.T) {
-	l := NewLedger(Config{})
+	l := newLegacyLedgerFixture(Config{})
 	l.tenants["tenant"] = domain.Tenant{ID: "tenant"}
 	p, j, r := strings.Repeat("p", 1024), strings.Repeat("j", 1024), strings.Repeat("r", 1024)
 	l.products[p] = domain.Product{ID: p, TenantID: "tenant"}

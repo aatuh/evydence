@@ -6,7 +6,7 @@ import (
 )
 
 func TestSourceCommitReuseNormalizesSHAAndPreservesOriginal(t *testing.T) {
-	l := NewLedger(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
+	l := newLegacyLedgerFixture(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, l)
 	r, err := l.CreateSourceRepository(t.Context(), actor, CreateRepositoryInput{Provider: "git", FullName: "org/api"})
 	if err != nil {

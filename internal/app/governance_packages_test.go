@@ -20,7 +20,7 @@ import (
 )
 
 func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	item, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{ProductID: release.ProductID, ReleaseID: release.ID, Type: "security_review", Title: "Review", PayloadHash: sampleDigest("review")})
@@ -120,7 +120,7 @@ func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
 }
 
 func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "Example Org", Slug: "example-org"}); err != nil {
@@ -305,7 +305,7 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 }
 
 func TestRedactionProfilePresetsAreExplicitAndSafe(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
@@ -378,7 +378,7 @@ func TestRedactionProfilePresetsAreExplicitAndSafe(t *testing.T) {
 }
 
 func TestCustomerPackageGapsRespectRedactionProfile(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	customerSafe, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Preset: "customer_safe"})
@@ -445,7 +445,7 @@ func mapValues(values map[string]string) []string {
 }
 
 func TestTemplatesReportsEvidenceBundleAndCRAHTML(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{ProductID: release.ProductID, ReleaseID: release.ID, Type: "sbom", Title: "SBOM", PayloadHash: sampleDigest("sbom")}); err != nil {
@@ -501,7 +501,7 @@ func TestTemplatesReportsEvidenceBundleAndCRAHTML(t *testing.T) {
 
 func TestDSSETrustRootVerification(t *testing.T) {
 	objectStore := newTestObjectStore()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: objectStore})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: objectStore})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")

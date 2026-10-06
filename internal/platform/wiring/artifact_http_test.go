@@ -38,7 +38,7 @@ func TestPostgresArtifactHTTPAndConsumersDoNotRequireLedgerArtifacts(t *testing.
 			t.Fatal("focused artifact chain missing", err)
 		}
 		opts.Authenticator = auth
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{UnitOfWork: store})
+		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -37,7 +37,7 @@ func trustHTTP(t *testing.T, store *postgres.Store, path, key, body string, want
 		t.Fatal("native trust configuration composition missing", err)
 	}
 	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 	if err != nil {
 		t.Fatal(err)
 	}

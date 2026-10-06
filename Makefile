@@ -744,6 +744,7 @@ fast-check: ## Run non-mutating fast validation
 	@$(MAKE) fuzz-smoke
 	@$(MAKE) test-strategy-check
 	@$(MAKE) domain-context-check
+	@$(MAKE) architecture-check
 	@$(MAKE) openapi-check
 	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check
@@ -757,6 +758,7 @@ finalize: ## Thorough validity check
 	@$(MAKE) test
 	@$(MAKE) test-strategy-check
 	@$(MAKE) domain-context-check
+	@$(MAKE) architecture-check
 	@$(MAKE) openapi-check
 	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check

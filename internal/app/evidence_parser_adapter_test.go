@@ -35,7 +35,7 @@ func TestLedgerEvidencePayloadParserProbeVerifiesDigestBoundSource(t *testing.T)
 }
 
 func TestLedgerVulnerabilityScanProductionWiringRejectsMissingReleaseBeforeFullNormalization(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, _, _ := setupReleaseRiskFixture(t, ledger)
 	raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"rel_missing","findings":"full-parser-would-reject"}`)
 
@@ -50,7 +50,7 @@ func TestLedgerVulnerabilityScanProductionWiringRejectsMissingReleaseBeforeFullN
 func TestLedgerVulnerabilityScanProductionWiringRejectsSequentialPayloadDrift(t *testing.T) {
 	for _, changeAt := range []int{2, 3} {
 		t.Run("change on open "+strconv.Itoa(changeAt), func(t *testing.T) {
-			ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: newTestObjectStore()})
+			ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: newTestObjectStore()})
 			actor, release, _ := setupReleaseRiskFixture(t, ledger)
 			raw := []byte(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":"` + release.ID + `","findings":[]}`)
 			driftedReleaseID := strings.Repeat("x", len(release.ID))

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 
-	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -20,7 +19,7 @@ func (l *Ledger) configureReleaseCommands() error {
 		Authorizer:          ledgerContextAuthorizer{ledger: l},
 		CandidateReferences: ledgerReleaseCandidateReferences{ledger: l},
 		Canonicalizer:       ledgerReleaseCandidateCanonicalizer{},
-		AttestationParser:   verificationdsse.BuildAttestationIngestionParser{},
+		AttestationParser:   l.buildAttestationParser,
 		PayloadStager:       ledgerBuildAttestationPayloadStager{ledger: l},
 		WorkerOwnedParsers:  l.workerOwnedParsers,
 		Clock:               application.ClockFunc(l.now),

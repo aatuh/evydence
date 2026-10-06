@@ -42,7 +42,7 @@ func buildCreationNativeHTTP(t *testing.T, store *postgres.Store, key, body stri
 		t.Fatal("missing native build composition")
 	}
 	noReload := &decisionHTTPNoReloadStore{}
-	l, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 	if err != nil {
 		t.Fatal(err)
 	}

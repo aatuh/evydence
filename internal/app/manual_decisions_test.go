@@ -12,7 +12,7 @@ import (
 )
 
 func TestManualDecisionCanLinkImportedVEXAndExportCustomerPackage(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	vulnerability := "CVE-2026-0600"
@@ -87,7 +87,7 @@ func TestManualDecisionCanLinkImportedVEXAndExportCustomerPackage(t *testing.T) 
 }
 
 func TestManualDecisionRejectsForeignReleaseVEXLink(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, releaseA, artifact := setupReleaseRiskFixture(t, ledger)
 	releaseB, err := ledger.CreateRelease(ctx, actor, releaseA.ProductID, "2.0.0")
@@ -115,7 +115,7 @@ func TestManualDecisionRejectsForeignReleaseVEXLink(t *testing.T) {
 }
 
 func TestManualDecisionSupportingRefsAreScopedAndCustomerSafe(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	scan := uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, "CVE-2026-0610", "pkg:apk/openssl@3.1.0")
@@ -213,7 +213,7 @@ func TestManualDecisionSupportingRefsAreScopedAndCustomerSafe(t *testing.T) {
 }
 
 func TestManualDecisionRejectsInvalidSupportingRefs(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, releaseA, _ := setupReleaseRiskFixture(t, ledger)
 	releaseB, err := ledger.CreateRelease(ctx, actor, releaseA.ProductID, "2.0.0")
@@ -250,7 +250,7 @@ func TestManualDecisionRejectsInvalidSupportingRefs(t *testing.T) {
 }
 
 func TestManualCustomerVisibleDecisionRequiresCustomerStatement(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	scan := uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, "CVE-2026-0602", "pkg:apk/openssl@3.1.0")

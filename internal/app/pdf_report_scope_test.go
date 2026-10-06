@@ -6,7 +6,7 @@ import (
 )
 
 func TestPDFReportRejectsMismatchedRootsBeforeEffects(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	other, err := l.CreateProduct(t.Context(), a, "Other", "other")
 	if err != nil {
@@ -20,7 +20,7 @@ func TestPDFReportRejectsMismatchedRootsBeforeEffects(t *testing.T) {
 }
 
 func TestPDFReportRejectsRawTitleControlCharactersBeforeEffects(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	reports, audit := len(l.pdfReports), len(l.chain[a.TenantID])
 	for _, title := range []string{"Title\n2 0 obj << /OpenAction 3 0 R >> endobj", "Title\r%%EOF", "Title\x00", "\nTitle"} {
@@ -32,7 +32,7 @@ func TestPDFReportRejectsRawTitleControlCharactersBeforeEffects(t *testing.T) {
 }
 
 func TestPDFReportResponseCannotMutateStoredLimitations(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	v, err := l.CreatePDFReportPackage(t.Context(), a, CreatePDFReportPackageInput{ReportType: "release_readiness", ReleaseID: release.ID, Title: "Readiness"})
 	if err != nil {

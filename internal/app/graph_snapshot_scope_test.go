@@ -6,7 +6,7 @@ import (
 )
 
 func TestGraphSnapshotRejectsMismatchedProductAndRelease(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	product, err := l.CreateProduct(t.Context(), a, "Other", "other")
 	if err != nil {
@@ -23,7 +23,7 @@ func TestGraphSnapshotRejectsMismatchedProductAndRelease(t *testing.T) {
 }
 
 func TestGraphSnapshotResponseCannotMutateStoredAdjacency(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	v, err := l.CreateGraphSnapshot(t.Context(), a, CreateGraphSnapshotInput{ProductID: release.ProductID, ReleaseID: release.ID})
 	if err != nil {

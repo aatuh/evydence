@@ -14,7 +14,7 @@ import (
 )
 
 func TestFutureExtensionsAreEvidenceBackedAndTenantScoped(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	evidence, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{
@@ -127,7 +127,7 @@ func TestVerifyRFC6962StyleProofRejectsInvalidIrregularTreeShape(t *testing.T) {
 
 func TestFetchAndVerifyPublicTransparencyLogEntryUsesFetcher(t *testing.T) {
 	fetcher := &fakeTransparencyProofFetcher{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Transparency: fetcher})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Transparency: fetcher})
 	ctx := context.Background()
 	actor, _, _ := setupReleaseRiskFixture(t, ledger)
 	batch, err := ledger.CreateMerkleBatch(ctx, actor, CreateMerkleBatchInput{})
@@ -164,7 +164,7 @@ func TestFetchAndVerifyPublicTransparencyLogEntryUsesFetcher(t *testing.T) {
 }
 
 func TestFutureOperationalExtensionsAndPartialTrustClosures(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: &fakeSigningExecutor{}})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: &fakeSigningExecutor{}})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*", ScopeInstanceAdmin})
 	if err != nil {
@@ -369,7 +369,7 @@ func (f *fakeTransparencyProofFetcher) FetchTransparencyProof(_ context.Context,
 
 func TestSigningOperationCanExecuteConfiguredSignerWithoutPrivateKey(t *testing.T) {
 	signer := &fakeSigningExecutor{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: signer})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: signer})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})
@@ -406,7 +406,7 @@ func (mismatchedSigningExecutor) Sign(_ context.Context, request SigningRequest)
 }
 
 func TestSigningOperationRejectsMismatchedProviderReceiptBeforePersistence(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: mismatchedSigningExecutor{}})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Signer: mismatchedSigningExecutor{}})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})
@@ -422,7 +422,7 @@ func TestSigningOperationRejectsMismatchedProviderReceiptBeforePersistence(t *te
 }
 
 func TestSigningOperationRejectsCallerSuppliedSignatureReceipt(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})
@@ -449,7 +449,7 @@ func TestProviderVerificationCanUseLiveOIDCUserInfoWithoutPersistingToken(t *tes
 		Groups:      []string{"security"},
 		Limitations: []string{"live provider API validation was used"},
 	}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ProviderAPI: validator})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ProviderAPI: validator})
 	ctx := context.Background()
 	actor, _, _ := setupReleaseRiskFixture(t, ledger)
 	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}})
@@ -500,7 +500,7 @@ func TestProviderVerificationCanUseLiveOIDCUserInfoWithoutPersistingToken(t *tes
 }
 
 func TestSigningOperationRequiresSignatureWhenNoExecutorConfigured(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	provider, err := ledger.CreateSigningProvider(ctx, actor, CreateSigningProviderInput{Name: "kms", Type: "aws_kms", KeyRef: "arn:aws:kms:example", Encrypted: true})

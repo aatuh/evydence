@@ -949,7 +949,8 @@ package may depend on its own domain and inward-facing ports. Adapters and
 `cmd/*` depend inward only. Neither domain nor application may import HTTP,
 PostgreSQL, object-store, worker, or provider adapters. EVY-906 has introduced
 `make architecture-check` with syntax-aware import-graph enforcement and review
-thresholds. The remaining violations and Ledger retirement are still incomplete;
+thresholds. Import remediation now passes without boundary exemptions and is
+enforced by the broad local gates. Ledger retirement remains incomplete;
 see [current enforcement scope](../architecture.md#architecture-enforcement-evy-906-in-progress).
 
 ### Migration and retirement sequence

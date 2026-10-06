@@ -23,7 +23,7 @@ import (
 )
 
 func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*", ScopeInstanceAdmin})
 	if err != nil {
@@ -107,7 +107,7 @@ func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
 }
 
 func TestSAMLProviderIdentityVerificationUsesConfiguredCertificate(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -160,7 +160,7 @@ func TestSAMLProviderIdentityVerificationUsesConfiguredCertificate(t *testing.T)
 }
 
 func TestOIDCProviderIdentityVerificationSupportsRS256JWKS(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -221,7 +221,7 @@ func TestOIDCProviderIdentityVerificationSupportsRS256JWKS(t *testing.T) {
 }
 
 func TestOIDCProviderIdentityVerificationUsesStaticJWKS(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -280,7 +280,7 @@ func TestOIDCProviderIdentityVerificationUsesStaticJWKS(t *testing.T) {
 }
 
 func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -338,7 +338,7 @@ func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
 }
 
 func TestExchangeSSOCredentialRejectsSessionWithoutAuthorizationGrant(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -403,7 +403,7 @@ func TestOIDCProviderDiscoveryRefreshesTenantTrustMaterial(t *testing.T) {
 	}
 	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-refresh", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
 	discovery := &fakeOIDCDiscovery{result: OIDCDiscoveryResult{Issuer: "https://idp.example.test", JWKS: jwks}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OIDC: discovery})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OIDC: discovery})
 	ctx := context.Background()
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
 	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client"})
@@ -432,7 +432,7 @@ func TestOIDCProviderDiscoveryRefreshRejectsMismatchedIssuer(t *testing.T) {
 		t.Fatalf("keygen: %v", err)
 	}
 	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OIDC: &fakeOIDCDiscovery{result: OIDCDiscoveryResult{Issuer: "https://other-idp.example.test", JWKS: jwks}}})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OIDC: &fakeOIDCDiscovery{result: OIDCDiscoveryResult{Issuer: "https://other-idp.example.test", JWKS: jwks}}})
 	ctx := context.Background()
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
 	provider, err := ledger.CreateSSOProvider(ctx, actor, CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client"})
@@ -445,7 +445,7 @@ func TestOIDCProviderDiscoveryRefreshRejectsMismatchedIssuer(t *testing.T) {
 }
 
 func TestInstanceAdminRequiresExplicitScope(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, tenantAdminSecret, err := ledger.BootstrapTenant(ctx, "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
@@ -517,7 +517,7 @@ func TestInstanceAdminRequiresExplicitScope(t *testing.T) {
 }
 
 func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	item, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{ProductID: release.ProductID, ReleaseID: release.ID, Type: "sbom", Title: "SBOM", PayloadHash: sampleDigest("sbom")})
@@ -683,7 +683,7 @@ func TestCustomerPortalRetentionQuestionnairesAndCommercialCollectors(t *testing
 }
 
 func TestCustomerPortalAccessRevokesAfterRepeatedFailedAttempts(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "customer", AllowedTypes: []string{"sbom"}})
@@ -737,7 +737,7 @@ func TestCustomerPortalAccessRevokesAfterRepeatedFailedAttempts(t *testing.T) {
 
 func TestCustomerPortalAccessAbuseBoundaries(t *testing.T) {
 	now := fixedNow()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "customer", AllowedTypes: []string{"sbom"}})
@@ -781,7 +781,7 @@ func TestCustomerPortalAccessAbuseBoundaries(t *testing.T) {
 }
 
 func TestSecretHashComparisonHelper(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	hash := ledger.hashSecret("evy_test_secret")
 	if !secretHashEqual(hash, hash) {
 		t.Fatalf("same HMAC hash did not compare equal")
@@ -795,7 +795,7 @@ func TestSecretHashComparisonHelper(t *testing.T) {
 }
 
 func TestResourceGrantHelperBranchCoverage(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	admin, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, admin, release.ProductID, "api")
@@ -888,7 +888,7 @@ func mutateTokenSuffix(token string) string {
 }
 
 func TestHumanSSOSessionRoleBindingsAreResourceScoped(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -1009,7 +1009,7 @@ func TestHumanSSOSessionRoleBindingsAreResourceScoped(t *testing.T) {
 }
 
 func TestHumanSSOSessionResourceScopeCoversWorkflowFamilies(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {

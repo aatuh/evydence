@@ -11,7 +11,7 @@ import (
 func TestSigningKeyLifecycleUsesInjectedClockAndDistinguishesCompromise(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 8, 15, 12, 34, 56, 0, time.UTC)
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: func() time.Time { return now }})
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
 	if err != nil {

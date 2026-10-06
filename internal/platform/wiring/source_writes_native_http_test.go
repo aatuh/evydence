@@ -43,7 +43,7 @@ func sourceWritesNativeHTTP(t *testing.T, store *postgres.Store, tc sourceWriteN
 		t.Fatal("missing native source write composition")
 	}
 	noReload := &decisionHTTPNoReloadStore{}
-	l, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 	if err != nil {
 		t.Fatal(err)
 	}

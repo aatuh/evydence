@@ -45,7 +45,7 @@ func TestEvidenceCanonicalProfileKeepsImmutableOriginBoundWhileRelationshipsEvol
 }
 
 func TestReleaseArtifactDigestsIgnoreUnboundSubjectDigestAssertions(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	tenantID, releaseID := "ten_1", "rel_1"
 	registered := domain.Artifact{ID: "art_1", TenantID: tenantID, Digest: sampleDigest("build")}
 	forged := sampleDigest("x")
@@ -69,7 +69,7 @@ func TestReleaseArtifactDigestsIgnoreUnboundSubjectDigestAssertions(t *testing.T
 }
 
 func TestCreateLinkSupersedeEvidencePreservesCanonicalVerification(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -134,7 +134,7 @@ func TestCreateLinkSupersedeEvidencePreservesCanonicalVerification(t *testing.T)
 }
 
 func TestLegacyEvidenceLinkAndSupersessionRemainVerifiable(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {

@@ -52,7 +52,7 @@ func TestPostgresPortalHTTPLifecycleRestartReplayAndPrivateMetadata(t *testing.T
 			t.Fatal("portal lifecycle still Ledger-backed", err)
 		}
 		noReload := &decisionHTTPNoReloadStore{}
-		l, err := app.NewLedgerWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
+		l, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}

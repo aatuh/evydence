@@ -50,7 +50,7 @@ func (f *exceptionHTTPFixture) request(path, key, body string, want int) domain.
 	}
 	opts.Authenticator = f.auth
 	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := app.NewLedgerWithContext(f.ctx, app.Config{Store: noReload, UnitOfWork: f.store})
+	ledger, err := newLegacyLedgerFixtureWithContext(f.ctx, app.Config{Store: noReload, UnitOfWork: f.store})
 	if err != nil {
 		f.t.Fatal(err)
 	}

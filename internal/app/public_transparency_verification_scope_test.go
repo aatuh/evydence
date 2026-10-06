@@ -11,7 +11,7 @@ import (
 
 func publicProofLocalFixture(t *testing.T) (*Ledger, domain.Actor, domain.PublicTransparencyLogEntry) {
 	t.Helper()
-	l := NewLedger(Config{APIKeyPepper: "test", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test", Now: fixedNow})
 	_, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

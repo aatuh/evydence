@@ -27,7 +27,7 @@ func (s *failingParserReleaseStore) ApplyReleaseLedgerMutation(_ context.Context
 func TestParserCompatibilityTransactionBuffersOutboxAndRollsBackPublication(t *testing.T) {
 	ctx := context.Background()
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	store := &failingParserReleaseStore{err: errors.New("release mutation failed")}
 	ledger.store = store
@@ -51,7 +51,7 @@ func TestParserCompatibilityTransactionBuffersOutboxAndRollsBackPublication(t *t
 func TestVEXCompatibilityTransactionRollsBackDocumentReportAuditAndJob(t *testing.T) {
 	ctx := context.Background()
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	store := &failingParserReleaseStore{err: errors.New("release mutation failed")}
 	ledger.store = store

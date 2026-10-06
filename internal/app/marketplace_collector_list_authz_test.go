@@ -8,7 +8,7 @@ import (
 )
 
 func TestMarketplaceCollectorReadsRequireTenantGrantForHumanSession(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test"})
 	tenant, _, _, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

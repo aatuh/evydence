@@ -21,7 +21,7 @@ func (failingIdentityRepository) InsertAPIKey(context.Context, domain.APIKey) er
 func TestBootstrapTenantCompatibilityBridgeCommitsIdentityAndSigningAtomically(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: memory})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: memory})
 
 	tenant, key, secret, err := ledger.BootstrapTenant(ctx, " Tenant ", " admin ", nil)
 	if err != nil {
@@ -43,7 +43,7 @@ func TestBootstrapTenantCompatibilityBridgeCommitsIdentityAndSigningAtomically(t
 	}
 
 	failingMemory := NewMemoryUnitOfWorkFactory()
-	failingLedger := NewLedger(Config{
+	failingLedger := newLegacyLedgerFixture(Config{
 		APIKeyPepper: "test-pepper", Now: fixedNow,
 		UnitOfWork: repositoryFailingUnitOfWorkFactory{inner: failingMemory, decorate: func(repositories Repositories) Repositories {
 			repositories.Signatures = failingNewSigningKeyRepository{SignatureRepository: repositories.Signatures}

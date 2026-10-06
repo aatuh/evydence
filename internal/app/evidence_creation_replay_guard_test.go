@@ -11,7 +11,7 @@ import (
 )
 
 func TestLocalEvidenceCreationGuardChecksCurrentParentsWithoutEffects(t *testing.T) {
-	l := NewLedger(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
+	l := newLegacyLedgerFixture(Config{Now: fixedNow, APIKeyPepper: "test-pepper"})
 	_, _, _, a := bootstrapEnterpriseTestTenant(t, l)
 	p, err := l.CreateProduct(t.Context(), a, "Parent", "parent")
 	if err != nil {

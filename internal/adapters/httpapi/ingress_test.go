@@ -169,7 +169,7 @@ func TestIngressLimitsInFlightRequestsAndNativeUploads(t *testing.T) {
 }
 
 func TestExpensiveTenantRateLimitIsScopedToTenantAndRoute(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, tenantASecret, err := ledger.BootstrapTenant(t.Context(), "Tenant A", "admin-a", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant A: %v", err)

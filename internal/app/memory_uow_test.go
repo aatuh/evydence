@@ -382,7 +382,7 @@ func TestExecuteUnitOfWorkRollsBackCommandFailure(t *testing.T) {
 
 func TestLedgerExecutesTransactionBackedCommandWithoutStateSave(t *testing.T) {
 	factory := NewMemoryUnitOfWorkFactory()
-	ledger := NewLedger(Config{APIKeyPepper: "test", Now: fixedNow, UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test", Now: fixedNow, UnitOfWork: factory})
 	err := ledger.ExecuteUnitOfWork(context.Background(), func(ctx context.Context, repositories Repositories) error {
 		return repositories.Identity.InsertTenant(ctx, domain.Tenant{ID: "ten_command", Name: "Transaction command", CreatedAt: fixedNow()})
 	})

@@ -11,7 +11,7 @@ import (
 )
 
 func TestIncidentTimelineAndReportAreTenantScoped(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	incident, err := ledger.CreateIncident(ctx, actor, CreateIncidentInput{ProductID: release.ProductID, ReleaseID: release.ID, Title: "prod outage", Severity: "high"})
@@ -47,7 +47,7 @@ func TestIncidentTimelineAndReportAreTenantScoped(t *testing.T) {
 }
 
 func TestSecurityScansManualDocsSPDXAndSBOMDiff(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadSecurityScan(ctx, actor, UploadSecurityScanInput{
@@ -86,7 +86,7 @@ func TestSecurityScansManualDocsSPDXAndSBOMDiff(t *testing.T) {
 }
 
 func TestCycloneDXVEXVulnerabilityWorkflowContractDiffAndPolicyV2(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -163,7 +163,7 @@ func TestCycloneDXVEXVulnerabilityWorkflowContractDiffAndPolicyV2(t *testing.T) 
 
 func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -243,7 +243,7 @@ func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
 
 func TestVEXImportPreviewIsAdvisoryAndDoesNotMutateLedger(t *testing.T) {
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{

@@ -9,7 +9,7 @@ import (
 )
 
 func TestListCommercialCollectorDefinitionsRequiresTenantGrant(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ledger.commercialCollectors["commercial_1"] = domain.CommercialCollectorDefinition{ID: "commercial_1", TenantID: "tenant_a", Name: "Scanner", CreatedAt: fixedNow()}
 	actor := domain.Actor{TenantID: "tenant_a", UserID: "user_a", Scopes: []string{ScopeCollectorRead}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "product_a", Scopes: []string{ScopeCollectorRead}}}}
 	if _, err := ledger.ListCommercialCollectorDefinitions(context.Background(), actor); !errors.Is(err, ErrForbidden) {

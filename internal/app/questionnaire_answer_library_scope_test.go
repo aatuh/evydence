@@ -8,7 +8,7 @@ import (
 )
 
 func TestQuestionnaireAnswerLibraryFiltersEveryEntryForHumanGrant(t *testing.T) {
-	ledger := NewLedger(Config{})
+	ledger := newLegacyLedgerFixture(Config{})
 	ledger.products["prod_allowed"] = domain.Product{ID: "prod_allowed", TenantID: "ten_1"}
 	ledger.answerLibrary = map[string]domain.QuestionnaireAnswerLibraryEntry{
 		"allowed": {ID: "allowed", TenantID: "ten_1", ProductID: "prod_allowed", Answer: "allowed draft"},
@@ -36,7 +36,7 @@ func TestQuestionnaireAnswerLibraryFiltersEveryEntryForHumanGrant(t *testing.T) 
 }
 
 func TestQuestionnaireAnswerLibraryGlobalCreateRequiresTenantGrant(t *testing.T) {
-	ledger := NewLedger(Config{})
+	ledger := newLegacyLedgerFixture(Config{})
 	ledger.tenants["ten_1"] = domain.Tenant{ID: "ten_1"}
 	actor := domain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{ScopePackageWrite}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{ScopePackageWrite}}}}
 	_, err := ledger.CreateQuestionnaireAnswerLibraryEntry(t.Context(), actor, CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", Answer: "tenant-wide draft"})

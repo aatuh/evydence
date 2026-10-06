@@ -11,7 +11,7 @@ import (
 )
 
 func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Design Partner", "admin", []string{"*"})
 	if err != nil {

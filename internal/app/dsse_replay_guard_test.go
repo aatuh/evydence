@@ -11,7 +11,7 @@ import (
 )
 
 func TestLocalDSSEReplayGuardPreservesScopedGrantsWithoutInspection(t *testing.T) {
-	l := NewLedger(Config{})
+	l := newLegacyLedgerFixture(Config{})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	l.projects["project"] = domain.Project{ID: "project", TenantID: a.TenantID, ProductID: release.ProductID}
 	l.buildRuns["build"] = domain.BuildRun{ID: "build", TenantID: a.TenantID, ProjectID: "project", ReleaseID: release.ID}

@@ -12,7 +12,7 @@ import (
 
 func TestLocalVEXUploadCompletesDecisionProcessingWithoutAnOutboxWorker(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
 		"scanner":"grype",
@@ -56,7 +56,7 @@ func TestLocalVEXUploadCompletesDecisionProcessingWithoutAnOutboxWorker(t *testi
 
 func TestLocalCycloneDXVEXPreservesOriginalStatementIndexes(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	vex, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
 		"bomFormat":"CycloneDX",
@@ -80,7 +80,7 @@ func TestLocalCycloneDXVEXPreservesOriginalStatementIndexes(t *testing.T) {
 
 func TestWorkerOwnedVEXModeRejectsMissingOutboxInsteadOfDiscardingJob(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, WorkerOwnedParserSideEffects: true})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, WorkerOwnedParserSideEffects: true})
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	_, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
 		openVEXStatementFixture("CVE-2026-4903", []map[string]any{{"@id": "pkg:generic/payments@1"}}, decisionStatusFixed, "fixed_in_release"),

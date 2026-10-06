@@ -7,7 +7,7 @@ import (
 )
 
 func TestAnomalyReportReturnedSlicesCannotMutateStoredRecord(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	v, err := l.GenerateAnomalyReport(t.Context(), a, AnomalyReportInput{SubjectType: "release", SubjectID: release.ID})
 	if err != nil || len(v.Signals) == 0 {
@@ -23,7 +23,7 @@ func TestAnomalyReportReturnedSlicesCannotMutateStoredRecord(t *testing.T) {
 }
 
 func TestAnomalyReportRawInputBoundsPrecedeTrimming(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	before, audit := len(l.anomalyReports), len(l.chain[a.TenantID])
 	for _, in := range []AnomalyReportInput{

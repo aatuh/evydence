@@ -94,11 +94,17 @@ The Package report query now consumes Risk-owned readiness facts and the pure
 `internal/risk/domain` evaluator, not the Risk application service. Complete
 policy-result compatibility vectors preserve its check order, wording and
 timestamps; tenant/grant checks and bounded query behavior remain unchanged.
-The gate still exposes legacy DSSE adapter imports. These are remediation work,
-not approved exemptions.
-EVY-906 remains incomplete until those dependencies and the obsolete Ledger
-surface are removed and all required final validation passes. The gate will
-join broad validation once that remediation is complete.
+DSSE parsing and offline policy verification are supplied through inward ports.
+Concrete `dsse` adapters are constructed by outer wiring and test-only fixture
+setup, never by the legacy application package. Its constructor rejects absent
+or typed-nil ports before state loading; local idempotency clones retain the
+configured ports. Native bounded-object verification uses the same offline
+policy adapter without changing its tenant/key/digest/size/media checks.
+
+The import-graph gate now passes without boundary exemptions and is included in
+`fast-check` and `finalize`. Size/interface review flags remain. A passing import
+graph is not Ledger retirement: EVY-906 stays incomplete until its obsolete
+aggregate surface is removed and all required final validation passes.
 
 ## Storage and workflow adapters
 

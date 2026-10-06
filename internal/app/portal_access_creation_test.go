@@ -11,7 +11,7 @@ import (
 func TestPortalWritesRequireCurrentPackageGrant(t *testing.T) {
 	for _, operation := range []string{"create", "revoke"} {
 		t.Run(operation, func(t *testing.T) {
-			l := NewLedger(Config{Now: fixedNow})
+			l := newLegacyLedgerFixture(Config{Now: fixedNow})
 			l.products["product"] = domain.Product{ID: "product", TenantID: "tenant"}
 			l.customerPackages["package"] = domain.CustomerSecurityPackage{ID: "package", TenantID: "tenant", ProductID: "product"}
 			admin := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopePackageWrite}}

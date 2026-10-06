@@ -190,7 +190,7 @@ func qTemplateHTTP(t *testing.T, store *postgres.Store, key, body string, want i
 		t.Fatal("template still Ledger-backed", err)
 	}
 	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 	if err != nil {
 		t.Fatal(err)
 	}

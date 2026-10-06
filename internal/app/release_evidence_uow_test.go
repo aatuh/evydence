@@ -108,7 +108,7 @@ func newReleaseEvidenceUnitOfWorkFixture(t *testing.T, factory UnitOfWorkFactory
 	if failing, ok := factory.(commitFailingUnitOfWorkFactory); ok {
 		bootstrapFactory = failing.inner
 	}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: bootstrapFactory})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: bootstrapFactory})
 	tenant, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)

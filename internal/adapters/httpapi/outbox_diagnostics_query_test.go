@@ -31,7 +31,7 @@ func (f *outboxDiagnosticsQueryFake) Diagnostics(context.Context, identitydomain
 }
 
 func TestOutboxDiagnosticsHandlerUsesFocusedQueryWithoutLedgerOperator(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Instance", "instance-admin", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +57,7 @@ func TestOutboxDiagnosticsHandlerMapsFocusedQueryErrors(t *testing.T) {
 		{operationsquery.ErrInvalidProjection, http.StatusConflict},
 		{errors.New("private database detail"), http.StatusInternalServerError},
 	} {
-		ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+		ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 		_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Instance", "instance-admin", []string{app.ScopeInstanceAdmin})
 		if err != nil {
 			t.Fatal(err)

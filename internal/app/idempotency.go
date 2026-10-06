@@ -209,6 +209,8 @@ func (l *Ledger) cloneForIdempotencyCommand(ctx context.Context) (*Ledger, error
 		Now:                          l.now,
 		UnitOfWork:                   l.unitOfWork,
 		ObjectStore:                  l.objects,
+		BuildAttestationParser:       l.buildAttestationParser,
+		DSSEPolicyVerifier:           l.dssePolicyVerifier,
 		Retention:                    l.retention,
 		Signer:                       l.signer,
 		OIDC:                         l.oidc,

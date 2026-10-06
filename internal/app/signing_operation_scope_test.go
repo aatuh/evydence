@@ -22,7 +22,7 @@ func (f signingOperationHookExecutor) Sign(ctx context.Context, r SigningRequest
 	return v, err
 }
 func TestSigningOperationLocalRedactsProviderDiagnosticMetadata(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test", Now: fixedNow, Signer: signingOperationHookExecutor{}})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test", Now: fixedNow, Signer: signingOperationHookExecutor{}})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	p, err := l.CreateSigningProvider(t.Context(), a, CreateSigningProviderInput{Name: "KMS", Type: "aws_kms", KeyRef: "key", Encrypted: true})
 	if err != nil {
@@ -37,7 +37,7 @@ func TestSigningOperationLocalRedactsProviderDiagnosticMetadata(t *testing.T) {
 	}
 }
 func TestSigningOperationLocalRechecksProviderAfterSigner(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test", Now: fixedNow})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test", Now: fixedNow})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	p, err := l.CreateSigningProvider(t.Context(), a, CreateSigningProviderInput{Name: "KMS", Type: "aws_kms", KeyRef: "key", Encrypted: true})
 	if err != nil {
@@ -52,7 +52,7 @@ func TestSigningOperationLocalRechecksProviderAfterSigner(t *testing.T) {
 
 func TestSigningOperationLocalRequiresTenantAdminGrantBeforeSigner(t *testing.T) {
 	f := &fakeSigningExecutor{}
-	l := NewLedger(Config{APIKeyPepper: "test", Now: fixedNow, Signer: f})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test", Now: fixedNow, Signer: f})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	p, err := l.CreateSigningProvider(t.Context(), a, CreateSigningProviderInput{Name: "KMS", Type: "aws_kms", KeyRef: "key", Encrypted: true})
 	if err != nil {
@@ -66,7 +66,7 @@ func TestSigningOperationLocalRequiresTenantAdminGrantBeforeSigner(t *testing.T)
 
 func TestSigningOperationLocalBoundsRawIDsBeforeSigner(t *testing.T) {
 	f := &fakeSigningExecutor{}
-	l := NewLedger(Config{APIKeyPepper: "test", Now: fixedNow, Signer: f})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test", Now: fixedNow, Signer: f})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	p, err := l.CreateSigningProvider(t.Context(), a, CreateSigningProviderInput{Name: "KMS", Type: "aws_kms", KeyRef: "key", Encrypted: true})
 	if err != nil {
@@ -78,7 +78,7 @@ func TestSigningOperationLocalBoundsRawIDsBeforeSigner(t *testing.T) {
 }
 
 func TestSigningOperationLocalReturnedChecksAreImmutable(t *testing.T) {
-	l := NewLedger(Config{APIKeyPepper: "test", Now: fixedNow, Signer: &fakeSigningExecutor{}})
+	l := newLegacyLedgerFixture(Config{APIKeyPepper: "test", Now: fixedNow, Signer: &fakeSigningExecutor{}})
 	a, release, _ := setupReleaseRiskFixture(t, l)
 	p, err := l.CreateSigningProvider(t.Context(), a, CreateSigningProviderInput{Name: "KMS", Type: "aws_kms", KeyRef: "key", Encrypted: true})
 	if err != nil {

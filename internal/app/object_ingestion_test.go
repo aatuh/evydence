@@ -176,7 +176,7 @@ func TestUploadSBOMLeavesDiscoverableStagingObjectWhenTransactionFails(t *testin
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: memory, ObjectStore: objects})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: memory, ObjectStore: objects})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

@@ -34,7 +34,7 @@ func recordedCheckpointHTTP(t *testing.T, store *postgres.Store, key, body strin
 		t.Fatal("native checkpoint composition missing", err)
 	}
 	noReload := &decisionHTTPNoReloadStore{}
-	l, err := app.NewLedgerWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
+	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
 	if err != nil {
 		t.Fatal(err)
 	}

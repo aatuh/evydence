@@ -9,7 +9,7 @@ import (
 )
 
 func TestQuestionnaireDraftCannotBypassAnswerLibraryGrant(t *testing.T) {
-	l := NewLedger(Config{})
+	l := newLegacyLedgerFixture(Config{})
 	l.products["product"] = domain.Product{ID: "product", TenantID: "tenant"}
 	l.questionTemplates["template"] = domain.QuestionnaireTemplate{ID: "template", TenantID: "tenant", Questions: []domain.QuestionnaireQuestion{{ID: "q", Prompt: "Evidence?"}}}
 	l.answerLibrary["global"] = domain.QuestionnaireAnswerLibraryEntry{ID: "global", TenantID: "tenant", QuestionID: "q", Answer: "private global answer"}
@@ -28,7 +28,7 @@ func TestQuestionnaireDraftCannotBypassAnswerLibraryGrant(t *testing.T) {
 func TestQuestionnaireDraftCitationsCannotEscapeRequestedScope(t *testing.T) {
 	for _, source := range []string{"library", "control"} {
 		t.Run(source, func(t *testing.T) {
-			l := NewLedger(Config{})
+			l := newLegacyLedgerFixture(Config{})
 			l.products["product"] = domain.Product{ID: "product", TenantID: "tenant"}
 			l.products["other-product"] = domain.Product{ID: "other-product", TenantID: "tenant"}
 			l.releases["release"] = domain.Release{ID: "release", TenantID: "tenant", ProductID: "product"}

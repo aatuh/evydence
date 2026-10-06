@@ -11,7 +11,7 @@ const validSPDXUpload = `{"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","
 
 func TestValidatedSPDXUploadPersistsReportAndStableIdentity(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func TestValidatedSPDXUploadPersistsReportAndStableIdentity(t *testing.T) {
 
 func TestValidatedSPDXUploadRejectsForeignTargetBeforeOpeningPayload(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	_, _, ownerSecret, err := ledger.BootstrapTenant(ctx, "Owner", "owner", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

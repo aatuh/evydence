@@ -9,7 +9,7 @@ import (
 
 func TestValidatedCycloneDXUploadPersistsNormalizationMetadata(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestValidatedCycloneDXUploadPersistsNormalizationMetadata(t *testing.T) {
 
 func TestValidatedCycloneDXUploadRejectsSchemaInvalidBeforePublication(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestValidatedCycloneDXUploadRejectsSchemaInvalidBeforePublication(t *testin
 
 func TestValidatedCycloneDXUploadRejectsUnknownTargetBeforeOpeningPayload(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

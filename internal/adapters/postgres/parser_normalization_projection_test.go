@@ -72,7 +72,7 @@ func TestParserReplayBecomesVisibleToAlreadyRunningLedger(t *testing.T) {
 		t.Fatalf("seed source evidence: %v", err)
 	}
 
-	ledger, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "test", Store: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test", Store: store})
 	if err != nil {
 		t.Fatalf("start API ledger: %v", err)
 	}

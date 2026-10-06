@@ -40,8 +40,9 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
   interface declarations, and rejects source symlinks and oversized files.
   `make architecture-check` now rejects import cycles and direct/indirect
   inward-boundary violations and flags non-generated files/interfaces for
-  architectural review. Existing violations and legacy aggregate removal
-  remain EVY-906 work; this is not a passing final architecture gate.
+  architectural review. Import remediation now passes without boundary
+  exemptions and joins `fast-check`/`finalize`; legacy aggregate removal and
+  EVY-906 closure validation remain unfinished.
 
 - Release-readiness facts and their pure policy evaluator now belong to the
   Risk domain. Package reporting no longer imports the Risk application
@@ -60,6 +61,12 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
   Ledger or selects a local compatibility path. Existing local constructor
   behavior, explicit authentication overrides and API contracts are preserved;
   physical aggregate retirement remains in progress.
+
+- DSSE ingestion and offline root-policy verification now enter the legacy
+  application through explicit ports constructed by outer wiring. Test-only
+  defaults preserve existing fixture assertions; clones retain the configured
+  ports. Signature checks, complete-policy isolation, conservative results and
+  bounded native object bindings are unchanged.
 
 - PostgreSQL SSO session revocation/logout now use focused, hash-free locked
   metadata and an atomic lifecycle/audit/replay transaction. Cookie-only

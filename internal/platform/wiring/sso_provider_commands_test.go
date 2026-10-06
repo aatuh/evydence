@@ -65,7 +65,7 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 			t.Fatal("provider registration remains Ledger-backed", err)
 		}
 		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
+		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
 		if err != nil {
 			t.Fatal(err)
 		}

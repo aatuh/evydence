@@ -66,7 +66,7 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "paired-restore-test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
+	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "paired-restore-test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err := targetStore.RequireNoPendingMigrations(ctx, "../../../migrations"); err != nil {
 		t.Fatalf("restored database migration identity: %v", err)
 	}
-	restored, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "paired-restore-test-pepper", Store: targetStore, ObjectStore: targetObjects})
+	restored, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "paired-restore-test-pepper", Store: targetStore, ObjectStore: targetObjects})
 	if err != nil {
 		t.Fatal(err)
 	}

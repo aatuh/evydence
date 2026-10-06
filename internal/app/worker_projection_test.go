@@ -46,7 +46,7 @@ func TestWorkerProjectionRejectsHostileEvidenceCoordinatesWithoutPartialPublish(
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+			ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 			actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 			other, err := ledger.RegisterArtifact(ctx, actor, "other.tar.gz", "application/gzip", "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", 10)
 			if err != nil {
@@ -186,7 +186,7 @@ func TestWorkerProjectionUsesVEXStateProgressionAcrossClockSkew(t *testing.T) {
 
 func TestWorkerProjectionFailureBlocksImmutableBundleAndCustomerPackageCreation(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{
 		Name: "worker projection", AllowedTypes: []string{"sbom", "vulnerability_scan", "vex", "vulnerability_decision"},
@@ -215,7 +215,7 @@ func TestWorkerProjectionFailureBlocksImmutableBundleAndCustomerPackageCreation(
 }
 
 func TestPublishCommittedAuditEntryKeepsAValidContiguousTenantPrefix(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	first := projectionAuditEntry(t, "ten_audit_projection", 1, "", "ace_first")
 	ledger.publishCommittedAuditEntryLocked(first)
 
@@ -289,7 +289,7 @@ func TestWorkerProjectionRejectsAuthoritativeWorkerRowShrink(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+			ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 			ledger.tenants["ten_projection"] = domain.Tenant{ID: "ten_projection"}
 			test.insert(ledger)
 			ledger.workerProjections = fixedWorkerProjectionStore{projection: WorkerProjection{}}
@@ -449,7 +449,7 @@ func TestWorkerProjectionAllowsAcceptedToParsedProgression(t *testing.T) {
 
 func TestWorkerProjectionFailureBlocksAuditChainReadersAndSigners(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	want := errors.New("worker projection unavailable")
 	ledger.workerProjections = fixedWorkerProjectionStore{err: want}
@@ -477,7 +477,7 @@ func TestWorkerProjectionFailureBlocksAuditChainReadersAndSigners(t *testing.T) 
 
 func TestWorkerProjectionFailureBlocksWorkerBackedFindingConsumers(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	want := errors.New("worker projection unavailable")
 	ledger.workerProjections = fixedWorkerProjectionStore{err: want}
@@ -541,7 +541,7 @@ func TestWorkerProjectionFailureBlocksWorkerBackedFindingConsumers(t *testing.T)
 
 func TestWorkerProjectionPrefersActiveTransactionReader(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor, _, _ := setupReleaseRiskFixture(t, ledger)
 	external := &recordingWorkerProjectionStore{err: errors.New("nested projection reader used")}
 	transaction := &recordingWorkerProjectionStore{projection: WorkerProjection{

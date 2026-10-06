@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	verificationdsse "github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -1289,20 +1288,6 @@ func (l *Ledger) registeredReleaseBuildOutputDigestsLocked(tenantID string, buil
 		}
 	}
 	return sortedStrings(digests)
-}
-
-func verifyDSSEAgainstConfiguredRoots(ctx context.Context, raw []byte, roots []domain.DSSETrustRoot, expectedSubjects []string) (verificationdsse.Result, error) {
-	policies := make([]verificationdsse.Policy, 0, len(roots))
-	for _, root := range roots {
-		policies = append(policies, verificationdsse.Policy{
-			Roots:                  []verificationdsse.TrustRoot{{ID: root.ID, KeyID: root.KeyID, Algorithm: root.Algorithm, PublicKey: root.PublicKey}},
-			AllowedPredicateTypes:  root.AllowedPredicateTypes,
-			ExpectedBuilderIDs:     root.ExpectedBuilderIDs,
-			RequiredClaims:         root.RequiredClaims,
-			ExpectedSubjectDigests: expectedSubjects,
-		})
-	}
-	return verificationdsse.VerifyConfiguredPolicies(ctx, raw, policies)
 }
 
 func (l *Ledger) packageDecisionSummariesLocked(tenantID, releaseID string, profile domain.RedactionProfile) []map[string]any {
