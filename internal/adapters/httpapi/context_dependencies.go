@@ -35,6 +35,11 @@ type Authenticator interface {
 	Authenticate(context.Context, string) (domain.Actor, error)
 }
 
+// EvidencePageQuery lists/searches bounded authorized current projections.
+type EvidencePageQuery interface {
+	ListPage(context.Context, identitydomain.Actor, evidencequery.EvidencePageFilter, appquery.PageRequest, *appquery.SortKey) (appquery.Result[evidencedomain.EvidenceItem], error)
+}
+
 // ReadinessQuery probes process dependencies without consulting Ledger state.
 // Operator details require explicit instance-wide authority in the service.
 type ReadinessQuery interface {

@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -122,7 +123,9 @@ func (r verification) readVerificationJSON(ctx context.Context, statement string
 	if !consumeVerificationBytes(raw, budget) {
 		return app.ErrConflict
 	}
-	if err := json.Unmarshal(raw, target); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(target); err != nil {
 		return app.ErrConflict
 	}
 	return nil

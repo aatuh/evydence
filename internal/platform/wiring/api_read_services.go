@@ -474,6 +474,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create evidence point query: %w", err)
 	}
+	options.EvidencePageQuery, err = BuildEvidencePageQuery(store)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create evidence page query: %w", err)
+	}
 	options.LifecycleEventsQuery, err = BuildLifecycleEventsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create lifecycle events query: %w", err)

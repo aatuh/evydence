@@ -187,7 +187,7 @@ type evidencePageQuerier interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
 }
 
-func pageEvidenceWhereWithQuerier(ctx context.Context, querier evidencePageQuerier, pageRequest appquery.PageRequest, after *appquery.SortKey, where []string, args []any) (appquery.Result[domain.EvidenceItem], error) {
+func evidencePageWindow(pageRequest appquery.PageRequest, after *appquery.SortKey, where []string, args []any) ([]string, []any, string, error) {
 	orderBy := "created_at ASC, id ASC"
 	if pageRequest.Direction == appquery.Descending {
 		orderBy = "created_at DESC, id DESC"
@@ -197,7 +197,7 @@ func pageEvidenceWhereWithQuerier(ctx context.Context, querier evidencePageQueri
 		if after != nil {
 			createdAt, err := time.Parse(time.RFC3339Nano, after.Value)
 			if err != nil || createdAt.UTC().Format(time.RFC3339Nano) != after.Value {
-				return appquery.Result[domain.EvidenceItem]{}, appquery.ErrInvalidCursor
+				return nil, nil, "", appquery.ErrInvalidCursor
 			}
 			args = append(args, createdAt, after.ID)
 			operator := ">"
@@ -213,7 +213,7 @@ func pageEvidenceWhereWithQuerier(ctx context.Context, querier evidencePageQueri
 		}
 		if after != nil {
 			if after.Value != after.ID {
-				return appquery.Result[domain.EvidenceItem]{}, appquery.ErrInvalidCursor
+				return nil, nil, "", appquery.ErrInvalidCursor
 			}
 			args = append(args, after.ID)
 			operator := ">"
@@ -223,7 +223,15 @@ func pageEvidenceWhereWithQuerier(ctx context.Context, querier evidencePageQueri
 			where = append(where, fmt.Sprintf("id %s $%d", operator, len(args)))
 		}
 	default:
-		return appquery.Result[domain.EvidenceItem]{}, appquery.ErrInvalidPage
+		return nil, nil, "", appquery.ErrInvalidPage
+	}
+	return where, args, orderBy, nil
+}
+
+func pageEvidenceWhereWithQuerier(ctx context.Context, querier evidencePageQuerier, pageRequest appquery.PageRequest, after *appquery.SortKey, where []string, args []any) (appquery.Result[domain.EvidenceItem], error) {
+	where, args, orderBy, err := evidencePageWindow(pageRequest, after, where, args)
+	if err != nil {
+		return appquery.Result[domain.EvidenceItem]{}, err
 	}
 	args = append(args, pageRequest.PageSize+1)
 	statement := fmt.Sprintf(`

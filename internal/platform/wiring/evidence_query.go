@@ -2,6 +2,11 @@ package wiring
 
 import evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 
+// BuildEvidencePageQuery binds current scoped collection reads without a Ledger.
+func BuildEvidencePageQuery(reader evidencequery.EvidencePageReader) (*evidencequery.EvidencePages, error) {
+	return evidencequery.NewEvidencePages(reader)
+}
+
 // BuildEvidencePointQuery binds tenant-scoped ordinary evidence reads to the
 // focused evidence policy. Worker-owned rows retain their validated projection.
 func BuildEvidencePointQuery(reader evidencequery.EvidencePointReader) (*evidencequery.EvidencePoints, error) {

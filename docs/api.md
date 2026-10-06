@@ -1192,8 +1192,8 @@ retroactively scrubbed; see the
 | `POST` | `/v1/artifacts` | Register artifact digest metadata. |
 | `GET` | `/v1/artifacts/{id}` | Read artifact digest metadata. |
 | `POST` | `/v1/evidence` | Create immutable evidence metadata. |
-| `GET` | `/v1/evidence` | List evidence by release/type. |
-| `GET` | `/v1/evidence/search` | Search by product, project, release, build, deployment, type, subtype, source, collector, verification status, subject, tag, created time, and limit. |
+| `GET` | `/v1/evidence` | List evidence by release/type; see [evidence collection reads](#evidence-collection-reads). |
+| `GET` | `/v1/evidence/search` | Search by stored coordinates, type, source, collector, verification status, subject, tag and inclusive created time; see [evidence collection reads](#evidence-collection-reads). |
 | `POST` | `/v1/evidence-summaries` | Create evidence-cited technical summary with assumptions and limitations; see [evidence summary creation](#evidence-summary-creation). |
 | `POST` | `/v1/evidence-graph-snapshots` | Persist product/release evidence adjacency snapshot; see [graph snapshot creation](#graph-snapshot-creation). |
 | `GET` | `/v1/evidence/{id}` | Read evidence. |
@@ -1222,6 +1222,38 @@ retroactively scrubbed; see the
 | `POST` | `/v1/release-candidates/{id}/promote` | Promote release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/release-candidates/{id}/reject` | Reject release candidate; requires `If-Match` with current revision. |
 | `POST` | `/v1/remediation-tasks` | Create remediation task. |
+
+### Evidence Collection Reads
+
+`GET /v1/evidence` and `GET /v1/evidence/search` require `evidence:read`.
+PostgreSQL uses focused, cache-independent queries. SQL selects grant-visible
+candidate identities before the keyset limit; one repeatable-read view resolves
+current tenant-owned parents, applies the evidence policy before metadata, and
+validates selected worker-owned records and parser replay provenance. Batches
+refill after canonical grant denials; malformed parents, provenance, backend
+errors and cancellation are not silently filtered. Reads roll back
+unconditionally and create no audit entries, receipts or jobs.
+
+Filters retain exact stored-field matching, including coordinates; inference
+through a build/deployment grants visibility but does not rewrite filter values.
+Created-time endpoints are inclusive. A subject ID matches its stored ID or
+digest. `source` remains an alias for `source_system`, but both cannot be sent
+together. The search `limit` alias still controls page size. Cursor tokens stay
+bound to tenant, route, filters and ordering; production startup supplies a
+stable pagination secret. Authorization is reevaluated on every page request.
+
+In the PostgreSQL profile, raw filter strings must be NUL-free UTF-8 and at most
+1024 bytes; timestamp filters must fit UTC years 1 through 9999. Selected
+item/provenance reads retain the 8 MiB combined and 4096-fact limits; encoded
+returned items additionally have a 16 MiB page budget. Oversized or malformed
+selected data returns an error, never a truncated or partial success. Use a
+smaller page size for large allowed records. These unreleased limits require
+release compatibility review. Stored JSON numbers now remain exact in query
+transport; existing normalized-JSON hashes and historical records are unchanged.
+Local memory retains the explicit Ledger-backed reader and its limitations.
+
+Listing does not verify uploaded payload bytes, evidence completeness, scanner
+authority, release security, legal compliance or the complete audit chain.
 
 ### Anomaly Report Generation
 

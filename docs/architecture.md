@@ -1174,11 +1174,18 @@ count path. The counts describe recorded evidence, not its completeness or
 security assurance.
 The production process still reconstructs broad Ledger state at startup for
 remaining compatibility operations; removing that startup load and migrating
-other reads remain open EVY-905 work. Evidence list and search pages now use
-bounded PostgreSQL keyset batches under one read-only snapshot for restricted
-human grants, with grant checks before pagination. The compatibility Ledger
-still holds authorization relationships and parser-normalization validation
-state; removing its full startup load remains open.
+remaining evidence relationship/lifecycle commands remain open EVY-905 work.
+Evidence list and search pages now use focused Evidence query services and
+bounded PostgreSQL identity batches. SQL-side candidate grants precede keyset
+limits; current ownership and selected worker provenance are checked before
+metadata in the same repeatable-read view. Only policy denials are filtered,
+with batch refill preserving authorized continuation. These routes no longer
+use Ledger authorization maps, tenant-wide projection refreshes or caches.
+They unconditionally roll back; selected item/provenance budgets remain 8 MiB
+and 4096 facts, while encoded returned items have a 16 MiB page budget. Stored
+JSON numbers remain exact for transport without changing normalized hashes.
+See [evidence collection reads](api.md#evidence-collection-reads). Full startup
+load removal remains open.
 
 Evidence point reads and lifecycle pages in the PostgreSQL profile also use
 focused queries, including parser-owned items and replay markers; neither
