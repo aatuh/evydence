@@ -18,6 +18,11 @@ methods without changing API, portal access, export or report behavior.
 Local-memory Ledger retirement remains in progress; this is not a production
 readiness or release-publication claim.
 
+HTTP server construction no longer creates a Ledger for a missing local
+dependency and stops on canceled or expired construction contexts. The unused
+non-context `app.NewLedger` factory is removed. Explicit process-local wiring
+and HTTP response contracts remain unchanged while EVY-906 continues.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

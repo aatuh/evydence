@@ -21,7 +21,14 @@ func legacyLedgerFixtureConfig(cfg app.Config) app.Config {
 }
 
 func newLegacyLedgerFixture(cfg app.Config) *app.Ledger {
-	return app.NewLedger(legacyLedgerFixtureConfig(cfg))
+	if cfg.Store != nil {
+		panic("NewLedger does not load durable state; use NewLedgerWithContext")
+	}
+	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), cfg)
+	if err != nil {
+		panic("unexpected in-memory ledger initialization failure: " + err.Error())
+	}
+	return ledger
 }
 
 func newLegacyLedgerFixtureWithContext(ctx context.Context, cfg app.Config) (*app.Ledger, error) {

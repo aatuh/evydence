@@ -37,6 +37,13 @@ retirement work. Request middleware, route registration and response contracts a
 shared with the explicit local-memory server. Only the `local_memory` entry-point
 branch constructs the compatibility Ledger.
 
+HTTP transport no longer constructs a Ledger implicitly. Its local constructor
+requires an explicit non-nil dependency and rejects missing, canceled or expired
+contexts before composition. The unused non-context `app.NewLedger` factory has
+also been deleted; convenience initialization exists only in test fixtures.
+The explicit process-local branch still uses `app.NewLedgerWithContext` and is
+remaining EVY-906 retirement work, not an approved long-term API backend.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;

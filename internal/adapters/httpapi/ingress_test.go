@@ -12,7 +12,7 @@ import (
 )
 
 func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
-	ledgerServer, err := NewServerWithOptions(nil, ServerOptions{
+	ledgerServer, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
 		RateLimitRequestsPerMinute: 1,
 		TrustedProxyCIDRs:          []string{"10.0.0.0/8"},
 	})
@@ -39,7 +39,7 @@ func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
 		t.Fatalf("trusted proxy repeated client status=%d, want rate limited", got)
 	}
 
-	untrustedServer, err := NewServerWithOptions(nil, ServerOptions{RateLimitRequestsPerMinute: 1})
+	untrustedServer, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{RateLimitRequestsPerMinute: 1})
 	if err != nil {
 		t.Fatalf("NewServerWithOptions untrusted: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
 }
 
 func TestServerRateLimiterBoundsClientBuckets(t *testing.T) {
-	server, err := NewServerWithOptions(nil, ServerOptions{
+	server, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
 		RateLimitRequestsPerMinute: 10,
 		RateLimitBucketCapacity:    2,
 	})
@@ -95,7 +95,7 @@ func TestRequestRateLimiterExpiresWindowState(t *testing.T) {
 }
 
 func TestIngressRejectsOversizedURLsAndUnsupportedBodyEncodings(t *testing.T) {
-	server, err := NewServerWithOptions(nil, ServerOptions{MaxURLBytes: 24})
+	server, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{MaxURLBytes: 24})
 	if err != nil {
 		t.Fatalf("NewServerWithOptions: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestIngressRejectsOversizedURLsAndUnsupportedBodyEncodings(t *testing.T) {
 }
 
 func TestIngressLimitsInFlightRequestsAndNativeUploads(t *testing.T) {
-	server, err := NewServerWithOptions(nil, ServerOptions{MaxInFlightRequests: 1, MaxConcurrentUploads: 1})
+	server, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{MaxInFlightRequests: 1, MaxConcurrentUploads: 1})
 	if err != nil {
 		t.Fatalf("NewServerWithOptions: %v", err)
 	}

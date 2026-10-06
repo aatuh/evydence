@@ -149,6 +149,11 @@ the complete command/query/authentication surface, streamed and historical
 durable replay capabilities, and a stable pagination secret of at least 16
 bytes. Missing or typed-nil dependencies fail startup instead of enabling a
 local fallback. Only the explicit `local_memory` branch constructs a Ledger.
+The local HTTP constructor requires that explicit dependency; it cannot create
+an empty Ledger for an omitted one. Missing or inactive construction contexts
+fail before server composition. The non-context `app.NewLedger` factory has been
+removed; explicit legacy callers use `app.NewLedgerWithContext` while EVY-906
+retirement continues.
 API routes and response schemas are unchanged. This is an API composition
 boundary, not proof that EVY-905's full validation gates are complete. The worker
 daemon uses a closed native processor as described in the

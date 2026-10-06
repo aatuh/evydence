@@ -18,7 +18,6 @@ import (
 	"github.com/aatuh/api-toolkit/v3/routecontracts"
 	"github.com/aatuh/api-toolkit/v3/specs"
 
-	"github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	application "github.com/aatuh/evydence/internal/application"
@@ -468,6 +467,8 @@ type ServerOptions struct {
 	RoleBindingQuery RoleBindingQuery
 }
 
+// NewServer binds an explicitly constructed local compatibility Ledger. Native
+// runtimes must use NewNativeServerWithOptionsContext and focused ports.
 func NewServer(ledger *app.Ledger) (*Server, error) {
 	return NewServerWithOptionsContext(context.Background(), ledger, ServerOptions{})
 }
@@ -477,15 +478,18 @@ func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, erro
 }
 
 func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions) (*Server, error) {
-	server, err := newServerWithOptionsContext(ctx, opts)
-	if err != nil {
+	if ctx == nil {
+		return nil, errors.New("server context is required")
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if ledger == nil {
-		ledger, err = app.NewLedgerWithContext(ctx, app.Config{BuildAttestationParser: dsse.BuildAttestationIngestionParser{}, DSSEPolicyVerifier: dsse.PolicyVerifier{}})
-		if err != nil {
-			return nil, err
-		}
+		return nil, errors.New("local server requires an explicit Ledger")
+	}
+	server, err := newServerWithOptionsContext(ctx, opts)
+	if err != nil {
+		return nil, err
 	}
 	server.bindLedger(ledger)
 	if opts.Authenticator != nil {

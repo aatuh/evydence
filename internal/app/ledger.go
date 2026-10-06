@@ -220,19 +220,6 @@ type Ledger struct {
 	localVEXJobs map[string]OutboxJob
 }
 
-// NewLedger creates an in-memory ledger. Durable state loading can fail, so
-// callers configuring Config.Store must use NewLedgerWithContext.
-func NewLedger(cfg Config) *Ledger {
-	if cfg.Store != nil {
-		panic("NewLedger does not load durable state; use NewLedgerWithContext")
-	}
-	ledger, err := NewLedgerWithContext(context.Background(), cfg)
-	if err != nil {
-		panic("unexpected in-memory ledger initialization failure: " + err.Error())
-	}
-	return ledger
-}
-
 // NewLedgerWithContext creates a ledger and honors cancellation while loading
 // configured durable state.
 func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
