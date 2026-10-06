@@ -30,7 +30,10 @@ The PostgreSQL API entry point binds
 The constructor requires every focused authentication, command and query port,
 streamed/historical durable replay, and a stable pagination key. Missing or
 typed-nil ports fail startup; no local-memory adapter or aggregate replay is
-installed. Request middleware, route registration and response contracts are
+installed. Its shared composition helper accepts only focused options: it has
+no Ledger parameter, constructor/binding call or local-mode switch. Explicit
+local compatibility binding remains outside that helper and is still EVY-906
+retirement work. Request middleware, route registration and response contracts are
 shared with the explicit local-memory server. Only the `local_memory` entry-point
 branch constructs the compatibility Ledger.
 

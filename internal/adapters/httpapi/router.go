@@ -476,10 +476,26 @@ func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, erro
 }
 
 func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions) (*Server, error) {
-	return newServerWithOptionsContext(ctx, ledger, opts, true)
+	server, err := newServerWithOptionsContext(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	if ledger == nil {
+		ledger, err = app.NewLedgerWithContext(ctx, app.Config{})
+		if err != nil {
+			return nil, err
+		}
+	}
+	server.bindLedger(ledger)
+	if opts.Authenticator != nil {
+		server.authn = opts.Authenticator
+	}
+	return server, nil
 }
 
-func newServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions, local bool) (*Server, error) {
+// Native composition receives only focused ports. Legacy binding is owned by
+// the explicit local constructor above, never selected inside this core.
+func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Server, error) {
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
@@ -667,13 +683,6 @@ func newServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if (opts.VulnerabilityDecisionCommands != nil || opts.ApprovalCommands != nil || opts.WaiverCommands != nil || opts.ExceptionCommands != nil || opts.VulnerabilityWorkflowCommands != nil || opts.CustomPolicyCommands != nil || opts.PolicyEvaluationCommands != nil || opts.SBOMDiffCommands != nil || opts.ContractDiffCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused commands require durable idempotency")
 	}
-	if local && ledger == nil {
-		var err error
-		ledger, err = app.NewLedgerWithContext(ctx, app.Config{})
-		if err != nil {
-			return nil, err
-		}
-	}
 	mux, specRegistry, routeRegistry := newContractRegistries()
 	identity := opts.BuildIdentity
 	if identity.IsZero() {
@@ -795,9 +804,6 @@ func newServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	server.retentionMarkerCommands = opts.RetentionMarkerCommands
 	server.trustConfigurationCommands = opts.TrustConfigurationCommands
 	server.releaseSecuritySummaryQuery = opts.ReleaseSecuritySummaryQuery
-	if local {
-		server.bindLedger(ledger)
-	}
 	if opts.Authenticator != nil {
 		server.authn = opts.Authenticator
 	}

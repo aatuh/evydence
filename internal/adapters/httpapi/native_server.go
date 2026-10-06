@@ -20,7 +20,7 @@ func NewNativeServerWithOptionsContext(ctx context.Context, options ServerOption
 	if err := validateNativeServerOptions(options); err != nil {
 		return nil, err
 	}
-	return newServerWithOptionsContext(ctx, nil, options, false)
+	return newServerWithOptionsContext(ctx, options)
 }
 func validateNativeServerOptions(options ServerOptions) error {
 	dependencies := []struct {
