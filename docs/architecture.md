@@ -81,8 +81,12 @@ This metric does not expand embedded method sets; reviewers must inspect those
 as well. Generated declaration size is exempt, not generated imports. These
 are review triggers, not proof of cohesive architecture.
 
-The gate currently exposes legacy DSSE adapter imports and the Package-to-Risk
-application dependency. These are remediation work, not approved exemptions.
+The Package report query now consumes Risk-owned readiness facts and the pure
+`internal/risk/domain` evaluator, not the Risk application service. Complete
+policy-result compatibility vectors preserve its check order, wording and
+timestamps; tenant/grant checks and bounded query behavior remain unchanged.
+The gate still exposes legacy DSSE adapter imports. These are remediation work,
+not approved exemptions.
 EVY-906 remains incomplete until those dependencies and the obsolete Ledger
 surface are removed and all required final validation passes. The gate will
 join broad validation once that remediation is complete.

@@ -11,7 +11,7 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
-	riskapp "github.com/aatuh/evydence/internal/risk/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 type readinessReportReaderFake struct {
@@ -28,7 +28,7 @@ func (f *readinessReportReaderFake) ReadReleaseReadinessReportSnapshot(_ context
 func TestReleaseReadinessReportUsesCanonicalPolicyAndRenderer(t *testing.T) {
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	reader := &readinessReportReaderFake{snapshot: ReleaseReadinessReportSnapshot{
-		Readiness:           riskapp.ReadinessSnapshot{SnapshotVersion: riskapp.ReadinessSnapshotVersion, TenantID: "ten_1", ProductID: "prod_1", ReleaseID: "rel_1", HasArtifact: true, UnhandledCritical: true},
+		Readiness:           riskdomain.ReadinessSnapshot{SnapshotVersion: riskdomain.ReadinessSnapshotVersion, TenantID: "ten_1", ProductID: "prod_1", ReleaseID: "rel_1", HasArtifact: true, UnhandledCritical: true},
 		BlockingFindings:    []packagedomain.BlockingFinding{{FindingID: "finding_1", ScanID: "scan_1", ReleaseID: "rel_1", Severity: "critical", State: "open"}},
 		AcceptedExceptions:  []packagedomain.AcceptedExceptionSnapshot{{ID: "exception_1", TenantID: "ten_1", ReleaseID: "rel_1", Approved: true, ExpiresAt: now.Add(time.Hour)}},
 		ActiveDecisionCount: 2,
@@ -42,7 +42,7 @@ func TestReleaseReadinessReportUsesCanonicalPolicyAndRenderer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evaluation, err := riskapp.EvaluateReadinessSnapshot(reader.snapshot.Readiness, now)
+	evaluation, err := riskdomain.EvaluateReadinessSnapshot(reader.snapshot.Readiness, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestReleaseReadinessReportUsesCanonicalPolicyAndRenderer(t *testing.T) {
 
 func TestReleaseReadinessReportRejectsUnauthorizedAndInvalidSnapshots(t *testing.T) {
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	base := ReleaseReadinessReportSnapshot{Readiness: riskapp.ReadinessSnapshot{SnapshotVersion: riskapp.ReadinessSnapshotVersion, TenantID: "ten_1", ProductID: "prod_1", ReleaseID: "rel_1"}}
+	base := ReleaseReadinessReportSnapshot{Readiness: riskdomain.ReadinessSnapshot{SnapshotVersion: riskdomain.ReadinessSnapshotVersion, TenantID: "ten_1", ProductID: "prod_1", ReleaseID: "rel_1"}}
 	actor := identitydomain.Actor{TenantID: "ten_1", UserID: "user_1", Scopes: []string{"verify:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: "rel_1", Scopes: []string{"verify:read"}}}}
 	for _, tc := range []struct {
 		name         string
@@ -89,6 +89,8 @@ func TestReleaseReadinessReportRejectsUnauthorizedAndInvalidSnapshots(t *testing
 		}, nil, application.ErrForbidden, false},
 		{"foreign tenant", nil, func(s *ReleaseReadinessReportSnapshot) { s.Readiness.TenantID = "ten_other" }, ErrReleaseReadinessProjection, false},
 		{"foreign release", nil, func(s *ReleaseReadinessReportSnapshot) { s.Readiness.ReleaseID = "rel_other" }, ErrReleaseReadinessProjection, false},
+		{"unsupported readiness version", nil, func(s *ReleaseReadinessReportSnapshot) { s.Readiness.SnapshotVersion = "future" }, ErrReleaseReadinessProjection, false},
+		{"negative package count", nil, func(s *ReleaseReadinessReportSnapshot) { s.Readiness.PackageCount = -1 }, ErrReleaseReadinessProjection, false},
 		{"negative count", nil, func(s *ReleaseReadinessReportSnapshot) { s.ActiveDecisionCount = -1 }, ErrReleaseReadinessProjection, false},
 		{"foreign finding", nil, func(s *ReleaseReadinessReportSnapshot) {
 			s.BlockingFindings = []packagedomain.BlockingFinding{{FindingID: "f", ScanID: "s", ReleaseID: "rel_other", Severity: "critical", State: "open"}}

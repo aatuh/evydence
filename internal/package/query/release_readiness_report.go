@@ -10,7 +10,7 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
-	riskapp "github.com/aatuh/evydence/internal/risk/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 var (
@@ -22,9 +22,9 @@ var (
 const MaxReleaseReadinessEntries = 4096
 
 // ReleaseReadinessReportSnapshot contains bounded report-safe facts gathered
-// from one committed view. Policy interpretation stays in the owning services.
+// from one committed view. Policy interpretation stays in the Risk domain.
 type ReleaseReadinessReportSnapshot struct {
-	Readiness                riskapp.ReadinessSnapshot
+	Readiness                riskdomain.ReadinessSnapshot
 	BlockingFindings         []packagedomain.BlockingFinding
 	AcceptedExceptions       []packagedomain.AcceptedExceptionSnapshot
 	ActiveDecisionCount      int
@@ -105,7 +105,7 @@ func (s *ReleaseReadinessReport) Report(ctx context.Context, actor identitydomai
 			return empty, ErrReleaseReadinessProjection
 		}
 	}
-	evaluation, err := riskapp.EvaluateReadinessSnapshot(facts, now)
+	evaluation, err := riskdomain.EvaluateReadinessSnapshot(facts, now)
 	if err != nil {
 		return empty, ErrReleaseReadinessProjection
 	}

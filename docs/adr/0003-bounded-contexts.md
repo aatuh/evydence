@@ -780,6 +780,12 @@ value used to reconstruct legacy canonical relationships. It is a support
 model, not a new persisted record or public JSON schema; versioned lifecycle
 detail decoding remains at the verification application boundary.
 
+`internal/risk/domain.ReadinessSnapshot` is the Risk-owned, versioned fact view
+for pure readiness-policy interpretation. It is a support model, not a new
+persisted resource. Package reporting consumes this domain view without
+importing a foreign application service. The existing Risk application port
+name remains a type alias and preserves its validation error contract.
+
 The only allowed business dependency direction is:
 
 ```text

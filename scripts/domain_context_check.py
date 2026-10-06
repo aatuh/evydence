@@ -28,7 +28,7 @@ SUPPORT_TYPES = {
     "identity": {"VerificationCheck", "VerificationProfileSnapshot"},
     "release": {"ReleaseCandidateState", "ReleaseState"},
     "evidence": {"EvidenceLifecycleState", "CanonicalEvidenceOrigin"},
-    "risk": {"DecisionStatus", "SupportingReference"},
+    "risk": {"DecisionStatus", "SupportingReference", "ReadinessSnapshot"},
     "package": {
         "AcceptedExceptionSnapshot",
         "BundleState",

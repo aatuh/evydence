@@ -2,10 +2,56 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
+
+// These vectors freeze the complete policy result before moving its pure rules
+// to the domain, including wording, ordering, missing IDs and UTC timestamps.
+func TestReadinessCanonicalCompatibilityVectors(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.FixedZone("fixture", 2*60*60))
+	passing := passingReadinessSnapshot()
+	failed := passing
+	failed.HasSBOM = false
+	failed.UnhandledCritical = true
+	failed.UnhandledHigh = true
+	failed.PackageCount = 2
+	failed.MissingCustomerStatementIDs = []string{" d_2 ", "d_1", "d_2", ""}
+	failed.MissingNotAffectedReasonIDs = []string{"d_3"}
+	failed.IncompleteExceptionIDs = []string{"ex_2", "ex_1"}
+	failed.InvalidPackageOrProfileIDs = []string{"pkg_2", "pkg_1"}
+	for _, vector := range []struct {
+		name  string
+		facts ReadinessSnapshot
+		want  string
+	}{{"passing", passing, "b3d8823f182197004005fc59350a245759211c61b407a3b3b5f26236425790c6"}, {"failed", failed, "41fc279a878aeac8904e17c353f25a1e1d08cde582f2688cab5cabec03b4129a"}} {
+		t.Run(vector.name, func(t *testing.T) {
+			evaluation, err := EvaluateReadinessSnapshot(vector.facts, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(evaluation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != vector.want {
+				t.Fatalf("canonical policy vector changed: got %s want %s", got, vector.want)
+			}
+		})
+	}
+}
+
+func TestReadinessDomainValidationKeepsApplicationErrorContract(t *testing.T) {
+	facts := passingReadinessSnapshot()
+	facts.SnapshotVersion = "future"
+	if value, err := EvaluateReadinessSnapshot(facts, time.Unix(10, 0)); !errors.Is(err, ErrValidation) || value.Result != "" {
+		t.Fatalf("application validation contract changed: %#v err=%v", value, err)
+	}
+}
 
 func TestPreviewReadinessIsReadOnlyAndExplicitEvaluationPersists(t *testing.T) {
 	state := newRiskTestState()
