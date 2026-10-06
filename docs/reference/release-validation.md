@@ -1,5 +1,7 @@
 # Release Validation
 
+This reference describes the project-owned release validation profile. It is evidence for engineering review only; it does not prove legal compliance, certification, complete vulnerability detection, or secure releases.
+
 ## Live test package watchdogs
 
 Complete Go test, race, coverage and PostgreSQL integration gates use a
@@ -9,13 +11,19 @@ deadline. This changes no test selection, assertions, fixture deadlines or
 coverage floors; a timed-out run remains a failed gate. Regression checks in
 `scripts/test_gate_watchdogs.py` preserve those complete command surfaces.
 
+`make production-check` appends `-p=1` to `GOFLAGS` before its nested gates.
+Independent Go package test binaries therefore run sequentially against the
+shared live database, avoiding competing schema/recovery fixture work. Other
+Go flags are retained; a prior `-p` value is overridden. This does not limit
+concurrency within a test, change `GOMAXPROCS` or the test `-parallel` setting, disable race instrumentation, or
+extend fixture deadlines. Ordinary local checks outside the production gate
+retain their existing package scheduling.
+
 Native recovery tests require compatible `pg_dump` and `pg_restore` tools on
 `PATH`. Use the test server's major version for same-version restore rehearsals;
 a newer dump tool can emit settings an older target rejects, even when it dumps
 that older server. See [PostgreSQL's dump compatibility notes](https://www.postgresql.org/docs/16/app-pgdump.html#APP-PGDUMP-NOTES).
 Never suppress restore errors or edit the dump to make a recovery test pass.
-
-This reference describes the project-owned release validation profile. It is evidence for engineering review only; it does not prove legal compliance, certification, complete vulnerability detection, or secure releases.
 
 ## Default Local Profile
 

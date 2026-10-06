@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Keep complete live test gates bounded without exhausting Go's 10m default."""
+import os
 import pathlib
+import subprocess
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -35,6 +37,27 @@ class GateWatchdogTests(unittest.TestCase):
         self.assertIn('EVYDENCE_CRITICAL_COVERAGE_THRESHOLD:-81.0', source)
         self.assertNotIn("-skip", source)
         self.assertNotIn("-run", source)
+
+    def test_production_gate_serializes_packages_not_test_concurrency(self):
+        source = (ROOT / "scripts/production_check.sh").read_text(encoding="utf-8")
+        setting = 'export GOFLAGS="${GOFLAGS:+$GOFLAGS }-p=1"'
+        self.assertTrue(setting in source, "production gate must bound shared-database package concurrency")
+        self.assertLess(source.index(setting), source.index("make integration-check"))
+        self.assertNotIn("GOMAXPROCS=", source)
+        self.assertNotIn("-parallel", source)
+        self.assertNotIn("-run", source)
+        self.assertNotIn("-skip", source)
+        for previous in (None, "", "-mod=readonly", "-mod=readonly -p=8", "$(printf unexpected)"):
+            with self.subTest(previous=previous):
+                environment = dict(os.environ)
+                environment.pop("GOFLAGS", None)
+                if previous is not None:
+                    environment["GOFLAGS"] = previous
+                result = subprocess.run(
+                    ["sh", "-eu", "-c", setting + '\nprintf "%s" "$GOFLAGS"'],
+                    env=environment, capture_output=True, text=True, timeout=5, check=True,
+                )
+                self.assertEqual(result.stdout, (previous + " " if previous else "") + "-p=1")
 
 
 if __name__ == "__main__":
