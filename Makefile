@@ -51,7 +51,7 @@ test-race: ## Run race tests
 	@$(GO) test ./... -race -count=1 -timeout=30m
 
 coverage: ## Run tests with coverage
-	@$(GO) test ./... -coverprofile=coverage.out -timeout=30m
+	@$(GO) test ./... -coverpkg=./... -coverprofile=coverage.out -timeout=30m
 	@$(GO) tool cover -func=coverage.out
 
 coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_TEST_DATABASE_URL
@@ -59,6 +59,7 @@ coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_
 
 test-strategy-check: ## Validate critical behavior test evidence and coverage provenance policy
 	@python3 scripts/test_gate_watchdogs.py
+	@python3 scripts/test_coverage_check.py
 	@python3 scripts/test_critical_behavior_matrix.py
 	@python3 scripts/critical_behavior_matrix.py --check
 

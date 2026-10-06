@@ -78,6 +78,11 @@ supported profiles and exit criteria.
 `make coverage-check` is intentionally part of the production profile and fails
 early when `EVYDENCE_TEST_DATABASE_URL` is unset. Use `make coverage` for a
 local no-database coverage report that is not release-candidate evidence.
+Both commands instrument all repository Go packages with `-coverpkg=./...`,
+including adapters exercised through wiring tests. The critical-package floor
+counts each shared statement block once across test binaries. This changes
+measurement, not test selection or either coverage floor; see the
+[coverage policy](test-strategy.md#coverage-policy).
 
 ## Disposable memory-backed test database
 

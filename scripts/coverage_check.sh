@@ -14,7 +14,7 @@ if [ -z "${EVYDENCE_TEST_DATABASE_URL:-}" ]; then
   exit 2
 fi
 
-go test ./... -coverprofile="$profile" -timeout=30m
+go test ./... -coverpkg=./... -coverprofile="$profile" -timeout=30m
 
 total="$(go tool cover -func="$profile" | awk '/^total:/ { gsub("%", "", $3); print $3 }')"
 if [ -z "$total" ]; then
@@ -33,12 +33,20 @@ awk -v got="$total" -v want="$threshold" 'BEGIN {
 critical="$(awk '
   $1 ~ /^github[.]com\/aatuh\/evydence\/internal\/(app|domain|platform)\// ||
   $1 ~ /^github[.]com\/aatuh\/evydence\/internal\/adapters\/(httpapi|postgres|objectstore|verification)\// {
-    statements += $2
+    # Cross-package profiles repeat blocks for distinct test binaries.
+    # Match go tool cover: count each block once, covered by any execution.
+    weights[$1] = $2
     if ($3 > 0) {
-      covered += $2
+      executed[$1] = 1
     }
   }
   END {
+    for (block in weights) {
+      statements += weights[block]
+      if (executed[block]) {
+        covered += weights[block]
+      }
+    }
     if (statements == 0) {
       exit 2
     }

@@ -14,14 +14,14 @@ class GateWatchdogTests(unittest.TestCase):
             "Makefile": [
                 "$(GO) test ./... -timeout=30m",
                 "$(GO) test ./... -race -count=1 -timeout=30m",
-                "$(GO) test ./... -coverprofile=coverage.out -timeout=30m",
+                "$(GO) test ./... -coverpkg=./... -coverprofile=coverage.out -timeout=30m",
                 "$(GO) test ./internal/adapters/postgres ./internal/app -count=1 -timeout=30m",
             ],
             "scripts/integration_check.sh": [
                 "go test ./internal/adapters/postgres -count=1 -timeout=30m",
             ],
             "scripts/coverage_check.sh": [
-                'go test ./... -coverprofile="$profile" -timeout=30m',
+                'go test ./... -coverpkg=./... -coverprofile="$profile" -timeout=30m',
             ],
         }
         for path, commands in targets.items():
