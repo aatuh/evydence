@@ -4,8 +4,14 @@ Status: accepted. EVY-902 implemented the context-owned model layer described
 below. EVY-903 implemented focused Identity, Release, and Evidence command
 services. EVY-904 has added focused Decision, Package, and Verification
 services and moved their migrated HTTP workflows behind context-specific
-interfaces. The composition-root and database-backed query migration and
-legacy-facade retirement remain assigned to EVY-905 and EVY-906.
+interfaces. EVY-905 implemented shared explicit runtime composition and bounded
+database-backed command/query ports; native API and worker daemon wiring no
+longer reconstruct the production Ledger. Physical legacy-facade retirement and
+dependency enforcement remain EVY-906.
+
+Detailed transition notes below are historical migration checkpoints. Their
+pending EVY-905 startup/query/wrapper claims are superseded by the
+[current runtime composition](../architecture.md#current-runtime-composition).
 
 ## Context
 
@@ -949,18 +955,19 @@ API-compatible.
 2. EVY-903 moved identity, release, and evidence commands to focused services
    and their handlers behind context-specific interfaces. `Ledger` is now a
    deprecated forwarding facade; no new command behaviour is added to it.
-3. EVY-904 moves decision, package, and verification workflows, splits mixed
-   repository methods, and makes package reads transaction-consistent.
-4. EVY-905 installs one composition root and database-backed context query
-   services. HTTP and worker wiring then receive only focused services.
+3. EVY-904 moved decision, package, and verification workflows, split mixed
+   repository methods, and made package reads transaction-consistent.
+4. EVY-905 installed one validated runtime composition root and database-backed
+   context command/query services. Native HTTP and worker wiring receive focused
+   ports and reject incomplete composition instead of enabling Ledger fallbacks.
    Collector health now reads the tenant-owned collector and latest/pinned
    release records under one PostgreSQL snapshot. Instance-admin counts now
    come from a single aggregate database snapshot guarded by an explicit
-   instance scope; other Ledger-compatible reads remain transitional until
-   their focused queries are installed.
-5. EVY-906 removes production `Ledger` construction and its forwarding
-   methods, deletes obsolete aliases only after every caller has moved, and
-   makes an import-graph violation fail the build gate.
+   instance scope. Explicit local-memory API mode retains compatibility readers;
+   native query/authentication composition installs no authoritative entity cache.
+5. EVY-906 enforces the retired production `Ledger` boundary, removes obsolete
+   forwarding/maps/locks/snapshot helpers, deletes aliases only after every caller
+   has moved, and makes an import-graph violation fail the build gate.
 
 Schema changes stay forward-only. A context adds new columns/tables and maps
 old records before a later release removes obsolete compatibility reads. A

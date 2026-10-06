@@ -108,6 +108,12 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Changed
 
+- Native PostgreSQL API and worker startup now share validated runtime profiles
+  and focused durable ports instead of reconstructing the production Ledger.
+  Reads use bounded, tenant-scoped database projections; worker writes remain
+  claim-fenced. Explicit local-memory API mode stays nondurable and unavailable
+  for production or workers. The single-API-writer profile is unchanged.
+
 - Release evidence-flow planning now advertises its existing read-only POST
   behavior consistently: `Idempotency-Key` is not required. Bearer authentication,
   `release:read`, the route, and the response remain unchanged. OpenAPI, SDK route

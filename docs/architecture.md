@@ -46,13 +46,16 @@ rejected before data access; production cannot select a whole-state load or
 snapshot publication fallback. Signals cancel runtime I/O and idle poll waits.
 Legacy snapshot helpers remain only in compatibility test paths. See the
 [worker outbox contract](reference/worker-outbox.md) for evidence and limits.
-Final EVY-905 closure validation and EVY-906 architecture enforcement remain
-outstanding.
+EVY-905 composition/query migration passed its complete local production gate.
+That includes full tests, race, live dependencies, coverage, migration compatibility,
+black-box API/worker/restart flows and signing smoke. See the root backlog for
+commands, commits and limits. EVY-906 physical legacy retirement and architecture
+enforcement remain outstanding; local checks are not hosted CI or publication.
 
 Per-route transition notes below include historical migration checkpoints.
-Their statements that API startup retirement remains outstanding are superseded
-by this section; they are not descriptions of the current PostgreSQL API
-startup path. See the [runtime configuration reference](reference/configuration.md#first-tenant-bootstrap)
+Their pending EVY-905 startup, worker, wrapper and query-migration statements are
+superseded by this section; they are not descriptions of current native production
+wiring. Explicit local compatibility paths remain. See the [runtime configuration reference](reference/configuration.md#first-tenant-bootstrap)
 for current operator behavior.
 
 ## Storage and workflow adapters
@@ -1205,9 +1208,9 @@ counts from a consistent snapshot, then current resource grants are checked
 before the response is returned. The local-memory profile keeps the Ledger
 count path. The counts describe recorded evidence, not its completeness or
 security assurance.
-The PostgreSQL API no longer reconstructs broad Ledger state at startup;
-remaining worker fallbacks and final closure validation remain open EVY-905
-work. See [current runtime composition](#current-runtime-composition).
+The PostgreSQL API and worker daemon use focused composition without broad Ledger
+startup or worker snapshot fallbacks. EVY-905 closure validation passed; physical
+legacy cleanup remains EVY-906. See [current runtime composition](#current-runtime-composition).
 Evidence list and search pages now use focused Evidence query services and
 bounded PostgreSQL identity batches. SQL-side candidate grants precede keyset
 limits; current ownership and selected worker provenance are checked before
