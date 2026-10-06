@@ -26,8 +26,12 @@ type fakeStateLoader struct {
 	err   error
 }
 
-func (f fakeStateLoader) LoadState(context.Context) (app.PersistedState, bool, error) {
+func (f fakeStateLoader) LoadWorkerJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error) {
 	return f.state, f.ok, f.err
+}
+
+func (fakeStateLoader) ApplyClaimedReleaseLedgerMutation(context.Context, string, string, app.ReleaseLedgerMutation) error {
+	return errors.New("read-only worker fixture must not publish mutations")
 }
 
 type fakeStateStore struct {
@@ -42,13 +46,93 @@ type fakeStateStore struct {
 	loadCalls           int
 }
 
-func (f *fakeStateStore) LoadState(context.Context) (app.PersistedState, bool, error) {
+func (f *fakeStateStore) LoadWorkerJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error) {
 	f.loadCalls++
-	return f.state, f.ok, f.err
+	if f.err != nil || !f.ok {
+		return app.PersistedState{}, f.ok, f.err
+	}
+	state, err := cloneWorkerFixture(f.state)
+	return state, f.ok, err
 }
 
-func (f *fakeStateStore) SaveState(_ context.Context, state app.PersistedState) error {
-	f.saved = state
+func (f *fakeStateStore) ApplyClaimedReleaseLedgerMutation(_ context.Context, _, _ string, mutation app.ReleaseLedgerMutation) error {
+	state, err := cloneWorkerFixture(f.state)
+	if err != nil {
+		return err
+	}
+	if err := applyWorkerFixtureMutation(&state, mutation); err != nil {
+		return err
+	}
+	f.state, f.saved = state, state
+	return nil
+}
+
+func cloneWorkerFixture(state app.PersistedState) (app.PersistedState, error) {
+	body, err := json.Marshal(state)
+	if err != nil {
+		return app.PersistedState{}, err
+	}
+	var result app.PersistedState
+	if err := json.Unmarshal(body, &result); err != nil {
+		return app.PersistedState{}, err
+	}
+	return result, nil
+}
+
+// This fake applies only the row types written by parser jobs. It does not
+// publish a passed snapshot and cannot silently accept other aggregate effects.
+func applyWorkerFixtureMutation(state *app.PersistedState, mutation app.ReleaseLedgerMutation) error {
+	if len(mutation.Products)+len(mutation.Projects)+len(mutation.Releases)+len(mutation.Artifacts)+len(mutation.Evidence)+len(mutation.EvidenceLifecycle)+len(mutation.OutboxJobs) != 0 {
+		return errors.New("unexpected worker fixture mutation")
+	}
+	for _, value := range mutation.SBOMs {
+		if state.SBOMs == nil {
+			state.SBOMs = make(map[string]domain.SBOM)
+		}
+		state.SBOMs[value.ID] = value
+	}
+	for _, value := range mutation.Scans {
+		if state.Scans == nil {
+			state.Scans = make(map[string]domain.VulnerabilityScan)
+		}
+		state.Scans[value.ID] = value
+	}
+	for _, value := range mutation.Contracts {
+		if state.Contracts == nil {
+			state.Contracts = make(map[string]domain.OpenAPIContract)
+		}
+		state.Contracts[value.ID] = value
+	}
+	for _, value := range mutation.BuildAttestations {
+		if state.BuildAttestations == nil {
+			state.BuildAttestations = make(map[string]domain.BuildAttestation)
+		}
+		state.BuildAttestations[value.ID] = value
+	}
+	for _, value := range mutation.VEXDocuments {
+		if state.VEXDocuments == nil {
+			state.VEXDocuments = make(map[string]domain.VEXDocument)
+		}
+		state.VEXDocuments[value.ID] = value
+	}
+	for _, value := range mutation.VEXImportReports {
+		if state.VEXImportReports == nil {
+			state.VEXImportReports = make(map[string]domain.VEXImportReport)
+		}
+		state.VEXImportReports[value.ID] = value
+	}
+	for _, value := range mutation.VulnerabilityDecisions {
+		if state.Decisions == nil {
+			state.Decisions = make(map[string]domain.VulnerabilityDecision)
+		}
+		state.Decisions[value.ID] = value
+	}
+	for _, value := range mutation.AuditChainEntries {
+		if state.Chain == nil {
+			state.Chain = make(map[string][]domain.AuditChainEntry)
+		}
+		state.Chain[value.TenantID] = append(state.Chain[value.TenantID], value)
+	}
 	return nil
 }
 
@@ -288,7 +372,7 @@ func TestProcessSignBundleChecksQueuedManifestHash(t *testing.T) {
 	}
 }
 
-func (f *fakeClaimedReleaseLedgerMutationStore) LoadState(context.Context) (app.PersistedState, bool, error) {
+func (f *fakeClaimedReleaseLedgerMutationStore) LoadWorkerJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error) {
 	return f.state, f.ok, nil
 }
 
@@ -299,11 +383,11 @@ func (f *fakeClaimedReleaseLedgerMutationStore) ApplyClaimedReleaseLedgerMutatio
 	return f.err
 }
 
-func (f *fakeReleaseLedgerMutationStore) LoadState(context.Context) (app.PersistedState, bool, error) {
+func (f *fakeReleaseLedgerMutationStore) LoadWorkerJobState(context.Context, postgres.ClaimedJob) (app.PersistedState, bool, error) {
 	return f.state, f.ok, f.err
 }
 
-func (f *fakeReleaseLedgerMutationStore) ApplyReleaseLedgerMutation(_ context.Context, mutation app.ReleaseLedgerMutation) error {
+func (f *fakeReleaseLedgerMutationStore) ApplyClaimedReleaseLedgerMutation(_ context.Context, _, _ string, mutation app.ReleaseLedgerMutation) error {
 	f.mutation = mutation
 	return nil
 }
@@ -319,7 +403,7 @@ func TestPersistParserSideEffectsUsesClaimedMutationBoundary(t *testing.T) {
 	report := domain.VEXImportReport{ID: "report_claimed", TenantID: job.TenantID}
 	mutation := app.ReleaseLedgerMutation{VEXImportReports: []domain.VEXImportReport{report}}
 	store := &fakeClaimedReleaseLedgerMutationStore{ok: true}
-	if err := persistParserSideEffects(context.Background(), store, app.PersistedState{}, job, mutation); err != nil {
+	if err := persistParserSideEffects(context.Background(), store, job, mutation); err != nil {
 		t.Fatalf("persist claimed side effects: %v", err)
 	}
 	if store.jobID != job.ID || store.leaseToken != job.LeaseToken || len(store.mutation.VEXImportReports) != 1 || store.mutation.VEXImportReports[0].ID != report.ID {
@@ -327,7 +411,7 @@ func TestPersistParserSideEffectsUsesClaimedMutationBoundary(t *testing.T) {
 	}
 
 	store.err = app.ErrConflict
-	if err := persistParserSideEffects(context.Background(), store, app.PersistedState{}, job, mutation); !errors.Is(err, app.ErrConflict) {
+	if err := persistParserSideEffects(context.Background(), store, job, mutation); !errors.Is(err, app.ErrConflict) {
 		t.Fatalf("stale claimed mutation error = %v, want conflict", err)
 	}
 }
@@ -563,9 +647,10 @@ func TestProcessJobWithObjectsRequiresWritableStateForParserSideEffects(t *testi
 		"sbom_test": {ID: "sbom_test", TenantID: "ten_test"},
 	}}
 	object := app.Object{Key: "tenants/ten_test/payloads/sbom.json", TenantID: "ten_test", Digest: hash, Bytes: body}
-	err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job)
-	if err == nil || !strings.Contains(err.Error(), "writable state") {
-		t.Fatalf("err=%v", err)
+	store := &fakeFocusedReadOnlyStateStore{state: state}
+	err := processJobWithObjects(context.Background(), store, fakeObjectGetter{object: object}, job)
+	if err == nil || err.Error() != "load durable state for outbox job" || store.loadCalls != 0 || store.focusCalls != 0 || store.state.SBOMs["sbom_test"].SpecVersion != "" {
+		t.Fatalf("missing claimed writer reached state: err=%v whole=%d focused=%d", err, store.loadCalls, store.focusCalls)
 	}
 }
 
@@ -1402,7 +1487,7 @@ func TestVEXDecisionAuditFailurePersistsOnlyFailedImportReport(t *testing.T) {
 	if appendCalls != 2 {
 		t.Fatalf("audit append calls = %d, want failure after one successful append", appendCalls)
 	}
-	store := &fakeStateStore{ok: true}
+	store := &fakeStateStore{ok: true, state: snapshot}
 	err = failVEXImportReportWithSnapshot(context.Background(), store, &snapshot, job, snapshot.VEXDocuments["vex_test"], err)
 	if err == nil || !strings.Contains(err.Error(), "append replayed vex decision audit entry") {
 		t.Fatalf("failure report err=%v, want original audit append failure", err)

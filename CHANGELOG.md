@@ -52,6 +52,10 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
   constructing Ledger or runtime services. Generated specification bytes and
   native server dependency requirements are unchanged.
 
+- Removed obsolete worker whole-state read, snapshot-publication and unfenced
+  mutation fallbacks. Parser writes require claim-fenced row mutations; existing
+  parser, replay, tenant and failure assertions remain on focused test fixtures.
+
 - PostgreSQL SSO session revocation/logout now use focused, hash-free locked
   metadata and an atomic lifecycle/audit/replay transaction. Cookie-only
   mutations require a matching HTTPS Origin in both profiles; durable logout

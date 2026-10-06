@@ -29,8 +29,9 @@ mutations, dependency inspection and payload lifecycle transitions; they do not
 expose `LoadState` or `SaveState`. Object storage must support staged/finalized
 payloads and bounded reads. Missing or typed-nil ports fail startup. Unknown job
 kinds fail as `poisoned` before state/object reads, and an incomplete focused
-parser store cannot regain a snapshot fallback. Legacy snapshot helpers remain
-only for explicit compatibility test stores, not daemon composition.
+parser store cannot regain a snapshot fallback. EVY-906 removed the worker's
+whole-state read, snapshot publication and unfenced mutation branches, including
+the old compatibility-test fallbacks. Test fixtures now use the focused ports.
 
 `SIGINT` and `SIGTERM` cancel the worker's runtime/request context and interrupt
 idle polling waits. Runtime resources close when the loop exits. A canceled
@@ -115,17 +116,17 @@ The production PostgreSQL worker persists only the records changed by a parser
 job (for example one SBOM projection, one attestation, or the VEX decisions,
 report, and audit entries created by that replay). It does not write the full
 state snapshot loaded before parsing, so an unrelated command committed during
-the replay cannot be overwritten by stale worker state. The full-snapshot
-`SaveState` path remains only as a compatibility fallback for local test stores
-that do not implement focused release-ledger mutations; production wiring does
-implement the focused mutation contract.
+the replay cannot be overwritten by stale worker state. There is no full-snapshot
+`SaveState` or unfenced release-ledger mutation fallback. Parser publication
+requires the claimed job ID and lease token, preserves storage conflicts, and
+rejects cancellation or typed-nil writers before invoking storage.
 
 For `parse_sbom`, `parse_vulnerability_scan`, and `parse_openapi_contract`, the
 production worker reads only the claimed tenant's subject through a
 source-validated PostgreSQL point query before replay. This transitional
 one-subject state shape is paired with lease-fenced focused mutations in native
-composition. An incomplete focused store is rejected, not sent through the
-compatibility loader.
+composition. An incomplete or typed-nil focused store is rejected before its
+state read; no compatibility loader exists in the worker.
 `parse_vex` reads the claimed document and source, its import reports,
 same-release scans and finding decisions under one tenant-filtered snapshot.
 It validates current source and parent ownership before replay and rejects

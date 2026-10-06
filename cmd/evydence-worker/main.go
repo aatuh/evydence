@@ -348,23 +348,8 @@ func classifyWorkerFailure(err error) postgres.JobFailure {
 	}
 }
 
-// Legacy snapshot reads are available only to compatibility test helpers;
-// native composition accepts the closed nativeJobStateStore instead.
-type legacyJobStateLoader interface {
-	LoadState(context.Context) (app.PersistedState, bool, error)
-}
-
 type jobDependencyInspector interface {
 	HasActiveJobDependency(context.Context, string, string, string, string) (bool, error)
-}
-
-type jobStateStore interface {
-	legacyJobStateLoader
-	SaveState(context.Context, app.PersistedState) error
-}
-
-type jobReleaseLedgerMutationStore interface {
-	ApplyReleaseLedgerMutation(context.Context, app.ReleaseLedgerMutation) error
 }
 
 type jobClaimedReleaseLedgerMutationStore interface {
@@ -701,7 +686,7 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 		return errors.New("unsupported outbox job kind")
 	}
 	if stateChanged {
-		return persistParserSideEffects(ctx, state, snapshot, job, sideEffects)
+		return persistParserSideEffects(ctx, state, job, sideEffects)
 	}
 	return nil
 }
@@ -716,19 +701,17 @@ func loadOutboxJobState(ctx context.Context, state any, job postgres.ClaimedJob)
 	if !supportedWorkerJob(job.Kind) || job.Kind == "finalize_payload" {
 		return app.PersistedState{}, false, errors.New("unsupported outbox job kind")
 	}
-	if focused, ok := state.(jobFocusedStateLoader); ok {
-		if _, parser := expectedParserVersions[job.Kind]; parser {
-			if _, claimed := state.(jobClaimedReleaseLedgerMutationStore); !claimed {
-				return app.PersistedState{}, false, errors.New("focused parser state requires claim-fenced writes")
-			}
+	focused, ok := state.(jobFocusedStateLoader)
+	if !ok || missingWorkerPort(focused) {
+		return app.PersistedState{}, false, errors.New("worker scoped state reader is required")
+	}
+	if _, parser := expectedParserVersions[job.Kind]; parser {
+		claimed, ok := state.(jobClaimedReleaseLedgerMutationStore)
+		if !ok || missingWorkerPort(claimed) {
+			return app.PersistedState{}, false, errors.New("focused parser state requires claim-fenced writes")
 		}
-		return focused.LoadWorkerJobState(ctx, job)
 	}
-	legacy, ok := state.(legacyJobStateLoader)
-	if !ok {
-		return app.PersistedState{}, false, errors.New("worker state reader is required")
-	}
-	return legacy.LoadState(ctx)
+	return focused.LoadWorkerJobState(ctx, job)
 }
 
 func requireParserPayloadReference(job postgres.ClaimedJob, snapshot app.PersistedState) error {
@@ -760,25 +743,19 @@ func requireParserPayloadReference(job postgres.ClaimedJob, snapshot app.Persist
 	return nil
 }
 
-func persistParserSideEffects(ctx context.Context, state any, snapshot app.PersistedState, job postgres.ClaimedJob, sideEffects app.ReleaseLedgerMutation) error {
-	if claimed, ok := state.(jobClaimedReleaseLedgerMutationStore); ok {
-		if err := claimed.ApplyClaimedReleaseLedgerMutation(ctx, job.ID, job.LeaseToken, sideEffects); err != nil {
-			return fmt.Errorf("persist claimed parser side effects: %w", err)
-		}
-		return nil
+func persistParserSideEffects(ctx context.Context, state any, job postgres.ClaimedJob, sideEffects app.ReleaseLedgerMutation) error {
+	if ctx == nil {
+		return errors.New("worker context is required")
 	}
-	if focused, ok := state.(jobReleaseLedgerMutationStore); ok {
-		if err := focused.ApplyReleaseLedgerMutation(ctx, sideEffects); err != nil {
-			return fmt.Errorf("persist durable parser side effects: %w", err)
-		}
-		return nil
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	stateStore, ok := state.(jobStateStore)
-	if !ok {
-		return errors.New("durable parser side effects require writable state")
+	claimed, ok := state.(jobClaimedReleaseLedgerMutationStore)
+	if !ok || missingWorkerPort(claimed) {
+		return errors.New("parser side effects require claim-fenced writes")
 	}
-	if err := stateStore.SaveState(ctx, snapshot); err != nil {
-		return fmt.Errorf("persist durable parser side effects: %w", err)
+	if err := claimed.ApplyClaimedReleaseLedgerMutation(ctx, job.ID, job.LeaseToken, sideEffects); err != nil {
+		return fmt.Errorf("persist claimed parser side effects: %w", err)
 	}
 	return nil
 }
@@ -1979,7 +1956,7 @@ func failVEXImportReportWithSnapshot(ctx context.Context, state any, snapshot *a
 			return cause
 		}
 		sideEffects := app.ReleaseLedgerMutation{VEXImportReports: []domain.VEXImportReport{report}}
-		if err := persistParserSideEffects(ctx, state, *snapshot, job, sideEffects); err != nil {
+		if err := persistParserSideEffects(ctx, state, job, sideEffects); err != nil {
 			return err
 		}
 	}
@@ -2006,7 +1983,7 @@ func recordVEXImportReportFailure(ctx context.Context, state any, job postgres.C
 		return
 	}
 	sideEffects := app.ReleaseLedgerMutation{VEXImportReports: []domain.VEXImportReport{report}}
-	_ = persistParserSideEffects(ctx, state, snapshot, job, sideEffects)
+	_ = persistParserSideEffects(ctx, state, job, sideEffects)
 }
 
 func updateVEXImportReportFailure(state *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, cause error) bool {

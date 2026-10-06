@@ -49,7 +49,8 @@ reads, claim-fenced writes, dependency inspection and payload lifecycle ports.
 Its object adapter must support bounded replay reads. Unknown job kinds are
 rejected before data access; production cannot select a whole-state load or
 snapshot publication fallback. Signals cancel runtime I/O and idle poll waits.
-Legacy snapshot helpers remain only in compatibility test paths. See the
+EVY-906 has physically removed the worker's whole-state read, snapshot
+publication and unfenced mutation fallbacks; tests use focused ports. See the
 [worker outbox contract](reference/worker-outbox.md) for evidence and limits.
 EVY-905 composition/query migration passed its complete local production gate.
 That includes full tests, race, live dependencies, coverage, migration compatibility,
