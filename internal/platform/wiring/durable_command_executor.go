@@ -18,6 +18,16 @@ func BuildDurableCommandExecutor(factory app.UnitOfWorkFactory) (httpapi.Durable
 
 type durableCommandExecutor struct{ factory app.UnitOfWorkFactory }
 
+func (e durableCommandExecutor) WithBodyReplayAuthorization(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, authorize func(context.Context) error, authorizeReplay func(context.Context, any) error, run func(context.Context) (int, any, error)) (int, any, error) {
+	if authorize == nil || authorizeReplay == nil || run == nil {
+		return 0, nil, app.ErrValidation
+	}
+	x := app.IdempotencyUnitOfWork{Transactions: e.factory, Authorize: func(ctx context.Context, _ app.Repositories) error { return authorize(ctx) }, AuthorizeReplay: func(ctx context.Context, _ app.Repositories, response any) error {
+		return authorizeReplay(ctx, response)
+	}}
+	return x.WithBody(ctx, actor, method, path, key, body, func(ctx context.Context, _ app.Repositories) (int, any, error) { return run(ctx) })
+}
+
 func (e durableCommandExecutor) WithBodyDigest(ctx context.Context, actor domain.Actor, method, path, key, digest string, authorize func(context.Context) error, run func(context.Context) (int, any, error)) (int, any, error) {
 	if authorize == nil || run == nil {
 		return 0, nil, app.ErrValidation

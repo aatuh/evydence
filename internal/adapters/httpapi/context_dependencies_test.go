@@ -54,6 +54,9 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.localBundleImport != ledger {
 		t.Fatal("local bundle import dependency was not rebound")
 	}
+	if server.localEvidenceBundles != ledger {
+		t.Fatal("local export dependency was not rebound")
+	}
 	if server.evidenceIngestion != ledger {
 		t.Fatal("evidence ingestion service was not rebound")
 	}
@@ -72,7 +75,7 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 	t.Parallel()
 
 	targets := map[string]string{
-		"router.go":             "createWithActorFingerprint",
+		"router.go":             "createWithActorFingerprintAndResponseGuard",
 		"ingestion_handlers.go": "createStreamedEvidence",
 	}
 	fset := token.NewFileSet()
@@ -140,6 +143,7 @@ func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
 		{"router.go", "create", "createWithLimit", ""},
 		{"router.go", "createWithLimit", "createWithFingerprint", "nil"},
 		{"router.go", "createWithFingerprint", "createWithActorFingerprint", "actorFingerprint"},
+		{"router.go", "createWithActorFingerprint", "createWithActorFingerprintAndResponseGuard", "fingerprint"},
 	} {
 		file, err := parser.ParseFile(token.NewFileSet(), tc.filename, nil, 0)
 		if err != nil {
@@ -171,13 +175,22 @@ func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
 				}
 				calls++
 				if tc.fingerprint != "" {
-					if len(call.Args) != 5 {
+					wantArgs := 5
+					if tc.target == "createWithActorFingerprintAndResponseGuard" {
+						wantArgs = 6
+					}
+					if len(call.Args) != wantArgs {
 						t.Errorf("%s executor argument count changed", tc.function)
 						return true
 					}
 					arg, ok := call.Args[4].(*ast.Ident)
 					if !ok || arg.Name != tc.fingerprint {
 						t.Errorf("%s fingerprint selection changed", tc.function)
+					}
+					if wantArgs == 6 {
+						if last, ok := call.Args[5].(*ast.Ident); !ok || last.Name != "nil" {
+							t.Errorf("%s unexpectedly enabled response authorization", tc.function)
+						}
 					}
 				}
 				return true

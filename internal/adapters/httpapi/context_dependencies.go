@@ -124,7 +124,14 @@ type ReleaseBundleCommands interface {
 }
 
 type EvidenceBundleCommands interface {
+	AuthorizeEvidenceBundleExport(context.Context, identitydomain.Actor, string, []string) error
+	AuthorizeEvidenceBundleReplay(context.Context, identitydomain.Actor, string, []string) error
 	ExportEvidenceBundle(context.Context, identitydomain.Actor, string, []string) (packagedomain.EvidenceBundle, error)
+}
+
+type localEvidenceBundleCommands interface {
+	AuthorizeEvidenceBundleExport(context.Context, domain.Actor, string, []string) error
+	ExportEvidenceBundle(context.Context, domain.Actor, string, []string) (domain.EvidenceBundle, error)
 }
 
 type SigningKeyCommands interface {

@@ -14,6 +14,10 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
 
+func (r packages) LockEvidenceBundleTenant(ctx context.Context, tenant string) error {
+	return r.LockBundleImportTenant(ctx, tenant)
+}
+
 // ReadEvidenceBundleCoordinates selects bounded reference fields only. It is
 // shared by snapshot readers and the commit-time row-locking guard.
 func ReadEvidenceBundleCoordinates(ctx context.Context, tx pgx.Tx, tenantID, id string, lock bool) (application.ResourceReferences, error) {

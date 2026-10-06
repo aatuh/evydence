@@ -101,6 +101,7 @@ type Server struct {
 	localEvidenceCreation             localEvidenceCreationCommands
 	localReportTemplates              localReportTemplateCommands
 	localBundleImport                 localBundleImportCommand
+	localEvidenceBundles              localEvidenceBundleCommands
 	openAPIIngestionCommands          OpenAPIIngestionCommands
 	sbomIngestionCommands             SBOMIngestionCommands
 	scanIngestionCommands             VulnerabilityScanIngestionCommands
@@ -586,6 +587,11 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.BundleImportCommand != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused bundle import requires durable idempotency")
 	}
+	if opts.EvidenceBundleCommands != nil {
+		if _, ok := opts.DurableCommandExecutor.(DurableReplayCommandExecutor); !ok {
+			return nil, errors.New("focused bundle export requires durable historical-selection authorization")
+		}
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -801,6 +807,7 @@ func (s *Server) bindLedger(ledger *app.Ledger) {
 	s.localEvidenceCreation = ledger
 	s.localReportTemplates = ledger
 	s.localBundleImport = ledger
+	s.localEvidenceBundles = ledger
 	s.evidenceIngestion = ledger
 	s.riskDecisions = ledger
 	s.packages = ledger
@@ -1865,32 +1872,6 @@ func (s *Server) craReadinessHTMLPackage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeData(w, http.StatusOK, report)
-}
-
-func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ReleaseID   string   `json:"release_id"`
-		EvidenceIDs []string `json:"evidence_ids"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if err := validateNonNullableObjectFields(body, "release_id", "evidence_ids"); err != nil {
-			return 0, nil, err
-		}
-		for _, id := range req.EvidenceIDs {
-			if strings.TrimSpace(id) == "" {
-				return 0, nil, app.ErrValidation
-			}
-		}
-		if s.evidenceBundleCommands != nil {
-			bundle, err := s.evidenceBundleCommands.ExportEvidenceBundle(ctx, actor, req.ReleaseID, req.EvidenceIDs)
-			return http.StatusCreated, evidenceBundleFromCommands(bundle), mapCustomerPackageAccessError(err)
-		}
-		bundle, err := s.packages.ExportEvidenceBundle(ctx, actor, req.ReleaseID, req.EvidenceIDs)
-		return http.StatusCreated, bundle, err
-	})
 }
 
 func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
@@ -3461,6 +3442,10 @@ func (s *Server) createWithFingerprint(w http.ResponseWriter, r *http.Request, l
 }
 
 func (s *Server) createWithActorFingerprint(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error), fingerprint func(*http.Request, domain.Actor, []byte) ([]byte, error)) {
+	s.createWithActorFingerprintAndResponseGuard(w, r, limit, run, fingerprint, nil)
+}
+
+func (s *Server) createWithActorFingerprintAndResponseGuard(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error), fingerprint func(*http.Request, domain.Actor, []byte) ([]byte, error), guardResponse func(context.Context, domain.Actor, any) error) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -3484,6 +3469,9 @@ func (s *Server) createWithActorFingerprint(w http.ResponseWriter, r *http.Reque
 		scope.bind(&commandServer)
 		return run(&commandServer, commandCtx, actor, body)
 	})
+	if err == nil && guardResponse != nil {
+		err = guardResponse(ctx, actor, response)
+	}
 	if err != nil {
 		writeProblem(w, r, err)
 		return

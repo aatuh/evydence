@@ -23,6 +23,10 @@ type IdempotencyUnitOfWork struct {
 	// the active transaction before reservation, including replay and failure.
 	// Omit only when the caller already enforces its current replay policy.
 	Authorize func(context.Context, Repositories) error
+	// AuthorizeReplay rechecks current access to an original saved selection
+	// after a matching completed reservation, inside the same transaction. It
+	// receives only the safe replay projection and must remain read-only.
+	AuthorizeReplay func(context.Context, Repositories, any) error
 }
 
 type idempotencyExecution struct {
@@ -90,7 +94,18 @@ func (executor IdempotencyUnitOfWork) withReservation(ctx context.Context, reser
 			return err
 		}
 		switch result.Outcome {
-		case IdempotencyReservationReplay, IdempotencyReservationPending, IdempotencyReservationFailure:
+		case IdempotencyReservationReplay:
+			if executor.AuthorizeReplay != nil {
+				record, err := replayableIdempotencyRecord(result.Record)
+				if err != nil {
+					return err
+				}
+				if err := executor.AuthorizeReplay(withActiveRepositories(txCtx, repositories), repositories, record.Response); err != nil {
+					return err
+				}
+			}
+			return nil
+		case IdempotencyReservationPending, IdempotencyReservationFailure:
 			return nil
 		case IdempotencyReservationAcquired, IdempotencyReservationRecovered:
 			run, err := prepare(txCtx, repositories)

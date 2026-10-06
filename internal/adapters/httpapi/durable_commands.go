@@ -15,6 +15,12 @@ type DurableCommandExecutor interface {
 	WithBody(context.Context, domain.Actor, string, string, string, []byte, func(context.Context) error, func(context.Context) (int, any, error)) (int, any, error)
 }
 
+// DurableReplayCommandExecutor can authorize a historical server-selected
+// scope without rerunning a command or reconstructing a current snapshot.
+type DurableReplayCommandExecutor interface {
+	WithBodyReplayAuthorization(context.Context, domain.Actor, string, string, string, []byte, func(context.Context) error, func(context.Context, any) error, func(context.Context) (int, any, error)) (int, any, error)
+}
+
 func (s *Server) createDurable(w http.ResponseWriter, r *http.Request, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error)) {
 	s.createDurableAfterCommit(w, r, authorize, run, nil)
 }
@@ -34,6 +40,10 @@ func (s *Server) createDurableWithFingerprint(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) createDurableWithLimitAndFingerprint(w http.ResponseWriter, r *http.Request, limit int64, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error), afterCommit func(), fingerprint func(domain.Actor, []byte) ([]byte, error)) {
+	s.executeDurableCreate(w, r, limit, authorize, run, afterCommit, fingerprint, nil)
+}
+
+func (s *Server) executeDurableCreate(w http.ResponseWriter, r *http.Request, limit int64, authorize func(context.Context, domain.Actor, []byte) error, run func(context.Context, domain.Actor, []byte) (int, any, error), afterCommit func(), fingerprint func(domain.Actor, []byte) ([]byte, error), authorizeReplay func(context.Context, domain.Actor, any) error) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -51,7 +61,20 @@ func (s *Server) createDurableWithLimitAndFingerprint(w http.ResponseWriter, r *
 			return
 		}
 	}
-	status, response, err := s.durableCommandExecutor.WithBody(r.Context(), actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), input, func(ctx context.Context) error { return authorize(ctx, actor, body) }, func(ctx context.Context) (int, any, error) { return run(ctx, actor, body) })
+	guard := func(ctx context.Context) error { return authorize(ctx, actor, body) }
+	command := func(ctx context.Context) (int, any, error) { return run(ctx, actor, body) }
+	var status int
+	var response any
+	if authorizeReplay != nil {
+		executor, ok := s.durableCommandExecutor.(DurableReplayCommandExecutor)
+		if !ok {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		status, response, err = executor.WithBodyReplayAuthorization(r.Context(), actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), input, guard, func(ctx context.Context, v any) error { return authorizeReplay(ctx, actor, v) }, command)
+	} else {
+		status, response, err = s.durableCommandExecutor.WithBody(r.Context(), actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), input, guard, command)
+	}
 	if err != nil {
 		writeProblem(w, r, err)
 		return

@@ -69,6 +69,13 @@ func (e trustHTTPReplayExecutor) WithBody(ctx context.Context, a domain.Actor, m
 	return x.WithBody(ctx, a, method, path, key, body, func(ctx context.Context, _ app.Repositories) (int, any, error) { return run(ctx) })
 }
 
+func (e trustHTTPReplayExecutor) WithBodyReplayAuthorization(ctx context.Context, a domain.Actor, method, path, key string, body []byte, authorize func(context.Context) error, authorizeReplay func(context.Context, any) error, run func(context.Context) (int, any, error)) (int, any, error) {
+	x := app.IdempotencyUnitOfWork{Transactions: e.factory, Authorize: func(ctx context.Context, _ app.Repositories) error { return authorize(ctx) }, AuthorizeReplay: func(ctx context.Context, _ app.Repositories, response any) error {
+		return authorizeReplay(ctx, response)
+	}}
+	return x.WithBody(ctx, a, method, path, key, body, func(ctx context.Context, _ app.Repositories) (int, any, error) { return run(ctx) })
+}
+
 func (f *trustConfigurationHTTPFake) CreateSigningProvider(_ context.Context, actor identitydomain.Actor, input verificationapp.CreateSigningProviderInput) (verificationdomain.SigningProvider, error) {
 	f.providers++
 	f.providerInput = input

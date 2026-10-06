@@ -3095,7 +3095,7 @@ they are not redacted customer packages or compliance conclusions.
 | `GET` | `/v1/release-bundles/{id}` | Read a tenant-owned bundle with a current release and `bundle:read` grant. |
 | `GET` | `/v1/release-bundles/{id}/manifest` | Read its manifest under the same grant. |
 | `GET` | `/v1/release-bundles/{id}/verify` | Verify bundle. |
-| `POST` | `/v1/evidence-bundles` | Export evidence bundle. |
+| `POST` | `/v1/evidence-bundles` | Export a signed reference manifest; see [export replay and limits](#evidence-bundle-export). |
 | `POST` | `/v1/evidence-bundles/import` | Record a manifest-validation receipt; see [import limits and non-claims](reference/evidence-format-compatibility.md#portable-evidence-bundle-import-receipts). |
 | `POST` | `/v1/verify` | Verify supported subject types. |
 | `GET` | `/v1/audit-chain/verify` | Verify tenant audit chain. |
@@ -3125,6 +3125,42 @@ they are not redacted customer packages or compliance conclusions.
 | `GET` | `/v1/reports/custody-review` | Review tenant signing-provider and object-lock verification metadata for deployment custody review. |
 | `POST` | `/v1/backup-manifests` | Generate backup manifest. |
 | `GET` | `/v1/backup-manifests/{id}/verify` | Verify backup manifest. |
+
+### Evidence Bundle Export
+
+`POST /v1/evidence-bundles` requires `bundle:read`. Omitted or empty
+`evidence_ids` select currently authorized evidence; explicit IDs are trimmed,
+sorted and deduplicated. A supplied `release_id` also needs current release-root
+authority. Foreign, missing, inconsistent or unauthorized references fail
+closed; a narrower project grant alone does not authorize a release-root export.
+
+PostgreSQL uses native durable HTTP execution, with no Ledger cloning, replay
+or projection refresh. Every retry checks the requested root/references. A
+completed retry additionally checks current ownership and grants for the
+original saved evidence IDs, inside the same transaction as replay. Newly
+available evidence is not added. Replay does not reread snapshot/proof metadata
+or signing keys, hash a manifest, sign again, or allocate bundle clocks/IDs.
+Signing-key revocation does not rewrite a historical bundle; replay is not a
+current verification result. Fresh exports keep the committed-snapshot,
+current-coordinate and signing-lifecycle checks, with signature, bundle, caller
+audit and replay committing atomically. No worker job is added.
+
+Both profiles reject unknown, duplicate, case-aliased or null fields/items,
+invalid UTF-8, NUL and raw IDs over 1024 bytes. The 64 KiB HTTP body and existing
+JSON structural limits remain. PostgreSQL snapshot limits remain 4096 combined
+evidence/proof rows and 8 MiB of proof metadata; supported server-selected
+replay IDs use that snapshot bound, not the smaller HTTP request array budget.
+Unsupported saved selections fail closed instead of being reselected.
+Original request-byte fingerprints, response/schema versions and the existing
+normalized-JSON hash profile are unchanged. New durable timestamps use UTC
+microseconds; historical records are untouched. Cookie writes require
+same-host HTTPS `Origin`, with explicit Bearer precedence. Stricter malformed
+input limits are unreleased compatibility changes requiring release review.
+
+Local memory checks the actual response selection before disclosure but remains
+nondurable, without a database ownership transaction. A bundle contains
+references and verification metadata, not payload ingestion or proof of
+evidence completeness, external key custody, release security or compliance.
 
 ### Artifact Signature Recording
 

@@ -914,7 +914,18 @@ or receipt clock/ID allocation. Source identities and signatures are labels,
 not authorization coordinates. Fresh work commits only a receipt and caller
 audit, never supplied evidence, manifest metadata, or signature trust. The
 Service bridge remains a local compatibility path and cannot satisfy native
-replay guards; export and startup retirement remain EVY-905 work.
+replay guards; startup retirement remains EVY-905 work.
+
+Evidence-bundle export also uses native durable HTTP execution with bounded
+Package-owned scope guards. The requested root/explicit references are checked
+before reservation; a matching completed replay additionally checks the saved
+server-selected IDs inside the same outer transaction. It takes the shared
+writer fence before tenant/selected-parent locks and never reruns snapshot,
+hashing or signing work on replay. Fresh work retains committed snapshots and
+commit-time coordinate/signature lifecycle validation. HTTP callbacks cannot
+bind a Ledger. The local-memory compatibility path explicitly guards the actual
+response before disclosure and is not a durable ownership transaction. These
+changes do not finish startup retirement or the remaining EVY-905 final gates.
 
 Go dependency cycles are prohibited. A context domain package may depend only
 on standard library and small shared value/event packages. An application

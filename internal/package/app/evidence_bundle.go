@@ -43,8 +43,10 @@ func (s *ExportCommands) ExportEvidenceBundle(ctx context.Context, actor identit
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", ScopeOnly: true}); err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
-	releaseID = strings.TrimSpace(releaseID)
-	requestedIDs, err := normalizedNonEmptyStrings(evidenceIDs, true)
+	if err := validateReportTemplateTenant(actor); err != nil {
+		return packagedomain.EvidenceBundle{}, err
+	}
+	releaseID, requestedIDs, err := NormalizeEvidenceBundleSelection(releaseID, evidenceIDs)
 	if err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
@@ -52,6 +54,9 @@ func (s *ExportCommands) ExportEvidenceBundle(ctx context.Context, actor identit
 	snapshot, err := s.config.Reader.ReadEvidenceBundleSnapshot(ctx, actor.TenantID, releaseID, now)
 	if err != nil {
 		return packagedomain.EvidenceBundle{}, err
+	}
+	if len(snapshot.Evidence)+len(snapshot.ObjectLockProofs) > MaxBundleSnapshotRows {
+		return packagedomain.EvidenceBundle{}, ErrConflict
 	}
 	snapshot = cloneEvidenceBundleSnapshot(snapshot)
 	if snapshot.TenantID != actor.TenantID || snapshot.ReleaseID != releaseID {
