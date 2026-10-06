@@ -14,8 +14,36 @@ import (
 )
 
 type bundleImportHTTPFake struct {
-	calls int
-	err   error
+	calls    int
+	guards   int
+	guardErr error
+	err      error
+}
+
+func (f *bundleImportHTTPFake) AuthorizeBundleImport(context.Context, identitydomain.Actor, packagedomain.EvidenceBundle) error {
+	f.guards++
+	return f.guardErr
+}
+
+func TestBundleImportRequiresNativeReplayAndCurrentAuthority(t *testing.T) {
+	base, secret := testServer(t)
+	f := &bundleImportHTTPFake{}
+	if s, err := NewServerWithOptions(base.ledger, ServerOptions{BundleImportCommand: f}); err == nil || s != nil {
+		t.Error("import receipt accepted aggregate replay")
+	}
+	s, err := NewServerWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ledger, s.packages, s.localBundleImport = nil, nil, nil
+	body := `{"manifest":{"bundle_version":"evidence-bundle.v1.0.0","evidence_ids":[]},"evidence_ids":[],"manifest_hash":"sha256:` + strings.Repeat("a", 64) + `"}`
+	one := postRaw(t, s, secret, "/v1/evidence-bundles/import", "original", []byte(body), 201)
+	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/evidence-bundles/import", "original", []byte(body), 201))
+	f.guardErr = application.ErrForbidden
+	postRaw(t, s, secret, "/v1/evidence-bundles/import", "original", []byte(body), 403)
+	if f.calls != 1 || f.guards != 3 {
+		t.Fatal("import replay bypassed current target authority", f)
+	}
 }
 
 func (f *bundleImportHTTPFake) ImportEvidenceBundle(_ context.Context, actor identitydomain.Actor, bundle packagedomain.EvidenceBundle) (packagedomain.EvidenceBundleImport, error) {
@@ -24,16 +52,20 @@ func (f *bundleImportHTTPFake) ImportEvidenceBundle(_ context.Context, actor ide
 }
 
 func TestBundleImportHandlerUsesFocusedCommandAndReplaysReceipt(t *testing.T) {
-	server, secret := testServer(t)
+	base, secret := testServer(t)
 	commands := &bundleImportHTTPFake{}
-	server.bundleImportCommand = commands
+	server, err := NewServerWithOptions(base.ledger, ServerOptions{BundleImportCommand: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	if err != nil {
+		t.Fatal(err)
+	}
 	path := "/v1/evidence-bundles/import"
 	input := map[string]any{"manifest": map[string]any{"bundle_version": packagedomain.EvidenceBundleSchemaVersion, "evidence_ids": []string{"ev_1"}}, "manifest_hash": "sha256:input", "evidence_ids": []string{"ev_1"}}
 	response := postJSON(t, server, secret, path, "bundle-import-focused", input, http.StatusCreated)
 	if dataField(t, response, "id") != "ebi_focused" || dataField(t, response, "bundle_hash") != "sha256:input" || !strings.Contains(response, `"imported_count":1`) {
 		t.Fatal(response)
 	}
-	if replay := postJSON(t, server, secret, path, "bundle-import-focused", input, http.StatusCreated); replay != response || commands.calls != 1 {
+	assertTrustHTTPReplay(t, response, postJSON(t, server, secret, path, "bundle-import-focused", input, http.StatusCreated))
+	if commands.calls != 1 {
 		t.Fatal("replay reran import")
 	}
 	for i, bad := range []string{`{"manifest":[],"manifest_hash":"hash"}`, `{"manifest_hash":"a","manifest_hash":"b"}`, `{"unknown":true}`, `[]`, `{"manifest":{}} {}`} {

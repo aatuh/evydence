@@ -20,7 +20,7 @@ func BuildBundleImportCommand(factory app.UnitOfWorkFactory) (*packageapp.Import
 	if factory == nil {
 		return nil, errors.New("bundle import transactions are required")
 	}
-	return packageapp.NewImportCommands(packageapp.ImportCommandConfig{Transactions: bundleImportTransactions{factory}, Authorizer: packagequery.NewBundleImportAuthorizer(), Hasher: packageCanonicalizer{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return packageapp.NewImportCommands(packageapp.ImportCommandConfig{Transactions: bundleImportTransactions{factory}, Authorizer: packagequery.NewBundleImportAuthorizer(), Hasher: packageCanonicalizer{}, Clock: application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type bundleImportTransactions struct{ factory app.UnitOfWorkFactory }
@@ -37,6 +37,14 @@ func (t bundleImportTransactions) ExecuteBundleImport(ctx context.Context, comma
 type bundleImportTransaction struct {
 	packages app.PackageRepository
 	audit    app.AuditRepository
+}
+
+func (t bundleImportTransaction) LockBundleImportTenant(ctx context.Context, tenant string) error {
+	r, ok := t.packages.(packageapp.BundleImportScopeLocker)
+	if !ok {
+		return packageapp.ErrValidation
+	}
+	return mapPackageAccessWriteError(r.LockBundleImportTenant(ctx, tenant))
 }
 
 func (t bundleImportTransaction) InsertEvidenceBundleImport(ctx context.Context, record packagedomain.EvidenceBundleImport) error {

@@ -3096,7 +3096,7 @@ they are not redacted customer packages or compliance conclusions.
 | `GET` | `/v1/release-bundles/{id}/manifest` | Read its manifest under the same grant. |
 | `GET` | `/v1/release-bundles/{id}/verify` | Verify bundle. |
 | `POST` | `/v1/evidence-bundles` | Export evidence bundle. |
-| `POST` | `/v1/evidence-bundles/import` | Import evidence bundle. |
+| `POST` | `/v1/evidence-bundles/import` | Record a manifest-validation receipt; see [import limits and non-claims](reference/evidence-format-compatibility.md#portable-evidence-bundle-import-receipts). |
 | `POST` | `/v1/verify` | Verify supported subject types. |
 | `GET` | `/v1/audit-chain/verify` | Verify tenant audit chain. |
 | `GET` | `/v1/audit-log` | List tenant audit entries; admin scope required, including a tenant-wide grant for human sessions. |

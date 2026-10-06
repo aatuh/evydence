@@ -109,7 +109,13 @@ type localReportTemplateCommands interface {
 }
 
 type BundleImportCommand interface {
+	AuthorizeBundleImport(context.Context, domain.Actor, packagedomain.EvidenceBundle) error
 	ImportEvidenceBundle(context.Context, domain.Actor, packagedomain.EvidenceBundle) (packagedomain.EvidenceBundleImport, error)
+}
+
+type localBundleImportCommand interface {
+	AuthorizeBundleImport(context.Context, domain.Actor, packagedomain.EvidenceBundle) error
+	ImportEvidenceBundle(context.Context, domain.Actor, domain.EvidenceBundle) (domain.EvidenceBundleImport, error)
 }
 
 type ReleaseBundleCommands interface {

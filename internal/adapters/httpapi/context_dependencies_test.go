@@ -51,6 +51,9 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.localReportTemplates != ledger {
 		t.Fatal("local report template dependency was not rebound")
 	}
+	if server.localBundleImport != ledger {
+		t.Fatal("local bundle import dependency was not rebound")
+	}
 	if server.evidenceIngestion != ledger {
 		t.Fatal("evidence ingestion service was not rebound")
 	}

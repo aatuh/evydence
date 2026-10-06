@@ -906,6 +906,16 @@ The existing staged-payload capability remains internal, and safe replay still
 omits opaque payload references. This does not finish other wrappers or startup
 Ledger retirement in EVY-905.
 
+Portable evidence-bundle import now uses native durable HTTP execution and a
+Package-owned target-tenant scope locker. Every retry checks current
+tenant-wide bundle permission and holds the tenant lock after the shared
+writer fence through the outer replay transaction, without manifest hashing
+or receipt clock/ID allocation. Source identities and signatures are labels,
+not authorization coordinates. Fresh work commits only a receipt and caller
+audit, never supplied evidence, manifest metadata, or signature trust. The
+Service bridge remains a local compatibility path and cannot satisfy native
+replay guards; export and startup retirement remain EVY-905 work.
+
 Go dependency cycles are prohibited. A context domain package may depend only
 on standard library and small shared value/event packages. An application
 package may depend on its own domain and inward-facing ports. Adapters and

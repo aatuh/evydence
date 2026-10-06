@@ -169,6 +169,12 @@ func (s *ImportCommands) ImportEvidenceBundle(ctx context.Context, actor identit
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", ScopeOnly: true}); err != nil {
 		return packagedomain.EvidenceBundleImport{}, err
 	}
+	if err := validateReportTemplateTenant(actor); err != nil {
+		return packagedomain.EvidenceBundleImport{}, err
+	}
+	if err := ValidatePortableBundleInput(bundle); err != nil {
+		return packagedomain.EvidenceBundleImport{}, err
+	}
 	bundle = cloneEvidenceBundle(bundle)
 	if len(bundle.Manifest) == 0 || strings.TrimSpace(bundle.ManifestHash) == "" {
 		return packagedomain.EvidenceBundleImport{}, ErrValidation
@@ -192,15 +198,18 @@ func (s *ImportCommands) ImportEvidenceBundle(ctx context.Context, actor identit
 	if err != nil || !reflect.DeepEqual(manifestIDs, outerIDs) {
 		return packagedomain.EvidenceBundleImport{}, ErrValidation
 	}
-	now := s.config.Clock.Now().UTC()
-	record := packagedomain.EvidenceBundleImport{
-		ID: s.config.IDs.NewID("ebi"), TenantID: actor.TenantID, BundleHash: bundle.ManifestHash,
-		Result: "accepted", ImportedCount: len(manifestIDs), SchemaVersion: packagedomain.EvidenceBundleImportVersion, CreatedAt: now,
-	}
+	var record packagedomain.EvidenceBundleImport
 	err = s.config.Transactions.ExecuteBundleImport(ctx, func(ctx context.Context, tx ImportTransaction) error {
 		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", TenantWide: true}); err != nil {
 			return err
 		}
+		if guard, ok := tx.(BundleImportScopeLocker); ok {
+			if err := guard.LockBundleImportTenant(ctx, actor.TenantID); err != nil {
+				return err
+			}
+		}
+		now := s.config.Clock.Now().UTC()
+		record = packagedomain.EvidenceBundleImport{ID: s.config.IDs.NewID("ebi"), TenantID: actor.TenantID, BundleHash: bundle.ManifestHash, Result: "accepted", ImportedCount: len(manifestIDs), SchemaVersion: packagedomain.EvidenceBundleImportVersion, CreatedAt: now}
 		if err := tx.InsertEvidenceBundleImport(ctx, record); err != nil {
 			return err
 		}

@@ -8,6 +8,7 @@ import (
 
 func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 	files := map[string][]string{
+		"bundle_import_replay_guard.go":       {"AuthorizeBundleImport"},
 		"report_template_replay_guard.go":     {"AuthorizeReportTemplateCreation", "AuthorizeReportRendering"},
 		"evidence_creation_replay_guard.go":   {"AuthorizeEvidenceCreation"},
 		"deployment_creation_replay_guard.go": {"AuthorizeEnvironmentCreation", "AuthorizeDeploymentRecording"},
@@ -104,6 +105,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 				!strings.Contains(fn, "authorizeGraphSnapshotLocked") && !strings.Contains(fn, "authorizeProductReleaseLocked") &&
 				!strings.Contains(fn, "authorizeControlEvidenceLinkLocked") &&
 				!strings.Contains(fn, "packagequery.NewTemplateAuthorizer().Authorize") &&
+				!strings.Contains(fn, "packagequery.NewBundleImportAuthorizer().Authorize") &&
 				!strings.Contains(fn, "authorizeSourceRepositoryCreationLocked") &&
 				!strings.Contains(fn, "authorizeLocalSourceWriteLocked") &&
 				!strings.Contains(fn, "l.authorizeCatalogCreation(") &&

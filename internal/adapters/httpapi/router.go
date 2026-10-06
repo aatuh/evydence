@@ -100,6 +100,7 @@ type Server struct {
 	evidenceCreationCommands          EvidenceCreationCommands
 	localEvidenceCreation             localEvidenceCreationCommands
 	localReportTemplates              localReportTemplateCommands
+	localBundleImport                 localBundleImportCommand
 	openAPIIngestionCommands          OpenAPIIngestionCommands
 	sbomIngestionCommands             SBOMIngestionCommands
 	scanIngestionCommands             VulnerabilityScanIngestionCommands
@@ -582,6 +583,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.ReportTemplateCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused report templates require durable idempotency")
 	}
+	if opts.BundleImportCommand != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused bundle import requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -796,6 +800,7 @@ func (s *Server) bindLedger(ledger *app.Ledger) {
 	s.localDeployments = ledger
 	s.localEvidenceCreation = ledger
 	s.localReportTemplates = ledger
+	s.localBundleImport = ledger
 	s.evidenceIngestion = ledger
 	s.riskDecisions = ledger
 	s.packages = ledger
@@ -1885,21 +1890,6 @@ func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 		}
 		bundle, err := s.packages.ExportEvidenceBundle(ctx, actor, req.ReleaseID, req.EvidenceIDs)
 		return http.StatusCreated, bundle, err
-	})
-}
-
-func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
-	var req domain.EvidenceBundle
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.bundleImportCommand != nil {
-			record, err := s.bundleImportCommand.ImportEvidenceBundle(ctx, actor, evidenceBundleForImport(req))
-			return http.StatusCreated, evidenceBundleImportFromCommands(record), mapCustomerPackageAccessError(err)
-		}
-		record, err := s.packages.ImportEvidenceBundle(ctx, actor, req)
-		return http.StatusCreated, record, err
 	})
 }
 

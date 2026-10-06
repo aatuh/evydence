@@ -44,6 +44,28 @@ not be blank or repeated after trimming, and must match the normalized outer
 tenant-wide `bundle:write` permission; the receipt belongs to that actor's
 target tenant even when source tenant labels differ.
 
+PostgreSQL HTTP import uses native durable execution. Every request, including
+a completed-key retry, rechecks current target-tenant permission and existence;
+the shared writer fence precedes the tenant lock, held through receipt, audit,
+and replay commit. Replay returns the original safe receipt without hashing
+the manifest again or allocating a receipt clock/ID. Changing the original
+request bytes with the same key conflicts. New durable receipt times use UTC
+microseconds; existing records are not rewritten. Local-memory mode has an
+explicit replay guard but remains nondurable.
+
+Both HTTP profiles reject unknown, duplicate, case-aliased or null fields,
+null reference-list items, invalid UTF-8, and NUL in outer text/reference labels.
+Source bundle/tenant/release IDs and reference text are limited to 1024 raw
+bytes, manifest hashes to 128 bytes, and outer evidence/signature lists to
+1024 entries before normalization. The encoded manifest is limited to 64 KiB;
+the existing HTTP body limit is also 64 KiB. Existing JSON limits still apply:
+32 nesting levels, 256 keys per object, 1024 items per array, and 16 KiB per
+string. Manifest IDs must satisfy the same raw 1024-byte reference limit.
+Duplicate outer evidence IDs keep their normalized-set behavior. Cookie
+mutations require same-host HTTPS `Origin`, with explicit Bearer precedence.
+These stricter malformed-input limits are unreleased compatibility changes
+that still require release review.
+
 The command commits only an `evidence_bundle_import` receipt and its audit
 entry. It does not store the supplied manifest, ingest payloads, resolve source
 IDs, check evidence existence, or verify signature references. `result:
@@ -60,6 +82,7 @@ version. Historical hashes are preserved, including that numeric limitation.
 
 Evidence: `internal/package/app/import_commands.go`,
 `internal/package/app/evidence_bundle.go`,
+`internal/package/app/bundle_import_guard.go`,
 `internal/platform/wiring/bundle_import_command.go`,
 `internal/application/normalized_json.go`, and their HTTP, hash-compatibility,
 and live PostgreSQL tests.
