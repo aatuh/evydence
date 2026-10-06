@@ -332,8 +332,7 @@ func (l *Ledger) ListControlEvidence(ctx context.Context, actor domain.Actor, co
 	return out, nil
 }
 
-func (s packageReportService) ControlCoverageReport(ctx context.Context, actor domain.Actor, in ControlCoverageReportInput) (domain.ControlCoverageReport, error) {
-	l := s.ledger
+func (l *Ledger) ControlCoverageReport(ctx context.Context, actor domain.Actor, in ControlCoverageReportInput) (domain.ControlCoverageReport, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.ControlCoverageReport{}, err
 	}
@@ -355,8 +354,7 @@ func (s packageReportService) ControlCoverageReport(ctx context.Context, actor d
 	return report, nil
 }
 
-func (s packageReportService) CRAReadinessReport(ctx context.Context, actor domain.Actor, in CRAReadinessReportInput) (domain.CRAReadinessReport, error) {
-	l := s.ledger
+func (l *Ledger) CRAReadinessReport(ctx context.Context, actor domain.Actor, in CRAReadinessReportInput) (domain.CRAReadinessReport, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.CRAReadinessReport{}, err
 	}
@@ -404,8 +402,7 @@ func (l *Ledger) craReadinessReportLocked(tenantID, productID, releaseID string)
 	}, nil
 }
 
-func (s packageReportService) CRAVulnerabilityHandlingReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.CRAVulnerabilityHandlingReport, error) {
-	l := s.ledger
+func (l *Ledger) CRAVulnerabilityHandlingReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.CRAVulnerabilityHandlingReport, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.CRAVulnerabilityHandlingReport{}, err
 	}
@@ -487,8 +484,7 @@ func (s packageReportService) CRAVulnerabilityHandlingReport(ctx context.Context
 	}, nil
 }
 
-func (s packageReportService) SecurityUpdateEvidenceReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.SecurityUpdateEvidenceReport, error) {
-	l := s.ledger
+func (l *Ledger) SecurityUpdateEvidenceReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.SecurityUpdateEvidenceReport, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.SecurityUpdateEvidenceReport{}, err
 	}

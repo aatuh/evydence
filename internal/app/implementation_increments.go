@@ -749,7 +749,7 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 	if l.unitOfWork != nil {
 		l.mu.Lock()
 		defer l.mu.Unlock()
-		item, err := l.releaseEvidenceService().newEvidenceItemForScopeLocked(actor, ScopeDeploymentWrite, evidenceInput)
+		item, err := l.newEvidenceItemForScopeLocked(actor, ScopeDeploymentWrite, evidenceInput)
 		if err != nil {
 			return domain.DeploymentEvent{}, err
 		}
@@ -781,7 +781,7 @@ func (l *Ledger) RecordDeployment(ctx context.Context, actor domain.Actor, in Re
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	item, err := l.releaseEvidenceService().newEvidenceItemForScopeLocked(actor, ScopeDeploymentWrite, evidenceInput)
+	item, err := l.newEvidenceItemForScopeLocked(actor, ScopeDeploymentWrite, evidenceInput)
 	if err != nil {
 		return domain.DeploymentEvent{}, err
 	}

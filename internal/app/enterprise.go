@@ -237,8 +237,7 @@ func (l *Ledger) CreateRetentionOverride(ctx context.Context, actor domain.Actor
 	return override, nil
 }
 
-func (s packageReportService) RetentionReport(ctx context.Context, actor domain.Actor, scopeType, scopeID string) (domain.RetentionReport, error) {
-	l := s.ledger
+func (l *Ledger) RetentionReport(ctx context.Context, actor domain.Actor, scopeType, scopeID string) (domain.RetentionReport, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.RetentionReport{}, err
 	}
@@ -262,8 +261,7 @@ func (s packageReportService) RetentionReport(ctx context.Context, actor domain.
 	return domain.RetentionReport{ReportType: "retention", ScopeType: scopeType, ScopeID: scopeID, LegalHolds: holds, RetentionOverrides: overrides, Limitations: []string{"Retention reports describe Evydence records and do not replace external storage lifecycle verification."}, GeneratedAt: l.now()}, nil
 }
 
-func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor domain.Actor, in CreateCustomerPortalAccessInput) (domain.CustomerPortalAccess, string, error) {
-	l := s.ledger
+func (l *Ledger) CreateCustomerPortalAccess(ctx context.Context, actor domain.Actor, in CreateCustomerPortalAccessInput) (domain.CustomerPortalAccess, string, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerPortalAccess{}, "", err
 	}
@@ -318,8 +316,7 @@ func (s identityService) CreateCustomerPortalAccess(ctx context.Context, actor d
 	return access, secret, nil
 }
 
-func (s identityService) ListCustomerPortalAccess(ctx context.Context, actor domain.Actor, packageID string) ([]domain.CustomerPortalAccess, error) {
-	l := s.ledger
+func (l *Ledger) ListCustomerPortalAccess(ctx context.Context, actor domain.Actor, packageID string) ([]domain.CustomerPortalAccess, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -375,8 +372,7 @@ func (l *Ledger) currentPortalPackageLocked(tenantID string, pkg domain.Customer
 	return true
 }
 
-func (s identityService) RevokeCustomerPortalAccess(ctx context.Context, actor domain.Actor, id string) (domain.CustomerPortalAccess, error) {
-	l := s.ledger
+func (l *Ledger) RevokeCustomerPortalAccess(ctx context.Context, actor domain.Actor, id string) (domain.CustomerPortalAccess, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerPortalAccess{}, err
 	}
@@ -428,16 +424,15 @@ func (s identityService) RevokeCustomerPortalAccess(ctx context.Context, actor d
 	return domain.CustomerPortalAccess(packageapp.ClonePortalAccess(packagedomain.CustomerPortalAccess(access))), nil
 }
 
-func (s identityService) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
-	return s.AccessCustomerPortalPackageWithAcceptance(ctx, token, CustomerPortalAcceptanceInput{})
+func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
+	return l.AccessCustomerPortalPackageWithAcceptance(ctx, token, CustomerPortalAcceptanceInput{})
 }
 
-func (s identityService) AccessCustomerPortalPackageWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (domain.CustomerSecurityPackage, error) {
-	return s.accessCustomerPortalPackage(ctx, token, in, "customer_portal_package.accessed")
+func (l *Ledger) AccessCustomerPortalPackageWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (domain.CustomerSecurityPackage, error) {
+	return l.accessCustomerPortalPackage(ctx, token, in, "customer_portal_package.accessed")
 }
 
-func (s identityService) accessCustomerPortalPackage(ctx context.Context, token string, in CustomerPortalAcceptanceInput, successEntryType string) (domain.CustomerSecurityPackage, error) {
-	l := s.ledger
+func (l *Ledger) accessCustomerPortalPackage(ctx context.Context, token string, in CustomerPortalAcceptanceInput, successEntryType string) (domain.CustomerSecurityPackage, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.CustomerSecurityPackage{}, err
 	}
@@ -463,7 +458,7 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 				if access.RevokedAt != nil && access.FailedAccessCount == customerPortalFailedAccessLimit {
 					effects = append(effects, customerPortalAuditEffect{EntryType: "customer_portal_access.revoked_after_failed_access", SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: "unverified"})
 				}
-				if err := s.persistCustomerPortalAccessUpdateLocked(ctx, previous, access, effects); err != nil {
+				if err := l.persistCustomerPortalAccessUpdateLocked(ctx, previous, access, effects); err != nil {
 					return domain.CustomerSecurityPackage{}, ErrUnauthorized
 				}
 			}
@@ -476,7 +471,7 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 		if access.RequireNDA && access.NDAAcceptedAt == nil {
 			acceptedBy := cleanExternalLabel(in.NDAAcceptedBy)
 			if !in.NDAAccepted || acceptedBy == "" {
-				if err := s.persistCustomerPortalAccessUpdateLocked(ctx, access, access, []customerPortalAuditEffect{{EntryType: "customer_portal_package.nda_required", SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: access.ID, PayloadHash: pkg.ManifestHash}}); err != nil {
+				if err := l.persistCustomerPortalAccessUpdateLocked(ctx, access, access, []customerPortalAuditEffect{{EntryType: "customer_portal_package.nda_required", SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: access.ID, PayloadHash: pkg.ManifestHash}}); err != nil {
 					return domain.CustomerSecurityPackage{}, err
 				}
 				return domain.CustomerSecurityPackage{}, ErrForbidden
@@ -497,7 +492,7 @@ func (s identityService) accessCustomerPortalPackage(ctx context.Context, token 
 			customerPortalAuditEffect{EntryType: successEntryType, SubjectType: "customer_portal_access", SubjectID: access.ID, ActorID: access.ID, PayloadHash: pkg.ManifestHash},
 			customerPortalAuditEffect{EntryType: successEntryType, SubjectType: "customer_security_package", SubjectID: pkg.ID, ActorID: access.ID, PayloadHash: pkg.ManifestHash},
 		)
-		if err := s.persistCustomerPortalAccessUpdateLocked(ctx, previous, access, effects); err != nil {
+		if err := l.persistCustomerPortalAccessUpdateLocked(ctx, previous, access, effects); err != nil {
 			return domain.CustomerSecurityPackage{}, err
 		}
 		return packageWithDistributionWatermark(pkg, access), nil
@@ -516,8 +511,7 @@ type customerPortalAuditEffect struct {
 // persistCustomerPortalAccessUpdateLocked uses the previous counters and
 // revocation state as an optimistic predicate. A token-dependent update is
 // therefore committed with its audit trail or remains invisible on conflict.
-func (s identityService) persistCustomerPortalAccessUpdateLocked(ctx context.Context, previous, current domain.CustomerPortalAccess, effects []customerPortalAuditEffect) error {
-	l := s.ledger
+func (l *Ledger) persistCustomerPortalAccessUpdateLocked(ctx context.Context, previous, current domain.CustomerPortalAccess, effects []customerPortalAuditEffect) error {
 	if l.unitOfWork != nil {
 		entries := []domain.AuditChainEntry{}
 		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
@@ -548,8 +542,7 @@ func (s identityService) persistCustomerPortalAccessUpdateLocked(ctx context.Con
 	return l.persistCriticalStateLocked(ctx)
 }
 
-func (s packageReportService) CreateQuestionnaireTemplate(ctx context.Context, actor domain.Actor, in CreateQuestionnaireTemplateInput) (domain.QuestionnaireTemplate, error) {
-	l := s.ledger
+func (l *Ledger) CreateQuestionnaireTemplate(ctx context.Context, actor domain.Actor, in CreateQuestionnaireTemplateInput) (domain.QuestionnaireTemplate, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.QuestionnaireTemplate{}, err
 	}
@@ -641,8 +634,7 @@ func cloneQuestionnaireTemplateDTO(v domain.QuestionnaireTemplate) domain.Questi
 	return v
 }
 
-func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, actor domain.Actor, in CreateQuestionnairePackageInput) (domain.QuestionnairePackage, error) {
-	l := s.ledger
+func (l *Ledger) CreateQuestionnairePackage(ctx context.Context, actor domain.Actor, in CreateQuestionnairePackageInput) (domain.QuestionnairePackage, error) {
 	normalized, err := prepareLocalQuestionnairePackage(ctx, actor, in)
 	if err != nil {
 		return domain.QuestionnairePackage{}, err
@@ -697,8 +689,7 @@ func (s packageReportService) CreateQuestionnairePackage(ctx context.Context, ac
 	return cloneQuestionnairePackageDTO(pkg), nil
 }
 
-func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, raw CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {
-	l := s.ledger
+func (l *Ledger) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, raw CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {
 	in, err := prepareLocalAnswerLibraryInput(ctx, actor, raw)
 	if err != nil {
 		return domain.QuestionnaireAnswerLibraryEntry{}, err
@@ -749,8 +740,7 @@ func (s packageReportService) CreateQuestionnaireAnswerLibraryEntry(ctx context.
 	return cloneAnswerLibraryDTO(entry), nil
 }
 
-func (s packageReportService) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domain.Actor, in ListQuestionnaireAnswerLibraryInput) ([]domain.QuestionnaireAnswerLibraryEntry, error) {
-	l := s.ledger
+func (l *Ledger) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domain.Actor, in ListQuestionnaireAnswerLibraryInput) ([]domain.QuestionnaireAnswerLibraryEntry, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

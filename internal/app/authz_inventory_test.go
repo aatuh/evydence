@@ -126,9 +126,6 @@ func functionBody(t *testing.T, fileBody, name string) string {
 	t.Helper()
 	markers := []string{
 		"func (l *Ledger) " + name,
-		"func (s identityService) " + name,
-		"func (s releaseEvidenceService) " + name,
-		"func (s packageReportService) " + name,
 	}
 	start := -1
 	marker := ""

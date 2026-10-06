@@ -13,6 +13,11 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Removed three redundant Ledger-backed service shells and their forwarding
+methods without changing API, portal access, export or report behavior.
+Local-memory Ledger retirement remains in progress; this is not a production
+readiness or release-publication claim.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

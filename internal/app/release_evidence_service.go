@@ -13,17 +13,9 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
-type releaseEvidenceService struct {
-	ledger *Ledger
-}
-
 func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
 	value, err := l.evidenceCommands.UploadSPDXSBOM(ctx, actor, releaseID, artifactID, raw)
 	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-func (l *Ledger) releaseEvidenceService() releaseEvidenceService {
-	return releaseEvidenceService{ledger: l}
 }
 
 func (l *Ledger) CreateProduct(ctx context.Context, actor domain.Actor, name, slug string) (domain.Product, error) {
@@ -421,22 +413,6 @@ func (l *Ledger) UploadOpenAPIContractPayload(ctx context.Context, actor domain.
 	return openAPIContractFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
-func (l *Ledger) GetSBOM(ctx context.Context, actor domain.Actor, id string) (domain.SBOM, error) {
-	return l.releaseEvidenceService().GetSBOM(ctx, actor, id)
-}
-
-func (l *Ledger) ListSBOMComponents(ctx context.Context, actor domain.Actor, in ListSBOMComponentsInput) ([]domain.SBOMComponentRecord, error) {
-	return l.releaseEvidenceService().ListSBOMComponents(ctx, actor, in)
-}
-
-func (l *Ledger) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, id string) (domain.VulnerabilityScan, error) {
-	return l.releaseEvidenceService().GetVulnerabilityScan(ctx, actor, id)
-}
-
-func (l *Ledger) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id string) (domain.OpenAPIContract, error) {
-	return l.releaseEvidenceService().GetOpenAPIContract(ctx, actor, id)
-}
-
 func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
 	value, err := l.evidenceCommands.UploadVEX(ctx, actor, releaseID, artifactID, raw)
 	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
@@ -447,18 +423,6 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 func (l *Ledger) UploadVEXPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.VEXDocument, error) {
 	value, err := l.evidenceCommands.UploadVEXPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
 	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-func (l *Ledger) PreviewVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
-	return l.releaseEvidenceService().PreviewVEXImport(ctx, actor, releaseID, artifactID, raw)
-}
-
-func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
-	return l.releaseEvidenceService().GetVEXDocument(ctx, actor, id)
-}
-
-func (l *Ledger) GetVEXImportReport(ctx context.Context, actor domain.Actor, vexID string) (domain.VEXImportReport, error) {
-	return l.releaseEvidenceService().GetVEXImportReport(ctx, actor, vexID)
 }
 
 func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, findingID string, in CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {

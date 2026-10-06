@@ -81,8 +81,7 @@ type openVEXProduct struct {
 	Subcomponents []openVEXProduct `json:"subcomponents,omitempty"`
 }
 
-func (s releaseEvidenceService) PreviewVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
-	l := s.ledger
+func (l *Ledger) PreviewVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.VEXImportPreview{}, err
 	}
@@ -144,8 +143,7 @@ func (s releaseEvidenceService) PreviewVEXImport(ctx context.Context, actor doma
 	}, nil
 }
 
-func (s releaseEvidenceService) GetVEXImportReport(ctx context.Context, actor domain.Actor, vexID string) (domain.VEXImportReport, error) {
-	l := s.ledger
+func (l *Ledger) GetVEXImportReport(ctx context.Context, actor domain.Actor, vexID string) (domain.VEXImportReport, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.VEXImportReport{}, err
 	}
@@ -172,8 +170,7 @@ func (s releaseEvidenceService) GetVEXImportReport(ctx context.Context, actor do
 	return domain.VEXImportReport{}, ErrNotFound
 }
 
-func (s releaseEvidenceService) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
-	l := s.ledger
+func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.VEXDocument{}, err
 	}

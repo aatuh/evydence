@@ -580,7 +580,7 @@ func (t *ledgerReleaseTransaction) WriteBuildAttestationEvidence(ctx context.Con
 		subjects = append(subjects, domain.SubjectRef{Type: subject.Type, ID: subject.ID, Digest: subject.Digest})
 	}
 	staged := stagedBuildAttestationPayloadFromReleaseContext(input.StagedPayload)
-	item, err := t.ledger.releaseEvidenceService().newEvidenceItemForScopeLocked(actor, ScopeBuildWrite, CreateEvidenceInput{
+	item, err := t.ledger.newEvidenceItemForScopeLocked(actor, ScopeBuildWrite, CreateEvidenceInput{
 		ProductID: input.ProductID, ProjectID: input.ProjectID, ReleaseID: input.ReleaseID, BuildID: input.BuildID,
 		Type: "build_attestation", Subtype: "dsse_in_toto", Title: "DSSE in-toto build attestation",
 		SourceSystem: input.SourceSystem, SourceIdentity: cloneMap(input.SourceIdentity), CollectorID: input.CollectorID,

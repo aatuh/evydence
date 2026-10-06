@@ -114,8 +114,7 @@ type VerifyProviderIdentityInput struct {
 	AccessToken   string
 }
 
-func (s packageReportService) CreateEvidenceSummary(ctx context.Context, actor domain.Actor, in CreateEvidenceSummaryInput) (domain.EvidenceSummary, error) {
-	l := s.ledger
+func (l *Ledger) CreateEvidenceSummary(ctx context.Context, actor domain.Actor, in CreateEvidenceSummaryInput) (domain.EvidenceSummary, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.EvidenceSummary{}, err
 	}
@@ -207,8 +206,7 @@ func (s packageReportService) CreateEvidenceSummary(ctx context.Context, actor d
 	return summary, nil
 }
 
-func (s packageReportService) CreateQuestionnaireDraft(ctx context.Context, actor domain.Actor, in CreateQuestionnaireDraftInput) (domain.QuestionnaireDraft, error) {
-	l := s.ledger
+func (l *Ledger) CreateQuestionnaireDraft(ctx context.Context, actor domain.Actor, in CreateQuestionnaireDraftInput) (domain.QuestionnaireDraft, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.QuestionnaireDraft{}, err
 	}
@@ -995,8 +993,7 @@ func verifySAMLAssertionSignature(certs []string, payload, signature []byte) err
 	return errors.New("no configured saml signing certificate verified assertion")
 }
 
-func (s packageReportService) CreatePDFReportPackage(ctx context.Context, actor domain.Actor, in CreatePDFReportPackageInput) (domain.PDFReportPackage, error) {
-	l := s.ledger
+func (l *Ledger) CreatePDFReportPackage(ctx context.Context, actor domain.Actor, in CreatePDFReportPackageInput) (domain.PDFReportPackage, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.PDFReportPackage{}, err
 	}
@@ -1055,8 +1052,7 @@ func (s packageReportService) CreatePDFReportPackage(ctx context.Context, actor 
 	return record, nil
 }
 
-func (s packageReportService) GenerateAnomalyReport(ctx context.Context, actor domain.Actor, in AnomalyReportInput) (domain.AnomalyReport, error) {
-	l := s.ledger
+func (l *Ledger) GenerateAnomalyReport(ctx context.Context, actor domain.Actor, in AnomalyReportInput) (domain.AnomalyReport, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.AnomalyReport{}, err
 	}

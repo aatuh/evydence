@@ -7,14 +7,6 @@ import (
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
-type identityService struct {
-	ledger *Ledger
-}
-
-func (l *Ledger) identityService() identityService {
-	return identityService{ledger: l}
-}
-
 func (l *Ledger) CreateOrganization(ctx context.Context, actor domain.Actor, in CreateOrganizationInput) (domain.Organization, error) {
 	organization, err := l.identityCommands.CreateOrganization(ctx, actor, identityapp.CreateOrganizationInput{Name: in.Name, Slug: in.Slug})
 	return organizationFromIdentityContext(organization), fromIdentityContextError(err)
@@ -103,24 +95,4 @@ func (l *Ledger) RevokeSSOSession(ctx context.Context, actor domain.Actor, id st
 func (l *Ledger) RevokeCurrentSSOSession(ctx context.Context, actor domain.Actor) (domain.SSOSession, error) {
 	session, err := l.identityCommands.RevokeCurrentSSOSession(ctx, actor)
 	return ssoSessionFromIdentityContext(session), fromIdentityContextError(err)
-}
-
-func (l *Ledger) CreateCustomerPortalAccess(ctx context.Context, actor domain.Actor, in CreateCustomerPortalAccessInput) (domain.CustomerPortalAccess, string, error) {
-	return l.identityService().CreateCustomerPortalAccess(ctx, actor, in)
-}
-
-func (l *Ledger) ListCustomerPortalAccess(ctx context.Context, actor domain.Actor, packageID string) ([]domain.CustomerPortalAccess, error) {
-	return l.identityService().ListCustomerPortalAccess(ctx, actor, packageID)
-}
-
-func (l *Ledger) RevokeCustomerPortalAccess(ctx context.Context, actor domain.Actor, id string) (domain.CustomerPortalAccess, error) {
-	return l.identityService().RevokeCustomerPortalAccess(ctx, actor, id)
-}
-
-func (l *Ledger) AccessCustomerPortalPackage(ctx context.Context, token string) (domain.CustomerSecurityPackage, error) {
-	return l.identityService().AccessCustomerPortalPackage(ctx, token)
-}
-
-func (l *Ledger) AccessCustomerPortalPackageWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (domain.CustomerSecurityPackage, error) {
-	return l.identityService().AccessCustomerPortalPackageWithAcceptance(ctx, token, in)
 }

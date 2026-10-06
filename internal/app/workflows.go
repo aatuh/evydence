@@ -10,15 +10,6 @@ import (
 )
 
 func (l *Ledger) ReleaseEvidenceFlowPlan(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseEvidenceFlow, error) {
-	return l.releaseEvidenceService().ReleaseEvidenceFlowPlan(ctx, actor, releaseID)
-}
-
-func (l *Ledger) ReleaseSecuritySummary(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseSecuritySummary, error) {
-	return l.releaseEvidenceService().ReleaseSecuritySummary(ctx, actor, releaseID)
-}
-
-func (s releaseEvidenceService) ReleaseEvidenceFlowPlan(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseEvidenceFlow, error) {
-	l := s.ledger
 	if err := ctx.Err(); err != nil {
 		return domain.ReleaseEvidenceFlow{}, err
 	}
@@ -116,8 +107,7 @@ func releaseEvidenceFlowCountsLocked(l *Ledger, tenantID, releaseID string) map[
 	return counts
 }
 
-func (s releaseEvidenceService) ReleaseSecuritySummary(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseSecuritySummary, error) {
-	l := s.ledger
+func (l *Ledger) ReleaseSecuritySummary(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseSecuritySummary, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.ReleaseSecuritySummary{}, err
 	}

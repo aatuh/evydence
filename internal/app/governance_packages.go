@@ -702,8 +702,7 @@ func sortManifestMapsByID(items []map[string]any) {
 	})
 }
 
-func (s packageReportService) ExportCustomerSecurityPackageArchive(ctx context.Context, actor domain.Actor, id string) (CustomerPackageArchive, error) {
-	l := s.ledger
+func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor domain.Actor, id string) (CustomerPackageArchive, error) {
 	pkg, err := l.AccessCustomerSecurityPackage(ctx, actor, id)
 	if err != nil {
 		return CustomerPackageArchive{}, err
@@ -711,21 +710,19 @@ func (s packageReportService) ExportCustomerSecurityPackageArchive(ctx context.C
 	return customerPackageArchive(pkg)
 }
 
-func (s packageReportService) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
-	return s.ExportCustomerPortalPackageArchiveWithAcceptance(ctx, token, CustomerPortalAcceptanceInput{})
+func (l *Ledger) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
+	return l.ExportCustomerPortalPackageArchiveWithAcceptance(ctx, token, CustomerPortalAcceptanceInput{})
 }
 
-func (s packageReportService) ExportCustomerPortalPackageArchiveWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (CustomerPackageArchive, error) {
-	l := s.ledger
-	pkg, err := l.identityService().accessCustomerPortalPackage(ctx, token, in, "customer_portal_package.downloaded")
+func (l *Ledger) ExportCustomerPortalPackageArchiveWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (CustomerPackageArchive, error) {
+	pkg, err := l.accessCustomerPortalPackage(ctx, token, in, "customer_portal_package.downloaded")
 	if err != nil {
 		return CustomerPackageArchive{}, err
 	}
 	return customerPackageArchive(pkg)
 }
 
-func (s packageReportService) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
-	l := s.ledger
+func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
 	report, err := l.packageCommands.SecurityReviewPackageReport(ctx, actor, packageID)
 	if err != nil {
 		return domain.SecurityReviewPackageReport{}, fromPackageContextError(err)

@@ -7,42 +7,6 @@ import (
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 )
 
-type packageReportService struct {
-	ledger *Ledger
-}
-
-func (l *Ledger) packageReportService() packageReportService {
-	return packageReportService{ledger: l}
-}
-
-func (l *Ledger) MissingEvidenceReport(ctx context.Context, actor domain.Actor, releaseID string) (map[string]any, error) {
-	return l.packageReportService().MissingEvidenceReport(ctx, actor, releaseID)
-}
-
-func (l *Ledger) ControlCoverageReport(ctx context.Context, actor domain.Actor, in ControlCoverageReportInput) (domain.ControlCoverageReport, error) {
-	return l.packageReportService().ControlCoverageReport(ctx, actor, in)
-}
-
-func (l *Ledger) CRAReadinessReport(ctx context.Context, actor domain.Actor, in CRAReadinessReportInput) (domain.CRAReadinessReport, error) {
-	return l.packageReportService().CRAReadinessReport(ctx, actor, in)
-}
-
-func (l *Ledger) CRAVulnerabilityHandlingReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.CRAVulnerabilityHandlingReport, error) {
-	return l.packageReportService().CRAVulnerabilityHandlingReport(ctx, actor, productID, releaseID)
-}
-
-func (l *Ledger) SecurityUpdateEvidenceReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.SecurityUpdateEvidenceReport, error) {
-	return l.packageReportService().SecurityUpdateEvidenceReport(ctx, actor, productID, releaseID)
-}
-
-func (l *Ledger) IncidentReport(ctx context.Context, actor domain.Actor, incidentID string) (domain.IncidentReport, error) {
-	return l.packageReportService().IncidentReport(ctx, actor, incidentID)
-}
-
-func (l *Ledger) VulnerabilityPostureReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityPostureReport, error) {
-	return l.packageReportService().VulnerabilityPostureReport(ctx, actor, releaseID)
-}
-
 func (l *Ledger) ReleaseReadinessReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseReadinessReport, error) {
 	value, err := l.packageCommands.ReleaseReadinessReport(ctx, actor, releaseID)
 	return releaseReadinessReportFromPackageContext(value), fromPackageContextError(err)
@@ -76,26 +40,6 @@ func (l *Ledger) AuthorizeReleaseBundleCreation(ctx context.Context, a domain.Ac
 	return err
 }
 
-func (l *Ledger) RetentionReport(ctx context.Context, actor domain.Actor, scopeType, scopeID string) (domain.RetentionReport, error) {
-	return l.packageReportService().RetentionReport(ctx, actor, scopeType, scopeID)
-}
-
-func (l *Ledger) CreateQuestionnaireTemplate(ctx context.Context, actor domain.Actor, in CreateQuestionnaireTemplateInput) (domain.QuestionnaireTemplate, error) {
-	return l.packageReportService().CreateQuestionnaireTemplate(ctx, actor, in)
-}
-
-func (l *Ledger) CreateQuestionnairePackage(ctx context.Context, actor domain.Actor, in CreateQuestionnairePackageInput) (domain.QuestionnairePackage, error) {
-	return l.packageReportService().CreateQuestionnairePackage(ctx, actor, in)
-}
-
-func (l *Ledger) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, in CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {
-	return l.packageReportService().CreateQuestionnaireAnswerLibraryEntry(ctx, actor, in)
-}
-
-func (l *Ledger) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domain.Actor, in ListQuestionnaireAnswerLibraryInput) ([]domain.QuestionnaireAnswerLibraryEntry, error) {
-	return l.packageReportService().ListQuestionnaireAnswerLibrary(ctx, actor, in)
-}
-
 func (l *Ledger) CreateRedactionProfile(ctx context.Context, actor domain.Actor, in CreateRedactionProfileInput) (domain.RedactionProfile, error) {
 	value, err := l.packageCommands.CreateRedactionProfile(ctx, actor, packageapp.CreateRedactionProfileInput{
 		Name: in.Name, Description: in.Description, Preset: in.Preset,
@@ -115,22 +59,6 @@ func (l *Ledger) CreateCustomerSecurityPackage(ctx context.Context, actor domain
 func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
 	value, err := l.packageCommands.AccessCustomerSecurityPackage(ctx, actor, id)
 	return customerSecurityPackageFromContext(value), fromPackageContextError(err)
-}
-
-func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor domain.Actor, id string) (CustomerPackageArchive, error) {
-	return l.packageReportService().ExportCustomerSecurityPackageArchive(ctx, actor, id)
-}
-
-func (l *Ledger) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
-	return l.packageReportService().ExportCustomerPortalPackageArchive(ctx, token)
-}
-
-func (l *Ledger) ExportCustomerPortalPackageArchiveWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (CustomerPackageArchive, error) {
-	return l.packageReportService().ExportCustomerPortalPackageArchiveWithAcceptance(ctx, token, in)
-}
-
-func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
-	return l.packageReportService().SecurityReviewPackageReport(ctx, actor, packageID)
 }
 
 func (l *Ledger) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
@@ -161,20 +89,4 @@ func (l *Ledger) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, r
 func (l *Ledger) ImportEvidenceBundle(ctx context.Context, actor domain.Actor, bundle domain.EvidenceBundle) (domain.EvidenceBundleImport, error) {
 	value, err := l.packageCommands.ImportEvidenceBundle(ctx, actor, evidenceBundleToPackageContext(bundle))
 	return evidenceBundleImportFromPackageContext(value), fromPackageContextError(err)
-}
-
-func (l *Ledger) CreateEvidenceSummary(ctx context.Context, actor domain.Actor, in CreateEvidenceSummaryInput) (domain.EvidenceSummary, error) {
-	return l.packageReportService().CreateEvidenceSummary(ctx, actor, in)
-}
-
-func (l *Ledger) CreateQuestionnaireDraft(ctx context.Context, actor domain.Actor, in CreateQuestionnaireDraftInput) (domain.QuestionnaireDraft, error) {
-	return l.packageReportService().CreateQuestionnaireDraft(ctx, actor, in)
-}
-
-func (l *Ledger) CreatePDFReportPackage(ctx context.Context, actor domain.Actor, in CreatePDFReportPackageInput) (domain.PDFReportPackage, error) {
-	return l.packageReportService().CreatePDFReportPackage(ctx, actor, in)
-}
-
-func (l *Ledger) GenerateAnomalyReport(ctx context.Context, actor domain.Actor, in AnomalyReportInput) (domain.AnomalyReport, error) {
-	return l.packageReportService().GenerateAnomalyReport(ctx, actor, in)
 }

@@ -101,6 +101,15 @@ or typed-nil ports before state loading; local idempotency clones retain the
 configured ports. Native bounded-object verification uses the same offline
 policy adapter without changing its tenant/key/digest/size/media checks.
 
+The redundant `identityService`, `releaseEvidenceService`, and
+`packageReportService` shells have been deleted together with their factories
+and 34 Ledger-to-shell forwarding methods. These were wrappers around the same
+aggregate, not focused services. Existing local implementations retain their
+authorization, locking, audit and redaction behavior directly on the legacy
+receiver while its remaining API wiring, maps and mutex await retirement.
+This deletion adds no replacement compatibility layer and does not complete
+EVY-906.
+
 The import-graph gate now passes without boundary exemptions and is included in
 `fast-check` and `finalize`. Size/interface review flags remain. A passing import
 graph is not Ledger retirement: EVY-906 stays incomplete until its obsolete

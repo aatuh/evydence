@@ -485,7 +485,7 @@ type CreateEvidenceInput struct {
 // The build-attestation and deployment compatibility bridges use their
 // documented command scopes and must not introduce a hidden evidence:write
 // requirement.
-func (s releaseEvidenceService) newEvidenceItemForScopeLocked(actor domain.Actor, authorizationScope string, in CreateEvidenceInput) (domain.EvidenceItem, error) {
+func (l *Ledger) newEvidenceItemForScopeLocked(actor domain.Actor, authorizationScope string, in CreateEvidenceInput) (domain.EvidenceItem, error) {
 	if authorizationScope != ScopeEvidenceWrite && authorizationScope != ScopeBuildWrite && authorizationScope != ScopeDeploymentWrite {
 		return domain.EvidenceItem{}, ErrValidation
 	}
@@ -493,7 +493,6 @@ func (s releaseEvidenceService) newEvidenceItemForScopeLocked(actor domain.Actor
 	if (authorizationScope == ScopeDeploymentWrite) != deploymentEvent {
 		return domain.EvidenceItem{}, ErrValidation
 	}
-	l := s.ledger
 	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, in.ProjectID, in.ReleaseID); err != nil {
 		return domain.EvidenceItem{}, err
 	}
@@ -561,8 +560,7 @@ func (l *Ledger) GetReleaseBundle(ctx context.Context, actor domain.Actor, id st
 	return bundle, nil
 }
 
-func (s releaseEvidenceService) GetSBOM(ctx context.Context, actor domain.Actor, id string) (domain.SBOM, error) {
-	l := s.ledger
+func (l *Ledger) GetSBOM(ctx context.Context, actor domain.Actor, id string) (domain.SBOM, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.SBOM{}, err
 	}
@@ -593,8 +591,7 @@ type ListSBOMComponentsInput struct {
 	Limit      int
 }
 
-func (s releaseEvidenceService) ListSBOMComponents(ctx context.Context, actor domain.Actor, in ListSBOMComponentsInput) ([]domain.SBOMComponentRecord, error) {
-	l := s.ledger
+func (l *Ledger) ListSBOMComponents(ctx context.Context, actor domain.Actor, in ListSBOMComponentsInput) ([]domain.SBOMComponentRecord, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -670,8 +667,7 @@ func sbomComponentMatches(component domain.SBOMComponent, query, purl string) bo
 	return strings.Contains(haystack, query)
 }
 
-func (s releaseEvidenceService) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, id string) (domain.VulnerabilityScan, error) {
-	l := s.ledger
+func (l *Ledger) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, id string) (domain.VulnerabilityScan, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.VulnerabilityScan{}, err
 	}
@@ -693,8 +689,7 @@ func (s releaseEvidenceService) GetVulnerabilityScan(ctx context.Context, actor 
 	return scan, nil
 }
 
-func (s releaseEvidenceService) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id string) (domain.OpenAPIContract, error) {
-	l := s.ledger
+func (l *Ledger) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id string) (domain.OpenAPIContract, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.OpenAPIContract{}, err
 	}
@@ -716,8 +711,7 @@ func (s releaseEvidenceService) GetOpenAPIContract(ctx context.Context, actor do
 	return contract, nil
 }
 
-func (s packageReportService) MissingEvidenceReport(ctx context.Context, actor domain.Actor, releaseID string) (map[string]any, error) {
-	l := s.ledger
+func (l *Ledger) MissingEvidenceReport(ctx context.Context, actor domain.Actor, releaseID string) (map[string]any, error) {
 	eval, err := l.EvaluateRelease(ctx, actor, releaseID)
 	if err != nil && !errors.Is(err, ErrVerificationFailed) {
 		return nil, err
