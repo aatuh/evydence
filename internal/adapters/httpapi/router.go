@@ -22,8 +22,6 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
-	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
-	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
@@ -101,6 +99,7 @@ type Server struct {
 	contractDiffCommands              ContractDiffCommands
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
+	localEvidenceCreation             localEvidenceCreationCommands
 	openAPIIngestionCommands          OpenAPIIngestionCommands
 	sbomIngestionCommands             SBOMIngestionCommands
 	scanIngestionCommands             VulnerabilityScanIngestionCommands
@@ -577,6 +576,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if (opts.DeploymentEnvironmentCommands != nil || opts.DeploymentCommands != nil) && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused deployment writes require durable idempotency")
 	}
+	if opts.EvidenceCreationCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused evidence creation requires durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -789,6 +791,7 @@ func (s *Server) bindLedger(ledger *app.Ledger) {
 	s.identityAccess = ledger
 	s.releaseCatalog = ledger
 	s.localDeployments = ledger
+	s.localEvidenceCreation = ledger
 	s.evidenceIngestion = ledger
 	s.riskDecisions = ledger
 	s.packages = ledger
@@ -1992,58 +1995,6 @@ func (s *Server) createSBOMDiff(w http.ResponseWriter, r *http.Request) {
 		}
 		diff, err := s.evidenceIngestion.CreateSBOMDiff(ctx, actor, app.CreateSBOMDiffInput{BaseSBOMID: req.BaseSBOMID, TargetSBOMID: req.TargetSBOMID, ReleaseID: req.ReleaseID})
 		return http.StatusCreated, diff, err
-	})
-}
-
-func (s *Server) createEvidence(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ProductID        string              `json:"product_id"`
-		ProjectID        string              `json:"project_id"`
-		ReleaseID        string              `json:"release_id"`
-		BuildID          string              `json:"build_id"`
-		DeploymentID     string              `json:"deployment_id"`
-		Type             string              `json:"type"`
-		Subtype          string              `json:"subtype"`
-		Title            string              `json:"title"`
-		SourceSystem     string              `json:"source_system"`
-		SourceIdentity   map[string]any      `json:"source_identity"`
-		CollectorID      string              `json:"collector_id"`
-		ObservedAt       time.Time           `json:"observed_at"`
-		PayloadRef       string              `json:"payload_ref"`
-		PayloadHash      string              `json:"payload_hash"`
-		PayloadMediaType string              `json:"payload_media_type"`
-		PayloadSize      int64               `json:"payload_size"`
-		SubjectRefs      []domain.SubjectRef `json:"subject_refs"`
-		Metadata         map[string]any      `json:"metadata"`
-		Tags             []string            `json:"tags"`
-		Limitations      []string            `json:"limitations"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.evidenceCreationCommands != nil {
-			refs := make([]evidencedomain.SubjectRef, 0, len(req.SubjectRefs))
-			for _, ref := range req.SubjectRefs {
-				refs = append(refs, evidencedomain.SubjectRef{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})
-			}
-			item, err := s.evidenceCreationCommands.CreateEvidence(ctx, actor, evidenceapp.CreateEvidenceInput{
-				ProductID: req.ProductID, ProjectID: req.ProjectID, ReleaseID: req.ReleaseID, BuildID: req.BuildID, DeploymentID: req.DeploymentID,
-				Type: req.Type, Subtype: req.Subtype, Title: req.Title,
-				SourceSystem: req.SourceSystem, SourceIdentity: req.SourceIdentity, CollectorID: req.CollectorID, ObservedAt: req.ObservedAt,
-				PayloadRef: req.PayloadRef, PayloadHash: req.PayloadHash, PayloadMediaType: req.PayloadMediaType, PayloadSize: req.PayloadSize,
-				SubjectRefs: refs, Metadata: req.Metadata, Tags: req.Tags, Limitations: req.Limitations,
-			})
-			return http.StatusCreated, domain.EvidenceFromContextModel(item), mapEvidenceCreationCommandError(err)
-		}
-		item, err := s.evidenceIngestion.CreateEvidence(ctx, actor, app.CreateEvidenceInput{
-			ProductID: req.ProductID, ProjectID: req.ProjectID, ReleaseID: req.ReleaseID, BuildID: req.BuildID, DeploymentID: req.DeploymentID,
-			Type: req.Type, Subtype: req.Subtype, Title: req.Title,
-			SourceSystem: req.SourceSystem, SourceIdentity: req.SourceIdentity, CollectorID: req.CollectorID, ObservedAt: req.ObservedAt,
-			PayloadRef: req.PayloadRef, PayloadHash: req.PayloadHash, PayloadMediaType: req.PayloadMediaType, PayloadSize: req.PayloadSize,
-			SubjectRefs: req.SubjectRefs, Metadata: req.Metadata, Tags: req.Tags, Limitations: req.Limitations,
-		})
-		return http.StatusCreated, item, err
 	})
 }
 

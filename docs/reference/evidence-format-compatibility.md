@@ -27,6 +27,14 @@ are append-only lifecycle/audit facts outside that immutable hash. Legacy
 new link or supersession operations; an atomic lifecycle origin snapshot lets
 the legacy verifier reconstruct the originally hashed projection.
 
+Generic evidence uses the existing normalized-JSON hash helper described below.
+Its transport and PostgreSQL replay preserve numeric metadata, but hashing
+still normalizes numbers through `float64`. Large integers or high-precision
+decimals can therefore lose precision in the hash input even when storage
+retains their JSON value. Use string-valued metadata for precision-sensitive
+identifiers; exact uploaded bytes have a separate payload digest. This does
+not introduce a new canonicalization profile or rehash historical records.
+
 ## Portable evidence-bundle import receipts
 
 `POST /v1/evidence-bundles/import` validates the manifest hash and

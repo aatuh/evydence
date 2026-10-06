@@ -83,6 +83,17 @@ func NewEvidenceCreationCommands(c EvidenceCreationCommandConfig) (*EvidenceCrea
 }
 
 func (c *EvidenceCreationCommands) CreateEvidence(ctx context.Context, actor identitydomain.Actor, input CreateEvidenceInput) (evidencedomain.EvidenceItem, error) {
+	if err := contextError(ctx); err != nil {
+		return evidencedomain.EvidenceItem{}, err
+	}
+	if err := c.preparer.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+		return evidencedomain.EvidenceItem{}, err
+	}
+	var err error
+	input, err = NormalizeGenericEvidenceCreation(input)
+	if err != nil {
+		return evidencedomain.EvidenceItem{}, err
+	}
 	prepared, err := c.preparer.prepareEvidenceForScope(ctx, actor, ScopeEvidenceWrite, input)
 	if err != nil {
 		return evidencedomain.EvidenceItem{}, err

@@ -244,10 +244,18 @@ current tenant associations and any supplied digest, while ID-only references
 remain supported. Evidence, audit, staged-payload metadata and finalization jobs
 commit together. Live tests cover rollback at each write boundary, parent row
 locks, pending associations, durable canonical hashes and HTTP restart replay.
-Replay retains the established private `payload_ref` omission. Local-memory
-mode keeps the compatibility path. The HTTP replay envelope still refreshes
-Ledger projections, and remaining evidence/parser adapters and broad startup
-state loading remain EVY-905 migration work.
+Native HTTP now uses a read-only current ownership/grant guard before
+reservation and completed replay, without Ledger cloning or refresh. Artifact
+identity is replay authority; fresh creation separately checks supported
+declared digests and staged payloads. Guard locks survive through the outer
+evidence/audit/replay commit without generating clocks, IDs or hashes. Transport
+and replay retain exact numeric metadata, while the existing float64 hash
+normalization profile and historical hashes remain unchanged. Replay retains
+the established private `payload_ref` omission. Local memory keeps explicit
+nondurable storage and current-map guards. Other wrappers and broad startup
+state loading remain EVY-905 migration work. See
+[generic evidence creation](api.md#generic-evidence-creation) for input bounds,
+authorization, compatibility and metadata-only limitations.
 
 PostgreSQL-profile external transparency-checkpoint creation uses a focused
 command and reads only the tenant-owned batch root, not Ledger state or batch

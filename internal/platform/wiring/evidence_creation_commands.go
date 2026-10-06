@@ -172,6 +172,15 @@ func (t evidenceCreationTransaction) ValidateScope(ctx context.Context, tenant s
 func (t evidenceCreationTransaction) ValidateArtifactReference(ctx context.Context, tenant, id, digest string) error {
 	return validateCreationArtifact(ctx, t.artifacts, tenant, id, digest)
 }
+func (t evidenceCreationTransaction) ValidateArtifactIdentity(ctx context.Context, tenant, id string) error {
+	r, ok := t.evidence.(interface {
+		LockCreationArtifactIdentity(context.Context, string, string) error
+	})
+	if !ok {
+		return evidenceapp.ErrValidation
+	}
+	return mapEvidenceCreationError(r.LockCreationArtifactIdentity(ctx, tenant, id))
+}
 func (t evidenceCreationTransaction) InsertEvidence(ctx context.Context, v evidencedomain.EvidenceItem) error {
 	return mapEvidenceCreationError(t.evidence.InsertEvidence(ctx, domain.EvidenceFromContextModel(v)))
 }

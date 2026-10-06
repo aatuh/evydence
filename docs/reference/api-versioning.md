@@ -36,6 +36,23 @@ The gate never fetches a baseline or resolves external OpenAPI references. It
 uses only the checked-in release artifact and invokes `oasdiff` with structured
 arguments and external-reference loading disabled.
 
+## Unreleased Generic Evidence Creation Boundary
+
+`POST /v1/evidence` now uses native durable PostgreSQL execution and current
+parent/subject ownership and grants before completed replay. Original-byte
+fingerprints, route/DTO/schema versions, optional coordinates, unknown subject
+labels, artifact digest checks on fresh creation and opaque-reference replay
+omission remain unchanged. Both profiles now reject null/aliased fields/items,
+raw over-budget or NUL text, UTC-out-of-range times and unsafe cookie origins.
+See [Generic Evidence Creation](../api.md#generic-evidence-creation).
+
+Numeric metadata is decoded without transport rounding; the existing float64
+hash-normalization limitation remains documented and no historical hashes or
+records are rewritten. Cancellation and missing-scope checks still precede
+generic input validation. These unreleased input/authorization restrictions
+are not approved release-baseline exceptions or verification of uploaded bytes,
+provenance, security or compliance.
+
 ## Unreleased Deployment Creation Boundary
 
 Environment creation and deployment recording now use native PostgreSQL durable

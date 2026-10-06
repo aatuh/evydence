@@ -890,6 +890,14 @@ guards remain explicit compatibility utilities, not production composition.
 This migration does not complete EVY-905 startup/remaining-wrapper work or the
 EVY-906 saga transition.
 
+Generic evidence creation uses native durable HTTP execution and a focused
+transaction guard for current tenant/parent/recognized-subject ownership and
+grants. Completed replay neither prepares a new evidence record nor checks the
+old declared artifact digest; fresh preparation retains payload/digest checks.
+The existing staged-payload capability remains internal, and safe replay still
+omits opaque payload references. This does not finish other wrappers or startup
+Ledger retirement in EVY-905.
+
 Go dependency cycles are prohibited. A context domain package may depend only
 on standard library and small shared value/event packages. An application
 package may depend on its own domain and inward-facing ports. Adapters and

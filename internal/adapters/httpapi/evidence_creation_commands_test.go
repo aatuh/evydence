@@ -16,10 +16,38 @@ import (
 )
 
 type evidenceCreationHTTPFake struct {
-	calls int
-	actor identitydomain.Actor
-	input evidenceapp.CreateEvidenceInput
-	err   error
+	calls    int
+	guards   int
+	guardErr error
+	actor    identitydomain.Actor
+	input    evidenceapp.CreateEvidenceInput
+	err      error
+}
+
+func (f *evidenceCreationHTTPFake) AuthorizeEvidenceCreation(context.Context, identitydomain.Actor, evidenceapp.CreateEvidenceInput) error {
+	f.guards++
+	return f.guardErr
+}
+
+func TestEvidenceCreationRequiresNativeReplayAndCurrentAuthority(t *testing.T) {
+	base, secret := testServer(t)
+	f := &evidenceCreationHTTPFake{}
+	if s, err := NewServerWithOptions(base.ledger, ServerOptions{EvidenceCreationCommands: f}); err == nil || s != nil {
+		t.Error("generic evidence accepted aggregate replay")
+	}
+	s, err := NewServerWithOptions(base.ledger, ServerOptions{EvidenceCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ledger, s.evidenceIngestion, s.localEvidenceCreation = nil, nil, nil
+	body := []byte(`{"type":"manual","title":"Evidence","payload_hash":"sha256:` + strings.Repeat("a", 64) + `"}`)
+	one := postRaw(t, s, secret, "/v1/evidence", "original", body, 201)
+	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/evidence", "original", body, 201))
+	f.guardErr = application.ErrForbidden
+	postRaw(t, s, secret, "/v1/evidence", "original", body, 403)
+	if f.calls != 1 || f.guards != 3 {
+		t.Fatal("generic evidence replay skipped current authority", f)
+	}
 }
 
 func (f *evidenceCreationHTTPFake) CreateEvidence(_ context.Context, actor identitydomain.Actor, input evidenceapp.CreateEvidenceInput) (evidencedomain.EvidenceItem, error) {
@@ -31,18 +59,20 @@ func (f *evidenceCreationHTTPFake) CreateEvidence(_ context.Context, actor ident
 func TestEvidenceCreationHTTPMapsCompleteDTOAndSafeErrors(t *testing.T) {
 	local, secret := testServer(t)
 	fake := &evidenceCreationHTTPFake{}
-	server, err := NewServerWithOptions(local.ledger, ServerOptions{EvidenceCreationCommands: fake})
+	server, err := NewServerWithOptions(local.ledger, ServerOptions{EvidenceCreationCommands: fake, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw := []byte(`{"product_id":"p","project_id":"j","release_id":"r","build_id":"b","deployment_id":"d","type":"manual","subtype":"note","title":"Evidence","source_system":"ci","source_identity":{"job":"one"},"collector_id":"collector","observed_at":"2026-10-02T12:00:00Z","payload_ref":"opaque","payload_hash":"sha256:digest","payload_media_type":"text/plain","payload_size":7,"subject_refs":[{"type":"build","id":"b","digest":""}],"metadata":{"ok":true},"tags":["tag"],"limitations":["record only"]}`)
+	digest := "sha256:" + strings.Repeat("a", 64)
+	raw := []byte(`{"product_id":"p","project_id":"j","release_id":"r","build_id":"b","deployment_id":"d","type":"manual","subtype":"note","title":"Evidence","source_system":"ci","source_identity":{"job":"one"},"collector_id":"collector","observed_at":"2026-10-02T12:00:00Z","payload_ref":"opaque","payload_hash":"` + digest + `","payload_media_type":"text/plain","payload_size":7,"subject_refs":[{"type":"build","id":"b","digest":""}],"metadata":{"ok":true},"tags":["tag"],"limitations":["record only"]}`)
 	body := postRaw(t, server, secret, "/v1/evidence", "creation", raw, 201)
-	want := evidenceapp.CreateEvidenceInput{ProductID: "p", ProjectID: "j", ReleaseID: "r", BuildID: "b", DeploymentID: "d", Type: "manual", Subtype: "note", Title: "Evidence", SourceSystem: "ci", SourceIdentity: map[string]any{"job": "one"}, CollectorID: "collector", ObservedAt: time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC), PayloadRef: "opaque", PayloadHash: "sha256:digest", PayloadMediaType: "text/plain", PayloadSize: 7, SubjectRefs: []evidencedomain.SubjectRef{{Type: "build", ID: "b"}}, Metadata: map[string]any{"ok": true}, Tags: []string{"tag"}, Limitations: []string{"record only"}}
+	want := evidenceapp.CreateEvidenceInput{ProductID: "p", ProjectID: "j", ReleaseID: "r", BuildID: "b", DeploymentID: "d", Type: "manual", Subtype: "note", Title: "Evidence", SourceSystem: "ci", SourceIdentity: map[string]any{"job": "one"}, CollectorID: "collector", ObservedAt: time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC), PayloadRef: "opaque", PayloadHash: digest, PayloadMediaType: "text/plain", PayloadSize: 7, SubjectRefs: []evidencedomain.SubjectRef{{Type: "build", ID: "b"}}, Metadata: map[string]any{"ok": true}, Tags: []string{"tag"}, Limitations: []string{"record only"}}
 	if fake.calls != 1 || fake.actor.TenantID == "" || !reflect.DeepEqual(fake.input, want) || !strings.Contains(body, `"id":"durable-evidence"`) {
 		t.Fatal("DTO mismatch", fake, body)
 	}
-	if again := postRaw(t, server, secret, "/v1/evidence", "creation", raw, 201); again != body || fake.calls != 1 {
-		t.Fatal("replay repeated command", again, fake)
+	assertTrustHTTPReplay(t, body, postRaw(t, server, secret, "/v1/evidence", "creation", raw, 201))
+	if fake.calls != 1 {
+		t.Fatal("replay repeated command", fake.calls)
 	}
 	postRaw(t, server, secret, "/v1/evidence", "creation", append(raw, ' '), 409)
 	for i, tc := range []struct {

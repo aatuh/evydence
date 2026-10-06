@@ -14,6 +14,13 @@ import (
 
 var _ evidencequery.EvidenceCreationScopeReader = evidence{}
 
+func (r evidence) LockCreationArtifactIdentity(ctx context.Context, tenant, id string) error {
+	if err := validBuildIdentityRead(ctx, r.tx, tenant, id); err != nil {
+		return err
+	}
+	return requireRow(ctx, r.tx, `SELECT 1 FROM artifacts WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenant, id)
+}
+
 // ResolveEvidenceCreationScope reads only parent identifiers and share-locks
 // their coherent ownership through commit. The projection fence must precede
 // row locks, following the worker/audit lock order.

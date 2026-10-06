@@ -32,12 +32,20 @@ func TestGeneratedReportsRejectOversizedOutput(t *testing.T) {
 		ProductID:   release.ProductID,
 		ReleaseID:   release.ID,
 		Type:        "security_review",
-		Title:       oversized,
+		Title:       "Historical evidence fixture",
 		PayloadHash: sampleDigest("oversized-summary"),
 	})
 	if err != nil {
-		t.Fatalf("create oversized evidence: %v", err)
+		t.Fatalf("create historical evidence fixture: %v", err)
 	}
+	// New generic creation is bounded. Inject a legacy oversized row into this
+	// isolated fixture so every report-output rejection remains exercised.
+	evidence.Title = oversized
+	evidence.CanonicalHash, err = canonicalHash(evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ledger.evidence[evidence.ID] = evidence
 	if _, err := ledger.CreateEvidenceSummary(ctx, actor, CreateEvidenceSummaryInput{SubjectType: "release", SubjectID: release.ID, EvidenceIDs: []string{evidence.ID}}); !errors.Is(err, ErrValidation) {
 		t.Fatalf("oversized summary err=%v, want validation", err)
 	}

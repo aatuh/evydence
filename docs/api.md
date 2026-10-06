@@ -462,6 +462,8 @@ Upload generic evidence:
 }
 ```
 
+#### Generic Evidence Creation
+
 `POST /v1/evidence` creates immutable evidence metadata. Later changes are
 represented by supersession, lifecycle events, links, or new evidence records.
 Parser-normalization records are internal and cannot be created through this
@@ -469,6 +471,46 @@ generic route. SBOM, vulnerability-scan, OpenAPI-contract, VEX, parser-
 normalization, and build-attestation evidence has fixed relationships because
 those coordinates bind worker-owned projections; generic link and supersession
 requests for those evidence types return a conflict.
+
+PostgreSQL uses focused native durable execution, not Ledger cloning, replay or
+refresh. Every fresh request and completed retry requires current tenant-owned,
+coherent product/project/release/build/deployment parents and matching
+`evidence:write` grants. Recognized subject references require their own current
+ownership/grants; unknown subject types remain recorded labels, not authority.
+Artifact-scoped human grants require a current matching evidence/build association.
+Replay checks artifact identity, not the old submitted digest; fresh creation
+still checks any supported declared artifact digest. The shared writer fence
+precedes ownership locks held through the outer evidence/audit/replay commit.
+The guard does not read historical evidence/private parent metadata, inspect
+payloads, hash evidence, or allocate clocks/IDs. Changed original request bytes
+under the same key conflict; identical retries add no effects.
+
+Both profiles reject explicit null fields/items, duplicate/unknown fields,
+case aliases, invalid UTF-8 and NUL text. Raw parent/collector and subject IDs
+are limited to 1024 bytes before trimming; at most 1024 supplied subjects, tags
+or limitations are accepted. The existing 64 KiB body, 16 KiB-per-JSON-string,
+32-level nesting, 256-key object and 1024-item array limits remain. Source
+identity and metadata must be JSON-shaped objects; nested null values remain
+valid, unlike a null object field. `observed_at` is optional and defaults to
+command time; a supplied UTC-normalized timestamp must use years 1 through
+9999. New durable timestamps use UTC microsecond precision. Cookie writes
+require same-host HTTPS `Origin`; explicit Bearer authentication takes precedence.
+
+Transport and durable replay preserve large integer metadata without rounding.
+The unchanged canonicalization profile still normalizes numbers through
+`float64`; see [Evidence Format Compatibility](reference/evidence-format-compatibility.md).
+This migration does not introduce a new hashing profile or rehash old rows.
+Fresh responses retain supplied opaque payload references; the existing safe
+replay projection omits them. This route records metadata, not uploaded bytes or
+verified provenance, and its result remains `pending`. Internal staged-payload
+metadata/finalization jobs still commit atomically with evidence and audit;
+this HTTP route cannot submit the internal staging capability. Local memory
+retains explicit nondurable storage and current-map guards.
+
+Tests: `internal/platform/wiring/evidence_creation_native_test.go`,
+`internal/platform/wiring/evidence_creation_commands_test.go`,
+`internal/evidence/app/creation_guard_test.go` and
+`internal/adapters/httpapi/evidence_creation_native_test.go`.
 
 ### 3. Upload SBOM And Vulnerability Evidence
 
