@@ -79,6 +79,63 @@ supported profiles and exit criteria.
 early when `EVYDENCE_TEST_DATABASE_URL` is unset. Use `make coverage` for a
 local no-database coverage report that is not release-candidate evidence.
 
+## Disposable memory-backed test database
+
+On a Linux Docker engine, a separate tmpfs-backed PostgreSQL instance can reduce
+schema-fixture I/O without changing tests. This is a test-only profile, not a
+production deployment. Keep the pinned image from `docker-compose.yml`, leave
+`fsync`, `synchronous_commit` and `full_page_writes` enabled, and retain the
+same package/fixture deadlines, race checks and coverage thresholds.
+
+The example bounds database files to 2 GiB and total container memory to 3 GiB.
+Allow enough available memory for PostgreSQL and the test processes. The
+container name and loopback port must be unused; do not remove an existing
+service to make the example run. Start it from the repository root:
+
+```sh
+validation_pg_image=$(docker compose config --format json | jq -r '.services.postgres.image')
+docker run -d --name evydence-validation-postgres \
+  --memory=3g --memory-swap=3g \
+  --tmpfs /var/lib/postgresql/data:rw,size=2g \
+  --publish 127.0.0.1:55439:55439 \
+  --env POSTGRES_USER=evydence --env POSTGRES_PASSWORD=change-me \
+  --env POSTGRES_DB=evydence --env PGPORT=55439 \
+  "$validation_pg_image" postgres -p 55439
+docker exec evydence-validation-postgres pg_isready -U evydence -d evydence -p 55439
+```
+
+Repeat the readiness command until it reports accepting connections, then verify
+the durability settings:
+
+```sh
+docker exec evydence-validation-postgres psql -U evydence -d evydence -p 55439 -At \
+  -c "SELECT name,setting FROM pg_settings WHERE name IN ('fsync','synchronous_commit','full_page_writes') ORDER BY name"
+```
+
+All three settings must be `on`. Use the server-major-compatible recovery
+clients described above; a
+container client wrapper must stream host fixture files rather than pass their
+paths into a container that cannot see them. Then select this test URL while
+retaining the configured MinIO test service:
+
+```sh
+set -a; . ./.test.env.example; set +a
+export ENV=''
+export EVYDENCE_TEST_DATABASE_URL='postgres://evydence:change-me@127.0.0.1:55439/evydence?sslmode=disable'
+make production-check
+```
+
+The complete gate is still required; an out-of-memory event, full tmpfs or timeout
+is a failure, not a reason to omit tests. Record the ephemeral storage choice
+with the results. This profile checks logical database behavior, migrations,
+application restart persistence and backup/restore; it does not demonstrate
+host-reboot, container-stop or power-loss persistence. Container stop discards
+its database files. See [Docker tmpfs limits](https://docs.docker.com/engine/storage/tmpfs/)
+and [memory/swap limits](https://docs.docker.com/engine/containers/resource_constraints/).
+After retaining the gate's host-side evidence, stop/remove only the disposable
+container you created; this destroys all its test database data. Never use this
+profile or its example credentials for production data.
+
 ## Release Candidate Checklist
 
 Before tagging `v0.1.0-rc.1`, `v0.9.0-rc.1`, or another controlled
