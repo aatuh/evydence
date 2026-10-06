@@ -128,7 +128,7 @@ Generated from 189 operations: 189 precise, 0 broad.
 | POST | /v1/releases | createRelease | Bearer | release:write | required | - | application/json:CreateReleaseRequest | 201:application/json:ReleaseEnvelope | precise | core |
 | GET | /v1/releases/{id} | getRelease | Bearer | release:read | - | header:If-None-Match, path:id | - | 200:application/json:ReleaseEnvelope | precise | core |
 | POST | /v1/releases/{id}/approve | approveRelease | Bearer | release:write | required | header:If-Match, path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise | core |
-| POST | /v1/releases/{id}/evidence-flow/start | startReleaseEvidenceFlow | Bearer | release:read | required | path:id | - | 200:application/json:ReleaseEvidenceFlowEnvelope | precise | core |
+| POST | /v1/releases/{id}/evidence-flow/start | startReleaseEvidenceFlow | Bearer | release:read | not required | path:id | - | 200:application/json:ReleaseEvidenceFlowEnvelope | precise | core |
 | POST | /v1/releases/{id}/freeze | freezeRelease | Bearer | release:write | required | header:If-Match, path:id | application/json:EmptyObject | 200:application/json:ReleaseEnvelope | precise | core |
 | GET | /v1/releases/{id}/security-summary | releaseSecuritySummary | Bearer | report:read | - | path:id | - | 200:application/json:ReleaseSecuritySummaryEnvelope | precise | core |
 | POST | /v1/remediation-tasks | createRemediationTask | Bearer | incident:write | required | - | application/json:CreateRemediationTaskRequest | 201:application/json:RemediationTaskEnvelope | precise | experimental |

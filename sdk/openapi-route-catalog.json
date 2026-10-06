@@ -2157,7 +2157,7 @@
       ]
     },
     {
-      "idempotency_key_required": true,
+      "idempotency_key_required": false,
       "method": "POST",
       "operation_id": "startReleaseEvidenceFlow",
       "path": "/v1/releases/{id}/evidence-flow/start",

@@ -108,6 +108,11 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
 
 ### Changed
 
+- Release evidence-flow planning now advertises its existing read-only POST
+  behavior consistently: `Idempotency-Key` is not required. Bearer authentication,
+  `release:read`, the route, and the response remain unchanged. OpenAPI, SDK route
+  metadata, and generated API references agree with the existing handler.
+
 - Corrected the `Product` OpenAPI response schema to omit the unsupported
   `schema_version` field. Create, read, and list JSON and stored product records
   are unchanged; clients must not require a field the server never returned.
