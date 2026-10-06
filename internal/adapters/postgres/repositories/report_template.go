@@ -54,5 +54,6 @@ func (r packages) GetCustomReportTemplate(ctx context.Context, tenantID, id stri
 		}
 	}
 	value.ID, value.TenantID = id, tenantID
+	value.CreatedAt = value.CreatedAt.UTC()
 	return value, nil
 }

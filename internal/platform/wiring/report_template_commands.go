@@ -18,7 +18,7 @@ func BuildReportTemplateCommands(factory app.UnitOfWorkFactory) (*packageapp.Tem
 	if factory == nil {
 		return nil, errors.New("report template transactions are required")
 	}
-	return packageapp.NewTemplateCommands(packageapp.TemplateCommandConfig{Transactions: reportTemplateTransactions{factory}, Authorizer: packagequery.NewTemplateAuthorizer(), Hasher: reportOutputHasher{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return packageapp.NewTemplateCommands(packageapp.TemplateCommandConfig{Transactions: reportTemplateTransactions{factory}, Authorizer: packagequery.NewTemplateAuthorizer(), Hasher: reportOutputHasher{}, Clock: application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type reportTemplateTransactions struct{ factory app.UnitOfWorkFactory }
@@ -35,6 +35,21 @@ func (t reportTemplateTransactions) ExecuteReportTemplate(ctx context.Context, c
 type reportTemplateTransaction struct {
 	packages app.PackageRepository
 	audit    app.AuditRepository
+}
+
+func (t reportTemplateTransaction) LockReportTemplateTenant(ctx context.Context, tenant string) error {
+	r, ok := t.packages.(packageapp.ReportTemplateScopeLocker)
+	if !ok {
+		return packageapp.ErrValidation
+	}
+	return mapPackageAccessWriteError(r.LockReportTemplateTenant(ctx, tenant))
+}
+func (t reportTemplateTransaction) LockReportTemplateIdentity(ctx context.Context, tenant, id string) error {
+	r, ok := t.packages.(packageapp.ReportTemplateScopeLocker)
+	if !ok {
+		return packageapp.ErrValidation
+	}
+	return mapPackageAccessWriteError(r.LockReportTemplateIdentity(ctx, tenant, id))
 }
 
 func (t reportTemplateTransaction) GetCustomReportTemplate(ctx context.Context, tenantID, id string) (packagedomain.CustomReportTemplate, error) {

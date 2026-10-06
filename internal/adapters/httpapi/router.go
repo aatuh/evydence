@@ -25,7 +25,6 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
-	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -100,6 +99,7 @@ type Server struct {
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	localEvidenceCreation             localEvidenceCreationCommands
+	localReportTemplates              localReportTemplateCommands
 	openAPIIngestionCommands          OpenAPIIngestionCommands
 	sbomIngestionCommands             SBOMIngestionCommands
 	scanIngestionCommands             VulnerabilityScanIngestionCommands
@@ -579,6 +579,9 @@ func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 	if opts.EvidenceCreationCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused evidence creation requires durable idempotency")
 	}
+	if opts.ReportTemplateCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused report templates require durable idempotency")
+	}
 	if opts.RetentionCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused retention requires durable idempotency")
 	}
@@ -792,6 +795,7 @@ func (s *Server) bindLedger(ledger *app.Ledger) {
 	s.releaseCatalog = ledger
 	s.localDeployments = ledger
 	s.localEvidenceCreation = ledger
+	s.localReportTemplates = ledger
 	s.evidenceIngestion = ledger
 	s.riskDecisions = ledger
 	s.packages = ledger
@@ -1856,48 +1860,6 @@ func (s *Server) craReadinessHTMLPackage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeData(w, http.StatusOK, report)
-}
-
-func (s *Server) createReportTemplate(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name          string   `json:"name"`
-		Version       string   `json:"version"`
-		ReportType    string   `json:"report_type"`
-		AllowedFields []string `json:"allowed_fields"`
-		Template      string   `json:"template"`
-	}
-	s.createWithLimit(w, r, app.ReportTemplateRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if s.reportTemplateCommands != nil {
-			template, err := s.reportTemplateCommands.CreateCustomReportTemplate(ctx, actor, packageapp.CreateReportTemplateInput{Name: req.Name, Version: req.Version, ReportType: req.ReportType, AllowedFields: req.AllowedFields, Template: req.Template})
-			return http.StatusCreated, reportTemplateFromCommands(template), mapCustomerPackageAccessError(err)
-		}
-		tpl, err := s.packages.CreateCustomReportTemplate(ctx, actor, app.CreateReportTemplateInput{Name: req.Name, Version: req.Version, ReportType: req.ReportType, AllowedFields: req.AllowedFields, Template: req.Template})
-		return http.StatusCreated, tpl, err
-	})
-}
-
-func (s *Server) renderReportTemplate(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		SubjectType string `json:"subject_type"`
-		SubjectID   string `json:"subject_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		if strings.TrimSpace(req.SubjectType) == "" || strings.TrimSpace(req.SubjectID) == "" {
-			return 0, nil, app.ErrValidation
-		}
-		if s.reportTemplateCommands != nil {
-			report, err := s.reportTemplateCommands.RenderCustomReport(ctx, actor, packageapp.RenderReportInput{TemplateID: r.PathValue("id"), SubjectType: req.SubjectType, SubjectID: req.SubjectID})
-			return http.StatusCreated, renderedReportFromCommands(report), mapCustomerPackageAccessError(err)
-		}
-		report, err := s.packages.RenderCustomReport(ctx, actor, app.RenderReportInput{TemplateID: r.PathValue("id"), SubjectType: req.SubjectType, SubjectID: req.SubjectID})
-		return http.StatusCreated, report, err
-	})
 }
 
 func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {

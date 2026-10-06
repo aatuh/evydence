@@ -221,6 +221,19 @@ for protocol and migration limits. Startup Ledger retirement remains EVY-905 wor
 
 ## Bounded-context transition
 
+Custom report definition creation and materialization now use Package-owned
+commands and native durable HTTP execution. Read-only replay guards require
+current tenant-wide report permission, tenant existence and optional template
+ownership, not definition metadata or subject lookups. The shared writer fence
+precedes locks held through record/audit/replay commit. Fresh rendering still
+reads one bounded current definition and selects only inert metadata labels;
+template text is never executed. Flat PostgreSQL and explicit memory repository
+capabilities provide the scope locks; the legacy Service bridge is not a native
+HTTP replay capability. Schemas and normalized string-output hashes remain
+unchanged; new durable timestamps use UTC microseconds. Other wrappers and
+startup Ledger retirement remain EVY-905 work. See
+[custom report templates](api.md#custom-report-templates) for limits and non-claims.
+
 Generic evidence creation now has standalone Evidence-owned
 `EvidenceCreationCommands`, with a two-check reader and flat transaction ports
 for scope/artifact validation, authorization, payload recording, audit, outbox

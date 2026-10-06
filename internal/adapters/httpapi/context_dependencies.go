@@ -95,8 +95,17 @@ type HTMLReportCommands interface {
 }
 
 type ReportTemplateCommands interface {
+	AuthorizeReportTemplateCreation(context.Context, domain.Actor, packageapp.CreateReportTemplateInput) error
+	AuthorizeReportRendering(context.Context, domain.Actor, packageapp.RenderReportInput) error
 	CreateCustomReportTemplate(context.Context, domain.Actor, packageapp.CreateReportTemplateInput) (packagedomain.CustomReportTemplate, error)
 	RenderCustomReport(context.Context, domain.Actor, packageapp.RenderReportInput) (packagedomain.RenderedCustomReport, error)
+}
+
+type localReportTemplateCommands interface {
+	AuthorizeReportTemplateCreation(context.Context, domain.Actor, packageapp.CreateReportTemplateInput) error
+	AuthorizeReportRendering(context.Context, domain.Actor, packageapp.RenderReportInput) error
+	CreateCustomReportTemplate(context.Context, domain.Actor, app.CreateReportTemplateInput) (domain.CustomReportTemplate, error)
+	RenderCustomReport(context.Context, domain.Actor, app.RenderReportInput) (domain.RenderedCustomReport, error)
 }
 
 type BundleImportCommand interface {

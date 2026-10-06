@@ -74,21 +74,26 @@ func (s *TemplateCommands) CreateCustomReportTemplate(ctx context.Context, actor
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, ScopeOnly: true}); err != nil {
 		return packagedomain.CustomReportTemplate{}, err
 	}
-	input.Name, input.Version, input.ReportType = strings.TrimSpace(input.Name), strings.TrimSpace(input.Version), strings.TrimSpace(input.ReportType)
-	fields, err := normalizedNonEmptyStrings(input.AllowedFields, true)
-	if err != nil || input.Name == "" || input.Version == "" || input.ReportType == "" || len(fields) == 0 || int64(len(input.Template)) > ReportTemplateRequestLimit {
+	if err := validateReportTemplateTenant(actor); err != nil {
+		return packagedomain.CustomReportTemplate{}, err
+	}
+	var err error
+	input, err = NormalizeReportTemplateCreation(input)
+	if err != nil || len(actor.TenantID)+len(input.Name)+len(input.Version) > MaxReportTemplateKeyBytes {
 		return packagedomain.CustomReportTemplate{}, ErrValidation
 	}
-	now := s.config.Clock.Now().UTC()
-	template := packagedomain.CustomReportTemplate{
-		ID: s.config.IDs.NewID("rptpl"), TenantID: actor.TenantID, Name: input.Name, Version: input.Version,
-		ReportType: input.ReportType, AllowedFields: fields, Template: strings.TrimSpace(input.Template),
-		SchemaVersion: packagedomain.ReportTemplateSchemaVersion, CreatedAt: now,
-	}
+	var template packagedomain.CustomReportTemplate
 	err = s.config.Transactions.ExecuteReportTemplate(ctx, func(ctx context.Context, tx TemplateTransaction) error {
 		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, TenantWide: true}); err != nil {
 			return err
 		}
+		if guard, ok := tx.(ReportTemplateScopeLocker); ok {
+			if err := guard.LockReportTemplateTenant(ctx, actor.TenantID); err != nil {
+				return err
+			}
+		}
+		now := s.config.Clock.Now().UTC()
+		template = packagedomain.CustomReportTemplate{ID: s.config.IDs.NewID("rptpl"), TenantID: actor.TenantID, Name: input.Name, Version: input.Version, ReportType: input.ReportType, AllowedFields: input.AllowedFields, Template: input.Template, SchemaVersion: packagedomain.ReportTemplateSchemaVersion, CreatedAt: now}
 		if err := tx.InsertCustomReportTemplate(ctx, template); err != nil {
 			return err
 		}
@@ -113,13 +118,23 @@ func (s *TemplateCommands) RenderCustomReport(ctx context.Context, actor identit
 	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, ScopeOnly: true}); err != nil {
 		return packagedomain.RenderedCustomReport{}, err
 	}
-	if strings.TrimSpace(input.TemplateID) == "" || strings.TrimSpace(input.SubjectType) == "" || strings.TrimSpace(input.SubjectID) == "" {
-		return packagedomain.RenderedCustomReport{}, ErrValidation
+	if err := validateReportTemplateTenant(actor); err != nil {
+		return packagedomain.RenderedCustomReport{}, err
+	}
+	var err error
+	input, err = NormalizeReportRendering(input)
+	if err != nil {
+		return packagedomain.RenderedCustomReport{}, err
 	}
 	var report packagedomain.RenderedCustomReport
-	err := s.config.Transactions.ExecuteReportTemplate(ctx, func(ctx context.Context, tx TemplateTransaction) error {
+	err = s.config.Transactions.ExecuteReportTemplate(ctx, func(ctx context.Context, tx TemplateTransaction) error {
 		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, TenantWide: true}); err != nil {
 			return err
+		}
+		if guard, ok := tx.(ReportTemplateScopeLocker); ok {
+			if err := guard.LockReportTemplateTenant(ctx, actor.TenantID); err != nil {
+				return err
+			}
 		}
 		template, err := tx.GetCustomReportTemplate(ctx, actor.TenantID, strings.TrimSpace(input.TemplateID))
 		if err != nil {

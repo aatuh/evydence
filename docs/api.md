@@ -2686,7 +2686,7 @@ control effectiveness conclusions.
 | `POST` | `/v1/reports/pdf` | Create reproducible PDF report package metadata and payload hash; see [PDF report packaging](#pdf-report-packaging). |
 | `GET` | `/v1/reports/incident-package` | Incident package report. |
 | `POST` | `/v1/report-templates` | Create allowed-field template. |
-| `POST` | `/v1/report-templates/{id}/render` | Render deterministic JSON report. |
+| `POST` | `/v1/report-templates/{id}/render` | Materialize allowed metadata labels; see [custom report templates](#custom-report-templates). |
 | `POST` | `/v1/incidents` | Create incident. |
 | `POST` | `/v1/incidents/{id}/timeline` | Append incident timeline event. |
 | `POST` | `/v1/incidents/{id}/webhook-receivers` | Create incident-scoped Ed25519 webhook receiver. |
@@ -2711,6 +2711,47 @@ non-claims while excluding raw payload bytes, object-store references, secrets,
 token hashes, and internal decision notes. Redaction profiles can be created
 from explicit `allowed_types` or the `customer_safe` / `security_review`
 presets; preset policy fields cannot be overridden in the create request.
+
+### Custom Report Templates
+
+`POST /v1/report-templates` records an inert definition; template text is never
+executed. `POST /v1/report-templates/{id}/render` materializes only allowed
+`subject_type`, `subject_id` and `generated_at` labels. Unknown allowed fields
+are ignored. Subject labels are not resource lookups or authority claims, even
+when they name a nonexistent release. Allowed-field names are trimmed, sorted
+and deduplicated; raw subject labels remain in output while the report's subject
+coordinates retain their existing trimming. Output hashing remains normalized
+JSON over string values. Recording does not verify subject evidence or establish
+security/compliance conclusions; do not place secrets in labels or definitions.
+
+Both routes require `report:read`, an `Idempotency-Key` and current tenant-wide
+human permission; product/project/release grants alone do not authorize them.
+PostgreSQL uses focused native durable execution without Ledger cloning,
+replay or refresh. Every retry checks tenant existence and, for rendering,
+current template ownership without definition reads, subject queries, clocks,
+IDs or output generation. The shared writer fence precedes ownership locks held
+through the record/audit/replay commit. Completed retries return the original
+safe result without rereading a newer definition; fresh rendering uses the
+current bounded definition. Different-key duplicate tenant/name/version
+creation conflicts; changed original bytes under the same key also conflict.
+
+Raw tenant/template IDs are limited to 1024 bytes. The normalized tenant ID,
+name and version together must fit 2304 UTF-8 bytes for the unique index.
+Commands bound raw name/version/type/field and subject-label text at 64 KiB,
+template text at 1 MiB, and supplied allowed fields at 1024 before deduplication.
+HTTP retains the 1 MiB creation envelope, 64 KiB render envelope and existing
+JSON structural limits, including 16 KiB strings. Both profiles reject null
+fields/items, aliases, duplicate/unknown fields, invalid UTF-8 and NUL text;
+omit optional template text instead of sending null. Fresh rendering of a
+stored definition over the 8 MiB read budget returns conflict, never truncated
+data. New durable timestamps use UTC microsecond precision; schemas are
+unchanged. Cookie writes require same-host HTTPS `Origin` with Bearer precedence.
+Local memory retains nondurable storage and current tenant/template map guards.
+
+Tests: `internal/platform/wiring/report_template_native_test.go`,
+`internal/platform/wiring/report_template_commands_test.go`,
+`internal/package/app/report_template_guard_test.go` and
+`internal/adapters/httpapi/report_template_native_test.go`.
 
 ### Redaction Profile Creation
 

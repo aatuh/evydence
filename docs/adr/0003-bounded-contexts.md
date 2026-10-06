@@ -890,6 +890,14 @@ guards remain explicit compatibility utilities, not production composition.
 This migration does not complete EVY-905 startup/remaining-wrapper work or the
 EVY-906 saga transition.
 
+Custom report template creation and materialization use native durable HTTP
+execution with focused tenant/template scope lockers, not Ledger replay.
+Current tenant-wide report permission and ownership are checked without
+definition metadata, subject dereferencing or output generation during replay.
+Fresh rendering preserves the inert allowed-label contract and normalized
+string-output hash. The Service transaction bridge remains compatibility-only
+and cannot serve native HTTP replay guards; startup retirement remains EVY-905.
+
 Generic evidence creation uses native durable HTTP execution and a focused
 transaction guard for current tenant/parent/recognized-subject ownership and
 grants. Completed replay neither prepares a new evidence record nor checks the

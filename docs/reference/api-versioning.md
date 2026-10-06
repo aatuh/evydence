@@ -36,6 +36,21 @@ The gate never fetches a baseline or resolves external OpenAPI references. It
 uses only the checked-in release artifact and invokes `oasdiff` with structured
 arguments and external-reference loading disabled.
 
+## Unreleased Custom Report Template Boundary
+
+Definition creation and metadata-only materialization now use native durable
+PostgreSQL execution. Current tenant-wide report permission and template
+ownership precede completed replay without definition reads or output generation.
+Template text remains inert; subject labels remain nondereferenced, output
+whitespace semantics and hashes are unchanged. New durable timestamps use UTC
+microseconds; historical records and schema versions are not rewritten.
+
+Both profiles now reject null/aliased fields/items, raw over-budget or NUL text,
+oversized normalized index keys and unsafe cookie origins. See
+[Custom Report Templates](../api.md#custom-report-templates). These unreleased
+restrictions require compatibility review and are not approved baseline
+exceptions or evidence of security/compliance conclusions.
+
 ## Unreleased Generic Evidence Creation Boundary
 
 `POST /v1/evidence` now uses native durable PostgreSQL execution and current
