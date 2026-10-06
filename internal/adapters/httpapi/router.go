@@ -674,10 +674,7 @@ func newServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts S
 			return nil, err
 		}
 	}
-	mux := http.NewServeMux()
-	specRegistry := NewSpecRegistry()
-	router := &serveMuxRouter{mux: mux}
-	routeRegistry := routecontracts.NewRegistry(router, specRegistry)
+	mux, specRegistry, routeRegistry := newContractRegistries()
 	identity := opts.BuildIdentity
 	if identity.IsZero() {
 		identity = runtimeinfo.Current()

@@ -48,6 +48,10 @@ See the same [migration note](docs/reference/api-versioning.md#unreleased-contro
   service; full-result compatibility vectors and wrong-tenant/grant tests
   preserve existing policy output and access behavior.
 
+- OpenAPI generation now uses shared, validated route contracts without
+  constructing Ledger or runtime services. Generated specification bytes and
+  native server dependency requirements are unchanged.
+
 - PostgreSQL SSO session revocation/logout now use focused, hash-free locked
   metadata and an atomic lifecycle/audit/replay transaction. Cookie-only
   mutations require a matching HTTPS Origin in both profiles; durable logout

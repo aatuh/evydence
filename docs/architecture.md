@@ -34,6 +34,11 @@ installed. Request middleware, route registration and response contracts are
 shared with the explicit local-memory server. Only the `local_memory` entry-point
 branch constructs the compatibility Ledger.
 
+`cmd/openapi` renders the shared route contracts through
+`httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
+ports. This path returns only the validated document, not a runnable server;
+the native server's mandatory dependency checks remain unchanged.
+
 Constructor tests cover every missing dependency and typed-nil case. The live
 native route sweep uses a deliberately invalid compatibility snapshot: aggregate
 loading must fail, while all 189 routes, valid product creation, restart replay

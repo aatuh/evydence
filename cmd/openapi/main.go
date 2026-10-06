@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
@@ -18,11 +17,7 @@ func main() {
 }
 
 func run(out io.Writer) error {
-	server, err := httpapi.NewServer(app.NewLedger(app.Config{APIKeyPepper: "openapi-generation"}))
-	if err != nil {
-		return err
-	}
-	doc, err := server.OpenAPI()
+	doc, err := httpapi.GenerateOpenAPI()
 	if err != nil {
 		return err
 	}
