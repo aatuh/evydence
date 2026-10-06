@@ -13,9 +13,11 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -108,7 +110,8 @@ func runWithArgs(args []string) error {
 	if databaseURL == "" {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
 	}
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
 	if err != nil {
 		return err
@@ -116,6 +119,10 @@ func runWithArgs(args []string) error {
 	defer runtime.Close()
 	store := runtime.Postgres
 	objectStore := runtime.Objects
+	processor, err := newNativeJobProcessor(store, objectStore)
+	if err != nil {
+		return err
+	}
 	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
 	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
 	log.Printf("evydence worker started with postgres outbox, configured object store, polling interval %s", pollInterval)
@@ -126,17 +133,21 @@ func runWithArgs(args []string) error {
 		jobs, err := store.ClaimJobs(ctx, batchSize)
 		if err != nil {
 			log.Printf("outbox claim failed")
-			time.Sleep(pollInterval)
+			if err := waitWorkerPoll(ctx, pollInterval); err != nil {
+				return err
+			}
 			continue
 		}
 		if len(jobs) == 0 {
-			time.Sleep(pollInterval)
+			if err := waitWorkerPoll(ctx, pollInterval); err != nil {
+				return err
+			}
 			continue
 		}
 		prioritizePayloadFinalization(jobs)
 		for _, job := range jobs {
 			log.Printf("processing outbox job id=%s kind=%s subject_type=%s subject_id=%s attempt=%d", job.ID, job.Kind, job.SubjectType, job.SubjectID, job.Attempts)
-			if err := processJobWithObjects(ctx, store, objectStore, job); err != nil {
+			if err := processor.Process(ctx, job); err != nil {
 				failure := classifyWorkerFailure(err)
 				log.Printf("outbox job failed id=%s kind=%s class=%s code=%s", job.ID, job.Kind, failure.Class, failure.Code)
 				if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
@@ -307,6 +318,9 @@ func classifyWorkerFailure(err error) postgres.JobFailure {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return postgres.JobFailure{Class: postgres.JobFailureTransient, Code: "worker_interrupted"}
 	}
+	if errors.Is(err, errWorkerBoundedPayloadRejected) {
+		return postgres.JobFailure{Class: postgres.JobFailurePoisoned, Code: "payload_invariant_failed"}
+	}
 	if errors.Is(err, app.ErrNotFound) {
 		return postgres.JobFailure{Class: postgres.JobFailurePermanent, Code: "payload_orphaned"}
 	}
@@ -334,7 +348,9 @@ func classifyWorkerFailure(err error) postgres.JobFailure {
 	}
 }
 
-type jobStateLoader interface {
+// Legacy snapshot reads are available only to compatibility test helpers;
+// native composition accepts the closed nativeJobStateStore instead.
+type legacyJobStateLoader interface {
 	LoadState(context.Context) (app.PersistedState, bool, error)
 }
 
@@ -343,17 +359,15 @@ type jobDependencyInspector interface {
 }
 
 type jobStateStore interface {
-	jobStateLoader
+	legacyJobStateLoader
 	SaveState(context.Context, app.PersistedState) error
 }
 
 type jobReleaseLedgerMutationStore interface {
-	jobStateLoader
 	ApplyReleaseLedgerMutation(context.Context, app.ReleaseLedgerMutation) error
 }
 
 type jobClaimedReleaseLedgerMutationStore interface {
-	jobStateLoader
 	ApplyClaimedReleaseLedgerMutation(context.Context, string, string, app.ReleaseLedgerMutation) error
 }
 
@@ -369,15 +383,15 @@ type payloadFinalizer interface {
 	app.PayloadObjectStore
 }
 
-func processJob(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) error {
+func processJob(ctx context.Context, state any, job postgres.ClaimedJob) error {
 	return processJobInternal(ctx, state, nil, job, false)
 }
 
-func processJobWithObjects(ctx context.Context, state jobStateLoader, objects jobObjectGetter, job postgres.ClaimedJob) error {
+func processJobWithObjects(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob) error {
 	return processJobInternal(ctx, state, objects, job, true)
 }
 
-func completedVEXDecisionJob(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) (bool, error) {
+func completedVEXDecisionJob(ctx context.Context, state any, job postgres.ClaimedJob) (bool, error) {
 	if job.Kind != "parse_vex" || !payloadBool(job, "worker_create_decisions") {
 		return false, nil
 	}
@@ -414,12 +428,18 @@ func completedVEXDecisionJob(ctx context.Context, state jobStateLoader, job post
 	return false, nil
 }
 
-func processJobInternal(ctx context.Context, state jobStateLoader, objects jobObjectGetter, job postgres.ClaimedJob, requireObjectReplay bool) error {
+func processJobInternal(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob, requireObjectReplay bool) error {
+	if ctx == nil {
+		return errors.New("worker context is required")
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if state == nil {
 		return errors.New("outbox job handler requires durable state")
+	}
+	if !supportedWorkerJob(job.Kind) {
+		return errors.New("unsupported outbox job kind")
 	}
 	if job.Kind == "finalize_payload" {
 		lifecycle, ok := state.(app.ObjectPayloadLifecycleStore)
@@ -686,20 +706,29 @@ func processJobInternal(ctx context.Context, state jobStateLoader, objects jobOb
 	return nil
 }
 
-func loadOutboxJobState(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
-	switch job.Kind {
-	case "parse_sbom", "parse_vulnerability_scan", "parse_openapi_contract", "verify_attestation", "parse_vex":
-		if _, claimed := state.(jobClaimedReleaseLedgerMutationStore); claimed {
-			if focused, ok := state.(jobFocusedStateLoader); ok {
-				return focused.LoadWorkerJobState(ctx, job)
+func loadOutboxJobState(ctx context.Context, state any, job postgres.ClaimedJob) (app.PersistedState, bool, error) {
+	if ctx == nil {
+		return app.PersistedState{}, false, errors.New("worker context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return app.PersistedState{}, false, err
+	}
+	if !supportedWorkerJob(job.Kind) || job.Kind == "finalize_payload" {
+		return app.PersistedState{}, false, errors.New("unsupported outbox job kind")
+	}
+	if focused, ok := state.(jobFocusedStateLoader); ok {
+		if _, parser := expectedParserVersions[job.Kind]; parser {
+			if _, claimed := state.(jobClaimedReleaseLedgerMutationStore); !claimed {
+				return app.PersistedState{}, false, errors.New("focused parser state requires claim-fenced writes")
 			}
 		}
-	case "sign_bundle", "verify_subject":
-		if focused, ok := state.(jobFocusedStateLoader); ok {
-			return focused.LoadWorkerJobState(ctx, job)
-		}
+		return focused.LoadWorkerJobState(ctx, job)
 	}
-	return state.LoadState(ctx)
+	legacy, ok := state.(legacyJobStateLoader)
+	if !ok {
+		return app.PersistedState{}, false, errors.New("worker state reader is required")
+	}
+	return legacy.LoadState(ctx)
 }
 
 func requireParserPayloadReference(job postgres.ClaimedJob, snapshot app.PersistedState) error {
@@ -731,7 +760,7 @@ func requireParserPayloadReference(job postgres.ClaimedJob, snapshot app.Persist
 	return nil
 }
 
-func persistParserSideEffects(ctx context.Context, state jobStateLoader, snapshot app.PersistedState, job postgres.ClaimedJob, sideEffects app.ReleaseLedgerMutation) error {
+func persistParserSideEffects(ctx context.Context, state any, snapshot app.PersistedState, job postgres.ClaimedJob, sideEffects app.ReleaseLedgerMutation) error {
 	if claimed, ok := state.(jobClaimedReleaseLedgerMutationStore); ok {
 		if err := claimed.ApplyClaimedReleaseLedgerMutation(ctx, job.ID, job.LeaseToken, sideEffects); err != nil {
 			return fmt.Errorf("persist claimed parser side effects: %w", err)
@@ -778,7 +807,7 @@ func requireParserVersion(job postgres.ClaimedJob) error {
 	return nil
 }
 
-func verifyJobObject(ctx context.Context, state jobStateLoader, objects jobObjectGetter, job postgres.ClaimedJob) (app.Object, bool, error) {
+func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob) (app.Object, bool, error) {
 	key := payloadObjectKey(job)
 	if key == "" {
 		return app.Object{}, false, nil
@@ -804,14 +833,28 @@ func verifyJobObject(ctx context.Context, state jobStateLoader, objects jobObjec
 			return app.Object{}, false, err
 		}
 	}
-	object, err := objects.Get(ctx, key)
+	maxBytes := intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes)
+	var object app.Object
+	var err error
+	if bounded, ok := objects.(app.BoundedObjectReader); ok {
+		object, err = bounded.GetBounded(ctx, key, int64(maxBytes))
+		if errors.Is(err, app.ErrConflict) {
+			return app.Object{}, false, errWorkerBoundedPayloadRejected
+		}
+	} else {
+		// Only compatibility test helpers may lack the native bounded port.
+		object, err = objects.Get(ctx, key)
+	}
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return app.Object{}, false, err
+		}
 		return app.Object{}, false, errors.New("read outbox payload object")
 	}
 	if object.TenantID != "" && object.TenantID != job.TenantID {
 		return app.Object{}, false, errors.New("outbox payload object tenant mismatch")
 	}
-	if len(object.Bytes) > intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes) {
+	if len(object.Bytes) > maxBytes {
 		return app.Object{}, false, errors.New("outbox payload object exceeds worker size limit")
 	}
 	want := payloadString(job, "payload_hash")
@@ -1717,7 +1760,7 @@ func validVEXDecisionActor(actorType, actorID string) bool {
 	}
 }
 
-func vexDecisionDependencyError(ctx context.Context, loader jobStateLoader, state *app.PersistedState, job postgres.ClaimedJob, releaseID string) error {
+func vexDecisionDependencyError(ctx context.Context, loader any, state *app.PersistedState, job postgres.ClaimedJob, releaseID string) error {
 	if state == nil {
 		return errVEXDecisionDependencyJobTerminal
 	}
@@ -1929,7 +1972,7 @@ func appendUniqueVEXImportIssues(existing, additions []domain.VEXImportIssue) ([
 	return merged, changed
 }
 
-func failVEXImportReportWithSnapshot(ctx context.Context, state jobStateLoader, snapshot *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, cause error) error {
+func failVEXImportReportWithSnapshot(ctx context.Context, state any, snapshot *app.PersistedState, job postgres.ClaimedJob, vex domain.VEXDocument, cause error) error {
 	if updateVEXImportReportFailure(snapshot, job, vex, cause) {
 		_, report, ok := vexImportReportForJob(*snapshot, job, vex)
 		if !ok {
@@ -1943,7 +1986,7 @@ func failVEXImportReportWithSnapshot(ctx context.Context, state jobStateLoader, 
 	return cause
 }
 
-func recordVEXImportReportFailure(ctx context.Context, state jobStateLoader, job postgres.ClaimedJob, cause error) {
+func recordVEXImportReportFailure(ctx context.Context, state any, job postgres.ClaimedJob, cause error) {
 	if job.Kind != "parse_vex" || state == nil {
 		return
 	}

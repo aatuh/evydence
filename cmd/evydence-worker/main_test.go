@@ -1994,10 +1994,10 @@ func TestProcessJobFailsClosedForStateLoadAndTenantMismatches(t *testing.T) {
 	if err := processJob(context.Background(), nil, postgres.ClaimedJob{}); err == nil || !strings.Contains(err.Error(), "requires durable state") {
 		t.Fatalf("nil state err=%v", err)
 	}
-	if err := processJob(context.Background(), fakeStateLoader{err: errors.New("database secret")}, postgres.ClaimedJob{}); err == nil || err.Error() != "load durable state for outbox job" {
+	if err := processJob(context.Background(), fakeStateLoader{err: errors.New("database secret")}, postgres.ClaimedJob{Kind: "parse_sbom"}); err == nil || err.Error() != "load durable state for outbox job" {
 		t.Fatalf("state load err=%v", err)
 	}
-	if err := processJob(context.Background(), fakeStateLoader{ok: false}, postgres.ClaimedJob{}); err == nil || !strings.Contains(err.Error(), "not initialized") {
+	if err := processJob(context.Background(), fakeStateLoader{ok: false}, postgres.ClaimedJob{Kind: "parse_sbom"}); err == nil || !strings.Contains(err.Error(), "not initialized") {
 		t.Fatalf("missing state err=%v", err)
 	}
 	state := app.PersistedState{Contracts: map[string]domain.OpenAPIContract{

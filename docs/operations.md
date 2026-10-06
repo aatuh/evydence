@@ -6,7 +6,7 @@ This operator index points to the canonical references for running Evydence. Kee
 
 | Task | Canonical Doc | Expected Outcome |
 |------|---------------|------------------|
-| Choose local or durable runtime mode | [Install and operate](how-to/install-and-operate.md) | API and worker run with either in-process state or PostgreSQL-backed state. |
+| Choose local or durable runtime mode | [Install and operate](how-to/install-and-operate.md) | The API supports explicit local-memory or PostgreSQL profiles; workers require PostgreSQL. |
 | Rehearse production-like Compose | [Install and operate](how-to/install-and-operate.md) | API, worker, migrations, PostgreSQL, and MinIO start together with one API writer. |
 | Configure environment variables | [Configuration](reference/configuration.md) | Runtime variables are set from local untracked files or deployment secrets. |
 | Wire observability | [Observability](reference/observability.md) | Readiness, admin metrics, Prometheus rules, and dashboard starter assets are reviewed for the deployment. |

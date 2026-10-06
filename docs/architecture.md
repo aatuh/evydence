@@ -39,8 +39,15 @@ native route sweep uses a deliberately invalid compatibility snapshot: aggregate
 loading must fail, while all 189 routes, valid product creation, restart replay
 and current-grant revocation remain functional. The canary stays invalid after
 writes. This is focused API evidence, not complete production-gate evidence.
-Worker fallback retirement, remaining architecture enforcement and full EVY-905
-closure validation remain outstanding.
+The worker daemon now composes a closed native processor with subject-scoped
+reads, claim-fenced writes, dependency inspection and payload lifecycle ports.
+Its object adapter must support bounded replay reads. Unknown job kinds are
+rejected before data access; production cannot select a whole-state load or
+snapshot publication fallback. Signals cancel runtime I/O and idle poll waits.
+Legacy snapshot helpers remain only in compatibility test paths. See the
+[worker outbox contract](reference/worker-outbox.md) for evidence and limits.
+Final EVY-905 closure validation and EVY-906 architecture enforcement remain
+outstanding.
 
 Per-route transition notes below include historical migration checkpoints.
 Their statements that API startup retirement remains outstanding are superseded

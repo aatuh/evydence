@@ -150,8 +150,10 @@ durable replay capabilities, and a stable pagination secret of at least 16
 bytes. Missing or typed-nil dependencies fail startup instead of enabling a
 local fallback. Only the explicit `local_memory` branch constructs a Ledger.
 API routes and response schemas are unchanged. This is an API composition
-boundary, not proof that worker fallback retirement or EVY-905's full validation
-gates are complete.
+boundary, not proof that EVY-905's full validation gates are complete. The worker
+daemon uses a closed native processor as described in the
+[worker outbox contract](worker-outbox.md); local-memory mode is not a worker
+profile.
 
 ## Request-Body Limits
 

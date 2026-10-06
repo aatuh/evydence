@@ -23,6 +23,20 @@ completion failure does not create a second logical audit record.
 
 ## Failure and replay lifecycle
 
+The daemon composes a closed native processor after opening the validated
+PostgreSQL runtime. Its store ports require subject-scoped reads, claim-fenced
+mutations, dependency inspection and payload lifecycle transitions; they do not
+expose `LoadState` or `SaveState`. Object storage must support staged/finalized
+payloads and bounded reads. Missing or typed-nil ports fail startup. Unknown job
+kinds fail as `poisoned` before state/object reads, and an incomplete focused
+parser store cannot regain a snapshot fallback. Legacy snapshot helpers remain
+only for explicit compatibility test stores, not daemon composition.
+
+`SIGINT` and `SIGTERM` cancel the worker's runtime/request context and interrupt
+idle polling waits. Runtime resources close when the loop exits. A canceled
+claim that cannot record its outcome remains governed by the existing lease
+expiry/reclaim rules; shutdown does not bypass claim fencing.
+
 Worker failures use stable, payload-free classes and codes:
 
 - `transient` failures retry while attempts remain, using a capped backoff.
@@ -109,8 +123,9 @@ implement the focused mutation contract.
 For `parse_sbom`, `parse_vulnerability_scan`, and `parse_openapi_contract`, the
 production worker reads only the claimed tenant's subject through a
 source-validated PostgreSQL point query before replay. This transitional
-one-subject state shape is used only when the store supports lease-fenced
-focused mutations; otherwise the compatibility loader remains in use.
+one-subject state shape is paired with lease-fenced focused mutations in native
+composition. An incomplete focused store is rejected, not sent through the
+compatibility loader.
 `parse_vex` reads the claimed document and source, its import reports,
 same-release scans and finding decisions under one tenant-filtered snapshot.
 It validates current source and parent ownership before replay and rejects
@@ -119,7 +134,8 @@ report/document linkage mismatches. The worker reads only the matching
 checks committed sequence and predecessor continuity before rebasing and
 writing new entries.
 `sign_bundle` and `verify_subject` also use focused tenant-filtered reads;
-their read-only paths do not require a mutation interface. When a signing job
+their read-only paths do not perform mutations (the daemon's complete store
+surface still includes the parser write ports). When a signing job
 contains `manifest_hash`, the worker requires it to match the durable bundle;
 older jobs without that field remain supported. `verify_attestation` reads one
 tenant-scoped attestation only when its current build/project/release/product
@@ -129,8 +145,8 @@ and report mutations remain lease-fenced too. Operator-triggered parser replay
 reads its tenant-owned source, same-version marker if present, and tenant audit
 tip under a repeatable-read snapshot; the apply transaction revalidates the
 current source and marker and checks committed chain continuity before
-appending. API startup still constructs broad Ledger state, which remains
-EVY-905 work.
+appending. PostgreSQL API startup also binds focused native services without
+constructing a Ledger; see [current runtime composition](../architecture.md#current-runtime-composition).
 
 ## PostgreSQL projection consistency
 
@@ -173,7 +189,20 @@ inconsistent. Parser replay is create-or-return-existing only after the
 PostgreSQL adapter validates the full existing marker, its source, and its audit
 entry in the current tenant transaction.
 
-Workers use the same object-store environment variables as the API. The default worker payload replay limit is 20 MiB and can be adjusted with `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES`.
+Workers use the same object-store environment variables as the API. The default
+worker payload replay limit is 20 MiB and can be adjusted with
+`EVYDENCE_WORKER_MAX_PAYLOAD_BYTES`. Native replay passes this limit to
+`GetBounded` before allocating source bytes; a failed bounded read never retries
+through unbounded `Get`. Bounded size/metadata conflicts are terminal `poisoned`
+failures with `payload_invariant_failed`; the adapter does not distinguish the
+provider-specific cause. Returned bytes still undergo size, tenant and digest
+checks before parsing. This does not broaden the interpretation of recorded
+signing references or verification results into a new cryptographic proof.
+
+Tests: `cmd/evydence-worker/native_processor_test.go` covers missing ports,
+unsupported kinds, bounded-read failure and cancellation;
+`cmd/evydence-worker/native_processor_postgres_test.go` covers aggregate canaries,
+tenant isolation, recorded metadata jobs and real payload finalization/replay.
 
 Safe logging rules:
 
