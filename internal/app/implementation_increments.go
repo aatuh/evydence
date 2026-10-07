@@ -1,10 +1,7 @@
 package app
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"sort"
 	"strings"
 	"time"
@@ -135,40 +132,6 @@ type RecordDeploymentInput struct {
 	StartedAt     time.Time
 	FinishedAt    *time.Time
 	RollbackOf    string
-}
-
-func (l *Ledger) SearchEvidence(ctx context.Context, actor domain.Actor, in EvidenceSearchInput) ([]domain.EvidenceItem, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return nil, err
-	}
-	if in.Limit <= 0 || in.Limit > 500 {
-		in.Limit = 500
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	out := []domain.EvidenceItem{}
-	for _, item := range l.evidence {
-		if item.TenantID != actor.TenantID || !matchesEvidenceSearch(item, in) {
-			continue
-		}
-		if !l.resourceAllowedLocked(actor, ScopeEvidenceRead, refsForEvidence(item)) {
-			continue
-		}
-		out = append(out, item)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
-			return out[i].ID < out[j].ID
-		}
-		return out[i].CreatedAt.After(out[j].CreatedAt)
-	})
-	if len(out) > in.Limit {
-		out = out[:in.Limit]
-	}
-	return out, nil
 }
 
 func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.Actor, evidenceID string, in RecordEvidenceLifecycleInput) (domain.EvidenceLifecycleEvent, error) {
@@ -846,111 +809,6 @@ func (l *Ledger) ListDeployments(ctx context.Context, actor domain.Actor, releas
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	return out, nil
-}
-
-func (l *Ledger) UploadGitHubSourceSnapshot(ctx context.Context, actor domain.Actor, raw []byte) (map[string]any, error) {
-	return l.uploadSourceSnapshot(ctx, actor, "github", raw)
-}
-
-func (l *Ledger) UploadGitLabSourceSnapshot(ctx context.Context, actor domain.Actor, raw []byte) (map[string]any, error) {
-	return l.uploadSourceSnapshot(ctx, actor, "gitlab", raw)
-}
-
-type sourceSnapshot struct {
-	ProjectID  string `json:"project_id"`
-	Repository struct {
-		FullName      string `json:"full_name"`
-		CloneURL      string `json:"clone_url"`
-		DefaultBranch string `json:"default_branch"`
-	} `json:"repository"`
-	Commit *struct {
-		SHA         string    `json:"sha"`
-		Author      string    `json:"author"`
-		Message     string    `json:"message"`
-		CommittedAt time.Time `json:"committed_at"`
-	} `json:"commit,omitempty"`
-	Branch *struct {
-		Name           string `json:"name"`
-		Protected      bool   `json:"protected"`
-		ProtectionHash string `json:"protection_hash"`
-	} `json:"branch,omitempty"`
-	PullRequest *struct {
-		ProviderID     string `json:"provider_id"`
-		Title          string `json:"title"`
-		State          string `json:"state"`
-		SourceBranch   string `json:"source_branch"`
-		TargetBranch   string `json:"target_branch"`
-		ReviewDecision string `json:"review_decision"`
-	} `json:"pull_request,omitempty"`
-}
-
-func (l *Ledger) uploadSourceSnapshot(ctx context.Context, actor domain.Actor, provider string, raw []byte) (map[string]any, error) {
-	if len(raw) == 0 || len(raw) > 2<<20 {
-		return nil, ErrValidation
-	}
-	var snapshot sourceSnapshot
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&snapshot); err != nil {
-		return nil, ErrValidation
-	}
-	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		return nil, ErrValidation
-	}
-	repo, err := l.CreateSourceRepository(ctx, actor, CreateRepositoryInput{
-		ProjectID:     snapshot.ProjectID,
-		Provider:      provider,
-		FullName:      snapshot.Repository.FullName,
-		CloneURL:      snapshot.Repository.CloneURL,
-		DefaultBranch: snapshot.Repository.DefaultBranch,
-	})
-	if err != nil {
-		return nil, err
-	}
-	var commit domain.SourceCommit
-	if snapshot.Commit != nil {
-		commit, err = l.RecordSourceCommit(ctx, actor, RecordCommitInput{
-			RepositoryID: repo.ID,
-			SHA:          snapshot.Commit.SHA,
-			Author:       snapshot.Commit.Author,
-			Message:      snapshot.Commit.Message,
-			CommittedAt:  snapshot.Commit.CommittedAt,
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-	var branch domain.SourceBranch
-	if snapshot.Branch != nil {
-		branch, err = l.UpsertSourceBranch(ctx, actor, UpsertBranchInput{
-			RepositoryID:   repo.ID,
-			Name:           snapshot.Branch.Name,
-			HeadCommitID:   commit.ID,
-			Protected:      snapshot.Branch.Protected,
-			ProtectionHash: snapshot.Branch.ProtectionHash,
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-	var pr domain.PullRequest
-	if snapshot.PullRequest != nil {
-		pr, err = l.RecordPullRequest(ctx, actor, RecordPullRequestInput{
-			RepositoryID:   repo.ID,
-			Provider:       provider,
-			ProviderID:     snapshot.PullRequest.ProviderID,
-			Title:          snapshot.PullRequest.Title,
-			State:          snapshot.PullRequest.State,
-			SourceBranch:   snapshot.PullRequest.SourceBranch,
-			TargetBranch:   snapshot.PullRequest.TargetBranch,
-			HeadCommitID:   commit.ID,
-			ReviewDecision: snapshot.PullRequest.ReviewDecision,
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-	return map[string]any{"repository": repo, "commit": commit, "branch": branch, "pull_request": pr}, nil
 }
 
 func matchesEvidenceSearch(item domain.EvidenceItem, in EvidenceSearchInput) bool {

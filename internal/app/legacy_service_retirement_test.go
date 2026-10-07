@@ -9,6 +9,54 @@ import (
 	"testing"
 )
 
+func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
+	retired := map[string]bool{
+		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
+		"SearchEvidence": true, "UploadAPISecurityScan": true,
+		"UploadGitHubSourceSnapshot": true, "UploadGitLabSourceSnapshot": true,
+		"UploadSPDXSBOM": true, "UploadBuildAttestationPayload": true,
+		"ensureApprovalSubjectLocked": true, "ensureWaiverScopeLocked": true,
+		"uploadSourceSnapshot": true, "sourceSnapshot": true,
+	}
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspected := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inspected++
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch value := node.(type) {
+			case *ast.TypeSpec:
+				if value.Name.Name == "sourceSnapshot" {
+					t.Errorf("%s retains retired aggregate source snapshot schema", name)
+				}
+			case *ast.FuncDecl:
+				if !retired[value.Name.Name] || value.Recv == nil || len(value.Recv.List) != 1 {
+					break
+				}
+				if receiver, ok := value.Recv.List[0].Type.(*ast.StarExpr); ok {
+					if identifier, ok := receiver.X.(*ast.Ident); ok && identifier.Name == "Ledger" {
+						t.Errorf("%s retains retired Ledger method %s", name, value.Name.Name)
+					}
+				}
+			}
+			return true
+		})
+	}
+	if inspected == 0 {
+		t.Fatal("no production application source inspected")
+	}
+}
+
 // Native portal commands, queries and token access belong to Package services.
 // Historical aggregate behavior may remain an oracle for package-local tests,
 // but must not be compiled into the production application surface.

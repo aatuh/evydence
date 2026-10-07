@@ -366,15 +366,6 @@ func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor,
 	return buildAttestationFromReleaseContext(value), fromReleaseContextError(err)
 }
 
-// UploadBuildAttestationPayload is retained for streamed compatibility callers.
-// Deprecated: use the focused release application service.
-func (l *Ledger) UploadBuildAttestationPayload(ctx context.Context, actor domain.Actor, buildID string, source PayloadSource) (domain.BuildAttestation, error) {
-	value, err := l.releaseCommands.UploadBuildAttestationPayload(ctx, actor, buildID, releaseapp.BuildAttestationPayloadSource{
-		Digest: source.Digest, Size: source.Size, Open: source.Open,
-	})
-	return buildAttestationFromReleaseContext(value), fromReleaseContextError(err)
-}
-
 func validCollectorScopes(scopes []string) bool {
 	_, err := integrationapp.NormalizeCollectorScopes(scopes)
 	return err == nil

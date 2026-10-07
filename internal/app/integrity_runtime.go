@@ -89,14 +89,6 @@ func loadCosignBundle(ctx context.Context, tenantID string, sig domain.ArtifactS
 	return append([]byte(nil), object.Bytes...), nil
 }
 
-func (l *Ledger) RevokeSigningKey(ctx context.Context, actor domain.Actor, keyID, reason string) (domain.SigningKey, error) {
-	return l.RevokeSigningKeyWithPolicy(ctx, actor, keyID, SigningKeyRevocationInput{
-		Reason:                   reason,
-		Semantics:                domain.SigningKeyRevocationOrdinary,
-		HistoricalValidityPolicy: domain.SigningKeyHistoricalValidityPreserve,
-	})
-}
-
 func copyBool(value *bool) *bool {
 	if value == nil {
 		return nil

@@ -36,13 +36,12 @@ point no longer constructs Ledger or `app.Config` in any branch. PostgreSQL is
 required for local evaluation as well as deployment. Request middleware, route
 registration and response contracts are unchanged.
 
-HTTP transport exposes no Ledger-accepting server constructor or aggregate
-replay/binding adapter. The pre-retirement local constructor, isolated replay
-binding, and compile-time compatibility assertions now exist only in
-`legacy_server_fixture_test.go`; existing HTTP test assertions are preserved.
-Production callers use `NewNativeServerWithOptionsContext`. The unused
-non-context `app.NewLedger` factory has also been deleted. The remaining
-Server aggregate field, legacy handler branches, application constructor, and
+HTTP transport exposes no Ledger-accepting server constructor, aggregate field,
+legacy replay interface or aggregate handler fallback. Historical fixture
+construction/binding and focused test-port adapters exist only in `_test.go`
+files; existing HTTP behavior assertions are preserved. Production callers
+use `NewNativeServerWithOptionsContext`. The unused non-context `app.NewLedger`
+factory has also been deleted. The application constructor and remaining
 aggregate implementation still await physical retirement in EVY-906. This
 fixture separation is not completion of that work and does not create another
 supported runtime backend. See the
@@ -375,9 +374,21 @@ The redundant `identityService`, `releaseEvidenceService`, and
 and 34 Ledger-to-shell forwarding methods. These were wrappers around the same
 aggregate, not focused services. Existing local implementations retain their
 authorization, locking, audit and redaction behavior directly on the legacy
-receiver while its remaining API wiring, maps and mutex await retirement.
+receiver while its maps, snapshot machinery and mutex await retirement.
 This deletion adds no replacement compatibility layer and does not complete
 EVY-906.
+
+Eleven additional leaf methods have been removed from the production Ledger
+surface: tenant-inventory, missing-evidence reporting, ordinary key revocation,
+non-paged evidence search, API-scan/SPDX ingestion and source-provider snapshot
+facades, plus two obsolete approval/waiver target validators and an unused
+streamed-attestation facade. Ten remain unchanged solely in
+`internal/app/legacy_leaf_oracle_test.go` for package-local historical tests;
+the unused attestation facade is deleted. The source-snapshot parser and its
+schema, used only by the two retired provider facades, are also test-only.
+Native focused commands, bounded queries and streamed ingestion remain
+unchanged. These historical oracles are not supported runtimes or proof of
+native SQL behavior; source checks forbid the retired production declarations.
 
 The import-graph gate now passes without boundary exemptions and is included in
 `fast-check` and `finalize`. Size/interface review flags remain. A passing import

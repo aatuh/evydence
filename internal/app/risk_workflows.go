@@ -628,14 +628,6 @@ func (l *Ledger) UploadSecurityScan(ctx context.Context, actor domain.Actor, in 
 	return securityScanFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
-func (l *Ledger) UploadAPISecurityScan(ctx context.Context, actor domain.Actor, in UploadSecurityScanInput) (domain.SecurityScan, error) {
-	value, err := l.evidenceCommands.UploadAPISecurityScan(ctx, actor, evidenceapp.UploadSecurityScanInput{
-		ProductID: in.ProductID, ReleaseID: in.ReleaseID, ArtifactID: in.ArtifactID, Category: in.Category,
-		Format: in.Format, Scanner: in.Scanner, TargetRef: in.TargetRef, Raw: append([]byte(nil), in.Raw...),
-	})
-	return securityScanFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
 func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.Actor, in UploadManualSecurityDocumentInput) (domain.ManualSecurityDocument, error) {
 	value, err := l.evidenceCommands.UploadManualSecurityDocument(ctx, actor, evidenceapp.UploadManualSecurityDocumentInput{
 		ProductID: in.ProductID, ReleaseID: in.ReleaseID, DocumentType: in.DocumentType, Title: in.Title,

@@ -74,7 +74,6 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"EvaluateCustomPolicy",
 		},
 		"implementation_increments.go": {
-			"SearchEvidence",
 			"CreateReleaseCandidate",
 			"GetReleaseCandidate",
 			"ListReleaseCandidates",
@@ -90,6 +89,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"GetDeployment",
 			"ListDeployments",
 		},
+		"legacy_leaf_oracle_test.go": {"SearchEvidence"},
 	}
 	for file, funcs := range files {
 		bodyBytes, err := os.ReadFile(file)

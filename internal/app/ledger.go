@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -409,11 +408,6 @@ func workerProjectionStore(store Store) WorkerProjectionStore {
 	return projections
 }
 
-func (l *Ledger) HasTenants(ctx context.Context) bool {
-	hasTenants, _ := l.identityCommands.HasTenants(ctx)
-	return hasTenants
-}
-
 func (l *Ledger) BootstrapTenant(ctx context.Context, name, keyName string, scopes []string) (domain.Tenant, domain.APIKey, string, error) {
 	return l.bootstrapTenant(ctx, identityapp.BootstrapTenantInput{
 		TenantName: name, APIKeyName: keyName, Scopes: scopes,
@@ -694,27 +688,6 @@ func (l *Ledger) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id 
 		return domain.OpenAPIContract{}, err
 	}
 	return contract, nil
-}
-
-func (l *Ledger) MissingEvidenceReport(ctx context.Context, actor domain.Actor, releaseID string) (map[string]any, error) {
-	eval, err := l.EvaluateRelease(ctx, actor, releaseID)
-	if err != nil && !errors.Is(err, ErrVerificationFailed) {
-		return nil, err
-	}
-	missing := []string{}
-	for _, check := range eval.Checks {
-		missing = append(missing, check.Missing...)
-	}
-	sort.Strings(missing)
-	return map[string]any{
-		"report_type":      "missing_evidence",
-		"template_version": "missing-evidence.v1.0.0",
-		"release_id":       releaseID,
-		"result":           eval.Result,
-		"missing":          missing,
-		"assumptions":      []string{"This report supports compliance readiness and is not a legal compliance conclusion."},
-		"limitations":      []string{"Missing evidence is based only on evidence recorded in this Evydence instance."},
-	}, nil
 }
 
 // IdempotencyCommand runs application writes using the isolated ledger view

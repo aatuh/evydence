@@ -13,11 +13,6 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
-func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	value, err := l.evidenceCommands.UploadSPDXSBOM(ctx, actor, releaseID, artifactID, raw)
-	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
 func (l *Ledger) CreateProduct(ctx context.Context, actor domain.Actor, name, slug string) (domain.Product, error) {
 	value, err := l.releaseCommands.CreateProduct(ctx, actor, releaseapp.CreateProductInput{Name: name, Slug: slug})
 	return productFromReleaseContext(value), fromReleaseContextError(err)
