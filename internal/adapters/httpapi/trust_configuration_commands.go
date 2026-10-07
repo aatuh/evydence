@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
@@ -57,35 +55,17 @@ func (s *Server) createSigningProvider(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.trustConfigurationCommands != nil {
-		var in verificationapp.CreateSigningProviderInput
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeSigningProviderRequest(body)
-			if err != nil {
-				return err
-			}
-			return mapSigningKeyCommandError(s.trustConfigurationCommands.AuthorizeTrustConfiguration(ctx, a))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.trustConfigurationCommands.CreateSigningProvider(ctx, a, in)
-			return http.StatusCreated, domain.SigningProviderFromContextModel(v), mapSigningKeyCommandError(err)
-		})
-		return
-	}
-	// Explicit local memory shares strict decoding and current tenant-admin
-	// policy before its nondurable replay. No native route binds this facade.
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeSigningProviderRequest(body)
+	var in verificationapp.CreateSigningProviderInput
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		var err error
+		in, err = decodeSigningProviderRequest(body)
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
-		v, err := s.verification.CreateSigningProvider(ctx, a, app.CreateSigningProviderInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if _, err := decodeSigningProviderRequest(body); err != nil {
-			return nil, err
-		}
-		return body, mapSigningKeyCommandError(application.AuthorizeTenantWideScope(r.Context(), a, app.ScopeKeysAdmin))
+		return mapSigningKeyCommandError(s.trustConfigurationCommands.AuthorizeTrustConfiguration(ctx, a))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.trustConfigurationCommands.CreateSigningProvider(ctx, a, in)
+		return http.StatusCreated, domain.SigningProviderFromContextModel(v), mapSigningKeyCommandError(err)
 	})
 }
 
@@ -94,32 +74,16 @@ func (s *Server) createDSSETrustRoot(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.trustConfigurationCommands != nil {
-		var in verificationapp.CreateDSSETrustRootInput
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeDSSETrustRootRequest(body)
-			if err != nil {
-				return err
-			}
-			return mapSigningKeyCommandError(s.trustConfigurationCommands.AuthorizeTrustConfiguration(ctx, a))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.trustConfigurationCommands.CreateDSSETrustRoot(ctx, a, in)
-			return http.StatusCreated, domain.DSSETrustRootFromContextModel(v), mapSigningKeyCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeDSSETrustRootRequest(body)
+	var in verificationapp.CreateDSSETrustRootInput
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		var err error
+		in, err = decodeDSSETrustRootRequest(body)
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
-		v, err := s.verification.CreateDSSETrustRoot(ctx, a, app.CreateDSSETrustRootInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if _, err := decodeDSSETrustRootRequest(body); err != nil {
-			return nil, err
-		}
-		return body, mapSigningKeyCommandError(application.AuthorizeTenantWideScope(r.Context(), a, app.ScopeKeysAdmin))
+		return mapSigningKeyCommandError(s.trustConfigurationCommands.AuthorizeTrustConfiguration(ctx, a))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.trustConfigurationCommands.CreateDSSETrustRoot(ctx, a, in)
+		return http.StatusCreated, domain.DSSETrustRootFromContextModel(v), mapSigningKeyCommandError(err)
 	})
 }

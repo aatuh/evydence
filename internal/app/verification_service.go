@@ -192,8 +192,8 @@ func (l *Ledger) AuthorizeDSSEVerification(ctx context.Context, a domain.Actor, 
 	return l.authorizeResourceLocked(a, ScopeVerifyRead, resourceRefs{ProductID: product.ID, ProjectID: project.ID, ReleaseID: release.ID, BuildID: refs.BuildID})
 }
 
-// AuthorizeSigningKeyRevocation is only the explicit local-memory replay
-// guard. Native HTTP uses the flat transactional ownership guard instead.
+// AuthorizeSigningKeyRevocation preserves the legacy test fixture's replay
+// policy. Native HTTP uses the flat transactional ownership guard instead.
 func (l *Ledger) AuthorizeSigningKeyRevocation(ctx context.Context, a domain.Actor, raw string) error {
 	if err := application.AuthorizeTenantWideScope(ctx, a, ScopeKeysAdmin); err != nil {
 		return fromVerificationContextError(err)

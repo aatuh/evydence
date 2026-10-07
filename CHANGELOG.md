@@ -87,8 +87,13 @@ Signing-key and audit-log pages, custody reports, and audit-chain/Merkle/backup
 verification handlers now use only focused Verification ports. Six broad
 read/report branches and four obsolete interface methods are removed. Native
 tenant checks, key privacy, pagination, assurance-profile and failed-result
-contracts are unchanged. Verification command and aggregate retirement remain
-in progress.
+contracts are unchanged. Signing-key rotation/revocation and signing-provider/
+DSSE trust-root creation also use only focused commands, removing four fallback
+branches and five broad-interface methods. Tenant administration, key ownership,
+private-key omission and atomic lifecycle/metadata/audit/replay contracts remain
+unchanged. Their four request descriptions now require PostgreSQL for local
+evaluation without schema changes. Other Verification command and aggregate
+retirement remain in progress.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the

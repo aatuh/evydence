@@ -134,8 +134,18 @@ actual tenant/admin policies, omit private key bytes and preserve lifecycle,
 assurance-profile and report metadata. Their pure query tests verify no writes;
 verification calls retain their existing result/audit behavior. The local audit
 fixture retains its former 500-entry inventory cap; runtime SQL pages filter
-before limiting. Verification command fallbacks and aggregate deletion remain
-unfinished.
+before limiting.
+
+Signing-key rotation/revocation and signing-provider/DSSE trust-root creation
+also require focused Verification commands. Their four fallback branches and
+five obsolete broad-interface methods are deleted. The native durable callbacks
+retain tenant-wide administration, flat key ownership, strict input bounds,
+cookie-origin checks, public-only key responses, and atomic audit/replay effects.
+Test-only command adapters retain the real former policies and isolated replay;
+failure-after-write tests compare all repository effects and cached key lifecycle.
+The four request descriptions now require PostgreSQL, including local evaluation;
+their schemas and response contracts are unchanged. Other Verification command
+fallbacks and aggregate deletion remain unfinished.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime

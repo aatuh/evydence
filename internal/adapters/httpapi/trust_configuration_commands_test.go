@@ -122,7 +122,7 @@ func TestTrustConfigurationHandlersUseFocusedCommandsAndPreserveReplay(t *testin
 		}
 	}
 }
-func TestTrustConfigurationHandlersRejectMalformedAndNullFieldsInBothProfiles(t *testing.T) {
+func TestTrustConfigurationHandlersRejectMalformedAndNullFieldsForFixtureAndNativeCommands(t *testing.T) {
 	for _, focused := range []bool{false, true} {
 		server, secret := testServer(t)
 		commands := &trustConfigurationHTTPFake{}
@@ -190,7 +190,7 @@ func TestTrustConfigurationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *te
 	}
 }
 
-func TestTrustConfigurationHTTPStrictFieldsBeforeCommandsInBothProfiles(t *testing.T) {
+func TestTrustConfigurationHTTPStrictFieldsBeforeFixtureAndNativeCommands(t *testing.T) {
 	for _, focused := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &trustConfigurationHTTPFake{}
@@ -247,7 +247,7 @@ func TestTrustConfigurationHTTPStrictFieldsBeforeCommandsInBothProfiles(t *testi
 	}
 }
 
-func TestTrustConfigurationHTTPBothProfilesCookieAndLocalReplayAuthority(t *testing.T) {
+func TestTrustConfigurationHTTPFixtureAndNativeCookieAndReplayAuthority(t *testing.T) {
 	base, secret := testServer(t)
 	for _, focused := range []bool{false, true} {
 		f := &trustConfigurationHTTPFake{}

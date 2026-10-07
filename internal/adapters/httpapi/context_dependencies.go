@@ -574,22 +574,17 @@ type riskDecisionService interface {
 	ApproveException(context.Context, domain.Actor, string) (domain.Exception, error)
 }
 
-// verificationService exposes provider-independent verification policy and
-// signing-key administration without giving handlers unrelated Ledger methods.
+// verificationService retains the remaining broad verification commands until
+// their transport paths migrate; signing administration uses focused ports.
 type verificationService interface {
 	AuthorizeSubjectVerification(context.Context, domain.Actor, string, string) error
 	AuthorizeDSSEVerification(context.Context, domain.Actor, string) error
 	VerifySubject(context.Context, domain.Actor, string, string) (domain.VerificationResult, error)
 	VerifyCosignSignature(context.Context, domain.Actor, app.VerifyCosignInput) (domain.CosignVerification, error)
 	VerifyDSSEAttestationSignature(context.Context, domain.Actor, string) (domain.VerificationResult, error)
-	CreateDSSETrustRoot(context.Context, domain.Actor, app.CreateDSSETrustRootInput) (domain.DSSETrustRoot, error)
 	CreateMerkleBatch(context.Context, domain.Actor, app.CreateMerkleBatchInput) (domain.MerkleBatch, error)
 	CreateTransparencyCheckpoint(context.Context, domain.Actor, app.CreateTransparencyCheckpointInput) (domain.TransparencyCheckpoint, error)
 	CreateObjectRetentionPolicy(context.Context, domain.Actor, app.CreateObjectRetentionPolicyInput) (domain.ObjectRetentionPolicy, error)
 	VerifyObjectRetentionPolicy(context.Context, domain.Actor, string) (domain.ObjectRetentionPolicy, error)
 	GenerateBackupManifest(context.Context, domain.Actor) (domain.BackupManifest, error)
-	RotateSigningKey(context.Context, domain.Actor, string) (domain.SigningKey, error)
-	AuthorizeSigningKeyRevocation(context.Context, domain.Actor, string) error
-	RevokeSigningKeyWithPolicy(context.Context, domain.Actor, string, app.SigningKeyRevocationInput) (domain.SigningKey, error)
-	CreateSigningProvider(context.Context, domain.Actor, app.CreateSigningProviderInput) (domain.SigningProvider, error)
 }

@@ -175,6 +175,14 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if !ok || custodyReader.ledger != ledger {
 		t.Fatal("focused custody fixture reader was not rebound")
 	}
+	for name, dependency := range map[string]any{
+		"signing-key": server.signingKeyCommands, "trust-configuration": server.trustConfigurationCommands,
+	} {
+		commands, ok := dependency.(signingAdministrationFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
 }
 
 func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {

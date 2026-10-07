@@ -132,7 +132,7 @@ func TestSigningKeyHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T)
 	}
 }
 
-func TestSigningKeyHTTPStrictFieldsBeforeCommandsInBothProfiles(t *testing.T) {
+func TestSigningKeyHTTPStrictFieldsBeforeFixtureAndNativeCommands(t *testing.T) {
 	for _, focused := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &signingKeyHTTPFake{}
@@ -156,7 +156,7 @@ func TestSigningKeyHTTPStrictFieldsBeforeCommandsInBothProfiles(t *testing.T) {
 	}
 }
 
-func TestSigningKeyHTTPBothProfilesCookieAndLocalReplayAuthority(t *testing.T) {
+func TestSigningKeyHTTPFixtureAndNativeCookieAndReplayAuthority(t *testing.T) {
 	for _, focused := range []bool{false, true} {
 		base, secret := testServer(t)
 		f := &signingKeyHTTPFake{}

@@ -28,7 +28,7 @@ func TestTrustConfigurationOpenAPIConstrainsCreationNotHistoricalRecords(t *test
 	}
 	for _, name := range []string{"CreateSigningProviderRequest", "CreateDSSETrustRootRequest"} {
 		v := doc.Components.Schemas[name]
-		if v.Properties["name"]["maxLength"] != float64(4096) || !strings.Contains(v.Description, "before reservation") || !strings.Contains(v.Description, "64 KiB") || !strings.Contains(v.Description, "Local memory") {
+		if v.Properties["name"]["maxLength"] != float64(4096) || !strings.Contains(v.Description, "before reservation") || !strings.Contains(v.Description, "64 KiB") || !strings.Contains(v.Description, "requires PostgreSQL") || strings.Contains(v.Description, "Local memory") {
 			t.Fatal("creation bounds/replay/nonclaims missing", name)
 		}
 	}

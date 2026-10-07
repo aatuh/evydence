@@ -26,7 +26,7 @@ func TestSigningKeyOpenAPISeparatesRotationAndBoundsFreshTransitions(t *testing.
 	}
 	for _, name := range []string{"SigningKeyRotationRequest", "SigningKeyTransitionRequest"} {
 		s := doc.Components.Schemas[name]
-		if s.Properties["reason"]["maxLength"] != float64(4096) || !strings.Contains(s.Description, "before reservation") || !strings.Contains(s.Description, "64 KiB") || !strings.Contains(s.Description, "Local memory") || len(s.Required) != 1 || s.Required[0] != "reason" {
+		if s.Properties["reason"]["maxLength"] != float64(4096) || !strings.Contains(s.Description, "before reservation") || !strings.Contains(s.Description, "64 KiB") || !strings.Contains(s.Description, "requires PostgreSQL") || strings.Contains(s.Description, "Local memory") || len(s.Required) != 1 || s.Required[0] != "reason" {
 			t.Fatal("key lifecycle contract missing", name)
 		}
 	}
