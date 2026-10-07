@@ -103,9 +103,9 @@ func TestLifecycleEventsHandlerUsesScopedPageAndRedactsDetails(t *testing.T) {
 	if fallback.lifecycleCalls != 0 {
 		t.Fatal("focused lifecycle query used compatibility aggregate")
 	}
-	server.lifecycleEventsQuery = nil
-	getRaw(t, server, secret, "/v1/evidence/ev_local/lifecycle-events", http.StatusOK)
-	if fallback.lifecycleCalls != 1 {
-		t.Fatal("explicit local-memory lifecycle path removed")
+	query.err = nil
+	result := getRaw(t, server, secret, "/v1/evidence/ev_local/lifecycle-events", http.StatusOK)
+	if fallback.lifecycleCalls != 0 || query.id != "ev_local" || !strings.Contains(result.Body.String(), `"id":"life_1"`) {
+		t.Fatal("fixture lifecycle read bypassed the required focused query")
 	}
 }

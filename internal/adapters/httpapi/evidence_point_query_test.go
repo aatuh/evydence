@@ -101,11 +101,10 @@ func TestEvidencePointHandlerUsesFocusedQueryWithoutProductionFallback(t *testin
 	if fallback.calls != 0 {
 		t.Fatal("query failure invoked compatibility aggregate")
 	}
-	// Only the explicit local-memory profile, with no durable query bound,
-	// retains the existing compatibility read behavior.
-	server.evidencePointQuery = nil
-	getRaw(t, server, secret, "/v1/evidence/ev_local", http.StatusOK)
-	if fallback.calls != 1 {
-		t.Fatal("local-memory compatibility path removed")
+	// Even legacy characterization fixtures must supply the focused port.
+	query.err, query.kind = nil, "document"
+	response = getRaw(t, server, secret, "/v1/evidence/ev_local", http.StatusOK)
+	if fallback.calls != 0 || query.id != "ev_local" || !strings.Contains(response.Body.String(), `"id":"ev_local"`) {
+		t.Fatal("fixture point read bypassed the required focused query")
 	}
 }

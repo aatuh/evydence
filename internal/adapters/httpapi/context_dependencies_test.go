@@ -59,6 +59,25 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.evidenceIngestion != ledger {
 		t.Fatal("evidence ingestion service was not rebound")
 	}
+	for name, dependency := range map[string]any{
+		"evidence": server.evidencePointQuery, "sbom": server.sbomPointQuery,
+		"scan": server.vulnerabilityScanPointQuery, "contract": server.openAPIContractPointQuery,
+		"vex": server.vexPointQuery, "vex-preview": server.vexPreviewQuery,
+	} {
+		reader, ok := dependency.(evidenceReadFixture)
+		if !ok || reader.ledger != ledger {
+			t.Fatalf("focused %s fixture reader was not rebound", name)
+		}
+	}
+	if reader, ok := server.evidencePageQuery.(evidencePageFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused evidence page fixture reader was not rebound")
+	}
+	if reader, ok := server.lifecycleEventsQuery.(lifecyclePageFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused lifecycle page fixture reader was not rebound")
+	}
+	if reader, ok := server.sbomComponentsQuery.(sbomComponentsFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused SBOM page fixture reader was not rebound")
+	}
 	if reflect.ValueOf(server).Elem().FieldByName("riskDecisions").IsValid() {
 		t.Fatal("broad Risk service binding was not deleted")
 	}

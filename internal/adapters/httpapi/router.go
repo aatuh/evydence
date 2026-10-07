@@ -1698,30 +1698,12 @@ func (s *Server) listEvidence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := r.URL.Query()
-	if s.evidencePageQuery != nil {
-		page, err := s.evidencePageQuery.ListPage(r.Context(), actor, evidencequery.EvidencePageFilter{ReleaseID: query.Get("release_id"), Type: query.Get("type")}, appquery.PageRequest{PageSize: pageRequest.pageSize, Sort: pageRequest.sort, Direction: pageRequest.direction}, pageRequest.after)
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		writePage(s, w, r, actor, "evidence", pageRequest, evidencePageFromQuery(page))
-		return
-	}
-	page, err := s.evidenceIngestion.ListEvidencePage(r.Context(), actor, app.EvidencePageRequest{
-		ReleaseID: query.Get("release_id"),
-		Type:      query.Get("type"),
-		Page: appquery.PageRequest{
-			PageSize:  pageRequest.pageSize,
-			Sort:      pageRequest.sort,
-			Direction: pageRequest.direction,
-		},
-		After: pageRequest.after,
-	})
+	page, err := s.evidencePageQuery.ListPage(r.Context(), actor, evidencequery.EvidencePageFilter{ReleaseID: query.Get("release_id"), Type: query.Get("type")}, appquery.PageRequest{PageSize: pageRequest.pageSize, Sort: pageRequest.sort, Direction: pageRequest.direction}, pageRequest.after)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapEvidencePointQueryError(err))
 		return
 	}
-	writePage(s, w, r, actor, "evidence", pageRequest, page)
+	writePage(s, w, r, actor, "evidence", pageRequest, evidencePageFromQuery(page))
 }
 
 func (s *Server) searchEvidence(w http.ResponseWriter, r *http.Request) {
@@ -1753,46 +1735,13 @@ func (s *Server) searchEvidence(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.evidencePageQuery != nil {
-		filter := evidencequery.EvidencePageFilter{ProductID: query.Get("product_id"), ProjectID: query.Get("project_id"), ReleaseID: query.Get("release_id"), BuildID: query.Get("build_id"), DeploymentID: query.Get("deployment_id"), Type: query.Get("type"), Subtype: query.Get("subtype"), SourceSystem: sourceSystem, CollectorID: query.Get("collector_id"), VerificationStatus: query.Get("verification_status"), SubjectType: query.Get("subject_type"), SubjectID: query.Get("subject_id"), Tag: query.Get("tag"), CreatedAfter: createdAfter, CreatedBefore: createdBefore}
-		page, err := s.evidencePageQuery.ListPage(r.Context(), actor, filter, appquery.PageRequest{PageSize: pageRequest.pageSize, Sort: pageRequest.sort, Direction: pageRequest.direction}, pageRequest.after)
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		writePage(s, w, r, actor, "evidence-search", pageRequest, evidencePageFromQuery(page))
-		return
-	}
-	page, err := s.evidenceIngestion.SearchEvidencePage(r.Context(), actor, app.EvidenceSearchPageRequest{
-		Filter: app.EvidenceSearchInput{
-			ProductID:          query.Get("product_id"),
-			ProjectID:          query.Get("project_id"),
-			ReleaseID:          query.Get("release_id"),
-			BuildID:            query.Get("build_id"),
-			DeploymentID:       query.Get("deployment_id"),
-			Type:               query.Get("type"),
-			Subtype:            query.Get("subtype"),
-			SourceSystem:       sourceSystem,
-			CollectorID:        query.Get("collector_id"),
-			VerificationStatus: query.Get("verification_status"),
-			SubjectType:        query.Get("subject_type"),
-			SubjectID:          query.Get("subject_id"),
-			Tag:                query.Get("tag"),
-			CreatedAfter:       createdAfter,
-			CreatedBefore:      createdBefore,
-		},
-		Page: appquery.PageRequest{
-			PageSize:  pageRequest.pageSize,
-			Sort:      pageRequest.sort,
-			Direction: pageRequest.direction,
-		},
-		After: pageRequest.after,
-	})
+	filter := evidencequery.EvidencePageFilter{ProductID: query.Get("product_id"), ProjectID: query.Get("project_id"), ReleaseID: query.Get("release_id"), BuildID: query.Get("build_id"), DeploymentID: query.Get("deployment_id"), Type: query.Get("type"), Subtype: query.Get("subtype"), SourceSystem: sourceSystem, CollectorID: query.Get("collector_id"), VerificationStatus: query.Get("verification_status"), SubjectType: query.Get("subject_type"), SubjectID: query.Get("subject_id"), Tag: query.Get("tag"), CreatedAfter: createdAfter, CreatedBefore: createdBefore}
+	page, err := s.evidencePageQuery.ListPage(r.Context(), actor, filter, appquery.PageRequest{PageSize: pageRequest.pageSize, Sort: pageRequest.sort, Direction: pageRequest.direction}, pageRequest.after)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapEvidencePointQueryError(err))
 		return
 	}
-	writePage(s, w, r, actor, "evidence-search", pageRequest, page)
+	writePage(s, w, r, actor, "evidence-search", pageRequest, evidencePageFromQuery(page))
 }
 
 func (s *Server) getEvidence(w http.ResponseWriter, r *http.Request) {
@@ -1800,21 +1749,12 @@ func (s *Server) getEvidence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.evidencePointQuery != nil {
-		item, err := s.evidencePointQuery.GetEvidence(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, domain.EvidenceFromContextModel(item))
-		return
-	}
-	item, err := s.evidenceIngestion.GetEvidence(r.Context(), actor, r.PathValue("id"))
+	item, err := s.evidencePointQuery.GetEvidence(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapEvidencePointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, item)
+	writeData(w, http.StatusOK, domain.EvidenceFromContextModel(item))
 }
 
 func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Request) {
@@ -1823,32 +1763,21 @@ func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	resource := "evidence/" + r.PathValue("id") + "/lifecycle-events"
-	if s.lifecycleEventsQuery != nil {
-		request, err := s.parsePageRequest(r, actor, resource)
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.lifecycleEventsQuery.ListPage(r.Context(), actor, r.PathValue("id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.EvidenceLifecycleEvent]{Next: page.Next, Items: make([]domain.EvidenceLifecycleEvent, 0, len(page.Items))}
-		for _, event := range page.Items {
-			mapped.Items = append(mapped.Items, lifecycleEventFromQuery(event))
-		}
-		writePage(s, w, r, actor, resource, request, mapped)
-		return
-	}
-	events, err := s.evidenceIngestion.ListEvidenceLifecycleEvents(r.Context(), actor, r.PathValue("id"))
+	request, err := s.parsePageRequest(r, actor, resource)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, resource, nil, events, func(event domain.EvidenceLifecycleEvent) (string, time.Time) {
-		return event.ID, event.CreatedAt
-	})
+	page, err := s.lifecycleEventsQuery.ListPage(r.Context(), actor, r.PathValue("id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapEvidencePointQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.EvidenceLifecycleEvent]{Next: page.Next, Items: make([]domain.EvidenceLifecycleEvent, 0, len(page.Items))}
+	for _, event := range page.Items {
+		mapped.Items = append(mapped.Items, lifecycleEventFromQuery(event))
+	}
+	writePage(s, w, r, actor, resource, request, mapped)
 }
 
 func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
@@ -1894,21 +1823,12 @@ func (s *Server) getSBOM(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.sbomPointQuery != nil {
-		sbom, err := s.sbomPointQuery.GetSBOM(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, sbomFromQuery(sbom))
-		return
-	}
-	sbom, err := s.evidenceIngestion.GetSBOM(r.Context(), actor, r.PathValue("id"))
+	sbom, err := s.sbomPointQuery.GetSBOM(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapEvidencePointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, sbom)
+	writeData(w, http.StatusOK, sbomFromQuery(sbom))
 }
 
 func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
@@ -1916,44 +1836,25 @@ func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.sbomComponentsQuery != nil {
-		request, err := s.parsePageRequestWithLegacyLimit(r, actor, "sbom-components", true, "sbom_id", "release_id", "artifact_id", "query", "purl")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		query := r.URL.Query()
-		page, err := s.sbomComponentsQuery.ListPage(r.Context(), actor, evidencequery.SBOMComponentFilter{
-			SBOMID: query.Get("sbom_id"), ReleaseID: query.Get("release_id"), ArtifactID: query.Get("artifact_id"),
-			Query: query.Get("query"), PURL: query.Get("purl"),
-		}, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.SBOMComponentRecord]{Next: page.Next, Items: make([]domain.SBOMComponentRecord, 0, len(page.Items))}
-		for _, component := range page.Items {
-			mapped.Items = append(mapped.Items, sbomComponentFromQuery(component))
-		}
-		writePage(s, w, r, actor, "sbom-components", request, mapped)
-		return
-	}
-	query := r.URL.Query()
-	components, err := s.evidenceIngestion.ListSBOMComponents(r.Context(), actor, app.ListSBOMComponentsInput{
-		SBOMID:     query.Get("sbom_id"),
-		ReleaseID:  query.Get("release_id"),
-		ArtifactID: query.Get("artifact_id"),
-		Query:      query.Get("query"),
-		PURL:       query.Get("purl"),
-		Limit:      500,
-	})
+	request, err := s.parsePageRequestWithLegacyLimit(r, actor, "sbom-components", true, "sbom_id", "release_id", "artifact_id", "query", "purl")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writePaginatedWithLegacyLimit(s, w, r, actor, "sbom-components", []string{"sbom_id", "release_id", "artifact_id", "query", "purl"}, true, components, func(component domain.SBOMComponentRecord, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(component.ID, time.Time{}, sort)
-	})
+	query := r.URL.Query()
+	page, err := s.sbomComponentsQuery.ListPage(r.Context(), actor, evidencequery.SBOMComponentFilter{
+		SBOMID: query.Get("sbom_id"), ReleaseID: query.Get("release_id"), ArtifactID: query.Get("artifact_id"),
+		Query: query.Get("query"), PURL: query.Get("purl"),
+	}, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapEvidencePointQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.SBOMComponentRecord]{Next: page.Next, Items: make([]domain.SBOMComponentRecord, 0, len(page.Items))}
+	for _, component := range page.Items {
+		mapped.Items = append(mapped.Items, sbomComponentFromQuery(component))
+	}
+	writePage(s, w, r, actor, "sbom-components", request, mapped)
 }
 
 func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
@@ -1995,34 +1896,7 @@ func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) previewVEXImport(w http.ResponseWriter, r *http.Request) {
-	if s.vexPreviewQuery != nil {
-		s.previewDurableVEX(w, r, "openvex")
-		return
-	}
-	var req struct {
-		ReleaseID  string          `json:"release_id"`
-		ArtifactID string          `json:"artifact_id"`
-		Payload    json.RawMessage `json:"payload"`
-	}
-	actor, ok := s.authenticate(w, r)
-	if !ok {
-		return
-	}
-	body, err := readBody(r)
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	if err := decodeJSON(body, &req); err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	preview, err := s.evidenceIngestion.PreviewVEXImport(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	writeData(w, http.StatusOK, preview)
+	s.previewDurableVEX(w, r, "openvex")
 }
 
 func (s *Server) getVEX(w http.ResponseWriter, r *http.Request) {
@@ -2030,21 +1904,12 @@ func (s *Server) getVEX(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.vexPointQuery != nil {
-		vex, err := s.vexPointQuery.GetVEXDocument(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, vexDocumentFromQuery(vex))
-		return
-	}
-	vex, err := s.evidenceIngestion.GetVEXDocument(r.Context(), actor, r.PathValue("id"))
+	vex, err := s.vexPointQuery.GetVEXDocument(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapEvidencePointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, vex)
+	writeData(w, http.StatusOK, vexDocumentFromQuery(vex))
 }
 
 func (s *Server) getVEXImportReport(w http.ResponseWriter, r *http.Request) {
@@ -2052,21 +1917,12 @@ func (s *Server) getVEXImportReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.vexPointQuery != nil {
-		report, err := s.vexPointQuery.GetVEXImportReport(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, vexImportReportFromQuery(report))
-		return
-	}
-	report, err := s.evidenceIngestion.GetVEXImportReport(r.Context(), actor, r.PathValue("id"))
+	report, err := s.vexPointQuery.GetVEXImportReport(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapEvidencePointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, vexImportReportFromQuery(report))
 }
 
 func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
@@ -2089,34 +1945,7 @@ func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Request) {
-	if s.vexPreviewQuery != nil {
-		s.previewDurableVEX(w, r, "cyclonedx")
-		return
-	}
-	var req struct {
-		ReleaseID  string          `json:"release_id"`
-		ArtifactID string          `json:"artifact_id"`
-		Payload    json.RawMessage `json:"payload"`
-	}
-	actor, ok := s.authenticate(w, r)
-	if !ok {
-		return
-	}
-	body, err := readBody(r)
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	if err := decodeJSON(body, &req); err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	preview, err := s.evidenceIngestion.PreviewCycloneDXVEXImport(r.Context(), actor, req.ReleaseID, req.ArtifactID, req.Payload)
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	writeData(w, http.StatusOK, preview)
+	s.previewDurableVEX(w, r, "cyclonedx")
 }
 
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
@@ -2135,21 +1964,12 @@ func (s *Server) getVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.vulnerabilityScanPointQuery != nil {
-		scan, err := s.vulnerabilityScanPointQuery.GetVulnerabilityScan(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, vulnerabilityScanFromQuery(scan))
-		return
-	}
-	scan, err := s.evidenceIngestion.GetVulnerabilityScan(r.Context(), actor, r.PathValue("id"))
+	scan, err := s.vulnerabilityScanPointQuery.GetVulnerabilityScan(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapEvidencePointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, scan)
+	writeData(w, http.StatusOK, vulnerabilityScanFromQuery(scan))
 }
 
 func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Request) {
@@ -2373,21 +2193,12 @@ func (s *Server) getOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.openAPIContractPointQuery != nil {
-		contract, err := s.openAPIContractPointQuery.GetOpenAPIContract(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapEvidencePointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, openAPIContractFromQuery(contract))
-		return
-	}
-	contract, err := s.evidenceIngestion.GetOpenAPIContract(r.Context(), actor, r.PathValue("id"))
+	contract, err := s.openAPIContractPointQuery.GetOpenAPIContract(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapEvidencePointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, contract)
+	writeData(w, http.StatusOK, openAPIContractFromQuery(contract))
 }
 
 func (s *Server) createOpenAPIDiff(w http.ResponseWriter, r *http.Request) {

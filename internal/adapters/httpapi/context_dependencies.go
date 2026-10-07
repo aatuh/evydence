@@ -522,9 +522,9 @@ type identityAccessService interface {
 	RevokeCurrentSSOSession(context.Context, domain.Actor) (domain.SSOSession, error)
 }
 
-// evidenceIngestionService contains accepted-evidence, document-ingestion,
-// normalization, and evidence-diff operations. Decision and report workflows
-// intentionally remain outside this boundary.
+// evidenceIngestionService retains unmigrated document-ingestion and diff
+// commands. Reads, previews, accepted-evidence and relationship mutations use
+// focused ports outside this transitional boundary.
 type evidenceIngestionService interface {
 	UploadSecurityScan(context.Context, domain.Actor, app.UploadSecurityScanInput) (domain.SecurityScan, error)
 	UploadAPISecurityScan(context.Context, domain.Actor, app.UploadSecurityScanInput) (domain.SecurityScan, error)
@@ -532,29 +532,13 @@ type evidenceIngestionService interface {
 	UploadSPDXSBOM(context.Context, domain.Actor, string, string, []byte) (domain.SBOM, error)
 	UploadSPDXSBOMPayload(context.Context, domain.Actor, string, string, app.PayloadSource) (domain.SBOM, error)
 	CreateSBOMDiff(context.Context, domain.Actor, app.CreateSBOMDiffInput) (domain.SBOMDiff, error)
-	CreateEvidence(context.Context, domain.Actor, app.CreateEvidenceInput) (domain.EvidenceItem, error)
-	ListEvidencePage(context.Context, domain.Actor, app.EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error)
-	SearchEvidencePage(context.Context, domain.Actor, app.EvidenceSearchPageRequest) (appquery.Result[domain.EvidenceItem], error)
-	GetEvidence(context.Context, domain.Actor, string) (domain.EvidenceItem, error)
-	SupersedeEvidence(context.Context, domain.Actor, string, string, string) (domain.EvidenceItem, error)
-	LinkEvidence(context.Context, domain.Actor, string, string, string) (domain.EvidenceItem, error)
-	RecordEvidenceLifecycleEvent(context.Context, domain.Actor, string, app.RecordEvidenceLifecycleInput) (domain.EvidenceLifecycleEvent, error)
-	ListEvidenceLifecycleEvents(context.Context, domain.Actor, string) ([]domain.EvidenceLifecycleEvent, error)
 	UploadSBOM(context.Context, domain.Actor, string, string, []byte) (domain.SBOM, error)
 	UploadSBOMPayload(context.Context, domain.Actor, string, string, app.PayloadSource) (domain.SBOM, error)
-	GetSBOM(context.Context, domain.Actor, string) (domain.SBOM, error)
-	ListSBOMComponents(context.Context, domain.Actor, app.ListSBOMComponentsInput) ([]domain.SBOMComponentRecord, error)
 	UploadVEX(context.Context, domain.Actor, string, string, []byte) (domain.VEXDocument, error)
 	UploadVEXPayload(context.Context, domain.Actor, string, string, app.PayloadSource) (domain.VEXDocument, error)
-	PreviewVEXImport(context.Context, domain.Actor, string, string, []byte) (domain.VEXImportPreview, error)
-	GetVEXDocument(context.Context, domain.Actor, string) (domain.VEXDocument, error)
-	GetVEXImportReport(context.Context, domain.Actor, string) (domain.VEXImportReport, error)
 	UploadCycloneDXVEX(context.Context, domain.Actor, string, string, []byte) (domain.VEXDocument, error)
-	PreviewCycloneDXVEXImport(context.Context, domain.Actor, string, string, []byte) (domain.VEXImportPreview, error)
 	UploadVulnerabilityScanPayload(context.Context, domain.Actor, app.PayloadSource) (domain.VulnerabilityScan, error)
-	GetVulnerabilityScan(context.Context, domain.Actor, string) (domain.VulnerabilityScan, error)
 	UploadOpenAPIContract(context.Context, domain.Actor, string, string, string, []byte) (domain.OpenAPIContract, error)
 	UploadOpenAPIContractPayload(context.Context, domain.Actor, string, string, string, app.PayloadSource) (domain.OpenAPIContract, error)
-	GetOpenAPIContract(context.Context, domain.Actor, string) (domain.OpenAPIContract, error)
 	CreateContractDiff(context.Context, domain.Actor, app.CreateContractDiffInput) (domain.ContractDiff, error)
 }

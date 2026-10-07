@@ -104,8 +104,20 @@ JSON numbers, cookie-origin checks, current ownership/grant guards and response
 mapping remain unchanged. Test-only adapters retain real fixture authorization
 and the isolated command clone. Failure-after-write regressions compare every
 repository effect, reject partial responses and verify that failed commands
-do not publish core, link or supersession changes. The remaining ingestion,
-query and aggregate implementation retirement is still EVY-906 work.
+do not publish core, link or supersession changes.
+
+Evidence list/search and point reads, lifecycle pages, SBOM documents/components,
+scan/contract points, VEX documents/reports and both VEX previews also require
+focused query ports. Their twelve fallback branches and sixteen obsolete broad-
+interface methods are deleted, including four unused creation/relationship
+methods. Native filters, cursor parsing/binding, query error mapping, lifecycle
+redaction, document DTOs and preview validation are unchanged. Test-only readers
+retain actual former ownership/grant policies and detach mutable document,
+issue and advisory metadata; read-only regressions cover both tenants, complete
+fixture pages, revoked grants and previews. The SBOM component fixture retains
+its former 500-item cap; runtime SQL pagination has separate beyond-cap tests.
+The fifteen remaining ingestion/diff interface methods, their command fallbacks
+and the aggregate implementation still require retirement under EVY-906.
 
 Report-template creation/rendering and portable bundle import/export now
 require focused Package ports. Their three broad local bindings and interfaces

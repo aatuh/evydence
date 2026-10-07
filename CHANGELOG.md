@@ -69,7 +69,14 @@ Generic evidence creation, supersession, linking and lifecycle-event handlers
 now use only focused Evidence ports. Their two broad local dependencies and
 interfaces are deleted. Native validation, authorization, append-only effects,
 exact-number handling, cookie-origin checks and replay contracts are unchanged.
-Remaining ingestion, query and aggregate retirement is still in progress.
+Evidence list/search and point reads, lifecycle pages, SBOM documents/components,
+scan/contract points, VEX documents/reports and both VEX previews also now use
+only focused queries. Twelve transport fallback branches and sixteen obsolete
+interface methods are removed. Native filtering, cursor validation, error/DTO
+mapping, lifecycle redaction and preview validation remain unchanged. Test-only
+fixtures retain real ownership/grant checks, complete fixture-page assertions,
+read-only state and detached metadata. Fifteen ingestion/diff interface methods,
+their command fallbacks and aggregate retirement remain unfinished.
 
 Report-template creation/rendering and portable bundle import/export handlers
 now use only focused Package ports. Three broad local bindings and interfaces
