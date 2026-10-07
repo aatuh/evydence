@@ -49,29 +49,13 @@ func (s *Server) installControlFrameworkTemplatePack(w http.ResponseWriter, r *h
 		writeProblem(w, r, err)
 		return
 	}
-	if s.controlTemplateCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			if err := decodeControlTemplateInstallBody(body); err != nil {
-				return err
-			}
-			return mapControlCommandError(s.controlTemplateCommands.AuthorizeControlTemplateInstallation(ctx, a, r.PathValue("slug")))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.controlTemplateCommands.InstallControlFrameworkTemplatePack(ctx, a, r.PathValue("slug"))
-			return http.StatusCreated, controlFrameworkFromQuery(v), mapControlCommandError(err)
-		})
-		return
-	}
-	// Explicit local memory only; current tenant authority precedes replay.
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		if err := decodeControlTemplateInstallBody(body); err != nil {
-			return 0, nil, err
+			return err
 		}
-		v, err := s.ledger.InstallControlFrameworkTemplatePack(ctx, a, r.PathValue("slug"))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if err := decodeControlTemplateInstallBody(body); err != nil {
-			return nil, err
-		}
-		return body, s.ledger.AuthorizeControlTemplateInstallation(r.Context(), a, r.PathValue("slug"))
+		return mapControlCommandError(s.controlTemplateCommands.AuthorizeControlTemplateInstallation(ctx, a, r.PathValue("slug")))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.controlTemplateCommands.InstallControlFrameworkTemplatePack(ctx, a, r.PathValue("slug"))
+		return http.StatusCreated, controlFrameworkFromQuery(v), mapControlCommandError(err)
 	})
 }

@@ -66,47 +66,22 @@ func decodeSecurityControlCreation(body []byte) (riskapp.CreateSecurityControlIn
 	return v, mapControlCommandError(err)
 }
 
-func localControlFrameworkInput(in riskapp.CreateControlFrameworkInput) app.CreateControlFrameworkInput {
-	return app.CreateControlFrameworkInput{Name: in.Name, Slug: in.Slug, Version: in.Version, Description: in.Description}
-}
-func localSecurityControlInput(in riskapp.CreateSecurityControlInput) app.CreateSecurityControlInput {
-	reqs := make([]domain.ControlEvidenceRequirement, 0, len(in.EvidenceRequirements))
-	for _, r := range in.EvidenceRequirements {
-		reqs = append(reqs, domain.ControlEvidenceRequirement{Type: r.Type, FreshnessDays: r.FreshnessDays, Required: r.Required})
-	}
-	return app.CreateSecurityControlInput{FrameworkID: in.FrameworkID, Code: in.Code, Title: in.Title, Objective: in.Objective, EvidenceRequirements: reqs, Applicability: in.Applicability, Limitations: in.Limitations}
-}
-
 func (s *Server) createControlFramework(w http.ResponseWriter, r *http.Request) {
 	if err := validateSSOCookieMutation(r); err != nil {
 		writeProblem(w, r, err)
 		return
 	}
 	var in riskapp.CreateControlFrameworkInput
-	if s.controlCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeControlFrameworkCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapControlCommandError(s.controlCommands.AuthorizeControlFrameworkCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.controlCommands.CreateControlFramework(ctx, a, in)
-			return http.StatusCreated, controlFrameworkFromQuery(v), mapControlCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.ledger.CreateControlFramework(ctx, a, localControlFrameworkInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeControlFrameworkCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.ledger.AuthorizeControlFrameworkCreation(r.Context(), a, localControlFrameworkInput(in))
+		return mapControlCommandError(s.controlCommands.AuthorizeControlFrameworkCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.controlCommands.CreateControlFramework(ctx, a, in)
+		return http.StatusCreated, controlFrameworkFromQuery(v), mapControlCommandError(err)
 	})
 }
 
@@ -116,30 +91,16 @@ func (s *Server) createSecurityControl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in riskapp.CreateSecurityControlInput
-	if s.controlCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeSecurityControlCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapControlCommandError(s.controlCommands.AuthorizeSecurityControlCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.controlCommands.CreateSecurityControl(ctx, a, in)
-			return http.StatusCreated, securityControlFromQuery(v), mapControlCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.ledger.CreateSecurityControl(ctx, a, localSecurityControlInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeSecurityControlCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.ledger.AuthorizeSecurityControlCreation(r.Context(), a, localSecurityControlInput(in))
+		return mapControlCommandError(s.controlCommands.AuthorizeSecurityControlCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.controlCommands.CreateSecurityControl(ctx, a, in)
+		return http.StatusCreated, securityControlFromQuery(v), mapControlCommandError(err)
 	})
 }
 

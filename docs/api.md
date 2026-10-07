@@ -2355,7 +2355,7 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 | `POST` | `/v1/controls` | Create control under a current tenant-owned framework with the same `controls:admin` grant rule. |
 | `GET` | `/v1/controls/{id}` | Read a control through its tenant-owned framework; uses the same `controls:read` grant rule. |
 | `POST` | `/v1/controls/{id}/evidence` | Append control evidence link. |
-| `GET` | `/v1/control-evidence` | Keyset-page tenant/grant-visible links whose control, framework, scope, and current subject ownership still resolve. Supports `control_id`, `product_id`, and `release_id` filters. PostgreSQL applies visibility before the page limit; local-memory mode uses the Ledger compatibility reader. |
+| `GET` | `/v1/control-evidence` | Keyset-page tenant/grant-visible links whose control, framework, scope, and current subject ownership still resolve. Supports `control_id`, `product_id`, and `release_id` filters. PostgreSQL applies visibility before the page limit. |
 | `GET` | `/v1/reports/control-coverage` | Deterministic control coverage. |
 | `GET` | `/v1/reports/cra-readiness` | Technical evidence readiness report with limitations. |
 | `GET` | `/v1/reports/cra-vulnerability-handling` | CRA-oriented vulnerability handling evidence report with limitations. |
@@ -2664,11 +2664,10 @@ requirements are accepted, with each raw type bounded at 1024 bytes.
 Applicability is trimmed and sorted without removing duplicates or empty entries; limitations
 retain order/duplicates but omit trimmed blanks. Together these two lists are
 bounded at 1024 input entries and 64 KiB of input text. Optional arrays may be
-omitted; explicit null fields/items are rejected in both runtime profiles.
-Both profiles require a same-host HTTPS `Origin` for cookie-authenticated
-writes; explicit bearer authentication takes precedence. Local-memory creation
-retains compatibility storage and nondurable replay, with the same input bounds
-and tenant-wide human administration checks. Evidence linking has a separate
+omitted; explicit null fields/items are rejected.
+Cookie-authenticated writes require a same-host HTTPS `Origin`;
+explicit bearer authentication takes precedence. PostgreSQL is required for
+local evaluation; there is no map-backed API alternative. Evidence linking has a separate
 `controls:write` policy described below.
 
 ### Control-Evidence Linking
@@ -2699,11 +2698,8 @@ malformed, duplicate/trailing, unknown or null fields, NUL text and invalid
 UTF-8 return `400`. Unsupported subject kinds retain `404` behavior. Cookie
 writes require same-host HTTPS `Origin`; bearer authentication takes precedence.
 
-Local memory retains local-map reference behavior and nondurable storage/replay,
-with the shared input bounds, current control/framework ownership checks and
-local resource grants. It does not establish PostgreSQL parsed-source or writer
-coordination guarantees. Linking records technical evidence relationships, not
-control effectiveness or framework compliance.
+PostgreSQL is required for local evaluation and deployed APIs. Linking records
+technical evidence relationships, not control effectiveness or framework compliance.
 
 ### Control-Framework Template Installation
 
@@ -2724,11 +2720,24 @@ The raw slug must be NUL-free UTF-8 of at most 1024 bytes before trimming;
 invalid paths are rejected with `400` before durable replay reservation, and
 unknown slugs return `404`. The body is optional; when supplied it must be an empty JSON object
 (a blank body retains its existing empty-object behavior). Malformed bodies,
-null, arrays, and unknown fields now return `400` in both profiles instead of
-being ignored. Local-memory mode retains its compatibility installation
-command and nondurable replay, enforcing the same tenant-wide human grant and
-raw-slug bounds. Starter packs organize technical evidence, not compliance or
+null, arrays, and unknown fields return `400` instead of being ignored.
+PostgreSQL is required for local evaluation. Starter packs organize technical evidence, not compliance or
 control effectiveness conclusions.
+
+The eight framework/control/template/link handlers depend only on focused Risk
+command/query ports. Historical HTTP tests use test-only bridges to the former
+guards and isolated commands; these are not a supported runtime backend and
+do not establish PostgreSQL row-lock or parsed-source guarantees. The static
+starter catalog requires `controls:read`, but no resource grant because it
+contains no tenant data. Tenant-owned definition and link reads retain their
+current grant policies.
+
+Tests: `internal/adapters/httpapi/control_transport_boundary_test.go`,
+`internal/adapters/httpapi/control_fixture_regression_test.go`,
+`internal/adapters/httpapi/control_fixture_reads_test.go`, and
+`internal/platform/wiring/control_creation_native_http_test.go`,
+`internal/platform/wiring/control_template_native_http_test.go`,
+`internal/platform/wiring/control_evidence_native_http_test.go`.
 
 | Method | Path | Notes |
 |--------|------|-------|

@@ -836,32 +836,21 @@ func (s *Server) listControlFrameworks(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.controlsQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "control-frameworks")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.controlsQuery.ListFrameworksPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapControlsQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.ControlFramework]{Next: page.Next, Items: make([]domain.ControlFramework, 0, len(page.Items))}
-		for _, framework := range page.Items {
-			mapped.Items = append(mapped.Items, controlFrameworkFromQuery(framework))
-		}
-		writePage(s, w, r, actor, "control-frameworks", request, mapped)
-		return
-	}
-	frameworks, err := s.ledger.ListControlFrameworks(r.Context(), actor)
+	request, err := s.parsePageRequest(r, actor, "control-frameworks")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "control-frameworks", nil, frameworks, func(framework domain.ControlFramework) (string, time.Time) {
-		return framework.ID, framework.CreatedAt
-	})
+	page, err := s.controlsQuery.ListFrameworksPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapControlsQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.ControlFramework]{Next: page.Next, Items: make([]domain.ControlFramework, 0, len(page.Items))}
+	for _, framework := range page.Items {
+		mapped.Items = append(mapped.Items, controlFrameworkFromQuery(framework))
+	}
+	writePage(s, w, r, actor, "control-frameworks", request, mapped)
 }
 
 func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *http.Request) {
@@ -869,31 +858,20 @@ func (s *Server) listControlFrameworkTemplatePacks(w http.ResponseWriter, r *htt
 	if !ok {
 		return
 	}
-	if s.controlTemplateQuery != nil {
-		if _, err := s.parsePageRequest(r, actor, "control-framework-template-packs"); err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		packs, err := s.controlTemplateQuery.ListTemplatePacks(r.Context(), actor)
-		if err != nil {
-			writeProblem(w, r, mapControlsQueryError(err))
-			return
-		}
-		mapped := make([]domain.ControlFrameworkTemplatePack, 0, len(packs))
-		for _, pack := range packs {
-			mapped = append(mapped, controlTemplatePackFromQuery(pack))
-		}
-		writePaginated(s, w, r, actor, "control-framework-template-packs", nil, mapped, func(pack domain.ControlFrameworkTemplatePack, sort appquery.Sort) appquery.SortKey {
-			return appquery.RecordSortKey(pack.ID, time.Time{}, sort)
-		})
-		return
-	}
-	packs, err := s.ledger.ListControlFrameworkTemplatePacks(r.Context(), actor)
-	if err != nil {
+	if _, err := s.parsePageRequest(r, actor, "control-framework-template-packs"); err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writePaginated(s, w, r, actor, "control-framework-template-packs", nil, packs, func(pack domain.ControlFrameworkTemplatePack, sort appquery.Sort) appquery.SortKey {
+	packs, err := s.controlTemplateQuery.ListTemplatePacks(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, mapControlsQueryError(err))
+		return
+	}
+	mapped := make([]domain.ControlFrameworkTemplatePack, 0, len(packs))
+	for _, pack := range packs {
+		mapped = append(mapped, controlTemplatePackFromQuery(pack))
+	}
+	writePaginated(s, w, r, actor, "control-framework-template-packs", nil, mapped, func(pack domain.ControlFrameworkTemplatePack, sort appquery.Sort) appquery.SortKey {
 		return appquery.RecordSortKey(pack.ID, time.Time{}, sort)
 	})
 }
@@ -903,21 +881,12 @@ func (s *Server) getSecurityControl(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.controlsQuery != nil {
-		control, err := s.controlsQuery.GetSecurityControl(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapControlsQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, securityControlFromQuery(control))
-		return
-	}
-	control, err := s.ledger.GetSecurityControl(r.Context(), actor, r.PathValue("id"))
+	control, err := s.controlsQuery.GetSecurityControl(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapControlsQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, control)
+	writeData(w, http.StatusOK, securityControlFromQuery(control))
 }
 
 func (s *Server) listControlEvidence(w http.ResponseWriter, r *http.Request) {
@@ -925,33 +894,22 @@ func (s *Server) listControlEvidence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.controlEvidenceQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "control-evidence", "control_id", "product_id", "release_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		filter := riskquery.ControlEvidenceFilter{ControlID: r.URL.Query().Get("control_id"), ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id")}
-		result, err := s.controlEvidenceQuery.ListPage(r.Context(), actor, filter, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapControlsQueryError(err))
-			return
-		}
-		page := appquery.Result[domain.ControlEvidence]{Next: result.Next, Items: make([]domain.ControlEvidence, 0, len(result.Items))}
-		for _, link := range result.Items {
-			page.Items = append(page.Items, controlEvidenceFromQuery(link))
-		}
-		writePage(s, w, r, actor, "control-evidence", request, page)
-		return
-	}
-	links, err := s.ledger.ListControlEvidence(r.Context(), actor, r.URL.Query().Get("control_id"), r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	request, err := s.parsePageRequest(r, actor, "control-evidence", "control_id", "product_id", "release_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "control-evidence", []string{"control_id", "product_id", "release_id"}, links, func(link domain.ControlEvidence) (string, time.Time) {
-		return link.ID, link.CreatedAt
-	})
+	filter := riskquery.ControlEvidenceFilter{ControlID: r.URL.Query().Get("control_id"), ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id")}
+	result, err := s.controlEvidenceQuery.ListPage(r.Context(), actor, filter, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapControlsQueryError(err))
+		return
+	}
+	page := appquery.Result[domain.ControlEvidence]{Next: result.Next, Items: make([]domain.ControlEvidence, 0, len(result.Items))}
+	for _, link := range result.Items {
+		page.Items = append(page.Items, controlEvidenceFromQuery(link))
+	}
+	writePage(s, w, r, actor, "control-evidence", request, page)
 }
 
 func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {

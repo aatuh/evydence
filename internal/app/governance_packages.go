@@ -1245,7 +1245,7 @@ func (l *Ledger) InstallControlFrameworkTemplatePack(ctx context.Context, actor 
 				}
 			}
 			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(framework.CreatedAt, actor.TenantID, "control_framework_template.installed", "control_framework", framework.ID, "api_key", actor.KeyID, "", ""))
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(framework.CreatedAt, actor.TenantID, "control_framework_template.installed", "control_framework", framework.ID, actorType(actor), actorID(actor), "", ""))
 			return err
 		}); err != nil {
 			return domain.ControlFramework{}, err
@@ -1261,7 +1261,7 @@ func (l *Ledger) InstallControlFrameworkTemplatePack(ctx context.Context, actor 
 	for _, control := range controls {
 		l.controls[control.ID] = control
 	}
-	_, _ = l.appendChainLocked(actor.TenantID, "control_framework_template.installed", "control_framework", framework.ID, "api_key", actor.KeyID, "", "")
+	_, _ = l.appendChainLocked(actor.TenantID, "control_framework_template.installed", "control_framework", framework.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.ControlFramework{}, err
 	}

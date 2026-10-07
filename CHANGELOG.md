@@ -83,6 +83,17 @@ use focused transaction ownership readers for real preflight, preserve isolated
 historical writes and add full-state rollback, callback recovery/replay, current
 grant/tenant and read-only DTO/metadata-detachment regressions. The affected
 API/architecture references no longer advertise a local-memory runtime.
+
+Control/framework creation, starter installation, evidence linking and their
+definition/catalog/link reads now require focused Risk ports. Eight handler
+fallbacks and three aggregate-only input converters are removed. Native
+validation, grants, atomic replay and public DTO/cursor contracts are unchanged.
+Test-only fixtures retain real guards/isolated writes and add full-state
+rollback/replay, complete-page tenant filtering, cancellation and detached
+definition regressions. The legacy template-install command now records human
+audit identity correctly; the production PostgreSQL command already did so.
+Affected API descriptions no longer advertise local-memory evaluation.
+Other aggregate dependencies remain unfinished under EVY-906.
 Remaining aggregate retirement is still in progress under EVY-906.
 
 Generic evidence creation, supersession, linking and lifecycle-event handlers

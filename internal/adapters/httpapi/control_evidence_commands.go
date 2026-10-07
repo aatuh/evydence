@@ -50,10 +50,6 @@ func decodeControlEvidenceLink(body []byte, id string, a domain.Actor) (string, 
 	return id, in, nil
 }
 
-func localControlEvidenceInput(in riskapp.LinkControlEvidenceInput) app.LinkControlEvidenceInput {
-	return app.LinkControlEvidenceInput{EvidenceType: in.EvidenceType, SubjectType: in.SubjectType, SubjectID: in.SubjectID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Confidence: in.Confidence, Notes: in.Notes}
-}
-
 func (s *Server) linkControlEvidence(w http.ResponseWriter, r *http.Request) {
 	if err := validateSSOCookieMutation(r); err != nil {
 		writeProblem(w, r, err)
@@ -65,29 +61,15 @@ func (s *Server) linkControlEvidence(w http.ResponseWriter, r *http.Request) {
 	}
 	var id string
 	var in riskapp.LinkControlEvidenceInput
-	if s.controlEvidenceCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			id, in, err = decodeControlEvidenceLink(body, r.PathValue("id"), a)
-			if err != nil {
-				return err
-			}
-			return mapControlCommandError(s.controlEvidenceCommands.AuthorizeControlEvidenceLink(ctx, a, id, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.controlEvidenceCommands.LinkControlEvidence(ctx, a, id, in)
-			return http.StatusCreated, controlEvidenceFromQuery(v), mapControlCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.ledger.LinkControlEvidence(ctx, a, id, localControlEvidenceInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		id, in, err = decodeControlEvidenceLink(body, r.PathValue("id"), a)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.ledger.AuthorizeControlEvidenceLink(r.Context(), a, id, localControlEvidenceInput(in))
+		return mapControlCommandError(s.controlEvidenceCommands.AuthorizeControlEvidenceLink(ctx, a, id, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.controlEvidenceCommands.LinkControlEvidence(ctx, a, id, in)
+		return http.StatusCreated, controlEvidenceFromQuery(v), mapControlCommandError(err)
 	})
 }

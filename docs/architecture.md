@@ -135,6 +135,19 @@ are separate from live PostgreSQL lock, restart and concurrency evidence.
 The memory readers validate coherent incident parents and selected retention
 root ownership without consulting Ledger; they do not model SQL row locks.
 
+Framework/control creation, starter-pack installation, evidence linking and
+their definition/catalog/link reads now require focused Risk ports. Eight
+handler fallbacks and three aggregate-only input converters are deleted.
+Native decoding, cookie-origin checks, current ownership/grants, replay and
+DTO/cursor contracts remain unchanged. Test-only bridges preserve the actual
+former guards and isolated historical writes, with full-state rollback/replay,
+complete-page tenant/grant filtering, cancellation and definition-detachment
+regressions. Static starter packs contain no tenant data and require only the
+credential read scope. The old template-install command now attributes human
+audits correctly; native PostgreSQL already used the actual principal.
+These fixture checks are not SQL locking evidence or completion of aggregate
+retirement. Runtime query limits and current-subject validation remain in SQL.
+
 Evidence list/search and point reads, lifecycle pages, SBOM documents/components,
 scan/contract points, VEX documents/reports and both VEX previews also require
 focused query ports. Their twelve fallback branches and sixteen obsolete broad-
