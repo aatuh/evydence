@@ -117,12 +117,22 @@ func TestPostgresVEXIngestionUsesFocusedAtomicUploadsAndRestartReplay(t *testing
 	// not surrounding whitespace in the envelope. Native uploads retain all bytes.
 	wrappedSource := string(envelope.Payload)
 	native := strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1) + string(raw)
+	var emailDocument map[string]any
+	if err := json.Unmarshal(raw, &emailDocument); err != nil {
+		t.Fatal(err)
+	}
+	emailDocument["author"] = "security@example.test"
+	emailRaw, err := json.Marshal(emailDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+	emailSource := string(emailRaw)
 	cdx := `{"bomFormat":"CycloneDX","specVersion":"1.6","vulnerabilities":[{"id":"CVE-2026-1","affects":[{"ref":"pkg:generic/api@1"}],"analysis":{"state":"resolved"}},{"analysis":{"state":"resolved"}}]}`
 	for _, tc := range []struct {
 		key, body, format string
 		native            bool
 		source            string
-	}{{"openvex", wrapped, "openvex", false, wrappedSource}, {"native", native, "openvex", true, native}, {"cyclonedx", `{"release_id":"release","artifact_id":"artifact","payload":` + cdx + `}`, "cyclonedx", false, cdx}} {
+	}{{"openvex", wrapped, "openvex", false, wrappedSource}, {"native", native, "openvex", true, native}, {"cyclonedx", `{"release_id":"release","artifact_id":"artifact","payload":` + cdx + `}`, "cyclonedx", false, cdx}, {"native-email", emailSource, "openvex", true, emailSource}} {
 		v := request(tc.key, tc.body, tc.format, tc.native, 201)
 		parsed, err := (app.VEXPayloadParser{}).ParseVEX(ctx, tc.format, evidenceapp.BytesPayloadSource([]byte(tc.source)))
 		if err != nil || v.ID == "" || v.TenantID != "tenant" || v.ReleaseID != "release" || v.ArtifactID != "artifact" || v.Format != tc.format || v.Author != parsed.Author || v.Version != parsed.Version || v.StatementCount != parsed.StatementCount || !reflect.DeepEqual(v.StatusSummary, parsed.StatusSummary) || v.CreatedAt.Nanosecond()%1000 != 0 {
@@ -216,15 +226,15 @@ func TestPostgresVEXIngestionUsesFocusedAtomicUploadsAndRestartReplay(t *testing
 			t.Fatal("denied replay normalized VEX")
 		}
 	}
-	expected := [7]int{base[0] + 3, base[1] + 3, base[2] + 3, base[3] + 6, base[4] + 6, base[5] + 3, base[6]}
-	if counts() != expected || objects.stages != 3 {
+	expected := [7]int{base[0] + 4, base[1] + 4, base[2] + 4, base[3] + 8, base[4] + 8, base[5] + 4, base[6]}
+	if counts() != expected || objects.stages != 4 {
 		t.Fatal("replay/denial added effects", counts(), objects.stages)
 	}
 	for i, bad := range []string{`null`, `{"release_id":null,"payload":{}}`, `{"release_id":"release","artifact_id":null,"payload":{}}`, `{"release_id":"release","payload":null}`, strings.Replace(wrapped, `"release"`, `"bad\u0000"`, 1), strings.Replace(wrapped, `"release"`, `"`+strings.Repeat("x", 1025)+`"`, 1), strings.Replace(wrapped, `"author":`, `"author":"bad\u0000","author":`, 1)} {
 		request(fmt.Sprintf("invalid-%d", i), bad, "openvex", false, 400)
 	}
 	request("missing-parent", `{"release_id":"missing","payload":{}}`, "openvex", false, 404)
-	if counts() != expected || objects.stages != 3 {
+	if counts() != expected || objects.stages != 4 {
 		t.Fatal("invalid VEX reached staging", counts(), objects.stages)
 	}
 	before := uploads
@@ -264,7 +274,13 @@ func TestPostgresVEXIngestionUsesFocusedAtomicUploadsAndRestartReplay(t *testing
 		}
 	}
 	request("fault-commit", wrapped, "openvex", false, 201)
-	if counts() != [7]int{base[0] + 4, base[1] + 4, base[2] + 4, base[3] + 8, base[4] + 7, base[5] + 3, base[6]} {
+	retryExpected := expected
+	retryExpected[0]++    // evidence
+	retryExpected[1]++    // document
+	retryExpected[2]++    // report
+	retryExpected[3] += 2 // evidence and import audit entries
+	retryExpected[4]++    // existing payload needs no second finalization job
+	if counts() != retryExpected {
 		t.Fatal("commit retry duplicated effects", counts())
 	}
 	digest := evidenceapp.BytesPayloadSource([]byte(wrappedSource)).Digest

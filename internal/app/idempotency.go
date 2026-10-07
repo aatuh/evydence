@@ -313,6 +313,9 @@ func safeIdempotencyReplayResponse(response any) (any, error) {
 	if signature, ok := publicArtifactSignatureReplay(decoded); ok {
 		return signature, nil
 	}
+	if vex, ok := publicVEXAuthorReplay(decoded); ok {
+		return vex, nil
+	}
 	if !changed {
 		return response, nil
 	}
