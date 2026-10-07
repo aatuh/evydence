@@ -274,6 +274,12 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if !ok || keyReader.ledger != ledger {
 		t.Fatal("focused signing-key fixture reader was not rebound")
 	}
+	for name, dependency := range map[string]any{"artifact-signature-command": server.artifactSignatureCommands, "artifact-signature-query": server.artifactSignatureQuery} {
+		fixture, ok := dependency.(artifactSignatureFixture)
+		if !ok || fixture.ledger != ledger {
+			t.Fatalf("focused %s fixture was not rebound", name)
+		}
+	}
 	auditReader, ok := server.auditLogQuery.(auditLogFixtureQuery)
 	if !ok || auditReader.ledger != ledger {
 		t.Fatal("focused audit-log fixture reader was not rebound")

@@ -47,7 +47,7 @@ func TestArtifactSignatureCreationOpenAPIDeclaresRecordingAndAtomicStaging(t *te
 	}
 	op := operationMap(t, asStringAnyMap(t, doc["paths"]), "/v1/artifact-signatures", "post")
 	description, _ := op["description"].(string)
-	for _, required := range []string{"recorded", "does not verify cryptographic trust", "same transaction", "1024 bytes"} {
+	for _, required := range []string{"recorded", "does not verify cryptographic trust", "same transaction", "1024 bytes", "PostgreSQL is required for local evaluation."} {
 		if !strings.Contains(description, required) {
 			t.Fatal("missing creation contract", description)
 		}

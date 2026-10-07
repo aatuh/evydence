@@ -41,34 +41,16 @@ func (s *Server) createArtifactSignature(w http.ResponseWriter, r *http.Request)
 		writeProblem(w, r, err)
 		return
 	}
-	if s.artifactSignatureCommands != nil {
-		var in verificationapp.CreateArtifactSignatureInput
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeArtifactSignatureCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapVerificationCommandError(s.artifactSignatureCommands.AuthorizeArtifactSignatureCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.artifactSignatureCommands.CreateArtifactSignature(ctx, a, in)
-			return http.StatusCreated, artifactSignatureFromQuery(v), mapVerificationCommandError(err)
-		})
-		return
-	}
-	// Explicit local memory only. Its current map scope guard precedes replay.
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeArtifactSignatureCreation(body)
+	var in verificationapp.CreateArtifactSignatureInput
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		var err error
+		in, err = decodeArtifactSignatureCreation(body)
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
-		v, err := s.ledger.CreateArtifactSignature(ctx, a, app.CreateArtifactSignatureInput{ArtifactID: in.ArtifactID, Algorithm: in.Algorithm, KeyID: in.KeyID, Signature: in.Signature, RawPayload: in.RawPayload, PayloadMediaType: in.PayloadMediaType})
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeArtifactSignatureCreation(body)
-		if err != nil {
-			return nil, err
-		}
-		return body, s.ledger.AuthorizeArtifactSignatureCreation(r.Context(), a, in)
+		return mapVerificationCommandError(s.artifactSignatureCommands.AuthorizeArtifactSignatureCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.artifactSignatureCommands.CreateArtifactSignature(ctx, a, in)
+		return http.StatusCreated, artifactSignatureFromQuery(v), mapVerificationCommandError(err)
 	})
 }

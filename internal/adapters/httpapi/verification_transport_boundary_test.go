@@ -35,6 +35,8 @@ func TestVerificationTransportHasNoBroadDependency(t *testing.T) {
 		{"transparency_checkpoint_commands.go", "createTransparencyCheckpoint", "transparencyCheckpointCommands", 2, 1},
 		{"retention_commands.go", "createObjectRetentionPolicy", "retentionCommands", 2, 1},
 		{"retention_commands.go", "verifyObjectRetentionPolicy", "retentionCommands", 2, 1},
+		{"artifact_signature_commands.go", "createArtifactSignature", "artifactSignatureCommands", 2, 1},
+		{"router.go", "getArtifactSignature", "artifactSignatureQuery", 1, 0},
 	} {
 		t.Run(tc.handler, func(t *testing.T) {
 			file, err := parser.ParseFile(token.NewFileSet(), tc.file, nil, parser.SkipObjectResolution)

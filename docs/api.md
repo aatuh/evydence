@@ -3258,7 +3258,7 @@ owned evidence or build association. A build association must match the
 artifact's current digest. Foreign/missing artifacts return `404`, and a
 removed or inconsistent grant association cannot authorize replay (`403`).
 
-Both profiles require a strict JSON object capped at the existing 64 KiB
+The API requires a strict JSON object capped at the existing 64 KiB
 HTTP limit. Required fields are `artifact_id`, `algorithm` and `signature`;
 optional fields are `key_id`, `payload` and `payload_media_type`. The payload
 must be a non-null JSON object; its exact supplied bytes are staged without
@@ -3279,13 +3279,26 @@ staging again. Replay retains only a canonical tenant/digest-bound payload
 reference from the versioned DTO; arbitrary paths and unknown sensitive
 response fields keep generic redaction. Changed request bytes return `409`,
 revoked grants `403` and revoked sessions `401`. Failed delivery keys retain
-their `409` policy; recovery uses a new key. Explicit local memory retains
-a current-map guard and nondurable replay.
+their `409` policy; recovery uses a new key. PostgreSQL is required for local
+evaluation; there is no map-backed API alternative.
 
 Staging is not finalization. A PostgreSQL failure rolls back durable rows,
 not the filesystem side effect; it can leave unreferenced staged bytes for
 object reconciliation. Recording or historical delivery does not establish
 current cryptographic trust, artifact safety or legal compliance.
+
+Creation and signature point reads require their focused Verification ports;
+both aggregate handler fallbacks are deleted. Historical HTTP tests retain
+the former real guards/point-grant rules through test-only adapters and run
+isolated writes with an actual filesystem staging store. Their rollback/replay
+checks cover all repository effects and prove that replay/denials do not stage
+again. They do not establish native digest/current-parent query or SQL-lock
+guarantees. The legacy signature command now records human audit identity
+correctly; native PostgreSQL already used the actual principal.
+
+Transport regression evidence:
+`internal/adapters/httpapi/artifact_signature_fixture_regression_test.go` and
+`internal/adapters/httpapi/verification_transport_boundary_test.go`.
 
 ### Offline Cosign Verification
 
@@ -3925,7 +3938,7 @@ needs an `evidence:read` grant covering a current evidence or build association
 with that artifact; a tenant grant or issued credential with `evidence:read`
 does not need a narrower association. The existing response can include a
 `payload_ref`, so treat it as tenant-scoped metadata rather than a public
-object URL. Local-memory mode retains its Ledger-backed authorization path.
+object URL. PostgreSQL is required for local evaluation.
 
 In the PostgreSQL profile, `GET /v1/artifacts/{id}` reads artifact metadata
 without loading tenant-wide Ledger state. Human sessions need an `evidence:read`

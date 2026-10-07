@@ -1093,21 +1093,12 @@ func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.artifactSignatureQuery != nil {
-		signature, err := s.artifactSignatureQuery.GetArtifactSignature(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapArtifactSignatureQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, artifactSignatureFromQuery(signature))
-		return
-	}
-	sig, err := s.ledger.GetArtifactSignature(r.Context(), actor, r.PathValue("id"))
+	signature, err := s.artifactSignatureQuery.GetArtifactSignature(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapArtifactSignatureQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, sig)
+	writeData(w, http.StatusOK, artifactSignatureFromQuery(signature))
 }
 
 func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {

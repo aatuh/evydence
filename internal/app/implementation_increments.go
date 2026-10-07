@@ -288,7 +288,7 @@ func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor
 				return err
 			}
 			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(sig.CreatedAt, actor.TenantID, "artifact_signature.created", "artifact_signature", sig.ID, "api_key", actor.KeyID, artifact.Digest, ""))
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(sig.CreatedAt, actor.TenantID, "artifact_signature.created", "artifact_signature", sig.ID, actorType(actor), actorID(actor), artifact.Digest, ""))
 			return err
 		}); err != nil {
 			return domain.ArtifactSignature{}, err
@@ -298,7 +298,7 @@ func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor
 		return sig, nil
 	}
 	l.artifactSigs[sig.ID] = sig
-	_, _ = l.appendChainLocked(actor.TenantID, "artifact_signature.created", "artifact_signature", sig.ID, "api_key", actor.KeyID, artifact.Digest, "")
+	_, _ = l.appendChainLocked(actor.TenantID, "artifact_signature.created", "artifact_signature", sig.ID, actorType(actor), actorID(actor), artifact.Digest, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.ArtifactSignature{}, err
 	}

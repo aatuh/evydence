@@ -247,7 +247,16 @@ behavior are unchanged. Test-only adapters preserve actual policies, public
 assurance metadata and the legacy fixture's distinct v1 backup hash; they are
 not a runtime backend or a PostgreSQL locking proof. Seven affected API
 descriptions now require PostgreSQL without schema or response changes.
-Direct Verification-context Ledger calls and aggregate state still await
+Artifact-signature recording and signature point reads now require focused
+Verification ports; both direct aggregate handler fallbacks are deleted.
+Native authorization, input bounds, cookie protection, canonical-reference
+replay and current-digest query contracts are unchanged. Test-only adapters
+retain the former guards/point rules and isolated writes; actual filesystem
+staging regressions cover repository rollback, no-restaging replay/denials,
+human grants, tenant boundaries and complete public DTOs without raw bytes.
+The legacy command now attributes human audits correctly. Fixture reads are
+not proof of native SQL locks or current digest/source validation.
+Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 
 Vulnerability-decision and exception pages, plus the customer-safe decision

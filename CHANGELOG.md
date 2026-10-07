@@ -108,6 +108,16 @@ historical reasons. It remains a test backend, not SQL locking evidence.
 Affected API and architecture descriptions require PostgreSQL local evaluation.
 Remaining aggregate cleanup and final ticket gates are still unfinished.
 
+Artifact-signature recording and point reads now require focused Verification
+ports; both aggregate handler fallbacks are deleted. Native authorization,
+decoding, atomic replay, canonical payload references and digest query contracts
+are unchanged. Test-only regressions use actual filesystem staging and cover
+full repository rollback, no restaging on replay/denial, current grants/tenants
+and complete public metadata without raw payload bytes. The legacy signature
+command now records human audit identity correctly; native PostgreSQL already
+did so. Affected API descriptions require PostgreSQL local evaluation.
+Other aggregate cleanup remains unfinished under EVY-906.
+
 Generic evidence creation, supersession, linking and lifecycle-event handlers
 now use only focused Evidence ports. Their two broad local dependencies and
 interfaces are deleted. Native validation, authorization, append-only effects,
