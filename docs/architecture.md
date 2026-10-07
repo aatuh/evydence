@@ -144,8 +144,19 @@ cookie-origin checks, public-only key responses, and atomic audit/replay effects
 Test-only command adapters retain the real former policies and isolated replay;
 failure-after-write tests compare all repository effects and cached key lifecycle.
 The four request descriptions now require PostgreSQL, including local evaluation;
-their schemas and response contracts are unchanged. Other Verification command
-fallbacks and aggregate deletion remain unfinished.
+their schemas and response contracts are unchanged.
+
+The remaining subject, release-bundle, DSSE and Cosign verification, backup
+generation, Merkle creation, recorded-checkpoint and retention handlers also
+require focused ports. All nine remaining broad Verification branches, the
+ten-method `verificationService` interface and Server binding are deleted.
+Native callbacks, current-authority guards and atomic receipt/audit/job/replay
+behavior are unchanged. Test-only adapters preserve actual policies, public
+assurance metadata and the legacy fixture's distinct v1 backup hash; they are
+not a runtime backend or a PostgreSQL locking proof. Seven affected API
+descriptions now require PostgreSQL without schema or response changes.
+Direct Verification-context Ledger calls and aggregate state still await
+retirement; deleting the transport interface alone does not complete EVY-906.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime

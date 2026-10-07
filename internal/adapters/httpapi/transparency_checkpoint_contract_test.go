@@ -28,7 +28,7 @@ func TestRecordedCheckpointOpenAPIDocumentsNativeReplayAndAssertionLimits(t *tes
 	if v.Properties["batch_id"]["maxLength"] != float64(1024) || v.Properties["batch_id"]["minLength"] != float64(1) || v.Properties["provider"]["minLength"] != float64(1) {
 		t.Fatal("bounded nonblank coordinate contract missing")
 	}
-	for _, phrase := range []string{"before reservation", "64 KiB", "1 MiB", "Local memory", "original", "recorded", "not proof"} {
+	for _, phrase := range []string{"before reservation", "64 KiB", "1 MiB", "requires PostgreSQL", "original", "recorded", "not proof"} {
 		if !strings.Contains(v.Description, phrase) {
 			t.Fatal("checkpoint contract missing", phrase)
 		}

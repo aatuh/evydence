@@ -65,8 +65,8 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if reflect.ValueOf(server).Elem().FieldByName("packages").IsValid() {
 		t.Fatal("broad Package service binding was not deleted")
 	}
-	if server.verification != ledger {
-		t.Fatal("verification service was not rebound")
+	if reflect.ValueOf(server).Elem().FieldByName("verification").IsValid() {
+		t.Fatal("broad Verification service binding was not deleted")
 	}
 	for name, dependency := range map[string]any{
 		"product": server.productCommands, "project": server.projectCommands, "release": server.releaseCreationCommands,
@@ -179,6 +179,17 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 		"signing-key": server.signingKeyCommands, "trust-configuration": server.trustConfigurationCommands,
 	} {
 		commands, ok := dependency.(signingAdministrationFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
+	for name, dependency := range map[string]any{
+		"subject": server.subjectVerification, "release-bundle-verification": server.releaseBundleVerification,
+		"DSSE": server.dsseVerification, "Cosign": server.cosignVerification,
+		"backup-generation": server.backupGenerationCommands, "merkle-creation": server.merkleCreationCommands,
+		"checkpoint-creation": server.transparencyCheckpointCommands, "object-retention": server.retentionCommands,
+	} {
+		commands, ok := dependency.(verificationCommandFixture)
 		if !ok || commands.ledger != ledger {
 			t.Fatalf("focused %s fixture command was not rebound", name)
 		}

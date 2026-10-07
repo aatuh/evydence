@@ -40,7 +40,7 @@ func TestRecordedCheckpointHTTPRequiresNativeReplayAndNoLedgerDependencies(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	body := `{"batch_id":" batch ","provider":" provider ","external_id":" record "}`
 	one := postRaw(t, s, secret, "/v1/transparency-checkpoints", "native", []byte(body), 201)
 	if dataField(t, one, "batch_id") != "batch" || dataField(t, one, "provider") != "provider" || dataField(t, one, "external_id") != "record" || dataField(t, one, "state") != "recorded" {
@@ -64,7 +64,7 @@ func TestRecordedCheckpointHTTPRequiresNativeReplayAndNoLedgerDependencies(t *te
 	}
 }
 
-func TestRecordedCheckpointHTTPStrictInputBeforeGuardInBothProfiles(t *testing.T) {
+func TestRecordedCheckpointHTTPStrictInputBeforeGuardForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &recordedCheckpointHTTPFake{}
@@ -81,7 +81,7 @@ func TestRecordedCheckpointHTTPStrictInputBeforeGuardInBothProfiles(t *testing.T
 	}
 }
 
-func TestRecordedCheckpointHTTPCookieProtectionInBothProfiles(t *testing.T) {
+func TestRecordedCheckpointHTTPCookieProtectionForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		base, secret := testServer(t)
 		f := &recordedCheckpointHTTPFake{}
@@ -141,7 +141,6 @@ func TestRecordedTransparencyCheckpointHTTPUsesFocusedCommandAndSafeReplay(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.verification = nil
 	body := map[string]any{"batch_id": "batch", "provider": "provider", "external_id": "record"}
 	first := postJSON(t, s, secret, "/v1/transparency-checkpoints", "focused-checkpoint", body, http.StatusCreated)
 	if !strings.Contains(first, `"id":"durable_checkpoint"`) || !strings.Contains(first, `"state":"recorded"`) || strings.Contains(first, `"state":"passed"`) || f.calls != 1 {

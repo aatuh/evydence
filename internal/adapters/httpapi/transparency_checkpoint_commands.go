@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
@@ -32,34 +30,16 @@ func (s *Server) createTransparencyCheckpoint(w http.ResponseWriter, r *http.Req
 		writeProblem(w, r, err)
 		return
 	}
-	if s.transparencyCheckpointCommands != nil {
-		var in verificationapp.CreateTransparencyCheckpointInput
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeTransparencyCheckpointRequest(body)
-			if err != nil {
-				return err
-			}
-			return mapSigningKeyCommandError(s.transparencyCheckpointCommands.AuthorizeTransparencyCheckpoint(ctx, a, in.BatchID))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.transparencyCheckpointCommands.CreateTransparencyCheckpoint(ctx, a, in)
-			return http.StatusCreated, domain.TransparencyCheckpoint(v), mapSigningKeyCommandError(err)
-		})
-		return
-	}
-	// Only explicit local memory retains the nondurable compatibility command.
-	// Current tenant authority is still checked before its saved replay.
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeTransparencyCheckpointRequest(body)
+	var in verificationapp.CreateTransparencyCheckpointInput
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		var err error
+		in, err = decodeTransparencyCheckpointRequest(body)
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
-		v, err := s.verification.CreateTransparencyCheckpoint(ctx, a, app.CreateTransparencyCheckpointInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if _, err := decodeTransparencyCheckpointRequest(body); err != nil {
-			return nil, err
-		}
-		return body, mapSigningKeyCommandError(application.AuthorizeTenantWideScope(r.Context(), a, app.ScopeKeysAdmin))
+		return mapSigningKeyCommandError(s.transparencyCheckpointCommands.AuthorizeTransparencyCheckpoint(ctx, a, in.BatchID))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.transparencyCheckpointCommands.CreateTransparencyCheckpoint(ctx, a, in)
+		return http.StatusCreated, domain.TransparencyCheckpoint(v), mapSigningKeyCommandError(err)
 	})
 }

@@ -38,7 +38,6 @@ func TestMerkleCreationHTTPUsesFocusedCommandAndPreservesSafeReplay(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.verification = nil
 	first := postJSON(t, s, secret, "/v1/merkle-batches", "durable-merkle", map[string]any{}, http.StatusCreated)
 	if !strings.Contains(first, `"id":"durable_batch"`) || !strings.Contains(first, `"root_hash":"root"`) || f.calls != 1 {
 		t.Fatal(first, f)
@@ -76,7 +75,7 @@ func TestMerkleCreationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	one := postRaw(t, s, secret, "/v1/merkle-batches", "native", []byte(`{}`), 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/merkle-batches", "native", []byte(`{}`), 201))
 	postRaw(t, s, secret, "/v1/merkle-batches", "native", []byte(`{"from_sequence":1}`), 409)
@@ -96,7 +95,7 @@ func TestMerkleCreationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testin
 	}
 }
 
-func TestMerkleCreationHTTPRejectsStrictInvalidFieldsInBothProfiles(t *testing.T) {
+func TestMerkleCreationHTTPRejectsStrictInvalidFieldsForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &merkleCreationHTTPFake{}
@@ -113,7 +112,7 @@ func TestMerkleCreationHTTPRejectsStrictInvalidFieldsInBothProfiles(t *testing.T
 	}
 }
 
-func TestMerkleCreationHTTPBothProfilesCookieAndLocalReplayAuthority(t *testing.T) {
+func TestMerkleCreationHTTPFixtureAndNativeCookieAndFixtureReplayAuthority(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		base, secret := testServer(t)
 		f := &merkleCreationHTTPFake{}

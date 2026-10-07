@@ -92,8 +92,13 @@ DSSE trust-root creation also use only focused commands, removing four fallback
 branches and five broad-interface methods. Tenant administration, key ownership,
 private-key omission and atomic lifecycle/metadata/audit/replay contracts remain
 unchanged. Their four request descriptions now require PostgreSQL for local
-evaluation without schema changes. Other Verification command and aggregate
-retirement remain in progress.
+evaluation without schema changes. The remaining nine Verification fallback
+paths are also removed, along with the ten-method broad interface and Server
+binding. Subject, release-bundle, DSSE and Cosign verification, backup generation,
+Merkle creation, checkpoint recording and retention commands retain their native
+guards, bounded snapshots, assurance metadata and atomic receipt/audit/job/replay
+behavior. Seven affected descriptions now require PostgreSQL without schema
+changes. Direct context-to-Ledger calls and aggregate retirement remain unfinished.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the

@@ -161,7 +161,7 @@ func TestTrustConfigurationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	routes := []struct{ path, body string }{
 		{"/v1/signing-providers", `{"name":" KMS ","type":" aws_kms ","key_ref":" key ","encrypted":true}`},
 		{"/v1/dsse-trust-roots", `{"name":" Builder ","key_id":" key ","algorithm":" Ed25519 ","public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","allowed_predicate_types":["https://slsa.dev/provenance/v1"],"expected_builder_ids":[" other "," builder "],"required_claims":["external_parameters","builder_id"]}`},

@@ -40,7 +40,7 @@ func TestCosignHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	path, body := "/v1/artifact-signatures/not-in-ledger/verify-cosign", `{"mode":"key","offline":true}`
 	one := postRaw(t, s, secret, path, "native", []byte(body), 200)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "native", []byte(body), 200))
@@ -61,7 +61,7 @@ func TestCosignHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	}
 }
 
-func TestCosignHTTPStrictPolicyBeforeGuardInBothProfiles(t *testing.T) {
+func TestCosignHTTPStrictPolicyBeforeGuardForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &cosignVerificationHTTPFake{}
@@ -78,7 +78,7 @@ func TestCosignHTTPStrictPolicyBeforeGuardInBothProfiles(t *testing.T) {
 	}
 }
 
-func TestCosignHTTPCookieMutationAndBearerPrecedenceInBothProfiles(t *testing.T) {
+func TestCosignHTTPCookieMutationAndBearerPrecedenceForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &cosignVerificationHTTPFake{}
@@ -157,7 +157,7 @@ func TestCosignOpenAPIDeclaresNativeReplayAndBoundedOfflinePolicy(t *testing.T) 
 	}
 	op := operationMap(t, asStringAnyMap(t, doc["paths"]), "/v1/artifact-signatures/{id}/verify-cosign", "post")
 	description, _ := op["description"].(string)
-	for _, claim := range []string{"offline", "Rekor", "before reservation", "64 KiB", "1024", "4096", "4 MiB", "original", "Local memory", "422"} {
+	for _, claim := range []string{"offline", "Rekor", "before reservation", "64 KiB", "1024", "4096", "4 MiB", "original", "requires PostgreSQL", "422"} {
 		if !strings.Contains(description, claim) {
 			t.Fatal("missing verified contract or limit", claim, description)
 		}

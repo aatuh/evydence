@@ -39,7 +39,7 @@ func TestBackupGenerationOpenAPIDeclaresMetadataCommitmentNotRestoreProof(t *tes
 	paths := asStringAnyMap(t, doc["paths"])
 	operation := operationMap(t, paths, "/v1/backup-manifests", "post")
 	description, _ := operation["description"].(string)
-	for _, required := range []string{"backup-manifest.v2.0.0", verificationapp.BackupStateCommitmentProfile, "not a restore receipt", "before reservation", "64 KiB", "32768", "8 MiB", "original", "Local memory"} {
+	for _, required := range []string{"backup-manifest.v2.0.0", verificationapp.BackupStateCommitmentProfile, "not a restore receipt", "before reservation", "64 KiB", "32768", "8 MiB", "original", "requires PostgreSQL"} {
 		if !strings.Contains(description, required) {
 			t.Fatal("missing scope/version/nonclaim", description)
 		}
@@ -59,7 +59,7 @@ func TestBackupGenerationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	one := postRaw(t, s, secret, "/v1/backup-manifests", "native", []byte(`{}`), 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/backup-manifests", "native", []byte(`{}`), 201))
 	postRaw(t, s, secret, "/v1/backup-manifests", "native", []byte(`{} `), 409)
@@ -79,7 +79,7 @@ func TestBackupGenerationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *test
 	}
 }
 
-func TestBackupGenerationHTTPStrictEmptyInputBeforeGuardInBothProfiles(t *testing.T) {
+func TestBackupGenerationHTTPStrictEmptyInputBeforeGuardForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &backupGenerationHTTPFake{}
@@ -96,7 +96,7 @@ func TestBackupGenerationHTTPStrictEmptyInputBeforeGuardInBothProfiles(t *testin
 	}
 }
 
-func TestBackupGenerationHTTPCookieAndLocalReplayAuthority(t *testing.T) {
+func TestBackupGenerationHTTPCookieAndFixtureReplayAuthority(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &backupGenerationHTTPFake{}
@@ -153,7 +153,6 @@ func TestBackupGenerationHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.verification = nil
 	body := postJSON(t, s, secret, "/v1/backup-manifests", "backup-replay", map[string]any{}, 201)
 	if !strings.Contains(body, `"id":"durable_backup"`) || !strings.Contains(body, `"schema_version":"backup-manifest.v2.0.0"`) || f.calls != 1 {
 		t.Fatal(body, f)

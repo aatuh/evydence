@@ -50,7 +50,7 @@ func TestDSSEHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	path := "/v1/build-attestations/not-in-ledger/verify-signature"
 	one := postRaw(t, s, secret, path, "native", []byte(`{}`), 200)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "native", []byte(`{}`), 200))
@@ -71,7 +71,7 @@ func TestDSSEHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	}
 }
 
-func TestDSSEHTTPStrictEmptyInputBeforeGuardInBothProfiles(t *testing.T) {
+func TestDSSEHTTPStrictEmptyInputBeforeGuardForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &dsseVerificationHTTPFake{}
@@ -88,7 +88,7 @@ func TestDSSEHTTPStrictEmptyInputBeforeGuardInBothProfiles(t *testing.T) {
 	}
 }
 
-func TestDSSEHTTPCookieMutationAndBearerPrecedenceInBothProfiles(t *testing.T) {
+func TestDSSEHTTPCookieMutationAndBearerPrecedenceForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &dsseVerificationHTTPFake{}

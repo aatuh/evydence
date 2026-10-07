@@ -54,7 +54,7 @@ func TestSubjectVerificationHandlerUsesComposedPortWithoutLedgerFallback(t *test
 		t.Fatal(err)
 	}
 	// A legacy verifier cannot be reached, even for unknown types or failures.
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	for i, kind := range []string{"audit_chain", "evidence_item", "release_bundle", "build_attestation", "artifact_signature", "merkle_batch", "audit_chain_checkpoint", "audit_chain_release_manifest", "backup_manifest"} {
 		id := "subject"
 		if kind == "audit_chain" {
@@ -104,7 +104,7 @@ func TestSubjectVerificationHandlerUsesComposedPortWithoutLedgerFallback(t *test
 	}
 }
 
-func TestSubjectVerificationStrictRawInputBeforeGuardInBothProfiles(t *testing.T) {
+func TestSubjectVerificationStrictRawInputBeforeGuardForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &subjectVerificationHTTPFake{}

@@ -188,7 +188,6 @@ type Server struct {
 	roleBindingQuery                  RoleBindingQuery
 	evidenceIngestion                 evidenceIngestionService
 	riskDecisions                     riskDecisionService
-	verification                      verificationService
 	mux                               *http.ServeMux
 	specs                             *specs.Registry
 	routes                            *routecontracts.Registry

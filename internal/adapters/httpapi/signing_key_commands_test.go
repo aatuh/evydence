@@ -101,7 +101,7 @@ func TestSigningKeyHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	for _, route := range []struct {
 		path   string
 		status int

@@ -11,9 +11,6 @@ import (
 )
 
 func (s *Server) verifyReleaseBundleResult(ctx context.Context, actor domain.Actor, id string) (domain.VerificationResult, error) {
-	if s.releaseBundleVerification == nil {
-		return s.verification.VerifySubject(ctx, actor, "release_bundle", id)
-	}
 	result, err := s.releaseBundleVerification.VerifyReleaseBundle(ctx, actor, id)
 	return verificationResultFromFocused(result), mapVerificationCommandError(err)
 }

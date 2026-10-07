@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -28,11 +29,6 @@ func (f *custodyQueryFake) Report(_ context.Context, actor identitydomain.Actor)
 	return verificationdomain.SigningCustodyReviewReport{ReportType: "signing_custody_review", TenantID: actor.TenantID, SigningProviders: []verificationdomain.SigningProvider{{ID: "durable_provider", TenantID: actor.TenantID, Type: "native_pkcs11_hsm", KeyRef: "pkcs11:object=signing"}}, ObjectRetentionPolicies: []verificationdomain.ObjectRetentionPolicy{{ID: "durable_policy", TenantID: actor.TenantID, Status: "stale"}}, Checks: []verificationdomain.VerifyCheck{{Name: "object_lock_proof_recorded", Result: "failed"}}, Limitations: []string{"Recorded metadata is not proof of custody."}, GeneratedAt: time.Now().UTC()}, nil
 }
 
-type custodyFallbackSpy struct {
-	verificationService
-	calls int
-}
-
 type custodyFixtureQuerySpy struct {
 	custodyFixtureQuery
 	calls int
@@ -43,20 +39,16 @@ func (f *custodyFixtureQuerySpy) Report(ctx context.Context, actor domain.Actor)
 	return f.custodyFixtureQuery.Report(ctx, actor)
 }
 
-func (f *custodyFallbackSpy) SigningCustodyReviewReport(_ context.Context, actor domain.Actor) (domain.SigningCustodyReviewReport, error) {
-	f.calls++
-	return domain.SigningCustodyReviewReport{ReportType: "signing_custody_review", TenantID: actor.TenantID}, nil
-}
-
 func TestSigningCustodyHandlerUsesDurableQueryWithoutFallbackAndSafeErrors(t *testing.T) {
 	server, secret := testServer(t)
 	query := &custodyQueryFake{}
 	server.signingCustodyQuery = query
-	spy := &custodyFallbackSpy{}
-	server.verification = spy
+	if _, exists := reflect.TypeFor[Server]().FieldByName("verification"); exists {
+		t.Fatal("broad Verification fallback binding still exists")
+	}
 	response := getRaw(t, server, secret, "/v1/reports/custody-review", http.StatusOK)
-	if query.calls != 1 || spy.calls != 0 || !strings.Contains(response.Body.String(), `"id":"durable_provider"`) || !strings.Contains(response.Body.String(), `"status":"stale"`) || strings.Contains(response.Body.String(), `"private`) {
-		t.Fatalf("focused report %s fallback=%d", response.Body.String(), spy.calls)
+	if query.calls != 1 || !strings.Contains(response.Body.String(), `"id":"durable_provider"`) || !strings.Contains(response.Body.String(), `"status":"stale"`) || strings.Contains(response.Body.String(), `"private`) {
+		t.Fatalf("focused report %s calls=%d", response.Body.String(), query.calls)
 	}
 	getRawNoAuth(t, server, "/v1/reports/custody-review", http.StatusUnauthorized)
 	getRaw(t, server, secret, "/v1/reports/custody-review?unknown=value", http.StatusBadRequest)
@@ -77,8 +69,8 @@ func TestSigningCustodyHandlerUsesDurableQueryWithoutFallbackAndSafeErrors(t *te
 			t.Fatal("internal detail leaked")
 		}
 	}
-	if spy.calls != 0 {
-		t.Fatal("query error fell back to Ledger")
+	if query.calls != 6 {
+		t.Fatal("query errors bypassed the focused port", query.calls)
 	}
 	// Local test data is now supplied through an explicit focused fixture
 	// reader, not by removing the runtime port to select a broad fallback.
@@ -86,7 +78,7 @@ func TestSigningCustodyHandlerUsesDurableQueryWithoutFallbackAndSafeErrors(t *te
 	server.signingCustodyQuery = fixture
 	getRaw(t, server, secret, "/v1/reports/custody-review?unknown=value", http.StatusBadRequest)
 	getRaw(t, server, secret, "/v1/reports/custody-review", http.StatusOK)
-	if fixture.calls != 1 || spy.calls != 0 {
-		t.Fatal("explicit focused fixture query was bypassed or broad fallback invoked")
+	if fixture.calls != 1 || query.calls != 6 {
+		t.Fatal("explicit focused fixture query was bypassed")
 	}
 }

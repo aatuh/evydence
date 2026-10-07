@@ -30,7 +30,7 @@ func TestMerkleCreationOpenAPIDocumentsFreshInputAndHistoricalReplay(t *testing.
 			t.Fatal("nonnegative sequence contract missing", f)
 		}
 	}
-	for _, phrase := range []string{"before reservation", "64 KiB", "4096", "8 MiB", "Local memory", "original"} {
+	for _, phrase := range []string{"before reservation", "64 KiB", "4096", "8 MiB", "requires PostgreSQL", "original"} {
 		if !strings.Contains(v.Description, phrase) {
 			t.Fatal("Merkle creation contract missing", phrase)
 		}

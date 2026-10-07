@@ -33,7 +33,7 @@ func TestRetentionOpenAPIConstrainsCreationNotHistoricalReceipts(t *testing.T) {
 	if v.Properties["retention_days"]["maximum"] != float64(2147483647) || v.Properties["max_verification_age_hours"]["maximum"] != float64(8784) || len(v.Required) != 3 {
 		t.Fatal("numeric bounds or optional defaults changed")
 	}
-	for _, text := range []string{"64 KiB", "before reservation", "Local memory", "does not prove"} {
+	for _, text := range []string{"64 KiB", "before reservation", "requires PostgreSQL", "does not prove"} {
 		if !strings.Contains(v.Description, text) {
 			t.Fatal("creation/replay/nonclaim missing", text)
 		}

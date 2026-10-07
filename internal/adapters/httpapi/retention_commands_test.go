@@ -83,7 +83,7 @@ func TestRetentionHandlersUseFocusedCommandsAndReplayWithoutFallback(t *testing.
 		}
 	}
 }
-func TestRetentionHandlersRejectMalformedBodiesBeforeCommandsInBothProfiles(t *testing.T) {
+func TestRetentionHandlersRejectMalformedBodiesBeforeCommandsForFixtureAndNativeCommands(t *testing.T) {
 	for _, focused := range []bool{false, true} {
 		server, secret := testServer(t)
 		commands := &retentionHTTPFake{}
@@ -113,7 +113,7 @@ func TestRetentionHTTPNativeReplayRequiredAndLegacyDependenciesUnused(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.verification, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	create := `{"name":" Lock ","mode":" governance ","retention_days":30}`
 	postRaw(t, s, secret, "/v1/object-retention-policies", "create", []byte(create), 201)
 	if f.input.Name != "Lock" || f.input.Mode != "governance" || f.input.MaxVerificationAgeHours != 24 || !strings.HasPrefix(f.input.ObjectPrefix, "tenants/") {
@@ -135,7 +135,7 @@ func TestRetentionHTTPNativeReplayRequiredAndLegacyDependenciesUnused(t *testing
 	}
 }
 
-func TestRetentionHTTPRawBoundsAliasesAndScopedObjectsInBothProfiles(t *testing.T) {
+func TestRetentionHTTPRawBoundsAliasesAndScopedObjectsForFixtureAndNativeCommands(t *testing.T) {
 	for _, focused := range []bool{false, true} {
 		s, secret := testServer(t)
 		f := &retentionHTTPFake{}
@@ -183,7 +183,7 @@ func TestRetentionHTTPRawBoundsAliasesAndScopedObjectsInBothProfiles(t *testing.
 	}
 }
 
-func TestRetentionHTTPBothProfilesCookieGuardAndLocalReplayAuthority(t *testing.T) {
+func TestRetentionHTTPFixtureAndNativeCookieGuardAndFixtureReplayAuthority(t *testing.T) {
 	base, secret := testServer(t)
 	id := dataField(t, postJSON(t, base, secret, "/v1/object-retention-policies", "local-policy", map[string]any{"name": "Lock", "mode": "governance", "retention_days": 30}, 201), "id")
 	for _, focused := range []bool{false, true} {

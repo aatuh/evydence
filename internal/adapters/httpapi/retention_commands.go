@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
@@ -58,33 +57,17 @@ func (s *Server) createObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 		writeProblem(w, r, err)
 		return
 	}
-	if s.retentionCommands != nil {
-		var in verificationapp.CreateObjectRetentionPolicyInput
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeObjectRetentionCreationRequest(body, a.TenantID)
-			if err != nil {
-				return err
-			}
-			return mapSigningKeyCommandError(s.retentionCommands.AuthorizeCreateObjectRetentionPolicy(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.retentionCommands.CreateObjectRetentionPolicy(ctx, a, in)
-			return http.StatusCreated, domain.ObjectRetentionPolicyFromContextModel(v), mapSigningKeyCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeObjectRetentionCreationRequest(body, a.TenantID)
+	var in verificationapp.CreateObjectRetentionPolicyInput
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		var err error
+		in, err = decodeObjectRetentionCreationRequest(body, a.TenantID)
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
-		v, err := s.verification.CreateObjectRetentionPolicy(ctx, a, app.CreateObjectRetentionPolicyInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if _, err := decodeObjectRetentionCreationRequest(body, a.TenantID); err != nil {
-			return nil, err
-		}
-		return body, mapSigningKeyCommandError(application.AuthorizeTenantWideScope(r.Context(), a, app.ScopeAdmin))
+		return mapSigningKeyCommandError(s.retentionCommands.AuthorizeCreateObjectRetentionPolicy(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.retentionCommands.CreateObjectRetentionPolicy(ctx, a, in)
+		return http.StatusCreated, domain.ObjectRetentionPolicyFromContextModel(v), mapSigningKeyCommandError(err)
 	})
 }
 
@@ -93,32 +76,16 @@ func (s *Server) verifyObjectRetentionPolicy(w http.ResponseWriter, r *http.Requ
 		writeProblem(w, r, err)
 		return
 	}
-	if s.retentionCommands != nil {
-		var id string
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			id, err = decodeObjectRetentionVerificationRequest(body, r.PathValue("id"))
-			if err != nil {
-				return err
-			}
-			return mapSigningKeyCommandError(s.retentionCommands.AuthorizeVerifyObjectRetentionPolicy(ctx, a, id))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.retentionCommands.VerifyObjectRetentionPolicy(ctx, a, id)
-			return http.StatusOK, domain.ObjectRetentionPolicyFromContextModel(v), mapSigningKeyCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		id, err := decodeObjectRetentionVerificationRequest(body, r.PathValue("id"))
+	var id string
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		var err error
+		id, err = decodeObjectRetentionVerificationRequest(body, r.PathValue("id"))
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
-		v, err := s.verification.VerifyObjectRetentionPolicy(ctx, a, id)
-		return http.StatusOK, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if _, err := decodeObjectRetentionVerificationRequest(body, r.PathValue("id")); err != nil {
-			return nil, err
-		}
-		return body, mapSigningKeyCommandError(application.AuthorizeTenantWideScope(r.Context(), a, app.ScopeVerifyRead))
+		return mapSigningKeyCommandError(s.retentionCommands.AuthorizeVerifyObjectRetentionPolicy(ctx, a, id))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.retentionCommands.VerifyObjectRetentionPolicy(ctx, a, id)
+		return http.StatusOK, domain.ObjectRetentionPolicyFromContextModel(v), mapSigningKeyCommandError(err)
 	})
 }
