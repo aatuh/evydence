@@ -112,62 +112,19 @@ func (s *Server) listRoleBindings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSSOProvider(w http.ResponseWriter, r *http.Request) {
-	if s.ssoProviderCommands != nil {
-		s.createDurableSSOProvider(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeSSOProviderRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		provider, err := s.identityAccess.CreateSSOProvider(ctx, actor, app.CreateSSOProviderInput(in))
-		return http.StatusCreated, provider, err
-	})
+	s.createDurableSSOProvider(w, r)
 }
 
 func (s *Server) updateSSOProviderTrustMaterial(w http.ResponseWriter, r *http.Request) {
-	if s.ssoProviderCommands != nil {
-		s.updateDurableSSOTrustMaterial(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeSSOTrustRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		provider, err := s.identityAccess.UpdateSSOProviderTrustMaterial(ctx, actor, r.PathValue("id"), app.UpdateSSOProviderTrustMaterialInput(in))
-		return http.StatusOK, provider, err
-	})
+	s.updateDurableSSOTrustMaterial(w, r)
 }
 
 func (s *Server) refreshSSOProviderOIDCTrustMaterial(w http.ResponseWriter, r *http.Request) {
-	if s.ssoProviderCommands != nil {
-		s.refreshDurableSSOTrustMaterial(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeSSODiscoveryRequest(body); err != nil {
-			return 0, nil, err
-		}
-		provider, err := s.identityAccess.RefreshSSOProviderOIDCTrustMaterial(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, provider, err
-	})
+	s.refreshDurableSSOTrustMaterial(w, r)
 }
 
 func (s *Server) linkSSOIdentity(w http.ResponseWriter, r *http.Request) {
-	if s.ssoIdentityLinkCommands != nil {
-		s.linkDurableSSOIdentity(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeSSOIdentityLinkRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		link, err := s.identityAccess.LinkSSOIdentity(ctx, actor, app.LinkSSOIdentityInput(in))
-		return http.StatusCreated, link, err
-	})
+	s.linkDurableSSOIdentity(w, r)
 }
 
 func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {

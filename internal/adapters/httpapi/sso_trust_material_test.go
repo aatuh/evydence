@@ -7,7 +7,7 @@ import (
 )
 
 func TestSSOProviderHTTPRejectsPrivateTrustWithoutExposingInput(t *testing.T) {
-	s, secret := testServer(t)
+	s, secret := identityTestServer(t)
 	public := `{"keys":[{"kty":"RSA","kid":"fixture","n":"public-only","e":"AQAB"}]}`
 	body := `{"name":"Fixture","type":"oidc","issuer":"https://issuer.example.test","client_id":"client","jwks":` + public + `}`
 	out := postRaw(t, s, secret, "/v1/sso/providers", "public-trust", []byte(body), 201)

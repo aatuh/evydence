@@ -507,7 +507,7 @@ func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
 		Issuer: "https://idp.example.test",
 		JWKS:   map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-route", "x": base64.RawURLEncoding.EncodeToString(pub)}}},
 	}}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", OIDC: discovery})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", OIDC: discovery, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)

@@ -78,6 +78,16 @@ replay, tenant/parent, privacy and cancellation regressions. Affected references
 now require PostgreSQL for evaluation. Other identity/session and aggregate
 retirement remains unfinished under EVY-906.
 
+SSO provider registration, trust rotation/discovery and identity linking now
+require focused Identity commands. Four handler fallbacks and four broad
+transport-interface methods are removed. Native public-trust validation,
+current authority/ownership/email checks, replay and PostgreSQL transactions
+are unchanged. Test-only guards use focused bounded memory readers and retain
+real isolated writes, with rollback, public DTO replay, no-refetch, tenant,
+privacy and cancellation regressions. Memory bridges do not prove SQL locking,
+provider configuration or durability. Remaining session and aggregate cleanup
+is still unfinished under EVY-906.
+
 Deployment environment/event creation, list and event point handlers now use
 only focused Operations ports. Their broad local transport dependency and
 interface are deleted. Native authorization, cookie-origin protection,

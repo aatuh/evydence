@@ -508,10 +508,6 @@ type idempotencyExecutor interface {
 // and access commands and queries. The legacy Ledger implements this port while
 // callers migrate to the context-owned application service.
 type identityAccessService interface {
-	CreateSSOProvider(context.Context, domain.Actor, app.CreateSSOProviderInput) (domain.SSOProvider, error)
-	UpdateSSOProviderTrustMaterial(context.Context, domain.Actor, string, app.UpdateSSOProviderTrustMaterialInput) (domain.SSOProvider, error)
-	RefreshSSOProviderOIDCTrustMaterial(context.Context, domain.Actor, string) (domain.SSOProvider, error)
-	LinkSSOIdentity(context.Context, domain.Actor, app.LinkSSOIdentityInput) (domain.UserIdentityLink, error)
 	CreateSSOSession(context.Context, domain.Actor, app.CreateSSOSessionInput) (domain.SSOSession, string, error)
 	ExchangeSSOCredential(context.Context, app.ExchangeSSOCredentialInput) (domain.ProviderVerification, domain.SSOSession, string, error)
 	RevokeSSOSession(context.Context, domain.Actor, string) (domain.SSOSession, error)

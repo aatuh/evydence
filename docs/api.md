@@ -926,7 +926,8 @@ Current SSO endpoints model admin-managed provider, identity-link, trust-materia
 
 #### SSO Provider Registration
 
-In PostgreSQL mode, `POST /v1/sso/providers` uses focused Identity commands:
+`POST /v1/sso/providers` requires focused Identity commands, with no aggregate
+handler fallback. PostgreSQL is required for local evaluation:
 provider creation, `sso_provider.created` audit and successful replay receipt
 commit together without loading provider inventories or refreshing Ledger
 state. Current tenant-wide `identity:admin` authority and input validation run
@@ -947,15 +948,17 @@ grant session scopes. Optional trust material remains optional for both types.
 Authorized replay preserves harmless public group names such as
 `token-reviewers` within the versioned provider DTO, not credential-shaped
 strings or unknown response fields. Generic log/customer-package redaction is
-unchanged. Local memory shares input rules but remains non-durable. Invalid
+unchanged. Historical test-only adapters retain real isolated writes and focused
+transaction-owned preflight; they are not a supported runtime backend. Invalid
 private-material requests cannot replay retained PostgreSQL successes; this
 does not delete or scrub historical records. Registration makes no live
 provider call and does not prove provider ownership or key custody.
 
 #### SSO Trust Rotation
 
-In PostgreSQL mode, `POST /v1/sso/providers/{id}/trust-material` uses focused
-Identity commands, not Ledger state or provider inventories. Current tenant-wide
+`POST /v1/sso/providers/{id}/trust-material` requires focused Identity commands,
+not an optional aggregate path or provider inventories. PostgreSQL is required
+for local evaluation. Current tenant-wide
 `identity:admin` authority, input validation and tenant-owned provider lookup run
 before reservation or completed replay. Missing/foreign providers return `404`;
 scoped human grants return `403`. One locked provider row supplies unchanged
@@ -966,7 +969,7 @@ metadata returns `409`, never a truncated response.
 
 OIDC rotation requires nonempty `jwks` and no SAML certificates; SAML requires
 certificates and no JWKS. The 64 KiB body limit, strict UTF-8/duplicate/unknown
-field checks, and non-null fields/items apply in both profiles. Retained JWK
+field checks, and non-null fields/items remain unchanged. Retained JWK
 strings must be NUL-free. Provider update, canonical-hash
 `sso_provider.trust_material_updated` audit and safe replay completion share one
 transaction. ID, tenant, creation time and unrelated provider metadata remain
@@ -976,16 +979,18 @@ Success remains `200` with the provider DTO. A completed matching key/body retur
 the original DTO without another update or audit; changed content returns `409`.
 Replay preserves normalized public PEM line breaks and harmless group names
 within this versioned DTO, not arbitrary PEM or private material. Generic
-diagnostic/customer-package redaction is unchanged. Local memory shares trust
-normalization and strict decoding but remains non-durable. No live provider call
+diagnostic/customer-package redaction is unchanged. Test-only adapters preserve
+trust validation, public DTOs and isolated rollback; memory snapshots do not
+prove SQL locking or durability. No live provider call
 is made, and neither provider ownership nor key custody is proved. Existing rows,
 receipts and backups are not scrubbed or repaired. See the
 [compatibility note](reference/api-versioning.md#unreleased-sso-trust-rotation-boundary).
 
 #### OIDC Discovery Refresh
 
-In PostgreSQL mode, `POST /v1/sso/providers/{id}/discover-oidc` uses focused
-Identity commands and the same bounded tenant-owned provider projection as
+`POST /v1/sso/providers/{id}/discover-oidc` requires focused Identity commands,
+with no aggregate handler fallback. PostgreSQL is required for local evaluation.
+It uses the same bounded tenant-owned provider projection as
 [trust rotation](#sso-trust-rotation). Current tenant-wide `identity:admin`
 authority, provider ownership/type and body checks run before reservation or
 completed replay, without provider calls. Omit the body or send `{}`; null,
@@ -1008,8 +1013,10 @@ Success remains `200` with the provider DTO. Completed matching retries return
 that original DTO without refetching, even if the provider is subsequently
 unavailable; current local authorization and provider checks still apply.
 Discovery runs within the active command transaction, so provider latency can
-delay writes until the configured timeout. Local memory shares normalization
-and body rules but remains non-durable. Discovery does not authenticate users,
+delay writes until the configured timeout. Test-only preflight uses a panic-on-I/O
+sentinel; real optional discovery configuration remains owned by the historical
+fixture command, so the bridge is not configuration or SQL-locking evidence.
+Discovery does not authenticate users,
 prove provider ownership/key custody, synchronize groups or scrub historical
 material. See the [compatibility note](reference/api-versioning.md#unreleased-oidc-discovery-boundary).
 
@@ -1085,7 +1092,9 @@ path. Historical rows/receipts are not rewritten. See the
 #### SSO Identity Linking
 
 `POST /v1/sso/identity-links` records an administrator's verified-ownership
-assertion; it does not verify a provider token or assertion. It requires
+assertion through a required focused Identity command, with no aggregate
+handler fallback. PostgreSQL is required for local evaluation. Linking does
+not verify a provider token or assertion. It requires
 tenant-wide `identity:admin` authority (including the existing admin grant),
 a current tenant-owned user and provider, and an exact match between the user's
 stored email and the trimmed/lowercased input. Subjects are trimmed but remain
@@ -1102,7 +1111,7 @@ text, malformed/non-object/duplicate/unknown/trailing JSON or bodies above
 64 KiB return `400` before reservation. A new key for an existing
 tenant/provider/subject returns `409`; links are not reassigned or superseded.
 
-In PostgreSQL mode, the focused command locks current parent rows without
+The focused command locks current parent rows without
 selecting names, user/provider inventories, JWKS, certificates or credentials.
 Link insertion, `identity_link.created` audit attributed to the real caller,
 and safe replay completion share one transaction. Success remains `201` with
@@ -1112,8 +1121,9 @@ The versioned administration replay retains the published email and plain
 email-shaped provider subjects; unknown fields and credential-like text remain
 redacted. Generic logs/customer packages retain their PII redaction policy.
 
-Local memory shares input/replay policy through its explicit compatibility
-path and remains non-durable. Historical rows and receipts are not rewritten.
+Test-only adapters retain focused ownership/email preflight and isolated real
+writes. Their memory transactions do not prove SQL locking or durability.
+Historical rows and receipts are not rewritten.
 See the [compatibility note](reference/api-versioning.md#unreleased-sso-identity-link-boundary).
 
 #### SSO Credential Exchange

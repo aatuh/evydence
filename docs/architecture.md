@@ -1155,9 +1155,9 @@ It has no Ledger, HTTP, SQL, or provider-client dependency. PostgreSQL provider
 registration now binds focused Identity commands with a narrow tenant lock,
 atomic provider/audit/replay writes, and current tenant-wide authorization
 before reservation or completed replay. It loads no provider inventory and
-does not refresh Ledger state. Local memory shares metadata normalization and
-strict transport decoding through its existing compatibility binding. Trust
-rotation now also binds focused Identity commands. A tenant-filtered, bounded
+does not refresh Ledger state. The registration handler now requires the focused
+command, with no aggregate fallback. PostgreSQL is required for local evaluation.
+Trust rotation also binds focused Identity commands. A tenant-filtered, bounded
 provider read holds the current trust version through conditional update; the
 update, canonical-hash audit and safe replay receipt commit together. Current
 authority, input and provider checks precede reservation/replay. Live tests cover
@@ -1172,7 +1172,17 @@ never fetch metadata. A newly acquired command validates fetched issuer/public
 keys, conditionally updates trust and appends its canonical-hash audit in the
 same transaction as safe replay completion. Live tests cover current grants,
 restart replay without refetching, unavailable providers and all four rollback
-stages. Session issuance now has a focused Identity command and one
+stages. Trust rotation, discovery and identity-link handlers also require
+focused commands; four methods are removed from the broad transport port.
+Test-only preflight uses the native guard algorithms with focused memory
+provider/link readers and preserves real isolated historical writes. Provider
+reads preserve bounded complete metadata with defensive copies; linking checks
+only current tenant-owned user/provider coordinates and exact email, not login
+eligibility. The preflight discovery sentinel panics on I/O; real optional
+configuration stays with the fixture command. These bridges are not runtime
+backends, configuration evidence or SQL-locking/durability proof. Remaining
+session handler and aggregate deletion is EVY-906 work.
+Session issuance now has a focused Identity command and one
 tenant-owned user/provider query that requires an active user. Shared parent
 locks hold status/ownership through session/audit/replay commit without reading user
 display metadata or provider trust inventories. The shared stateless credential

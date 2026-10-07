@@ -46,6 +46,12 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if commands, ok := server.roleBindingCommands.(membershipFixtureCommands); !ok || commands.ledger != ledger {
 		t.Fatal("focused role-binding fixture was not rebound")
 	}
+	if commands, ok := server.ssoProviderCommands.(ssoProviderFixtureCommands); !ok || commands.ledger != ledger {
+		t.Fatal("focused SSO provider fixture was not rebound")
+	}
+	if commands, ok := server.ssoIdentityLinkCommands.(ssoProviderFixtureCommands); !ok || commands.ledger != ledger {
+		t.Fatal("focused SSO identity-link fixture was not rebound")
+	}
 	if query, ok := server.readinessQuery.(readinessFixture); !ok || query.ledger != ledger {
 		t.Fatal("focused readiness fixture was not rebound")
 	}
