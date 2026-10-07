@@ -8,12 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
-	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
 
 type CreateOrganizationInput struct {
@@ -86,19 +84,6 @@ type CreateRetentionOverrideInput struct {
 	RetentionUntil time.Time
 	Reason         string
 	Owner          string
-}
-
-type CreateQuestionnaireTemplateInput struct {
-	Name      string
-	Version   string
-	Questions []domain.QuestionnaireQuestion
-}
-
-type CreateQuestionnairePackageInput struct {
-	TemplateID string
-	PackageID  string
-	ProductID  string
-	ReleaseID  string
 }
 
 type CreateQuestionnaireAnswerLibraryEntryInput struct {
@@ -246,74 +231,6 @@ func (l *Ledger) RetentionReport(ctx context.Context, actor domain.Actor, scopeT
 	return domain.RetentionReport{ReportType: "retention", ScopeType: scopeType, ScopeID: scopeID, LegalHolds: holds, RetentionOverrides: overrides, Limitations: []string{"Retention reports describe Evydence records and do not replace external storage lifecycle verification."}, GeneratedAt: l.now()}, nil
 }
 
-func (l *Ledger) CreateQuestionnaireTemplate(ctx context.Context, actor domain.Actor, in CreateQuestionnaireTemplateInput) (domain.QuestionnaireTemplate, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.QuestionnaireTemplate{}, err
-	}
-	if err := fromIdentityContextError(application.AuthorizeTenantWideScope(ctx, actor, ScopePackageWrite)); err != nil {
-		return domain.QuestionnaireTemplate{}, err
-	}
-	if len(in.Questions) > packageapp.MaxQuestionnaireTemplateQuestions {
-		return domain.QuestionnaireTemplate{}, ErrValidation
-	}
-	ownedQuestions := make([]packagedomain.QuestionnaireQuestion, len(in.Questions))
-	for i, q := range in.Questions {
-		ownedQuestions[i] = packagedomain.QuestionnaireQuestion{ID: q.ID, Prompt: q.Prompt, EvidenceType: q.EvidenceType, ControlID: q.ControlID, AllowedFields: q.AllowedFields}
-	}
-	normalized, err := packageapp.NormalizeQuestionnaireTemplateInput(packageapp.CreateQuestionnaireTemplateInput{Name: in.Name, Version: in.Version, Questions: ownedQuestions})
-	if err != nil {
-		return domain.QuestionnaireTemplate{}, ErrValidation
-	}
-	questions := make([]domain.QuestionnaireQuestion, len(normalized.Questions))
-	for i, q := range normalized.Questions {
-		questions[i] = domain.QuestionnaireQuestion{ID: q.ID, Prompt: q.Prompt, EvidenceType: q.EvidenceType, ControlID: q.ControlID, AllowedFields: q.AllowedFields}
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.validateQuestionnaireTemplateControlsLocked(actor.TenantID, packageapp.QuestionnaireTemplateControlIDs(normalized.Questions)); err != nil {
-		return domain.QuestionnaireTemplate{}, err
-	}
-	tpl := domain.QuestionnaireTemplate{ID: newID("qt"), TenantID: actor.TenantID, Name: normalized.Name, Version: normalized.Version, Questions: questions, SchemaVersion: domain.QuestionnaireTemplateVersion, CreatedAt: l.now()}
-	if err := packageapp.ValidateQuestionnaireTemplateRecord(packagedomain.QuestionnaireTemplate{ID: tpl.ID, TenantID: tpl.TenantID, Name: tpl.Name, Version: tpl.Version, Questions: normalized.Questions, SchemaVersion: tpl.SchemaVersion, CreatedAt: tpl.CreatedAt}); err != nil {
-		return domain.QuestionnaireTemplate{}, ErrValidation
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Enterprise.InsertQuestionnaireTemplate(ctx, tpl); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(tpl.CreatedAt, actor.TenantID, "questionnaire_template.created", "questionnaire_template", tpl.ID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.QuestionnaireTemplate{}, err
-		}
-		l.questionTemplates[tpl.ID] = tpl
-		l.publishCommittedAuditEntryLocked(entry)
-		return cloneQuestionnaireTemplateDTO(tpl), nil
-	}
-	l.questionTemplates[tpl.ID] = tpl
-	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_template.created", "questionnaire_template", tpl.ID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.QuestionnaireTemplate{}, err
-	}
-	return cloneQuestionnaireTemplateDTO(tpl), nil
-}
-
-// Local-memory replay checks use only ownership IDs. Production template
-// creation/replay binds the focused Package port and never calls this facade.
-func (l *Ledger) AuthorizeQuestionnaireTemplateCreate(ctx context.Context, actor domain.Actor, controlIDs []string) error {
-	if l == nil {
-		return ErrValidation
-	}
-	if err := fromIdentityContextError(application.AuthorizeTenantWideScope(ctx, actor, ScopePackageWrite)); err != nil {
-		return err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.validateQuestionnaireTemplateControlsLocked(actor.TenantID, controlIDs)
-}
 func (l *Ledger) validateQuestionnaireTemplateControlsLocked(tenant string, ids []string) error {
 	if len(ids) > packageapp.MaxQuestionnaireTemplateQuestions {
 		return ErrValidation
@@ -329,68 +246,6 @@ func (l *Ledger) validateQuestionnaireTemplateControlsLocked(tenant string, ids 
 		}
 	}
 	return nil
-}
-func cloneQuestionnaireTemplateDTO(v domain.QuestionnaireTemplate) domain.QuestionnaireTemplate {
-	v.Questions = append([]domain.QuestionnaireQuestion(nil), v.Questions...)
-	for i := range v.Questions {
-		v.Questions[i].AllowedFields = append([]string(nil), v.Questions[i].AllowedFields...)
-	}
-	return v
-}
-
-func (l *Ledger) CreateQuestionnairePackage(ctx context.Context, actor domain.Actor, in CreateQuestionnairePackageInput) (domain.QuestionnairePackage, error) {
-	normalized, err := prepareLocalQuestionnairePackage(ctx, actor, in)
-	if err != nil {
-		return domain.QuestionnairePackage{}, err
-	}
-	in = CreateQuestionnairePackageInput{TemplateID: normalized.TemplateID, PackageID: normalized.PackageID, ProductID: normalized.ProductID, ReleaseID: normalized.ReleaseID}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.authorizeQuestionnairePackageCreateLocked(ctx, actor, normalized); err != nil {
-		return domain.QuestionnairePackage{}, err
-	}
-	tpl := l.questionTemplates[in.TemplateID]
-	if len(tpl.Questions) == 0 || len(tpl.Questions) > packageapp.MaxQuestionnaireDraftQuestions {
-		return domain.QuestionnairePackage{}, ErrValidation
-	}
-	responses := []domain.QuestionnaireResponse{}
-	for _, question := range tpl.Questions {
-		response, err := l.questionnaireResponseForQuestionLocked(actor, ScopePackageWrite, question, in.ProductID, in.ReleaseID)
-		if err != nil {
-			return domain.QuestionnairePackage{}, err
-		}
-		responses = append(responses, response)
-	}
-	hash, err := packageapp.HashQuestionnaireResponses(questionnairePackageToContext(domain.QuestionnairePackage{Responses: responses}).Responses)
-	if err != nil {
-		return domain.QuestionnairePackage{}, fromPackageContextError(err)
-	}
-	pkg := domain.QuestionnairePackage{ID: newID("qp"), TenantID: actor.TenantID, TemplateID: tpl.ID, PackageID: in.PackageID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Responses: responses, ManifestHash: hash, SchemaVersion: domain.QuestionnairePackageVersion, CreatedAt: l.now()}
-	if err := packageapp.ValidateQuestionnairePackageRecord(questionnairePackageToContext(pkg)); err != nil {
-		return domain.QuestionnairePackage{}, fromPackageContextError(err)
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Enterprise.InsertQuestionnairePackage(ctx, pkg); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(pkg.CreatedAt, actor.TenantID, "questionnaire_package.generated", "questionnaire_package", pkg.ID, actorType(actor), actorID(actor), hash, ""))
-			return err
-		}); err != nil {
-			return domain.QuestionnairePackage{}, err
-		}
-		l.questionPackages[pkg.ID] = cloneQuestionnairePackageDTO(pkg)
-		l.publishCommittedAuditEntryLocked(entry)
-		return cloneQuestionnairePackageDTO(pkg), nil
-	}
-	l.questionPackages[pkg.ID] = cloneQuestionnairePackageDTO(pkg)
-	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_package.generated", "questionnaire_package", pkg.ID, actorType(actor), actorID(actor), hash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.QuestionnairePackage{}, err
-	}
-	return cloneQuestionnairePackageDTO(pkg), nil
 }
 
 func (l *Ledger) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, raw CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {

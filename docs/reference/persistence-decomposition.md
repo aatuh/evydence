@@ -54,15 +54,12 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateCommercialCollectorDefinition` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateLegalHold` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireAnswerLibraryEntry` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnairePackage` | `persistLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateQuestionnaireTemplate` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateRetentionOverride` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateEvidenceSummary` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateGraphSnapshot` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateMarketplaceCollector` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreatePDFReportPackage` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreatePublicTransparencyLog` | `persistLocked` |
-| future extensions and generated reports | `internal/app/future_extensions.go` | `CreateQuestionnaireDraft` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateSaaSEditionProfile` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreateSigningOperation` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `GenerateAnomalyReport` | `persistLocked` |

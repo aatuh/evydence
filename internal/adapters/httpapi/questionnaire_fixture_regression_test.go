@@ -31,10 +31,11 @@ func seedQuestionnaireFixtureScope(t *testing.T, ledger *app.Ledger, name string
 	t.Helper()
 	f := questionnaireFixtureScope{controlFixtureScope: seedControlFixtureScope(t, ledger, name)}
 	var err error
-	f.template, err = ledger.CreateQuestionnaireTemplate(t.Context(), f.actor, app.CreateQuestionnaireTemplateInput{Name: name, Version: "1", Questions: []domain.QuestionnaireQuestion{{ID: "q1", Prompt: "Reviewed?", EvidenceType: "security_review", ControlID: f.control.ID, AllowedFields: []string{"title"}}}})
+	tpl, err := (questionnaireFixtureCommands{catalogFixtureCommands{ledger: ledger}}).CreateQuestionnaireTemplate(t.Context(), f.actor, packageapp.CreateQuestionnaireTemplateInput{Name: name, Version: "1", Questions: []packagedomain.QuestionnaireQuestion{{ID: "q1", Prompt: "Reviewed?", EvidenceType: "security_review", ControlID: f.control.ID, AllowedFields: []string{"title"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.template = domain.QuestionnaireTemplate{ID: tpl.ID, TenantID: tpl.TenantID, Name: tpl.Name, Version: tpl.Version, Questions: questionnaireQuestionsFromCommand(tpl.Questions), SchemaVersion: tpl.SchemaVersion, CreatedAt: tpl.CreatedAt}
 	f.entry, err = ledger.CreateQuestionnaireAnswerLibraryEntry(t.Context(), f.actor, app.CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", EvidenceType: "security_review", ControlID: f.control.ID, ProductID: f.product.ID, ReleaseID: f.release.ID, Answer: "Recorded scoped review", EvidenceIDs: []string{f.evidence.ID}, Limitations: []string{"Human review required"}})
 	if err != nil {
 		t.Fatal(err)

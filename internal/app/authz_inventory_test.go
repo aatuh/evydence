@@ -36,7 +36,6 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"source_repository_replay_guard.go": {"AuthorizeSourceRepositoryCreation", "authorizeSourceRepositoryCreationLocked"},
 		"source_write_replay_guard.go":      {"AuthorizeSourceCommitRecording", "AuthorizeSourceBranchUpsert", "AuthorizePullRequestRecording", "authorizeLocalSourceWriteLocked"},
 		"enterprise.go": {
-			"CreateQuestionnairePackage",
 			"CreateQuestionnaireAnswerLibraryEntry",
 			"ListQuestionnaireAnswerLibrary",
 		},
@@ -59,7 +58,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"AuthorizeQuestionnaireAnswerLibraryCreate",
 			"authorizeAnswerLibraryCreateLocked",
 		},
-		"questionnaire_package_creation.go": {
+		"legacy_questionnaire_oracle_test.go": {
+			"CreateQuestionnairePackage",
 			"AuthorizeQuestionnairePackageCreate",
 			"authorizeQuestionnairePackageCreateLocked",
 		},

@@ -14,7 +14,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"math/big"
-	"sort"
 	"strings"
 	"time"
 
@@ -31,12 +30,6 @@ type CreateEvidenceSummaryInput struct {
 	SubjectType string
 	SubjectID   string
 	EvidenceIDs []string
-}
-
-type CreateQuestionnaireDraftInput struct {
-	TemplateID string
-	ProductID  string
-	ReleaseID  string
 }
 
 type CreateGraphSnapshotInput struct {
@@ -204,78 +197,6 @@ func (l *Ledger) CreateEvidenceSummary(ctx context.Context, actor domain.Actor, 
 		return domain.EvidenceSummary{}, err
 	}
 	return summary, nil
-}
-
-func (l *Ledger) CreateQuestionnaireDraft(ctx context.Context, actor domain.Actor, in CreateQuestionnaireDraftInput) (domain.QuestionnaireDraft, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.QuestionnaireDraft{}, err
-	}
-	if err := require(actor, ScopePackageRead); err != nil {
-		return domain.QuestionnaireDraft{}, err
-	}
-	normalized, err := packageapp.NormalizeQuestionnaireDraftInput(packageapp.CreateQuestionnaireDraftInput{TemplateID: in.TemplateID, ProductID: in.ProductID, ReleaseID: in.ReleaseID})
-	if err != nil {
-		return domain.QuestionnaireDraft{}, ErrValidation
-	}
-	in = CreateQuestionnaireDraftInput{TemplateID: normalized.TemplateID, ProductID: normalized.ProductID, ReleaseID: normalized.ReleaseID}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	template, ok := l.questionTemplates[strings.TrimSpace(in.TemplateID)]
-	if !ok || template.TenantID != actor.TenantID {
-		return domain.QuestionnaireDraft{}, ErrNotFound
-	}
-	if err := l.ensureScopeLocked(actor.TenantID, strings.TrimSpace(in.ProductID), "", strings.TrimSpace(in.ReleaseID)); err != nil {
-		return domain.QuestionnaireDraft{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopePackageRead, resourceRefs{ProductID: strings.TrimSpace(in.ProductID), ReleaseID: strings.TrimSpace(in.ReleaseID)}); err != nil {
-		return domain.QuestionnaireDraft{}, err
-	}
-	responses := make([]domain.QuestionnaireResponse, 0, len(template.Questions))
-	for _, question := range template.Questions {
-		response, err := l.questionnaireResponseForQuestionLocked(actor, ScopePackageRead, question, in.ProductID, in.ReleaseID)
-		if err != nil {
-			return domain.QuestionnaireDraft{}, err
-		}
-		responses = append(responses, response)
-	}
-	hash, err := canonicalAnyHash(responses)
-	if err != nil {
-		return domain.QuestionnaireDraft{}, err
-	}
-	draft := domain.QuestionnaireDraft{
-		ID:            newID("qdr"),
-		TenantID:      actor.TenantID,
-		TemplateID:    template.ID,
-		ProductID:     strings.TrimSpace(in.ProductID),
-		ReleaseID:     strings.TrimSpace(in.ReleaseID),
-		Responses:     responses,
-		ManifestHash:  hash,
-		Limitations:   []string{"Generated answers are drafts based on stored evidence and do not provide compliance conclusions."},
-		SchemaVersion: domain.QuestionnaireDraftVersion,
-		CreatedAt:     l.now(),
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Future.InsertQuestionnaireDraft(ctx, draft); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(draft.CreatedAt, actor.TenantID, "questionnaire_draft.created", "questionnaire_draft", draft.ID, actorType(actor), actorID(actor), hash, ""))
-			return err
-		}); err != nil {
-			return domain.QuestionnaireDraft{}, err
-		}
-		l.questionDrafts[draft.ID] = draft
-		l.publishCommittedAuditEntryLocked(entry)
-		return draft, nil
-	}
-	l.questionDrafts[draft.ID] = draft
-	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_draft.created", "questionnaire_draft", draft.ID, actorType(actor), actorID(actor), hash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.QuestionnaireDraft{}, err
-	}
-	return draft, nil
 }
 
 func (l *Ledger) CreateGraphSnapshot(ctx context.Context, actor domain.Actor, in CreateGraphSnapshotInput) (domain.EvidenceGraphSnapshot, error) {
@@ -1295,106 +1216,6 @@ func (l *Ledger) ensureFutureSubjectLocked(tenantID, subjectType, subjectID stri
 	default:
 		return resourceRefs{}, ErrValidation
 	}
-}
-
-func (l *Ledger) evidenceIDsForQuestionLocked(tenantID string, question domain.QuestionnaireQuestion, productID, releaseID string) []string {
-	if question.ControlID != "" {
-		ids := []string{}
-		for _, link := range l.controlLinks {
-			if link.TenantID == tenantID && link.ControlID == question.ControlID && scopeMatches(link.ProductID, productID) && scopeMatches(link.ReleaseID, releaseID) {
-				if link.SubjectType == "evidence" {
-					ids = append(ids, link.SubjectID)
-				}
-			}
-		}
-		return sortedStrings(ids)
-	}
-	return l.evidenceIDsForRefsLocked(tenantID, resourceRefs{ProductID: strings.TrimSpace(productID), ReleaseID: strings.TrimSpace(releaseID)}, strings.TrimSpace(question.EvidenceType))
-}
-
-func (l *Ledger) questionnaireResponseForQuestionLocked(actor domain.Actor, scope string, question domain.QuestionnaireQuestion, productID, releaseID string) (domain.QuestionnaireResponse, error) {
-	var response domain.QuestionnaireResponse
-	if entry, ok := l.questionnaireAnswerLibraryMatchLocked(actor, scope, question, productID, releaseID); ok {
-		response = domain.QuestionnaireResponse{
-			QuestionID:  question.ID,
-			Answer:      entry.Answer,
-			EvidenceIDs: append([]string(nil), entry.EvidenceIDs...),
-			Limitations: append([]string(nil), entry.Limitations...),
-		}
-	} else {
-		ids := l.evidenceIDsForQuestionLocked(actor.TenantID, question, productID, releaseID)
-		answer := "No matching evidence is recorded for this question."
-		if len(ids) > 0 {
-			answer = "Evidence is available for review in the linked evidence records."
-		}
-		response = domain.QuestionnaireResponse{QuestionID: question.ID, Answer: answer, EvidenceIDs: ids, Limitations: []string{"Questionnaire responses summarize recorded evidence and require human review."}}
-	}
-	productID, releaseID = strings.TrimSpace(productID), strings.TrimSpace(releaseID)
-	if releaseID != "" {
-		release, ok := l.releases[releaseID]
-		if !ok || release.TenantID != actor.TenantID || productID != "" && release.ProductID != productID {
-			return domain.QuestionnaireResponse{}, ErrNotFound
-		}
-		productID = release.ProductID
-	}
-	for _, id := range response.EvidenceIDs {
-		item, ok := l.evidence[id]
-		if !ok || item.TenantID != actor.TenantID {
-			return domain.QuestionnaireResponse{}, ErrNotFound
-		}
-		refs := refsForEvidence(item)
-		if productID != "" && !l.productCoversRefsLocked(actor.TenantID, productID, refs) || releaseID != "" && !l.releaseCoversRefsLocked(actor.TenantID, releaseID, refs) {
-			return domain.QuestionnaireResponse{}, ErrNotFound
-		}
-	}
-	return response, nil
-}
-
-func (l *Ledger) questionnaireAnswerLibraryMatchLocked(actor domain.Actor, scope string, question domain.QuestionnaireQuestion, productID, releaseID string) (domain.QuestionnaireAnswerLibraryEntry, bool) {
-	productID, releaseID = strings.TrimSpace(productID), strings.TrimSpace(releaseID)
-	candidates := []domain.QuestionnaireAnswerLibraryEntry{}
-	for _, entry := range l.answerLibrary {
-		if entry.TenantID != actor.TenantID || !questionnaireAnswerMatchesQuestion(entry, question) {
-			continue
-		}
-		if entry.ProductID != "" && entry.ProductID != productID {
-			continue
-		}
-		if entry.ReleaseID != "" && entry.ReleaseID != releaseID {
-			continue
-		}
-		if err := l.authorizeResourceLocked(actor, scope, resourceRefs{ProductID: entry.ProductID, ReleaseID: entry.ReleaseID}); err != nil {
-			continue
-		}
-		candidates = append(candidates, entry)
-	}
-	if len(candidates) == 0 {
-		return domain.QuestionnaireAnswerLibraryEntry{}, false
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		left, right := questionnaireAnswerSpecificity(candidates[i], question), questionnaireAnswerSpecificity(candidates[j], question)
-		if left != right {
-			return left > right
-		}
-		if !candidates[i].CreatedAt.Equal(candidates[j].CreatedAt) {
-			return candidates[i].CreatedAt.After(candidates[j].CreatedAt)
-		}
-		return candidates[i].ID < candidates[j].ID
-	})
-	return candidates[0], true
-}
-
-func questionnaireAnswerMatchesQuestion(entry domain.QuestionnaireAnswerLibraryEntry, question domain.QuestionnaireQuestion) bool {
-	return packageapp.DraftAnswerMatchesQuestion(packageapp.DraftAnswerCandidate{QuestionID: entry.QuestionID, ControlID: entry.ControlID, EvidenceType: entry.EvidenceType}, packageapp.DraftQuestion{ID: question.ID, ControlID: question.ControlID, EvidenceType: question.EvidenceType})
-}
-
-func questionnaireAnswerSpecificity(entry domain.QuestionnaireAnswerLibraryEntry, question domain.QuestionnaireQuestion) int {
-	return packageapp.DraftAnswerSpecificity(packageapp.DraftAnswerCandidate{QuestionID: entry.QuestionID, ControlID: entry.ControlID, EvidenceType: entry.EvidenceType, ProductID: entry.ProductID, ReleaseID: entry.ReleaseID}, packageapp.DraftQuestion{ID: question.ID, ControlID: question.ControlID, EvidenceType: question.EvidenceType})
-}
-
-func (l *Ledger) evidenceIDsForRefsLocked(tenantID string, refs resourceRefs, evidenceType string) []string {
-	ids, _ := l.evidenceIDsForRefsBoundedLocked(tenantID, refs, evidenceType, len(l.evidence)+1)
-	return ids
 }
 
 // evidenceIDsForRefsBoundedLocked returns no partial list when a traversal

@@ -76,7 +76,7 @@ func TestQTemplateHTTPStrictNestedJSONAndFocusedProjection(t *testing.T) {
 	}
 }
 func TestQTemplateHTTPCookieMutationGuardBothProfiles(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	for _, focused := range []bool{false, true} {
 		f := &qTemplateHTTPFake{}
 		opts := ServerOptions{}
@@ -93,7 +93,9 @@ func TestQTemplateHTTPCookieMutationGuardBothProfiles(t *testing.T) {
 			bearer bool
 			status int
 		}{{"", false, 403}, {"https://attacker.example", false, 403}, {"http://example.com", false, 403}, {"https://example.com", false, 201}, {"https://attacker.example", true, 201}} {
-			r := httptest.NewRequest("POST", "https://example.com/v1/questionnaire-templates", strings.NewReader(`{"name":"T","version":"1","questions":[{"id":"q","prompt":"P"}]}`))
+			// Independent successful mutations must have distinct persisted
+			// template identities; origin policy is not a uniqueness bypass.
+			r := httptest.NewRequest("POST", "https://example.com/v1/questionnaire-templates", strings.NewReader(fmt.Sprintf(`{"name":"T-%d","version":"1","questions":[{"id":"q","prompt":"P"}]}`, i)))
 			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
 			r.Header.Set("Origin", v.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%t-%d", focused, i))
@@ -141,7 +143,7 @@ func TestQTemplateOpenAPIBoundsOnlyCreationNotHistoricalResponses(t *testing.T) 
 }
 
 func TestQTemplateHTTPLocalReplayRechecksTenantWideAuthority(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)

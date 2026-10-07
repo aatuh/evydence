@@ -1898,13 +1898,23 @@ The focused writer rechecks ordered question identities, citation ownership,
 output bounds and response hash. See
 [package creation](api.md#questionnaire-package-creation) for association and
 compatibility limits. The template, answer-library creation/inventory and
-questionnaire-package handlers have no aggregate fallback. Their three legacy
-input converters exist only in test fixtures. These fixtures retain actual
-preflight policies and isolated historical writes, with whole-state rollback,
+questionnaire-package handlers have no aggregate fallback. Template, package and
+draft HTTP fixtures now run the real focused commands over memory transactions.
+Their bounded ports project only current ownership and question selectors;
+private answers are read only after per-answer authorization. Template creation
+and package/draft generation work without publishing template caches back into
+Ledger. Read-only guards panic on clocks, IDs, private reads or effects. Focused
+memory inserts reject mismatched customer-package associations and reordered
+question responses. Historical generator declarations and inputs are now
+excluded from production and retained in
+`internal/app/legacy_questionnaire_oracle_test.go` solely for package-local
+regressions. The obsolete package guard file and unused fixture input conversion
+are deleted. Answer-library fixtures still retain isolated historical writes.
+Existing and new tests cover whole-state rollback,
 complete DTO/hash/audit, current-grant/foreign-reference, permission-fingerprint,
 page and nested-metadata detachment regressions. They are not SQL bounds,
-locking or durability evidence. Other extension handlers and physical aggregate
-deletion remain EVY-906 work.
+locking or durability evidence. Physical aggregate maps, snapshots and the
+remaining methods still require deletion in EVY-906.
 
 PostgreSQL evidence-summary creation now binds Package-owned focused commands
 directly through the composition root. One transaction locks root coordinates,

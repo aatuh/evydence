@@ -12,8 +12,9 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
-// Existing tests retain real preflight policies and isolated historical writes.
-// These bridges are not runtime ports or evidence of SQL limits/locking.
+// Template/package operations use focused services on transaction repositories;
+// answer-library operations still retain isolated historical writes. These
+// test-only bridges are not runtime ports or evidence of SQL limits/locking.
 type questionnaireFixtureCommands struct{ catalogFixtureCommands }
 type answerLibraryFixtureQuery struct{ catalogFixtureCommands }
 
@@ -23,9 +24,6 @@ func questionnaireQuestionsFromCommand(qs []packagedomain.QuestionnaireQuestion)
 		out[i] = domain.QuestionnaireQuestion{ID: q.ID, Prompt: q.Prompt, EvidenceType: q.EvidenceType, ControlID: q.ControlID, AllowedFields: slices.Clone(q.AllowedFields)}
 	}
 	return out
-}
-func questionnairePackageLegacyInput(in packageapp.CreateQuestionnairePackageInput) app.CreateQuestionnairePackageInput {
-	return app.CreateQuestionnairePackageInput{TemplateID: in.TemplateID, PackageID: in.PackageID, ProductID: in.ProductID, ReleaseID: in.ReleaseID}
 }
 func answerLibraryLegacyInput(in packageapp.CreateAnswerLibraryEntryInput) app.CreateQuestionnaireAnswerLibraryEntryInput {
 	return app.CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: in.QuestionID, EvidenceType: in.EvidenceType, ControlID: in.ControlID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Answer: in.Answer, EvidenceIDs: slices.Clone(in.EvidenceIDs), Limitations: slices.Clone(in.Limitations)}
@@ -48,18 +46,32 @@ func answerLibraryFixtureModel(v domain.QuestionnaireAnswerLibraryEntry) package
 	return packagedomain.QuestionnaireAnswerLibraryEntry{ID: v.ID, TenantID: v.TenantID, QuestionID: v.QuestionID, EvidenceType: v.EvidenceType, ControlID: v.ControlID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, Answer: v.Answer, EvidenceIDs: slices.Clone(v.EvidenceIDs), Limitations: slices.Clone(v.Limitations), SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
 }
 func (f questionnaireFixtureCommands) AuthorizeCreateQuestionnaireTemplate(ctx context.Context, a domain.Actor, in packageapp.CreateQuestionnaireTemplateInput) error {
-	return f.commandLedger(ctx).AuthorizeQuestionnaireTemplateCreate(ctx, a, packageapp.QuestionnaireTemplateControlIDs(in.Questions))
+	c, err := f.nativeTemplate(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeCreateQuestionnaireTemplate(ctx, a, in)
 }
 func (f questionnaireFixtureCommands) CreateQuestionnaireTemplate(ctx context.Context, a domain.Actor, in packageapp.CreateQuestionnaireTemplateInput) (packagedomain.QuestionnaireTemplate, error) {
-	v, err := f.commandLedger(ctx).CreateQuestionnaireTemplate(ctx, a, app.CreateQuestionnaireTemplateInput{Name: in.Name, Version: in.Version, Questions: questionnaireQuestionsFromCommand(in.Questions)})
-	return questionnaireTemplateFixtureModel(v), err
+	c, err := f.nativeTemplate(false)
+	if err != nil {
+		return packagedomain.QuestionnaireTemplate{}, err
+	}
+	return c.CreateQuestionnaireTemplate(ctx, a, in)
 }
 func (f questionnaireFixtureCommands) AuthorizeCreateQuestionnairePackage(ctx context.Context, a domain.Actor, in packageapp.CreateQuestionnairePackageInput) error {
-	return f.commandLedger(ctx).AuthorizeQuestionnairePackageCreate(ctx, a, questionnairePackageLegacyInput(in))
+	c, err := f.nativePackage(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeCreateQuestionnairePackage(ctx, a, in)
 }
 func (f questionnaireFixtureCommands) CreateQuestionnairePackage(ctx context.Context, a domain.Actor, in packageapp.CreateQuestionnairePackageInput) (packagedomain.QuestionnairePackage, error) {
-	v, err := f.commandLedger(ctx).CreateQuestionnairePackage(ctx, a, questionnairePackageLegacyInput(in))
-	return questionnairePackageFixtureModel(v), err
+	c, err := f.nativePackage(false)
+	if err != nil {
+		return packagedomain.QuestionnairePackage{}, err
+	}
+	return c.CreateQuestionnairePackage(ctx, a, in)
 }
 func (f questionnaireFixtureCommands) AuthorizeCreateAnswerLibraryEntry(ctx context.Context, a domain.Actor, in packageapp.CreateAnswerLibraryEntryInput) error {
 	return f.commandLedger(ctx).AuthorizeQuestionnaireAnswerLibraryCreate(ctx, a, answerLibraryLegacyInput(in))

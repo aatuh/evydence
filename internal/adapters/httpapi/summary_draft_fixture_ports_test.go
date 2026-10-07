@@ -12,12 +12,12 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
-// Test-only real-policy preflight over focused memory coordinates, followed by
-// isolated historical writes. No runtime backend or SQL guarantee is implied.
+// Drafts use the focused service on transaction repositories. Summaries retain
+// historical writes with real-policy preflight over focused memory coordinates.
+// Neither fixture is a runtime backend or SQL guarantee.
 type summaryDraftFixtureCommands struct{ catalogFixtureCommands }
 type reportFixtureScopeReader interface {
 	ReadEvidenceSummaryScope(context.Context, string, string, string) (packageapp.EvidenceSummaryScope, error)
-	ReadQuestionnaireDraftScope(context.Context, string, packageapp.CreateQuestionnaireDraftInput) (packageapp.QuestionnaireDraftScope, error)
 }
 type reportFixtureGuardTransaction struct {
 	reportFixtureScopeReader
@@ -28,33 +28,11 @@ func (t reportFixtureGuardTransaction) ReadEvidenceSummaryScope(ctx context.Cont
 	v, err := t.reportFixtureScopeReader.ReadEvidenceSummaryScope(ctx, tenant, kind, id)
 	return v, portalFixtureError(err)
 }
-func (t reportFixtureGuardTransaction) ReadQuestionnaireDraftScope(ctx context.Context, tenant string, in packageapp.CreateQuestionnaireDraftInput) (packageapp.QuestionnaireDraftScope, error) {
-	v, err := t.reportFixtureScopeReader.ReadQuestionnaireDraftScope(ctx, tenant, in)
-	return v, portalFixtureError(err)
-}
 func (reportFixtureGuardTransaction) ReadEvidenceSummaryItems(context.Context, packageapp.EvidenceSummaryScope, []string) ([]packageapp.EvidenceSummaryItem, error) {
 	panic("summary preflight read citations")
 }
 func (reportFixtureGuardTransaction) InsertEvidenceSummary(context.Context, packagedomain.EvidenceSummary) error {
 	panic("summary preflight wrote a report")
-}
-func (reportFixtureGuardTransaction) ReadQuestionnaireDraftQuestions(context.Context, packageapp.QuestionnaireDraftScope) ([]packageapp.DraftQuestion, error) {
-	panic("draft preflight read question selectors")
-}
-func (reportFixtureGuardTransaction) ReadQuestionnaireDraftCandidates(context.Context, packageapp.QuestionnaireDraftScope, packageapp.DraftQuestion, int) ([]packageapp.DraftAnswerCandidate, error) {
-	panic("draft preflight read answer candidates")
-}
-func (reportFixtureGuardTransaction) ReadQuestionnaireDraftAnswer(context.Context, packageapp.QuestionnaireDraftScope, string) (packageapp.DraftAnswer, error) {
-	panic("draft preflight read private answers")
-}
-func (reportFixtureGuardTransaction) ReadQuestionnaireDraftEvidence(context.Context, packageapp.QuestionnaireDraftScope, packageapp.DraftQuestion, int) ([]string, error) {
-	panic("draft preflight read evidence")
-}
-func (reportFixtureGuardTransaction) ValidateQuestionnaireDraftEvidence(context.Context, packageapp.QuestionnaireDraftScope, []string) error {
-	panic("draft preflight validated citations")
-}
-func (reportFixtureGuardTransaction) InsertQuestionnaireDraft(context.Context, packagedomain.QuestionnaireDraft) error {
-	panic("draft preflight wrote a report")
 }
 func (reportFixtureGuardTransaction) AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error) {
 	panic("report preflight wrote an audit")
@@ -71,9 +49,6 @@ func (f summaryDraftFixtureCommands) guard(ctx context.Context, a application.Au
 func (f summaryDraftFixtureCommands) ExecuteEvidenceSummary(ctx context.Context, _ string, fn func(context.Context, packageapp.EvidenceSummaryTransaction) error) error {
 	return f.guard(ctx, packagequery.NewEvidenceSummaryAuthorizer(), func(ctx context.Context, tx reportFixtureGuardTransaction) error { return fn(ctx, tx) })
 }
-func (f summaryDraftFixtureCommands) ExecuteQuestionnaireDraft(ctx context.Context, _ string, fn func(context.Context, packageapp.QuestionnaireDraftTransaction) error) error {
-	return f.guard(ctx, packagequery.NewQuestionnaireDraftAuthorizer(), func(ctx context.Context, tx reportFixtureGuardTransaction) error { return fn(ctx, tx) })
-}
 func (f summaryDraftFixtureCommands) AuthorizeCreateEvidenceSummary(ctx context.Context, a domain.Actor, in packageapp.CreateEvidenceSummaryInput) error {
 	g, err := packageapp.NewEvidenceSummaryCommands(packageapp.EvidenceSummaryCommandConfig{Transactions: f, Authorizer: packagequery.NewEvidenceSummaryAuthorizer(), Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
 	if err != nil {
@@ -82,7 +57,7 @@ func (f summaryDraftFixtureCommands) AuthorizeCreateEvidenceSummary(ctx context.
 	return g.AuthorizeCreateEvidenceSummary(ctx, a, in)
 }
 func (f summaryDraftFixtureCommands) AuthorizeCreateQuestionnaireDraft(ctx context.Context, a domain.Actor, in packageapp.CreateQuestionnaireDraftInput) error {
-	g, err := packageapp.NewQuestionnaireDraftCommands(packageapp.QuestionnaireDraftCommandConfig{Transactions: f, Authorizer: packagequery.NewQuestionnaireDraftAuthorizer(), Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
+	g, err := f.nativeDraft(true)
 	if err != nil {
 		return err
 	}
@@ -107,8 +82,11 @@ func (f summaryDraftFixtureCommands) CreateEvidenceSummary(ctx context.Context, 
 	return summaryFixtureModel(v), err
 }
 func (f summaryDraftFixtureCommands) CreateQuestionnaireDraft(ctx context.Context, a domain.Actor, in packageapp.CreateQuestionnaireDraftInput) (packagedomain.QuestionnaireDraft, error) {
-	v, err := f.commandLedger(ctx).CreateQuestionnaireDraft(ctx, a, app.CreateQuestionnaireDraftInput{TemplateID: in.TemplateID, ProductID: in.ProductID, ReleaseID: in.ReleaseID})
-	return draftFixtureModel(v), err
+	c, err := f.nativeDraft(false)
+	if err != nil {
+		return packagedomain.QuestionnaireDraft{}, err
+	}
+	return c.CreateQuestionnaireDraft(ctx, a, in)
 }
 func (s *Server) bindSummaryDraftFixturePorts(ledger *app.Ledger) {
 	f := summaryDraftFixtureCommands{catalogFixtureCommands{ledger: ledger}}
