@@ -273,7 +273,7 @@ type InstanceAdminQuery interface {
 }
 
 // OutboxReplayCommand owns the replay mutation and its idempotency record in
-// one durable transaction. Local memory retains the Ledger-backed route.
+// one durable transaction. PostgreSQL is the required API runtime backend.
 type OutboxReplayCommand interface {
 	ReplayIdempotent(context.Context, domain.Actor, string, string, string, []byte, string) (int, any, error)
 }

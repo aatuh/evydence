@@ -38,6 +38,14 @@ methods without changing API, portal access, export or report behavior.
 Remaining Ledger retirement is in progress; this is not a production
 readiness or release-publication claim.
 
+Readiness, metrics, instance-count diagnostics, outbox diagnostics and terminal
+job replay handlers now require focused Operations ports. Six aggregate
+fallbacks are removed without changing native response formats, instance-admin
+authorization, dependency retry metadata or atomic PostgreSQL replay. Test-only
+fixtures retain read/retry checks; external fixture operator calls are not
+claimed to be rollback-safe SQL transactions. Remaining aggregate deletion is
+still unfinished under EVY-906.
+
 Ledger-accepting HTTP server constructors and their aggregate replay binders
 are removed from production source. Explicit test-only setup retains the local
 fixture's cancellation, authentication override, transaction and replay checks

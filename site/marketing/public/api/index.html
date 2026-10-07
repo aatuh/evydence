@@ -160,13 +160,13 @@
         </div>
         <div class="operations" id="operations">
           
-          <article class="operation" data-operation data-search="get /v1/admin/instance instance admin snapshot returns instance-level diagnostic counts from one current database snapshot in the postgresql profile. requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. the response omits tenant identifiers, evidence payloads, and credential material. instanceadminsnapshot evydence instance:admin">
+          <article class="operation" data-operation data-search="get /v1/admin/instance instance admin snapshot returns instance-level diagnostic counts from one current database snapshot. requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. the response omits tenant identifiers, evidence payloads, and credential material. postgresql is required for local evaluation. instanceadminsnapshot evydence instance:admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/admin/instance</code>
             </div>
             <h3>Instance admin snapshot</h3>
-            <p>Returns instance-level diagnostic counts from one current database snapshot in the PostgreSQL profile. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. The response omits tenant identifiers, evidence payloads, and credential material.</p>
+            <p>Returns instance-level diagnostic counts from one current database snapshot. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. The response omits tenant identifiers, evidence payloads, and credential material. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>instanceAdminSnapshot</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -177,13 +177,13 @@
               <div><dt>Responses</dt><dd>200 application/json: InstanceAdminSnapshotEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/admin/outbox outbox operator diagnostics returns aggregate outbox backlog, running, and terminal-job counts without tenant ids, payloads, or raw failure details. requires the explicit instance:admin scope. outboxoperatordiagnostics evydence instance:admin">
+          <article class="operation" data-operation data-search="get /v1/admin/outbox outbox operator diagnostics returns aggregate outbox backlog, running, and terminal-job counts without tenant ids, payloads, or raw failure details. requires the explicit instance:admin scope. postgresql is required for local evaluation. outboxoperatordiagnostics evydence instance:admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/admin/outbox</code>
             </div>
             <h3>Outbox operator diagnostics</h3>
-            <p>Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope.</p>
+            <p>Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>outboxOperatorDiagnostics</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -194,13 +194,13 @@
               <div><dt>Responses</dt><dd>200 application/json: OutboxDiagnosticsEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/admin/outbox/{id}/replay replay terminal outbox job requeues one dead-letter outbox job and appends an audit record. requires the explicit instance:admin scope and an idempotency key; raw payload and failure details are never returned. replayterminaloutboxjob evydence instance:admin">
+          <article class="operation" data-operation data-search="post /v1/admin/outbox/{id}/replay replay terminal outbox job requeues one dead-letter outbox job and appends an audit record. requires the explicit instance:admin scope and an idempotency key; current instance authority is checked before completed replay. job mutation, audit, and safe replay completion share one postgresql transaction. raw payload and failure details are never returned. postgresql is required for local evaluation. replayterminaloutboxjob evydence instance:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/admin/outbox/{id}/replay</code>
             </div>
             <h3>Replay terminal outbox job</h3>
-            <p>Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; raw payload and failure details are never returned.</p>
+            <p>Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; current instance authority is checked before completed replay. Job mutation, audit, and safe replay completion share one PostgreSQL transaction. Raw payload and failure details are never returned. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>replayTerminalOutboxJob</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -211,13 +211,13 @@
               <div><dt>Responses</dt><dd>200 application/json: OutboxReplayEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/admin/readiness readiness diagnostics returns vetted per-dependency readiness diagnostics. requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. readinessdiagnostics evydence instance:admin">
+          <article class="operation" data-operation data-search="get /v1/admin/readiness readiness diagnostics returns vetted per-dependency readiness diagnostics. requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. postgresql is required for local evaluation. readinessdiagnostics evydence instance:admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/admin/readiness</code>
             </div>
             <h3>Readiness diagnostics</h3>
-            <p>Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded.</p>
+            <p>Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>readinessDiagnostics</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1571,13 +1571,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VerificationResultEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/metrics safe tenant metrics returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. an explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. a prometheus text response is available when requested with accept: text/plain. metrics evydence admin">
+          <article class="operation" data-operation data-search="get /v1/metrics safe tenant metrics returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. an explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. a prometheus text response is available when requested with accept: text/plain. postgresql is required for local evaluation. metrics evydence admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/metrics</code>
             </div>
             <h3>Safe tenant metrics</h3>
-            <p>Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain.</p>
+            <p>Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>metrics</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1979,13 +1979,13 @@
               <div><dt>Responses</dt><dd>201 application/json: QuestionnaireTemplateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/ready readiness runs bounded postgresql, migration, writer-lease, object-store, and signing-configuration probes configured for this process. the public result contains no tenant data, credentials, paths, or raw dependency errors. an unavailable result includes typed dependency retry metadata and retry-after. ready evydence none">
+          <article class="operation" data-operation data-search="get /v1/ready readiness runs bounded postgresql, migration, writer-lease, object-store, and signing-configuration probes configured for this process. the public result contains no tenant data, credentials, paths, or raw dependency errors. an unavailable result includes typed dependency retry metadata and retry-after. postgresql is required for local evaluation. ready evydence none">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/ready</code>
             </div>
             <h3>Readiness</h3>
-            <p>Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After.</p>
+            <p>Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>ready</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

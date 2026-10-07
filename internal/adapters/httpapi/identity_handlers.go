@@ -19,21 +19,12 @@ func (s *Server) instanceAdminSnapshot(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.instanceAdminQuery != nil {
-		snapshot, err := s.instanceAdminQuery.Snapshot(r.Context(), actor)
-		if err != nil {
-			writeProblem(w, r, mapInstanceAdminQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, instanceAdminSnapshotFromQuery(snapshot))
-		return
-	}
-	snapshot, err := s.ledger.InstanceAdminSnapshot(r.Context(), actor)
+	snapshot, err := s.instanceAdminQuery.Snapshot(r.Context(), actor)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, snapshot)
+	writeData(w, http.StatusOK, instanceAdminSnapshotFromQuery(snapshot))
 }
 
 func (s *Server) outboxOperatorDiagnostics(w http.ResponseWriter, r *http.Request) {
@@ -41,53 +32,37 @@ func (s *Server) outboxOperatorDiagnostics(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if s.outboxDiagnosticsQuery != nil {
-		diagnostics, err := s.outboxDiagnosticsQuery.Diagnostics(r.Context(), actor)
-		if err != nil {
-			writeProblem(w, r, mapInstanceAdminQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, app.OutboxDiagnostics{
-			PendingJobs: diagnostics.PendingJobs, RunningJobs: diagnostics.RunningJobs,
-			TerminalJobs: diagnostics.TerminalJobs, OldestPendingCreatedAt: diagnostics.OldestPendingCreatedAt,
-		})
+	diagnostics, err := s.outboxDiagnosticsQuery.Diagnostics(r.Context(), actor)
+	if err != nil {
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
-	diagnostics, err := s.ledger.OutboxOperatorDiagnostics(r.Context(), actor)
+	writeData(w, http.StatusOK, app.OutboxDiagnostics{
+		PendingJobs: diagnostics.PendingJobs, RunningJobs: diagnostics.RunningJobs,
+		TerminalJobs: diagnostics.TerminalJobs, OldestPendingCreatedAt: diagnostics.OldestPendingCreatedAt,
+	})
+}
+
+func (s *Server) replayTerminalOutboxJob(w http.ResponseWriter, r *http.Request) {
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	body, err := readBodyLimit(r, app.SmallJSONRequestLimit)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, diagnostics)
-}
-
-func (s *Server) replayTerminalOutboxJob(w http.ResponseWriter, r *http.Request) {
-	if s.outboxReplayCommand != nil {
-		actor, ok := s.authenticate(w, r)
-		if !ok {
-			return
-		}
-		body, err := readBodyLimit(r, app.SmallJSONRequestLimit)
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		key := r.Header.Get("Idempotency-Key")
-		status, replay, err := s.outboxReplayCommand.ReplayIdempotent(r.Context(), actor, r.Method, r.URL.Path, key, body, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		if key != "" {
-			w.Header().Set("Idempotency-Key", key)
-		}
-		writeData(w, status, replay)
+	key := r.Header.Get("Idempotency-Key")
+	status, replay, err := s.outboxReplayCommand.ReplayIdempotent(r.Context(), actor, r.Method, r.URL.Path, key, body, r.PathValue("id"))
+	if err != nil {
+		writeProblem(w, r, err)
 		return
 	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		replay, err := s.ledger.ReplayTerminalOutboxJob(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, replay, err
-	})
+	if key != "" {
+		w.Header().Set("Idempotency-Key", key)
+	}
+	writeData(w, status, replay)
 }
 
 func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request) {

@@ -28,7 +28,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Liveness status envelope.", "#/components/schemas/HealthStatusEnvelope")
 	case "ready":
-		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After."
+		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After. PostgreSQL is required for local evaluation."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
@@ -39,10 +39,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Version information envelope.", "#/components/schemas/VersionInfoEnvelope")
 	case "readinessDiagnostics":
-		operation.Description = "Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded."
+		operation.Description = "Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance readiness diagnostics envelope.", "#/components/schemas/ReadinessDiagnosticsEnvelope")
 	case "metrics":
-		operation.Description = "Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain."
+		operation.Description = "Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = specs.Response{
 			Description:  "Tenant metrics envelope or Prometheus text metrics.",
 			ContentTypes: []string{"application/json", "text/plain"},
@@ -57,13 +57,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("OpenAPI document.", "#/components/schemas/OpenAPIDocument")
 	case "instanceAdminSnapshot":
-		operation.Description = "Returns instance-level diagnostic counts from one current database snapshot in the PostgreSQL profile. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. The response omits tenant identifiers, evidence payloads, and credential material."
+		operation.Description = "Returns instance-level diagnostic counts from one current database snapshot. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. The response omits tenant identifiers, evidence payloads, and credential material. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance admin snapshot envelope.", "#/components/schemas/InstanceAdminSnapshotEnvelope")
 	case "outboxOperatorDiagnostics":
-		operation.Description = "Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope."
+		operation.Description = "Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Outbox operator diagnostics envelope.", "#/components/schemas/OutboxDiagnosticsEnvelope")
 	case "replayTerminalOutboxJob":
-		operation.Description = "Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; raw payload and failure details are never returned."
+		operation.Description = "Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; current instance authority is checked before completed replay. Job mutation, audit, and safe replay completion share one PostgreSQL transaction. Raw payload and failure details are never returned. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Terminal outbox job id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		delete(operation.Responses, http.StatusCreated)

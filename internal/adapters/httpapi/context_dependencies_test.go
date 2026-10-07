@@ -40,6 +40,21 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.identityAccess != ledger {
 		t.Fatal("identity access service was not rebound")
 	}
+	if query, ok := server.readinessQuery.(readinessFixture); !ok || query.ledger != ledger {
+		t.Fatal("focused readiness fixture was not rebound")
+	}
+	if query, ok := server.metricsQuery.(metricsFixture); !ok || query.ledger != ledger {
+		t.Fatal("focused metrics fixture was not rebound")
+	}
+	if query, ok := server.instanceAdminQuery.(instanceAdminFixture); !ok || query.ledger != ledger {
+		t.Fatal("focused instance-admin fixture was not rebound")
+	}
+	if query, ok := server.outboxDiagnosticsQuery.(outboxDiagnosticsFixture); !ok || query.ledger != ledger {
+		t.Fatal("focused outbox diagnostics fixture was not rebound")
+	}
+	if command, ok := server.outboxReplayCommand.(outboxReplayFixture); !ok || command.ledger != ledger {
+		t.Fatal("focused outbox replay fixture was not rebound")
+	}
 	if reflect.ValueOf(server).Elem().FieldByName("releaseCatalog").IsValid() {
 		t.Fatal("broad release catalog binding was not deleted")
 	}

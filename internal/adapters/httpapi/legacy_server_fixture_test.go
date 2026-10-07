@@ -76,6 +76,7 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.bindRiskReportFixtureQueries(ledger)
 	s.bindArtifactSignatureFixturePorts(ledger)
 	s.bindPackageReportFixtureQueries(ledger)
+	s.bindOperatorFixturePorts(ledger)
 }
 
 type legacyFixtureCommandScope struct {

@@ -14,16 +14,9 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
-	var status map[string]any
-	var err error
-	if s.readinessQuery != nil {
-		status, err = s.readinessQuery.Public(r.Context())
-		err = mapInstanceAdminQueryError(err)
-	} else {
-		status, err = s.ledger.ReadinessStatus(r.Context())
-	}
+	status, err := s.readinessQuery.Public(r.Context())
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
 	code := http.StatusOK
@@ -45,16 +38,9 @@ func (s *Server) readinessDiagnostics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var diagnostics map[string]any
-	var err error
-	if s.readinessQuery != nil {
-		diagnostics, err = s.readinessQuery.Operator(r.Context(), actor)
-		err = mapInstanceAdminQueryError(err)
-	} else {
-		diagnostics, err = s.ledger.ReadinessDiagnostics(r.Context(), actor)
-	}
+	diagnostics, err := s.readinessQuery.Operator(r.Context(), actor)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
 	writeData(w, http.StatusOK, diagnostics)
@@ -65,16 +51,9 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var metrics map[string]any
-	var err error
-	if s.metricsQuery != nil {
-		metrics, err = s.metricsQuery.Snapshot(r.Context(), actor)
-		err = mapInstanceAdminQueryError(err)
-	} else {
-		metrics, err = s.ledger.Metrics(r.Context(), actor)
-	}
+	metrics, err := s.metricsQuery.Snapshot(r.Context(), actor)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
 	if strings.Contains(r.Header.Get("Accept"), "text/plain") {

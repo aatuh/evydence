@@ -827,8 +827,14 @@ bytes, and expiry years from 1 through 9999 after UTC normalization. See the
 | `GET` | `/v1/version` | Immutable build identity and release-input-manifest digest. |
 | `GET` | `/v1/metrics` | Tenant-safe counts; admin scope required. |
 | `GET` | `/v1/openapi.json` | Generated OpenAPI. |
-| `GET` | `/v1/admin/instance` | Low-detail instance counts from one PostgreSQL snapshot in the durable profile; explicit `instance:admin` required. No tenant identifiers, evidence payloads, or credential material are returned. |
+| `GET` | `/v1/admin/instance` | Low-detail instance counts from one PostgreSQL snapshot; explicit `instance:admin` required. No tenant identifiers, evidence payloads, or credential material are returned. |
 | `GET` | `/v1/admin/readiness` | Vetted readiness diagnostics; `instance:admin` required. |
+
+Readiness, metrics and instance diagnostics require focused Operations queries;
+the handlers have no aggregate fallback. PostgreSQL is required for local
+evaluation. Tenant metrics omit global queue counts unless the actor has the
+explicit `instance:admin` scope. JSON and Prometheus response shapes are
+unchanged; public readiness retains low-detail `503` and `Retry-After` metadata.
 
 ### Identity And Administration
 
@@ -1660,6 +1666,15 @@ Source/test evidence: `internal/evidence/app/contract_diff_commands.go`,
 |--------|------|-------|
 | `GET` | `/v1/admin/outbox` | Payload-free outbox backlog and terminal-job diagnostics; requires explicit `instance:admin`. |
 | `POST` | `/v1/admin/outbox/{id}/replay` | Replay one terminal outbox job with `Idempotency-Key`; requires explicit `instance:admin` and appends an audit record. |
+
+Both handlers require focused Operations ports. Replay checks current explicit
+instance authority before returning a completed receipt; ordinary tenant admin
+or wildcard authority is insufficient. Job mutation, audit and safe idempotency
+completion share one PostgreSQL transaction. A matching retry returns the
+original result without requeuing again; changed request bytes conflict.
+PostgreSQL is required for local evaluation. Raw job payloads and failure
+details are omitted. Test-only external operator fixtures are not evidence of
+database rollback or durability.
 
 ### CI, Source, Deployment, And Collectors
 
