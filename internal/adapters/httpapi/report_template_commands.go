@@ -53,30 +53,16 @@ func (s *Server) createReportTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in packageapp.CreateReportTemplateInput
-	if s.reportTemplateCommands != nil {
-		s.createDurableWithLimit(w, r, app.ReportTemplateRequestLimit, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeReportTemplateCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapCustomerPackageAccessError(s.reportTemplateCommands.AuthorizeReportTemplateCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.reportTemplateCommands.CreateCustomReportTemplate(ctx, a, in)
-			return 201, reportTemplateFromCommands(v), mapCustomerPackageAccessError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.ReportTemplateRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localReportTemplates.CreateCustomReportTemplate(ctx, a, app.CreateReportTemplateInput{Name: in.Name, Version: in.Version, ReportType: in.ReportType, AllowedFields: in.AllowedFields, Template: in.Template})
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurableWithLimit(w, r, app.ReportTemplateRequestLimit, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeReportTemplateCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localReportTemplates.AuthorizeReportTemplateCreation(r.Context(), a, in)
+		return mapCustomerPackageAccessError(s.reportTemplateCommands.AuthorizeReportTemplateCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.reportTemplateCommands.CreateCustomReportTemplate(ctx, a, in)
+		return 201, reportTemplateFromCommands(v), mapCustomerPackageAccessError(err)
 	})
 }
 
@@ -86,30 +72,16 @@ func (s *Server) renderReportTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in packageapp.RenderReportInput
-	if s.reportTemplateCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeReportRendering(body, r.PathValue("id"))
-			if err != nil {
-				return err
-			}
-			return mapCustomerPackageAccessError(s.reportTemplateCommands.AuthorizeReportRendering(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.reportTemplateCommands.RenderCustomReport(ctx, a, in)
-			return 201, renderedReportFromCommands(v), mapCustomerPackageAccessError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localReportTemplates.RenderCustomReport(ctx, a, app.RenderReportInput{TemplateID: in.TemplateID, SubjectType: in.SubjectType, SubjectID: in.SubjectID})
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeReportRendering(body, r.PathValue("id"))
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localReportTemplates.AuthorizeReportRendering(r.Context(), a, in)
+		return mapCustomerPackageAccessError(s.reportTemplateCommands.AuthorizeReportRendering(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.reportTemplateCommands.RenderCustomReport(ctx, a, in)
+		return 201, renderedReportFromCommands(v), mapCustomerPackageAccessError(err)
 	})
 }
 

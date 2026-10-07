@@ -41,7 +41,7 @@ func TestReportTemplatesRequireNativeReplayAndCurrentAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger, s.packages, s.localReportTemplates = nil, nil, nil
+			s.ledger, s.packages = nil, nil
 			path, body := "/v1/report-templates", `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"],"template":"inert"}`
 			if render {
 				path, body = "/v1/report-templates/template/render", `{"subject_type":"label","subject_id":"not-a-dereferenced-resource"}`

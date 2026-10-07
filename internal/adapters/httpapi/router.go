@@ -99,9 +99,6 @@ type Server struct {
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	evidenceRelationshipCommands      EvidenceRelationshipCommands
-	localReportTemplates              localReportTemplateCommands
-	localBundleImport                 localBundleImportCommand
-	localEvidenceBundles              localEvidenceBundleCommands
 	openAPIIngestionCommands          OpenAPIIngestionCommands
 	sbomIngestionCommands             SBOMIngestionCommands
 	scanIngestionCommands             VulnerabilityScanIngestionCommands

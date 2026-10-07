@@ -32,7 +32,7 @@ func TestBundleImportStrictPreflightBeforeCurrentAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.packages, s.localBundleImport = nil, nil, nil
+	s.ledger, s.packages = nil, nil
 	body := bundleImportNativeBody(t)
 	bad := []string{"", " ", "{", "null", "[]", "{}", body + " {}", string([]byte{0xff}), strings.Replace(body, `"manifest_hash":`, `"Manifest_Hash":`, 1), strings.TrimSuffix(body, "}") + `,"extra":true}`}
 	for _, field := range []string{"id", "tenant_id", "release_id", "evidence_ids", "manifest", "manifest_hash", "signature_refs", "verification_text", "schema_version", "created_at"} {
@@ -50,7 +50,7 @@ func TestBundleImportStrictPreflightBeforeCurrentAuthority(t *testing.T) {
 	}
 }
 
-func TestBundleImportCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
+func TestBundleImportCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) {
 			base, secret := testServer(t)
@@ -62,7 +62,7 @@ func TestBundleImportCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				s.ledger, s.packages, s.localBundleImport = nil, nil, nil
+				s.ledger, s.packages = nil, nil
 			}
 			body := bundleImportNativeBody(t)
 			for _, tc := range []struct {

@@ -17,7 +17,7 @@ func TestReportTemplateStrictPreflightBeforeGuards(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger, s.packages, s.localReportTemplates = nil, nil, nil
+			s.ledger, s.packages = nil, nil
 			path, body, field := "/v1/report-templates", `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"]}`, "name"
 			extra := []string{`{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":null}`, `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":[null]}`, `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"],"template":null}`}
 			if render {
@@ -35,7 +35,7 @@ func TestReportTemplateStrictPreflightBeforeGuards(t *testing.T) {
 	}
 }
 
-func TestReportTemplateCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
+func TestReportTemplateCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		for _, render := range []bool{false, true} {
 			t.Run(fmt.Sprintf("native=%t/render=%t", native, render), func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestReportTemplateCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T)
 					if err != nil {
 						t.Fatal(err)
 					}
-					s.ledger, s.packages, s.localReportTemplates = nil, nil, nil
+					s.ledger, s.packages = nil, nil
 				}
 				for _, tc := range []struct {
 					origin string

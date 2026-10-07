@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -31,30 +30,16 @@ func (s *Server) importEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in domain.EvidenceBundle
-	if s.bundleImportCommand != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeBundleImport(body)
-			if err != nil {
-				return err
-			}
-			return mapCustomerPackageAccessError(s.bundleImportCommand.AuthorizeBundleImport(ctx, a, evidenceBundleForImport(in)))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.bundleImportCommand.ImportEvidenceBundle(ctx, a, evidenceBundleForImport(in))
-			return 201, evidenceBundleImportFromCommands(v), mapCustomerPackageAccessError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localBundleImport.ImportEvidenceBundle(ctx, a, in)
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeBundleImport(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localBundleImport.AuthorizeBundleImport(r.Context(), a, evidenceBundleForImport(in))
+		return mapCustomerPackageAccessError(s.bundleImportCommand.AuthorizeBundleImport(ctx, a, evidenceBundleForImport(in)))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.bundleImportCommand.ImportEvidenceBundle(ctx, a, evidenceBundleForImport(in))
+		return 201, evidenceBundleImportFromCommands(v), mapCustomerPackageAccessError(err)
 	})
 }
 

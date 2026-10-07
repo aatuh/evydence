@@ -107,6 +107,17 @@ repository effect, reject partial responses and verify that failed commands
 do not publish core, link or supersession changes. The remaining ingestion,
 query and aggregate implementation retirement is still EVY-906 work.
 
+Report-template creation/rendering and portable bundle import/export now
+require focused Package ports. Their three broad local bindings and interfaces
+are deleted. Native field whitelists, inert template data, portable import
+receipts, signature/audit writes and saved-selection replay guards are unchanged.
+Export replay rechecks the original saved evidence IDs against current authority;
+it does not rebuild the manifest or sign again. Test-only clone adapters retain
+the legacy response guard after execution, not SQL ownership locking. Their
+failure-after-write tests check rollback of all repository effects, including
+definitions, rendered reports, receipts, bundles, signatures and audits. Other
+Package handlers and aggregate state still await retirement.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;

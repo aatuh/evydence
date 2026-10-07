@@ -11,14 +11,14 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
-func TestEvidenceBundleExportStrictPreflightAndBothProfileCookies(t *testing.T) {
+func TestEvidenceBundleExportStrictPreflightAndFixturePortCookies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &exportBundleHTTPFake{}
 	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.packages, s.localEvidenceBundles = nil, nil, nil
+	s.ledger, s.packages = nil, nil
 	bad := []string{"", " ", "{", "null", "[]", `{"Release_ID":"id"}`, `{"evidence_ids":[null]}`, `{"evidence_ids":["id\u0000"]}`, `{"release_id":"x\u0000"}`, `{"release_id":"` + strings.Repeat(" ", 1024) + `x"}`, `{"evidence_ids":["` + strings.Repeat(" ", 1024) + `x"]}`}
 	for n, body := range bad {
 		postRaw(t, s, secret, "/v1/evidence-bundles", fmt.Sprintf("invalid-%d", n), []byte(body), 400)

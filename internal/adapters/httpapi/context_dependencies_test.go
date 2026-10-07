@@ -51,14 +51,10 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 			t.Fatalf("broad evidence binding %s was not deleted", name)
 		}
 	}
-	if server.localReportTemplates != ledger {
-		t.Fatal("local report template dependency was not rebound")
-	}
-	if server.localBundleImport != ledger {
-		t.Fatal("local bundle import dependency was not rebound")
-	}
-	if server.localEvidenceBundles != ledger {
-		t.Fatal("local export dependency was not rebound")
+	for _, name := range []string{"localReportTemplates", "localBundleImport", "localEvidenceBundles"} {
+		if reflect.ValueOf(server).Elem().FieldByName(name).IsValid() {
+			t.Fatalf("broad package binding %s was not deleted", name)
+		}
 	}
 	if server.evidenceIngestion != ledger {
 		t.Fatal("evidence ingestion service was not rebound")
@@ -141,6 +137,14 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 		"evidence-creation": server.evidenceCreationCommands, "evidence-relationships": server.evidenceRelationshipCommands,
 	} {
 		commands, ok := dependency.(evidenceFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
+	for name, dependency := range map[string]any{
+		"report-template": server.reportTemplateCommands, "bundle-import": server.bundleImportCommand, "bundle-export": server.evidenceBundleCommands,
+	} {
+		commands, ok := dependency.(packageFixtureCommands)
 		if !ok || commands.ledger != ledger {
 			t.Fatalf("focused %s fixture command was not rebound", name)
 		}

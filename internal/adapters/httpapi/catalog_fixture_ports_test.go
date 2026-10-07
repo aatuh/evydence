@@ -72,6 +72,23 @@ func (e catalogFixtureReplayExecutor) WithBody(ctx context.Context, actor domain
 	})
 }
 
+// Preserve the legacy fixture's response guard, including on saved responses.
+// This post-execution guard is test-only, not a SQL ownership-locking proof.
+// Production replay authorization runs inside its focused durable transaction.
+func (e catalogFixtureReplayExecutor) WithBodyReplayAuthorization(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, authorize func(context.Context) error, authorizeReplay func(context.Context, any) error, run func(context.Context) (int, any, error)) (int, any, error) {
+	if authorizeReplay == nil {
+		return 0, nil, app.ErrValidation
+	}
+	status, response, err := e.WithBody(ctx, actor, method, path, key, body, authorize, run)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := authorizeReplay(ctx, response); err != nil {
+		return 0, nil, err
+	}
+	return status, response, nil
+}
+
 func (s *Server) bindCatalogFixturePorts(ledger *app.Ledger) {
 	commands := catalogFixtureCommands{ledger: ledger}
 	if _, fixture := s.productCommands.(catalogFixtureCommands); s.productCommands == nil || fixture {
@@ -89,10 +106,11 @@ func (s *Server) bindCatalogFixturePorts(ledger *app.Ledger) {
 }
 
 var (
-	_ ProductCommands         = catalogFixtureCommands{}
-	_ ProjectCommands         = catalogFixtureCommands{}
-	_ ReleaseCreationCommands = catalogFixtureCommands{}
-	_ DurableCommandExecutor  = catalogFixtureReplayExecutor{}
+	_ ProductCommands              = catalogFixtureCommands{}
+	_ ProjectCommands              = catalogFixtureCommands{}
+	_ ReleaseCreationCommands      = catalogFixtureCommands{}
+	_ DurableCommandExecutor       = catalogFixtureReplayExecutor{}
+	_ DurableReplayCommandExecutor = catalogFixtureReplayExecutor{}
 )
 
 type failingCatalogFixtureProduct struct {

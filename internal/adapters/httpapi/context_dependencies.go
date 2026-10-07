@@ -104,21 +104,9 @@ type ReportTemplateCommands interface {
 	RenderCustomReport(context.Context, domain.Actor, packageapp.RenderReportInput) (packagedomain.RenderedCustomReport, error)
 }
 
-type localReportTemplateCommands interface {
-	AuthorizeReportTemplateCreation(context.Context, domain.Actor, packageapp.CreateReportTemplateInput) error
-	AuthorizeReportRendering(context.Context, domain.Actor, packageapp.RenderReportInput) error
-	CreateCustomReportTemplate(context.Context, domain.Actor, app.CreateReportTemplateInput) (domain.CustomReportTemplate, error)
-	RenderCustomReport(context.Context, domain.Actor, app.RenderReportInput) (domain.RenderedCustomReport, error)
-}
-
 type BundleImportCommand interface {
 	AuthorizeBundleImport(context.Context, domain.Actor, packagedomain.EvidenceBundle) error
 	ImportEvidenceBundle(context.Context, domain.Actor, packagedomain.EvidenceBundle) (packagedomain.EvidenceBundleImport, error)
-}
-
-type localBundleImportCommand interface {
-	AuthorizeBundleImport(context.Context, domain.Actor, packagedomain.EvidenceBundle) error
-	ImportEvidenceBundle(context.Context, domain.Actor, domain.EvidenceBundle) (domain.EvidenceBundleImport, error)
 }
 
 type ReleaseBundleCommands interface {
@@ -130,11 +118,6 @@ type EvidenceBundleCommands interface {
 	AuthorizeEvidenceBundleExport(context.Context, identitydomain.Actor, string, []string) error
 	AuthorizeEvidenceBundleReplay(context.Context, identitydomain.Actor, string, []string) error
 	ExportEvidenceBundle(context.Context, identitydomain.Actor, string, []string) (packagedomain.EvidenceBundle, error)
-}
-
-type localEvidenceBundleCommands interface {
-	AuthorizeEvidenceBundleExport(context.Context, domain.Actor, string, []string) error
-	ExportEvidenceBundle(context.Context, domain.Actor, string, []string) (domain.EvidenceBundle, error)
 }
 
 type SigningKeyCommands interface {

@@ -71,6 +71,13 @@ interfaces are deleted. Native validation, authorization, append-only effects,
 exact-number handling, cookie-origin checks and replay contracts are unchanged.
 Remaining ingestion, query and aggregate retirement is still in progress.
 
+Report-template creation/rendering and portable bundle import/export handlers
+now use only focused Package ports. Three broad local bindings and interfaces
+are removed. Native input limits, field whitelists, cookie-origin protection,
+receipts, signing and replay contracts are unchanged. Export replay still
+reauthorizes the saved evidence selection without rebuilding or signing it.
+Other Package transport and aggregate retirement remain unfinished.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

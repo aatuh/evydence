@@ -35,7 +35,7 @@ func TestBundleImportRequiresNativeReplayAndCurrentAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.packages, s.localBundleImport = nil, nil, nil
+	s.ledger, s.packages = nil, nil
 	body := `{"manifest":{"bundle_version":"evidence-bundle.v1.0.0","evidence_ids":[]},"evidence_ids":[],"manifest_hash":"sha256:` + strings.Repeat("a", 64) + `"}`
 	one := postRaw(t, s, secret, "/v1/evidence-bundles/import", "original", []byte(body), 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/evidence-bundles/import", "original", []byte(body), 201))

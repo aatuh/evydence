@@ -86,43 +86,21 @@ func (s *Server) exportEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in evidenceBundleExportRequest
-	if s.evidenceBundleCommands != nil {
-		s.executeDurableCreate(w, r, app.SmallJSONRequestLimit, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeEvidenceBundleExport(body)
-			if err != nil {
-				return err
-			}
-			return mapCustomerPackageAccessError(s.evidenceBundleCommands.AuthorizeEvidenceBundleExport(ctx, a, in.ReleaseID, in.EvidenceIDs))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.evidenceBundleCommands.ExportEvidenceBundle(ctx, a, in.ReleaseID, in.EvidenceIDs)
-			return http.StatusCreated, evidenceBundleFromCommands(v), mapCustomerPackageAccessError(err)
-		}, nil, nil, func(ctx context.Context, a domain.Actor, response any) error {
-			ids, err := evidenceBundleReplaySelection(a, in, response)
-			if err != nil {
-				return err
-			}
-			return mapCustomerPackageAccessError(s.evidenceBundleCommands.AuthorizeEvidenceBundleReplay(ctx, a, in.ReleaseID, ids))
-		})
-		return
-	}
-	// Local memory has no durable ownership transaction. Guard the request and
-	// saved response explicitly; it cannot serve production composition.
-	s.createWithActorFingerprintAndResponseGuard(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localEvidenceBundles.ExportEvidenceBundle(ctx, a, in.ReleaseID, in.EvidenceIDs)
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.executeDurableCreate(w, r, app.SmallJSONRequestLimit, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeEvidenceBundleExport(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localEvidenceBundles.AuthorizeEvidenceBundleExport(r.Context(), a, in.ReleaseID, in.EvidenceIDs)
-	}, func(ctx context.Context, a domain.Actor, response any) error {
+		return mapCustomerPackageAccessError(s.evidenceBundleCommands.AuthorizeEvidenceBundleExport(ctx, a, in.ReleaseID, in.EvidenceIDs))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.evidenceBundleCommands.ExportEvidenceBundle(ctx, a, in.ReleaseID, in.EvidenceIDs)
+		return http.StatusCreated, evidenceBundleFromCommands(v), mapCustomerPackageAccessError(err)
+	}, nil, nil, func(ctx context.Context, a domain.Actor, response any) error {
 		ids, err := evidenceBundleReplaySelection(a, in, response)
 		if err != nil {
 			return err
 		}
-		return s.localEvidenceBundles.AuthorizeEvidenceBundleExport(ctx, a, in.ReleaseID, ids)
+		return mapCustomerPackageAccessError(s.evidenceBundleCommands.AuthorizeEvidenceBundleReplay(ctx, a, in.ReleaseID, ids))
 	})
 }
