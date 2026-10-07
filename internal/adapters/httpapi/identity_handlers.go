@@ -128,18 +128,7 @@ func (s *Server) linkSSOIdentity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {
-	if s.ssoSessionCommands != nil {
-		s.createDurableSSOSession(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeSSOSessionRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		session, secret, err := s.identityAccess.CreateSSOSession(ctx, actor, app.CreateSSOSessionInput(in))
-		return http.StatusCreated, map[string]any{"session": session, "secret": secret}, err
-	})
+	s.createDurableSSOSession(w, r)
 }
 
 func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
@@ -153,15 +142,8 @@ func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	var verification domain.ProviderVerification
-	var session domain.SSOSession
-	var secret string
-	if s.ssoExchangeCommands != nil {
-		v, result, issued, exchangeErr := s.ssoExchangeCommands.ExchangeSSOCredential(r.Context(), in)
-		verification, session, secret, err = app.ProviderVerificationFromIdentity(v), domain.SSOSession(result), issued, mapIdentityCommandError(exchangeErr)
-	} else {
-		verification, session, secret, err = s.identityAccess.ExchangeSSOCredential(r.Context(), app.ExchangeSSOCredentialInput(in))
-	}
+	v, result, secret, exchangeErr := s.ssoExchangeCommands.ExchangeSSOCredential(r.Context(), in)
+	verification, session, err := app.ProviderVerificationFromIdentity(v), domain.SSOSession(result), mapIdentityCommandError(exchangeErr)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -175,17 +157,7 @@ func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.ssoSessionRevocationCommands != nil {
-		s.revokeDurableSSOSession(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeSSODiscoveryRequest(body); err != nil {
-			return 0, nil, err
-		}
-		session, err := s.identityAccess.RevokeSSOSession(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, session, err
-	})
+	s.revokeDurableSSOSession(w, r)
 }
 
 func (s *Server) logoutSSOSession(w http.ResponseWriter, r *http.Request) {
@@ -193,20 +165,7 @@ func (s *Server) logoutSSOSession(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.ssoSessionRevocationCommands != nil {
-		s.logoutDurableSSOSession(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeSSODiscoveryRequest(body); err != nil {
-			return 0, nil, err
-		}
-		session, err := s.identityAccess.RevokeCurrentSSOSession(ctx, actor)
-		if err == nil {
-			clearSSOSessionCookie(w)
-		}
-		return http.StatusOK, session, err
-	})
+	s.logoutDurableSSOSession(w, r)
 }
 
 func setSSOSessionCookie(w http.ResponseWriter, secret string, expiresAt time.Time) {

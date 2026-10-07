@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
@@ -502,14 +501,4 @@ type commandScope interface {
 type idempotencyExecutor interface {
 	WithBody(context.Context, domain.Actor, string, string, string, []byte, func(context.Context, commandScope) (int, any, error)) (int, any, error)
 	WithBodyDigest(context.Context, domain.Actor, string, string, string, string, func(context.Context, commandScope) (int, any, error)) (int, any, error)
-}
-
-// identityAccessService is the HTTP-facing compatibility port for identity
-// and access commands and queries. The legacy Ledger implements this port while
-// callers migrate to the context-owned application service.
-type identityAccessService interface {
-	CreateSSOSession(context.Context, domain.Actor, app.CreateSSOSessionInput) (domain.SSOSession, string, error)
-	ExchangeSSOCredential(context.Context, app.ExchangeSSOCredentialInput) (domain.ProviderVerification, domain.SSOSession, string, error)
-	RevokeSSOSession(context.Context, domain.Actor, string) (domain.SSOSession, error)
-	RevokeCurrentSSOSession(context.Context, domain.Actor) (domain.SSOSession, error)
 }

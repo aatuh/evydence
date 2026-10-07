@@ -88,6 +88,16 @@ privacy and cancellation regressions. Memory bridges do not prove SQL locking,
 provider configuration or durability. Remaining session and aggregate cleanup
 is still unfinished under EVY-906.
 
+SSO session issuance, exchange, revocation and logout now require focused
+Identity commands. Their four aggregate handler fallbacks and the entire broad
+`identityAccess` Server field/interface are deleted. Native one-time secrets,
+credential verification, current authority, replay, revocation and post-commit
+cookie behavior are unchanged. Test-only memory readers and adapters preserve
+real isolated writes and public exchange, with secret-free saved responses,
+rollback, current-tenant/session, cancellation and cookie regressions. Affected
+references require PostgreSQL for evaluation. Other aggregate retirement and
+full-ticket validation remain unfinished under EVY-906.
+
 Deployment environment/event creation, list and event point handlers now use
 only focused Operations ports. Their broad local transport dependency and
 interface are deleted. Native authorization, cookie-origin protection,

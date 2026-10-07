@@ -1194,7 +1194,7 @@ separate focused Identity command and one bounded, hash-free session row held
 through lifecycle/audit/replay commit. Administrative invalidation does not
 depend on active or present user/provider parents or unexpired credentials;
 self logout requires the caller's exact user/session. HTTP cookie mutations
-require a matching HTTPS Origin in both profiles, and durable logout clears its
+require a matching HTTPS Origin, and durable logout clears its
 cookie only after successful commit. Credential exchange orchestration now
 lives in a standalone Identity command with four read operations and a narrow
 snapshot-validation/session/verification/audit transaction port. It does not
@@ -1218,8 +1218,18 @@ defensive-copy representation in both preflight and comparison. Live tests cover
 signed OIDC login on fresh servers with empty compatibility state, real session
 authentication, fresh credentials on repeated exchange, no replay receipts,
 identity changes between verification and commit, oversized projections, and
-write/audit/deferred-commit rollback without cookies. Production Ledger startup
-removal remains open. Identity linking
+write/audit/deferred-commit rollback without cookies. Session issuance, exchange,
+revocation and logout handlers now require their focused commands, with no
+aggregate fallback. The broad `identityAccess` Server field and transport
+interface are deleted. Focused memory issuance checks current active-user and
+provider ownership; revocation reads detached, bounded hash-free metadata even
+when login parents are unavailable. Test-only adapters preserve real isolated
+issuance/revocation and the public exchange's self-owned verification/transaction
+algorithm. Their regressions cover complete metadata replay, no secret reissue,
+post-write rollback, current authority, cancellation, credential invalidation
+and post-commit cookie clearing; they are not SQL-locking or durability proof.
+PostgreSQL is required for local evaluation. Other handler and aggregate
+deletion remains EVY-906 work. Identity linking
 now uses a separate focused Identity command with a tenant/projection lock and
 one current user/provider/email existence query. Parent share locks hold
 ownership and email through link/audit/replay commit; no user display metadata

@@ -222,13 +222,13 @@ func TestNativeServerInstallsNoAggregateOrLocalFallbackAndPreservesRoutes(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.ledger != nil || s.idempotency != nil || s.identityAccess != nil {
+	if s.ledger != nil || s.idempotency != nil {
 		t.Fatal("native server installed aggregate or local dependencies")
 	}
 	if reflect.ValueOf(s).Elem().FieldByName("localDeployments").IsValid() {
 		t.Fatal("retired deployment fallback binding is still present")
 	}
-	for _, name := range []string{"localEvidenceCreation", "localEvidenceRelationships", "localReportTemplates", "localBundleImport", "localEvidenceBundles", "packages", "verification", "riskDecisions", "evidenceIngestion"} {
+	for _, name := range []string{"identityAccess", "localEvidenceCreation", "localEvidenceRelationships", "localReportTemplates", "localBundleImport", "localEvidenceBundles", "packages", "verification", "riskDecisions", "evidenceIngestion"} {
 		if reflect.ValueOf(s).Elem().FieldByName(name).IsValid() {
 			t.Fatalf("retired evidence fallback binding %s is still present", name)
 		}

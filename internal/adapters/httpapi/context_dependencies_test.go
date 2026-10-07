@@ -37,8 +37,17 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if !ok || executor.ledger != ledger {
 		t.Fatal("idempotency executor was not rebound")
 	}
-	if server.identityAccess != ledger {
-		t.Fatal("identity access service was not rebound")
+	if reflect.ValueOf(server).Elem().FieldByName("identityAccess").IsValid() {
+		t.Fatal("broad identity binding was not deleted")
+	}
+	if commands, ok := server.ssoSessionCommands.(ssoSessionFixtureCommands); !ok || commands.ledger != ledger {
+		t.Fatal("focused session fixture was not rebound")
+	}
+	if commands, ok := server.ssoSessionRevocationCommands.(ssoSessionFixtureCommands); !ok || commands.ledger != ledger {
+		t.Fatal("focused revocation fixture was not rebound")
+	}
+	if commands, ok := server.ssoExchangeCommands.(ssoSessionFixtureCommands); !ok || commands.ledger != ledger {
+		t.Fatal("focused exchange fixture was not rebound")
 	}
 	if commands, ok := server.membershipCommands.(membershipFixtureCommands); !ok || commands.ledger != ledger {
 		t.Fatal("focused membership fixture was not rebound")

@@ -130,7 +130,6 @@ type Server struct {
 	outboxDiagnosticsQuery            OutboxDiagnosticsQuery
 	outboxReplayCommand               OutboxReplayCommand
 	idempotency                       idempotencyExecutor
-	identityAccess                    identityAccessService
 	ssoExchangeCommands               SSOExchangeCommands
 	providerVerificationCommands      ProviderVerificationCommands
 	evidenceSummaryCommands           EvidenceSummaryCommands

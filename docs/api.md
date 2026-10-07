@@ -1022,6 +1022,9 @@ material. See the [compatibility note](reference/api-versioning.md#unreleased-oi
 
 #### SSO Session Revocation And Logout
 
+Both handlers require focused Identity commands, with no aggregate transport
+fallback. PostgreSQL is required for local evaluation.
+
 `POST /v1/sso/sessions/{id}/revoke` requires current tenant-wide
 `identity:admin` authority and a current tenant-owned session. It can invalidate
 an expired session or one whose user/provider is inactive or missing; it does
@@ -1039,7 +1042,7 @@ durable commit; error responses do not clear it. Admin revocation sets no cookie
 
 Both routes require an idempotency key and accept only an empty body or one
 strict empty JSON object, at most 64 KiB. Null, fields, duplicate members,
-trailing values and malformed UTF-8 return `400`. In both profiles, cookie-only
+trailing values and malformed UTF-8 return `400`. Cookie-only
 mutations require exactly one `Origin` header containing an HTTPS origin with
 the same host/port as the request `Host`; missing, ambiguous or foreign origins
 return `403`. HTTPS reverse proxies must preserve the public `Host`. An explicit
@@ -1052,11 +1055,16 @@ inventory or credential hash is loaded. Stored identity/prefix/version fields
 are bounded at 1 KiB each and stored groups JSON at 128 KiB; oversized or invalid
 stored metadata returns `409` without partial output. New revocation timestamps
 use UTC microseconds; existing immutable session fields/hashes are unchanged.
-Local memory retains its explicit non-durable compatibility path and shares
-body, path and cookie-Origin rules. See the
+Test-only adapters preserve real isolated revocation, authorization/replay,
+cookie-Origin and post-commit clearing checks. Focused memory readers return
+detached, bounded hash-free metadata without requiring usable login parents;
+memory snapshots do not prove SQL locking or durability. See the
 [compatibility note](reference/api-versioning.md#unreleased-sso-session-revocation-boundary).
 
 #### Administrator-Issued SSO Sessions
+
+The handler requires a focused Identity command, with no aggregate transport
+fallback. PostgreSQL is required for local evaluation.
 
 `POST /v1/sso/sessions` requires current tenant-wide `identity:admin` authority,
 a current active tenant-owned user and a tenant-owned provider. The provider
@@ -1085,8 +1093,9 @@ read: a subsequently revoked or expired secret remains unusable even though
 the original metadata can be replayed. New issuance with an elapsed request
 expiry fails; completed metadata replay may outlive that expiry.
 
-Local memory shares input rules through its explicit non-durable compatibility
-path. Historical rows/receipts are not rewritten. See the
+Test-only adapters preserve actual isolated issuance, current-parent preflight
+and secret-free saved responses; preflight cannot mint credentials, read a clock
+or allocate IDs. Historical rows/receipts are not rewritten. See the
 [compatibility note](reference/api-versioning.md#unreleased-sso-session-issuance-boundary).
 
 #### SSO Identity Linking
@@ -1128,6 +1137,9 @@ See the [compatibility note](reference/api-versioning.md#unreleased-sso-identity
 
 #### SSO Credential Exchange
 
+The handler requires the focused exchange command, with no aggregate transport
+fallback. PostgreSQL is required for local evaluation.
+
 `POST /v1/sso/session-exchanges` is public and accepts `provider_id`, `subject`,
 and exactly one nonempty `id_token` or `saml_assertion`. It verifies credentials
 against configured local public trust, requires a verified tenant-owned identity
@@ -1135,7 +1147,7 @@ link and active user, and requires current user or mapped provider-group grants.
 It does not perform live provider verification, redirect/callback orchestration,
 or external group synchronization.
 
-Both profiles reject duplicate/unknown fields, non-object bodies, explicit null
+The API rejects duplicate/unknown fields, non-object bodies, explicit null
 fields, invalid UTF-8, and NUL-bearing text with `400`. The provider ID is bounded
 at 1 KiB and subject/credential text at 64 KiB each before trimming, within the
 64 KiB request-body limit. Omitted or zero `expires_at` defaults to eight hours;
@@ -1160,8 +1172,10 @@ SameSite=Strict cookie scoped to `/v1`.
 
 This route does not create idempotency receipts. Repeated valid requests may
 issue fresh sessions; no one-time consumption of provider tokens/assertions is
-claimed. Only session hashes are stored. Local memory remains non-durable, and
-production Ledger startup removal is still pending.
+claimed. Only session hashes are stored. Test-only adapters retain the actual
+local verification/transaction algorithm and map the complete detached public
+verification profile; they do not establish SQL locking or durability. Remaining
+aggregate deletion is EVY-906 work, not a supported local-memory runtime.
 
 #### Provider Identity Verification Receipts
 
