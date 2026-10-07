@@ -1931,9 +1931,15 @@ are separate from stored selection filters, preserving evidence/build/package
 root behavior without loading payloads or manifests. See
 [evidence summary creation](api.md#evidence-summary-creation) for limits and
 the customer-package/redaction distinction. The handler requires focused ports
-only. Test-only guards use current bounded memory root/parent projections and
-actual focused policy, without citation reads or report generation. Raw
-selection filters are not narrowed by inferred authorization parents.
+only. Summary/draft HTTP fixtures also run real focused commands on memory
+transactions. Summary ports select current repository citation metadata without
+publishing evidence caches to Ledger, bound counts/bytes before projection,
+and revalidate the current root and exact citation metadata before insertion.
+Read-only guards use bounded root/parent projections and actual focused policy;
+they panic on citation reads, clocks, IDs, report writes or audit effects. Raw
+selection filters are not narrowed by inferred authorization parents. Historical
+summary declarations are excluded from production and retained unchanged in
+`internal/app/legacy_summary_oracle_test.go` solely for package-local regressions.
 PostgreSQL is required for local evaluation. Both summary/draft regressions
 cover whole-state rollback, complete DTO/citation/hash/audit bindings, current
 grants, foreign roots, permission-bound replay and detached metadata; memory

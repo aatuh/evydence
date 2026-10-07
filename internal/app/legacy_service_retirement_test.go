@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestLegacyQuestionnaireGeneratorsAreAbsentFromProduction(t *testing.T) {
+func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
 		"CreateQuestionnaireTemplateInput": true, "CreateQuestionnairePackageInput": true, "CreateQuestionnaireDraftInput": true,
 		"CreateQuestionnaireTemplate": true, "AuthorizeQuestionnaireTemplateCreate": true, "cloneQuestionnaireTemplateDTO": true,
@@ -23,6 +23,7 @@ func TestLegacyQuestionnaireGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"validateQuestionnaireTemplateControlsLocked": true, "prepareLocalAnswerLibraryInput": true,
 		"AuthorizeQuestionnaireAnswerLibraryCreate": true, "authorizeAnswerLibraryCreateLocked": true,
 		"answerLibraryCitationParentsLocked": true, "answerLibraryEntryToContext": true, "cloneAnswerLibraryDTO": true,
+		"CreateEvidenceSummaryInput": true, "CreateEvidenceSummary": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -48,7 +49,7 @@ func TestLegacyQuestionnaireGeneratorsAreAbsentFromProduction(t *testing.T) {
 				declared = value.Name.Name
 			}
 			if retired[declared] {
-				t.Errorf("%s retains historical questionnaire declaration %s", name, declared)
+				t.Errorf("%s retains historical package declaration %s", name, declared)
 			}
 			return true
 		})

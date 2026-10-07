@@ -23,6 +23,8 @@ type questionnaireNativeRepository interface {
 type questionnaireNativeDraftRepository interface {
 	packageapp.QuestionnaireDraftReader
 	InsertFocusedQuestionnaireDraft(context.Context, packagedomain.QuestionnaireDraft) error
+	packageapp.EvidenceSummaryReader
+	InsertFocusedEvidenceSummary(context.Context, packagedomain.EvidenceSummary) error
 }
 type questionnaireNativeFixtureTransactions struct {
 	catalogFixtureCommands
@@ -64,6 +66,26 @@ func (f questionnaireNativeFixtureTransactions) ExecuteQuestionnaireDraft(ctx co
 }
 func (f questionnaireNativeFixtureTransactions) ExecuteAnswerLibrary(ctx context.Context, tenant string, fn func(context.Context, packageapp.AnswerLibraryTransaction) error) error {
 	return f.execute(ctx, tenant, func(ctx context.Context, tx questionnaireNativeFixtureTransaction) error { return fn(ctx, tx) })
+}
+func (f questionnaireNativeFixtureTransactions) ExecuteEvidenceSummary(ctx context.Context, tenant string, fn func(context.Context, packageapp.EvidenceSummaryTransaction) error) error {
+	return f.execute(ctx, tenant, func(ctx context.Context, tx questionnaireNativeFixtureTransaction) error { return fn(ctx, tx) })
+}
+func (tx questionnaireNativeFixtureTransaction) ReadEvidenceSummaryScope(ctx context.Context, tenant, kind, id string) (packageapp.EvidenceSummaryScope, error) {
+	v, err := tx.questionnaireNativeDraftRepository.ReadEvidenceSummaryScope(ctx, tenant, kind, id)
+	return v, portalFixtureError(err)
+}
+func (tx questionnaireNativeFixtureTransaction) ReadEvidenceSummaryItems(ctx context.Context, s packageapp.EvidenceSummaryScope, ids []string) ([]packageapp.EvidenceSummaryItem, error) {
+	if tx.readOnly {
+		panic("summary preflight read citation metadata")
+	}
+	v, err := tx.questionnaireNativeDraftRepository.ReadEvidenceSummaryItems(ctx, s, ids)
+	return v, portalFixtureError(err)
+}
+func (tx questionnaireNativeFixtureTransaction) InsertEvidenceSummary(ctx context.Context, v packagedomain.EvidenceSummary) error {
+	if tx.readOnly {
+		panic("summary preflight wrote a report")
+	}
+	return portalFixtureError(tx.InsertFocusedEvidenceSummary(ctx, v))
 }
 func (tx questionnaireNativeFixtureTransaction) ReadAnswerLibraryScope(ctx context.Context, tenant, product, release string) (packageapp.AnswerLibraryScope, error) {
 	v, err := tx.questionnaireNativeRepository.ReadAnswerLibraryScope(ctx, tenant, product, release)
@@ -160,4 +182,9 @@ func (f questionnaireFixtureCommands) nativeAnswerLibrary(readOnly bool) (*packa
 	a := packagequery.NewAnswerLibraryAuthorizer()
 	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
 	return packageapp.NewAnswerLibraryCommands(packageapp.AnswerLibraryCommandConfig{Transactions: questionnaireNativeFixtureTransactions{f.catalogFixtureCommands, readOnly, a}, Authorizer: a, Clock: clock, IDs: ids})
+}
+func (f summaryDraftFixtureCommands) nativeSummary(readOnly bool) (*packageapp.EvidenceSummaryCommands, error) {
+	a := packagequery.NewEvidenceSummaryAuthorizer()
+	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
+	return packageapp.NewEvidenceSummaryCommands(packageapp.EvidenceSummaryCommandConfig{Transactions: questionnaireNativeFixtureTransactions{f.catalogFixtureCommands, readOnly, a}, Authorizer: a, Clock: clock, IDs: ids})
 }
