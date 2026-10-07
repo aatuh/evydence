@@ -89,7 +89,7 @@ func TestRetentionMarkerHTTPNativeReplayAndGuardErrors(t *testing.T) {
 
 func TestRetentionMarkerHTTPStrictBodiesCookiesAndLocalReplayAuthority(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		base, secret := testServer(t)
+		base, secret := operationsTestServer(t)
 		a, err := base.authn.Authenticate(t.Context(), secret)
 		if err != nil {
 			t.Fatal(err)
@@ -172,7 +172,7 @@ func TestRetentionMarkerHTTPStrictBodiesCookiesAndLocalReplayAuthority(t *testin
 			f.guards, f.writes = 0, 0
 		}
 	}
-	base, secret := testServer(t)
+	base, secret := operationsTestServer(t)
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)

@@ -75,6 +75,16 @@ tenant/grant-filtered read and metadata-detachment regressions. Affected source
 API/reference descriptions now require PostgreSQL for local evaluation; schemas
 are unchanged. Other aggregate dependencies remain unfinished.
 
+Incident, signed-webhook, incident-report and retention-marker/report handlers
+now require focused ports. Eight handler fallbacks across nine routes are
+removed. Native authorization, signed callback/replay protocols, cookie Origin,
+input limits and atomic PostgreSQL commands are unchanged. Test-only fixtures
+use focused transaction ownership readers for real preflight, preserve isolated
+historical writes and add full-state rollback, callback recovery/replay, current
+grant/tenant and read-only DTO/metadata-detachment regressions. The affected
+API/architecture references no longer advertise a local-memory runtime.
+Remaining aggregate retirement is still in progress under EVY-906.
+
 Generic evidence creation, supersession, linking and lifecycle-event handlers
 now use only focused Evidence ports. Their two broad local dependencies and
 interfaces are deleted. Native validation, authorization, append-only effects,

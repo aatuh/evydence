@@ -100,6 +100,18 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if reader, ok := server.sourceRepositoryQuery.(sourceRepositoryPageFixture); !ok || reader.ledger != ledger {
 		t.Fatal("focused source repository page fixture was not rebound")
 	}
+	for name, dependency := range map[string]any{"incident": server.incidentCommands, "incident-webhook": server.incidentWebhookCommands, "retention-marker": server.retentionMarkerCommands} {
+		commands, ok := dependency.(operationsFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
+	if reader, ok := server.incidentReportQuery.(incidentReportFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused incident report fixture was not rebound")
+	}
+	if reader, ok := server.retentionQuery.(retentionReportFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused retention report fixture was not rebound")
+	}
 	for name, dependency := range map[string]any{
 		"evidence": server.evidencePointQuery, "sbom": server.sbomPointQuery,
 		"scan": server.vulnerabilityScanPointQuery, "contract": server.openAPIContractPointQuery,

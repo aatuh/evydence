@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 )
@@ -43,40 +41,20 @@ func (s *Server) createRetentionMarker(w http.ResponseWriter, r *http.Request, o
 		writeProblem(w, r, err)
 		return
 	}
-	if s.retentionMarkerCommands != nil {
-		var in operationsapp.RetentionOverrideInput
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeRetentionMarkerRequest(body, override)
-			if err != nil {
-				return err
-			}
-			return mapDeploymentCommandError(s.retentionMarkerCommands.AuthorizeRetentionMarker(ctx, a, in.ScopeType, in.ScopeID))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			if override {
-				v, err := s.retentionMarkerCommands.CreateRetentionOverride(ctx, a, in)
-				return http.StatusCreated, domain.RetentionOverride(v), mapDeploymentCommandError(err)
-			}
-			v, err := s.retentionMarkerCommands.CreateLegalHold(ctx, a, in.RetentionMarkerInput)
-			return http.StatusCreated, domain.LegalHold(v), mapDeploymentCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeRetentionMarkerRequest(body, override)
+	var in operationsapp.RetentionOverrideInput
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
+		var err error
+		in, err = decodeRetentionMarkerRequest(body, override)
 		if err != nil {
-			return 0, nil, err
+			return err
 		}
+		return mapDeploymentCommandError(s.retentionMarkerCommands.AuthorizeRetentionMarker(ctx, a, in.ScopeType, in.ScopeID))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
 		if override {
-			v, err := s.ledger.CreateRetentionOverride(ctx, a, app.CreateRetentionOverrideInput{ScopeType: in.ScopeType, ScopeID: in.ScopeID, Reason: in.Reason, Owner: in.Owner, RetentionUntil: in.RetentionUntil})
-			return http.StatusCreated, v, err
+			v, err := s.retentionMarkerCommands.CreateRetentionOverride(ctx, a, in)
+			return http.StatusCreated, domain.RetentionOverride(v), mapDeploymentCommandError(err)
 		}
-		v, err := s.ledger.CreateLegalHold(ctx, a, app.CreateLegalHoldInput{ScopeType: in.ScopeType, ScopeID: in.ScopeID, Reason: in.Reason, Owner: in.Owner})
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if _, err := decodeRetentionMarkerRequest(body, override); err != nil {
-			return nil, err
-		}
-		return body, mapDeploymentCommandError(application.AuthorizeTenantWideScope(r.Context(), a, "admin"))
+		v, err := s.retentionMarkerCommands.CreateLegalHold(ctx, a, in.RetentionMarkerInput)
+		return http.StatusCreated, domain.LegalHold(v), mapDeploymentCommandError(err)
 	})
 }

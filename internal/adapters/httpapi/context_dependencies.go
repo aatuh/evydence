@@ -52,7 +52,7 @@ type MetricsQuery interface {
 }
 
 // RetentionQuery reads a tenant-wide report from a consistent durable
-// projection; local memory retains its explicit Ledger-backed path.
+// projection without an aggregate transport fallback.
 type RetentionQuery interface {
 	Report(context.Context, domain.Actor, string, string) (operationsdomain.RetentionReport, error)
 }

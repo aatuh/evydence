@@ -2,9 +2,6 @@ package httpapi
 
 import (
 	"net/http"
-
-	"github.com/aatuh/evydence/internal/domain"
-	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 )
 
 func (s *Server) createLegalHold(w http.ResponseWriter, r *http.Request) {
@@ -25,16 +22,9 @@ func (s *Server) retentionReport(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, filterErr)
 		return
 	}
-	var report domain.RetentionReport
-	var err error
-	if s.retentionQuery != nil {
-		var focused operationsdomain.RetentionReport
-		focused, err = s.retentionQuery.Report(r.Context(), actor, scopeType, scopeID)
-		report = retentionReportFromQuery(focused)
-		err = mapInstanceAdminQueryError(err)
-	} else {
-		report, err = s.ledger.RetentionReport(r.Context(), actor, scopeType, scopeID)
-	}
+	focused, err := s.retentionQuery.Report(r.Context(), actor, scopeType, scopeID)
+	report := retentionReportFromQuery(focused)
+	err = mapInstanceAdminQueryError(err)
 	if err != nil {
 		writeProblem(w, r, err)
 		return

@@ -120,6 +120,21 @@ cover tenant/grant filtering, complete pages, cancellation and detached metadata
 Runtime readers continue to filter and limit in PostgreSQL, not these fixture
 inventories. Other contexts and the aggregate itself remain EVY-906 work.
 
+Incident creation/timeline/tasks, signed receiver creation/ingress, incident
+reports, legal holds, retention extensions and retention reports now require
+focused Operations/Package ports. Eight handler fallbacks across nine routes
+are deleted. Native current ownership/grants, signature-before-parsing,
+timestamp/replay protocols, cookie-origin checks and atomic writes are retained.
+Test-only adapters run actual native preflight algorithms on focused memory
+transaction readers; writes retain the isolated historical commands. No guard
+may invoke effects, private webhook reads, clocks or IDs. The signed callback
+fixture retains its separate real business-replay unit of work, not HTTP
+idempotency. Six full-state write rollback/replay regressions, callback
+failure-after-insert recovery and read-only report/metadata-detachment tests
+are separate from live PostgreSQL lock, restart and concurrency evidence.
+The memory readers validate coherent incident parents and selected retention
+root ownership without consulting Ledger; they do not model SQL row locks.
+
 Evidence list/search and point reads, lifecycle pages, SBOM documents/components,
 scan/contract points, VEX documents/reports and both VEX previews also require
 focused query ports. Their twelve fallback branches and sixteen obsolete broad-
@@ -495,7 +510,7 @@ deliberately separate incident/remediation release scopes. Record, principal
 audit, and durable replay completion join one active transaction, including
 pending incidents in compound commands. Live tests forbid Ledger refreshes,
 check ownership locks/reparenting, and inject record/audit/completion/commit
-failures. Local memory retains its explicit compatibility path. See
+failures. Local evaluation uses PostgreSQL. See
 [incident commands](api.md#incident-commands) for input and compatibility
 limits.
 
@@ -511,9 +526,9 @@ audit append atomically, including pending parents in compound commands.
 Concurrent retry, restart, receiver revocation/key replacement, evidence
 reparenting, large unrelated documents, and insertion/audit/commit failures
 have narrow live tests. Human receiver creation additionally joins durable
-HTTP idempotency completion. Local memory shares the pure signing protocol,
-not an authoritative production cache. See [signed incident webhooks](api.md#signed-incident-webhooks)
-for protocol and migration limits. Startup Ledger retirement remains EVY-905 work.
+HTTP idempotency completion. The pure signing protocol is also used by test
+fixtures, not a supported memory API. See [signed incident webhooks](api.md#signed-incident-webhooks)
+for protocol and migration limits. Remaining aggregate retirement is EVY-906 work.
 
 ## Bounded-context transition
 

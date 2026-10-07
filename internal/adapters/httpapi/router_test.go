@@ -1658,7 +1658,7 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 }
 
 func TestRiskWorkflowHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "risk2-prod", map[string]any{"name": "Risk Product", "slug": "risk-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "risk2-release", map[string]any{"product_id": productID, "version": "4.0.0"}, http.StatusCreated)
@@ -1783,7 +1783,7 @@ func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
 }
 
 func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	orgBody := postJSON(t, server, secret, "/v1/organizations", "ent-org", map[string]any{"name": "Example", "slug": "example"}, http.StatusCreated)
 	orgID := dataField(t, orgBody, "id")
 	userBody := postJSON(t, server, secret, "/v1/users", "ent-user", map[string]any{"organization_id": orgID, "email": "Admin@Example.test", "display_name": "Admin"}, http.StatusCreated)

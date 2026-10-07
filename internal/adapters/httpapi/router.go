@@ -1262,114 +1262,23 @@ func (s *Server) getDeployment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createIncident(w http.ResponseWriter, r *http.Request) {
-	if s.incidentCommands != nil {
-		s.createDurableIncident(w, r)
-		return
-	}
-	var req struct {
-		ProductID string    `json:"product_id"`
-		ReleaseID string    `json:"release_id"`
-		Title     string    `json:"title"`
-		Severity  string    `json:"severity"`
-		OpenedAt  time.Time `json:"opened_at"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		incident, err := s.ledger.CreateIncident(ctx, actor, app.CreateIncidentInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, Title: req.Title, Severity: req.Severity, OpenedAt: req.OpenedAt})
-		return http.StatusCreated, incident, err
-	})
+	s.createDurableIncident(w, r)
 }
 
 func (s *Server) recordIncidentTimeline(w http.ResponseWriter, r *http.Request) {
-	if s.incidentCommands != nil {
-		s.recordDurableIncidentTimeline(w, r)
-		return
-	}
-	var req struct {
-		EventType  string    `json:"event_type"`
-		Summary    string    `json:"summary"`
-		EvidenceID string    `json:"evidence_id"`
-		OccurredAt time.Time `json:"occurred_at"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		event, err := s.ledger.RecordIncidentTimelineEvent(ctx, actor, r.PathValue("id"), app.RecordIncidentTimelineInput{EventType: req.EventType, Summary: req.Summary, EvidenceID: req.EvidenceID, OccurredAt: req.OccurredAt})
-		return http.StatusCreated, event, err
-	})
+	s.recordDurableIncidentTimeline(w, r)
 }
 
 func (s *Server) createIncidentWebhookReceiver(w http.ResponseWriter, r *http.Request) {
-	if s.incidentWebhookCommands != nil {
-		s.createDurableIncidentWebhookReceiver(w, r)
-		return
-	}
-	var req struct {
-		Name      string `json:"name"`
-		Provider  string `json:"provider"`
-		PublicKey string `json:"public_key"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		receiver, err := s.ledger.CreateIncidentWebhookReceiver(ctx, actor, app.CreateIncidentWebhookReceiverInput{IncidentID: r.PathValue("id"), Name: req.Name, Provider: req.Provider, PublicKey: req.PublicKey})
-		return http.StatusCreated, receiver, err
-	})
+	s.createDurableIncidentWebhookReceiver(w, r)
 }
 
 func (s *Server) receiveIncidentWebhook(w http.ResponseWriter, r *http.Request) {
-	if s.incidentWebhookCommands != nil {
-		s.receiveDurableIncidentWebhook(w, r)
-		return
-	}
-	body, err := readBody(r)
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	timestamp, err := time.Parse(time.RFC3339, strings.TrimSpace(r.Header.Get("X-Evydence-Webhook-Timestamp")))
-	if err != nil {
-		writeProblem(w, r, app.ErrValidation)
-		return
-	}
-	record, event, err := s.ledger.HandleIncidentWebhook(r.Context(), app.HandleIncidentWebhookInput{
-		ReceiverID: r.PathValue("receiver_id"),
-		EventID:    r.Header.Get("X-Evydence-Webhook-Event-ID"),
-		Timestamp:  timestamp,
-		Signature:  r.Header.Get("X-Evydence-Webhook-Signature"),
-		Body:       body,
-	})
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	writeData(w, http.StatusCreated, map[string]any{"webhook_event": record, "timeline_event": event})
+	s.receiveDurableIncidentWebhook(w, r)
 }
 
 func (s *Server) createRemediationTask(w http.ResponseWriter, r *http.Request) {
-	if s.incidentCommands != nil {
-		s.createDurableRemediationTask(w, r)
-		return
-	}
-	var req struct {
-		IncidentID string     `json:"incident_id"`
-		ReleaseID  string     `json:"release_id"`
-		Title      string     `json:"title"`
-		Owner      string     `json:"owner"`
-		DueAt      *time.Time `json:"due_at"`
-		EvidenceID string     `json:"evidence_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		task, err := s.ledger.CreateRemediationTask(ctx, actor, app.CreateRemediationTaskInput{IncidentID: req.IncidentID, ReleaseID: req.ReleaseID, Title: req.Title, Owner: req.Owner, DueAt: req.DueAt, EvidenceID: req.EvidenceID})
-		return http.StatusCreated, task, err
-	})
+	s.createDurableRemediationTask(w, r)
 }
 
 func (s *Server) incidentReport(w http.ResponseWriter, r *http.Request) {
@@ -1377,26 +1286,17 @@ func (s *Server) incidentReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.incidentReportQuery != nil {
-		id, err := optionalSingletonQuery(r, "incident_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		report, err := s.incidentReportQuery.Report(r.Context(), actor, id)
-		if err != nil {
-			writeProblem(w, r, mapIncidentReportQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, incidentReportFromQuery(report))
-		return
-	}
-	report, err := s.ledger.IncidentReport(r.Context(), actor, r.URL.Query().Get("incident_id"))
+	id, err := optionalSingletonQuery(r, "incident_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	report, err := s.incidentReportQuery.Report(r.Context(), actor, id)
+	if err != nil {
+		writeProblem(w, r, mapIncidentReportQueryError(err))
+		return
+	}
+	writeData(w, http.StatusOK, incidentReportFromQuery(report))
 }
 
 func (s *Server) uploadSecurityScan(w http.ResponseWriter, r *http.Request) {

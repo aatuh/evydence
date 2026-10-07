@@ -1349,7 +1349,7 @@ input validation, but retains in-process persistence and locking limitations.
 | `POST` | `/v1/incidents/{id}/timeline` | Append a timeline event with optional evidence. |
 | `POST` | `/v1/remediation-tasks` | Create a task for an incident and/or release with optional evidence. |
 
-All three require `incident:write`. PostgreSQL mode binds focused Operations
+All three require `incident:write`. The PostgreSQL runtime binds focused Operations
 commands, not Ledger maps. Current tenant-owned parent coordinates are
 share-locked through commit, and human sessions need a current tenant,
 product, or release grant for the incident. Optional evidence is separately
@@ -1358,10 +1358,10 @@ evidence without narrower parents needs a tenant grant. Every supplied task
 reference is independently checked. Authorized incident and remediation
 release references may deliberately belong to different products; incident
 creation's optional release must match its specified product. Issued
-credentials remain scope-bound. Local-memory mode retains its explicit
-compatibility path.
+credentials remain scope-bound. Local evaluation uses these same PostgreSQL
+services; there is no local-memory API path.
 
-JSON envelopes retain the 64 KiB limit. In PostgreSQL mode, null fields
+JSON envelopes retain the 64 KiB limit. Null fields
 (including optional `due_at`), malformed/duplicate-key/unknown-field bodies,
 invalid UTF-8, and NUL bytes fail with `400`. IDs are at most 1024 UTF-8 bytes;
 title, timeline event type/summary, and task owner are at most 64 KiB each for
@@ -1420,8 +1420,8 @@ yield `401`, missing/inactive/foreign references yield `404`, and malformed
 verified inputs yield `400`. Event, timeline, and webhook-attributed audit
 commit together; failures leave no public replay reservation and are retryable
 with the same provider event ID after the cause is resolved. New timestamps
-and durable replay are UTC microsecond precision. Local memory retains its
-explicit compatibility path and shares the signing/base64 protocol helpers.
+and durable replay are UTC microsecond precision. Local evaluation requires
+PostgreSQL; memory fixtures remain test-only.
 Recorded timelines do not prove incident resolution or remediation completeness.
 
 ### SBOM Ingestion
@@ -3543,12 +3543,13 @@ or foreign subjects return `404`; revoked grants return `403` and revoked
 sessions `401`. Failed writes may retain only a safe failed-key marker; replay
 completion or outer commit failures roll back entirely.
 
-The JSON body has a 64 KiB limit. Both profiles reject unknown, duplicate,
+The JSON body has a 64 KiB limit. The HTTP transport rejects unknown, duplicate,
 case-aliased, explicitly null, invalid UTF-8/NUL, and over-budget fields before
 execution. Raw UTF-8 bounds before trimming are 64 bytes for `scope_type`,
 1024 bytes for `scope_id`, and 64 KiB each for nonblank `reason` and `owner`.
 Cookie mutations require same-host HTTPS Origin; explicit bearer credentials
-retain precedence. Local memory retains nondurable compatibility storage.
+retain precedence. Local evaluation requires PostgreSQL, not nondurable
+compatibility storage.
 
 Extensions require a nonzero RFC3339 `retention_until`, normalized to UTC and
 later than the fresh command's creation time. JSON-representable UTC years are
