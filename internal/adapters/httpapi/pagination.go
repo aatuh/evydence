@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
 
@@ -187,11 +186,4 @@ func writePage[T any](s *Server, w http.ResponseWriter, r *http.Request, actor d
 		meta["next_cursor"] = next
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"data": page.Items, "meta": meta})
-}
-
-func writeCreatedAtPaginated[T any](s *Server, w http.ResponseWriter, r *http.Request, actor domain.Actor, resource string, filters []string, items []T, identity func(T) (string, time.Time)) {
-	writePaginated(s, w, r, actor, resource, filters, items, func(item T, sort appquery.Sort) appquery.SortKey {
-		id, createdAt := identity(item)
-		return appquery.RecordSortKey(id, createdAt, sort)
-	})
 }

@@ -138,6 +138,9 @@ human-review warning, schema versions and response fields are preserved.
 Different-key duplicate content remains allowed; same-key replay keeps its
 body fingerprint and rechecks current root grants and all cited/control parent
 ownership. New durable timestamps use UTC microsecond precision.
+Creation and inventory handlers require focused ports, without aggregate
+fallbacks. PostgreSQL is required for local evaluation; test-only adapters
+retain actual guards, isolated writes and detached result/page metadata.
 
 Creation now applies the byte/count/output limits in
 [API Reference](../api.md#questionnaire-answer-library-creation), checks current
@@ -923,6 +926,8 @@ are atomic. Routes, response fields, schema versions, question order and
 optional-field omission remain unchanged. Allowed-field sorting retains blank
 strings and duplicates. New durable timestamps use UTC microsecond precision;
 historical rows are not rewritten and no migration is required.
+The handler requires focused ports, without an aggregate fallback. PostgreSQL
+is required for local evaluation; the legacy input converter is test-only.
 
 Human creation/replay now requires a current tenant-level `package:write`
 grant. Product/release grants cannot define tenant-wide templates. Duplicate
@@ -975,6 +980,10 @@ Package, caller audit and successful idempotency completion are atomic. Existing
 response fields, schema version, raw selection coordinates, response ordering,
 answer ranking, fallback text and normalized-JSON hash remain unchanged; no
 migration or rewrite of historical packages is required.
+The handler requires focused command/replay ports, with no aggregate fallback.
+PostgreSQL is required for local evaluation. Test-only adapters retain actual
+guards, isolated writes, detached responses and the permission fingerprint;
+their memory evidence does not establish SQL locking or durability.
 
 Human actors now need a current grant for the selection scope independently of
 any associated customer package. Unscoped selection requires tenant-wide

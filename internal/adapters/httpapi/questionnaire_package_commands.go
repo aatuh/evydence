@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -32,9 +31,6 @@ func decodeQuestionnairePackageRequest(body []byte) (packageapp.CreateQuestionna
 	}
 	in, err := packageapp.NormalizeQuestionnairePackageInput(packageapp.CreateQuestionnairePackageInput{TemplateID: req.TemplateID, PackageID: req.PackageID, ProductID: req.ProductID, ReleaseID: req.ReleaseID})
 	return in, mapCustomerPackageAccessError(err)
-}
-func questionnairePackageLegacyInput(in packageapp.CreateQuestionnairePackageInput) app.CreateQuestionnairePackageInput {
-	return app.CreateQuestionnairePackageInput{TemplateID: in.TemplateID, PackageID: in.PackageID, ProductID: in.ProductID, ReleaseID: in.ReleaseID}
 }
 func (s *Server) createDurableQuestionnairePackage(w http.ResponseWriter, r *http.Request) {
 	var in packageapp.CreateQuestionnairePackageInput

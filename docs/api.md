@@ -2871,7 +2871,9 @@ broaden the caller's grant. Issued credentials still require `package:read` or
 `package:write` as applicable. The PostgreSQL profile applies tenant, current
 parent, linked-control/evidence, and grant filters before the page limit;
 product and release filters must agree on the current tenant-owned parent.
-Local-memory mode retains per-entry grant checks but uses an in-memory page.
+The answer-library handler requires its focused query port. PostgreSQL is
+required for local evaluation; test-only memory readers retain real per-entry
+grant checks and detached pages, not SQL-locking or durability guarantees.
 
 Customer package manifests use the documented
 [`customer-security-package.v2.0.0`](reference/customer-package-manifest.md)
@@ -3131,8 +3133,9 @@ together. Replay retains the body-based fingerprint and rechecks current
 tenant-wide authority and referenced control ownership. A different key with
 the same tenant/name/version still conflicts. New durable timestamps use UTC
 microsecond precision. Historical rows, response fields, schema versions and
-optional-field omission are unchanged. Local memory keeps its storage facade,
-with the same normalization and current authority/ownership replay checks.
+optional-field omission are unchanged. The handler requires focused ports,
+with no aggregate fallback. PostgreSQL is required for local evaluation;
+test-only adapters preserve real guards and isolated historical writes.
 
 ### Questionnaire Answer Library Creation
 
@@ -3170,8 +3173,9 @@ rechecks current root grants and every referenced ownership boundary; changed
 body content conflicts. A different key may create another entry with identical
 content. New durable timestamps use UTC microsecond precision. Historical
 records, response fields, schema versions and optional-field omission remain
-unchanged. Local memory keeps its storage facade with shared validation,
-current replay guards and copied result slices. Missing/foreign references fail
+unchanged. The handler requires focused ports, with no aggregate fallback.
+Test-only adapters preserve real guards, isolated writes and detached result
+slices; PostgreSQL is required for local evaluation. Missing/foreign references fail
 with `404`; inconsistent durable citation parents fail with `409`. These drafts
 require human review, not customer-package redaction or compliance conclusions.
 
@@ -3214,8 +3218,11 @@ and association without reading answer text, and binds canonical credential
 scopes and human resource grants. Changed permissions or historical body-only
 fingerprints conflict with `409` when current access remains allowed; use a new
 key for a new result. Missing current authority still fails authorization.
-Local-memory mode retains its explicit storage facade with shared scope/record
-validation, current replay guards and copied returned response slices.
+The handler requires focused command/replay ports, with no aggregate fallback.
+PostgreSQL is required for local evaluation. Test-only adapters preserve real
+guards, isolated historical writes, permission fingerprints and detached
+responses; they are not SQL-locking or durability evidence. Aggregate code
+deletion remains EVY-906 work.
 
 ### Questionnaire Draft Creation
 

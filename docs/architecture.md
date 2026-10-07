@@ -1829,8 +1829,9 @@ definition, and append an audit; it cannot access full tenant state or private
 control text. Tenant-wide human authority, shared canonical input/record
 validation and exact encoded-byte bounds apply before persistence. The shared
 worker/audit fence precedes parent locks, and template/audit/replay effects
-commit together. Both profiles recheck current template-create authority on
-replay. See [template creation](api.md#questionnaire-template-creation).
+commit together. The handler requires focused ports and rechecks current
+template-create authority on replay. PostgreSQL is required for local
+evaluation. See [template creation](api.md#questionnaire-template-creation).
 
 Redaction-profile creation now binds Package-owned focused commands directly
 in the PostgreSQL profile. Flat ports permit only one profile insert and its
@@ -1863,8 +1864,8 @@ product/project/release/build/deployment parents. Raw selection coordinates
 remain separate from resolved authorization coordinates. The shared worker/audit
 fence precedes selected row locks; answer/audit/replay effects commit together.
 Replay rechecks current root grants and referenced ownership without loading
-existing private answers or evidence payloads. Local memory retains its storage
-facade and shared input/record validation. See
+existing private answers or evidence payloads. Creation and inventory handlers
+require focused ports; PostgreSQL is required for local evaluation. See
 [answer-library creation](api.md#questionnaire-answer-library-creation).
 Questionnaire-package generation also binds focused Package commands. It shares
 the bounded response builder with drafts but authorizes both root selection and
@@ -1875,8 +1876,14 @@ precedes selected locks and package/audit/permission-bound replay commit togethe
 The focused writer rechecks ordered question identities, citation ownership,
 output bounds and response hash. See
 [package creation](api.md#questionnaire-package-creation) for association and
-compatibility limits. Other extension workflows and startup Ledger retirement
-remain EVY-905 work.
+compatibility limits. The template, answer-library creation/inventory and
+questionnaire-package handlers have no aggregate fallback. Their three legacy
+input converters exist only in test fixtures. These fixtures retain actual
+preflight policies and isolated historical writes, with whole-state rollback,
+complete DTO/hash/audit, current-grant/foreign-reference, permission-fingerprint,
+page and nested-metadata detachment regressions. They are not SQL bounds,
+locking or durability evidence. Other extension handlers and physical aggregate
+deletion remain EVY-906 work.
 
 PostgreSQL evidence-summary creation now binds Package-owned focused commands
 directly through the composition root. One transaction locks root coordinates,

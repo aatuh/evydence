@@ -423,27 +423,7 @@ func (s *Server) createQuestionnaireTemplate(w http.ResponseWriter, r *http.Requ
 		writeProblem(w, r, err)
 		return
 	}
-	if s.questionnaireTemplateCommands != nil {
-		s.createDurableQuestionnaireTemplate(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeQuestionnaireTemplateRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		tpl, err := s.ledger.CreateQuestionnaireTemplate(ctx, actor, app.CreateQuestionnaireTemplateInput{Name: req.Name, Version: req.Version, Questions: questionnaireQuestionsFromCommand(req.Questions)})
-		return http.StatusCreated, tpl, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeQuestionnaireTemplateRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeQuestionnaireTemplateCreate(r.Context(), a, packageapp.QuestionnaireTemplateControlIDs(in.Questions)); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurableQuestionnaireTemplate(w, r)
 }
 
 func (s *Server) createQuestionnairePackage(w http.ResponseWriter, r *http.Request) {
@@ -451,27 +431,7 @@ func (s *Server) createQuestionnairePackage(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, err)
 		return
 	}
-	if s.questionnairePackageCommands != nil {
-		s.createDurableQuestionnairePackage(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeQuestionnairePackageRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		pkg, err := s.ledger.CreateQuestionnairePackage(ctx, actor, questionnairePackageLegacyInput(in))
-		return http.StatusCreated, pkg, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeQuestionnairePackageRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeQuestionnairePackageCreate(r.Context(), a, questionnairePackageLegacyInput(in)); err != nil {
-			return nil, err
-		}
-		return questionnairePackageReplayFingerprint(a, body)
-	})
+	s.createDurableQuestionnairePackage(w, r)
 }
 
 func (s *Server) createQuestionnaireAnswerLibraryEntry(w http.ResponseWriter, r *http.Request) {
@@ -479,27 +439,7 @@ func (s *Server) createQuestionnaireAnswerLibraryEntry(w http.ResponseWriter, r 
 		writeProblem(w, r, err)
 		return
 	}
-	if s.answerLibraryCommands != nil {
-		s.createDurableAnswerLibraryEntry(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeAnswerLibraryRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		entry, err := s.ledger.CreateQuestionnaireAnswerLibraryEntry(ctx, actor, answerLibraryLegacyInput(in))
-		return http.StatusCreated, entry, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeAnswerLibraryRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeQuestionnaireAnswerLibraryCreate(r.Context(), a, answerLibraryLegacyInput(in)); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurableAnswerLibraryEntry(w, r)
 }
 
 func (s *Server) listQuestionnaireAnswerLibrary(w http.ResponseWriter, r *http.Request) {
@@ -507,32 +447,21 @@ func (s *Server) listQuestionnaireAnswerLibrary(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if s.answerLibraryQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "questionnaire-answer-library", "question_id", "product_id", "release_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.answerLibraryQuery.ListPage(r.Context(), actor, packagequery.AnswerLibraryFilter{
-			QuestionID: r.URL.Query().Get("question_id"), ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id"),
-		}, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapAnswerLibraryQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.QuestionnaireAnswerLibraryEntry]{Next: page.Next, Items: make([]domain.QuestionnaireAnswerLibraryEntry, 0, len(page.Items))}
-		for _, entry := range page.Items {
-			mapped.Items = append(mapped.Items, answerLibraryEntryFromQuery(entry))
-		}
-		writePage(s, w, r, actor, "questionnaire-answer-library", request, mapped)
-		return
-	}
-	entries, err := s.ledger.ListQuestionnaireAnswerLibrary(r.Context(), actor, app.ListQuestionnaireAnswerLibraryInput{QuestionID: r.URL.Query().Get("question_id"), ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id")})
+	request, err := s.parsePageRequest(r, actor, "questionnaire-answer-library", "question_id", "product_id", "release_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "questionnaire-answer-library", []string{"question_id", "product_id", "release_id"}, entries, func(entry domain.QuestionnaireAnswerLibraryEntry) (string, time.Time) {
-		return entry.ID, entry.CreatedAt
-	})
+	page, err := s.answerLibraryQuery.ListPage(r.Context(), actor, packagequery.AnswerLibraryFilter{
+		QuestionID: r.URL.Query().Get("question_id"), ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id"),
+	}, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapAnswerLibraryQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.QuestionnaireAnswerLibraryEntry]{Next: page.Next, Items: make([]domain.QuestionnaireAnswerLibraryEntry, 0, len(page.Items))}
+	for _, entry := range page.Items {
+		mapped.Items = append(mapped.Items, answerLibraryEntryFromQuery(entry))
+	}
+	writePage(s, w, r, actor, "questionnaire-answer-library", request, mapped)
 }

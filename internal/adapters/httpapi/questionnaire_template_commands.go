@@ -49,13 +49,6 @@ func decodeQuestionnaireTemplateRequest(body []byte) (packageapp.CreateQuestionn
 	in, err := packageapp.NormalizeQuestionnaireTemplateInput(packageapp.CreateQuestionnaireTemplateInput{Name: req.Name, Version: req.Version, Questions: qs})
 	return in, mapCustomerPackageAccessError(err)
 }
-func questionnaireQuestionsFromCommand(qs []packagedomain.QuestionnaireQuestion) []domain.QuestionnaireQuestion {
-	out := make([]domain.QuestionnaireQuestion, len(qs))
-	for i, q := range qs {
-		out[i] = domain.QuestionnaireQuestion{ID: q.ID, Prompt: q.Prompt, EvidenceType: q.EvidenceType, ControlID: q.ControlID, AllowedFields: append([]string(nil), q.AllowedFields...)}
-	}
-	return out
-}
 func (s *Server) createDurableQuestionnaireTemplate(w http.ResponseWriter, r *http.Request) {
 	var in packageapp.CreateQuestionnaireTemplateInput
 	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {

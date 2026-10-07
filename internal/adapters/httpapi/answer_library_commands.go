@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -41,9 +40,6 @@ func decodeAnswerLibraryRequest(body []byte) (packageapp.CreateAnswerLibraryEntr
 	}
 	in, err := packageapp.NormalizeAnswerLibraryInput(packageapp.CreateAnswerLibraryEntryInput{QuestionID: req.QuestionID, EvidenceType: req.EvidenceType, ControlID: req.ControlID, ProductID: req.ProductID, ReleaseID: req.ReleaseID, Answer: req.Answer, EvidenceIDs: req.EvidenceIDs, Limitations: req.Limitations})
 	return in, mapCustomerPackageAccessError(err)
-}
-func answerLibraryLegacyInput(in packageapp.CreateAnswerLibraryEntryInput) app.CreateQuestionnaireAnswerLibraryEntryInput {
-	return app.CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: in.QuestionID, EvidenceType: in.EvidenceType, ControlID: in.ControlID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Answer: in.Answer, EvidenceIDs: in.EvidenceIDs, Limitations: in.Limitations}
 }
 func (s *Server) createDurableAnswerLibraryEntry(w http.ResponseWriter, r *http.Request) {
 	var in packageapp.CreateAnswerLibraryEntryInput
