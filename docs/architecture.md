@@ -106,6 +106,20 @@ and the isolated command clone. Failure-after-write regressions compare every
 repository effect, reject partial responses and verify that failed commands
 do not publish core, link or supersession changes.
 
+Collector creation/releases/health/inventory, commercial definitions and all
+source repository/commit/branch/pull-request/snapshot handlers now require
+focused Integration ports. Twelve handler fallbacks (thirteen routes) and four
+aggregate-only input mappers are deleted. Native input, cookie-origin,
+current-ownership, replay and one-time-credential rules are retained. Test-only
+adapters preserve former source guards and real isolated child commands;
+collector preflight runs the actual focused guard, with fail-loud write,
+credential, clock and ID capabilities. Fixture tenant checks depend on real
+bootstrap keys and do not emulate SQL locking. Nine failure-after-write/replay
+cases cover credentials, pins, source children and audits; read regressions
+cover tenant/grant filtering, complete pages, cancellation and detached metadata.
+Runtime readers continue to filter and limit in PostgreSQL, not these fixture
+inventories. Other contexts and the aggregate itself remain EVY-906 work.
+
 Evidence list/search and point reads, lifecycle pages, SBOM documents/components,
 scan/contract points, VEX documents/reports and both VEX previews also require
 focused query ports. Their twelve fallback branches and sixteen obsolete broad-
@@ -1752,8 +1766,7 @@ shared credential adapter issues HMAC-compatible one-time keys without Ledger
 state. Bounded tenant/ID and identity lookups hold coherent evidence parents
 through commit; the projection fence precedes relational locks. Collector/key,
 pin, audit, and replay effects are atomic, and replay preserves only public
-credential metadata. These routes never reload Ledger inventories. Explicit
-local memory retains its compatibility path. See
+credential metadata. These routes never reload Ledger inventories. See
 [collector writes](api.md#collector-writes) for grants, limits, and the
 reference-presence-only health labels.
 
@@ -1765,11 +1778,9 @@ Tenant/provider/name reuse retains original metadata and commits new rows with
 their audit entry and replay state. The adapter acquires the projection fence
 before its tenant serialization lock, then holds both submitted and existing
 product/project identities through the outer commit. This avoids reversing the
-audit and worker lock order. Both runtime profiles check raw input bounds before
-trimming and require current grants on retries; explicit local memory retains
-map storage and nondurable replay. This path does not load Ledger maps or invoke
-provider/network services. Other API compatibility paths and broad startup
-remain EVY-905 work. See [source repository creation](api.md#source-repository-creation)
+audit and worker lock order. The HTTP transport checks raw input bounds before
+trimming and requires current grants on retries. This path does not load Ledger
+maps or invoke provider/network services. See [source repository creation](api.md#source-repository-creation)
 for grant boundaries, validation limits and metadata-only semantics.
 
 PostgreSQL-profile source commit recording uses the same Integration ownership
@@ -1806,8 +1817,8 @@ All three source-write routes bypass Ledger-backed HTTP replay. Their shared
 writer fence precedes tenant, repository, product/project and optional-head
 locks; current grants are checked before fresh execution and completed replay.
 The guards never read mutable branch metadata, previous commits/PRs or provider
-defaults. Both runtime profiles check raw input bounds and cookie Origin rules;
-local memory retains nondurable map storage. See the
+defaults. The HTTP transport checks raw input bounds and cookie Origin rules.
+See the
 [shared replay boundary](api.md#source-write-replay-boundary).
 
 PostgreSQL-profile GitHub/GitLab source snapshots compose those four focused
@@ -1820,11 +1831,10 @@ than opening nested units of work or accessing Ledger state. Late failures roll
 back earlier inserts and existing branch changes. All reads retain the child
 commands' bounded projections and current ownership checks; replay shares the
 same transaction and adds no component or audit effects. Submitted provider
-labels are not promoted to verified origin. Both HTTP profiles bound all raw
-nested input before trimming, validate shape and business input before replay,
-and require current grants and cookie Origin protection. Local memory retains
-nondurable map storage. This does not finish broad API startup or remaining CI
-wrappers. See
+labels are not promoted to verified origin. The HTTP transport bounds all raw
+nested input before trimming, validates shape and business input before replay,
+and requires current grants and cookie Origin protection. Local evaluation uses
+the same PostgreSQL-backed services. See
 [provider source snapshots](api.md#provider-source-snapshots) for optional
 component defaults, response compatibility and trust limitations.
 

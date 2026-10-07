@@ -29,43 +29,25 @@ func decodeSourceRepositoryCreation(body []byte) (integrationapp.CreateSourceRep
 	return in, mapSourceRepositoryCommandError(err)
 }
 
-func localSourceRepositoryInput(in integrationapp.CreateSourceRepositoryInput) app.CreateRepositoryInput {
-	return app.CreateRepositoryInput{ProjectID: in.ProjectID, Provider: in.Provider, FullName: in.FullName, CloneURL: in.CloneURL, DefaultBranch: in.DefaultBranch}
-}
-
 func (s *Server) createSourceRepository(w http.ResponseWriter, r *http.Request) {
 	if err := validateSSOCookieMutation(r); err != nil {
 		writeProblem(w, r, err)
 		return
 	}
 	var in integrationapp.CreateSourceRepositoryInput
-	if s.sourceRepositoryCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeSourceRepositoryCreation(body)
-			if err != nil {
-				return err
-			}
-			if err := integrationapp.ValidateSourceRepositoryKey(a.TenantID, in); err != nil {
-				return mapSourceRepositoryCommandError(err)
-			}
-			return mapSourceRepositoryCommandError(s.sourceRepositoryCommands.AuthorizeSourceRepositoryCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.sourceRepositoryCommands.CreateSourceRepository(ctx, a, in)
-			return http.StatusCreated, sourceRepositoryFromQuery(v), mapSourceRepositoryCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.ledger.CreateSourceRepository(ctx, a, localSourceRepositoryInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeSourceRepositoryCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.ledger.AuthorizeSourceRepositoryCreation(r.Context(), a, localSourceRepositoryInput(in))
+		if err := integrationapp.ValidateSourceRepositoryKey(a.TenantID, in); err != nil {
+			return mapSourceRepositoryCommandError(err)
+		}
+		return mapSourceRepositoryCommandError(s.sourceRepositoryCommands.AuthorizeSourceRepositoryCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.sourceRepositoryCommands.CreateSourceRepository(ctx, a, in)
+		return http.StatusCreated, sourceRepositoryFromQuery(v), mapSourceRepositoryCommandError(err)
 	})
 }
 

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
@@ -29,40 +28,22 @@ func decodeSourceCommitRecording(body []byte) (integrationapp.RecordSourceCommit
 	return in, mapSourceRepositoryCommandError(err)
 }
 
-func localSourceCommitInput(in integrationapp.RecordSourceCommitInput) app.RecordCommitInput {
-	return app.RecordCommitInput{RepositoryID: in.RepositoryID, SHA: in.SHA, Author: in.Author, Message: in.Message, CommittedAt: in.CommittedAt}
-}
-
 func (s *Server) recordSourceCommit(w http.ResponseWriter, r *http.Request) {
 	if err := validateSSOCookieMutation(r); err != nil {
 		writeProblem(w, r, err)
 		return
 	}
 	var in integrationapp.RecordSourceCommitInput
-	if s.sourceCommitCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeSourceCommitRecording(body)
-			if err != nil {
-				return err
-			}
-			return mapSourceRepositoryCommandError(s.sourceCommitCommands.AuthorizeSourceCommitRecording(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.sourceCommitCommands.RecordSourceCommit(ctx, a, in)
-			return http.StatusCreated, sourceCommitFromCommand(v), mapSourceRepositoryCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.ledger.RecordSourceCommit(ctx, a, localSourceCommitInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeSourceCommitRecording(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.ledger.AuthorizeSourceCommitRecording(r.Context(), a, localSourceCommitInput(in))
+		return mapSourceRepositoryCommandError(s.sourceCommitCommands.AuthorizeSourceCommitRecording(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.sourceCommitCommands.RecordSourceCommit(ctx, a, in)
+		return http.StatusCreated, sourceCommitFromCommand(v), mapSourceRepositoryCommandError(err)
 	})
 }
 

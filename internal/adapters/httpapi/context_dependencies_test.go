@@ -79,6 +79,28 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 		}
 	}
 	for name, dependency := range map[string]any{
+		"collector": server.collectorCommands, "source-repository": server.sourceRepositoryCommands,
+		"source-commit": server.sourceCommitCommands, "source-branch": server.sourceBranchCommands,
+		"pull-request": server.pullRequestCommands, "source-snapshot": server.sourceSnapshotCommands,
+	} {
+		commands, ok := dependency.(integrationFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
+	if reader, ok := server.collectorQuery.(collectorPageFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused collector page fixture was not rebound")
+	}
+	if reader, ok := server.collectorHealthQuery.(collectorHealthFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused collector health fixture was not rebound")
+	}
+	if reader, ok := server.commercialCollectorQuery.(commercialCollectorPageFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused commercial collector page fixture was not rebound")
+	}
+	if reader, ok := server.sourceRepositoryQuery.(sourceRepositoryPageFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused source repository page fixture was not rebound")
+	}
+	for name, dependency := range map[string]any{
 		"evidence": server.evidencePointQuery, "sbom": server.sbomPointQuery,
 		"scan": server.vulnerabilityScanPointQuery, "contract": server.openAPIContractPointQuery,
 		"vex": server.vexPointQuery, "vex-preview": server.vexPreviewQuery,

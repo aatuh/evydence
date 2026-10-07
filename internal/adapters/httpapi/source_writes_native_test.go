@@ -26,7 +26,7 @@ func TestSourceWritesOpenAPIDeclaresNativeReplayAndCurrentAuthority(t *testing.T
 	for _, tc := range sourceNativeCases() {
 		op := operationMap(t, asStringAnyMap(t, doc["paths"]), tc.path, "post")
 		description, _ := op["description"].(string)
-		for _, required := range []string{"native durable replay", "before reservation and completed replay", "Raw bounds", "before trimming", "Origin", "nondurable", "no outbox job"} {
+		for _, required := range []string{"native durable replay", "before reservation and completed replay", "Raw bounds", "before trimming", "Origin", "Local evaluation requires PostgreSQL", "there is no local-memory API path", "no outbox job"} {
 			if !strings.Contains(description, required) {
 				t.Fatal("missing native source contract", tc.path, required, description)
 			}

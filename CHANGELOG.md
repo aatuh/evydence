@@ -65,6 +65,16 @@ only focused Operations ports. Their broad local transport dependency and
 interface are deleted. Native authorization, cookie-origin protection,
 transactional replay, pagination and response contracts are unchanged.
 
+Collector, commercial-collector and source repository/commit/branch/pull-request/
+snapshot handlers now require focused Integration ports. Twelve handler
+fallbacks across thirteen routes and four aggregate-only input mappers are
+removed. Native ownership/grant guards, private credential issuance, cookie
+Origin rules, input limits and replay contracts are unchanged. Test-only
+fixtures retain isolated real writes and add full-state rollback/replay,
+tenant/grant-filtered read and metadata-detachment regressions. Affected source
+API/reference descriptions now require PostgreSQL for local evaluation; schemas
+are unchanged. Other aggregate dependencies remain unfinished.
+
 Generic evidence creation, supersession, linking and lifecycle-event handlers
 now use only focused Evidence ports. Their two broad local dependencies and
 interfaces are deleted. Native validation, authorization, append-only effects,

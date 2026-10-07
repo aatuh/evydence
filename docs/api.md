@@ -1918,10 +1918,11 @@ security, or legal compliance.
 
 `POST /v1/collectors`, `POST /v1/collectors/{id}/releases`, and
 `POST /v1/commercial-collectors` use focused Integration commands in the
-PostgreSQL profile. All require `collector:admin` and an `Idempotency-Key`;
+PostgreSQL runtime, including local evaluation. All require `collector:admin`
+and an `Idempotency-Key`;
 human sessions also need a current tenant-wide grant. Issued keys retain their
 tenant-scoped credential authority. Guards check current authority before
-reservation and replay; explicit local memory retains the Ledger path.
+reservation and replay. There is no local-memory API path.
 
 Collector registration atomically commits the collector, HMAC-hashed API key,
 audit entry, and replay record. The credential uses the same pepper and format
@@ -1960,7 +1961,7 @@ storage. New timestamps use UTC microseconds. See the
 
 ### Source Repository Creation
 
-`POST /v1/source/repositories` in the PostgreSQL profile uses an Integration-owned
+`POST /v1/source/repositories` uses an Integration-owned
 command and native durable replay, without a Ledger clone or publication. Its
 read-only guard checks current tenant and ownership before reservation or
 completed replay, without reading clone URLs, branch metadata, or prior audit
@@ -1976,8 +1977,6 @@ and the existing repository's actual project are authorized separately. An
 existing row's minimal identity is checked before private metadata is read;
 supplying an allowed project cannot reveal another project's repository.
 Detached existing repositories also require a tenant-wide human grant.
-The explicit local-memory compatibility path applies the same authorization
-corrections.
 
 Creation serializes name reuse even when no row exists yet. The PostgreSQL
 adapter takes the worker-projection fence before the tenant-row lock, then
@@ -1999,9 +1998,8 @@ HTTP envelope limit remains. Non-object envelopes, null string fields,
 duplicate fields and unknown fields fail validation. Oversized stored metadata
 returns conflict instead of a truncated record. Historical rows are unchanged.
 Cookie-authenticated writes require a same-host HTTPS `Origin`; an explicit
-bearer credential takes precedence. Local memory shares decoding, input bounds
-and current ownership/grant guards, but retains nondurable replay and map-based
-storage rather than PostgreSQL transaction guarantees.
+bearer credential takes precedence. Local evaluation requires PostgreSQL;
+there is no map-backed API alternative.
 
 The endpoint records submitted metadata only. It does not contact the provider,
 fetch the clone URL, verify repository contents or establish provider trust.
@@ -2034,10 +2032,7 @@ failures roll back the reservation. No outbox job is created.
 
 All three paths check raw input bounds before trimming. Cookie-authenticated
 writes require same-host HTTPS `Origin`; explicit bearer credentials take
-precedence. Local memory shares decoding, input bounds and current ownership
-guards but retains nondurable replay and map storage, not PostgreSQL locking or
-bounded stored-metadata guarantees. This migration does not finish API startup
-or the remaining CI HTTP wrappers.
+precedence. Local evaluation uses the same PostgreSQL-backed paths.
 
 Tests: `internal/platform/wiring/source_writes_native_http_test.go`,
 `internal/platform/wiring/source_writes_fence_test.go`,
@@ -2047,7 +2042,7 @@ Tests: `internal/platform/wiring/source_writes_native_http_test.go`,
 
 ### Source Commit Recording
 
-`POST /v1/source/commits` in the PostgreSQL profile uses an Integration-owned
+`POST /v1/source/commits` uses an Integration-owned
 command, not Ledger maps. It requires `source:write`, with the repository's
 current tenant/product/project ownership checked before reading commit metadata.
 Human sessions need a current product/project grant for attached repositories
@@ -2057,8 +2052,7 @@ not found; removed or wrong-project grants cannot read existing commits.
 Repository ID and normalized lowercase 40-character hexadecimal SHA identify
 the immutable record. Reuse returns the original author, message hash and
 timestamps even if a new request supplies different metadata. It appends no
-second audit entry. The local-memory compatibility path also normalizes SHAs
-before reuse, correcting case-only duplicate creation. SHA-256 Git object IDs
+second audit entry. SHA-256 Git object IDs
 are not supported by the current 40-character contract.
 
 The command stores only `sha256:` plus the SHA-256 digest of the exact submitted
@@ -2073,8 +2067,7 @@ The adapter takes the worker-projection fence before locking the tenant-owned
 repository, which serializes first creation and duplicate SHA reuse. Parent
 ownership and existing commit reads are bounded. Commit, audit and successful
 HTTP replay state share a transaction; failures roll back, replay adds no
-effects, and no outbox job is created. This endpoint migration does not remove
-the remaining Ledger-backed CI workflows.
+effects, and no outbox job is created.
 
 Tenant/repository IDs and raw SHA text are limited to 1024 UTF-8 bytes.
 Author metadata is trimmed,
@@ -2093,7 +2086,7 @@ Source/test evidence: `internal/integration/app/source_commit_commands.go`,
 
 ### Source Branch Upserts
 
-`POST /v1/source/branches` in the PostgreSQL profile uses a focused
+`POST /v1/source/branches` uses a focused
 Integration command with `source:write`. The repository's current
 tenant/product/project ownership is authorized before branch or head-commit
 reads. Attached repositories require a current human product/project grant;
@@ -2117,7 +2110,7 @@ Every executed update appends `source_branch.updated`, even when values are
 unchanged. Branch changes, audit entries and successful HTTP replay state share
 a transaction. Replay does not reapply an old branch state or append another
 audit; rollback leaves both the branch and audit unchanged. No outbox job is
-created. The explicit local-memory profile retains its compatibility path.
+created.
 
 Tenant, repository and head IDs are limited to 1024 UTF-8 bytes. Combined
 tenant/repository/normalized-name identity is limited to 2304 bytes to fit the
@@ -2140,7 +2133,7 @@ Source/test evidence: `internal/integration/app/source_branch_commands.go`,
 
 ### Pull-Request Recording
 
-`POST /v1/source/pull-requests` in the PostgreSQL profile uses an
+`POST /v1/source/pull-requests` uses an
 Integration-owned command with `source:write`. The current repository's
 tenant/product/project ownership is authorized before provider or head-commit
 reads. Human sessions need a current product/project grant for attached
@@ -2178,9 +2171,7 @@ unchanged; new PostgreSQL-profile creation timestamps use UTC microseconds.
 Title/review metadata is intentionally stored in the scoped snapshot, not in
 audit entries. Do not submit secrets. Recording does not contact a provider,
 verify repository contents, establish review approval or prove merge authority.
-Local-memory mode retains its compatibility path. For combined provider source
-snapshots, see the contract below. CI build snapshots remain separate migration
-work.
+For combined provider source snapshots, see the contract below.
 
 Source/test evidence: `internal/integration/app/pull_request_commands.go`,
 `internal/platform/wiring/pull_request_commands_test.go` and
@@ -2189,7 +2180,7 @@ Source/test evidence: `internal/integration/app/pull_request_commands.go`,
 ### Provider Source Snapshots
 
 `POST /v1/collectors/github/source-snapshots` and
-`POST /v1/collectors/gitlab/source-snapshots` in the PostgreSQL profile use an
+`POST /v1/collectors/gitlab/source-snapshots` use an
 Integration-owned orchestration command and native durable HTTP replay, not
 a Ledger command clone or publication. The route fixes the
 provider label. The required `repository` object and optional `commit`, `branch`
@@ -2246,13 +2237,10 @@ existing runtime validation. No stored schema or route changed.
 These are collector-submitted records, not authenticated provider fetches or
 verified webhooks. Recording does not prove GitHub/GitLab origin, signature
 validity, repository contents, branch protection or review/merge authority.
-Local-memory mode retains its compatibility workflow.
-Both HTTP profiles share strict decoding, raw input/key bounds and current
+The HTTP transport enforces strict decoding, raw input/key bounds and current
 repository-creation authority on replay. Cookie-authenticated writes require a
-same-host HTTPS `Origin`, with explicit bearer precedence. Local memory retains
-nondurable replay and map storage, not PostgreSQL locking or bounded
-stored-metadata guarantees. Broad API startup and CI wrappers remain EVY-905
-work.
+same-host HTTPS `Origin`, with explicit bearer precedence. Local evaluation
+requires PostgreSQL, not nondurable map storage.
 
 Source/test evidence: `internal/integration/app/source_snapshot_commands.go`,
 `internal/integration/app/source_snapshot_guard.go`,

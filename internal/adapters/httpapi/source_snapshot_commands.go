@@ -25,38 +25,17 @@ func (s *Server) recordSourceSnapshot(w http.ResponseWriter, r *http.Request, pr
 		}
 		return mapSourceRepositoryCommandError(integrationapp.ValidateSourceSnapshotRequest(provider, in))
 	}
-	if s.sourceSnapshotCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			if err := decode(body); err != nil {
-				return err
-			}
-			if err := integrationapp.ValidateSourceSnapshotKeys(a.TenantID, provider, in); err != nil {
-				return mapSourceRepositoryCommandError(err)
-			}
-			return mapSourceRepositoryCommandError(s.sourceSnapshotCommands.AuthorizeSourceSnapshot(ctx, a, provider, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.sourceSnapshotCommands.RecordSourceSnapshot(ctx, a, provider, in)
-			return http.StatusCreated, sourceSnapshotPublic(v), mapSourceRepositoryCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		var v map[string]any
-		var err error
-		if provider == "github" {
-			v, err = s.ledger.UploadGitHubSourceSnapshot(ctx, a, body)
-		} else {
-			v, err = s.ledger.UploadGitLabSourceSnapshot(ctx, a, body)
-		}
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		if err := decode(body); err != nil {
-			return nil, err
+			return err
 		}
 		if err := integrationapp.ValidateSourceSnapshotKeys(a.TenantID, provider, in); err != nil {
-			return nil, mapSourceRepositoryCommandError(err)
+			return mapSourceRepositoryCommandError(err)
 		}
-		return body, s.ledger.AuthorizeSourceRepositoryCreation(r.Context(), a, localSourceRepositoryInput(integrationapp.CreateSourceRepositoryInput{ProjectID: in.ProjectID, Provider: provider, FullName: in.Repository.FullName, CloneURL: in.Repository.CloneURL, DefaultBranch: in.Repository.DefaultBranch}))
+		return mapSourceRepositoryCommandError(s.sourceSnapshotCommands.AuthorizeSourceSnapshot(ctx, a, provider, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.sourceSnapshotCommands.RecordSourceSnapshot(ctx, a, provider, in)
+		return http.StatusCreated, sourceSnapshotPublic(v), mapSourceRepositoryCommandError(err)
 	})
 }
 

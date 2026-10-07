@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
@@ -32,40 +31,22 @@ func decodePullRequestRecording(body []byte) (integrationapp.RecordPullRequestIn
 	return in, mapSourceRepositoryCommandError(err)
 }
 
-func localPullRequestInput(in integrationapp.RecordPullRequestInput) app.RecordPullRequestInput {
-	return app.RecordPullRequestInput{RepositoryID: in.RepositoryID, Provider: in.Provider, ProviderID: in.ProviderID, Title: in.Title, State: in.State, SourceBranch: in.SourceBranch, TargetBranch: in.TargetBranch, HeadCommitID: in.HeadCommitID, ReviewDecision: in.ReviewDecision}
-}
-
 func (s *Server) recordPullRequest(w http.ResponseWriter, r *http.Request) {
 	if err := validateSSOCookieMutation(r); err != nil {
 		writeProblem(w, r, err)
 		return
 	}
 	var in integrationapp.RecordPullRequestInput
-	if s.pullRequestCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodePullRequestRecording(body)
-			if err != nil {
-				return err
-			}
-			return mapSourceRepositoryCommandError(s.pullRequestCommands.AuthorizePullRequestRecording(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.pullRequestCommands.RecordPullRequest(ctx, a, in)
-			return http.StatusCreated, pullRequestFromCommand(v), mapSourceRepositoryCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.ledger.RecordPullRequest(ctx, a, localPullRequestInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodePullRequestRecording(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.ledger.AuthorizePullRequestRecording(r.Context(), a, localPullRequestInput(in))
+		return mapSourceRepositoryCommandError(s.pullRequestCommands.AuthorizePullRequestRecording(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.pullRequestCommands.RecordPullRequest(ctx, a, in)
+		return http.StatusCreated, pullRequestFromCommand(v), mapSourceRepositoryCommandError(err)
 	})
 }
 

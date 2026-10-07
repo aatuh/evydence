@@ -175,7 +175,7 @@ func TestSourceRepositoryOpenAPIDeclaresOwnershipAndMetadataOnlyRecording(t *tes
 	}
 	op := operationMap(t, asStringAnyMap(t, doc["paths"]), "/v1/source/repositories", "post")
 	description, _ := op["description"].(string)
-	for _, required := range []string{"existing repository", "before metadata", "2304", "same transaction", "does not contact", "native durable replay", "before trimming", "completed replay", "Origin", "nondurable"} {
+	for _, required := range []string{"existing repository", "before metadata", "2304", "same transaction", "does not contact", "native durable replay", "before trimming", "completed replay", "Origin", "Local evaluation requires PostgreSQL", "there is no local-memory API path"} {
 		if !strings.Contains(description, required) {
 			t.Fatal("missing source repository contract", description)
 		}

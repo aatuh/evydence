@@ -143,7 +143,7 @@ func TestSourceSnapshotOpenAPIMatchesDefaultsAndAtomicity(t *testing.T) {
 	for _, provider := range []string{"github", "gitlab"} {
 		op := operationMap(t, asStringAnyMap(t, doc["paths"]), "/v1/collectors/"+provider+"/source-snapshots", "post")
 		desc, _ := op["description"].(string)
-		for _, want := range []string{"one transaction", "ownership", "message hash", "does not verify", "omitted commit time", "native durable replay", "before reservation and completed replay", "Raw nested input", "Origin", "nondurable"} {
+		for _, want := range []string{"one transaction", "ownership", "message hash", "does not verify", "omitted commit time", "native durable replay", "before reservation and completed replay", "Raw nested input", "Origin", "Local evaluation requires PostgreSQL", "there is no local-memory API path"} {
 			if !strings.Contains(desc, want) {
 				t.Fatal("missing snapshot contract", desc)
 			}

@@ -789,28 +789,7 @@ func (s *Server) ValidateRoutes() error {
 }
 
 func (s *Server) createCollector(w http.ResponseWriter, r *http.Request) {
-	if s.collectorCommands != nil {
-		s.createDurableCollector(w, r)
-		return
-	}
-	var req struct {
-		Name    string   `json:"name"`
-		Type    string   `json:"type"`
-		Version string   `json:"version"`
-		Scopes  []string `json:"scopes"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		collector, key, secret, err := s.ledger.CreateCollector(ctx, actor, app.CreateCollectorInput{
-			Name:    req.Name,
-			Type:    req.Type,
-			Version: req.Version,
-			Scopes:  req.Scopes,
-		})
-		return http.StatusCreated, map[string]any{"collector": collector, "api_key": key, "secret": secret}, err
-	})
+	s.createDurableCollector(w, r)
 }
 
 func (s *Server) listCollectors(w http.ResponseWriter, r *http.Request) {
@@ -818,62 +797,25 @@ func (s *Server) listCollectors(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.collectorQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "collectors")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.collectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapIntegrationQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.Collector]{Next: page.Next, Items: make([]domain.Collector, 0, len(page.Items))}
-		for _, collector := range page.Items {
-			mapped.Items = append(mapped.Items, collectorFromQuery(collector))
-		}
-		writePage(s, w, r, actor, "collectors", request, mapped)
-		return
-	}
-	collectors, err := s.ledger.ListCollectors(r.Context(), actor)
+	request, err := s.parsePageRequest(r, actor, "collectors")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "collectors", nil, collectors, func(collector domain.Collector) (string, time.Time) {
-		return collector.ID, collector.CreatedAt
-	})
+	page, err := s.collectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapIntegrationQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.Collector]{Next: page.Next, Items: make([]domain.Collector, 0, len(page.Items))}
+	for _, collector := range page.Items {
+		mapped.Items = append(mapped.Items, collectorFromQuery(collector))
+	}
+	writePage(s, w, r, actor, "collectors", request, mapped)
 }
 
 func (s *Server) recordCollectorRelease(w http.ResponseWriter, r *http.Request) {
-	if s.collectorCommands != nil {
-		s.recordDurableCollectorRelease(w, r)
-		return
-	}
-	var req struct {
-		Version        string `json:"version"`
-		ArtifactDigest string `json:"artifact_digest"`
-		SignatureID    string `json:"signature_id"`
-		SBOMID         string `json:"sbom_id"`
-		ScanID         string `json:"scan_id"`
-		Pinned         bool   `json:"pinned"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		release, err := s.ledger.RecordCollectorRelease(ctx, actor, app.RecordCollectorReleaseInput{
-			CollectorID:    r.PathValue("id"),
-			Version:        req.Version,
-			ArtifactDigest: req.ArtifactDigest,
-			SignatureID:    req.SignatureID,
-			SBOMID:         req.SBOMID,
-			ScanID:         req.ScanID,
-			Pinned:         req.Pinned,
-		})
-		return http.StatusCreated, release, err
-	})
+	s.recordDurableCollectorRelease(w, r)
 }
 
 func (s *Server) collectorHealthReport(w http.ResponseWriter, r *http.Request) {
@@ -881,21 +823,12 @@ func (s *Server) collectorHealthReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.collectorHealthQuery != nil {
-		report, err := s.collectorHealthQuery.Report(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapIntegrationQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, collectorHealthFromQuery(report))
-		return
-	}
-	report, err := s.ledger.CollectorHealthReport(r.Context(), actor, r.PathValue("id"))
+	report, err := s.collectorHealthQuery.Report(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapIntegrationQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, collectorHealthFromQuery(report))
 }
 
 func (s *Server) listControlFrameworks(w http.ResponseWriter, r *http.Request) {
@@ -1246,32 +1179,21 @@ func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if s.sourceRepositoryQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "source-repositories", "project_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.sourceRepositoryQuery.ListPage(r.Context(), actor, r.URL.Query().Get("project_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapIntegrationQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.SourceRepository]{Next: page.Next, Items: make([]domain.SourceRepository, 0, len(page.Items))}
-		for _, repository := range page.Items {
-			mapped.Items = append(mapped.Items, sourceRepositoryFromQuery(repository))
-		}
-		writePage(s, w, r, actor, "source-repositories", request, mapped)
-		return
-	}
-	repos, err := s.ledger.ListSourceRepositories(r.Context(), actor, r.URL.Query().Get("project_id"))
+	request, err := s.parsePageRequest(r, actor, "source-repositories", "project_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "source-repositories", []string{"project_id"}, repos, func(repo domain.SourceRepository) (string, time.Time) {
-		return repo.ID, repo.CreatedAt
-	})
+	page, err := s.sourceRepositoryQuery.ListPage(r.Context(), actor, r.URL.Query().Get("project_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapIntegrationQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.SourceRepository]{Next: page.Next, Items: make([]domain.SourceRepository, 0, len(page.Items))}
+	for _, repository := range page.Items {
+		mapped.Items = append(mapped.Items, sourceRepositoryFromQuery(repository))
+	}
+	writePage(s, w, r, actor, "source-repositories", request, mapped)
 }
 
 func (s *Server) uploadGitHubSourceSnapshot(w http.ResponseWriter, r *http.Request) {
@@ -2382,30 +2304,7 @@ func (s *Server) listSigningKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createCommercialCollector(w http.ResponseWriter, r *http.Request) {
-	if s.collectorCommands != nil {
-		s.createDurableCommercialCollector(w, r)
-		return
-	}
-	var req struct {
-		Name          string   `json:"name"`
-		Provider      string   `json:"provider"`
-		Version       string   `json:"version"`
-		ManifestHash  string   `json:"manifest_hash"`
-		AllowedScopes []string `json:"allowed_scopes"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		definition, err := s.ledger.CreateCommercialCollectorDefinition(ctx, actor, app.CreateCommercialCollectorInput{
-			Name:          req.Name,
-			Provider:      req.Provider,
-			Version:       req.Version,
-			ManifestHash:  req.ManifestHash,
-			AllowedScopes: req.AllowedScopes,
-		})
-		return http.StatusCreated, definition, err
-	})
+	s.createDurableCommercialCollector(w, r)
 }
 
 func (s *Server) listCommercialCollectors(w http.ResponseWriter, r *http.Request) {
@@ -2413,32 +2312,21 @@ func (s *Server) listCommercialCollectors(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if s.commercialCollectorQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "commercial-collectors")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		result, err := s.commercialCollectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapCommercialCollectorQueryError(err))
-			return
-		}
-		page := appquery.Result[domain.CommercialCollectorDefinition]{Next: result.Next, Items: make([]domain.CommercialCollectorDefinition, 0, len(result.Items))}
-		for _, definition := range result.Items {
-			page.Items = append(page.Items, commercialCollectorFromQuery(definition))
-		}
-		writePage(s, w, r, actor, "commercial-collectors", request, page)
-		return
-	}
-	definitions, err := s.ledger.ListCommercialCollectorDefinitions(r.Context(), actor)
+	request, err := s.parsePageRequest(r, actor, "commercial-collectors")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "commercial-collectors", nil, definitions, func(definition domain.CommercialCollectorDefinition) (string, time.Time) {
-		return definition.ID, definition.CreatedAt
-	})
+	result, err := s.commercialCollectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapCommercialCollectorQueryError(err))
+		return
+	}
+	page := appquery.Result[domain.CommercialCollectorDefinition]{Next: result.Next, Items: make([]domain.CommercialCollectorDefinition, 0, len(result.Items))}
+	for _, definition := range result.Items {
+		page.Items = append(page.Items, commercialCollectorFromQuery(definition))
+	}
+	writePage(s, w, r, actor, "commercial-collectors", request, page)
 }
 
 func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
