@@ -1700,7 +1700,13 @@ denial commits. Pure guards cannot mint, revoke, audit or read private package
 content. Whole-state failure tests cover issuance/revocation and token lifecycle
 writes; public-page/replay checks preserve current grants and privacy.
 These checks do not prove SQL locking or durability. PostgreSQL is required for
-local evaluation; remaining aggregate deletion stays EVY-906 work.
+local evaluation. The historical Ledger portal lifecycle, archive methods,
+inputs and helpers are now excluded from the production build and retained
+only in `internal/app/legacy_portal_oracle_test.go` for package-local historical
+regressions. The two uncalled aggregate portal replay guards are deleted;
+source checks prevent the retired production surface from returning. These
+oracle tests do not exercise the supported native runtime. Shared aggregate
+maps, snapshots and other methods still require deletion in EVY-906.
 See [portal lifecycle](api.md#customer-portal-lifecycle)
 for bounds, privacy-safe replay and existing archive-content limitations.
 

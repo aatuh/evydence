@@ -19,9 +19,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| enterprise identity and retention | `internal/app/enterprise.go` | `CreateCustomerPortalAccess` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `RevokeCustomerPortalAccess` | `persistCriticalStateLocked` |
-| enterprise identity and retention | `internal/app/enterprise.go` | `persistCustomerPortalAccessUpdateLocked` | `persistCriticalStateLocked` |
 | identity and idempotency | `internal/app/idempotency.go` | `completeInMemoryIdempotency` | `persistCriticalStateLocked` |
 | identity and idempotency | `internal/app/idempotency.go` | `failInMemoryIdempotency` | `persistCriticalStateLocked` |
 | identity and idempotency | `internal/app/idempotency.go` | `reserveInMemoryIdempotency` | `persistCriticalStateLocked` |

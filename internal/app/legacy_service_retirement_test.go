@@ -9,6 +9,62 @@ import (
 	"testing"
 )
 
+// Native portal commands, queries and token access belong to Package services.
+// Historical aggregate behavior may remain an oracle for package-local tests,
+// but must not be compiled into the production application surface.
+func TestLegacyPortalAggregateSurfaceIsAbsentFromProduction(t *testing.T) {
+	retired := map[string]bool{
+		"CreateCustomerPortalAccessInput": true, "CustomerPortalAcceptanceInput": true,
+		"customerPortalFailedAccessLimit": true, "customerPortalAuditEffect": true,
+		"CreateCustomerPortalAccess": true, "ListCustomerPortalAccess": true,
+		"RevokeCustomerPortalAccess": true, "currentPortalPackageLocked": true,
+		"AccessCustomerPortalPackage": true, "AccessCustomerPortalPackageWithAcceptance": true,
+		"accessCustomerPortalPackage": true, "persistCustomerPortalAccessUpdateLocked": true,
+		"ExportCustomerPortalPackageArchive": true, "ExportCustomerPortalPackageArchiveWithAcceptance": true,
+		"prepareLocalPortalAccess": true, "authorizePortalWriteLocked": true,
+		"AuthorizeCustomerPortalAccessCreate": true, "AuthorizeCustomerPortalAccessRevoke": true,
+		"packageWithDistributionWatermark": true, "portalReviewerLabel": true, "packageDistributionWatermark": true,
+	}
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspected := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inspected++
+		ast.Inspect(file, func(node ast.Node) bool {
+			var declared string
+			switch value := node.(type) {
+			case *ast.FuncDecl:
+				declared = value.Name.Name
+			case *ast.TypeSpec:
+				declared = value.Name.Name
+			case *ast.ValueSpec:
+				for _, identifier := range value.Names {
+					if retired[identifier.Name] {
+						t.Errorf("%s declares retired portal aggregate value %s", name, identifier.Name)
+					}
+				}
+			}
+			if retired[declared] {
+				t.Errorf("%s declares retired portal aggregate surface %s", name, declared)
+			}
+			return true
+		})
+	}
+	if inspected == 0 {
+		t.Fatal("no production application source inspected")
+	}
+}
+
 // The retired wrappers merely held *Ledger and forwarded back into the same
 // aggregate. They must not return as substitutes for context-owned services.
 func TestLegacyLedgerServiceShellsAreRetired(t *testing.T) {

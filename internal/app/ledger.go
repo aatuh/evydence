@@ -64,8 +64,6 @@ const (
 	ScopeInstanceAdmin   = "instance:admin"
 )
 
-const customerPortalFailedAccessLimit = 5
-
 type Config struct {
 	BuildAttestationParser releaseapp.BuildAttestationParser
 	DSSEPolicyVerifier     verificationapp.DSSEPolicyVerifier

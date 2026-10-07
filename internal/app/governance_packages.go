@@ -710,54 +710,12 @@ func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor
 	return customerPackageArchive(pkg)
 }
 
-func (l *Ledger) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {
-	return l.ExportCustomerPortalPackageArchiveWithAcceptance(ctx, token, CustomerPortalAcceptanceInput{})
-}
-
-func (l *Ledger) ExportCustomerPortalPackageArchiveWithAcceptance(ctx context.Context, token string, in CustomerPortalAcceptanceInput) (CustomerPackageArchive, error) {
-	pkg, err := l.accessCustomerPortalPackage(ctx, token, in, "customer_portal_package.downloaded")
-	if err != nil {
-		return CustomerPackageArchive{}, err
-	}
-	return customerPackageArchive(pkg)
-}
-
 func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
 	report, err := l.packageCommands.SecurityReviewPackageReport(ctx, actor, packageID)
 	if err != nil {
 		return domain.SecurityReviewPackageReport{}, fromPackageContextError(err)
 	}
 	return domain.SecurityReviewPackageReport{ReportType: report.ReportType, TemplateVersion: report.TemplateVersion, PackageID: report.PackageID, ProductID: report.ProductID, ReleaseID: report.ReleaseID, EvidenceIDs: report.EvidenceIDs, Assumptions: report.Assumptions, Limitations: report.Limitations, GeneratedAt: report.GeneratedAt}, nil
-}
-
-func packageWithDistributionWatermark(pkg domain.CustomerSecurityPackage, access domain.CustomerPortalAccess) domain.CustomerSecurityPackage {
-	pkg.DistributionWatermark = packageDistributionWatermark(pkg, portalReviewerLabel(access.CustomerName, access.ReviewerName, access.ReviewerEmail), access.ID)
-	if access.Watermark != "" {
-		pkg.DistributionWatermark = access.Watermark
-	}
-	return pkg
-}
-
-func portalReviewerLabel(customerName, reviewerName, reviewerEmail string) string {
-	if reviewerName != "" && reviewerEmail != "" {
-		return reviewerName + " <" + reviewerEmail + ">"
-	}
-	if reviewerEmail != "" {
-		return reviewerEmail
-	}
-	if reviewerName != "" {
-		return reviewerName
-	}
-	return customerName
-}
-
-func packageDistributionWatermark(pkg domain.CustomerSecurityPackage, customerName, accessID string) string {
-	customerName = cleanExternalLabel(customerName)
-	accessID = strings.TrimSpace(accessID)
-	if customerName == "" && accessID == "" {
-		return "Evydence package " + pkg.ID + " exported for scoped review."
-	}
-	return cleanExternalLabel("Evydence package " + pkg.ID + " for " + customerName + " via access " + accessID + ".")
 }
 
 func cleanExternalLabel(value string) string {
