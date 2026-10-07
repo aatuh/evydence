@@ -893,14 +893,17 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = jsonResponse("Customer security package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
 	case "createCustomerPortalAccess":
 		operation.Description = "Creates a named, expiring external reviewer access record for a customer package and returns the portal token once."
+		operation.Description += " The handler requires focused Package command/replay ports, with current ownership and human grants checked before reservation or replay. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Customer portal access creation request.", "#/components/schemas/CreateCustomerPortalAccessRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created portal access and one-time token envelope.", "#/components/schemas/CustomerPortalAccessCreateEnvelope")
 	case "listCustomerPortalAccess":
 		operation.Description = "Lists tenant-scoped external reviewer access records visible under the caller's current package, product, release, or tenant-level package:read grant. Token hashes and secrets are never returned."
+		operation.Description += " The handler requires its focused query port, without an aggregate inventory fallback. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, queryParam("package_id", "Optional customer package id filter.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Customer portal access list envelope.", "#/components/schemas/CustomerPortalAccessListEnvelope")
 	case "revokeCustomerPortalAccess":
 		operation.Description = "Revokes a tenant-scoped external reviewer access record; revocation is append-only and the original token cannot be used afterwards."
+		operation.Description += " The handler requires focused Package command/replay ports, with current ownership and human grants checked before reservation or replay. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Customer portal access id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked customer portal access envelope.", "#/components/schemas/CustomerPortalAccessEnvelope")
@@ -910,12 +913,14 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = binaryResponse("Customer security package ZIP archive.")
 	case "accessCustomerPortalPackage":
 		operation.Description = "Public token exchange endpoint for a scoped customer package. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body."
+		operation.Description += " The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and access audits commit together; semantic denials retain their intended audit/counter effects, while storage failures roll back. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Customer portal token request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Scoped customer package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
 	case "downloadCustomerPortalPackage":
 		operation.Description = "Public token exchange endpoint for downloading a scoped customer package ZIP. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body."
+		operation.Description += " The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and download audits commit together before record-only ZIP rendering. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Customer portal token request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
@@ -927,12 +932,14 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = htmlResponse("Customer portal package review form.")
 	case "customerPortalPackageView":
 		operation.Description = "Public HTML package review endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields."
+		operation.Description += " The token helper requires a focused Package service, without an aggregate fallback. Escaping, restrictive CSP and no-store/no-referrer headers are retained. PostgreSQL is required for local evaluation."
 		operation.RequestBody = formRequest("Customer portal token form request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = htmlResponse("Scoped customer package review HTML.")
 	case "downloadCustomerPortalPackageView":
 		operation.Description = "Public HTML-form package ZIP download endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields."
+		operation.Description += " The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and download audits commit together before record-only ZIP rendering. PostgreSQL is required for local evaluation."
 		operation.RequestBody = formRequest("Customer portal token form request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil

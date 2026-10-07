@@ -948,6 +948,10 @@ format, NDA/failure-limit behavior and privacy-safe replay projection remain.
 The additive `20261003000100_customer_portal_token_lookup` migration indexes
 prefix lookup without rewriting records or enforcing a new uniqueness rule.
 Token access sees creation/revocation immediately without a Ledger refresh.
+All portal handlers and token helpers require focused ports; their aggregate
+fallbacks and the obsolete creation input converter are removed. PostgreSQL is
+required for local evaluation. Test-only composition uses the actual focused
+services and memory transaction repositories, not a supported runtime profile.
 
 Human writes/replay now require matching current package grants, rather than
 tenant membership plus a credential scope alone. Ownership must resolve through

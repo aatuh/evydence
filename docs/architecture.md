@@ -1691,8 +1691,17 @@ monotonic portal counters and access/download audits commit together; failed
 tokens and NDA-required denials retain their audited denial effects. Shared
 record-only HTML/ZIP rendering does not regain Ledger access. The API composition
 root binds both issuer and consumer so newly issued/revoked tokens are visible
-immediately without reloading broad state. Local mode retains explicit
-compatibility paths. See [portal lifecycle](api.md#customer-portal-lifecycle)
+immediately without reloading broad state. Issuance, revocation, inventory and
+JSON/HTML/ZIP token consumption require focused ports, with no aggregate
+fallback. Test-only composition runs the actual focused services on memory
+transaction snapshots, not legacy portal maps. Administrative reads exclude
+hashes; consumption owns the NDA/counter/audit transaction, including deliberate
+denial commits. Pure guards cannot mint, revoke, audit or read private package
+content. Whole-state failure tests cover issuance/revocation and token lifecycle
+writes; public-page/replay checks preserve current grants and privacy.
+These checks do not prove SQL locking or durability. PostgreSQL is required for
+local evaluation; remaining aggregate deletion stays EVY-906 work.
+See [portal lifecycle](api.md#customer-portal-lifecycle)
 for bounds, privacy-safe replay and existing archive-content limitations.
 
 Control coverage and CRA-readiness reports use versioned tenant-created controls, explicit evidence links, approved unexpired control exceptions, and built-in starter packs for CRA-readiness, NIST SSDF-lite, SOC 2-style technical evidence, and ISO 27001-style technical evidence.

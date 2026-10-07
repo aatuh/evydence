@@ -39,21 +39,15 @@ func decodePortalTokenRequest(body []byte) (portalTokenRequest, error) {
 	in.NDAAcceptedBy = v.NDAAcceptedBy
 	return in, mapCustomerPackageAccessError(err)
 }
-func (s *Server) portalPackage(ctx context.Context, token string, in app.CustomerPortalAcceptanceInput) (domain.CustomerSecurityPackage, error) {
-	if s.portalTokenCommands == nil {
-		return s.ledger.AccessCustomerPortalPackageWithAcceptance(ctx, token, in)
-	}
-	v, err := s.portalTokenCommands.AccessPortalPackage(ctx, token, packageapp.PortalAcceptanceInput{NDAAccepted: in.NDAAccepted, NDAAcceptedBy: in.NDAAcceptedBy}, false)
+func (s *Server) portalPackage(ctx context.Context, token string, in packageapp.PortalAcceptanceInput) (domain.CustomerSecurityPackage, error) {
+	v, err := s.portalTokenCommands.AccessPortalPackage(ctx, token, in, false)
 	if err != nil {
 		return domain.CustomerSecurityPackage{}, mapCustomerPackageAccessError(err)
 	}
 	return customerPackageFromAccess(v), nil
 }
-func (s *Server) portalArchive(ctx context.Context, token string, in app.CustomerPortalAcceptanceInput) (app.CustomerPackageArchive, error) {
-	if s.portalTokenCommands == nil {
-		return s.ledger.ExportCustomerPortalPackageArchiveWithAcceptance(ctx, token, in)
-	}
-	v, err := s.portalTokenCommands.AccessPortalPackage(ctx, token, packageapp.PortalAcceptanceInput{NDAAccepted: in.NDAAccepted, NDAAcceptedBy: in.NDAAcceptedBy}, true)
+func (s *Server) portalArchive(ctx context.Context, token string, in packageapp.PortalAcceptanceInput) (app.CustomerPackageArchive, error) {
+	v, err := s.portalTokenCommands.AccessPortalPackage(ctx, token, in, true)
 	if err != nil {
 		return app.CustomerPackageArchive{}, mapCustomerPackageAccessError(err)
 	}
@@ -77,9 +71,6 @@ func decodePortalAccessRequest(body []byte) (packageapp.CreatePortalAccessInput,
 	}
 	v, err := packageapp.NormalizePortalAccessInput(packageapp.CreatePortalAccessInput{PackageID: in.PackageID, CustomerName: in.CustomerName, ReviewerName: in.ReviewerName, ReviewerEmail: in.ReviewerEmail, RequireNDA: in.RequireNDA, Watermark: in.Watermark, ExpiresAt: in.ExpiresAt})
 	return v, mapCustomerPackageAccessError(err)
-}
-func portalAccessLegacyInput(in packageapp.CreatePortalAccessInput) app.CreateCustomerPortalAccessInput {
-	return app.CreateCustomerPortalAccessInput{PackageID: in.PackageID, CustomerName: in.CustomerName, ReviewerName: in.ReviewerName, ReviewerEmail: in.ReviewerEmail, RequireNDA: in.RequireNDA, Watermark: in.Watermark, ExpiresAt: in.ExpiresAt}
 }
 func (s *Server) createDurablePortalAccess(w http.ResponseWriter, r *http.Request) {
 	var in packageapp.CreatePortalAccessInput

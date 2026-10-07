@@ -1868,7 +1868,7 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 }
 
 func TestCustomerPortalPackageViewHTMLSafety(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "portal-view-product", map[string]any{"name": "Portal Product", "slug": "portal-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "portal-view-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)

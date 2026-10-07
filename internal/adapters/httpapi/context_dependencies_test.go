@@ -36,6 +36,11 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if command, ok := server.providerVerificationCommands.(providerVerificationFixtureCommands); !ok || command.ledger != ledger {
 		t.Fatal("focused provider-verification fixture was not rebound")
 	}
+	for name, dependency := range map[string]any{"portal-access": server.portalAccessCommands, "portal-token": server.portalTokenCommands, "portal-list": server.portalAccessQuery} {
+		if f, ok := dependency.(portalFixturePorts); !ok || f.ledger != ledger {
+			t.Fatal("focused portal fixture was not rebound", name)
+		}
+	}
 	for name, dependency := range map[string]any{
 		"pdf": server.pdfReportCommands, "anomaly": server.anomalyReportCommands,
 		"signing-operation": server.signingOperationCommands,
@@ -633,6 +638,8 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"createDurablePDFReportPackage",
 		"createPDFReportPackage", "generateAnomalyReport", "createSigningOperation",
 		"verifyProviderIdentity",
+		"createCustomerPortalAccess", "listCustomerPortalAccess", "revokeCustomerPortalAccess",
+		"portalPackage", "portalArchive",
 		"generateDurableAnomalyReport",
 		"createDurableSaaSProfile",
 		"createDurableMarketplaceCollector",

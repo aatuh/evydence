@@ -2462,7 +2462,7 @@ Transport regression evidence:
 
 ### Customer Portal Lifecycle
 
-In PostgreSQL mode, focused Package commands issue/revoke access and verify
+Focused Package commands issue/revoke access and verify
 package tokens without Ledger maps or reloads. Issuance and revocation require
 `package:write` and, for human sessions, a current matching tenant, product,
 release, or customer-package grant. Current package/product/release ownership
@@ -2487,7 +2487,7 @@ JSON routes retain the 64 KiB body limit. Revocation bodies remain ignored.
 
 Token access resolves at most two prefix candidates, then verifies one locked
 credential after acquiring the tenant writer fence. Ambiguous prefixes fail
-closed. Raw PostgreSQL-profile token input is limited to 1024 UTF-8 bytes.
+closed. Raw token input is limited to 1024 UTF-8 bytes.
 Tokens and hashes are never returned in package, HTML, ZIP, audit, or replay
 outputs. Access checks token revocation/expiry and current package ownership/
 expiry, and reads only the selected package's bounded manifest (at most 8 MiB).
@@ -2501,8 +2501,14 @@ HTML keeps escaping, restrictive CSP and no-store/no-referrer headers. ZIP
 rendering keeps its existing size limits and sensitive-content guard: an
 email-bearing default watermark can be rejected, so use an explicit
 customer-safe watermark for distribution. No private payloads are added.
-Local-memory mode remains explicit compatibility mode; production Ledger
-startup retirement and other extension workflows remain open EVY-905 work.
+Issuance, revocation, inventory and JSON/HTML/ZIP token consumption require
+focused ports; no handler or token helper retains an aggregate fallback.
+PostgreSQL is required for local evaluation. Test-only adapters compose the
+actual focused services with transaction-owned memory repositories, including
+hash-free administrative reads, detached metadata, monotonic counters and
+commit-before-denial behavior. Synthetic credentials and memory checks are
+not production configuration, SQL-locking or durability evidence. Physical
+aggregate deletion and other extension handlers remain EVY-906 work.
 
 ### Built-in Policy Evaluation
 

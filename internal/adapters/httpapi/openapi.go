@@ -2720,7 +2720,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("CustomerPortalAccessEnvelope", dataEnvelopeSchema("#/components/schemas/CustomerPortalAccess"))
 	registry.RegisterSchema("CustomerPortalAccessListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/CustomerPortalAccess"))
 	registry.RegisterSchema("CustomerPortalPackageRequest", objectSchema(map[string]any{
-		"token":           map[string]any{"type": "string", "maxLength": 1024, "description": "Customer portal token issued by createCustomerPortalAccess; raw input is limited to 1024 UTF-8 bytes in PostgreSQL mode. Sent only in the request body."},
+		"token":           map[string]any{"type": "string", "maxLength": 1024, "description": "Customer portal token issued by createCustomerPortalAccess; raw input is limited to 1024 UTF-8 bytes. Sent only in the request body."},
 		"nda_accepted":    map[string]any{"type": "boolean", "description": "Set true to record acceptance for NDA-gated portal access."},
 		"nda_accepted_by": map[string]any{"type": "string", "maxLength": 640, "description": "Reviewer label recorded when NDA acceptance is required; at most 640 UTF-8 bytes before normalization. Do not include secrets."},
 	}, "token"))

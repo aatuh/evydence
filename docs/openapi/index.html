@@ -891,13 +891,13 @@
               <div><dt>Responses</dt><dd>200 application/zip: string; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/customer-portal/access list customer portal access records lists tenant-scoped external reviewer access records visible under the caller&#x27;s current package, product, release, or tenant-level package:read grant. token hashes and secrets are never returned. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcustomerportalaccess evydence package:read">
+          <article class="operation" data-operation data-search="get /v1/customer-portal/access list customer portal access records lists tenant-scoped external reviewer access records visible under the caller&#x27;s current package, product, release, or tenant-level package:read grant. token hashes and secrets are never returned. the handler requires its focused query port, without an aggregate inventory fallback. postgresql is required for local evaluation. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listcustomerportalaccess evydence package:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/customer-portal/access</code>
             </div>
             <h3>List customer portal access records</h3>
-            <p>Lists tenant-scoped external reviewer access records visible under the caller&#x27;s current package, product, release, or tenant-level package:read grant. Token hashes and secrets are never returned. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Lists tenant-scoped external reviewer access records visible under the caller&#x27;s current package, product, release, or tenant-level package:read grant. Token hashes and secrets are never returned. The handler requires its focused query port, without an aggregate inventory fallback. PostgreSQL is required for local evaluation. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listCustomerPortalAccess</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -908,13 +908,13 @@
               <div><dt>Responses</dt><dd>200 application/json: CustomerPortalAccessListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/customer-portal/access create customer portal access creates a named, expiring external reviewer access record for a customer package and returns the portal token once. createcustomerportalaccess evydence package:write">
+          <article class="operation" data-operation data-search="post /v1/customer-portal/access create customer portal access creates a named, expiring external reviewer access record for a customer package and returns the portal token once. the handler requires focused package command/replay ports, with current ownership and human grants checked before reservation or replay. postgresql is required for local evaluation. createcustomerportalaccess evydence package:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/customer-portal/access</code>
             </div>
             <h3>Create customer portal access</h3>
-            <p>Creates a named, expiring external reviewer access record for a customer package and returns the portal token once.</p>
+            <p>Creates a named, expiring external reviewer access record for a customer package and returns the portal token once. The handler requires focused Package command/replay ports, with current ownership and human grants checked before reservation or replay. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createCustomerPortalAccess</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -925,13 +925,13 @@
               <div><dt>Responses</dt><dd>201 application/json: CustomerPortalAccessCreateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/customer-portal/access/{id}/revoke revoke customer portal access revokes a tenant-scoped external reviewer access record; revocation is append-only and the original token cannot be used afterwards. revokecustomerportalaccess evydence package:write">
+          <article class="operation" data-operation data-search="post /v1/customer-portal/access/{id}/revoke revoke customer portal access revokes a tenant-scoped external reviewer access record; revocation is append-only and the original token cannot be used afterwards. the handler requires focused package command/replay ports, with current ownership and human grants checked before reservation or replay. postgresql is required for local evaluation. revokecustomerportalaccess evydence package:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/customer-portal/access/{id}/revoke</code>
             </div>
             <h3>Revoke customer portal access</h3>
-            <p>Revokes a tenant-scoped external reviewer access record; revocation is append-only and the original token cannot be used afterwards.</p>
+            <p>Revokes a tenant-scoped external reviewer access record; revocation is append-only and the original token cannot be used afterwards. The handler requires focused Package command/replay ports, with current ownership and human grants checked before reservation or replay. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>revokeCustomerPortalAccess</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -942,13 +942,13 @@
               <div><dt>Responses</dt><dd>200 application/json: CustomerPortalAccessEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/customer-portal/package access customer portal package public token exchange endpoint for a scoped customer package. it intentionally uses no bearer authentication and accepts only the issued portal token in the json body. accesscustomerportalpackage evydence none">
+          <article class="operation" data-operation data-search="post /v1/customer-portal/package access customer portal package public token exchange endpoint for a scoped customer package. it intentionally uses no bearer authentication and accepts only the issued portal token in the json body. the token helper requires a focused package service, without an aggregate fallback. nda, counters and access audits commit together; semantic denials retain their intended audit/counter effects, while storage failures roll back. postgresql is required for local evaluation. accesscustomerportalpackage evydence none">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/customer-portal/package</code>
             </div>
             <h3>Access customer portal package</h3>
-            <p>Public token exchange endpoint for a scoped customer package. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body.</p>
+            <p>Public token exchange endpoint for a scoped customer package. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body. The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and access audits commit together; semantic denials retain their intended audit/counter effects, while storage failures roll back. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>accessCustomerPortalPackage</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -959,13 +959,13 @@
               <div><dt>Responses</dt><dd>200 application/json: CustomerSecurityPackageEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/customer-portal/package/download download customer portal package zip public token exchange endpoint for downloading a scoped customer package zip. it intentionally uses no bearer authentication and accepts only the issued portal token in the json body. downloadcustomerportalpackage evydence none">
+          <article class="operation" data-operation data-search="post /v1/customer-portal/package/download download customer portal package zip public token exchange endpoint for downloading a scoped customer package zip. it intentionally uses no bearer authentication and accepts only the issued portal token in the json body. the token helper requires a focused package service, without an aggregate fallback. nda, counters and download audits commit together before record-only zip rendering. postgresql is required for local evaluation. downloadcustomerportalpackage evydence none">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/customer-portal/package/download</code>
             </div>
             <h3>Download customer portal package ZIP</h3>
-            <p>Public token exchange endpoint for downloading a scoped customer package ZIP. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body.</p>
+            <p>Public token exchange endpoint for downloading a scoped customer package ZIP. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body. The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and download audits commit together before record-only ZIP rendering. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>downloadCustomerPortalPackage</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -993,13 +993,13 @@
               <div><dt>Responses</dt><dd>200 text/html: string; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/customer-portal/package/view customer portal package review page public html package review endpoint backed by the customer portal token exchange. tokens are accepted only as form body fields. customerportalpackageview evydence none">
+          <article class="operation" data-operation data-search="post /v1/customer-portal/package/view customer portal package review page public html package review endpoint backed by the customer portal token exchange. tokens are accepted only as form body fields. the token helper requires a focused package service, without an aggregate fallback. escaping, restrictive csp and no-store/no-referrer headers are retained. postgresql is required for local evaluation. customerportalpackageview evydence none">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/customer-portal/package/view</code>
             </div>
             <h3>Customer portal package review page</h3>
-            <p>Public HTML package review endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields.</p>
+            <p>Public HTML package review endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields. The token helper requires a focused Package service, without an aggregate fallback. Escaping, restrictive CSP and no-store/no-referrer headers are retained. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>customerPortalPackageView</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1010,13 +1010,13 @@
               <div><dt>Responses</dt><dd>200 text/html: string; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/customer-portal/package/view/download download customer portal package zip from review form public html-form package zip download endpoint backed by the customer portal token exchange. tokens are accepted only as form body fields. downloadcustomerportalpackageview evydence none">
+          <article class="operation" data-operation data-search="post /v1/customer-portal/package/view/download download customer portal package zip from review form public html-form package zip download endpoint backed by the customer portal token exchange. tokens are accepted only as form body fields. the token helper requires a focused package service, without an aggregate fallback. nda, counters and download audits commit together before record-only zip rendering. postgresql is required for local evaluation. downloadcustomerportalpackageview evydence none">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/customer-portal/package/view/download</code>
             </div>
             <h3>Download customer portal package ZIP from review form</h3>
-            <p>Public HTML-form package ZIP download endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields.</p>
+            <p>Public HTML-form package ZIP download endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields. The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and download audits commit together before record-only ZIP rendering. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>downloadCustomerPortalPackageView</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

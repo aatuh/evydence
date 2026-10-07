@@ -24,27 +24,7 @@ func (s *Server) createCustomerPortalAccess(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, err)
 		return
 	}
-	if s.portalAccessCommands != nil {
-		s.createDurablePortalAccess(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		in, err := decodePortalAccessRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		access, secret, err := s.ledger.CreateCustomerPortalAccess(ctx, actor, portalAccessLegacyInput(in))
-		return http.StatusCreated, map[string]any{"access": access, "secret": secret}, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodePortalAccessRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeCustomerPortalAccessCreate(r.Context(), a, portalAccessLegacyInput(in)); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurablePortalAccess(w, r)
 }
 
 func (s *Server) listCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
@@ -52,32 +32,21 @@ func (s *Server) listCustomerPortalAccess(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if s.portalAccessQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "customer-portal-access", "package_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.portalAccessQuery.ListPage(r.Context(), actor, r.URL.Query().Get("package_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapPortalAccessQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.CustomerPortalAccess]{Next: page.Next, Items: make([]domain.CustomerPortalAccess, 0, len(page.Items))}
-		for _, access := range page.Items {
-			mapped.Items = append(mapped.Items, portalAccessFromQuery(access))
-		}
-		writePage(s, w, r, actor, "customer-portal-access", request, mapped)
-		return
-	}
-	access, err := s.ledger.ListCustomerPortalAccess(r.Context(), actor, r.URL.Query().Get("package_id"))
+	request, err := s.parsePageRequest(r, actor, "customer-portal-access", "package_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "customer-portal-access", []string{"package_id"}, access, func(entry domain.CustomerPortalAccess) (string, time.Time) {
-		return entry.ID, entry.CreatedAt
-	})
+	page, err := s.portalAccessQuery.ListPage(r.Context(), actor, r.URL.Query().Get("package_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapPortalAccessQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.CustomerPortalAccess]{Next: page.Next, Items: make([]domain.CustomerPortalAccess, 0, len(page.Items))}
+	for _, access := range page.Items {
+		mapped.Items = append(mapped.Items, portalAccessFromQuery(access))
+	}
+	writePage(s, w, r, actor, "customer-portal-access", request, mapped)
 }
 
 func (s *Server) revokeCustomerPortalAccess(w http.ResponseWriter, r *http.Request) {
@@ -85,19 +54,7 @@ func (s *Server) revokeCustomerPortalAccess(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, err)
 		return
 	}
-	if s.portalAccessCommands != nil {
-		s.revokeDurablePortalAccess(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		access, err := s.ledger.RevokeCustomerPortalAccess(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, access, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if err := s.ledger.AuthorizeCustomerPortalAccessRevoke(r.Context(), a, r.PathValue("id")); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.revokeDurablePortalAccess(w, r)
 }
 
 func (s *Server) accessCustomerPortalPackage(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +68,7 @@ func (s *Server) accessCustomerPortalPackage(w http.ResponseWriter, r *http.Requ
 		writeProblem(w, r, err)
 		return
 	}
-	pkg, err := s.portalPackage(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
+	pkg, err := s.portalPackage(r.Context(), req.Token, packageapp.PortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -131,7 +88,7 @@ func (s *Server) downloadCustomerPortalPackage(w http.ResponseWriter, r *http.Re
 		writeProblem(w, r, err)
 		return
 	}
-	archive, err := s.portalArchive(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
+	archive, err := s.portalArchive(r.Context(), req.Token, packageapp.PortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -150,7 +107,7 @@ func (s *Server) customerPortalPackageView(w http.ResponseWriter, r *http.Reques
 		writeProblem(w, r, err)
 		return
 	}
-	pkg, err := s.portalPackage(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
+	pkg, err := s.portalPackage(r.Context(), req.Token, packageapp.PortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
@@ -164,7 +121,7 @@ func (s *Server) downloadCustomerPortalPackageView(w http.ResponseWriter, r *htt
 		writeProblem(w, r, err)
 		return
 	}
-	archive, err := s.portalArchive(r.Context(), req.Token, app.CustomerPortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
+	archive, err := s.portalArchive(r.Context(), req.Token, packageapp.PortalAcceptanceInput{NDAAccepted: req.NDAAccepted, NDAAcceptedBy: req.NDAAcceptedBy})
 	if err != nil {
 		writeProblem(w, r, err)
 		return
