@@ -43,8 +43,8 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if reflect.ValueOf(server).Elem().FieldByName("releaseCatalog").IsValid() {
 		t.Fatal("broad release catalog binding was not deleted")
 	}
-	if server.localDeployments != ledger {
-		t.Fatal("local deployment dependency was not rebound")
+	if reflect.ValueOf(server).Elem().FieldByName("localDeployments").IsValid() {
+		t.Fatal("broad deployment binding was not deleted")
 	}
 	if server.localEvidenceCreation != ledger {
 		t.Fatal("local evidence creation dependency was not rebound")
@@ -118,6 +118,22 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	keyCommands, ok := server.apiKeyCommands.(apiKeyFixtureCommands)
 	if !ok || keyCommands.ledger != ledger {
 		t.Fatal("focused API-key fixture command was not rebound")
+	}
+	for name, dependency := range map[string]any{
+		"environment": server.deploymentEnvironmentCommands, "deployment": server.deploymentCommands,
+	} {
+		commands, ok := dependency.(deploymentFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
+	for name, dependency := range map[string]any{
+		"deployment-list": server.deploymentListQuery, "deployment-point": server.deploymentPointQuery,
+	} {
+		query, ok := dependency.(deploymentQueryFixture)
+		if !ok || query.ledger != ledger {
+			t.Fatalf("focused %s fixture query was not rebound", name)
+		}
 	}
 }
 

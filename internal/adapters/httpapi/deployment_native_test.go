@@ -33,7 +33,6 @@ func TestDeploymentWritesRequireNativeReplayAndCurrentAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			s.ledger = nil
-			s.localDeployments = nil
 			one := postRaw(t, s, secret, path, "original", []byte(body), 201)
 			assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "original", []byte(body), 201))
 			e.guardErr, d.guardErr = application.ErrForbidden, application.ErrForbidden
@@ -54,7 +53,7 @@ func TestDeploymentCreationRejectsMalformedInputBeforeNativeGuard(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger, s.localDeployments = nil, nil
+			s.ledger = nil
 			path, body, field := "/v1/environments", `{"product_id":"product","name":"Production","kind":"production"}`, "product_id"
 			extra := []string{`{"product_id":"product","name":null,"kind":"production"}`, `{"product_id":"product","name":"Production","kind":null}`}
 			if event {
@@ -72,7 +71,7 @@ func TestDeploymentCreationRejectsMalformedInputBeforeNativeGuard(t *testing.T) 
 	}
 }
 
-func TestDeploymentCreationCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
+func TestDeploymentCreationCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		for _, event := range []bool{false, true} {
 			t.Run(fmt.Sprintf("native=%t/event=%t", native, event), func(t *testing.T) {
@@ -93,7 +92,7 @@ func TestDeploymentCreationCookieOriginAndBearerPrecedenceBothProfiles(t *testin
 					if err != nil {
 						t.Fatal(err)
 					}
-					s.ledger, s.localDeployments = nil, nil
+					s.ledger = nil
 				}
 				for _, tc := range []struct {
 					origin string

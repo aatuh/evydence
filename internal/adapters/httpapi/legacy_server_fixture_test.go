@@ -48,7 +48,6 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.authn = ledger
 	s.idempotency = legacyFixtureIdempotencyExecutor{ledger: ledger}
 	s.identityAccess = ledger
-	s.localDeployments = ledger
 	s.localEvidenceCreation = ledger
 	s.localEvidenceRelationships = ledger
 	s.localReportTemplates = ledger
@@ -64,6 +63,7 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.bindCatalogQueryFixturePorts(ledger)
 	s.bindIdentityQueryFixturePorts(ledger)
 	s.bindAPIKeyFixturePort(ledger)
+	s.bindDeploymentFixturePorts(ledger)
 }
 
 type legacyFixtureCommandScope struct {

@@ -60,6 +60,11 @@ removed; existing native credential validation, authorization, atomic replay
 and one-time-secret contracts are unchanged. Other identity writes, sessions
 and aggregate retirement remain unfinished.
 
+Deployment environment/event creation, list and event point handlers now use
+only focused Operations ports. Their broad local transport dependency and
+interface are deleted. Native authorization, cookie-origin protection,
+transactional replay, pagination and response contracts are unchanged.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

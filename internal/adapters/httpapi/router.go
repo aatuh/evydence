@@ -116,7 +116,6 @@ type Server struct {
 	durableStreamedCommandExecutor    DurableStreamedCommandExecutor
 	deploymentEnvironmentCommands     DeploymentEnvironmentCommands
 	deploymentCommands                DeploymentCommands
-	localDeployments                  localDeploymentCommands
 	sourceRepositoryCommands          SourceRepositoryCommands
 	sourceCommitCommands              SourceCommitCommands
 	sourceBranchCommands              SourceBranchCommands
@@ -1297,32 +1296,21 @@ func (s *Server) listDeploymentEnvironments(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if s.deploymentListQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "deployment-environments", "product_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.deploymentListQuery.ListEnvironmentsPage(r.Context(), actor, r.URL.Query().Get("product_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapDeploymentPointQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.DeploymentEnvironment]{Next: page.Next, Items: make([]domain.DeploymentEnvironment, 0, len(page.Items))}
-		for _, environment := range page.Items {
-			mapped.Items = append(mapped.Items, deploymentEnvironmentFromQuery(environment))
-		}
-		writePage(s, w, r, actor, "deployment-environments", request, mapped)
-		return
-	}
-	envs, err := s.ledger.ListDeploymentEnvironments(r.Context(), actor, r.URL.Query().Get("product_id"))
+	request, err := s.parsePageRequest(r, actor, "deployment-environments", "product_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "deployment-environments", []string{"product_id"}, envs, func(environment domain.DeploymentEnvironment) (string, time.Time) {
-		return environment.ID, environment.CreatedAt
-	})
+	page, err := s.deploymentListQuery.ListEnvironmentsPage(r.Context(), actor, r.URL.Query().Get("product_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapDeploymentPointQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.DeploymentEnvironment]{Next: page.Next, Items: make([]domain.DeploymentEnvironment, 0, len(page.Items))}
+	for _, environment := range page.Items {
+		mapped.Items = append(mapped.Items, deploymentEnvironmentFromQuery(environment))
+	}
+	writePage(s, w, r, actor, "deployment-environments", request, mapped)
 }
 
 func (s *Server) listDeployments(w http.ResponseWriter, r *http.Request) {
@@ -1330,32 +1318,21 @@ func (s *Server) listDeployments(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.deploymentListQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "deployments", "release_id", "environment_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.deploymentListQuery.ListDeploymentsPage(r.Context(), actor, r.URL.Query().Get("release_id"), r.URL.Query().Get("environment_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapDeploymentPointQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.DeploymentEvent]{Next: page.Next, Items: make([]domain.DeploymentEvent, 0, len(page.Items))}
-		for _, deployment := range page.Items {
-			mapped.Items = append(mapped.Items, deploymentEventFromQuery(deployment))
-		}
-		writePage(s, w, r, actor, "deployments", request, mapped)
-		return
-	}
-	deployments, err := s.ledger.ListDeployments(r.Context(), actor, r.URL.Query().Get("release_id"), r.URL.Query().Get("environment_id"))
+	request, err := s.parsePageRequest(r, actor, "deployments", "release_id", "environment_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "deployments", []string{"release_id", "environment_id"}, deployments, func(deployment domain.DeploymentEvent) (string, time.Time) {
-		return deployment.ID, deployment.CreatedAt
-	})
+	page, err := s.deploymentListQuery.ListDeploymentsPage(r.Context(), actor, r.URL.Query().Get("release_id"), r.URL.Query().Get("environment_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapDeploymentPointQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.DeploymentEvent]{Next: page.Next, Items: make([]domain.DeploymentEvent, 0, len(page.Items))}
+	for _, deployment := range page.Items {
+		mapped.Items = append(mapped.Items, deploymentEventFromQuery(deployment))
+	}
+	writePage(s, w, r, actor, "deployments", request, mapped)
 }
 
 func (s *Server) getDeployment(w http.ResponseWriter, r *http.Request) {
@@ -1363,21 +1340,12 @@ func (s *Server) getDeployment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.deploymentPointQuery != nil {
-		deployment, err := s.deploymentPointQuery.GetDeployment(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapDeploymentPointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, deploymentEventFromQuery(deployment))
-		return
-	}
-	deployment, err := s.ledger.GetDeployment(r.Context(), actor, r.PathValue("id"))
+	deployment, err := s.deploymentPointQuery.GetDeployment(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapDeploymentPointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, deployment)
+	writeData(w, http.StatusOK, deploymentEventFromQuery(deployment))
 }
 
 func (s *Server) createIncident(w http.ResponseWriter, r *http.Request) {

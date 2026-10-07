@@ -200,14 +200,6 @@ type DeploymentCommands interface {
 	RecordDeployment(context.Context, identitydomain.Actor, operationsapp.RecordDeploymentInput) (operationsdomain.DeploymentEvent, error)
 }
 
-// This dependency is used only by the explicit local-memory command branch.
-type localDeploymentCommands interface {
-	CreateDeploymentEnvironment(context.Context, domain.Actor, app.CreateEnvironmentInput) (domain.DeploymentEnvironment, error)
-	RecordDeployment(context.Context, domain.Actor, app.RecordDeploymentInput) (domain.DeploymentEvent, error)
-	AuthorizeEnvironmentCreation(context.Context, domain.Actor, operationsapp.CreateEnvironmentInput) error
-	AuthorizeDeploymentRecording(context.Context, domain.Actor, operationsapp.RecordDeploymentInput) error
-}
-
 type SourceRepositoryCommands interface {
 	AuthorizeSourceRepositoryCreation(context.Context, identitydomain.Actor, integrationapp.CreateSourceRepositoryInput) error
 	CreateSourceRepository(context.Context, identitydomain.Actor, integrationapp.CreateSourceRepositoryInput) (integrationdomain.SourceRepository, error)

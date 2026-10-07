@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 )
@@ -55,30 +54,16 @@ func (s *Server) createDeploymentEnvironment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var in operationsapp.CreateEnvironmentInput
-	if s.deploymentEnvironmentCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeEnvironmentCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapDeploymentCommandError(s.deploymentEnvironmentCommands.AuthorizeEnvironmentCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.deploymentEnvironmentCommands.CreateDeploymentEnvironment(ctx, a, in)
-			return 201, deploymentEnvironmentFromQuery(v), mapDeploymentCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localDeployments.CreateDeploymentEnvironment(ctx, a, app.CreateEnvironmentInput{ProductID: in.ProductID, Name: in.Name, Kind: in.Kind})
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeEnvironmentCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localDeployments.AuthorizeEnvironmentCreation(r.Context(), a, in)
+		return mapDeploymentCommandError(s.deploymentEnvironmentCommands.AuthorizeEnvironmentCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.deploymentEnvironmentCommands.CreateDeploymentEnvironment(ctx, a, in)
+		return 201, deploymentEnvironmentFromQuery(v), mapDeploymentCommandError(err)
 	})
 }
 func (s *Server) recordDeployment(w http.ResponseWriter, r *http.Request) {
@@ -87,29 +72,15 @@ func (s *Server) recordDeployment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in operationsapp.RecordDeploymentInput
-	if s.deploymentCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeDeploymentRecording(body)
-			if err != nil {
-				return err
-			}
-			return mapDeploymentCommandError(s.deploymentCommands.AuthorizeDeploymentRecording(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.deploymentCommands.RecordDeployment(ctx, a, in)
-			return 201, deploymentEventFromQuery(v), mapDeploymentCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localDeployments.RecordDeployment(ctx, a, app.RecordDeploymentInput{EnvironmentID: in.EnvironmentID, ReleaseID: in.ReleaseID, ArtifactIDs: in.ArtifactIDs, Status: in.Status, StartedAt: in.StartedAt, FinishedAt: in.FinishedAt, RollbackOf: in.RollbackOf})
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeDeploymentRecording(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localDeployments.AuthorizeDeploymentRecording(r.Context(), a, in)
+		return mapDeploymentCommandError(s.deploymentCommands.AuthorizeDeploymentRecording(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.deploymentCommands.RecordDeployment(ctx, a, in)
+		return 201, deploymentEventFromQuery(v), mapDeploymentCommandError(err)
 	})
 }

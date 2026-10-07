@@ -88,6 +88,15 @@ PostgreSQL row locks. Rejected/readonly guards do not issue credentials or
 change repository data. This is test-adapter groundwork, not a new API runtime
 or completion of aggregate retirement.
 
+Deployment environment/event creation, inventory pages and event point reads
+now require the focused Operations command/query ports. The broad local
+deployment Server binding and interface are deleted. Existing native request
+validation, cookie-origin checks, current ownership/grant guards, replay,
+cursor binding and DTOs are unchanged. Test-only adapters retain real fixture
+authorization; failure-after-write tests prove that environment/event,
+evidence, audit and outbox effects roll back together. This is transport
+retirement, not deletion of the remaining Ledger maps and methods.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;
