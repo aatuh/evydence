@@ -1383,8 +1383,10 @@ Replay returns the original report without recalculating signals after facts
 change. Different request bytes with the same key conflict with `409`; a new
 key creates a fresh immutable report. Signal text/order, assumptions,
 limitations, schema version and audit type are unchanged. Durable timestamps
-use UTC microseconds. Explicit local memory shares the pure signal builder and
-input validation, but retains in-process persistence and locking limitations.
+use UTC microseconds. The handler uses focused commands only; PostgreSQL is
+required for local evaluation. Test-only memory adapters retain actual guards,
+pure signal generation, detached records and isolated replay writes, not SQL
+locking or durability guarantees.
 
 ### Incident Commands
 
@@ -3050,7 +3052,7 @@ IDs are NUL-free UTF-8 capped at 1024 raw bytes before trimming; report type is
 capped at 128 bytes and title at 64 KiB. Type and title must be single-line
 UTF-8 without control characters or Unicode line/paragraph separators. Blank,
 malformed/non-object JSON, null fields, duplicate/unknown fields, mixed-case
-aliases and invalid text return `400` in both profiles. Existing HTTP body
+aliases and invalid text return `400`. Existing HTTP body
 limits apply independently. Cookie mutations require one same-host HTTPS
 Origin; explicit bearer credentials retain precedence.
 
@@ -3058,7 +3060,7 @@ Current tenant-owned product/release coordinates must agree; missing/foreign
 roots or mismatched pairs return `404`. Human sessions need a matching current
 tenant, product or release grant. Release-only requests authorize the current
 product parent but retain an omitted `product_id` in the record and response.
-The PostgreSQL profile uses focused Package commands and coordinate-only reads,
+The handler uses focused Package commands only and coordinate-only reads,
 not Ledger maps, evidence payloads, labels or report snapshots. The worker/audit
 fence and root locks remain held through report, audit and replay commit.
 
@@ -3071,8 +3073,9 @@ bytes for the documented [object-store recovery](runbooks/object-store-recovery.
 process; database rows and jobs are rolled back. Production composition requires
 an object store supporting transactional staging. Non-production PostgreSQL
 without objects remains hash/metadata-only, with no downloadable payload.
-Explicit local memory uses the same validated envelope bytes but retains its
-in-process persistence/finalization behavior.
+PostgreSQL is required for local evaluation. Test-only memory adapters retain
+actual guards, identical envelope bytes and isolated replay writes, not SQL
+durability or locking guarantees. Physical staging is outside rollback.
 
 Replay rechecks current roots and grants before returning stored metadata and
 never regenerates or restages the payload. The existing privacy-safe replay
@@ -3927,7 +3930,7 @@ or foreign roots return `404`; inactive providers return `422` without signing.
 These checks also run before completed replay. Cookie-authenticated mutations
 require a single same-host HTTPS Origin; bearer credentials take precedence.
 
-Both profiles reject malformed/non-object JSON, duplicate/unknown/mixed-case
+The API rejects malformed/non-object JSON, duplicate/unknown/mixed-case
 fields, null and caller-supplied signature fields with `400`. Raw values must
 be NUL-free UTF-8: provider/subject IDs are capped at 1024 bytes, subject type
 and payload hash at 128 bytes, all before trimming. The normalized hash is
@@ -3935,8 +3938,8 @@ and payload hash at 128 bytes, all before trimming. The normalized hash is
 preserved. The independent 64 KiB JSON body limit returns `400` with a
 `/body` `invalid_size` violation before command invocation when exceeded.
 
-PostgreSQL binds focused Verification commands. A bounded provider point read
-and coordinate-only subject reads replace tenant Ledger reconstruction.
+The handler binds focused Verification commands only. A bounded provider point
+read and coordinate-only subject reads replace tenant Ledger reconstruction.
 Provider metadata selects only type/status/key reference, with 128/128/4096
 byte caps. Parent/provider locks and the shared writer/worker projection fence
 remain held through signing, receipt/operation/audit writes, and replay commit.
@@ -3966,10 +3969,11 @@ A completed provider call cannot be rolled back with the database transaction.
 After an ambiguous provider failure or database commit failure, another attempt
 may invoke the provider again with a fresh request ID/nonce. This is not a claim
 of provider-side exactly-once execution. Durable timestamps use UTC microseconds.
-Explicit local memory shares canonical hashing and receipt validation, checks
-provider status/key binding again after signing, and copies stored checks, but
-retains in-process persistence/locking limitations. No executor means new
-operation creation is disabled with `400`. A passed operation does not verify
+PostgreSQL is required for local evaluation. Test-only memory adapters retain
+actual guards, canonical request hashing, receipt binding, detached checks and
+isolated replay writes, not SQL locking or external provider verification.
+No executor means new operation creation is disabled with `400`.
+A passed operation does not verify
 uploaded artifact bytes, release security, key custody or legal compliance.
 
 ### Signing-Key Lifecycle Commands

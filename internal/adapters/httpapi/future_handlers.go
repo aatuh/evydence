@@ -144,27 +144,7 @@ func (s *Server) createPDFReportPackage(w http.ResponseWriter, r *http.Request) 
 		writeProblem(w, r, err)
 		return
 	}
-	if s.pdfReportCommands != nil {
-		s.createDurablePDFReportPackage(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodePDFReportRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		pkg, err := s.ledger.CreatePDFReportPackage(ctx, actor, app.CreatePDFReportPackageInput{ReportType: req.ReportType, ProductID: req.ProductID, ReleaseID: req.ReleaseID, Title: req.Title})
-		return http.StatusCreated, pkg, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodePDFReportRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeCreatePDFReportPackage(r.Context(), a, app.CreatePDFReportPackageInput{ReportType: in.ReportType, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Title: in.Title}); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurablePDFReportPackage(w, r)
 }
 
 func (s *Server) generateAnomalyReport(w http.ResponseWriter, r *http.Request) {
@@ -172,27 +152,7 @@ func (s *Server) generateAnomalyReport(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.anomalyReportCommands != nil {
-		s.generateDurableAnomalyReport(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeAnomalyReportRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		report, err := s.ledger.GenerateAnomalyReport(ctx, actor, app.AnomalyReportInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID})
-		return http.StatusCreated, report, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeAnomalyReportRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeGenerateAnomalyReport(r.Context(), a, app.AnomalyReportInput{SubjectType: in.SubjectType, SubjectID: in.SubjectID}); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.generateDurableAnomalyReport(w, r)
 }
 
 func (s *Server) createSigningOperation(w http.ResponseWriter, r *http.Request) {
@@ -200,27 +160,7 @@ func (s *Server) createSigningOperation(w http.ResponseWriter, r *http.Request) 
 		writeProblem(w, r, err)
 		return
 	}
-	if s.signingOperationCommands != nil {
-		s.createDurableSigningOperation(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeSigningOperationRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		op, err := s.ledger.CreateSigningOperation(ctx, actor, app.CreateSigningOperationInput{ProviderID: req.ProviderID, SubjectType: req.SubjectType, SubjectID: req.SubjectID, PayloadHash: req.PayloadHash})
-		return http.StatusCreated, op, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeSigningOperationRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeCreateSigningOperation(r.Context(), a, app.CreateSigningOperationInput{ProviderID: in.ProviderID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, PayloadHash: in.PayloadHash}); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurableSigningOperation(w, r)
 }
 
 func (s *Server) verifyProviderIdentity(w http.ResponseWriter, r *http.Request) {

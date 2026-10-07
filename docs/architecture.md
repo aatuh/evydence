@@ -1657,10 +1657,13 @@ Outbox jobs are persisted in PostgreSQL and claimed by workers with `FOR UPDATE 
 
 PostgreSQL signing-operation creation binds focused Verification commands to
 bounded provider metadata and owned subject coordinates. Canonical request
-hashing and receipt validation are shared with explicit local memory. The
+hashing and receipt validation are shared with test-only memory adapters. The
 provider call, receipt/operation/audit writes and replay completion run under
 current root/provider locks and the projection fence. Database rollback cannot
-undo a provider call. See [signing operation creation](api.md#signing-operation-creation)
+undo a provider call. The HTTP handler uses focused commands only; PostgreSQL
+is required for local evaluation. Test-only adapters retain actual guards,
+detached checks and isolated replay writes, not SQL or provider evidence.
+See [signing operation creation](api.md#signing-operation-creation)
 for bounds, replay authorization, retry limitations and non-claims.
 
 Release readiness is deterministic and evidence-scoped. Open critical vulnerability findings block readiness unless the latest decision marks the finding `not_affected` or `fixed`, or an approved unexpired exception applies to the release or finding. Passed build provenance and a structurally valid build attestation must link to release artifact digests.
@@ -1758,16 +1761,19 @@ cross-tenant admin-reference boundary and compatibility limits.
 Experimental anomaly reports bind focused commands and current scoped SQL facts
 to the report/audit/replay transaction. Release checks share readiness presence
 predicates without loading full readiness or Ledger snapshots. Other subjects
-currently have no checks; `clear` is not a security conclusion. See
+currently have no checks; `clear` is not a security conclusion. The HTTP handler
+has no aggregate fallback. Test-only adapters retain actual guards, detached
+signals and isolated writes, not SQL guarantees. See
 [anomaly report generation](api.md#anomaly-report-generation) for exact signals,
-input limits, current-grant replay and local-memory limitations.
+input limits, current-grant replay and remaining limitations.
 
 PDF report packaging binds focused Package commands and current product/release
 coordinates in PostgreSQL. Verified staging, lifecycle metadata, finalizer job,
 report, audit and replay completion commit together; failures publish no report
 result. The payload remains a minimal title-only envelope, not stored evidence
-or report-type-specific pages. A shared pure input/payload builder serves local
-memory without giving production commands access to Ledger maps. See
+or report-type-specific pages. The HTTP handler has no aggregate fallback.
+Test-only memory adapters retain actual guards, identical payload bytes and
+isolated replay writes; physical staged bytes can outlive rollback. See
 [PDF report packaging](api.md#pdf-report-packaging) for byte/hash compatibility,
 storage modes, physical orphan recovery and privacy-safe replay limitations.
 

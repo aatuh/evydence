@@ -2319,13 +2319,13 @@
               <div><dt>Responses</dt><dd>201 application/json: RenderedCustomReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/reports/anomaly generate deterministic anomaly report creates a deterministic anomaly report over existing tenant evidence and metrics with assumptions and limitations. generateanomalyreport evydence report:read">
+          <article class="operation" data-operation data-search="post /v1/reports/anomaly generate deterministic anomaly report creates an experimental anomaly report through focused commands without an aggregate fallback. current report:read grants and owned subject coordinates precede every replay. bounded release facts generate fixed signals; other supported roots currently have no checks, and clear is not a security conclusion. report, audit and replay commit together in postgresql, which is required for local evaluation. replays retain original signals without recalculation. generateanomalyreport evydence report:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/reports/anomaly</code>
             </div>
             <h3>Generate deterministic anomaly report</h3>
-            <p>Creates a deterministic anomaly report over existing tenant evidence and metrics with assumptions and limitations.</p>
+            <p>Creates an experimental anomaly report through focused commands without an aggregate fallback. Current report:read grants and owned subject coordinates precede every replay. Bounded release facts generate fixed signals; other supported roots currently have no checks, and clear is not a security conclusion. Report, audit and replay commit together in PostgreSQL, which is required for local evaluation. Replays retain original signals without recalculation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>generateAnomalyReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2455,13 +2455,13 @@
               <div><dt>Responses</dt><dd>200 application/json: MissingEvidenceReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/reports/pdf create reproducible pdf report package creates a deterministic pdf report package record and payload metadata. createpdfreportpackage evydence report:read">
+          <article class="operation" data-operation data-search="post /v1/reports/pdf create reproducible pdf report package creates a minimal title-only pdf-marked envelope through focused package commands without an aggregate fallback. current report:read grants and owned matching product/release coordinates precede every replay. verified staging metadata, finalizer job, report, audit and replay commit together in postgresql, which is required for local evaluation. physical staged bytes can outlive rollback. replay does not regenerate or restage bytes and preserves the privacy-safe omission of payload_ref. this is not a full evidence report renderer, pdf-reader interoperability guarantee or compliance conclusion. createpdfreportpackage evydence report:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/reports/pdf</code>
             </div>
             <h3>Create reproducible PDF report package</h3>
-            <p>Creates a deterministic PDF report package record and payload metadata.</p>
+            <p>Creates a minimal title-only PDF-marked envelope through focused Package commands without an aggregate fallback. Current report:read grants and owned matching product/release coordinates precede every replay. Verified staging metadata, finalizer job, report, audit and replay commit together in PostgreSQL, which is required for local evaluation. Physical staged bytes can outlive rollback. Replay does not regenerate or restage bytes and preserves the privacy-safe omission of payload_ref. This is not a full evidence report renderer, PDF-reader interoperability guarantee or compliance conclusion.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createPDFReportPackage</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2812,13 +2812,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SigningKeyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/signing-operations create signing provider operation receipt requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. caller-supplied signatures are rejected. createsigningoperation evydence keys:admin">
+          <article class="operation" data-operation data-search="post /v1/signing-operations create signing provider operation receipt requests a configured signing executor through focused verification commands without an aggregate fallback. current tenant-wide human keys:admin authority and owned active provider/subject roots precede every replay. canonical requests bind tenant, provider/type/key reference, subject, payload digest, request id and nonce; caller-supplied signatures are rejected. signature, operation, audit and replay commit together in postgresql, which is required for local evaluation. replay does not sign again; rollback cannot undo provider observation. raw signature bytes and key material are not response data. createsigningoperation evydence keys:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/signing-operations</code>
             </div>
             <h3>Create signing provider operation receipt</h3>
-            <p>Requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. Caller-supplied signatures are rejected.</p>
+            <p>Requests a configured signing executor through focused Verification commands without an aggregate fallback. Current tenant-wide human keys:admin authority and owned active provider/subject roots precede every replay. Canonical requests bind tenant, provider/type/key reference, subject, payload digest, request ID and nonce; caller-supplied signatures are rejected. Signature, operation, audit and replay commit together in PostgreSQL, which is required for local evaluation. Replay does not sign again; rollback cannot undo provider observation. Raw signature bytes and key material are not response data.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createSigningOperation</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

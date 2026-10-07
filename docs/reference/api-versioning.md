@@ -766,10 +766,11 @@ provisioned or certified, and complete production Ledger retirement remains open
 bounded current-provider and owned-subject reads in PostgreSQL. Canonical
 request JSON field order/profile, request and nonce correlation, signature
 reference, response field casing/omission, schema version and audit binding
-are preserved. Local memory shares canonical hashing/receipt validation and
-no longer exposes mutable stored check slices.
+are preserved. The HTTP handler uses focused commands only. PostgreSQL is
+required for local evaluation; test-only memory adapters retain actual guards,
+canonical hashing/receipt validation and detached checks, not SQL guarantees.
 
-Both profiles require tenant-wide human administration and current ownership
+The API requires tenant-wide human administration and current ownership
 before replay, strict non-null exact JSON fields, bounded raw UTF-8/NUL-free
 input before trimming, and Origin for cookie mutations. Inactive providers
 cannot authorize replay. Receipt/check output is bounded, diagnostic metadata
@@ -789,10 +790,11 @@ provider evidence or proof of complete production Ledger retirement.
 `POST /v1/reports/anomaly` now binds focused Experimental commands and bounded
 transactional PostgreSQL facts. The route remains experimental. Supported
 subject types, response fields, omission of empty signals, signal ordering and
-text, schema version and audit type are preserved. Local memory shares the
-pure evaluator and no longer exposes mutable stored report slices.
+text, schema version and audit type are preserved. The HTTP handler uses focused
+commands only; PostgreSQL is required for local evaluation. Test-only memory
+adapters retain actual guards, the pure evaluator and detached report slices.
 
-Both profiles reject malformed, duplicate/unknown/null or mixed-case JSON
+The API rejects malformed, duplicate/unknown/null or mixed-case JSON
 fields and overlong or invalid raw UTF-8/NUL text before trimming. Current
 ownership/grants are checked before replay; cookie mutations require Origin.
 Durable timestamps use UTC microseconds. No historical report is rewritten.
@@ -813,7 +815,11 @@ PostgreSQL reads. Route, response fields, schema version, audit type and exact
 payload bytes/hash for valid single-line titles are preserved. The payload
 remains the minimal title-only envelope, not a full report renderer.
 
-Both profiles reject malformed, duplicate/unknown/null or mixed-case JSON
+The HTTP handler uses focused commands only. PostgreSQL is required for local
+evaluation. Test-only adapters retain actual guards, identical payload bytes,
+isolated writes and privacy-safe replay, not SQL locking or durability guarantees.
+
+The API rejects malformed, duplicate/unknown/null or mixed-case JSON
 fields, invalid UTF-8/NUL IDs, overlong raw input and multiline/control-bearing
 titles or report types. Product/release ownership must agree; current grants
 and parents are checked before replay. Cookie mutation Origin checks now apply;

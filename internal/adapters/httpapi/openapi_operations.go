@@ -593,7 +593,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Signing provider creation request.", "#/components/schemas/CreateSigningProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing provider envelope.", "#/components/schemas/SigningProviderEnvelope")
 	case "createSigningOperation":
-		operation.Description = "Requests a configured signing executor to sign a canonical request binding the provider, key reference, subject, payload digest, request id, and nonce. Caller-supplied signatures are rejected."
+		operation.Description = "Requests a configured signing executor through focused Verification commands without an aggregate fallback. Current tenant-wide human keys:admin authority and owned active provider/subject roots precede every replay. Canonical requests bind tenant, provider/type/key reference, subject, payload digest, request ID and nonce; caller-supplied signatures are rejected. Signature, operation, audit and replay commit together in PostgreSQL, which is required for local evaluation. Replay does not sign again; rollback cannot undo provider observation. Raw signature bytes and key material are not response data."
 		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
 	case "createArtifactSignature":
@@ -779,7 +779,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Single release id; missing, blank, duplicate, or unknown query parameters are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability decision summary report envelope.", "#/components/schemas/VulnerabilityDecisionSummaryReportEnvelope")
 	case "generateAnomalyReport":
-		operation.Description = "Creates a deterministic anomaly report over existing tenant evidence and metrics with assumptions and limitations."
+		operation.Description = "Creates an experimental anomaly report through focused commands without an aggregate fallback. Current report:read grants and owned subject coordinates precede every replay. Bounded release facts generate fixed signals; other supported roots currently have no checks, and clear is not a security conclusion. Report, audit and replay commit together in PostgreSQL, which is required for local evaluation. Replays retain original signals without recalculation."
 		operation.RequestBody = jsonRequest("Anomaly report creation request.", "#/components/schemas/CreateAnomalyReportRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created anomaly report envelope.", "#/components/schemas/AnomalyReportEnvelope")
 	case "createMerkleBatch":
@@ -994,7 +994,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Questionnaire answer library entry list envelope.", "#/components/schemas/QuestionnaireAnswerLibraryEntryListEnvelope")
 	case "createPDFReportPackage":
-		operation.Description = "Creates a deterministic PDF report package record and payload metadata."
+		operation.Description = "Creates a minimal title-only PDF-marked envelope through focused Package commands without an aggregate fallback. Current report:read grants and owned matching product/release coordinates precede every replay. Verified staging metadata, finalizer job, report, audit and replay commit together in PostgreSQL, which is required for local evaluation. Physical staged bytes can outlive rollback. Replay does not regenerate or restage bytes and preserves the privacy-safe omission of payload_ref. This is not a full evidence report renderer, PDF-reader interoperability guarantee or compliance conclusion."
 		operation.RequestBody = jsonRequest("PDF report package creation request.", "#/components/schemas/CreatePDFReportPackageRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created PDF report package envelope.", "#/components/schemas/PDFReportPackageEnvelope")
 	}
