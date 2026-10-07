@@ -168,6 +168,15 @@ boundary, and copy public report/approval metadata. Read-only state and mapping
 regressions cover these fixtures. Seven Risk command/approval fallbacks and the
 broader aggregate retirement remain unfinished.
 
+The explicit in-memory unit-of-work test adapter now supplies focused waiver,
+exception and approval readers. They resolve current typed tenant/product/
+release/source ownership, reject ambiguous findings, separate authority-only
+transition reads from bounded fresh records, and detach mutable timestamps.
+Tests exercise the real native governance guards and fresh commands/audits
+without constructing Ledger. This enables subsequent HTTP fixture migration;
+it does not install another API runtime, prove SQL locks or retire the remaining
+Risk handlers by itself.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;

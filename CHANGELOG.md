@@ -107,6 +107,13 @@ active-history filtering, private-note omission and response contracts are
 unchanged. Risk command/approval fallbacks and aggregate retirement remain
 in progress.
 
+The explicit in-memory test adapter now supports focused waiver/exception/
+approval ownership and transition reads. Real native guard/command tests cover
+current and removed grants, foreign/broken parents, ambiguous findings,
+read-only state, detached metadata and audited fresh mutations without Ledger.
+This is a test-fixture migration prerequisite, not a new API runtime or ticket
+completion claim.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).
