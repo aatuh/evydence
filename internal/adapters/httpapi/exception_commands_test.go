@@ -37,11 +37,11 @@ func (f *exceptionHTTPFake) ApproveException(context.Context, identitydomain.Act
 func TestExceptionHTTPRejectsIncompleteCompositionAndUnauthenticatedTransactions(t *testing.T) {
 	base, secret := testServer(t)
 	f := &exceptionHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ExceptionCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{ExceptionCommands: f}); err == nil {
 		t.Fatal("exceptions silently fell back to Ledger idempotency")
 	}
 	executor := &decisionHTTPExecutorFake{}
-	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ExceptionCommands: f, DurableCommandExecutor: executor})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{ExceptionCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

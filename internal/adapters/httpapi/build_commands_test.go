@@ -31,7 +31,7 @@ func (f *buildCreationHTTPFake) AuthorizeBuildCreation(context.Context, identity
 
 func TestBuildCreationRequiresNativeDurableReplay(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{BuildCommands: &buildCreationHTTPFake{}}); err == nil || v != nil {
+	if v, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{BuildCommands: &buildCreationHTTPFake{}}); err == nil || v != nil {
 		t.Fatal("focused build accepted aggregate replay")
 	}
 }
@@ -60,7 +60,7 @@ func (f *buildCreationHTTPFake) CreateBuildRun(_ context.Context, a identitydoma
 func TestBuildCreationHTTPMapsDTOAndSafeReplayWithoutLedgerParents(t *testing.T) {
 	local, secret := testServer(t)
 	fake := &buildCreationHTTPFake{}
-	server, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{BuildCommands: fake, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{BuildCommands: fake, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -117,15 +117,15 @@ func TestNativeCycloneDXSBOMIdempotencyIncludesReleaseHeader(t *testing.T) {
 
 func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
 	server, secret := testServer(t)
-	actor, err := server.ledger.Authenticate(t.Context(), secret)
+	actor, err := legacyFixtureLedger(server).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
-	product, err := server.ledger.CreateProduct(t.Context(), actor, "Legacy replay", "legacy-replay")
+	product, err := legacyFixtureLedger(server).CreateProduct(t.Context(), actor, "Legacy replay", "legacy-replay")
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := server.ledger.CreateRelease(t.Context(), actor, product.ID, "1.0.0")
+	release, err := legacyFixtureLedger(server).CreateRelease(t.Context(), actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
 	bodyDigest := "sha256:" + hex.EncodeToString(sum[:])
 	const key = "legacy-native-streamed-replay"
 	legacyResponse := map[string]any{"legacy_replay": true, "id": "sbom_legacy", "tenant_id": actor.TenantID, "release_id": release.ID, "artifact_id": "", "format": "cyclonedx"}
-	status, _, err := server.ledger.WithIdempotencyRequestHash(
+	status, _, err := legacyFixtureLedger(server).WithIdempotencyRequestHash(
 		t.Context(), actor, http.MethodPost, "/v1/sboms", key, bodyDigest,
 		func(context.Context, *app.Ledger) (int, any, error) {
 			return http.StatusCreated, legacyResponse, nil
@@ -154,7 +154,7 @@ func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
 	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), `"legacy_replay":true`) || !strings.Contains(rec.Body.String(), `"id":"sbom_legacy"`) {
 		t.Fatalf("legacy retry status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	other, err := server.ledger.CreateRelease(t.Context(), actor, product.ID, "2.0.0")
+	other, err := legacyFixtureLedger(server).CreateRelease(t.Context(), actor, product.ID, "2.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}

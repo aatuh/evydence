@@ -15,11 +15,11 @@ func TestSourceSnapshotNativeHandlersDoNotUseLedger(t *testing.T) {
 	for _, provider := range []string{"github", "gitlab"} {
 		base, secret := testServer(t)
 		f := &sourceSnapshotHTTPFake{}
-		s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+		s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		s.ledger, s.idempotency = nil, nil
+		assertNoAggregateServerDependencies(t, s)
 		path := "/v1/collectors/" + provider + "/source-snapshots"
 		body := []byte(`{"repository":{"full_name":"org/api"},"branch":{"name":"main","protected":false}}`)
 		one := postRaw(t, s, secret, path, "native", body, 201)
@@ -41,11 +41,11 @@ func TestSourceSnapshotMalformedInputStopsBeforeNativeGuard(t *testing.T) {
 			f := &sourceSnapshotHTTPFake{}
 			if native {
 				var err error
-				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}
-				s.ledger, s.idempotency = nil, nil
+				assertNoAggregateServerDependencies(t, s)
 			}
 			path := "/v1/collectors/" + provider + "/source-snapshots"
 			bad := []string{"", " ", "{", "null", "[]", "{} {}", string([]byte(`{"repository":{"full_name":"`)) + string([]byte{0xff}) + `"}}`, strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1), `{"repository":{"full_name":"org/api"},"Repository":{"full_name":"other"}}`, `{"repository":{"full_name":"org/api"},"commit":{"sha":"invalid"}}`, `{"repository":{"full_name":"org/api"},"branch":{"name":""}}`, `{"repository":{"full_name":"org/api"},"pull_request":{"provider_id":"1","title":"T","state":"unknown"}}`, `{"repository":{"full_name":"org/api"},"project_id":"` + strings.Repeat(" ", 1025) + `project"}`, `{"repository":{"full_name":"org/api"},"branch":{"name":"` + strings.Repeat("x", 2305) + `"}}`, `{"repository":{"full_name":"bad\u0000"}}`}
@@ -67,7 +67,7 @@ func TestSourceSnapshotCookieOriginAndBearerPrecedence(t *testing.T) {
 			f := &sourceSnapshotHTTPFake{}
 			if native {
 				var err error
-				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}

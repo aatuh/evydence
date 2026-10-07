@@ -50,7 +50,7 @@ func (f *releaseStateHTTPFake) ApproveRelease(ctx context.Context, actor identit
 func TestReleaseStateHTTPMapsFocusedTransitionsReplayRevisionAndErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &releaseStateHTTPFake{}
-	server, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{ReleaseStateCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{ReleaseStateCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

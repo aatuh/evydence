@@ -24,15 +24,15 @@ func TestDeploymentWritesRequireNativeReplayAndCurrentAuthority(t *testing.T) {
 			} else {
 				o.DeploymentEnvironmentCommands = e
 			}
-			if s, err := newLegacyServerFixtureWithOptions(base.ledger, o); err == nil || s != nil {
+			if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o); err == nil || s != nil {
 				t.Error("deployment write accepted aggregate replay")
 			}
 			o.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger = nil
+			assertNoAggregateServerDependencies(t, s)
 			one := postRaw(t, s, secret, path, "original", []byte(body), 201)
 			assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "original", []byte(body), 201))
 			e.guardErr, d.guardErr = application.ErrForbidden, application.ErrForbidden
@@ -49,11 +49,11 @@ func TestDeploymentCreationRejectsMalformedInputBeforeNativeGuard(t *testing.T) 
 		t.Run(map[bool]string{false: "environment", true: "event"}[event], func(t *testing.T) {
 			base, secret := testServer(t)
 			e, d := &environmentCommandHTTPFake{}, &deploymentHTTPFake{}
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{DeploymentEnvironmentCommands: e, DeploymentCommands: d, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{DeploymentEnvironmentCommands: e, DeploymentCommands: d, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger = nil
+			assertNoAggregateServerDependencies(t, s)
 			path, body, field := "/v1/environments", `{"product_id":"product","name":"Production","kind":"production"}`, "product_id"
 			extra := []string{`{"product_id":"product","name":null,"kind":"production"}`, `{"product_id":"product","name":"Production","kind":null}`}
 			if event {
@@ -88,11 +88,11 @@ func TestDeploymentCreationCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *
 				s := base
 				if native {
 					var err error
-					s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{DeploymentEnvironmentCommands: e, DeploymentCommands: d, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{DeploymentEnvironmentCommands: e, DeploymentCommands: d, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}
-					s.ledger = nil
+					assertNoAggregateServerDependencies(t, s)
 				}
 				for _, tc := range []struct {
 					origin string

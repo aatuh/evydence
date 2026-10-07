@@ -222,9 +222,7 @@ func TestNativeServerInstallsNoAggregateOrLocalFallbackAndPreservesRoutes(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.ledger != nil || s.idempotency != nil {
-		t.Fatal("native server installed aggregate or local dependencies")
-	}
+	assertNoAggregateServerDependencies(t, s)
 	if reflect.ValueOf(s).Elem().FieldByName("localDeployments").IsValid() {
 		t.Fatal("retired deployment fallback binding is still present")
 	}

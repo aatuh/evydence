@@ -35,7 +35,7 @@ func TestDraftHTTPLocalReplayCannotRetainPrivateAnswersAfterDowngrade(t *testing
 	a.UserID = "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"*"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,10 +83,10 @@ func (f *draftHTTPFake) CreateQuestionnaireDraft(_ context.Context, a identitydo
 func TestDraftHTTPFocusedCommandsStrictJSONAndSafeErrors(t *testing.T) {
 	base, secret := testServer(t)
 	f := &draftHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{QuestionnaireDraftCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{QuestionnaireDraftCommands: f}); err == nil {
 		t.Fatal("draft commands lack atomic replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{QuestionnaireDraftCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{QuestionnaireDraftCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestDraftHTTPFocusedCommandsStrictJSONAndSafeErrors(t *testing.T) {
 func TestDraftHTTPCookieWritesRequireSameHTTPSOrigin(t *testing.T) {
 	base, secret := testServer(t)
 	f := &draftHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{QuestionnaireDraftCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{QuestionnaireDraftCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

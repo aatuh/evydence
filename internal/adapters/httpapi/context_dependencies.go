@@ -490,15 +490,3 @@ type APIKeyQuery interface {
 type RoleBindingQuery interface {
 	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[identitydomain.RoleBinding], error)
 }
-
-// commandScope is retained while legacy command handlers await deletion.
-// Its aggregate-backed implementation belongs exclusively to test fixtures;
-// native production commands use DurableCommandExecutor.
-type commandScope interface {
-	bind(*Server)
-}
-
-type idempotencyExecutor interface {
-	WithBody(context.Context, domain.Actor, string, string, string, []byte, func(context.Context, commandScope) (int, any, error)) (int, any, error)
-	WithBodyDigest(context.Context, domain.Actor, string, string, string, string, func(context.Context, commandScope) (int, any, error)) (int, any, error)
-}

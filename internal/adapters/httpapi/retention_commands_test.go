@@ -106,14 +106,14 @@ func TestRetentionHandlersRejectMalformedBodiesBeforeCommandsForFixtureAndNative
 func TestRetentionHTTPNativeReplayRequiredAndLegacyDependenciesUnused(t *testing.T) {
 	base, secret := testServer(t)
 	f := &retentionHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{RetentionCommands: f}); err == nil {
 		t.Fatal("retention accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{RetentionCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	create := `{"name":" Lock ","mode":" governance ","retention_days":30}`
 	postRaw(t, s, secret, "/v1/object-retention-policies", "create", []byte(create), 201)
 	if f.input.Name != "Lock" || f.input.Mode != "governance" || f.input.MaxVerificationAgeHours != 24 || !strings.HasPrefix(f.input.ObjectPrefix, "tenants/") {
@@ -193,7 +193,7 @@ func TestRetentionHTTPFixtureAndNativeCookieGuardAndFixtureReplayAuthority(t *te
 			opts.RetentionCommands = f
 			opts.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -233,7 +233,7 @@ func TestRetentionHTTPFixtureAndNativeCookieGuardAndFixtureReplayAuthority(t *te
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"admin", "verify:read"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

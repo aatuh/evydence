@@ -65,7 +65,7 @@ func (f *ssoProviderHTTPFake) RefreshSSOProviderOIDCTrustMaterial(_ context.Cont
 func TestSSODiscoveryHTTPUsesFocusedCommandAndRejectsNonemptyOrMalformedBody(t *testing.T) {
 	base, secret := testServer(t)
 	f := &ssoProviderHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOProviderCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SSOProviderCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func (f *ssoProviderHTTPFake) UpdateSSOProviderTrustMaterial(_ context.Context, 
 func TestSSOTrustHTTPDispatchesFocusedCommandAndStrictJSON(t *testing.T) {
 	base, secret := testServer(t)
 	f := &ssoProviderHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOProviderCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SSOProviderCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,10 +169,10 @@ func (f *ssoProviderHTTPFake) CreateSSOProvider(_ context.Context, a identitydom
 func TestSSOProviderHTTPDispatchesFocusedCommandsAndStrictJSON(t *testing.T) {
 	base, secret := testServer(t)
 	f := &ssoProviderHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOProviderCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SSOProviderCommands: f}); err == nil {
 		t.Fatal("provider commands silently kept Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOProviderCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SSOProviderCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

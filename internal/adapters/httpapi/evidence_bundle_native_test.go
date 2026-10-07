@@ -14,11 +14,11 @@ import (
 func TestEvidenceBundleExportStrictPreflightAndFixturePortCookies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &exportBundleHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 	bad := []string{"", " ", "{", "null", "[]", `{"Release_ID":"id"}`, `{"evidence_ids":[null]}`, `{"evidence_ids":["id\u0000"]}`, `{"release_id":"x\u0000"}`, `{"release_id":"` + strings.Repeat(" ", 1024) + `x"}`, `{"evidence_ids":["` + strings.Repeat(" ", 1024) + `x"]}`}
 	for n, body := range bad {
 		postRaw(t, s, secret, "/v1/evidence-bundles", fmt.Sprintf("invalid-%d", n), []byte(body), 400)
@@ -32,7 +32,7 @@ func TestEvidenceBundleExportStrictPreflightAndFixturePortCookies(t *testing.T) 
 			server := base
 			if native {
 				var err error
-				server, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: &exportBundleHTTPFake{}, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				server, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceBundleCommands: &exportBundleHTTPFake{}, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -65,20 +65,20 @@ func TestEvidenceBundleLocalReplayAuthorizesOriginalSelectionUnderChangedGrants(
 	if err != nil {
 		t.Fatal(err)
 	}
-	product, err := base.ledger.CreateProduct(t.Context(), owner, "Original", "original")
+	product, err := legacyFixtureLedger(base).CreateProduct(t.Context(), owner, "Original", "original")
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := base.ledger.CreateProduct(t.Context(), owner, "Other", "other")
+	other, err := legacyFixtureLedger(base).CreateProduct(t.Context(), owner, "Other", "other")
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := base.ledger.CreateEvidence(t.Context(), owner, app.CreateEvidenceInput{ProductID: product.ID, Type: "document", Title: "Public label", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	evidence, err := legacyFixtureLedger(base).CreateEvidence(t.Context(), owner, app.CreateEvidenceInput{ProductID: product.ID, Type: "document", Title: "Public label", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	auth := &configuredAuthenticator{actor: domain.Actor{TenantID: owner.TenantID, UserID: "local-user", Scopes: []string{"bundle:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: product.ID, Scopes: []string{"bundle:read"}}}}}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -62,9 +62,9 @@ func TestCustomerArchiveUsesFocusedAccessAndFrozenRecord(t *testing.T) {
 	s, secret := testServer(t)
 	f := &customerArchiveHTTPFake{pkg: packagedomain.CustomerSecurityPackage{ID: "csp_archive", TenantID: "tenant", ProductID: "product", ReleaseID: "release", RedactionProfileID: "profile", Title: "Customer <script>bad</script>", State: "generated", Manifest: map[string]any{"evidence_ids": []string{"ev_frozen"}, "title": "Frozen"}, ManifestHash: "sha256:" + strings.Repeat("a", 64), DistributionWatermark: "reviewer watermark", ExpiresAt: time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC), CreatedAt: time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC), SchemaVersion: packagedomain.CustomerPackageSchemaVersion}}
 	s.customerPackageAccessCommands = f
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 
-	s.idempotency = nil
+	assertNoAggregateServerDependencies(t, s)
 	w := getRaw(t, s, secret, "/v1/customer-packages/csp_archive/download", 200)
 	if f.calls != 1 || f.id != "csp_archive" || f.actor.TenantID == "" || w.Header().Get("Content-Type") != "application/zip" || w.Header().Get("Content-Disposition") != `attachment; filename="evydence-customer-package-csp_archive.zip"` || w.Header().Get("Content-Length") != strconv.Itoa(w.Body.Len()) {
 		t.Fatal("focused download/header contract differs")
@@ -100,7 +100,7 @@ func TestCustomerArchiveErrorsNeverPublishZIPOrPrivateDetails(t *testing.T) {
 	s, secret := testServer(t)
 	f := &customerArchiveHTTPFake{}
 	s.customerPackageAccessCommands = f
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 
 	for _, tc := range []struct {
 		err    error

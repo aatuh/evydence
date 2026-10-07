@@ -50,10 +50,10 @@ func (f *transparencyMetadataHTTPFake) PublishPublicTransparencyLogEntry(_ conte
 func TestPublicTransparencyMetadataHTTPFocusedContractsAndPrivateFailures(t *testing.T) {
 	base, secret, _ := marketplaceHTTPFixture(t)
 	f := &transparencyMetadataHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{PublicTransparencyMetadataCommands: f}); err == nil {
 		t.Fatal("metadata bypasses durable replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{PublicTransparencyMetadataCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,22 +103,22 @@ func TestPublicTransparencyMetadataHTTPLocalReplayRequiresCurrentTenantGrant(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	log, err := base.ledger.CreatePublicTransparencyLog(t.Context(), a, app.CreatePublicTransparencyLogInput{Name: "fixture", Endpoint: "https://log.example.test", PublicKey: "pub"})
+	log, err := legacyFixtureLedger(base).CreatePublicTransparencyLog(t.Context(), a, app.CreatePublicTransparencyLogInput{Name: "fixture", Endpoint: "https://log.example.test", PublicKey: "pub"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch, err := base.ledger.CreateMerkleBatch(t.Context(), a, app.CreateMerkleBatchInput{})
+	batch, err := legacyFixtureLedger(base).CreateMerkleBatch(t.Context(), a, app.CreateMerkleBatchInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkpoint, err := base.ledger.CreateTransparencyCheckpoint(t.Context(), a, app.CreateTransparencyCheckpointInput{BatchID: batch.ID, Provider: "internal", ExternalID: "fixture"})
+	checkpoint, err := legacyFixtureLedger(base).CreateTransparencyCheckpoint(t.Context(), a, app.CreateTransparencyCheckpointInput{BatchID: batch.ID, Provider: "internal", ExternalID: "fixture"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestPublicTransparencyMetadataHTTPCookieOriginAndBearerPrecedence(t *testin
 		if strings.HasSuffix(path, "entries") {
 			body = `{"log_id":"log","checkpoint_id":"checkpoint","external_id":"external"}`
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: &transparencyMetadataHTTPFake{}, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{PublicTransparencyMetadataCommands: &transparencyMetadataHTTPFake{}, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 		if err != nil {
 			t.Fatal(err)
 		}

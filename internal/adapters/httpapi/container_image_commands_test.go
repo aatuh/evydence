@@ -37,7 +37,7 @@ func (f *containerImageHTTPFake) RegisterContainerImage(_ context.Context, actor
 func TestContainerImageHTTPMapsFocusedDTOAndPrivateErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &containerImageHTTPFake{}
-	server, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{ContainerImageCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{ContainerImageCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

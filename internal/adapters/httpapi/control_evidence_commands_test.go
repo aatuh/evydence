@@ -37,7 +37,7 @@ func (f *controlEvidenceCommandFake) AuthorizeControlEvidenceLink(context.Contex
 
 func TestControlEvidenceHTTPRequiresDurableReplay(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{ControlEvidenceCommands: &controlEvidenceCommandFake{}}); err == nil || v != nil {
+	if v, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{ControlEvidenceCommands: &controlEvidenceCommandFake{}}); err == nil || v != nil {
 		t.Fatal("focused control linking accepted Ledger replay")
 	}
 }
@@ -74,11 +74,11 @@ func TestControlEvidencePathBoundsRawBeforeTrim(t *testing.T) {
 func TestControlEvidenceNativeHTTPRunsWithoutLedgerAndRejectsBadBodyBeforeGuard(t *testing.T) {
 	base, secret := testServer(t)
 	f := &controlEvidenceCommandFake{value: riskdomain.ControlEvidence{ID: "link", ControlID: "control", SubjectType: "product", SubjectID: "product", EvidenceType: "sbom", Confidence: "high", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion}}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ControlEvidenceCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ControlEvidenceCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	path, body := "/v1/controls/control/evidence", `{"evidence_type":"sbom","subject_type":"product","subject_id":"product","confidence":"high"}`
 	one := postRaw(t, s, secret, path, "native", []byte(body), 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "native", []byte(body), 201))
@@ -98,7 +98,7 @@ func TestControlEvidenceCookieOriginAndBearerPrecedence(t *testing.T) {
 		if native {
 			s.controlEvidenceCommands = f
 			s.durableCommandExecutor = newTrustHTTPReplayExecutor(t, s, secret)
-			s.ledger, s.idempotency = nil, nil
+			assertNoAggregateServerDependencies(t, s)
 		}
 		body := `{"evidence_type":"sbom","subject_type":"product","subject_id":"missing","confidence":"high"}`
 		for i, tc := range []struct {

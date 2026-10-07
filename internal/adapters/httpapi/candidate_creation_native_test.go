@@ -34,14 +34,14 @@ func (f *candidateCreationHTTPFake) CreateReleaseCandidate(_ context.Context, a 
 func TestCandidateCreationRequiresNativeReplayAndCurrentGuard(t *testing.T) {
 	base, secret := testServer(t)
 	f := &candidateCreationHTTPFake{}
-	if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{CandidateCommands: f}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{CandidateCommands: f}); err == nil || s != nil {
 		t.Error("focused candidate creation accepted aggregate replay")
 	}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 	body := `{"release_id":"release","name":"Candidate","build_ids":[" b ","a","b"]}`
 	one := postRaw(t, s, secret, "/v1/release-candidates", "current", []byte(body), 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/release-candidates", "current", []byte(body), 201))
@@ -55,11 +55,11 @@ func TestCandidateCreationRequiresNativeReplayAndCurrentGuard(t *testing.T) {
 func TestCandidateCreationStrictPreflightRunsBeforeCommands(t *testing.T) {
 	base, secret := testServer(t)
 	f := &candidateCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 	bad := []string{`{`, `[]`, `null`, `{}`, `{"release_id":"release","name":"Candidate"}{}`, `{"release_id":"release","name":"Candidate","name":"Other"}`, `{"release_id":"release","name":null}`, `{"Release_ID":"release","name":"Candidate"}`, `{"release_id":"release","name":"bad\u0000name"}`, `{"release_id":"release","name":"` + strings.Repeat(" ", 65536) + `Candidate"}`}
 	for _, field := range []string{"build_ids", "artifact_ids", "sbom_ids", "scan_ids", "vex_ids", "contract_ids", "bundle_ids"} {
 		for _, value := range []string{`null`, `[null]`, `[1]`, `[" "]`, `["bad\u0000id"]`} {
@@ -84,11 +84,11 @@ func TestCandidateCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 			s := base
 			if native {
 				var err error
-				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}
-				s.ledger = nil
+				assertNoAggregateServerDependencies(t, s)
 			}
 			body := `{"release_id":"` + dataField(t, release, "id") + `","name":"Snapshot"}`
 			for n, tc := range []struct {

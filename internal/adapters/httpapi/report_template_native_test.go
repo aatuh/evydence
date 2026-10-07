@@ -13,11 +13,11 @@ func TestReportTemplateStrictPreflightBeforeGuards(t *testing.T) {
 		t.Run(fmt.Sprintf("render=%t", render), func(t *testing.T) {
 			base, secret := testServer(t)
 			f := &reportTemplateHTTPFake{}
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger = nil
+			assertNoAggregateServerDependencies(t, s)
 			path, body, field := "/v1/report-templates", `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"]}`, "name"
 			extra := []string{`{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":null}`, `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":[null]}`, `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"],"template":null}`}
 			if render {
@@ -49,11 +49,11 @@ func TestReportTemplateCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *test
 				s := base
 				if native {
 					var err error
-					s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}
-					s.ledger = nil
+					assertNoAggregateServerDependencies(t, s)
 				}
 				for _, tc := range []struct {
 					origin string

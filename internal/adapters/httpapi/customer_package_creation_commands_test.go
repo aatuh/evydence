@@ -43,15 +43,15 @@ func (f *customerCreationHTTPFake) CreateCustomerSecurityPackage(_ context.Conte
 func TestCustomerCreationHTTPFocusedPortAndStrictInput(t *testing.T) {
 	base, secret := testServer(t)
 	f := &customerCreationHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{CustomerPackageCreationCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{CustomerPackageCreationCommands: f}); err == nil {
 		t.Fatal("focused customer creation silently used Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{CustomerPackageCreationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{CustomerPackageCreationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Any accidental route access to a broad compatibility dependency fails.
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	const path = "/v1/customer-packages"
 	const body = `{"product_id":" product ","release_id":" release ","redaction_profile_id":" profile ","title":" Review ","expires_at":"2030-01-01T12:00:00+02:00"}`
 	bad := []string{"", "null", "[]", "{", `{}`, `{} {}`, `{"unknown":true}`, strings.Repeat(" ", 65537)}
@@ -138,7 +138,7 @@ func TestCustomerCreationHTTPBothProfilesCookieAndLocalReplay(t *testing.T) {
 			opts.CustomerPackageCreationCommands = f
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,7 +172,7 @@ func TestCustomerCreationHTTPBothProfilesCookieAndLocalReplay(t *testing.T) {
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "product", ResourceID: product, Scopes: []string{"package:write"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,8 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +16,70 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 )
+
+func assertNoAggregateServerDependencies(t *testing.T, server *Server) {
+	t.Helper()
+	if server == nil {
+		t.Fatal("server is nil")
+	}
+	for _, name := range []string{"ledger", "idempotency"} {
+		if _, exists := reflect.TypeOf(*server).FieldByName(name); exists {
+			t.Errorf("production server retains retired aggregate field %s", name)
+		}
+	}
+}
+
+func TestHTTPProductionTypesDoNotRetainAggregateOrLegacyReplay(t *testing.T) {
+	assertNoAggregateServerDependencies(t, &Server{})
+	paths, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspected := 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inspected++
+		aliases := map[string]bool{}
+		for _, spec := range file.Imports {
+			importPath, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if importPath == "github.com/aatuh/evydence/internal/app" {
+				alias := "app"
+				if spec.Name != nil {
+					alias = spec.Name.Name
+				}
+				if alias == "." {
+					t.Errorf("%s imports the compatibility package without a qualifier", path)
+				}
+				aliases[alias] = true
+			}
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch value := node.(type) {
+			case *ast.TypeSpec:
+				if value.Name.Name == "commandScope" || value.Name.Name == "idempotencyExecutor" {
+					t.Errorf("%s retains retired replay type %s", path, value.Name.Name)
+				}
+			case *ast.SelectorExpr:
+				if qualifier, ok := value.X.(*ast.Ident); ok && aliases[qualifier.Name] && (value.Sel.Name == "Ledger" || value.Sel.Name == "NewLedger" || value.Sel.Name == "NewLedgerWithContext") {
+					t.Errorf("%s retains aggregate dependency %s.%s", path, qualifier.Name, value.Sel.Name)
+				}
+			}
+			return true
+		})
+	}
+	if inspected == 0 {
+		t.Fatal("no production HTTP files inspected")
+	}
+}
 
 func TestNativeCompositionCoreDoesNotAcceptOrConstructLedger(t *testing.T) {
 	file, err := parser.ParseFile(token.NewFileSet(), "router.go", nil, parser.SkipObjectResolution)
@@ -68,9 +134,58 @@ func TestLocalConstructorKeepsExplicitAuthenticatorAfterLegacyBinding(t *testing
 	ledger := newLegacyLedgerFixture(app.Config{})
 	authenticator := &configuredAuthenticator{}
 	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{Authenticator: authenticator})
-	if err != nil || server.ledger != ledger || server.authn != authenticator || server.idempotency == nil {
+	if err != nil || legacyFixtureLedger(server) != ledger || server.authn != authenticator || server.durableCommandExecutor == nil {
 		t.Fatalf("local constructor lost explicit auth or compatibility binding: %v", err)
 	}
+	assertNoAggregateServerDependencies(t, server)
+}
+
+func TestLegacySetupHandleUsesExistingQueryFixturesWithoutChangingExplicitPorts(t *testing.T) {
+	for _, name := range []string{"role-binding", "api-key"} {
+		t.Run(name, func(t *testing.T) {
+			ledger := newLegacyLedgerFixture(app.Config{})
+			authenticator := &configuredAuthenticator{}
+			options := ServerOptions{Authenticator: authenticator}
+			roles, keys := &roleBindingQueryFake{}, &apiKeyQueryFake{}
+			if name == "role-binding" {
+				options.RoleBindingQuery = roles
+			} else {
+				options.APIKeyQuery = keys
+			}
+			server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if legacyFixtureLedger(server) != ledger || server.authn != authenticator {
+				t.Fatal("setup handle lost ledger or replaced explicit authentication")
+			}
+			if (name == "role-binding" && server.roleBindingQuery != roles) || (name == "api-key" && server.apiKeyQuery != keys) {
+				t.Fatal("setup handle replaced an explicit query port")
+			}
+			second := newLegacyLedgerFixture(app.Config{})
+			server.bindLegacyLedgerFixture(second)
+			if legacyFixtureLedger(server) != second {
+				t.Fatal("setup handle retained stale fixture state after rebinding")
+			}
+			if (name == "role-binding" && server.roleBindingQuery != roles) || (name == "api-key" && server.apiKeyQuery != keys) {
+				t.Fatal("rebinding replaced an explicit query port")
+			}
+			assertNoAggregateServerDependencies(t, server)
+		})
+	}
+}
+
+func TestLegacySetupHandleCannotInventAnAggregateForNativeServer(t *testing.T) {
+	server, err := NewNativeServerWithOptionsContext(t.Context(), nativeConstructorOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if value := recover(); value != "server has no legacy identity-query fixture" {
+			t.Fatalf("native setup handle did not reject aggregate access: %v", value)
+		}
+	}()
+	legacyFixtureLedger(server)
 }
 
 func TestLocalConstructorsRequireExplicitLedger(t *testing.T) {

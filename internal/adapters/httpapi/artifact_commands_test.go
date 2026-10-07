@@ -38,7 +38,7 @@ func (f *artifactHTTPFake) RegisterArtifact(_ context.Context, actor identitydom
 func TestArtifactHTTPMapsFocusedDTOReplayAndPrivateErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &artifactHTTPFake{}
-	server, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{ArtifactCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{ArtifactCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

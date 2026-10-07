@@ -30,7 +30,7 @@ func (f *subjectVerificationHTTPFake) AuthorizeSubjectVerification(_ context.Con
 
 func TestSubjectVerificationRequiresDurableExecutor(t *testing.T) {
 	local, _ := testServer(t)
-	if s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{SubjectVerification: &subjectVerificationHTTPFake{}}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{SubjectVerification: &subjectVerificationHTTPFake{}}); err == nil || s != nil {
 		t.Fatal("generic verification accepted Ledger-only replay")
 	}
 }
@@ -49,12 +49,12 @@ func TestSubjectVerificationHandlerUsesComposedPortWithoutLedgerFallback(t *test
 	local, secret := testServer(t)
 	postJSON(t, local, secret, "/v1/verify", "legacy-unsupported-subject", map[string]any{"subject_type": "unknown", "subject_id": "id"}, http.StatusBadRequest)
 	f := &subjectVerificationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{SubjectVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{SubjectVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// A legacy verifier cannot be reached, even for unknown types or failures.
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	for i, kind := range []string{"audit_chain", "evidence_item", "release_bundle", "build_attestation", "artifact_signature", "merkle_batch", "audit_chain_checkpoint", "audit_chain_release_manifest", "backup_manifest"} {
 		id := "subject"
 		if kind == "audit_chain" {

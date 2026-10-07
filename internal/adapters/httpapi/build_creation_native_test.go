@@ -17,11 +17,11 @@ func nativeBuildBody() string {
 func TestBuildCreationNativeDoesNotUseLedger(t *testing.T) {
 	base, secret := testServer(t)
 	f := &buildCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	one := postRaw(t, s, secret, "/v1/builds", "native", []byte(nativeBuildBody()), 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/builds", "native", []byte(nativeBuildBody()), 201))
 	postRaw(t, s, secret, "/v1/builds", "native", []byte(nativeBuildBody()+" "), 409)
@@ -33,11 +33,11 @@ func TestBuildCreationNativeDoesNotUseLedger(t *testing.T) {
 func TestBuildCreationRejectsMalformedInputBeforeNativeGuard(t *testing.T) {
 	base, secret := testServer(t)
 	f := &buildCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	valid := nativeBuildBody()
 	bad := []string{"", " ", "{", "null", "[]", "{} {}", string([]byte{0xff}), strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1), `{}`, strings.Replace(valid, `"project_id":"project"`, `"project_id":null`, 1), strings.Replace(valid, `"project_id":"project"`, `"project_id":"project","Project_ID":"other"`, 1), strings.Replace(valid, `"project_id":"project"`, `"project_id":"`+strings.Repeat(" ", 1025)+`project"`, 1), strings.Replace(valid, `"status":"passed"`, `"status":"unknown"`, 1), strings.TrimSuffix(valid, "}") + `,"run_attempt":-1}`, strings.TrimSuffix(valid, "}") + `,"outputs":[null]}`, strings.TrimSuffix(valid, "}") + `,"outputs":[{"digest":null}]}`, strings.TrimSuffix(valid, "}") + `,"finished_at":null}`, strings.TrimSuffix(valid, "}") + `,"provider_metadata":{"x":"bad\u0000"}}`}
 	for i, body := range bad {
@@ -62,7 +62,7 @@ func TestBuildCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 		f := &buildCreationHTTPFake{}
 		if native {
 			var err error
-			s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}

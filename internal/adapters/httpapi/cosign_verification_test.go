@@ -33,14 +33,14 @@ func (f *cosignVerificationHTTPFake) AuthorizeCosignVerification(_ context.Conte
 func TestCosignHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &cosignVerificationHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{CosignVerification: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{CosignVerification: f}); err == nil {
 		t.Fatal("focused Cosign accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{CosignVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{CosignVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	path, body := "/v1/artifact-signatures/not-in-ledger/verify-cosign", `{"mode":"key","offline":true}`
 	one := postRaw(t, s, secret, path, "native", []byte(body), 200)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "native", []byte(body), 200))
@@ -123,13 +123,13 @@ func TestCosignLocalCompletedReplayStillNeedsCurrentTenantVerificationGrant(t *t
 	path, body := "/v1/artifact-signatures/signature/verify-cosign", `{"mode":"key","offline":true}`
 	// Seed the local compatibility replay algorithm with a historical receipt;
 	// the route must authorize it even though fresh inspection is not invoked.
-	if _, _, err := base.ledger.WithIdempotency(t.Context(), a, "POST", path, "local", []byte(body), func(context.Context, *app.Ledger) (int, any, error) {
+	if _, _, err := legacyFixtureLedger(base).WithIdempotency(t.Context(), a, "POST", path, "local", []byte(body), func(context.Context, *app.Ledger) (int, any, error) {
 		return 200, domain.CosignVerification{ID: "historical-cosign", TenantID: a.TenantID, ArtifactSignatureID: "signature", Result: "passed"}, nil
 	}); err != nil {
 		t.Fatal(err)
 	}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

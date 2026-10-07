@@ -27,7 +27,7 @@ func TestBindLedgerReplacesEveryContextDependency(t *testing.T) {
 
 func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.Ledger) {
 	t.Helper()
-	if server.ledger != ledger {
+	if legacyFixtureLedger(server) != ledger {
 		t.Fatal("compatibility ledger was not rebound")
 	}
 	if server.authn != ledger {
@@ -84,10 +84,7 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if query, ok := server.marketplaceCollectorQuery.(marketplaceQueryFixture); !ok || query.ledger != ledger {
 		t.Fatal("focused marketplace fixture query was not rebound")
 	}
-	executor, ok := server.idempotency.(legacyFixtureIdempotencyExecutor)
-	if !ok || executor.ledger != ledger {
-		t.Fatal("idempotency executor was not rebound")
-	}
+	assertNoAggregateServerDependencies(t, server)
 	if reflect.ValueOf(server).Elem().FieldByName("identityAccess").IsValid() {
 		t.Fatal("broad identity binding was not deleted")
 	}

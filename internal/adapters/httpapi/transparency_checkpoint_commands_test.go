@@ -33,14 +33,14 @@ func (f *recordedCheckpointHTTPFake) CreateTransparencyCheckpoint(_ context.Cont
 func TestRecordedCheckpointHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &recordedCheckpointHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{TransparencyCheckpointCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{TransparencyCheckpointCommands: f}); err == nil {
 		t.Fatal("focused checkpoint accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{TransparencyCheckpointCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{TransparencyCheckpointCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	body := `{"batch_id":" batch ","provider":" provider ","external_id":" record "}`
 	one := postRaw(t, s, secret, "/v1/transparency-checkpoints", "native", []byte(body), 201)
 	if dataField(t, one, "batch_id") != "batch" || dataField(t, one, "provider") != "provider" || dataField(t, one, "external_id") != "record" || dataField(t, one, "state") != "recorded" {
@@ -124,7 +124,7 @@ func TestRecordedCheckpointHTTPLocalReplayRechecksCurrentTenantGrant(t *testing.
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestRecordedCheckpointHTTPLocalReplayRechecksCurrentTenantGrant(t *testing.
 func TestRecordedTransparencyCheckpointHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &recordedCheckpointHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{TransparencyCheckpointCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{TransparencyCheckpointCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

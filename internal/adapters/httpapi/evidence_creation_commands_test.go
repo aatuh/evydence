@@ -32,14 +32,14 @@ func (f *evidenceCreationHTTPFake) AuthorizeEvidenceCreation(context.Context, id
 func TestEvidenceCreationRequiresNativeReplayAndCurrentAuthority(t *testing.T) {
 	base, secret := testServer(t)
 	f := &evidenceCreationHTTPFake{}
-	if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceCreationCommands: f}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceCreationCommands: f}); err == nil || s != nil {
 		t.Error("generic evidence accepted aggregate replay")
 	}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 	body := []byte(`{"type":"manual","title":"Evidence","payload_hash":"sha256:` + strings.Repeat("a", 64) + `"}`)
 	one := postRaw(t, s, secret, "/v1/evidence", "original", body, 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/evidence", "original", body, 201))
@@ -59,7 +59,7 @@ func (f *evidenceCreationHTTPFake) CreateEvidence(_ context.Context, actor ident
 func TestEvidenceCreationHTTPMapsCompleteDTOAndSafeErrors(t *testing.T) {
 	local, secret := testServer(t)
 	fake := &evidenceCreationHTTPFake{}
-	server, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{EvidenceCreationCommands: fake, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{EvidenceCreationCommands: fake, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

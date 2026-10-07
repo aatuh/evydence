@@ -28,11 +28,11 @@ func (f *contractDiffHTTPFake) CreateContractDiff(context.Context, identitydomai
 func TestContractDiffHTTPRequiresDurableExecutorAndSafeErrors(t *testing.T) {
 	base, secret := testServer(t)
 	f := &contractDiffHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ContractDiffCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{ContractDiffCommands: f}); err == nil {
 		t.Fatal("contract diff fell back to Ledger idempotency")
 	}
 	executor := &decisionHTTPExecutorFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ContractDiffCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{ContractDiffCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

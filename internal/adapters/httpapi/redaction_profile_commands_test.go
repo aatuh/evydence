@@ -35,16 +35,16 @@ func (f *redactionHTTPFake) CreateRedactionProfile(_ context.Context, a identity
 func TestRedactionHTTPRejectsMalformedInputBeforeCommand(t *testing.T) {
 	base, secret := testServer(t)
 	f := &redactionHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RedactionProfileCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{RedactionProfileCommands: f}); err == nil {
 		t.Fatal("redaction command lacks atomic replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RedactionProfileCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{RedactionProfileCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 
-	s.idempotency = nil
+	assertNoAggregateServerDependencies(t, s)
 	const path = "/v1/redaction-profiles"
 	for i, bad := range []string{"null", "[]", "{", `{} {}`, `{"name":null}`, `{"preset":"customer_safe","allowed_types":null}`, `{"preset":"customer_safe","excluded_fields":[null]}`, `{"preset":"customer_safe","unknown":true}`, `{"preset":"customer_safe","preset":"security_review"}`, `{"preset":"customer_safe","PRESET":null}`, `{"name":"Customer","allowed_types":[null]}`, `{"name":"Customer","allowed_types":[" "]}`, `{"name":"Customer","allowed_types":"sbom"}`, `{"name":"Customer","description":"bad\u0000","allowed_types":["sbom"]}`, `{"name":"` + string([]byte{0xff}) + `","allowed_types":["sbom"]}`, `{"preset":"customer_safe","allowed_types":["sbom"]}`, `{"name":"Customer","allowed_types":["` + strings.Repeat("x", 1025) + `"]}`, strings.Repeat(" ", 65537)} {
 		postRaw(t, s, secret, path, fmt.Sprint(i), []byte(bad), 400)
@@ -90,7 +90,7 @@ func TestRedactionHTTPBothProfilesRequireSafeCookieMutation(t *testing.T) {
 			opts.RedactionProfileCommands = f
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestRedactionHTTPLocalReplayRechecksTenantGrant(t *testing.T) {
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"*"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

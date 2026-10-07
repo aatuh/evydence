@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/aatuh/evydence/internal/app"
 )
 
 func TestConditionalActionsBindRevisionToIdempotencyReplay(t *testing.T) {
@@ -19,7 +21,9 @@ func TestConditionalActionsBindRevisionToIdempotencyReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := server.idempotency.WithBody(t.Context(), actor, "POST", freezePath, "legacy-body-only", []byte(`{}`), func(context.Context, commandScope) (int, any, error) { return 200, map[string]any{"legacy": true}, nil }); err != nil {
+	// Seed the original body-only receipt directly through the historical test
+	// ledger; the production server no longer exposes that replay interface.
+	if _, _, err := legacyFixtureLedger(server).WithIdempotency(t.Context(), actor, "POST", freezePath, "legacy-body-only", []byte(`{}`), func(context.Context, *app.Ledger) (int, any, error) { return 200, map[string]any{"legacy": true}, nil }); err != nil {
 		t.Fatal(err)
 	}
 	postJSONWithIfMatch(t, server, secret, freezePath, "legacy-body-only", 1, map[string]any{}, 409)

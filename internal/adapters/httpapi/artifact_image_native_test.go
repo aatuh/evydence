@@ -24,15 +24,15 @@ func TestArtifactImageRegistrationRequiresNativeReplayAndCurrentGuard(t *testing
 				path = "/v1/container-images"
 				body = `{"repository":"registry.example.test/api","digest":"sha256:` + strings.Repeat("a", 64) + `"}`
 			}
-			if s, err := newLegacyServerFixtureWithOptions(base.ledger, o); err == nil || s != nil {
+			if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o); err == nil || s != nil {
 				t.Error("registration accepted aggregate replay")
 			}
 			o.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger = nil // Native creation and replay must not access the aggregate.
+			assertNoAggregateServerDependencies(t, s) // Native creation and replay must not access the aggregate.
 			one := postRaw(t, s, secret, path, "current", []byte(body), 201)
 			assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "current", []byte(body), 201))
 			a.guardErr, i.guardErr = application.ErrForbidden, application.ErrForbidden
@@ -59,11 +59,11 @@ func TestArtifactImageRegistrationPreflightRejectsMalformedInputBeforeCommands(t
 				path, field = "/v1/container-images", "repository"
 				body = `{"repository":"registry.example.test/api","digest":"sha256:` + strings.Repeat("a", 64) + `"}`
 			}
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger = nil
+			assertNoAggregateServerDependencies(t, s)
 			value := `"Artifact"`
 			if kind == "image" {
 				value = `"registry.example.test/api"`
@@ -94,11 +94,11 @@ func TestArtifactImageRegistrationCookieOriginAndBearerPrecedence(t *testing.T) 
 			s := base
 			if native {
 				var err error
-				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ArtifactCommands: a, ContainerImageCommands: i, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ArtifactCommands: a, ContainerImageCommands: i, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}
-				s.ledger = nil
+				assertNoAggregateServerDependencies(t, s)
 			}
 			for _, c := range []struct{ path, body string }{{"/v1/artifacts", `{"name":"A","media_type":"text/plain","digest":"sha256:` + strings.Repeat("a", 64) + `"}`}, {"/v1/container-images", `{"repository":"registry.example.test/api","digest":"sha256:` + strings.Repeat("a", 64) + `"}`}} {
 				for n, tc := range []struct {

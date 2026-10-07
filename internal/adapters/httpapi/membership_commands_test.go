@@ -53,10 +53,10 @@ func (f *membershipHTTPFake) DeactivateUser(_ context.Context, a identitydomain.
 func TestMembershipHTTPDispatchesFocusedCommandsAndGuardsStrictJSON(t *testing.T) {
 	base, secret := testServer(t)
 	f := &membershipHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{MembershipCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{MembershipCommands: f}); err == nil {
 		t.Fatal("membership silently kept Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{MembershipCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{MembershipCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

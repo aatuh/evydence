@@ -5,13 +5,12 @@ import (
 	"errors"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/domain"
 )
 
 // This preserves the pre-retirement local fixture's transaction and response
-// assertions while handlers migrate. It is not a supported runtime backend and
+// assertions during aggregate retirement. It is not a supported runtime backend and
 // cannot be used by a production caller. EVY-906 still requires deletion of the
-// remaining aggregate and legacy handlers, not merely this fixture separation.
+// remaining aggregate, not merely this fixture separation.
 func newLegacyServerFixture(ledger *app.Ledger) (*Server, error) {
 	return newLegacyServerFixtureWithOptionsContext(context.Background(), ledger, ServerOptions{})
 }
@@ -41,12 +40,23 @@ func newLegacyServerFixtureWithOptionsContext(ctx context.Context, ledger *app.L
 	return server, nil
 }
 
-// Replay uses the isolated command ledger so its effects and replay record
-// still commit together; fixture migration must not turn this into a no-op.
+// The legacy setup handle is obtained from existing test-only query ports,
+// never a production Server field or a global registry. Tests overriding both
+// query ports should retain their explicit setup ledger instead.
+func legacyFixtureLedger(server *Server) *app.Ledger {
+	if query, ok := server.roleBindingQuery.(roleBindingFixtureQuery); ok {
+		return query.ledger
+	}
+	if query, ok := server.apiKeyQuery.(apiKeyFixtureQuery); ok {
+		return query.ledger
+	}
+	panic("server has no legacy identity-query fixture")
+}
+
+// Focused replay fixture ports keep isolated command effects and their replay
+// record in the same transaction; there is no legacy Server replay field.
 func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
-	s.ledger = ledger
 	s.authn = ledger
-	s.idempotency = legacyFixtureIdempotencyExecutor{ledger: ledger}
 	s.bindCatalogFixturePorts(ledger)
 	s.bindRegistrationFixturePorts(ledger)
 	s.bindLifecycleFixturePorts(ledger)
@@ -88,37 +98,4 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.bindSummaryDraftFixturePorts(ledger)
 }
 
-type legacyFixtureCommandScope struct {
-	ledger *app.Ledger
-}
-
-func (scope legacyFixtureCommandScope) bind(server *Server) {
-	server.bindLegacyLedgerFixture(scope.ledger)
-}
-
-type legacyFixtureIdempotencyExecutor struct {
-	ledger *app.Ledger
-}
-
-func (executor legacyFixtureIdempotencyExecutor) WithBody(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, run func(context.Context, commandScope) (int, any, error)) (int, any, error) {
-	if executor.ledger == nil || run == nil {
-		return 0, nil, app.ErrValidation
-	}
-	return executor.ledger.WithIdempotency(ctx, actor, method, path, key, body, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		return run(commandCtx, legacyFixtureCommandScope{ledger: commandLedger})
-	})
-}
-
-func (executor legacyFixtureIdempotencyExecutor) WithBodyDigest(ctx context.Context, actor domain.Actor, method, path, key, bodyDigest string, run func(context.Context, commandScope) (int, any, error)) (int, any, error) {
-	if executor.ledger == nil || run == nil {
-		return 0, nil, app.ErrValidation
-	}
-	return executor.ledger.WithIdempotencyRequestHash(ctx, actor, method, path, key, bodyDigest, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		return run(commandCtx, legacyFixtureCommandScope{ledger: commandLedger})
-	})
-}
-
-var (
-	_ Authenticator       = (*app.Ledger)(nil)
-	_ idempotencyExecutor = legacyFixtureIdempotencyExecutor{}
-)
+var _ Authenticator = (*app.Ledger)(nil)

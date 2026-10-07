@@ -60,15 +60,15 @@ func TestStateTransitionsRequireNativeReplayAndCurrentGuard(t *testing.T) {
 				path = "/v1/release-candidates/candidate/" + kind
 				body = `{"reason":"reviewed"}`
 			}
-			if s, err := newLegacyServerFixtureWithOptions(base.ledger, o); err == nil || s != nil {
+			if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o); err == nil || s != nil {
 				t.Error("focused state transition accepted aggregate replay")
 			}
 			o.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger = nil
+			assertNoAggregateServerDependencies(t, s)
 			one := stateTransitionRawHTTP(t, s, secret, path, "current", tag, body, 200)
 			assertTrustHTTPReplay(t, one, stateTransitionRawHTTP(t, s, secret, path, "current", tag, body, 200))
 			stateTransitionRawHTTP(t, s, secret, path, "current", `"3"`, body, 409)
@@ -111,11 +111,11 @@ func TestStateTransitionsCookieOriginAndBearerPrecedenceBothProfiles(t *testing.
 				s := base
 				if native {
 					var err error
-					s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReleaseStateCommands: r, CandidateStateCommands: c, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ReleaseStateCommands: r, CandidateStateCommands: c, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}
-					s.ledger = nil
+					assertNoAggregateServerDependencies(t, s)
 				}
 				for _, tc := range []struct {
 					origin string
@@ -146,7 +146,7 @@ func TestStateTransitionPreflightRejectsInvalidBodiesBeforeWrites(t *testing.T) 
 		t.Run(fmt.Sprintf("candidate=%t", candidate), func(t *testing.T) {
 			base, secret := testServer(t)
 			r, c := &releaseStateHTTPFake{}, &candidateStateHTTPFake{}
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReleaseStateCommands: r, CandidateStateCommands: c, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ReleaseStateCommands: r, CandidateStateCommands: c, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -170,11 +170,11 @@ func TestStateTransitionNativeFingerprintKeepsHistoricalConditionalRecords(t *te
 	base, secret := testServer(t)
 	commands := &releaseStateHTTPFake{}
 	executor := newTrustHTTPReplayExecutor(t, base, secret)
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReleaseStateCommands: commands, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ReleaseStateCommands: commands, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 	a, err := s.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)

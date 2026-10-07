@@ -24,11 +24,11 @@ type controlTemplateHTTPFake struct {
 func TestControlTemplateInstallRunsWithoutLedgerAndPreservesBodyFingerprints(t *testing.T) {
 	base, secret := testServer(t)
 	f := &controlTemplateHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ControlTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ControlTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	path := "/v1/control-framework-template-packs/evydence-cra-readiness/install"
 	for i, body := range []string{"", "{}", " \n\t"} {
 		key := fmt.Sprintf("native-%d", i)
@@ -48,7 +48,7 @@ func TestControlTemplateInstallRejectsMalformedBodiesBeforeGuard(t *testing.T) {
 		if native {
 			s.controlTemplateCommands = f
 			s.durableCommandExecutor = newTrustHTTPReplayExecutor(t, s, secret)
-			s.ledger, s.idempotency = nil, nil
+			assertNoAggregateServerDependencies(t, s)
 		}
 		for i, body := range []string{"{", "[]", "null", `{"tenant_id":"other"}`, `{"tenant_id":null}`, `{"x":1,"x":2}`, "{} {}", "{} true", string([]byte{0xff}), strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1)} {
 			out := postRaw(t, s, secret, "/v1/control-framework-template-packs/evydence-cra-readiness/install", fmt.Sprintf("bad-%d", i), []byte(body), 400)
@@ -71,7 +71,7 @@ func (f *controlTemplateHTTPFake) InstallControlFrameworkTemplatePack(_ context.
 
 func TestControlTemplateInstallRequiresDurableExecutor(t *testing.T) {
 	s, _ := testServer(t)
-	if server, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{ControlTemplateCommands: &controlTemplateHTTPFake{}}); err == nil || server != nil {
+	if server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{ControlTemplateCommands: &controlTemplateHTTPFake{}}); err == nil || server != nil {
 		t.Fatal("focused template installation accepted Ledger replay")
 	}
 }

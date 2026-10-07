@@ -35,7 +35,7 @@ func (f *pullRequestHTTPFake) RecordPullRequest(_ context.Context, a identitydom
 func TestPullRequestHTTPUsesFocusedCommandAndRejectsMalformedEnvelopes(t *testing.T) {
 	local, secret := testServer(t)
 	f := &pullRequestHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{PullRequestCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{PullRequestCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

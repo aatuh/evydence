@@ -30,11 +30,11 @@ func (f *evidencePageHTTPStub) ListPage(_ context.Context, a identitydomain.Acto
 func TestEvidenceCollectionsUseNativePageQueryWithoutAggregate(t *testing.T) {
 	base, secret := testServer(t)
 	f := &evidencePageHTTPStub{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidencePageQuery: f})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidencePageQuery: f})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 	for _, path := range []string{"/v1/evidence?release_id=release&type=document&page_size=1&sort=id&direction=desc", "/v1/evidence/search?product_id=product&project_id=project&release_id=release&build_id=build&deployment_id=deployment&type=document&subtype=manual&source_system=source&collector_id=collector&verification_status=pending&subject_type=artifact&subject_id=digest&tag=tag&created_after=2026-10-01T00%3A00%3A00Z&created_before=2026-10-31T00%3A00%3A00Z&page_size=1&sort=id&direction=desc"} {
 		r := httptest.NewRequest(http.MethodGet, path, nil)
 		r.Header.Set("Authorization", "Bearer "+secret)

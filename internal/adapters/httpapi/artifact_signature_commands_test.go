@@ -30,7 +30,7 @@ func (f *artifactSignatureCommandHTTPFake) AuthorizeArtifactSignatureCreation(co
 
 func TestArtifactSignatureCreationRequiresDurableExecutor(t *testing.T) {
 	s, _ := testServer(t)
-	if server, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{ArtifactSignatureCommands: &artifactSignatureCommandHTTPFake{}}); err == nil || server != nil {
+	if server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{ArtifactSignatureCommands: &artifactSignatureCommandHTTPFake{}}); err == nil || server != nil {
 		t.Fatal("artifact signature creation accepted Ledger replay")
 	}
 }
@@ -61,11 +61,11 @@ func (f *artifactSignatureCommandHTTPFake) CreateArtifactSignature(_ context.Con
 func TestArtifactSignatureCreationHTTPUsesFocusedCommandAndReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &artifactSignatureCommandHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{ArtifactSignatureCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{ArtifactSignatureCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	input := map[string]any{"artifact_id": "not-in-ledger", "algorithm": "cosign", "signature": "recorded", "key_id": "public-id", "payload": map[string]any{"bundle": "opaque"}, "payload_media_type": "application/json"}
 	body := postJSON(t, s, secret, "/v1/artifact-signatures", "signature-replay", input, 201)
 	if !strings.Contains(body, `"id":"focused_signature"`) || f.calls != 1 || f.input.ArtifactID != "not-in-ledger" || f.input.KeyID != "public-id" || string(f.input.RawPayload) != `{"bundle":"opaque"}` {

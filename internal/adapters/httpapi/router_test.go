@@ -1375,7 +1375,7 @@ func TestVEXHTTPValidation(t *testing.T) {
 	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "created asynchronously") || strings.Contains(importReport, "unavailable") || strings.Contains(importReport, "payload_ref") {
 		t.Fatalf("unsafe or incomplete VEX import report: %s", importReport)
 	}
-	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: server.ledger}}, scanID: dataField(t, scanBody, "id")}
+	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}, scanID: dataField(t, scanBody, "id")}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
 		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
 	}, http.StatusBadRequest)

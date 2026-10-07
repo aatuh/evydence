@@ -154,14 +154,14 @@ func TestTrustConfigurationHandlersRejectMalformedAndNullFieldsForFixtureAndNati
 func TestTrustConfigurationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &trustConfigurationHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{TrustConfigurationCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{TrustConfigurationCommands: f}); err == nil {
 		t.Fatal("focused trust configuration accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{TrustConfigurationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{TrustConfigurationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	routes := []struct{ path, body string }{
 		{"/v1/signing-providers", `{"name":" KMS ","type":" aws_kms ","key_ref":" key ","encrypted":true}`},
 		{"/v1/dsse-trust-roots", `{"name":" Builder ","key_id":" key ","algorithm":" Ed25519 ","public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","allowed_predicate_types":["https://slsa.dev/provenance/v1"],"expected_builder_ids":[" other "," builder "],"required_claims":["external_parameters","builder_id"]}`},
@@ -256,7 +256,7 @@ func TestTrustConfigurationHTTPFixtureAndNativeCookieAndReplayAuthority(t *testi
 			opts.TrustConfigurationCommands = f
 			opts.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -295,7 +295,7 @@ func TestTrustConfigurationHTTPFixtureAndNativeCookieAndReplayAuthority(t *testi
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

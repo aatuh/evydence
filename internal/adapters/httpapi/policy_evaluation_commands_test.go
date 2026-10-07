@@ -28,11 +28,11 @@ func (f *policyEvaluationHTTPFake) EvaluateRelease(context.Context, identitydoma
 func TestPolicyEvaluationHTTPRequiresDurableExecutorAndSafeErrors(t *testing.T) {
 	base, secret := testServer(t)
 	f := &policyEvaluationHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PolicyEvaluationCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{PolicyEvaluationCommands: f}); err == nil {
 		t.Fatal("policy evaluation fell back to Ledger idempotency")
 	}
 	executor := &decisionHTTPExecutorFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PolicyEvaluationCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{PolicyEvaluationCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,11 +13,11 @@ import (
 func TestBuildAttestationNativeDoesNotUseLedgerAndUsesApplicationPayloadLimit(t *testing.T) {
 	base, secret := testServer(t)
 	f := &buildAttestationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	body := []byte(`{"payload":"recorded"}` + strings.Repeat(" ", int(app.SmallJSONRequestLimit)))
 	path := "/v1/builds/build/attestations"
 	one := postRaw(t, s, secret, path, "native", body, 201)
@@ -50,7 +50,7 @@ func TestBuildAttestationUploadUsesNativeUploadConcurrencyBudget(t *testing.T) {
 func TestBuildAttestationCookieOriginAndBearerPrecedence(t *testing.T) {
 	base, secret := testServer(t)
 	f := &buildAttestationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

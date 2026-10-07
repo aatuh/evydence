@@ -28,11 +28,11 @@ func bundleImportNativeBody(t *testing.T) string {
 func TestBundleImportStrictPreflightBeforeCurrentAuthority(t *testing.T) {
 	base, secret := testServer(t)
 	f := &bundleImportHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 	body := bundleImportNativeBody(t)
 	bad := []string{"", " ", "{", "null", "[]", "{}", body + " {}", string([]byte{0xff}), strings.Replace(body, `"manifest_hash":`, `"Manifest_Hash":`, 1), strings.TrimSuffix(body, "}") + `,"extra":true}`}
 	for _, field := range []string{"id", "tenant_id", "release_id", "evidence_ids", "manifest", "manifest_hash", "signature_refs", "verification_text", "schema_version", "created_at"} {
@@ -58,11 +58,11 @@ func TestBundleImportCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testin
 			s := base
 			if native {
 				var err error
-				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}
-				s.ledger = nil
+				assertNoAggregateServerDependencies(t, s)
 			}
 			body := bundleImportNativeBody(t)
 			for _, tc := range []struct {

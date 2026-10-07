@@ -39,7 +39,7 @@ func (f *controlCreationHTTPFake) CreateSecurityControl(_ context.Context, a ide
 
 func TestControlCreationRequiresDurableExecutor(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{ControlCommands: &controlCreationHTTPFake{}}); err == nil || v != nil {
+	if v, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{ControlCommands: &controlCreationHTTPFake{}}); err == nil || v != nil {
 		t.Fatal("manual creation accepted Ledger replay")
 	}
 }
@@ -80,11 +80,11 @@ func TestControlCreationBoundsRawInputsOverHTTP(t *testing.T) {
 func TestControlCreationNativeHandlersDoNotUseLedger(t *testing.T) {
 	base, secret := testServer(t)
 	f := &controlCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ControlCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ControlCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	for _, tc := range []struct{ path, body string }{{"/v1/control-frameworks", `{"name":"F","version":"1"}`}, {"/v1/controls", `{"framework_id":"fw","code":"C","title":"T","objective":"O","evidence_requirements":[{"type":"build","required":false}]}`}} {
 		one := postRaw(t, s, secret, tc.path, "native", []byte(tc.body), 201)
 		assertTrustHTTPReplay(t, one, postRaw(t, s, secret, tc.path, "native", []byte(tc.body), 201))
@@ -103,7 +103,7 @@ func TestControlCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 		if native {
 			s.controlCommands = f
 			s.durableCommandExecutor = newTrustHTTPReplayExecutor(t, s, secret)
-			s.ledger, s.idempotency = nil, nil
+			assertNoAggregateServerDependencies(t, s)
 		}
 		for _, tc := range []struct{ path, body string }{{"/v1/control-frameworks", `{"name":"Fresh","version":"1"}`}, {"/v1/controls", `{"framework_id":"` + dataField(t, fw, "id") + `","code":"C","title":"T","objective":"O"}`}} {
 			for i, bad := range []struct {
@@ -139,7 +139,7 @@ func TestControlCreationNativeRejectsMalformedBodiesBeforeGuard(t *testing.T) {
 		f := &controlCreationHTTPFake{}
 		s.controlCommands = f
 		s.durableCommandExecutor = newTrustHTTPReplayExecutor(t, s, secret)
-		s.ledger, s.idempotency = nil, nil
+		assertNoAggregateServerDependencies(t, s)
 		path := "/v1/control-frameworks"
 		if control {
 			path = "/v1/controls"

@@ -39,11 +39,11 @@ func TestSourceWritesMalformedInputDoesNotReachNativeGuard(t *testing.T) {
 		base, secret := testServer(t)
 		o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
 		counts, _ := tc.configure(&o)
-		s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
+		s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
 		if err != nil {
 			t.Fatal(err)
 		}
-		s.ledger, s.idempotency = nil, nil
+		assertNoAggregateServerDependencies(t, s)
 		for i, bad := range []string{"", " ", "{", "null", "[]", "{} {}", string([]byte{0xff}), strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1), `{}`, strings.Replace(tc.body, `"repository_id":"repo"`, `"repository_id":null`, 1), strings.Replace(tc.body, `"repository_id":"repo"`, `"repository_id":"repo","repository_id":"duplicate"`, 1), strings.Replace(tc.body, `"repository_id":"repo"`, `"repository_id":"`+strings.Repeat(" ", 1025)+`repo"`, 1), strings.Replace(tc.body, `"repository_id":"repo"`, `"repository_id":"bad\u0000"`, 1)} {
 			out := postRaw(t, s, secret, tc.path, fmt.Sprintf("bad-%d", i), []byte(bad), 400)
 			if counts() != [2]int{} || strings.Contains(out, `"data"`) {
@@ -83,7 +83,7 @@ func TestSourceWritesRequireNativeDurableExecutor(t *testing.T) {
 		base, _ := testServer(t)
 		var o ServerOptions
 		tc.configure(&o)
-		if v, err := newLegacyServerFixtureWithOptions(base.ledger, o); err == nil || v != nil {
+		if v, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o); err == nil || v != nil {
 			t.Fatal("source write accepted aggregate replay", tc.path)
 		}
 	}
@@ -95,7 +95,7 @@ func TestSourceWritesCheckCurrentGuardBeforeReplay(t *testing.T) {
 			base, secret := testServer(t)
 			o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
 			counts, deny := tc.configure(&o)
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,11 +116,11 @@ func TestSourceWritesNativeHandlersDoNotUseLedger(t *testing.T) {
 			base, secret := testServer(t)
 			o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
 			counts, deny := tc.configure(&o)
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger, s.idempotency = nil, nil
+			assertNoAggregateServerDependencies(t, s)
 			one := postRaw(t, s, secret, tc.path, "native", []byte(tc.body), 201)
 			assertTrustHTTPReplay(t, one, postRaw(t, s, secret, tc.path, "native", []byte(tc.body), 201))
 			postRaw(t, s, secret, tc.path, "native", []byte(tc.body+" "), 409)
@@ -142,7 +142,7 @@ func TestSourceWritesCookieOriginAndBearerPrecedence(t *testing.T) {
 				o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
 				tc.configure(&o)
 				var err error
-				s, err = newLegacyServerFixtureWithOptions(base.ledger, o)
+				s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -34,14 +34,14 @@ func TestReportTemplatesRequireNativeReplayAndCurrentAuthority(t *testing.T) {
 		t.Run(map[bool]string{false: "create", true: "render"}[render], func(t *testing.T) {
 			base, secret := testServer(t)
 			f := &reportTemplateHTTPFake{}
-			if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f}); err == nil || s != nil {
+			if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ReportTemplateCommands: f}); err == nil || s != nil {
 				t.Error("report templates accepted aggregate replay")
 			}
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger = nil
+			assertNoAggregateServerDependencies(t, s)
 			path, body := "/v1/report-templates", `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"],"template":"inert"}`
 			if render {
 				path, body = "/v1/report-templates/template/render", `{"subject_type":"label","subject_id":"not-a-dereferenced-resource"}`
@@ -69,7 +69,7 @@ func (f *reportTemplateHTTPFake) RenderCustomReport(_ context.Context, actor ide
 func TestReportTemplateHandlersUseFocusedCommandsAndReplayResponses(t *testing.T) {
 	base, secret := testServer(t)
 	commands := &reportTemplateHTTPFake{}
-	server, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ReportTemplateCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

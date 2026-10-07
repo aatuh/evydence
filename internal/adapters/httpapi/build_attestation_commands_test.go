@@ -29,7 +29,7 @@ func (f *buildAttestationHTTPFake) AuthorizeBuildAttestationCreation(context.Con
 
 func TestBuildAttestationRequiresNativeDurableReplay(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{BuildAttestationCommands: &buildAttestationHTTPFake{}}); err == nil || v != nil {
+	if v, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{BuildAttestationCommands: &buildAttestationHTTPFake{}}); err == nil || v != nil {
 		t.Fatal("focused attestation accepted aggregate replay")
 	}
 }
@@ -58,7 +58,7 @@ func (f *buildAttestationHTTPFake) UploadBuildAttestation(_ context.Context, a i
 func TestBuildAttestationHTTPUsesDurableCommandAndReplayWithoutLedgerBuild(t *testing.T) {
 	local, secret := testServer(t)
 	f := &buildAttestationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

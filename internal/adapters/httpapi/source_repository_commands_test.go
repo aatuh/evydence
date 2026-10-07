@@ -31,7 +31,7 @@ func (f *sourceCreationHTTPFake) AuthorizeSourceRepositoryCreation(context.Conte
 
 func TestSourceRepositoryCreationRequiresNativeDurableReplay(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{SourceRepositoryCommands: &sourceCreationHTTPFake{}}); err == nil || v != nil {
+	if v, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{SourceRepositoryCommands: &sourceCreationHTTPFake{}}); err == nil || v != nil {
 		t.Fatal("focused repository creation accepted aggregate replay")
 	}
 }
@@ -92,11 +92,11 @@ func TestSourceRepositoryCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 func TestSourceRepositoryCreationNativeDoesNotUseLedger(t *testing.T) {
 	base, secret := testServer(t)
 	f := &sourceCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{SourceRepositoryCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{SourceRepositoryCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	body := []byte(`{"provider":" github ","full_name":" org/api "}`)
 	one := postRaw(t, s, secret, "/v1/source/repositories", "native", body, 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/source/repositories", "native", body, 201))
@@ -113,7 +113,7 @@ func TestSourceRepositoryCreationRejectsMalformedBodiesBeforeGuard(t *testing.T)
 		if native {
 			s.sourceRepositoryCommands = f
 			s.durableCommandExecutor = newTrustHTTPReplayExecutor(t, s, secret)
-			s.ledger, s.idempotency = nil, nil
+			assertNoAggregateServerDependencies(t, s)
 		}
 		bad := []string{"", " ", "{", "[]", "null", "{} {}", string([]byte{0xff}), strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1), `{}`, `{"provider":"github","full_name":"a","provider":"gitlab"}`, `{"provider":"github","full_name":"a","tenant_id":"other"}`, `{"provider":"github","full_name":"a","clone_url":null}`, `{"provider":"github","full_name":"bad\u0000"}`, `{"provider":"github","full_name":"a","project_id":"` + strings.Repeat(" ", 1025) + `project"}`, `{"provider":"github","full_name":"` + strings.Repeat("x", 2305) + `"}`}
 		for i, body := range bad {
@@ -133,7 +133,7 @@ func (f *sourceCreationHTTPFake) CreateSourceRepository(_ context.Context, a ide
 func TestSourceRepositoryHTTPUsesFocusedCommandAndRejectsMalformedEnvelopes(t *testing.T) {
 	local, secret := testServer(t)
 	f := &sourceCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{SourceRepositoryCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{SourceRepositoryCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

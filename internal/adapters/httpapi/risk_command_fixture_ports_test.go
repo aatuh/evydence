@@ -78,7 +78,7 @@ func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Cont
 func riskCommandTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	server, secret := governanceTestServer(t)
-	server.durableCommandExecutor = riskFixtureReplayExecutor{catalogFixtureReplayExecutor{ledger: server.ledger}}
+	server.durableCommandExecutor = riskFixtureReplayExecutor{catalogFixtureReplayExecutor{ledger: legacyFixtureLedger(server)}}
 	return server, secret
 }
 

@@ -32,7 +32,7 @@ func TestEvidenceRelationshipStrictPreflightAcrossFixturePorts(t *testing.T) {
 				f := &evidenceRelationshipHTTPFake{}
 				if native {
 					var err error
-					s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -88,11 +88,11 @@ func TestEvidenceRelationshipCookieOriginAndBearerPrecedenceAcrossFixturePorts(t
 				}
 				if native {
 					var err error
-					s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}
-					s.ledger = nil
+					assertNoAggregateServerDependencies(t, s)
 				}
 				path := strings.Replace(tc.path, "original", ids[0], 1)
 				body := strings.ReplaceAll(strings.ReplaceAll(tc.body, `" replacement "`, fmt.Sprintf("%q", ids[1])), `" target "`, fmt.Sprintf("%q", value.Data.ID))
@@ -160,14 +160,14 @@ func TestEvidenceRelationshipsRequireDurableExecutionAndReauthorizeReplay(t *tes
 		t.Run(tc.name, func(t *testing.T) {
 			base, secret := testServer(t)
 			f := &evidenceRelationshipHTTPFake{}
-			if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f}); err == nil || s != nil {
+			if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceRelationshipCommands: f}); err == nil || s != nil {
 				t.Fatal("relationships accepted aggregate replay")
 			}
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger = nil
+			assertNoAggregateServerDependencies(t, s)
 			one := postRaw(t, s, secret, tc.path, "relationship", []byte(tc.body), 201)
 			assertTrustHTTPReplay(t, one, postRaw(t, s, secret, tc.path, "relationship", []byte(tc.body), 201))
 			if f.id != "original" || tc.name == "supersede" && (f.replacement != "replacement" || f.reason != "reviewed") || tc.name == "link" && (f.kind != "product" || f.target != "target") || tc.name == "lifecycle" && (f.in.Action != "amendment" || f.in.Reason != "reviewed" || f.in.ReplacementID != "replacement" || f.in.Details["sequence"] != json.Number("9007199254740993")) {
@@ -188,7 +188,7 @@ func TestEvidenceRelationshipsMapErrorsWithoutLeakingResults(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			base, secret := testServer(t)
 			f := &evidenceRelationshipHTTPFake{}
-			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}

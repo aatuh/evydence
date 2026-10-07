@@ -74,7 +74,7 @@ func TestSigningCustodyHandlerUsesDurableQueryWithoutFallbackAndSafeErrors(t *te
 	}
 	// Local test data is now supplied through an explicit focused fixture
 	// reader, not by removing the runtime port to select a broad fallback.
-	fixture := &custodyFixtureQuerySpy{custodyFixtureQuery: custodyFixtureQuery{catalogFixtureCommands{ledger: server.ledger}}}
+	fixture := &custodyFixtureQuerySpy{custodyFixtureQuery: custodyFixtureQuery{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}}
 	server.signingCustodyQuery = fixture
 	getRaw(t, server, secret, "/v1/reports/custody-review?unknown=value", http.StatusBadRequest)
 	getRaw(t, server, secret, "/v1/reports/custody-review", http.StatusOK)

@@ -33,10 +33,10 @@ func (f *apiKeyHTTPFake) CreateAPIKey(_ context.Context, a identitydomain.Actor,
 func TestAPIKeyHTTPFocusedCommandGuardsStrictInputAndMapsPublicCredential(t *testing.T) {
 	base, secret := testServer(t)
 	f := &apiKeyHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{APIKeyCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{APIKeyCommands: f}); err == nil {
 		t.Fatal("focused keys retained Ledger idempotency")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{APIKeyCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{APIKeyCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

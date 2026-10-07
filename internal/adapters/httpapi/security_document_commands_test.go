@@ -45,11 +45,11 @@ func (f *securityDocumentHTTPFake) UploadManualSecurityDocument(_ context.Contex
 func TestSecurityDocumentHTTPUsesFocusedCommandsAndRejectsInvalidEnvelopes(t *testing.T) {
 	base, secret := testServer(t)
 	f := &securityDocumentHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SecurityDocumentCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SecurityDocumentCommands: f}); err == nil {
 		t.Fatal("security documents retained Ledger idempotency")
 	}
 	executor := &decisionHTTPExecutorFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SecurityDocumentCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SecurityDocumentCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -42,12 +42,12 @@ func TestVEXIngestionHTTPUsesFocusedCommandsAndSafeErrors(t *testing.T) {
 	base, secret := testServer(t)
 	f := &vexIngestionHTTPFake{}
 	for _, executor := range []DurableCommandExecutor{nil, &decisionHTTPExecutorFake{}} {
-		if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{VEXIngestionCommands: f, DurableCommandExecutor: executor}); err == nil {
+		if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{VEXIngestionCommands: f, DurableCommandExecutor: executor}); err == nil {
 			t.Fatal("VEX ingestion retained Ledger idempotency")
 		}
 	}
 	executor := &openAPIStreamedHTTPExecutorFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{VEXIngestionCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{VEXIngestionCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestVEXIngestionNativeHTTPBoundsHeadersAndCleansSpool(t *testing.T) {
 	base, secret := testServer(t)
 	f := &vexIngestionHTTPFake{}
 	executor := &openAPIStreamedHTTPExecutorFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{VEXIngestionCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{VEXIngestionCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

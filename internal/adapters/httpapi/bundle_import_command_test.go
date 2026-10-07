@@ -28,14 +28,14 @@ func (f *bundleImportHTTPFake) AuthorizeBundleImport(context.Context, identitydo
 func TestBundleImportRequiresNativeReplayAndCurrentAuthority(t *testing.T) {
 	base, secret := testServer(t)
 	f := &bundleImportHTTPFake{}
-	if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: f}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BundleImportCommand: f}); err == nil || s != nil {
 		t.Error("import receipt accepted aggregate replay")
 	}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
+	assertNoAggregateServerDependencies(t, s)
 	body := `{"manifest":{"bundle_version":"evidence-bundle.v1.0.0","evidence_ids":[]},"evidence_ids":[],"manifest_hash":"sha256:` + strings.Repeat("a", 64) + `"}`
 	one := postRaw(t, s, secret, "/v1/evidence-bundles/import", "original", []byte(body), 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/evidence-bundles/import", "original", []byte(body), 201))
@@ -54,7 +54,7 @@ func (f *bundleImportHTTPFake) ImportEvidenceBundle(_ context.Context, actor ide
 func TestBundleImportHandlerUsesFocusedCommandAndReplaysReceipt(t *testing.T) {
 	base, secret := testServer(t)
 	commands := &bundleImportHTTPFake{}
-	server, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{BundleImportCommand: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

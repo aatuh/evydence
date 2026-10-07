@@ -43,14 +43,14 @@ func TestDecodeDSSEVerificationRequestBoundsRawIDs(t *testing.T) {
 func TestDSSEHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &dsseVerificationHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{DSSEVerification: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{DSSEVerification: f}); err == nil {
 		t.Fatal("focused DSSE accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{DSSEVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{DSSEVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.idempotency = nil, nil
+	assertNoAggregateServerDependencies(t, s)
 	path := "/v1/build-attestations/not-in-ledger/verify-signature"
 	one := postRaw(t, s, secret, path, "native", []byte(`{}`), 200)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "native", []byte(`{}`), 200))

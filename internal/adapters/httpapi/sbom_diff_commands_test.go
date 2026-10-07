@@ -28,11 +28,11 @@ func (f *sbomDiffHTTPFake) CreateSBOMDiff(context.Context, identitydomain.Actor,
 func TestSBOMDiffHTTPRequiresDurableExecutorAndSafeErrors(t *testing.T) {
 	base, secret := testServer(t)
 	f := &sbomDiffHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SBOMDiffCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SBOMDiffCommands: f}); err == nil {
 		t.Fatal("SBOM diff fell back to Ledger idempotency")
 	}
 	executor := &decisionHTTPExecutorFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SBOMDiffCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SBOMDiffCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

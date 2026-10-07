@@ -36,7 +36,6 @@ import (
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
-	ledger                            *app.Ledger
 	authn                             Authenticator
 	apiKeyCommands                    APIKeyCommands
 	membershipCommands                MembershipCommands
@@ -127,7 +126,6 @@ type Server struct {
 	instanceAdminQuery                InstanceAdminQuery
 	outboxDiagnosticsQuery            OutboxDiagnosticsQuery
 	outboxReplayCommand               OutboxReplayCommand
-	idempotency                       idempotencyExecutor
 	ssoExchangeCommands               SSOExchangeCommands
 	providerVerificationCommands      ProviderVerificationCommands
 	evidenceSummaryCommands           EvidenceSummaryCommands

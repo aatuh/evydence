@@ -1905,9 +1905,15 @@ PostgreSQL is required for local evaluation. Both summary/draft regressions
 cover whole-state rollback, complete DTO/citation/hash/audit bindings, current
 grants, foreign roots, permission-bound replay and detached metadata; memory
 checks are not SQL bounds, locking or durability proof. No HTTP handler calls
-Ledger directly, and the unused aggregate create-helper chain/context alias
-is deleted. The remaining Server field, compatibility interfaces and aggregate
-implementation still require physical retirement in EVY-906.
+Ledger directly. The HTTP Server's Ledger and legacy replay fields, the
+aggregate create-helper chain/context alias, and the legacy replay interfaces
+are deleted. Regression checks scan every production HTTP source file for
+aggregate dependencies and assert the retired fields are absent. Historical
+test setup obtains its Ledger from existing test-only identity query fixtures;
+there is no production back-reference or global fixture registry. Conditional
+replay tests still seed historical body-only receipts directly through the
+test ledger and verify rejection by the focused HTTP executor. The aggregate
+implementation itself still requires physical retirement in EVY-906.
 
 ## Provider And Deployment Boundaries
 

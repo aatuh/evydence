@@ -64,10 +64,10 @@ func (f *summaryHTTPFake) CreateEvidenceSummary(_ context.Context, a identitydom
 func TestSummaryHTTPUsesFocusedPortStrictJSONAndSafeErrors(t *testing.T) {
 	base, secret := testServer(t)
 	f := &summaryHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{EvidenceSummaryCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{EvidenceSummaryCommands: f}); err == nil {
 		t.Fatal("summary port lacks atomic replay executor")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{EvidenceSummaryCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{EvidenceSummaryCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestSummaryHTTPUsesFocusedPortStrictJSONAndSafeErrors(t *testing.T) {
 func TestSummaryHTTPCookieMutationRequiresSameHTTPSOrigin(t *testing.T) {
 	base, secret := testServer(t)
 	f := &summaryHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{EvidenceSummaryCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{EvidenceSummaryCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

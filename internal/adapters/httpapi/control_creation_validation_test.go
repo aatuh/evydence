@@ -32,7 +32,7 @@ func TestControlCreationRejectsNonNullableJSONInLocalProfile(t *testing.T) {
 	if err := json.Unmarshal([]byte(response), &parsed); err != nil || len(parsed.Data.EvidenceRequirements) != 1 || parsed.Data.EvidenceRequirements[0].Required || parsed.Data.EvidenceRequirements[0].Type != "build" {
 		t.Fatal("explicit false requirement rejected or changed", parsed, err)
 	}
-	frameworks, err := server.ledger.ListControlFrameworks(t.Context(), domain.Actor{TenantID: parsed.Data.TenantID, KeyID: "test", Scopes: []string{"controls:read"}})
+	frameworks, err := legacyFixtureLedger(server).ListControlFrameworks(t.Context(), domain.Actor{TenantID: parsed.Data.TenantID, KeyID: "test", Scopes: []string{"controls:read"}})
 	if err != nil || len(frameworks) != 1 {
 		t.Fatal("invalid nullable framework wrote records", frameworks, err)
 	}

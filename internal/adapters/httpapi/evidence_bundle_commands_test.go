@@ -40,18 +40,18 @@ func (f *exportBundleHTTPFake) ExportEvidenceBundle(_ context.Context, actor ide
 func TestEvidenceBundleExportRequiresNativeHistoricalReplayAuthority(t *testing.T) {
 	base, secret := testServer(t)
 	f := &exportBundleHTTPFake{}
-	if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: f}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceBundleCommands: f}); err == nil || s != nil {
 		t.Error("focused export accepted aggregate replay")
 	}
-	if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}}); err == nil || s != nil {
 		t.Error("export accepted an executor without saved-selection authorization")
 	}
-	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger = nil
-	s.idempotency = nil
+	assertNoAggregateServerDependencies(t, s)
+	assertNoAggregateServerDependencies(t, s)
 	path, body := "/v1/evidence-bundles", []byte(`{}`)
 	one := postRaw(t, s, secret, path, "original", body, 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, path, "original", body, 201))
@@ -74,7 +74,7 @@ func TestEvidenceBundleExportRequiresNativeHistoricalReplayAuthority(t *testing.
 func TestEvidenceBundleExportUsesFocusedCommandAndReplay(t *testing.T) {
 	base, secret := testServer(t)
 	commands := &exportBundleHTTPFake{}
-	server, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceBundleCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
