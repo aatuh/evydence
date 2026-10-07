@@ -1723,23 +1723,14 @@ func (s *Server) missingEvidenceReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.missingEvidenceQuery != nil {
-		releaseID, err := optionalSingletonQuery(r, "release_id")
-		if err != nil || releaseID == "" {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		report, err := s.missingEvidenceQuery.Report(r.Context(), actor, releaseID)
-		if err != nil {
-			writeProblem(w, r, mapMissingEvidenceQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, report)
+	releaseID, err := optionalSingletonQuery(r, "release_id")
+	if err != nil || releaseID == "" {
+		writeProblem(w, r, app.ErrValidation)
 		return
 	}
-	report, err := s.ledger.MissingEvidenceReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	report, err := s.missingEvidenceQuery.Report(r.Context(), actor, releaseID)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapMissingEvidenceQueryError(err))
 		return
 	}
 	writeData(w, http.StatusOK, report)
@@ -1798,30 +1789,17 @@ func (s *Server) controlCoverageReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.controlCoverageQuery != nil {
-		filter, err := controlReportFilters(r, false)
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		report, err := s.controlCoverageQuery.Coverage(r.Context(), actor, filter)
-		if err != nil {
-			writeProblem(w, r, mapControlCoverageQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, controlCoverageFromQuery(report))
-		return
-	}
-	report, err := s.ledger.ControlCoverageReport(r.Context(), actor, app.ControlCoverageReportInput{
-		FrameworkID: r.URL.Query().Get("framework_id"),
-		ProductID:   r.URL.Query().Get("product_id"),
-		ReleaseID:   r.URL.Query().Get("release_id"),
-	})
+	filter, err := controlReportFilters(r, false)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	report, err := s.controlCoverageQuery.Coverage(r.Context(), actor, filter)
+	if err != nil {
+		writeProblem(w, r, mapControlCoverageQueryError(err))
+		return
+	}
+	writeData(w, http.StatusOK, controlCoverageFromQuery(report))
 }
 
 func (s *Server) craReadinessReport(w http.ResponseWriter, r *http.Request) {
@@ -1829,29 +1807,17 @@ func (s *Server) craReadinessReport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.controlCoverageQuery != nil {
-		filter, err := controlReportFilters(r, true)
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		report, err := s.controlCoverageQuery.CRAReadiness(r.Context(), actor, filter.ProductID, filter.ReleaseID)
-		if err != nil {
-			writeProblem(w, r, mapControlCoverageQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, craReadinessFromQuery(report))
-		return
-	}
-	report, err := s.ledger.CRAReadinessReport(r.Context(), actor, app.CRAReadinessReportInput{
-		ProductID: r.URL.Query().Get("product_id"),
-		ReleaseID: r.URL.Query().Get("release_id"),
-	})
+	filter, err := controlReportFilters(r, true)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	report, err := s.controlCoverageQuery.CRAReadiness(r.Context(), actor, filter.ProductID, filter.ReleaseID)
+	if err != nil {
+		writeProblem(w, r, mapControlCoverageQueryError(err))
+		return
+	}
+	writeData(w, http.StatusOK, craReadinessFromQuery(report))
 }
 
 func (s *Server) craVulnerabilityHandlingReport(w http.ResponseWriter, r *http.Request) {
@@ -1859,26 +1825,17 @@ func (s *Server) craVulnerabilityHandlingReport(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if s.craVulnerabilityQuery != nil {
-		productID, releaseID, err := releaseReportFilters(r)
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		report, err := s.craVulnerabilityQuery.Report(r.Context(), actor, productID, releaseID)
-		if err != nil {
-			writeProblem(w, r, mapCRAVulnerabilityQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, craVulnerabilityFromQuery(report))
-		return
-	}
-	report, err := s.ledger.CRAVulnerabilityHandlingReport(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	productID, releaseID, err := releaseReportFilters(r)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	report, err := s.craVulnerabilityQuery.Report(r.Context(), actor, productID, releaseID)
+	if err != nil {
+		writeProblem(w, r, mapCRAVulnerabilityQueryError(err))
+		return
+	}
+	writeData(w, http.StatusOK, craVulnerabilityFromQuery(report))
 }
 
 func (s *Server) securityUpdateEvidenceReport(w http.ResponseWriter, r *http.Request) {
@@ -1886,26 +1843,17 @@ func (s *Server) securityUpdateEvidenceReport(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	if s.securityUpdateEvidenceQuery != nil {
-		productID, releaseID, err := releaseReportFilters(r)
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		report, err := s.securityUpdateEvidenceQuery.Report(r.Context(), actor, productID, releaseID)
-		if err != nil {
-			writeProblem(w, r, mapSecurityUpdateQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, securityUpdateFromQuery(report))
-		return
-	}
-	report, err := s.ledger.SecurityUpdateEvidenceReport(r.Context(), actor, r.URL.Query().Get("product_id"), r.URL.Query().Get("release_id"))
+	productID, releaseID, err := releaseReportFilters(r)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	report, err := s.securityUpdateEvidenceQuery.Report(r.Context(), actor, productID, releaseID)
+	if err != nil {
+		writeProblem(w, r, mapSecurityUpdateQueryError(err))
+		return
+	}
+	writeData(w, http.StatusOK, securityUpdateFromQuery(report))
 }
 
 func (s *Server) createReleaseBundle(w http.ResponseWriter, r *http.Request) {
@@ -1917,21 +1865,12 @@ func (s *Server) getReleaseBundle(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.releaseBundleQuery != nil {
-		bundle, err := s.releaseBundleQuery.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapReleaseBundleQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, releaseBundleFromQuery(bundle))
-		return
-	}
-	bundle, err := s.ledger.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
+	bundle, err := s.releaseBundleQuery.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapReleaseBundleQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, bundle)
+	writeData(w, http.StatusOK, releaseBundleFromQuery(bundle))
 }
 
 func (s *Server) getReleaseBundleManifest(w http.ResponseWriter, r *http.Request) {
@@ -1939,18 +1878,9 @@ func (s *Server) getReleaseBundleManifest(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if s.releaseBundleQuery != nil {
-		bundle, err := s.releaseBundleQuery.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapReleaseBundleQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, bundle.Manifest)
-		return
-	}
-	bundle, err := s.ledger.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
+	bundle, err := s.releaseBundleQuery.GetReleaseBundle(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapReleaseBundleQueryError(err))
 		return
 	}
 	writeData(w, http.StatusOK, bundle.Manifest)

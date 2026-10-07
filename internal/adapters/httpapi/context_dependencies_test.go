@@ -262,6 +262,21 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if !ok || readiness.ledger != ledger {
 		t.Fatal("focused readiness fixture query was not rebound")
 	}
+	if fixture, ok := server.controlCoverageQuery.(packageCoverageFixture); !ok || fixture.ledger != ledger {
+		t.Fatal("coverage fixture was not rebound")
+	}
+	if fixture, ok := server.craVulnerabilityQuery.(packageHandlingFixture); !ok || fixture.ledger != ledger {
+		t.Fatal("vulnerability handling fixture was not rebound")
+	}
+	if fixture, ok := server.securityUpdateEvidenceQuery.(packageUpdateFixture); !ok || fixture.ledger != ledger {
+		t.Fatal("security update fixture was not rebound")
+	}
+	if fixture, ok := server.releaseBundleQuery.(packageBundleReadFixture); !ok || fixture.ledger != ledger {
+		t.Fatal("release bundle point fixture was not rebound")
+	}
+	if fixture, ok := server.missingEvidenceQuery.(packageMissingFixture); !ok || fixture.ledger != ledger {
+		t.Fatal("missing evidence fixture was not rebound")
+	}
 	for name, dependency := range map[string]any{
 		"audit-chain": server.auditChainVerification, "merkle": server.merkleVerification, "backup": server.backupVerification,
 	} {

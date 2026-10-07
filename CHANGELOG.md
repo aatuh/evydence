@@ -118,6 +118,17 @@ command now records human audit identity correctly; native PostgreSQL already
 did so. Affected API descriptions require PostgreSQL local evaluation.
 Other aggregate cleanup remains unfinished under EVY-906.
 
+Control coverage, CRA readiness/vulnerability handling, security-update,
+missing-evidence and both release-bundle reads require focused queries. Seven
+aggregate handler fallbacks are deleted; native filters, current grants/parents,
+bounded SQL, errors and public DTOs are unchanged. Test-only report readers add
+whole-state read-only, complete DTO, privacy, cancellation and nested metadata
+detachment regressions. Missing-evidence fixtures use a pure readiness preview
+and the existing renderer without creating policy evaluations or audits.
+The memory repository now recognizes owned control-scoped exceptions while
+rejecting foreign/missing controls. API descriptions require PostgreSQL local
+evaluation. Remaining aggregate deletion and final ticket gates stay open.
+
 Generic evidence creation, supersession, linking and lifecycle-event handlers
 now use only focused Evidence ports. Their two broad local dependencies and
 interfaces are deleted. Native validation, authorization, append-only effects,

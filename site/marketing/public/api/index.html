@@ -2030,13 +2030,13 @@
               <div><dt>Responses</dt><dd>201 application/json: ReleaseBundleEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/release-bundles/{id} get release bundle returns an immutable release bundle by id only when its current tenant-owned release is covered by the caller&#x27;s bundle:read grant. getreleasebundle evydence bundle:read">
+          <article class="operation" data-operation data-search="get /v1/release-bundles/{id} get release bundle returns an immutable release bundle through a focused query only when its current tenant-owned release is covered by the caller&#x27;s bundle:read grant. postgresql is required for local evaluation. getreleasebundle evydence bundle:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/release-bundles/{id}</code>
             </div>
             <h3>Get release bundle</h3>
-            <p>Returns an immutable release bundle by id only when its current tenant-owned release is covered by the caller&#x27;s bundle:read grant.</p>
+            <p>Returns an immutable release bundle through a focused query only when its current tenant-owned release is covered by the caller&#x27;s bundle:read grant. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>getReleaseBundle</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2047,13 +2047,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseBundleEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/release-bundles/{id}/manifest get release bundle manifest returns the deterministic release bundle manifest by id under the same current-release and bundle:read authorization as the bundle read. getreleasebundlemanifest evydence bundle:read">
+          <article class="operation" data-operation data-search="get /v1/release-bundles/{id}/manifest get release bundle manifest returns the deterministic release bundle manifest through a focused query under the same current-release and bundle:read authorization as the bundle read. postgresql is required for local evaluation. getreleasebundlemanifest evydence bundle:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/release-bundles/{id}/manifest</code>
             </div>
             <h3>Get release bundle manifest</h3>
-            <p>Returns the deterministic release bundle manifest by id under the same current-release and bundle:read authorization as the bundle read.</p>
+            <p>Returns the deterministic release bundle manifest through a focused query under the same current-release and bundle:read authorization as the bundle read. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>getReleaseBundleManifest</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2336,13 +2336,13 @@
               <div><dt>Responses</dt><dd>201 application/json: AnomalyReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/reports/control-coverage control coverage report returns deterministic control coverage with linked evidence, missing evidence, assumptions, and limitations. controlcoveragereport evydence report:read">
+          <article class="operation" data-operation data-search="get /v1/reports/control-coverage control coverage report returns deterministic control coverage through a focused bounded query with linked evidence, missing evidence, assumptions, and limitations. postgresql is required for local evaluation. controlcoveragereport evydence report:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/reports/control-coverage</code>
             </div>
             <h3>Control coverage report</h3>
-            <p>Returns deterministic control coverage with linked evidence, missing evidence, assumptions, and limitations.</p>
+            <p>Returns deterministic control coverage through a focused bounded query with linked evidence, missing evidence, assumptions, and limitations. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>controlCoverageReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2353,13 +2353,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReadinessReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/reports/cra-readiness cra readiness report returns a cra-oriented readiness report without legal compliance or certification conclusions. crareadinessreport evydence report:read">
+          <article class="operation" data-operation data-search="get /v1/reports/cra-readiness cra readiness report returns a cra-oriented readiness report through a focused bounded query without legal compliance or certification conclusions. postgresql is required for local evaluation. crareadinessreport evydence report:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/reports/cra-readiness</code>
             </div>
             <h3>CRA readiness report</h3>
-            <p>Returns a CRA-oriented readiness report without legal compliance or certification conclusions.</p>
+            <p>Returns a CRA-oriented readiness report through a focused bounded query without legal compliance or certification conclusions. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>craReadinessReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2387,13 +2387,13 @@
               <div><dt>Responses</dt><dd>200 application/json: HTMLReportPackageEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/reports/cra-vulnerability-handling cra vulnerability handling report returns a cra-oriented vulnerability handling evidence report without legal compliance, certification, scanner-authority, or release-security conclusions. cravulnerabilityhandlingreport evydence report:read">
+          <article class="operation" data-operation data-search="get /v1/reports/cra-vulnerability-handling cra vulnerability handling report returns a cra-oriented vulnerability handling evidence report through a focused bounded query without legal compliance, certification, scanner-authority, or release-security conclusions. postgresql is required for local evaluation. cravulnerabilityhandlingreport evydence report:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/reports/cra-vulnerability-handling</code>
             </div>
             <h3>CRA vulnerability handling report</h3>
-            <p>Returns a CRA-oriented vulnerability handling evidence report without legal compliance, certification, scanner-authority, or release-security conclusions.</p>
+            <p>Returns a CRA-oriented vulnerability handling evidence report through a focused bounded query without legal compliance, certification, scanner-authority, or release-security conclusions. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>craVulnerabilityHandlingReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2438,13 +2438,13 @@
               <div><dt>Responses</dt><dd>200 application/json: IncidentReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/reports/missing-evidence missing evidence report returns a deterministic missing-evidence report for a release with assumptions and limitations. missingevidencereport evydence verify:read">
+          <article class="operation" data-operation data-search="get /v1/reports/missing-evidence missing evidence report returns a read-only deterministic missing-evidence report for a release through focused readiness/report queries, with assumptions and limitations. it requires verify:read and current tenant/product/release grants for human sessions; reads do not create policy evaluations, audit entries, jobs or replay records. postgresql is required for local evaluation. missingevidencereport evydence verify:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/reports/missing-evidence</code>
             </div>
             <h3>Missing evidence report</h3>
-            <p>Returns a deterministic missing-evidence report for a release with assumptions and limitations.</p>
+            <p>Returns a read-only deterministic missing-evidence report for a release through focused readiness/report queries, with assumptions and limitations. It requires verify:read and current tenant/product/release grants for human sessions; reads do not create policy evaluations, audit entries, jobs or replay records. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>missingEvidenceReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2523,13 +2523,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SecurityReviewPackageReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/reports/security-update-evidence security update evidence report returns a security update evidence report for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions. securityupdateevidencereport evydence report:read">
+          <article class="operation" data-operation data-search="get /v1/reports/security-update-evidence security update evidence report returns a security update evidence report through a focused bounded query for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions. postgresql is required for local evaluation. securityupdateevidencereport evydence report:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/reports/security-update-evidence</code>
             </div>
             <h3>Security update evidence report</h3>
-            <p>Returns a security update evidence report for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions.</p>
+            <p>Returns a security update evidence report through a focused bounded query for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>securityUpdateEvidenceReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

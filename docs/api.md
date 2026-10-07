@@ -766,6 +766,12 @@ provenance, build-attestation subject coverage, a signed release bundle, and
 valid redaction profiles for generated customer packages. Failed checks include
 `remediation` text with the next evidence action to take.
 
+`GET /v1/reports/missing-evidence?release_id=rel_...` is a read-only rendering
+of readiness checks. It requires `verify:read` and a current tenant, product,
+or release grant for human sessions. It creates no policy evaluation, audit,
+outbox job or idempotency record. Explicit policy-evaluation POSTs retain their
+write semantics. PostgreSQL is required for local evaluation.
+
 ## Authentication And Scopes
 
 API keys and collector keys are tenant-scoped bearer secrets. Human SSO session actors derive scopes from role bindings and enforce resource constraints where those resources are part of the request.
@@ -1253,7 +1259,7 @@ retroactively scrubbed; see the
 | `GET` | `/v1/reports/vulnerability-posture` | Aggregate stored scan-finding severities and open-critical counts. Optional single `release_id` filters one tenant-owned release; without it, human sessions need a tenant-wide `security:read` grant. This does not include decisions or VEX and does not verify scanner coverage. |
 | `GET` | `/v1/reports/vulnerability-decision-summary` | Customer-safe active vulnerability decision summary for a release. |
 | `GET` | `/v1/reports/release-readiness` | Deterministic readiness report. |
-| `GET` | `/v1/reports/missing-evidence` | Missing evidence report for review. |
+| `GET` | `/v1/reports/missing-evidence` | Read-only missing evidence report for review; requires `verify:read` and current human resource grants. |
 | `POST` | `/v1/reports/anomaly` | Generate deterministic evidence anomaly signals; see [anomaly report generation](#anomaly-report-generation). |
 | `POST` | `/v1/release-candidates` | Create release candidate. |
 | `GET` | `/v1/release-candidates` | List release candidates. |
@@ -2348,6 +2354,25 @@ Source/test evidence: `internal/operations/app/deployment_commands.go`,
 `internal/platform/wiring/deployment_creation_native_test.go`.
 
 ### Controls, Reports, Packages, And Governance
+
+Control coverage, CRA readiness/vulnerability handling, security-update,
+missing-evidence and both release-bundle read handlers require focused query
+ports. Their seven aggregate fallback paths are deleted. Native bounded SQL,
+current grants/parent checks, singleton filters, errors and public DTOs are
+unchanged. PostgreSQL is required for local evaluation.
+
+Historical report tests use test-only adapters with actual former read/grant
+rules and detached nested metadata. Their missing-evidence adapter uses real
+current authority and a pure readiness preview with the same Package renderer;
+it does not call the retired write-producing evaluation helper. These fixture
+checks are not proof of SQL limits or locking. The memory repository's control
+ownership dispatch now accepts owned control-scoped exceptions and still rejects
+foreign/missing controls.
+
+Transport regression evidence:
+`internal/adapters/httpapi/package_report_transport_boundary_test.go`,
+`internal/adapters/httpapi/package_report_fixture_regression_test.go`, and
+`internal/app/memory_control_exception_test.go`.
 
 | Method | Path | Notes |
 |--------|------|-------|
@@ -3930,7 +3955,7 @@ In the PostgreSQL profile, both release-bundle reads use a single bundle/release
 database statement. A human session needs a current tenant, product, or release
 `bundle:read` grant; issued credentials use their `bundle:read` scope. A bundle
 with a missing or cross-tenant release is not returned. The manifest response
-shape is unchanged, and local-memory mode retains its Ledger-backed path.
+shape is unchanged. PostgreSQL is required for local evaluation.
 
 In the PostgreSQL profile, `GET /v1/artifact-signatures/{id}` reads one
 signature and its current artifact in one database statement. A human session

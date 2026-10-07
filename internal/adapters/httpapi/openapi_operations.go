@@ -437,11 +437,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Release bundle creation request.", "#/components/schemas/CreateReleaseBundleRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
 	case "getReleaseBundle":
-		operation.Description = "Returns an immutable release bundle by id only when its current tenant-owned release is covered by the caller's bundle:read grant."
+		operation.Description = "Returns an immutable release bundle through a focused query only when its current tenant-owned release is covered by the caller's bundle:read grant. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
 	case "getReleaseBundleManifest":
-		operation.Description = "Returns the deterministic release bundle manifest by id under the same current-release and bundle:read authorization as the bundle read."
+		operation.Description = "Returns the deterministic release bundle manifest through a focused query under the same current-release and bundle:read authorization as the bundle read. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle manifest envelope.", "#/components/schemas/ReleaseBundleManifestEnvelope")
 	case "verifyReleaseBundle":
@@ -483,7 +483,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			},
 		})
 	case "missingEvidenceReport":
-		operation.Description = "Returns a deterministic missing-evidence report for a release with assumptions and limitations."
+		operation.Description = "Returns a read-only deterministic missing-evidence report for a release through focused readiness/report queries, with assumptions and limitations. It requires verify:read and current tenant/product/release grants for human sessions; reads do not create policy evaluations, audit entries, jobs or replay records. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Missing evidence report envelope.", "#/components/schemas/MissingEvidenceReportEnvelope")
 	case "evaluatePolicy":
@@ -836,28 +836,28 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("SaaS edition profile creation request.", "#/components/schemas/CreateSaaSEditionProfileRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SaaS edition profile envelope.", "#/components/schemas/SaaSEditionProfileEnvelope")
 	case "craReadinessReport":
-		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
+		operation.Description = "Returns a CRA-oriented readiness report through a focused bounded query without legal compliance or certification conclusions. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Product id.", "string"),
 			queryParam("release_id", "Release id.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("CRA readiness report envelope.", "#/components/schemas/ReadinessReportEnvelope")
 	case "craVulnerabilityHandlingReport":
-		operation.Description = "Returns a CRA-oriented vulnerability handling evidence report without legal compliance, certification, scanner-authority, or release-security conclusions."
+		operation.Description = "Returns a CRA-oriented vulnerability handling evidence report through a focused bounded query without legal compliance, certification, scanner-authority, or release-security conclusions. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Product id.", "string"),
 			queryParam("release_id", "Release id.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("CRA vulnerability handling report envelope.", "#/components/schemas/CRAVulnerabilityHandlingReportEnvelope")
 	case "securityUpdateEvidenceReport":
-		operation.Description = "Returns a security update evidence report for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions."
+		operation.Description = "Returns a security update evidence report through a focused bounded query for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Product id.", "string"),
 			queryParam("release_id", "Release id.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Security update evidence report envelope.", "#/components/schemas/SecurityUpdateEvidenceReportEnvelope")
 	case "controlCoverageReport":
-		operation.Description = "Returns deterministic control coverage with linked evidence, missing evidence, assumptions, and limitations."
+		operation.Description = "Returns deterministic control coverage through a focused bounded query with linked evidence, missing evidence, assumptions, and limitations. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("framework_id", "Control framework id.", "string"),
 			queryParam("product_id", "Product id.", "string"),

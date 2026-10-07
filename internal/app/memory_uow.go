@@ -4395,6 +4395,8 @@ func memoryResourceTenantID(resource any) string {
 		return value.TenantID
 	case domain.CustomPolicy:
 		return value.TenantID
+	case domain.SecurityControl:
+		return value.TenantID
 	default:
 		return ""
 	}
