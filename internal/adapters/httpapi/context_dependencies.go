@@ -19,7 +19,6 @@ import (
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
-	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
@@ -556,33 +555,19 @@ type identityAccessService interface {
 // release context. Verification, decision, package, and platform operations
 // remain on their separate migration paths.
 type releaseCatalogService interface {
-	AuthorizeProductCreation(context.Context, domain.Actor, releaseapp.CreateProductInput) error
-	AuthorizeProjectCreation(context.Context, domain.Actor, releaseapp.CreateProjectInput) error
-	AuthorizeReleaseCreation(context.Context, domain.Actor, releaseapp.CreateReleaseInput) error
-	CreateProduct(context.Context, domain.Actor, string, string) (domain.Product, error)
 	ListProducts(context.Context, domain.Actor) ([]domain.Product, error)
 	GetProduct(context.Context, domain.Actor, string) (domain.Product, error)
-	CreateProject(context.Context, domain.Actor, string, string) (domain.Project, error)
 	GetProject(context.Context, domain.Actor, string) (domain.Project, error)
-	CreateRelease(context.Context, domain.Actor, string, string) (domain.Release, error)
 	GetRelease(context.Context, domain.Actor, string) (domain.Release, error)
 	ReleaseEvidenceFlowPlan(context.Context, domain.Actor, string) (domain.ReleaseEvidenceFlow, error)
 	FreezeRelease(context.Context, domain.Actor, string, int64) (domain.Release, error)
 	AuthorizeReleaseTransition(context.Context, domain.Actor, string) error
 	AuthorizeCandidateTransition(context.Context, domain.Actor, string) error
 	ApproveRelease(context.Context, domain.Actor, string, int64) (domain.Release, error)
-	CreateReleaseCandidate(context.Context, domain.Actor, app.CreateReleaseCandidateInput) (domain.ReleaseCandidate, error)
-	AuthorizeCandidateCreation(context.Context, domain.Actor, releaseapp.CreateReleaseCandidateInput) error
 	ListReleaseCandidates(context.Context, domain.Actor, string) ([]domain.ReleaseCandidate, error)
 	GetReleaseCandidate(context.Context, domain.Actor, string) (domain.ReleaseCandidate, error)
 	UpdateReleaseCandidateState(context.Context, domain.Actor, string, string, string, int64) (domain.ReleaseCandidate, error)
-	RegisterArtifact(context.Context, domain.Actor, string, string, string, int64) (domain.Artifact, error)
-	AuthorizeArtifactRegistration(context.Context, domain.Actor, releaseapp.RegisterArtifactInput) error
-	AuthorizeContainerImageRegistration(context.Context, domain.Actor, releaseapp.RegisterContainerImageInput) error
 	GetArtifact(context.Context, domain.Actor, string) (domain.Artifact, error)
-	RegisterContainerImage(context.Context, domain.Actor, app.RegisterContainerImageInput) (domain.ContainerImage, error)
-	AuthorizeBuildCreation(context.Context, domain.Actor, releaseapp.CreateBuildRunInput) error
-	CreateBuildRun(context.Context, domain.Actor, app.CreateBuildRunInput) (domain.BuildRun, error)
 	GetBuildRun(context.Context, domain.Actor, string) (domain.BuildRun, error)
 	AuthorizeBuildAttestationCreation(context.Context, domain.Actor, string) error
 	UploadBuildAttestation(context.Context, domain.Actor, string, []byte) (domain.BuildAttestation, error)

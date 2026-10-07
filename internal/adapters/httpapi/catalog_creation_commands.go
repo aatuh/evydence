@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
@@ -61,30 +60,16 @@ func (s *Server) createProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in releaseapp.CreateProductInput
-	if s.productCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeProductCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapBuildAttestationCommandError(s.productCommands.AuthorizeProductCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.productCommands.CreateProduct(ctx, a, in)
-			return 201, productFromCommand(v), mapBuildAttestationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.releaseCatalog.CreateProduct(ctx, a, in.Name, in.Slug)
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeProductCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.releaseCatalog.AuthorizeProductCreation(r.Context(), a, in)
+		return mapBuildAttestationCommandError(s.productCommands.AuthorizeProductCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.productCommands.CreateProduct(ctx, a, in)
+		return 201, productFromCommand(v), mapBuildAttestationCommandError(err)
 	})
 }
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
@@ -93,30 +78,16 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in releaseapp.CreateProjectInput
-	if s.projectCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeProjectCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapBuildAttestationCommandError(s.projectCommands.AuthorizeProjectCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.projectCommands.CreateProject(ctx, a, in)
-			return 201, projectFromCommand(v), mapBuildAttestationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.releaseCatalog.CreateProject(ctx, a, in.ProductID, in.Name)
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeProjectCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.releaseCatalog.AuthorizeProjectCreation(r.Context(), a, in)
+		return mapBuildAttestationCommandError(s.projectCommands.AuthorizeProjectCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.projectCommands.CreateProject(ctx, a, in)
+		return 201, projectFromCommand(v), mapBuildAttestationCommandError(err)
 	})
 }
 func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
@@ -125,29 +96,15 @@ func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in releaseapp.CreateReleaseInput
-	if s.releaseCreationCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeReleaseCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapBuildAttestationCommandError(s.releaseCreationCommands.AuthorizeReleaseCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.releaseCreationCommands.CreateRelease(ctx, a, in)
-			return 201, releaseFromCommand(v), mapBuildAttestationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.releaseCatalog.CreateRelease(ctx, a, in.ProductID, in.Version)
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeReleaseCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.releaseCatalog.AuthorizeReleaseCreation(r.Context(), a, in)
+		return mapBuildAttestationCommandError(s.releaseCreationCommands.AuthorizeReleaseCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.releaseCreationCommands.CreateRelease(ctx, a, in)
+		return 201, releaseFromCommand(v), mapBuildAttestationCommandError(err)
 	})
 }

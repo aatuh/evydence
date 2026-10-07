@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
@@ -36,38 +35,21 @@ func decodeCandidateCreation(body []byte) (releaseapp.CreateReleaseCandidateInpu
 	_, err := releaseapp.NormalizeCandidateCreationInput(in)
 	return in, mapBuildAttestationCommandError(err)
 }
-func candidateLocalInput(in releaseapp.CreateReleaseCandidateInput) app.CreateReleaseCandidateInput {
-	return app.CreateReleaseCandidateInput{ReleaseID: in.ReleaseID, Name: in.Name, BuildIDs: in.BuildIDs, ArtifactIDs: in.ArtifactIDs, SBOMIDs: in.SBOMIDs, ScanIDs: in.ScanIDs, VEXIDs: in.VEXIDs, ContractIDs: in.ContractIDs, BundleIDs: in.BundleIDs}
-}
 func (s *Server) createReleaseCandidate(w http.ResponseWriter, r *http.Request) {
 	if err := validateSSOCookieMutation(r); err != nil {
 		writeProblem(w, r, err)
 		return
 	}
 	var in releaseapp.CreateReleaseCandidateInput
-	if s.candidateCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeCandidateCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapBuildAttestationCommandError(s.candidateCommands.AuthorizeCandidateCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.candidateCommands.CreateReleaseCandidate(ctx, a, in)
-			return http.StatusCreated, releaseCandidateFromQuery(v), mapBuildAttestationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.releaseCatalog.CreateReleaseCandidate(ctx, a, candidateLocalInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeCandidateCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.releaseCatalog.AuthorizeCandidateCreation(r.Context(), a, in)
+		return mapBuildAttestationCommandError(s.candidateCommands.AuthorizeCandidateCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.candidateCommands.CreateReleaseCandidate(ctx, a, in)
+		return http.StatusCreated, releaseCandidateFromQuery(v), mapBuildAttestationCommandError(err)
 	})
 }

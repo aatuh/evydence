@@ -69,6 +69,26 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.verification != ledger {
 		t.Fatal("verification service was not rebound")
 	}
+	for name, dependency := range map[string]any{
+		"product": server.productCommands, "project": server.projectCommands, "release": server.releaseCreationCommands,
+	} {
+		commands, ok := dependency.(catalogFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture port was not rebound", name)
+		}
+	}
+	for name, dependency := range map[string]any{
+		"artifact": server.artifactCommands, "image": server.containerImageCommands, "build": server.buildCommands, "candidate": server.candidateCommands,
+	} {
+		commands, ok := dependency.(registrationFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture port was not rebound", name)
+		}
+	}
+	durable, ok := server.durableCommandExecutor.(catalogFixtureReplayExecutor)
+	if !ok || durable.ledger != ledger {
+		t.Fatal("focused fixture replay was not rebound")
+	}
 }
 
 func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {

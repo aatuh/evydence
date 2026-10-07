@@ -71,43 +71,21 @@ func decodeBuildCreation(body []byte) (releaseapp.CreateBuildRunInput, error) {
 	return in, mapBuildAttestationCommandError(err)
 }
 
-func localBuildCreationInput(in releaseapp.CreateBuildRunInput) app.CreateBuildRunInput {
-	outputs := make([]domain.BuildOutput, 0, len(in.Outputs))
-	for _, out := range in.Outputs {
-		outputs = append(outputs, domain.BuildOutput{ArtifactID: out.ArtifactID, Digest: out.Digest})
-	}
-	return app.CreateBuildRunInput{ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, Provider: in.Provider, CommitSHA: in.CommitSHA, Repository: in.Repository, WorkflowRef: in.WorkflowRef, RunID: in.RunID, RunAttempt: in.RunAttempt, JobID: in.JobID, GitHubActor: in.GitHubActor, Ref: in.Ref, OIDCSubject: in.OIDCSubject, Status: in.Status, StartedAt: in.StartedAt, FinishedAt: in.FinishedAt, ParametersHash: in.ParametersHash, EnvironmentHash: in.EnvironmentHash, ProviderMetadata: in.ProviderMetadata, Outputs: outputs}
-}
-
 func (s *Server) createBuild(w http.ResponseWriter, r *http.Request) {
 	if err := validateSSOCookieMutation(r); err != nil {
 		writeProblem(w, r, err)
 		return
 	}
 	var in releaseapp.CreateBuildRunInput
-	if s.buildCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeBuildCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapBuildAttestationCommandError(s.buildCommands.AuthorizeBuildCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.buildCommands.CreateBuildRun(ctx, a, in)
-			return http.StatusCreated, buildRunFromQuery(v), mapBuildAttestationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.releaseCatalog.CreateBuildRun(ctx, a, localBuildCreationInput(in))
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeBuildCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.releaseCatalog.AuthorizeBuildCreation(r.Context(), a, in)
+		return mapBuildAttestationCommandError(s.buildCommands.AuthorizeBuildCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.buildCommands.CreateBuildRun(ctx, a, in)
+		return http.StatusCreated, buildRunFromQuery(v), mapBuildAttestationCommandError(err)
 	})
 }

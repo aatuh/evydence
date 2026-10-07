@@ -45,6 +45,12 @@ without adding a supported backend. The unused non-context `app.NewLedger`
 factory is removed. HTTP response contracts remain unchanged; legacy handler
 and aggregate deletion remain unfinished under EVY-906.
 
+Product, project, release, artifact, container-image, build and candidate
+creation no longer contain legacy HTTP command fallbacks. Their existing
+native validation, authorization, replay and response contracts are unchanged.
+Fourteen unused broad transport-interface methods are deleted; remaining
+aggregate retirement is still in progress.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

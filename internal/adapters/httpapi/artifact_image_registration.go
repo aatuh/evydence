@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
@@ -50,30 +49,16 @@ func (s *Server) registerArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in releaseapp.RegisterArtifactInput
-	if s.artifactCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeArtifactRegistration(body)
-			if err != nil {
-				return err
-			}
-			return mapBuildAttestationCommandError(s.artifactCommands.AuthorizeArtifactRegistration(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.artifactCommands.RegisterArtifact(ctx, a, in)
-			return 201, artifactFromQuery(v), mapBuildAttestationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.releaseCatalog.RegisterArtifact(ctx, a, in.Name, in.MediaType, in.Digest, in.Size)
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeArtifactRegistration(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.releaseCatalog.AuthorizeArtifactRegistration(r.Context(), a, in)
+		return mapBuildAttestationCommandError(s.artifactCommands.AuthorizeArtifactRegistration(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.artifactCommands.RegisterArtifact(ctx, a, in)
+		return 201, artifactFromQuery(v), mapBuildAttestationCommandError(err)
 	})
 }
 func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) {
@@ -82,29 +67,15 @@ func (s *Server) registerContainerImage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var in releaseapp.RegisterContainerImageInput
-	if s.containerImageCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeContainerImageRegistration(body)
-			if err != nil {
-				return err
-			}
-			return mapBuildAttestationCommandError(s.containerImageCommands.AuthorizeContainerImageRegistration(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.containerImageCommands.RegisterContainerImage(ctx, a, in)
-			return 201, containerImageFromCommand(v), mapBuildAttestationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.releaseCatalog.RegisterContainerImage(ctx, a, app.RegisterContainerImageInput{ArtifactID: in.ArtifactID, Repository: in.Repository, Tag: in.Tag, Digest: in.Digest, Platform: in.Platform})
-		return 201, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeContainerImageRegistration(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.releaseCatalog.AuthorizeContainerImageRegistration(r.Context(), a, in)
+		return mapBuildAttestationCommandError(s.containerImageCommands.AuthorizeContainerImageRegistration(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.containerImageCommands.RegisterContainerImage(ctx, a, in)
+		return 201, containerImageFromCommand(v), mapBuildAttestationCommandError(err)
 	})
 }

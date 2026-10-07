@@ -55,6 +55,15 @@ legacy transport binding is installed. The canary must remain unchanged after
 requests and at fixture cleanup. Existing HTTP status, DTO, tenant/grant,
 rollback, privacy and restart/replay expectations remain in place.
 
+Product, project, release, artifact, container-image, build and candidate
+creation handlers now have only the focused command/replay path. Their legacy
+branches and 14 corresponding broad-interface methods are deleted. The native
+decoders, cookie-origin checks, command guards and response mappings are
+unchanged. Transitional local test setup supplies test-only focused adapters;
+its failure-after-write regression verifies that the isolated command clone
+does not publish product or audit effects on rollback. This does not retire
+the remaining aggregate implementation or other legacy handler branches.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;
