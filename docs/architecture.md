@@ -158,6 +158,16 @@ descriptions now require PostgreSQL without schema or response changes.
 Direct Verification-context Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 
+Vulnerability-decision and exception pages, plus the customer-safe decision
+summary, now require focused Risk queries. Their three broad fallback branches
+and obsolete interface methods are deleted. Native filter/cursor validation,
+scope-before-limit PostgreSQL reads, error mapping and response schemas are
+unchanged. Test-only readers retain actual tenant/resource-grant filtering,
+supersession and visibility semantics, omit internal notes before the query
+boundary, and copy public report/approval metadata. Read-only state and mapping
+regressions cover these fixtures. Seven Risk command/approval fallbacks and the
+broader aggregate retirement remain unfinished.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;

@@ -559,17 +559,14 @@ type evidenceIngestionService interface {
 	CreateContractDiff(context.Context, domain.Actor, app.CreateContractDiffInput) (domain.ContractDiff, error)
 }
 
-// riskDecisionService is the transport boundary for append-only decisions,
-// exceptions, waivers, approvals, and readiness evaluation.
+// riskDecisionService retains unmigrated decision/governance commands.
+// Lists and customer summaries use focused Risk query ports.
 type riskDecisionService interface {
 	CreateWaiver(context.Context, domain.Actor, app.CreateWaiverInput) (domain.Waiver, error)
 	ApproveWaiver(context.Context, domain.Actor, string) (domain.Waiver, error)
 	CreateApprovalRecord(context.Context, domain.Actor, app.CreateApprovalInput) (domain.ApprovalRecord, error)
 	CreateVulnerabilityDecision(context.Context, domain.Actor, string, app.CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error)
-	ListVulnerabilityDecisions(context.Context, domain.Actor, app.ListVulnerabilityDecisionsInput) ([]domain.VulnerabilityDecision, error)
-	VulnerabilityDecisionSummaryReport(context.Context, domain.Actor, string) (domain.VulnerabilityDecisionSummaryReport, error)
 	EvaluateRelease(context.Context, domain.Actor, string) (domain.PolicyEvaluation, error)
 	CreateException(context.Context, domain.Actor, app.CreateExceptionInput) (domain.Exception, error)
-	ListExceptions(context.Context, domain.Actor, string) ([]domain.Exception, error)
 	ApproveException(context.Context, domain.Actor, string) (domain.Exception, error)
 }

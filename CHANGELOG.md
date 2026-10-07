@@ -100,6 +100,13 @@ guards, bounded snapshots, assurance metadata and atomic receipt/audit/job/repla
 behavior. Seven affected descriptions now require PostgreSQL without schema
 changes. Direct context-to-Ledger calls and aggregate retirement remain unfinished.
 
+Vulnerability-decision and exception pages and the customer-safe decision
+summary now use only focused Risk queries. Three broad transport branches and
+interface methods are removed. Native tenant/resource grants, pagination,
+active-history filtering, private-note omission and response contracts are
+unchanged. Risk command/approval fallbacks and aggregate retirement remain
+in progress.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

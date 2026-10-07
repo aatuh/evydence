@@ -2245,71 +2245,39 @@ func (s *Server) listVulnerabilityDecisions(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if s.vulnerabilityDecisionQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "vulnerability-decisions", "product_id", "release_id", "vulnerability", "component", "status", "active")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		filter := riskquery.DecisionFilter{
-			ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id"),
-			Vulnerability: r.URL.Query().Get("vulnerability"), Component: r.URL.Query().Get("component"), Status: r.URL.Query().Get("status"),
-		}
-		if filter.Status != "" {
-			if _, err := riskdomain.ParseDecisionStatus(filter.Status); err != nil {
-				writeProblem(w, r, app.ErrValidation)
-				return
-			}
-		}
-		if raw := r.URL.Query().Get("active"); raw != "" {
-			active, err := strconv.ParseBool(raw)
-			if err != nil {
-				writeProblem(w, r, app.ErrValidation)
-				return
-			}
-			filter.Active = &active
-		}
-		page, err := s.vulnerabilityDecisionQuery.ListPage(r.Context(), actor, filter, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapControlsQueryError(err))
-			return
-		}
-		mapped := appquery.Result[vulnerabilityDecisionResponse]{Next: page.Next, Items: make([]vulnerabilityDecisionResponse, 0, len(page.Items))}
-		for _, item := range page.Items {
-			mapped.Items = append(mapped.Items, externalRiskVulnerabilityDecision(item))
-		}
-		writePage(s, w, r, actor, "vulnerability-decisions", request, mapped)
-		return
-	}
-	query := r.URL.Query()
-	var active *bool
-	if value := strings.TrimSpace(query.Get("active")); value != "" {
-		parsed, err := strconv.ParseBool(value)
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		active = &parsed
-	}
-	decisions, err := s.riskDecisions.ListVulnerabilityDecisions(r.Context(), actor, app.ListVulnerabilityDecisionsInput{
-		ProductID:     query.Get("product_id"),
-		ReleaseID:     query.Get("release_id"),
-		Vulnerability: query.Get("vulnerability"),
-		Component:     query.Get("component"),
-		Status:        query.Get("status"),
-		Active:        active,
-	})
+	request, err := s.parsePageRequest(r, actor, "vulnerability-decisions", "product_id", "release_id", "vulnerability", "component", "status", "active")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	responses := make([]vulnerabilityDecisionResponse, 0, len(decisions))
-	for _, decision := range decisions {
-		responses = append(responses, externalVulnerabilityDecision(decision))
+	filter := riskquery.DecisionFilter{
+		ProductID: r.URL.Query().Get("product_id"), ReleaseID: r.URL.Query().Get("release_id"),
+		Vulnerability: r.URL.Query().Get("vulnerability"), Component: r.URL.Query().Get("component"), Status: r.URL.Query().Get("status"),
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "vulnerability-decisions", []string{"product_id", "release_id", "vulnerability", "component", "status", "active"}, responses, func(decision vulnerabilityDecisionResponse) (string, time.Time) {
-		return decision.ID, decision.CreatedAt
-	})
+	if filter.Status != "" {
+		if _, err := riskdomain.ParseDecisionStatus(filter.Status); err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+	}
+	if raw := r.URL.Query().Get("active"); raw != "" {
+		active, err := strconv.ParseBool(raw)
+		if err != nil {
+			writeProblem(w, r, app.ErrValidation)
+			return
+		}
+		filter.Active = &active
+	}
+	page, err := s.vulnerabilityDecisionQuery.ListPage(r.Context(), actor, filter, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapControlsQueryError(err))
+		return
+	}
+	mapped := appquery.Result[vulnerabilityDecisionResponse]{Next: page.Next, Items: make([]vulnerabilityDecisionResponse, 0, len(page.Items))}
+	for _, item := range page.Items {
+		mapped.Items = append(mapped.Items, externalRiskVulnerabilityDecision(item))
+	}
+	writePage(s, w, r, actor, "vulnerability-decisions", request, mapped)
 }
 
 // vulnerabilityDecisionResponse is the external projection of an append-only
@@ -2432,21 +2400,12 @@ func (s *Server) vulnerabilityDecisionSummaryReport(w http.ResponseWriter, r *ht
 		writeProblem(w, r, app.ErrValidation)
 		return
 	}
-	if s.vulnerabilityDecisionSummaryQuery != nil {
-		report, err := s.vulnerabilityDecisionSummaryQuery.SummaryReport(r.Context(), actor, releaseID)
-		if err != nil {
-			writeProblem(w, r, mapControlsQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, decisionSummaryFromQuery(report))
-		return
-	}
-	report, err := s.riskDecisions.VulnerabilityDecisionSummaryReport(r.Context(), actor, releaseID)
+	report, err := s.vulnerabilityDecisionSummaryQuery.SummaryReport(r.Context(), actor, releaseID)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapControlsQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, decisionSummaryFromQuery(report))
 }
 
 func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
@@ -2649,32 +2608,21 @@ func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.exceptionsQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "exceptions", "release_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.exceptionsQuery.ListPage(r.Context(), actor, r.URL.Query().Get("release_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapControlsQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.Exception]{Next: page.Next, Items: make([]domain.Exception, 0, len(page.Items))}
-		for _, item := range page.Items {
-			mapped.Items = append(mapped.Items, exceptionFromQuery(item))
-		}
-		writePage(s, w, r, actor, "exceptions", request, mapped)
-		return
-	}
-	exceptions, err := s.riskDecisions.ListExceptions(r.Context(), actor, r.URL.Query().Get("release_id"))
+	request, err := s.parsePageRequest(r, actor, "exceptions", "release_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "exceptions", []string{"release_id"}, exceptions, func(exception domain.Exception) (string, time.Time) {
-		return exception.ID, exception.CreatedAt
-	})
+	page, err := s.exceptionsQuery.ListPage(r.Context(), actor, r.URL.Query().Get("release_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapControlsQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.Exception]{Next: page.Next, Items: make([]domain.Exception, 0, len(page.Items))}
+	for _, item := range page.Items {
+		mapped.Items = append(mapped.Items, exceptionFromQuery(item))
+	}
+	writePage(s, w, r, actor, "exceptions", request, mapped)
 }
 
 func (s *Server) approveException(w http.ResponseWriter, r *http.Request) {

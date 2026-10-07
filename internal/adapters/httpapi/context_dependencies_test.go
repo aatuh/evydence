@@ -194,6 +194,18 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 			t.Fatalf("focused %s fixture command was not rebound", name)
 		}
 	}
+	decisions, ok := server.vulnerabilityDecisionQuery.(decisionQueryFixture)
+	if !ok || decisions.ledger != ledger {
+		t.Fatal("focused decision fixture query was not rebound")
+	}
+	exceptions, ok := server.exceptionsQuery.(exceptionQueryFixture)
+	if !ok || exceptions.ledger != ledger {
+		t.Fatal("focused exception fixture query was not rebound")
+	}
+	summary, ok := server.vulnerabilityDecisionSummaryQuery.(decisionSummaryQueryFixture)
+	if !ok || summary.ledger != ledger {
+		t.Fatal("focused decision summary fixture query was not rebound")
+	}
 }
 
 func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
