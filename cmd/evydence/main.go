@@ -1104,10 +1104,12 @@ func uploadGitHubActionsBuild(ctx context.Context, client *http.Client, args []s
 		"oidc_subject":     strings.TrimSpace(*oidcSubject),
 		"status":           strings.TrimSpace(*status),
 		"started_at":       started.UTC().Format(time.RFC3339),
-		"finished_at":      finished,
 		"parameters_hash":  strings.TrimSpace(*parametersHash),
 		"environment_hash": strings.TrimSpace(*environmentHash),
 		"outputs":          outputs,
+	}
+	if finished != nil {
+		payload["finished_at"] = finished
 	}
 	body, err := postEvydence(ctx, client, *apiURL, *apiKey, "/v1/builds", "github-actions-build-"+runID+"-"+runAttempt, payload)
 	if err != nil {

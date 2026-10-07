@@ -94,20 +94,6 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 		return nil, err
 	}
 	backend := strings.ToLower(strings.TrimSpace(config.ObjectStore.Backend))
-	if profile == LocalMemory {
-		if backend != "" && backend != "filesystem" {
-			return nil, errors.New("EVYDENCE_RUNTIME_PROFILE=local_memory supports only EVYDENCE_OBJECT_STORE=filesystem")
-		}
-		runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs}
-		if backend != "" {
-			objects, _, err := OpenObjectStore(ctx, config.ObjectStore)
-			if err != nil {
-				return nil, runtimeAdapterError("open local object store", err)
-			}
-			runtime.Objects = objects
-		}
-		return runtime, nil
-	}
 	loadMode, err := postgres.ResolveLoadMode(config.LoadMode, config.Production)
 	if err != nil {
 		return nil, errors.New("invalid EVYDENCE_POSTGRES_LOAD_MODE")

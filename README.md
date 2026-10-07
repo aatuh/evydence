@@ -222,12 +222,13 @@ security.
 ## Local API
 
 ```sh
+docker compose up -d postgres
 cp .api.env.example .api.env
 set -a; . ./.api.env; set +a
 EVYDENCE_PRINT_BOOTSTRAP_SECRET=true go run ./cmd/evydence-api
 ```
 
-The API listens on `EVYDENCE_ADDR`, defaulting to `:8080`. Local bootstrap output includes a one-time admin API key secret. Leave `EVYDENCE_DATABASE_URL` unset for in-process local demos, or set it to use PostgreSQL-backed durable state.
+The API listens on `EVYDENCE_ADDR`, defaulting to `:8080`. Local bootstrap output includes a one-time admin API key secret on an empty database; restarts do not reissue it. Current source requires `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`, including local evaluation. The former `local_memory` API profile is retired; see the [configuration migration note](docs/reference/configuration.md#retired-local-memory-profile-unreleased). Unit tests can still use focused in-memory fakes.
 
 Use the secret as:
 

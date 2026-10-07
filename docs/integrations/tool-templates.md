@@ -220,7 +220,8 @@ go run ./cmd/evydence upload validate-manifest \
   --manifest .evydence/upload-manifest.json
 ```
 
-Run the checked local CI path:
+Run the checked local CI path with `EVYDENCE_TEST_DATABASE_URL` configured and
+the PostgreSQL service running (also requires `psql`):
 
 ```sh
 make local-ci-simulation-check

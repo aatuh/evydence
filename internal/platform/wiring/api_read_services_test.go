@@ -17,10 +17,10 @@ func TestBuildAPIReadServicesRejectsIncompleteRuntimeWithoutLeakingSecrets(t *te
 	}{
 		{"nil runtime", nil},
 		{"postgres without store", &Runtime{Process: API, Profile: PostgreSQL}},
-		{"memory with store", &Runtime{Process: API, Profile: LocalMemory, Postgres: &postgres.Store{}}},
+		{"memory with store", &Runtime{Process: API, Profile: retiredMemoryProfile, Postgres: &postgres.Store{}}},
 		{"unknown profile", &Runtime{Process: API, Profile: Profile("other")}},
 		{"worker runtime", &Runtime{Process: Worker, Profile: PostgreSQL, Postgres: &postgres.Store{}}},
-		{"production memory", &Runtime{Process: API, Profile: LocalMemory, Production: true}},
+		{"production memory", &Runtime{Process: API, Profile: retiredMemoryProfile, Production: true}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := BuildAPIReadServices(test.runtime, "private-pepper", nil)
@@ -40,8 +40,8 @@ func TestBuildAPIReadServicesRejectsUnopenedDatabaseWithoutPackageFallback(t *te
 }
 
 func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T) {
-	memory, err := BuildAPIReadServices(&Runtime{Process: API, Profile: LocalMemory}, "", nil)
-	if err != nil || memory.ReadinessQuery != nil || memory.MetricsQuery != nil || memory.RetentionQuery != nil || memory.IncidentReportQuery != nil || memory.SecurityUpdateEvidenceQuery != nil || memory.CRAVulnerabilityQuery != nil || memory.MissingEvidenceQuery != nil || memory.ReleaseSecuritySummaryQuery != nil || memory.ControlCoverageQuery != nil || memory.Authenticator != nil || memory.InstanceAdminQuery != nil || memory.OutboxDiagnosticsQuery != nil || memory.OutboxReplayCommand != nil || memory.ProductQuery != nil || memory.ArtifactPointQuery != nil || memory.EvidenceFlowQuery != nil || memory.OpenAPIContractPointQuery != nil || memory.SBOMPointQuery != nil || memory.VulnerabilityScanPointQuery != nil || memory.VEXPointQuery != nil || memory.SBOMComponentsQuery != nil || memory.ReleaseBundleQuery != nil || memory.ControlEvidenceQuery != nil || memory.ControlTemplateQuery != nil || memory.ExceptionsQuery != nil || memory.VulnerabilityDecisionQuery != nil || memory.VulnerabilityDecisionSummaryQuery != nil || memory.MarketplaceCollectorQuery != nil || memory.CollectorHealthQuery != nil || memory.VulnerabilityPostureQuery != nil {
+	memory, err := BuildAPIReadServices(&Runtime{Process: API, Profile: retiredMemoryProfile}, "", nil)
+	if err == nil || !strings.Contains(err.Error(), "retired") || memory.ReadinessQuery != nil || memory.MetricsQuery != nil || memory.RetentionQuery != nil || memory.IncidentReportQuery != nil || memory.SecurityUpdateEvidenceQuery != nil || memory.CRAVulnerabilityQuery != nil || memory.MissingEvidenceQuery != nil || memory.ReleaseSecuritySummaryQuery != nil || memory.ControlCoverageQuery != nil || memory.Authenticator != nil || memory.InstanceAdminQuery != nil || memory.OutboxDiagnosticsQuery != nil || memory.OutboxReplayCommand != nil || memory.ProductQuery != nil || memory.ArtifactPointQuery != nil || memory.EvidenceFlowQuery != nil || memory.OpenAPIContractPointQuery != nil || memory.SBOMPointQuery != nil || memory.VulnerabilityScanPointQuery != nil || memory.VEXPointQuery != nil || memory.SBOMComponentsQuery != nil || memory.ReleaseBundleQuery != nil || memory.ControlEvidenceQuery != nil || memory.ControlTemplateQuery != nil || memory.ExceptionsQuery != nil || memory.VulnerabilityDecisionQuery != nil || memory.VulnerabilityDecisionSummaryQuery != nil || memory.MarketplaceCollectorQuery != nil || memory.CollectorHealthQuery != nil || memory.VulnerabilityPostureQuery != nil {
 		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
 	}
 	if memory.APIKeyCommands != nil {

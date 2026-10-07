@@ -20,6 +20,17 @@ import (
 	"github.com/aatuh/evydence/internal/platform/wiring"
 )
 
+func TestEmptyParsedScanReplayCompletesNullFindingsAndIsIdempotent(t *testing.T) {
+	parsed := replayedVulnerabilityScan{Scanner: "grype", Adapter: "grype", AdapterVersion: "scanner.v1", SourceSchema: "grype-json.v1", TargetRef: "artifact", Summary: map[string]int{}, Findings: []domain.VulnerabilityFinding{}}
+	value, changed := mergeReplayedVulnerabilityScan(domain.VulnerabilityScan{}, parsed)
+	if !changed || value.Findings == nil || len(value.Findings) != 0 {
+		t.Fatal("completed empty scan replay left a null findings projection")
+	}
+	if _, changed := mergeReplayedVulnerabilityScan(value, parsed); changed {
+		t.Fatal("completed empty projection replay was not idempotent")
+	}
+}
+
 type fakeStateLoader struct {
 	state app.PersistedState
 	ok    bool

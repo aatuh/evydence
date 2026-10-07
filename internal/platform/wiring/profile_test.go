@@ -16,7 +16,7 @@ func TestResolveRuntimeProfileRequiresExplicitSafeSelection(t *testing.T) {
 		want       Profile
 		wantError  bool
 	}{
-		{name: "local API memory", raw: "local_memory", process: API, want: LocalMemory},
+		{name: "retired local API memory", raw: "local_memory", process: API, wantError: true},
 		{name: "local API postgres", raw: "postgres", database: databaseURL, process: API, want: PostgreSQL},
 		{name: "production API postgres", raw: "postgres", production: true, database: databaseURL, process: API, want: PostgreSQL},
 		{name: "worker postgres", raw: "postgres", database: databaseURL, process: Worker, want: PostgreSQL},
@@ -47,12 +47,32 @@ func TestResolveRuntimeProfileRequiresExplicitSafeSelection(t *testing.T) {
 	}
 }
 
-func TestLocalMemoryProfileDeclaresNonDurableLimitations(t *testing.T) {
-	limitations := LocalMemory.Limitations()
-	if len(limitations) == 0 || !strings.Contains(strings.ToLower(strings.Join(limitations, " ")), "lost") {
-		t.Fatalf("local-memory limitations do not warn about data loss: %#v", limitations)
+func TestRetiredMemoryProfileProvidesSafePostgresMigrationHint(t *testing.T) {
+	for _, process := range []Process{API, Worker} {
+		for _, production := range []bool{false, true} {
+			for _, databaseURL := range []string{"", "postgres://operator:private-password@database.example.test/evydence"} {
+				profile, err := ResolveRuntimeProfile("local_memory", production, databaseURL, process)
+				if profile != "" || err == nil || !strings.Contains(err.Error(), "retired") || !strings.Contains(err.Error(), "postgres") || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+					t.Fatalf("retired profile accepted or missing migration hint: process=%s production=%t profile=%s err=%v", process, production, profile, err)
+				}
+				if strings.Contains(err.Error(), "private-password") || databaseURL != "" && strings.Contains(err.Error(), databaseURL) {
+					t.Fatal("retirement error exposed connection credentials")
+				}
+			}
+		}
 	}
-	if len(PostgreSQL.Limitations()) != 0 {
-		t.Fatalf("postgres profile unexpectedly inherits local-memory limitations: %#v", PostgreSQL.Limitations())
+}
+
+// The retired value is test input, not a supported production profile.
+const retiredMemoryProfile Profile = "local_memory"
+
+func TestLocalMemoryProfileDeclaresRetirementAndPostgresRemainsSupported(t *testing.T) {
+	profile, err := ResolveRuntimeProfile(string(retiredMemoryProfile), false, "", API)
+	if profile != "" || err == nil || !strings.Contains(err.Error(), "retired") {
+		t.Fatalf("retirement notice missing: profile=%q err=%v", profile, err)
+	}
+	profile, err = ResolveRuntimeProfile(string(PostgreSQL), false, "postgres://database.example.test/evydence", API)
+	if err != nil || profile != PostgreSQL {
+		t.Fatalf("supported PostgreSQL profile rejected: profile=%q err=%v", profile, err)
 	}
 }

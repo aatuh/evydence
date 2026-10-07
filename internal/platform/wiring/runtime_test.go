@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,10 +22,10 @@ func TestOpenRuntimeRejectsUnsafeConfigurationBeforeOpeningAdapters(t *testing.T
 		config RuntimeConfig
 		want   string
 	}{
-		{name: "worker memory", config: RuntimeConfig{Process: Worker, Profile: LocalMemory, DatabaseURL: databaseURL}, want: "EVYDENCE_RUNTIME_PROFILE"},
+		{name: "worker memory", config: RuntimeConfig{Process: Worker, Profile: retiredMemoryProfile, DatabaseURL: databaseURL}, want: "EVYDENCE_RUNTIME_PROFILE"},
 		{name: "production snapshot load", config: RuntimeConfig{Process: API, Profile: PostgreSQL, Production: true, DatabaseURL: databaseURL, LoadMode: "snapshot_preferred"}, want: "EVYDENCE_POSTGRES_LOAD_MODE"},
 		{name: "invalid secret-shaped load mode", config: RuntimeConfig{Process: API, Profile: PostgreSQL, DatabaseURL: databaseURL, LoadMode: "private-password"}, want: "EVYDENCE_POSTGRES_LOAD_MODE"},
-		{name: "local remote object store", config: RuntimeConfig{Process: API, Profile: LocalMemory, ObjectStore: ObjectStoreConfig{Backend: "s3", SecretAccessKey: "private-s3-secret"}}, want: "EVYDENCE_OBJECT_STORE=filesystem"},
+		{name: "retired local remote object store", config: RuntimeConfig{Process: API, Profile: retiredMemoryProfile, ObjectStore: ObjectStoreConfig{Backend: "s3", SecretAccessKey: "private-s3-secret"}}, want: "retired"},
 		{name: "unknown object store", config: RuntimeConfig{Process: Worker, Profile: PostgreSQL, DatabaseURL: databaseURL, ObjectStore: ObjectStoreConfig{Backend: "unknown"}}, want: "EVYDENCE_OBJECT_STORE"},
 	}
 	for _, test := range tests {
@@ -40,23 +41,39 @@ func TestOpenRuntimeRejectsUnsafeConfigurationBeforeOpeningAdapters(t *testing.T
 	}
 }
 
-func TestOpenRuntimeBuildsExplicitLocalMemoryMode(t *testing.T) {
+func TestOpenRuntimeBuildsPostgresModeWithConfiguredAdapters(t *testing.T) {
+	_, pool := openHTMLReportWiringStore(t)
 	discovery := &ssoDiscoveryWiringFake{}
 	signer := &signingOperationWiringSigner{}
-	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: LocalMemory, WorkerOwnedParsers: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}, OIDC: discovery, SigningExecutor: signer})
+	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: PostgreSQL, DatabaseURL: pool.Config().ConnString(), MigrationsDir: "../../../migrations", SkipMigrations: true, WorkerOwnedParsers: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}, OIDC: discovery, SigningExecutor: signer})
 	if err != nil || runtime == nil {
 		t.Fatalf("local runtime=%#v error=%v", runtime, err)
 	}
 	defer runtime.Close()
-	if runtime.Process != API || runtime.Production || runtime.Profile != LocalMemory || runtime.Postgres != nil || runtime.Objects == nil || !runtime.WorkerOwnedParsers || len(runtime.Profile.Limitations()) == 0 || runtime.OIDC != discovery || runtime.SigningExecutor != signer {
-		t.Fatalf("local runtime did not retain explicit limitations: %#v", runtime)
+	if runtime.Process != API || runtime.Production || runtime.Profile != PostgreSQL || runtime.Postgres == nil || runtime.Objects == nil || !runtime.WorkerOwnedParsers || runtime.OIDC != discovery || runtime.SigningExecutor != signer {
+		t.Fatalf("PostgreSQL runtime lost configured adapters: %#v", runtime)
+	}
+}
+
+func TestRetiredMemoryRuntimeDoesNotOpenFilesystemResources(t *testing.T) {
+	objects := filepath.Join(t.TempDir(), "objects-must-not-be-created")
+	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: retiredMemoryProfile, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: objects}})
+	if runtime != nil {
+		runtime.Close()
+		t.Fatal("retired profile returned an open runtime")
+	}
+	if err == nil || !strings.Contains(err.Error(), "retired") {
+		t.Fatalf("missing retired-profile error: %v", err)
+	}
+	if _, err := os.Stat(objects); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("retired profile touched object storage: %v", err)
 	}
 }
 
 func TestOpenRuntimeRejectsCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	runtime, err := OpenRuntime(ctx, RuntimeConfig{Process: API, Profile: LocalMemory})
+	runtime, err := OpenRuntime(ctx, RuntimeConfig{Process: API, Profile: retiredMemoryProfile})
 	if runtime != nil || !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled runtime=%#v error=%v", runtime, err)
 	}

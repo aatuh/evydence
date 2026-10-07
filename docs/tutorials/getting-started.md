@@ -1,6 +1,6 @@
 # Getting Started
 
-This tutorial runs Evydence with in-process state and records a small release evidence flow. It is for local development only; data is lost when the process exits.
+This tutorial runs Evydence against local PostgreSQL and records a small release evidence flow. It is for local development; metadata persists across API restarts.
 
 For operator evaluation, prefer the current public release candidate
 [`v0.1.0-rc.7`](https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.7)
@@ -12,6 +12,7 @@ the source-checkout local development path. The release artifact map is in
 
 - Go with the version declared by `go.mod`.
 - `curl` and `jq`.
+- PostgreSQL configured by `.api.env.example`, or Docker Compose to start it.
 - A free local port matching `EVYDENCE_ADDR` from `.api.env.example`, default `:8080`.
 
 ## Start The API
@@ -19,18 +20,17 @@ the source-checkout local development path. The release artifact map is in
 In terminal 1:
 
 ```sh
+docker compose up -d postgres
 cp .api.env.example .api.env
 set -a; . ./.api.env; set +a
-unset EVYDENCE_DATABASE_URL
-export EVYDENCE_RUNTIME_PROFILE=local_memory
 EVYDENCE_PRINT_BOOTSTRAP_SECRET=true go run ./cmd/evydence-api
 ```
 
 Expected result:
 
-- The process prints a one-time JSON object containing `tenant_id`, `api_key`, and `secret`.
+- On an empty database, the process prints a one-time JSON object containing `tenant_id`, `api_key`, and `secret`. A restart preserves records and does not reissue that secret.
 - The API listens on `http://localhost:8080` unless `EVYDENCE_ADDR` says otherwise.
-- The explicit `local_memory` profile uses in-process state without a durable worker or outbox; all metadata is lost on exit. The configured filesystem object directory can retain payload bytes and should be discarded with the local demo state.
+- `.api.env.example` selects `postgres` and configures the database URL and filesystem object directory. Current source rejects the retired `local_memory` profile; see the [migration note](../reference/configuration.md#retired-local-memory-profile-unreleased).
 
 In terminal 2, store the printed secret:
 
@@ -221,6 +221,6 @@ Expected status is `200` with the build evidence item under `data.items`.
 
 ## Cleanup
 
-Stop the API process with `Ctrl-C`. For a durable local run, use PostgreSQL and object storage through [Install and operate](../how-to/install-and-operate.md) and [Configuration](../reference/configuration.md).
+Stop the API process with `Ctrl-C`. Optionally stop the local database with `docker compose stop postgres`; this preserves its volume. Do not delete database or payload storage just to stop the tutorial. See [Install and operate](../how-to/install-and-operate.md) and [Configuration](../reference/configuration.md) for operator-managed retention and cleanup.
 
 This tutorial demonstrates evidence capture and review output. It does not make legal compliance conclusions, grant certification, prove SBOM completeness, treat scanner output as authoritative, or guarantee release security.

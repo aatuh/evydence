@@ -636,7 +636,8 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 customer-cve-review-demo-check: ## Validate deterministic customer CVE review demo
 	@examples/customer-cve-review-demo/run-demo.sh >/dev/null
 
-local-ci-simulation-check: ## Run local one-command CI evidence simulation without external services
+local-ci-simulation-check: ## Run isolated PostgreSQL CI evidence simulation; requires EVYDENCE_TEST_DATABASE_URL
+	@python3 -m unittest scripts/test_local_ci_simulation.py
 	@scripts/local_ci_simulation_check.sh
 
 reviewer-package-workflow-check: ## Validate offline reviewer package verification, extraction, and report inspection

@@ -972,8 +972,10 @@ API-compatible.
    Collector health now reads the tenant-owned collector and latest/pinned
    release records under one PostgreSQL snapshot. Instance-admin counts now
    come from a single aggregate database snapshot guarded by an explicit
-   instance scope. Explicit local-memory API mode retains compatibility readers;
-   native query/authentication composition installs no authoritative entity cache.
+   instance scope. Native query/authentication composition installs no
+   authoritative entity cache. The former local-memory API compatibility mode
+   is retired in current source as part of EVY-906; local evaluation now uses
+   PostgreSQL.
 5. EVY-906 enforces the retired production `Ledger` boundary, removes obsolete
    forwarding/maps/locks/snapshot helpers, deletes aliases only after every caller
    has moved, and makes an import-graph violation fail the build gate.

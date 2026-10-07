@@ -44,8 +44,26 @@ func TestLocalMemoryProfileRejectsRemoteObjectStoreBeforeConnecting(t *testing.T
 	t.Setenv("EVYDENCE_OBJECT_STORE", "s3")
 	t.Setenv("EVYDENCE_S3_ENDPOINT", "127.0.0.1:1")
 	err := runWithContext(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_OBJECT_STORE=filesystem") {
+	if err == nil || !strings.Contains(err.Error(), "retired") || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") {
 		t.Fatalf("unsafe local-memory object-store error = %v", err)
+	}
+}
+
+func TestRetiredMemoryProfileStopsBeforeProviderConfigurationAndBootstrap(t *testing.T) {
+	t.Setenv("ENV", "")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "local_memory")
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "external")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "invalid-provider-private-value")
+	t.Setenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET", "true")
+	for _, databaseURL := range []string{"", "postgres://operator:private-password@127.0.0.1:1/evydence"} {
+		t.Setenv("EVYDENCE_DATABASE_URL", databaseURL)
+		err := runWithContext(t.Context())
+		if err == nil || !strings.Contains(err.Error(), "retired") || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+			t.Fatalf("retired profile reached later startup configuration: %v", err)
+		}
+		if strings.Contains(err.Error(), "private-password") || strings.Contains(err.Error(), "invalid-provider-private-value") {
+			t.Fatal("retirement error exposed configuration values")
+		}
 	}
 }
 

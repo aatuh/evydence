@@ -13,7 +13,7 @@ product-boundary language across the docs.
 | API versioning, deprecation, and compatibility exceptions | `docs/reference/api-versioning.md`, `docs/reference/openapi-baseline.json`, and `.github/openapi-breaking-exceptions.json` | The baseline is a release artifact; the checked exception file is exact and does not replace release review. |
 | Product boundary and API stability | `docs/reference/product-boundary.md` and `openapi.yaml` | Stability is generated per operation as `x-evydence-stability`; the inventory, matrix, and route catalog must match it. |
 | Verification result taxonomy and assurance profiles | `docs/reference/verification-results.md` | Defines machine states, `passed` requirements, profile fields, legacy migration behavior, and customer-package representation. |
-| Local startup | `docs/tutorials/getting-started.md` | Uses in-process state only. |
+| Local startup | `docs/tutorials/getting-started.md` | Requires PostgreSQL, including local evaluation. |
 | Durable operation | `docs/how-to/install-and-operate.md` | Includes PostgreSQL/object storage and production-like Compose rehearsal. |
 | Kubernetes | `docs/kubernetes.md` | Helm-specific operator interface. |
 | Hardened self-hosted topology | `docs/reference/hardened-reference-deployment.md` | One API writer, scalable workers, external PostgreSQL/object storage, TLS, secrets, backups, monitoring, signing, and operator-owned evidence. |

@@ -104,6 +104,32 @@ func TestUploadSPDXSBOMPayloadRollsBackAllRowsAndJobs(t *testing.T) {
 	}
 }
 
+func TestUploadVulnerabilityScanPayloadPreservesCompletedEmptyArray(t *testing.T) {
+	for _, workerOwned := range []bool{false, true} {
+		fixture := newEvidenceServiceFixture(t)
+		fixture.service.workerOwnedParsers = workerOwned
+		fixture.parser.scan = ParsedVulnerabilityScan{
+			ReleaseID: "rel_1", Scanner: "generic", Adapter: "generic", AdapterVersion: "scanner.v1",
+			SourceSchema: "generic-vulnerability-scan-json.v1", TargetRef: "pkg:oci/api", Summary: map[string]int{},
+		}
+		scan, err := fixture.service.UploadVulnerabilityScanPayload(t.Context(), fixture.actor, testPayloadSource(`{"release_id":"rel_1"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if scan.Findings == nil || len(scan.Findings) != 0 {
+			t.Fatal("completed empty scan returned null findings")
+		}
+		stored := fixture.transactions.state.scans[scan.ID]
+		if workerOwned {
+			if stored.Findings != nil || stored.Summary != nil || stored.Scanner != "" {
+				t.Fatal("pending projection was represented as completed")
+			}
+		} else if stored.Findings == nil || len(stored.Findings) != 0 {
+			t.Fatal("completed empty scan persisted null findings")
+		}
+	}
+}
+
 func TestUploadVulnerabilityScanPayloadUsesDynamicHumanAuditActor(t *testing.T) {
 	fixture := newEvidenceServiceFixture(t)
 	fixture.actor = identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", SessionID: "ses_1", Scopes: []string{"*"}}

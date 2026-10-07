@@ -14,9 +14,13 @@ artifact map and exact verification commands.
 
 | Mode | How To Enable | Expected Use |
 |------|---------------|--------------|
-| In-process state | Set `EVYDENCE_RUNTIME_PROFILE=local_memory` and leave `EVYDENCE_DATABASE_URL` unset. | Local API demos and unit tests only. State is lost when the process exits; no durable worker or outbox. |
 | PostgreSQL state | Set `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`. | Durable local or self-hosted operation with migrations and persisted outbox jobs. |
 | Production checks | Set `ENV=production`. | Rejects unsafe local defaults before API startup. |
+
+Current source requires PostgreSQL for API evaluation; the former `local_memory`
+profile is retired. This unreleased change does not alter already published
+release binaries. See the [migration note](../reference/configuration.md#retired-local-memory-profile-unreleased).
+Unit tests may still use in-memory fakes.
 
 Configuration details live in [Configuration](../reference/configuration.md).
 For production planning, use `.production.env.example` as a deployment-secret

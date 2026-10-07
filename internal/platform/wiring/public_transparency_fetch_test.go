@@ -186,7 +186,7 @@ func TestPostgresPublicTransparencyFetchBoundedSourcesAndRollback(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
-	config, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: LocalMemory, TransparencyProofs: f})
+	config, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: PostgreSQL, DatabaseURL: p.Config().ConnString(), MigrationsDir: "../../../migrations", SkipMigrations: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}, TransparencyProofs: f})
 	if err != nil || config.TransparencyProofs != f {
 		t.Fatal("runtime lost configured fetcher", err)
 	}

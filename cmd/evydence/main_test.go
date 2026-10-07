@@ -752,6 +752,48 @@ func TestGitHubActionsUploadBuildPostsBuildAndAttestationSafely(t *testing.T) {
 	}
 }
 
+func TestGitHubActionsUploadBuildOmitsMissingFinishedAtAndPreservesProvidedPrecision(t *testing.T) {
+	t.Setenv("GITHUB_RUN_ID", "1001")
+	t.Setenv("GITHUB_RUN_ATTEMPT", "1")
+	t.Setenv("GITHUB_SHA", strings.Repeat("a", 40))
+	t.Setenv("GITHUB_REPOSITORY", "example/repo")
+	t.Setenv("GITHUB_WORKFLOW_REF", "example/repo/.github/workflows/build.yml@refs/heads/main")
+	t.Setenv("EVYDENCE_BUILD_FINISHED_AT", "")
+	for _, finished := range []string{"", "2026-05-27T12:34:56.123456789+02:00"} {
+		t.Run(finished, func(t *testing.T) {
+			payloads := make(chan map[string]json.RawMessage, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var payload map[string]json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Error(err)
+				}
+				payloads <- payload
+				_, _ = w.Write([]byte(`{"data":{"id":"build_1"}}`))
+			}))
+			defer server.Close()
+			args := []string{"--url", server.URL, "--api-key", "test-key", "--project-id", "project", "--release-id", "release", "--started-at", "2026-05-27T06:00:00Z"}
+			if finished != "" {
+				args = append(args, "--finished-at", finished)
+			}
+			if err := uploadGitHubActionsBuild(t.Context(), server.Client(), args); err != nil {
+				t.Fatal(err)
+			}
+			payload := <-payloads
+			value, present := payload["finished_at"]
+			if finished == "" {
+				if present {
+					t.Fatalf("missing finish time must be omitted, got %s", value)
+				}
+			} else {
+				var got string
+				if !present || json.Unmarshal(value, &got) != nil || got != finished {
+					t.Fatalf("finish-time precision or offset changed: %s", value)
+				}
+			}
+		})
+	}
+}
+
 func TestReleaseUploadEvidenceDryRunValidatesFilesAndPrintsNextSteps(t *testing.T) {
 	dir := t.TempDir()
 	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))

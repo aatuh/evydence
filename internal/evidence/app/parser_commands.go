@@ -270,7 +270,8 @@ func (s *Service) UploadVulnerabilityScanPayload(ctx context.Context, actor iden
 		return evidencedomain.VulnerabilityScan{}, err
 	}
 	scanID := s.ids.NewID("scan")
-	findings := append([]evidencedomain.VulnerabilityFinding(nil), parsed.Findings...)
+	findings := make([]evidencedomain.VulnerabilityFinding, len(parsed.Findings))
+	copy(findings, parsed.Findings)
 	for index := range findings {
 		findings[index].ID = scanID + ":finding:" + decimal(index+1)
 	}
@@ -442,7 +443,9 @@ func parserOwnedOpenAPIContract(value evidencedomain.OpenAPIContract, workerOwne
 
 func cloneVulnerabilityScan(value evidencedomain.VulnerabilityScan) evidencedomain.VulnerabilityScan {
 	value.Summary = cloneIntMap(value.Summary)
-	value.Findings = append([]evidencedomain.VulnerabilityFinding(nil), value.Findings...)
+	if value.Findings != nil {
+		value.Findings = append([]evidencedomain.VulnerabilityFinding{}, value.Findings...)
+	}
 	return value
 }
 

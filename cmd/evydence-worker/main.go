@@ -999,8 +999,9 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 		scan.Summary = cloneIntMap(parsed.Summary)
 		changed = true
 	}
-	if len(scan.Findings) == 0 && len(parsed.Findings) != 0 {
-		scan.Findings = append([]domain.VulnerabilityFinding(nil), parsed.Findings...)
+	if len(scan.Findings) == 0 && (scan.Findings == nil || len(parsed.Findings) != 0) {
+		scan.Findings = make([]domain.VulnerabilityFinding, len(parsed.Findings))
+		copy(scan.Findings, parsed.Findings)
 		changed = true
 	}
 	return scan, changed

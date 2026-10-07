@@ -15,8 +15,8 @@ import (
 
 // BuildAPIReadServices composes the complete durable authentication, focused
 // command/query and replay surface from one validated runtime. PostgreSQL
-// entry points pass these ports to the native server constructor. Local memory
-// returns empty durable options for its explicit compatibility constructor.
+// entry points pass these ports to the native server constructor. Retired or
+// unsupported profiles fail without exposing an incomplete service surface.
 func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app.ReadinessCheck) (httpapi.ServerOptions, error) {
 	if runtime == nil {
 		return httpapi.ServerOptions{}, errors.New("API runtime is required")
@@ -25,11 +25,8 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 		return httpapi.ServerOptions{}, errors.New("API read services require an API runtime")
 	}
 	switch runtime.Profile {
-	case LocalMemory:
-		if runtime.Production || runtime.Postgres != nil {
-			return httpapi.ServerOptions{}, errors.New("local-memory API runtime is inconsistent")
-		}
-		return httpapi.ServerOptions{}, nil
+	case "local_memory":
+		return httpapi.ServerOptions{}, errors.New(retiredMemoryProfileMessage)
 	case PostgreSQL:
 		if runtime.Postgres == nil {
 			return httpapi.ServerOptions{}, errors.New("PostgreSQL API runtime is incomplete")

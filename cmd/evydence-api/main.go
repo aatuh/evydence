@@ -28,12 +28,10 @@ import (
 	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 	"github.com/aatuh/evydence/internal/adapters/transparency/httpfetcher"
 	transparencygateway "github.com/aatuh/evydence/internal/adapters/transparency/httpgateway"
-	"github.com/aatuh/evydence/internal/adapters/verification/dsse"
 	cosignverification "github.com/aatuh/evydence/internal/adapters/verification/sigstore"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
-	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -81,9 +79,7 @@ func runWithContext(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	cfg := app.Config{APIKeyPepper: pepper, BuildAttestationParser: dsse.BuildAttestationIngestionParser{}, DSSEPolicyVerifier: dsse.PolicyVerifier{}}
-	cfg.WorkerOwnedParserSideEffects = boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS")
-	cfg.OIDC = oidcdiscovery.New(oidcdiscovery.Config{
+	oidcClient := oidcdiscovery.New(oidcdiscovery.Config{
 		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
@@ -91,21 +87,17 @@ func runWithContext(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	cfg.ProviderAPI = providerValidator
 	transparencyFetcher, err := openTransparencyProofFetcher()
 	if err != nil {
 		return err
 	}
-	cfg.Transparency = transparencyFetcher
 	cosignVerifier, err := openCosignVerifier()
 	if err != nil {
 		return err
 	}
-	cfg.Cosign = cosignVerifier
-	if signer, err := openSigningExecutor(ctx); err != nil {
+	signer, err := openSigningExecutor(ctx)
+	if err != nil {
 		return err
-	} else {
-		cfg.Signer = signer
 	}
 	startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelStartup()
@@ -114,48 +106,42 @@ func runWithContext(ctx context.Context) error {
 		Process:            wiring.API,
 		Profile:            profile,
 		Production:         production,
-		WorkerOwnedParsers: cfg.WorkerOwnedParserSideEffects,
+		WorkerOwnedParsers: boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS"),
 		DatabaseURL:        databaseURL,
 		LoadMode:           os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
 		MigrationsDir:      migrationsDir,
 		SkipMigrations:     strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
 		ObjectStore:        wiring.ObjectStoreConfigFromEnv(),
 		Cosign:             cosignVerifier,
-		OIDC:               cfg.OIDC,
-		ProviderAPI:        cfg.ProviderAPI,
-		SigningExecutor:    cfg.Signer,
-		TransparencyProofs: cfg.Transparency,
+		OIDC:               oidcClient,
+		ProviderAPI:        providerValidator,
+		SigningExecutor:    signer,
+		TransparencyProofs: transparencyFetcher,
 	})
 	if err != nil {
 		return err
 	}
 	defer runtime.Close()
-	if profile == wiring.PostgreSQL {
-		pgStore := runtime.Postgres
-		objectStore := runtime.Objects
-		cfg.ReadinessChecks = append(cfg.ReadinessChecks,
-			app.ReadinessCheck{Name: "postgres", Timeout: runtimeReadinessTimeout, FailureDetail: "database connectivity is unavailable", Check: pgStore.CheckReadiness},
-			app.ReadinessCheck{Name: "migrations", Timeout: runtimeReadinessTimeout, FailureDetail: "database migration state is unavailable", Check: func(checkCtx context.Context) error {
-				return pgStore.CheckMigrationState(checkCtx, migrationsDir)
-			}},
-		)
-		if production {
-			cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "writer_lease", Timeout: runtimeReadinessTimeout, FailureDetail: "API writer lease is unavailable", Check: pgStore.CheckAPIWriterLease})
-		}
-		objectReadiness, ok := objectStore.(interface{ CheckReadiness(context.Context) error })
-		if !ok {
-			return errors.New("configured object store does not provide readiness checks")
-		}
-		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "object_store", Timeout: runtimeReadinessTimeout, FailureDetail: "object store access is unavailable", Check: objectReadiness.CheckReadiness})
-		log.Print("evydence api using postgres state store and configured object store")
-	} else {
-		cfg.ObjectStore = runtime.Objects
-		for _, limitation := range profile.Limitations() {
-			log.Print(redaction.RedactString(limitation)) // #nosec G706 -- Limitations returns compiled literals; redaction removes line breaks.
-		}
-	}
+	var readinessChecks []app.ReadinessCheck
+	pgStore := runtime.Postgres
+	objectStore := runtime.Objects
+	readinessChecks = append(readinessChecks,
+		app.ReadinessCheck{Name: "postgres", Timeout: runtimeReadinessTimeout, FailureDetail: "database connectivity is unavailable", Check: pgStore.CheckReadiness},
+		app.ReadinessCheck{Name: "migrations", Timeout: runtimeReadinessTimeout, FailureDetail: "database migration state is unavailable", Check: func(checkCtx context.Context) error {
+			return pgStore.CheckMigrationState(checkCtx, migrationsDir)
+		}},
+	)
 	if production {
-		cfg.ReadinessChecks = append(cfg.ReadinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(cfg.Signer)})
+		readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "writer_lease", Timeout: runtimeReadinessTimeout, FailureDetail: "API writer lease is unavailable", Check: pgStore.CheckAPIWriterLease})
+	}
+	objectReadiness, ok := objectStore.(interface{ CheckReadiness(context.Context) error })
+	if !ok {
+		return errors.New("configured object store does not provide readiness checks")
+	}
+	readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "object_store", Timeout: runtimeReadinessTimeout, FailureDetail: "object store access is unavailable", Check: objectReadiness.CheckReadiness})
+	log.Print("evydence api using postgres state store and configured object store")
+	if production {
+		readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(signer)})
 	}
 	bootstrapDisabled := strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true")
 	printBootstrapSecret := strings.EqualFold(os.Getenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET"), "true")
@@ -177,7 +163,7 @@ func runWithContext(ctx context.Context) error {
 			return err
 		}
 	}
-	options, err := wiring.BuildAPIReadServices(runtime, pepper, cfg.ReadinessChecks)
+	options, err := wiring.BuildAPIReadServices(runtime, pepper, readinessChecks)
 	if err != nil {
 		return fmt.Errorf("compose API read services: %w", err)
 	}
@@ -191,31 +177,7 @@ func runWithContext(ctx context.Context) error {
 	options.MaxConcurrentUploads = httpConfig.MaxConcurrentUploads
 	options.BuildIdentity = identity
 	options.PaginationSecret = []byte(pepper)
-	var server *httpapi.Server
-	switch profile {
-	case wiring.PostgreSQL:
-		server, err = httpapi.NewNativeServerWithOptionsContext(ctx, options)
-	case wiring.LocalMemory:
-		ledgerContext, cancelLedgerLoad := context.WithTimeout(ctx, 30*time.Second)
-		ledger, loadErr := app.NewLedgerWithContext(ledgerContext, cfg)
-		cancelLedgerLoad()
-		if loadErr != nil {
-			return fmt.Errorf("create local ledger: %w", loadErr)
-		}
-		if !bootstrapDisabled && !ledger.HasTenants(ctx) {
-			tenant, key, secret, bootstrapErr := ledger.BootstrapTenant(ctx, bootstrapInput.TenantName, bootstrapInput.APIKeyName, bootstrapInput.Scopes)
-			if bootstrapErr != nil {
-				return fmt.Errorf("bootstrap tenant: %w", bootstrapErr)
-			}
-			bootstrap := wiring.TenantBootstrapResult{Created: true, Tenant: identitydomain.Tenant(tenant), Key: identitydomain.APIKey(key), Secret: secret}
-			if err := writeTenantBootstrapResult(os.Stdout, bootstrap, production, printBootstrapSecret); err != nil {
-				return err
-			}
-		}
-		server, err = httpapi.NewServerWithOptionsContext(ctx, ledger, options)
-	default:
-		return errors.New("unsupported API runtime profile")
-	}
+	server, err := httpapi.NewNativeServerWithOptionsContext(ctx, options)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}

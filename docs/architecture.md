@@ -8,7 +8,7 @@ Evydence follows a ports-and-adapters shape:
 - `internal/app` is the deprecated Ledger compatibility facade, the shared transaction and storage port surface, and the temporary home of contexts not yet migrated.
 - `internal/adapters/httpapi` adapts application services to HTTP and OpenAPI; migrated Identity, Release, Evidence, Decision, Package, and Verification handlers depend on context-specific interfaces.
 - `internal/adapters/postgres` provides the durable ledger-state store, migration runner, tenant-scoped relational resource projection, and persisted outbox.
-- `internal/platform/wiring` validates the explicit API/worker runtime profile, opens PostgreSQL and object-store adapters, and composes the API's focused durable authentication/command/query ports from that runtime. Local-memory mode deliberately has no durable query ports and retains the compatibility Ledger path.
+- `internal/platform/wiring` validates the PostgreSQL-only API/worker runtime, opens database and object-store adapters, and composes the API's focused durable authentication/command/query ports. Retired local-memory input fails before resources are opened.
 - `internal/adapters/objectstore/filesystem` stores raw uploaded payload bytes under tenant-prefixed object keys for local and self-hosted deployments.
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
 - `cmd/*` contains process entry points.
@@ -18,8 +18,8 @@ and Verification commands, independently of Ledger construction or inventories.
 The boolean empty-installation check and tenant/API-key/audit/initial-signing-key
 writes use one startup transaction; an empty-table-safe lock prevents concurrent
 or ordinary tenant inserts from racing the bootstrap decision. Credentials are
-returned only after commit and never on restart. Local-memory bootstrap still
-uses its explicit compatibility path. The [bootstrap configuration reference](reference/configuration.md#first-tenant-bootstrap)
+returned only after commit and never on restart. Local evaluation uses this same
+database path. The [bootstrap configuration reference](reference/configuration.md#first-tenant-bootstrap)
 owns the input bounds, lock timing, secret-output policy, and local signing-key
 storage limitations.
 
@@ -31,18 +31,19 @@ The constructor requires every focused authentication, command and query port,
 streamed/historical durable replay, and a stable pagination key. Missing or
 typed-nil ports fail startup; no local-memory adapter or aggregate replay is
 installed. Its shared composition helper accepts only focused options: it has
-no Ledger parameter, constructor/binding call or local-mode switch. Explicit
-local compatibility binding remains outside that helper and is still EVY-906
-retirement work. Request middleware, route registration and response contracts are
-shared with the explicit local-memory server. Only the `local_memory` entry-point
-branch constructs the compatibility Ledger.
+no Ledger parameter, constructor/binding call or local-mode switch. The API entry
+point no longer constructs Ledger or `app.Config` in any branch. PostgreSQL is
+required for local evaluation as well as deployment. Request middleware, route
+registration and response contracts are unchanged.
 
 HTTP transport no longer constructs a Ledger implicitly. Its local constructor
 requires an explicit non-nil dependency and rejects missing, canceled or expired
 contexts before composition. The unused non-context `app.NewLedger` factory has
 also been deleted; convenience initialization exists only in test fixtures.
-The explicit process-local branch still uses `app.NewLedgerWithContext` and is
-remaining EVY-906 retirement work, not an approved long-term API backend.
+The remaining legacy constructor and aggregate implementations serve existing
+library/test callers only and still await physical retirement in EVY-906. They
+are not supported runtime backend options. See the
+[unreleased migration note](reference/configuration.md#retired-local-memory-profile-unreleased).
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
@@ -71,7 +72,8 @@ enforcement remain outstanding; local checks are not hosted CI or publication.
 Per-route transition notes below include historical migration checkpoints.
 Their pending EVY-905 startup, worker, wrapper and query-migration statements are
 superseded by this section; they are not descriptions of current native production
-wiring. Explicit local compatibility paths remain. See the [runtime configuration reference](reference/configuration.md#first-tenant-bootstrap)
+wiring. Local-memory passages below describe historical migration or remaining
+test utilities, not a supported API runtime. See the [runtime configuration reference](reference/configuration.md#first-tenant-bootstrap)
 for current operator behavior.
 
 ## Architecture enforcement (EVY-906 in progress)
@@ -1677,6 +1679,6 @@ Air-gapped import-bundle workflows preserve the same tenant-scoped import path a
 
 ## Limitations
 
-The in-process store requires `EVYDENCE_RUNTIME_PROFILE=local_memory` and an unset `EVYDENCE_DATABASE_URL`; it is non-durable and cannot run the worker. Explicitly configured local filesystem payload files may remain after in-memory metadata is lost. S3/MinIO runtime object storage is available through the object-store port in PostgreSQL mode. Signing-provider operation receipts, an optional HTTPS signing gateway executor, built-in AWS KMS, GCP Cloud KMS, and Azure Key Vault signing executors, gateway-backed `pkcs11-hsm` mode, native PKCS#11/HSM custody profile records, OIDC discovery refresh, optional live OIDC UserInfo validation, an optional provider validation gateway, SSO credential exchange with session-scoped OIDC group-role mapping, public-transparency proof fetching, an optional transparency proof gateway, and optional worker-owned parser side effects are implemented, but native HSM module loading/execution, direct provider-specific management API clients, and external group synchronization remain deployment hardening work. Hand-tuned per-resource repository implementations remain production-readiness work. `ENV=production` rejects the in-process store, default API-key pepper, unsupported API writer modes or replica counts above one, local plaintext signing-key mode, and bootstrap secret printing.
+Current API and worker source requires PostgreSQL; the former non-durable API runtime is retired. Existing local payload files are not automatically deleted or imported. S3/MinIO runtime object storage is available through the object-store port in PostgreSQL mode. Signing-provider operation receipts, an optional HTTPS signing gateway executor, built-in AWS KMS, GCP Cloud KMS, and Azure Key Vault signing executors, gateway-backed `pkcs11-hsm` mode, native PKCS#11/HSM custody profile records, OIDC discovery refresh, optional live OIDC UserInfo validation, an optional provider validation gateway, SSO credential exchange with session-scoped OIDC group-role mapping, public-transparency proof fetching, an optional transparency proof gateway, and optional worker-owned parser side effects are implemented, but native HSM module loading/execution, direct provider-specific management API clients, and external group synchronization remain deployment hardening work. Hand-tuned per-resource repository implementations remain production-readiness work. `ENV=production` additionally rejects default API-key pepper, unsupported API writer modes or replica counts above one, local plaintext signing-key mode, and bootstrap secret printing.
 
 Evydence does not prove provider truth, scanner authority, runtime security, legal compliance, or release security by itself.

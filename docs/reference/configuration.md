@@ -33,8 +33,8 @@ process, or equivalent deployment control.
 | `ENV` | Production only | unset locally | Set `ENV=production` to enable production-safety checks. |
 | `EVYDENCE_ADDR` | No | `:8080` | API bind address. |
 | `EVYDENCE_API_KEY_PEPPER` | Production yes | `change-me-long-random-pepper` | HMAC pepper for API key, session, and portal-token hashes. Use a long random value. |
-| `EVYDENCE_RUNTIME_PROFILE` | API and worker yes | `postgres` in deployment examples | Explicit runtime selection. `postgres` requires `EVYDENCE_DATABASE_URL`; `local_memory` is only accepted by the non-production API with the database URL unset. The worker and its operator commands require `postgres`. Local-memory API can use an explicitly configured filesystem object store for payload verification, but metadata is still lost on exit and the remaining payload files must be discarded separately. |
-| `EVYDENCE_DATABASE_URL` | PostgreSQL profile | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | PostgreSQL durable state, projections, migrations, and persisted outbox jobs. Connection settings alone do not select the runtime profile. |
+| `EVYDENCE_RUNTIME_PROFILE` | API and worker yes | `postgres` | The only supported runtime profile, including local evaluation. Retired `local_memory` input fails before opening resources and explains the PostgreSQL migration. |
+| `EVYDENCE_DATABASE_URL` | API and worker yes | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | PostgreSQL durable state, projections, migrations, and persisted outbox jobs. Connection settings alone do not select the runtime profile. |
 | `EVYDENCE_POSTGRES_LOAD_MODE` | No | `snapshot_preferred` locally, `relational_only` when `ENV=production` | PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-only startup reads, refuses snapshot fallback modes, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks. |
 | `EVYDENCE_API_WRITER_MODE` | No | `single` | API writer concurrency mode. Production supports only `single` or `single-writer` until multi-writer concurrency controls are implemented. |
 | `EVYDENCE_API_WRITER_REPLICAS` | No | unset, chart sets `1` | Optional self-declared API writer replica count used by startup safety checks. Production rejects values other than `1`. |
@@ -130,9 +130,8 @@ encryption-at-rest guarantee. Generated transient private-key byte buffers are
 cleared after use. Go credential strings are not guaranteed to be erased from
 process memory.
 
-Set `EVYDENCE_BOOTSTRAP_DISABLED=true` to bypass startup bootstrap. In explicit
-`local_memory` mode the compatibility bootstrap remains in-process and has no
-durability or cross-process coordination guarantee. Bootstrap names are bounded
+Set `EVYDENCE_BOOTSTRAP_DISABLED=true` to bypass startup bootstrap. Local and
+production runtime bootstrap both use the database transaction. Bootstrap names are bounded
 at 65,536 raw bytes; scopes at 1024 entries of at most 128 bytes each. Text must
 be valid UTF-8 without NUL bytes. These checks reject malformed operator inputs
 before credential generation.
@@ -148,17 +147,33 @@ The PostgreSQL API binds `NewNativeServerWithOptionsContext`, which requires
 the complete command/query/authentication surface, streamed and historical
 durable replay capabilities, and a stable pagination secret of at least 16
 bytes. Missing or typed-nil dependencies fail startup instead of enabling a
-local fallback. Only the explicit `local_memory` branch constructs a Ledger.
-The local HTTP constructor requires that explicit dependency; it cannot create
-an empty Ledger for an omitted one. Missing or inactive construction contexts
-fail before server composition. The non-context `app.NewLedger` factory has been
-removed; explicit legacy callers use `app.NewLedgerWithContext` while EVY-906
-retirement continues.
+local fallback. API startup no longer constructs or accepts Ledger and does not
+use `app.Config`. Legacy library/test utilities still await physical deletion
+under EVY-906; they are not runtime backend options.
 API routes and response schemas are unchanged. This is an API composition
 boundary, not proof that EVY-905's full validation gates are complete. The worker
 daemon uses a closed native processor as described in the
 [worker outbox contract](worker-outbox.md); local-memory mode is not a worker
 profile.
+
+## Retired Local-Memory Profile (Unreleased)
+
+Current source no longer runs the non-durable `local_memory` API. This is an
+unreleased runtime-configuration change, not a claim that older published
+release binaries changed. Configure `EVYDENCE_RUNTIME_PROFILE=postgres` and
+`EVYDENCE_DATABASE_URL`; `.api.env.example` already supplies that shape.
+Start the local database with `docker compose up -d postgres` or provide your
+own PostgreSQL service, then follow [Install and operate](../how-to/install-and-operate.md).
+
+Previously in-process metadata has no automatic migration because it was lost
+on exit. Existing filesystem payload bytes are not deleted or automatically
+imported by this change. Do not treat orphaned payload files as trusted evidence.
+Fast unit tests can continue using in-memory fakes. The local CI simulation now
+requires `EVYDENCE_TEST_DATABASE_URL` and creates and removes only its own fresh
+schema; it does not reset the supplied database.
+Supply a `postgres://` or `postgresql://` URI without an `options` query
+parameter: the simulation owns its connection search path and rejects startup
+options that could override schema isolation before issuing database commands.
 
 ## Request-Body Limits
 

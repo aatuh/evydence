@@ -13,15 +13,35 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Current source retires the `local_memory` API profile. Local evaluation now
+requires `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`.
+Startup rejects the retired profile before resources or credentials are opened,
+and no longer constructs Ledger or `app.Config`. Existing payload files are not
+deleted or imported. Fast in-memory unit-test fakes remain supported; the local
+CI simulation uses an owned disposable PostgreSQL schema. See the
+[configuration migration note](docs/reference/configuration.md#retired-local-memory-profile-unreleased).
+Older published release binaries are not changed by this source update.
+
+The GitHub Actions upload CLI now omits `finished_at` when it is not supplied,
+matching the native API's existing non-nullable optional-field contract. Supplied
+timestamps retain their precision and offset; the API schema is unchanged.
+
+Completed vulnerability scans with no findings now persist and return `[]`
+instead of `null`, preserving the distinction from pending worker projections.
+Verified worker replay also normalizes empty findings and remains idempotent.
+Existing completed `null` projections are not automatically backfilled or
+re-enqueued; strict readiness/package readers continue rejecting them until
+their original payload is successfully replayed.
+
 Removed three redundant Ledger-backed service shells and their forwarding
 methods without changing API, portal access, export or report behavior.
-Local-memory Ledger retirement remains in progress; this is not a production
+Remaining Ledger retirement is in progress; this is not a production
 readiness or release-publication claim.
 
 HTTP server construction no longer creates a Ledger for a missing local
 dependency and stops on canceled or expired construction contexts. The unused
-non-context `app.NewLedger` factory is removed. Explicit process-local wiring
-and HTTP response contracts remain unchanged while EVY-906 continues.
+non-context `app.NewLedger` factory is removed. HTTP response contracts remain
+unchanged while EVY-906 continues.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
