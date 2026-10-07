@@ -75,8 +75,20 @@ only focused queries. Twelve transport fallback branches and sixteen obsolete
 interface methods are removed. Native filtering, cursor validation, error/DTO
 mapping, lifecycle redaction and preview validation remain unchanged. Test-only
 fixtures retain real ownership/grant checks, complete fixture-page assertions,
-read-only state and detached metadata. Fifteen ingestion/diff interface methods,
-their command fallbacks and aggregate retirement remain unfinished.
+read-only state and detached metadata.
+All document uploads and both diffs now also require focused Evidence commands.
+Eleven transport fallbacks, the fifteen-method broad interface, Server binding
+and obsolete aggregate streaming wrapper are removed. Native input limits,
+fingerprints, current authorization and atomic PostgreSQL writes are retained.
+Test-only adapters retain real preflight authorization and isolated legacy
+commands; eleven rollback/replay cases check all repository effects.
+
+Fixed VEX upload replay changing a published author email to `[REDACTED]`.
+Only a plain mailbox in the validated, closed public VEX DTO is preserved;
+generic secret/PII redaction remains unchanged. Existing already-redacted
+receipts are not reconstructed. The memory test adapter now accepts valid
+zero-finding security scans without weakening required metadata checks.
+Direct context Ledger calls and aggregate retirement remain unfinished.
 
 Report-template creation/rendering and portable bundle import/export handlers
 now use only focused Package ports. Three broad local bindings and interfaces

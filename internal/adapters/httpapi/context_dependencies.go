@@ -521,24 +521,3 @@ type identityAccessService interface {
 	RevokeSSOSession(context.Context, domain.Actor, string) (domain.SSOSession, error)
 	RevokeCurrentSSOSession(context.Context, domain.Actor) (domain.SSOSession, error)
 }
-
-// evidenceIngestionService retains unmigrated document-ingestion and diff
-// commands. Reads, previews, accepted-evidence and relationship mutations use
-// focused ports outside this transitional boundary.
-type evidenceIngestionService interface {
-	UploadSecurityScan(context.Context, domain.Actor, app.UploadSecurityScanInput) (domain.SecurityScan, error)
-	UploadAPISecurityScan(context.Context, domain.Actor, app.UploadSecurityScanInput) (domain.SecurityScan, error)
-	UploadManualSecurityDocument(context.Context, domain.Actor, app.UploadManualSecurityDocumentInput) (domain.ManualSecurityDocument, error)
-	UploadSPDXSBOM(context.Context, domain.Actor, string, string, []byte) (domain.SBOM, error)
-	UploadSPDXSBOMPayload(context.Context, domain.Actor, string, string, app.PayloadSource) (domain.SBOM, error)
-	CreateSBOMDiff(context.Context, domain.Actor, app.CreateSBOMDiffInput) (domain.SBOMDiff, error)
-	UploadSBOM(context.Context, domain.Actor, string, string, []byte) (domain.SBOM, error)
-	UploadSBOMPayload(context.Context, domain.Actor, string, string, app.PayloadSource) (domain.SBOM, error)
-	UploadVEX(context.Context, domain.Actor, string, string, []byte) (domain.VEXDocument, error)
-	UploadVEXPayload(context.Context, domain.Actor, string, string, app.PayloadSource) (domain.VEXDocument, error)
-	UploadCycloneDXVEX(context.Context, domain.Actor, string, string, []byte) (domain.VEXDocument, error)
-	UploadVulnerabilityScanPayload(context.Context, domain.Actor, app.PayloadSource) (domain.VulnerabilityScan, error)
-	UploadOpenAPIContract(context.Context, domain.Actor, string, string, string, []byte) (domain.OpenAPIContract, error)
-	UploadOpenAPIContractPayload(context.Context, domain.Actor, string, string, string, app.PayloadSource) (domain.OpenAPIContract, error)
-	CreateContractDiff(context.Context, domain.Actor, app.CreateContractDiffInput) (domain.ContractDiff, error)
-}

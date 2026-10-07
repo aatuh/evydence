@@ -92,7 +92,7 @@ func TestEvidenceRelationshipCookieOriginAndBearerPrecedenceAcrossFixturePorts(t
 					if err != nil {
 						t.Fatal(err)
 					}
-					s.ledger, s.evidenceIngestion = nil, nil
+					s.ledger = nil
 				}
 				path := strings.Replace(tc.path, "original", ids[0], 1)
 				body := strings.ReplaceAll(strings.ReplaceAll(tc.body, `" replacement "`, fmt.Sprintf("%q", ids[1])), `" target "`, fmt.Sprintf("%q", value.Data.ID))
@@ -167,7 +167,7 @@ func TestEvidenceRelationshipsRequireDurableExecutionAndReauthorizeReplay(t *tes
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger, s.evidenceIngestion = nil, nil
+			s.ledger = nil
 			one := postRaw(t, s, secret, tc.path, "relationship", []byte(tc.body), 201)
 			assertTrustHTTPReplay(t, one, postRaw(t, s, secret, tc.path, "relationship", []byte(tc.body), 201))
 			if f.id != "original" || tc.name == "supersede" && (f.replacement != "replacement" || f.reason != "reviewed") || tc.name == "link" && (f.kind != "product" || f.target != "target") || tc.name == "lifecycle" && (f.in.Action != "amendment" || f.in.Reason != "reviewed" || f.in.ReplacementID != "replacement" || f.in.Details["sequence"] != json.Number("9007199254740993")) {

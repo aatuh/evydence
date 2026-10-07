@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -48,8 +49,9 @@ func TestLifecycleEventsHandlerUsesScopedPageAndRedactsDetails(t *testing.T) {
 	server, secret := testServer(t)
 	query := &lifecycleEventsQueryFake{}
 	server.lifecycleEventsQuery = query
-	fallback := &evidenceProjectionFallbackFake{}
-	server.evidenceIngestion = fallback
+	if reflect.ValueOf(server).Elem().FieldByName("evidenceIngestion").IsValid() {
+		t.Fatal("retired broad Evidence binding remains")
+	}
 	first := getRaw(t, server, secret, "/v1/evidence/ev_1/lifecycle-events?page_size=1", http.StatusOK)
 	var response struct {
 		Data []struct {
@@ -100,12 +102,12 @@ func TestLifecycleEventsHandlerUsesScopedPageAndRedactsDetails(t *testing.T) {
 	}
 	query.err = evidencequery.ErrConflict
 	getRaw(t, server, secret, "/v1/evidence/ev_worker/lifecycle-events", http.StatusConflict)
-	if fallback.lifecycleCalls != 0 {
-		t.Fatal("focused lifecycle query used compatibility aggregate")
+	if query.id != "ev_worker" {
+		t.Fatal("focused lifecycle query lost the worker evidence ID")
 	}
 	query.err = nil
 	result := getRaw(t, server, secret, "/v1/evidence/ev_local/lifecycle-events", http.StatusOK)
-	if fallback.lifecycleCalls != 0 || query.id != "ev_local" || !strings.Contains(result.Body.String(), `"id":"life_1"`) {
+	if query.id != "ev_local" || !strings.Contains(result.Body.String(), `"id":"life_1"`) {
 		t.Fatal("fixture lifecycle read bypassed the required focused query")
 	}
 }

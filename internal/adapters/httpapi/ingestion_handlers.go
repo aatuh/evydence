@@ -3,7 +3,6 @@ package httpapi
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"io"
 	"mime"
 	"net/http"
@@ -12,53 +11,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/domain"
 )
-
-type streamedUpload func(*Server, requestContext, domain.Actor, app.PayloadSource) (int, any, error)
-
-// createStreamedEvidence spools an untrusted evidence document to a private
-// temporary file while counting and hashing it. The command receives only a
-// repeatable source, so it can validate and stage the document without a
-// second request-sized memory allocation. The temporary file is always removed
-// before the handler returns and its path is never included in an error.
-func (s *Server) createStreamedEvidence(ctx requestContext, w http.ResponseWriter, r *http.Request, limit int64, semanticFields map[string]string, run streamedUpload) {
-	actor, ok := s.authenticate(w, r)
-	if !ok {
-		return
-	}
-	source, cleanup, err := streamRequestPayload(r, limit)
-	if err != nil {
-		writeProblem(w, r, app.ErrValidation)
-		return
-	}
-	defer cleanup()
-	fingerprint := streamedRequestFingerprint(source.Digest, semanticFields)
-	execute := func(requestFingerprint string) (int, any, error) {
-		return s.idempotency.WithBodyDigest(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), requestFingerprint, func(commandCtx requestContext, scope commandScope) (int, any, error) {
-			commandServer := *s
-			scope.bind(&commandServer)
-			return run(&commandServer, commandCtx, actor, source)
-		})
-	}
-	status, response, err := execute(fingerprint)
-	if errors.Is(err, app.ErrIdempotencyConflict) && fingerprint != source.Digest {
-		// Before semantic metadata headers became part of native-document
-		// fingerprints, retained records used the body digest alone. Retry the
-		// reservation with that legacy digest only after the current fingerprint
-		// conflicts. New records keep the stronger fingerprint, so a later header
-		// change still conflicts instead of replaying another resource's result.
-		status, response, err = execute(source.Digest)
-	}
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	if r.Header.Get("Idempotency-Key") != "" {
-		w.Header().Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
-	}
-	writeData(w, status, response)
-}
 
 func streamedRequestFingerprint(bodyDigest string, semanticFields map[string]string) string {
 	if len(semanticFields) == 0 {

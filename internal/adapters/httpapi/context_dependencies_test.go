@@ -56,8 +56,27 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 			t.Fatalf("broad package binding %s was not deleted", name)
 		}
 	}
-	if server.evidenceIngestion != ledger {
-		t.Fatal("evidence ingestion service was not rebound")
+	if reflect.ValueOf(server).Elem().FieldByName("evidenceIngestion").IsValid() {
+		t.Fatal("broad Evidence service binding was not deleted")
+	}
+	for name, dependency := range map[string]any{
+		"sbom-upload": server.sbomIngestionCommands, "vex-upload": server.vexIngestionCommands,
+		"scan-upload": server.scanIngestionCommands, "contract-upload": server.openAPIIngestionCommands,
+		"security-document": server.securityDocumentCommands,
+	} {
+		commands, ok := dependency.(ingestionFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
+	if executor, ok := server.durableStreamedCommandExecutor.(catalogFixtureReplayExecutor); !ok || executor.ledger != ledger {
+		t.Fatal("focused streamed fixture replay was not rebound")
+	}
+	for name, dependency := range map[string]any{"sbom-diff": server.sbomDiffCommands, "contract-diff": server.contractDiffCommands} {
+		commands, ok := dependency.(ingestionDiffFixture)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
 	}
 	for name, dependency := range map[string]any{
 		"evidence": server.evidencePointQuery, "sbom": server.sbomPointQuery,
@@ -300,6 +319,12 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 				}
 				return true
 			})
+		}
+		if functionName == "createStreamedEvidence" {
+			if foundFunction {
+				t.Error("retired aggregate streamed command wrapper remains")
+			}
+			continue
 		}
 		if !foundFunction {
 			t.Errorf("%s was not found in %s", functionName, filename)

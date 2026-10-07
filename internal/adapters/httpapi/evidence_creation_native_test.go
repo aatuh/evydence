@@ -16,7 +16,7 @@ func TestGenericEvidenceCreationStrictPreflightAndExactNumbers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.evidenceIngestion = nil, nil
+	s.ledger = nil
 	body := `{"type":"manual","title":"Evidence","payload_hash":"sha256:` + strings.Repeat("a", 64) + `"}`
 	for n, bad := range []string{"", " ", "{", "null", "[]", "{}", body + " {}", string([]byte{0xff}), strings.Replace(body, `"type":`, `"TYPE":`, 1), strings.TrimSuffix(body, "}") + `,"type":null}`, strings.TrimSuffix(body, "}") + `,"metadata":null}`, strings.TrimSuffix(body, "}") + `,"metadata":{"bad":"value\u0000"}}`, strings.TrimSuffix(body, "}") + `,"subject_refs":[null]}`, strings.TrimSuffix(body, "}") + `,"subject_refs":[{"type":"artifact","ID":"artifact"}]}`, strings.TrimSuffix(body, "}") + `,"tags":[null]}`, strings.TrimSuffix(body, "}") + `,"observed_at":null}`, strings.TrimSuffix(body, "}") + `,"observed_at":"0001-01-01T00:00:00+01:00"}`, strings.TrimSuffix(body, "}") + `,"product_id":"` + strings.Repeat(" ", 1025) + `product"}`} {
 		postRaw(t, s, secret, "/v1/evidence", fmt.Sprintf("invalid-%d", n), []byte(bad), 400)
@@ -43,7 +43,7 @@ func TestGenericEvidenceCreationCookieOriginAndBearerPrecedenceAcrossFixturePort
 				if err != nil {
 					t.Fatal(err)
 				}
-				s.ledger, s.evidenceIngestion = nil, nil
+				s.ledger = nil
 			}
 			body := `{"type":"manual","title":"Evidence","payload_hash":"sha256:` + strings.Repeat("a", 64) + `"}`
 			for _, tc := range []struct {

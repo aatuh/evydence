@@ -186,7 +186,6 @@ type Server struct {
 	auditLogQuery                     AuditLogQuery
 	apiKeyQuery                       APIKeyQuery
 	roleBindingQuery                  RoleBindingQuery
-	evidenceIngestion                 evidenceIngestionService
 	mux                               *http.ServeMux
 	specs                             *specs.Registry
 	routes                            *routecontracts.Registry
@@ -1479,73 +1478,15 @@ func (s *Server) incidentReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadSecurityScan(w http.ResponseWriter, r *http.Request) {
-	if s.securityDocumentCommands != nil {
-		s.uploadDurableSecurityScan(w, r, false)
-		return
-	}
-	var req struct {
-		ProductID  string          `json:"product_id"`
-		ReleaseID  string          `json:"release_id"`
-		ArtifactID string          `json:"artifact_id"`
-		Category   string          `json:"category"`
-		Format     string          `json:"format"`
-		Scanner    string          `json:"scanner"`
-		TargetRef  string          `json:"target_ref"`
-		Payload    json.RawMessage `json:"payload"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		scan, err := s.evidenceIngestion.UploadSecurityScan(ctx, actor, app.UploadSecurityScanInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, ArtifactID: req.ArtifactID, Category: req.Category, Format: req.Format, Scanner: req.Scanner, TargetRef: req.TargetRef, Raw: req.Payload})
-		return http.StatusCreated, scan, err
-	})
+	s.uploadDurableSecurityScan(w, r, false)
 }
 
 func (s *Server) uploadAPISecurityScan(w http.ResponseWriter, r *http.Request) {
-	if s.securityDocumentCommands != nil {
-		s.uploadDurableSecurityScan(w, r, true)
-		return
-	}
-	var req struct {
-		ProductID  string          `json:"product_id"`
-		ReleaseID  string          `json:"release_id"`
-		ArtifactID string          `json:"artifact_id"`
-		Format     string          `json:"format"`
-		Scanner    string          `json:"scanner"`
-		TargetRef  string          `json:"target_ref"`
-		Payload    json.RawMessage `json:"payload"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		scan, err := s.evidenceIngestion.UploadAPISecurityScan(ctx, actor, app.UploadSecurityScanInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, ArtifactID: req.ArtifactID, Format: req.Format, Scanner: req.Scanner, TargetRef: req.TargetRef, Raw: req.Payload})
-		return http.StatusCreated, scan, err
-	})
+	s.uploadDurableSecurityScan(w, r, true)
 }
 
 func (s *Server) uploadManualSecurityDocument(w http.ResponseWriter, r *http.Request) {
-	if s.securityDocumentCommands != nil {
-		s.uploadDurableManualSecurityDocument(w, r)
-		return
-	}
-	var req struct {
-		ProductID    string          `json:"product_id"`
-		ReleaseID    string          `json:"release_id"`
-		DocumentType string          `json:"document_type"`
-		Title        string          `json:"title"`
-		Sensitivity  string          `json:"sensitivity"`
-		MediaType    string          `json:"media_type"`
-		Payload      json.RawMessage `json:"payload"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		doc, err := s.evidenceIngestion.UploadManualSecurityDocument(ctx, actor, app.UploadManualSecurityDocumentInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID, DocumentType: req.DocumentType, Title: req.Title, Sensitivity: req.Sensitivity, Raw: req.Payload, MediaType: req.MediaType})
-		return http.StatusCreated, doc, err
-	})
+	s.uploadDurableManualSecurityDocument(w, r)
 }
 
 func (s *Server) createWaiver(w http.ResponseWriter, r *http.Request) {
@@ -1631,60 +1572,11 @@ func (s *Server) craReadinessHTMLPackage(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
-	if s.sbomIngestionCommands != nil {
-		s.uploadDurableSBOM(w, r, "spdx")
-		return
-	}
-	if requestMediaType(r) == "application/spdx+json" {
-		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		artifactID, err := optionalSingleHeader(r, "X-Evydence-Artifact-ID")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, map[string]string{
-			"artifact_id": artifactID, "media_type": requestMediaType(r), "release_id": releaseID,
-		}, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-			sbom, err := s.evidenceIngestion.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, source)
-			return http.StatusCreated, sbom, err
-		})
-		return
-	}
-	var req struct {
-		ReleaseID  string          `json:"release_id"`
-		ArtifactID string          `json:"artifact_id"`
-		Payload    json.RawMessage `json:"payload"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		sbom, err := s.evidenceIngestion.UploadSPDXSBOM(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
-		return http.StatusCreated, sbom, err
-	})
+	s.uploadDurableSBOM(w, r, "spdx")
 }
 
 func (s *Server) createSBOMDiff(w http.ResponseWriter, r *http.Request) {
-	if s.sbomDiffCommands != nil {
-		s.createDurableSBOMDiff(w, r)
-		return
-	}
-	var req struct {
-		BaseSBOMID   string `json:"base_sbom_id"`
-		TargetSBOMID string `json:"target_sbom_id"`
-		ReleaseID    string `json:"release_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		diff, err := s.evidenceIngestion.CreateSBOMDiff(ctx, actor, app.CreateSBOMDiffInput{BaseSBOMID: req.BaseSBOMID, TargetSBOMID: req.TargetSBOMID, ReleaseID: req.ReleaseID})
-		return http.StatusCreated, diff, err
-	})
+	s.createDurableSBOMDiff(w, r)
 }
 
 func (s *Server) listEvidence(w http.ResponseWriter, r *http.Request) {
@@ -1781,41 +1673,7 @@ func (s *Server) listEvidenceLifecycleEvents(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) uploadSBOM(w http.ResponseWriter, r *http.Request) {
-	if s.sbomIngestionCommands != nil {
-		s.uploadDurableSBOM(w, r, "cyclonedx")
-		return
-	}
-	if requestMediaType(r) == "application/vnd.cyclonedx+json" {
-		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		artifactID, err := optionalSingleHeader(r, "X-Evydence-Artifact-ID")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, map[string]string{
-			"artifact_id": artifactID, "media_type": requestMediaType(r), "release_id": releaseID,
-		}, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-			sbom, err := s.evidenceIngestion.UploadSBOMPayload(ctx, actor, releaseID, artifactID, source)
-			return http.StatusCreated, sbom, err
-		})
-		return
-	}
-	var req struct {
-		ReleaseID  string          `json:"release_id"`
-		ArtifactID string          `json:"artifact_id"`
-		Payload    json.RawMessage `json:"payload"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		sbom, err := s.evidenceIngestion.UploadSBOM(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
-		return http.StatusCreated, sbom, err
-	})
+	s.uploadDurableSBOM(w, r, "cyclonedx")
 }
 
 func (s *Server) getSBOM(w http.ResponseWriter, r *http.Request) {
@@ -1858,41 +1716,7 @@ func (s *Server) listSBOMComponents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadVEX(w http.ResponseWriter, r *http.Request) {
-	if s.vexIngestionCommands != nil {
-		s.uploadDurableVEX(w, r, "openvex")
-		return
-	}
-	if requestMediaType(r) == "application/vnd.openvex+json" {
-		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		artifactID, err := optionalSingleHeader(r, "X-Evydence-Artifact-ID")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, map[string]string{
-			"artifact_id": artifactID, "media_type": requestMediaType(r), "release_id": releaseID,
-		}, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-			vex, err := s.evidenceIngestion.UploadVEXPayload(ctx, actor, releaseID, artifactID, source)
-			return http.StatusCreated, vex, err
-		})
-		return
-	}
-	var req struct {
-		ReleaseID  string          `json:"release_id"`
-		ArtifactID string          `json:"artifact_id"`
-		Payload    json.RawMessage `json:"payload"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		vex, err := s.evidenceIngestion.UploadVEX(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
-		return http.StatusCreated, vex, err
-	})
+	s.uploadDurableVEX(w, r, "openvex")
 }
 
 func (s *Server) previewVEXImport(w http.ResponseWriter, r *http.Request) {
@@ -1926,22 +1750,7 @@ func (s *Server) getVEXImportReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uploadCycloneDXVEX(w http.ResponseWriter, r *http.Request) {
-	if s.vexIngestionCommands != nil {
-		s.uploadDurableVEX(w, r, "cyclonedx")
-		return
-	}
-	var req struct {
-		ReleaseID  string          `json:"release_id"`
-		ArtifactID string          `json:"artifact_id"`
-		Payload    json.RawMessage `json:"payload"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		vex, err := s.evidenceIngestion.UploadCycloneDXVEX(ctx, actor, req.ReleaseID, req.ArtifactID, req.Payload)
-		return http.StatusCreated, vex, err
-	})
+	s.uploadDurableVEX(w, r, "cyclonedx")
 }
 
 func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Request) {
@@ -1949,14 +1758,7 @@ func (s *Server) previewCycloneDXVEXImport(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) uploadVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
-	if s.scanIngestionCommands != nil {
-		s.uploadDurableVulnerabilityScan(w, r)
-		return
-	}
-	s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, nil, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-		scan, err := s.evidenceIngestion.UploadVulnerabilityScanPayload(ctx, actor, source)
-		return http.StatusCreated, scan, err
-	})
+	s.uploadDurableVulnerabilityScan(w, r)
 }
 
 func (s *Server) getVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
@@ -2145,47 +1947,7 @@ func (s *Server) vulnerabilityDecisionSummaryReport(w http.ResponseWriter, r *ht
 }
 
 func (s *Server) uploadOpenAPIContract(w http.ResponseWriter, r *http.Request) {
-	if s.openAPIIngestionCommands != nil {
-		s.uploadDurableOpenAPIContract(w, r)
-		return
-	}
-	if requestMediaType(r) == "application/vnd.oai.openapi+json" {
-		productID, err := requiredSingleHeader(r, "X-Evydence-Product-ID")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		releaseID, err := requiredSingleHeader(r, "X-Evydence-Release-ID")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		version, err := requiredSingleHeader(r, "X-Evydence-Version")
-		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		s.createStreamedEvidence(r.Context(), w, r, app.EvidenceDocumentLimit, map[string]string{
-			"media_type": requestMediaType(r), "product_id": productID, "release_id": releaseID, "version": version,
-		}, func(s *Server, ctx requestContext, actor domain.Actor, source app.PayloadSource) (int, any, error) {
-			contract, err := s.evidenceIngestion.UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, source)
-			return http.StatusCreated, contract, err
-		})
-		return
-	}
-	var req struct {
-		ProductID string          `json:"product_id"`
-		ReleaseID string          `json:"release_id"`
-		Version   string          `json:"version"`
-		Spec      json.RawMessage `json:"spec"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		contract, err := s.evidenceIngestion.UploadOpenAPIContract(ctx, actor, req.ProductID, req.ReleaseID, req.Version, req.Spec)
-		return http.StatusCreated, contract, err
-	})
+	s.uploadDurableOpenAPIContract(w, r)
 }
 
 func (s *Server) getOpenAPIContract(w http.ResponseWriter, r *http.Request) {
@@ -2202,22 +1964,7 @@ func (s *Server) getOpenAPIContract(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createOpenAPIDiff(w http.ResponseWriter, r *http.Request) {
-	if s.contractDiffCommands != nil {
-		s.createDurableContractDiff(w, r)
-		return
-	}
-	var req struct {
-		BaseContractID   string `json:"base_contract_id"`
-		TargetContractID string `json:"target_contract_id"`
-		ReleaseID        string `json:"release_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		diff, err := s.evidenceIngestion.CreateContractDiff(ctx, actor, app.CreateContractDiffInput{BaseContractID: req.BaseContractID, TargetContractID: req.TargetContractID, ReleaseID: req.ReleaseID})
-		return http.StatusCreated, diff, err
-	})
+	s.createDurableContractDiff(w, r)
 }
 
 func (s *Server) evaluatePolicy(w http.ResponseWriter, r *http.Request) {

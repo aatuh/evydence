@@ -116,8 +116,28 @@ retain actual former ownership/grant policies and detach mutable document,
 issue and advisory metadata; read-only regressions cover both tenants, complete
 fixture pages, revoked grants and previews. The SBOM component fixture retains
 its former 500-item cap; runtime SQL pagination has separate beyond-cap tests.
-The fifteen remaining ingestion/diff interface methods, their command fallbacks
-and the aggregate implementation still require retirement under EVY-906.
+
+SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
+API-security and manual-document uploads, plus both document diffs, now require
+focused Evidence commands. Their eleven transport fallbacks, fifteen-method
+broad interface, Server binding and aggregate streamed-upload wrapper are
+deleted. Native parsing, body limits, semantic-header fingerprints, current
+ownership/grant guards and atomic PostgreSQL writes remain in place. Test-only
+adapters run the actual native preflight algorithms and authorizers; effect,
+clock and ID capabilities panic if a replay guard reaches them. Fresh fixture
+writes use the real legacy parsers and isolated command clone, not those guard
+capabilities. Eleven failure-after-write and replay regressions check complete
+repository state, including payload, audit, outbox and derived-record effects.
+They are not a substitute for the live PostgreSQL transaction tests.
+
+VEX idempotency replay preserves a plain author email only in the closed,
+validated, versioned public document DTO. Unknown fields, credential-like author
+text, other response fields, logs and customer-package redaction keep the generic
+policy. Previously cached responses whose author was already redacted cannot be
+reconstructed by this fix. The explicit memory test adapter also accepts a
+zero-finding security scan without requiring a nonempty summary; required
+metadata and nonzero-finding validation are unchanged. Direct context Ledger
+calls and the aggregate implementation still require retirement under EVY-906.
 
 Report-template creation/rendering and portable bundle import/export now
 require focused Package ports. Their three broad local bindings and interfaces

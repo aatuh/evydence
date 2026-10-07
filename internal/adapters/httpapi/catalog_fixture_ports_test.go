@@ -60,6 +60,18 @@ func (f catalogFixtureCommands) CreateRelease(ctx context.Context, actor identit
 
 type catalogFixtureReplayExecutor struct{ ledger *app.Ledger }
 
+func (e catalogFixtureReplayExecutor) WithBodyDigest(ctx context.Context, actor domain.Actor, method, path, key, digest string, authorize func(context.Context) error, run func(context.Context) (int, any, error)) (int, any, error) {
+	if e.ledger == nil || authorize == nil || run == nil {
+		return 0, nil, app.ErrValidation
+	}
+	if err := authorize(ctx); err != nil {
+		return 0, nil, err
+	}
+	return e.ledger.WithIdempotencyRequestHash(ctx, actor, method, path, key, digest, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
+		return run(context.WithValue(commandCtx, catalogFixtureCommandContextKey{}, commandLedger))
+	})
+}
+
 func (e catalogFixtureReplayExecutor) WithBody(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, authorize func(context.Context) error, run func(context.Context) (int, any, error)) (int, any, error) {
 	if e.ledger == nil || authorize == nil || run == nil {
 		return 0, nil, app.ErrValidation
@@ -106,11 +118,12 @@ func (s *Server) bindCatalogFixturePorts(ledger *app.Ledger) {
 }
 
 var (
-	_ ProductCommands              = catalogFixtureCommands{}
-	_ ProjectCommands              = catalogFixtureCommands{}
-	_ ReleaseCreationCommands      = catalogFixtureCommands{}
-	_ DurableCommandExecutor       = catalogFixtureReplayExecutor{}
-	_ DurableReplayCommandExecutor = catalogFixtureReplayExecutor{}
+	_ ProductCommands                = catalogFixtureCommands{}
+	_ ProjectCommands                = catalogFixtureCommands{}
+	_ ReleaseCreationCommands        = catalogFixtureCommands{}
+	_ DurableCommandExecutor         = catalogFixtureReplayExecutor{}
+	_ DurableStreamedCommandExecutor = catalogFixtureReplayExecutor{}
+	_ DurableReplayCommandExecutor   = catalogFixtureReplayExecutor{}
 )
 
 type failingCatalogFixtureProduct struct {
