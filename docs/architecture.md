@@ -1267,8 +1267,16 @@ does not hold the provider row. Provider output is bounded, credential-redacted
 and rechecked after redaction before assessment/persistence. Live tests cover both modes, current human authority,
 restart replay, provider/link changes, oversized rows and real write/audit/
 deferred-commit failures. See [provider identity verification receipts](api.md#provider-identity-verification-receipts)
-for input and cookie-origin compatibility. Production Ledger startup retirement
-and other extension workflows remain open.
+for input and cookie-origin compatibility. The HTTP handler requires focused
+ports only, with no aggregate fallback. PostgreSQL is required for local
+evaluation. Its test-only bridge reuses the bounded memory provider projection
+and actual native read-only guard; receipt writes retain isolated historical
+commands and complete detached mappings. Preflight sentinels forbid link reads,
+credential verification, provider calls, effects, clocks and IDs. Regressions
+cover full-state post-write rollback, complete credential-free replay, current
+human grants, foreign providers, failed assessment semantics and cancellation.
+These memory checks are not SQL locking, durability or provider-truth evidence.
+Other extension handlers and physical aggregate deletion remain EVY-906 work.
 
 API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and

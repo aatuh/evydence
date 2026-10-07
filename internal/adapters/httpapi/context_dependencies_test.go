@@ -33,6 +33,9 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.authn != ledger {
 		t.Fatal("authenticator was not rebound")
 	}
+	if command, ok := server.providerVerificationCommands.(providerVerificationFixtureCommands); !ok || command.ledger != ledger {
+		t.Fatal("focused provider-verification fixture was not rebound")
+	}
 	for name, dependency := range map[string]any{
 		"pdf": server.pdfReportCommands, "anomaly": server.anomalyReportCommands,
 		"signing-operation": server.signingOperationCommands,
@@ -629,6 +632,7 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"listMarketplaceCollectors", "marketplaceCollectorHealth",
 		"createDurablePDFReportPackage",
 		"createPDFReportPackage", "generateAnomalyReport", "createSigningOperation",
+		"verifyProviderIdentity",
 		"generateDurableAnomalyReport",
 		"createDurableSaaSProfile",
 		"createDurableMarketplaceCollector",

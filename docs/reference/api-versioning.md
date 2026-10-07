@@ -616,11 +616,14 @@ retirement, provider token single-use, or live provider verification.
 ## Unreleased Provider Verification Receipt Boundary
 
 `POST /v1/provider-verifications` keeps its route, response fields, assurance
-profile format and idempotency behavior. Both profiles now share the focused
+profile format and idempotency behavior. The handler requires the focused
 Identity receipt command; PostgreSQL binds bounded owned reads and atomic
 receipt/audit/replay writes directly, without Ledger state. Metadata-only,
 local OIDC/SAML and configured live OIDC assessments remain available, including
 assessments of inactive providers. None issues sessions or authorization grants.
+PostgreSQL is required for local evaluation; the retired local-memory API path
+is not retained as a fallback. Test-only adapters preserve actual read-only
+guard policy, isolated writes and complete detached receipt mappings.
 
 New restrictions reject explicit null/non-object input, invalid UTF-8/NUL text,
 IDs above 1 KiB, subject/local credentials above 64 KiB and access tokens above

@@ -1194,7 +1194,7 @@ OIDC `access_token` uses the configured live provider validator, if present;
 missing configuration or provider errors cannot become a passed assessment.
 OIDC rejects SAML assertions; SAML rejects ID/access tokens.
 
-Both profiles reject malformed, duplicate, unknown, trailing or non-object JSON,
+The API rejects malformed, duplicate, unknown, trailing or non-object JSON,
 explicit null fields, invalid UTF-8 and NUL text with `400`. Before trimming,
 provider IDs are limited to 1 KiB, subject/local credentials to 64 KiB each and
 access tokens to 16 KiB, within the 64 KiB body limit. Metadata labels must not
@@ -1212,6 +1212,10 @@ provider/link locks, including when the HTTP transaction keeps those locks.
 Receipt, caller-attributed audit and safe idempotency response commit together;
 fresh-server replay does not call the provider again. The HTTP idempotency
 transaction can hold selected rows while the bounded provider call runs.
+The handler requires focused command/replay ports and has no aggregate fallback.
+PostgreSQL is required for local evaluation. Test-only memory adapters retain
+actual guard policy, isolated historical writes and detached public receipts;
+they are not evidence of SQL locking, durability or external provider truth.
 
 Direct application calls persist a failed assessment and its audit before
 returning verification failure. The HTTP create contract instead returns `422`,
@@ -1229,8 +1233,8 @@ of text and combined output size. Malformed or excessive output becomes a safe
 failed assessment, never truncated success. Group mapping counts are
 informational and do not grant access.
 Existing JSON fields and versioned assurance profiles are preserved. This route
-does not prove provider truth or legal compliance; production Ledger startup
-removal remains pending.
+does not prove provider truth or legal compliance; remaining aggregate code
+deletion is EVY-906 work.
 
 #### SSO Public Trust Material
 

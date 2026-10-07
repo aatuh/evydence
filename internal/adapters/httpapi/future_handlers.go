@@ -168,16 +168,5 @@ func (s *Server) verifyProviderIdentity(w http.ResponseWriter, r *http.Request) 
 		writeProblem(w, r, err)
 		return
 	}
-	if s.providerVerificationCommands != nil {
-		s.verifyDurableProviderIdentity(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeProviderVerificationRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		record, err := s.ledger.VerifyProviderIdentity(ctx, actor, app.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken, SAMLAssertion: req.SAMLAssertion, AccessToken: req.AccessToken})
-		return http.StatusCreated, record, err
-	})
+	s.verifyDurableProviderIdentity(w, r)
 }
