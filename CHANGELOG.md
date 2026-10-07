@@ -55,7 +55,10 @@ preserved. Remaining aggregate retirement is still in progress.
 
 API-key and role-binding metadata lists no longer fall back to broad aggregate
 inventory reads. Existing native pagination, authorization and public-metadata
-contracts are unchanged; identity writes and sessions remain retirement work.
+contracts are unchanged. API-key creation's broad identity fallback is also
+removed; existing native credential validation, authorization, atomic replay
+and one-time-secret contracts are unchanged. Other identity writes, sessions
+and aggregate retirement remain unfinished.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the

@@ -72,14 +72,21 @@ the old inventory-list branches and two broad identity-interface methods are
 deleted. Native page parsing, tenant/admin checks, error mapping and public
 metadata encoding remain unchanged. Test-only readers retain real fixture
 authorization, strip credential hashes and use the shared cursor-key ordering.
-Identity write and session compatibility paths still await retirement; their
-preflight guards must not be replaced with placeholder authorization.
+API-key creation also requires its focused command/replay ports; the broad
+identity credential-creation method and fallback handler are deleted. Native
+input validation, tenant-wide administration, instance-scope restrictions and
+one-time-secret replay behavior remain unchanged. The test-only guard uses
+the real focused policy and validates ownership through the legacy fixture's
+retained bootstrap key; any attempted preflight issuance/write fails closed.
+Failure-after-issuance tests check credential/audit rollback, unusable rolled-
+back secrets and current authorization before replay. Other identity writes
+and session compatibility paths still await retirement.
 The existing in-memory unit-of-work fixture now implements the tenant-scoped
 API-key creation read capability, so the real focused command can run its
 preflight and issuance tests. It uses optimistic commit-version checks, not
 PostgreSQL row locks. Rejected/readonly guards do not issue credentials or
 change repository data. This is test-adapter groundwork, not a new API runtime
-or completion of identity-handler retirement.
+or completion of aggregate retirement.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime

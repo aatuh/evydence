@@ -115,6 +115,10 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if !ok || bindings.ledger != ledger {
 		t.Fatal("focused role-binding fixture query was not rebound")
 	}
+	keyCommands, ok := server.apiKeyCommands.(apiKeyFixtureCommands)
+	if !ok || keyCommands.ledger != ledger {
+		t.Fatal("focused API-key fixture command was not rebound")
+	}
 }
 
 func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {

@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
@@ -534,7 +533,6 @@ type idempotencyExecutor interface {
 // and access commands and queries. The legacy Ledger implements this port while
 // callers migrate to the context-owned application service.
 type identityAccessService interface {
-	CreateAPIKey(context.Context, domain.Actor, string, []string, *time.Time) (domain.APIKey, string, error)
 	CreateOrganization(context.Context, domain.Actor, app.CreateOrganizationInput) (domain.Organization, error)
 	CreateUser(context.Context, domain.Actor, app.CreateUserInput) (domain.HumanUser, error)
 	DeactivateUser(context.Context, domain.Actor, string) (domain.HumanUser, error)

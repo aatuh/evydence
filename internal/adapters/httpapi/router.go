@@ -3226,22 +3226,7 @@ func (s *Server) listCommercialCollectors(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
-	if s.apiKeyCommands != nil {
-		s.createDurableAPIKey(w, r)
-		return
-	}
-	var req struct {
-		Name      string     `json:"name"`
-		Scopes    []string   `json:"scopes"`
-		ExpiresAt *time.Time `json:"expires_at"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		key, secret, err := s.identityAccess.CreateAPIKey(ctx, actor, req.Name, req.Scopes, req.ExpiresAt)
-		return http.StatusCreated, map[string]any{"api_key": key, "secret": secret}, err
-	})
+	s.createDurableAPIKey(w, r)
 }
 
 func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
