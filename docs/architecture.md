@@ -74,6 +74,12 @@ metadata encoding remain unchanged. Test-only readers retain real fixture
 authorization, strip credential hashes and use the shared cursor-key ordering.
 Identity write and session compatibility paths still await retirement; their
 preflight guards must not be replaced with placeholder authorization.
+The existing in-memory unit-of-work fixture now implements the tenant-scoped
+API-key creation read capability, so the real focused command can run its
+preflight and issuance tests. It uses optimistic commit-version checks, not
+PostgreSQL row locks. Rejected/readonly guards do not issue credentials or
+change repository data. This is test-adapter groundwork, not a new API runtime
+or completion of identity-handler retirement.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
