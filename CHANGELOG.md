@@ -65,6 +65,12 @@ only focused Operations ports. Their broad local transport dependency and
 interface are deleted. Native authorization, cookie-origin protection,
 transactional replay, pagination and response contracts are unchanged.
 
+Generic evidence creation, supersession, linking and lifecycle-event handlers
+now use only focused Evidence ports. Their two broad local dependencies and
+interfaces are deleted. Native validation, authorization, append-only effects,
+exact-number handling, cookie-origin checks and replay contracts are unchanged.
+Remaining ingestion, query and aggregate retirement is still in progress.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

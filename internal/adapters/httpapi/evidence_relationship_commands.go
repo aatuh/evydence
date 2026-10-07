@@ -26,14 +26,6 @@ type EvidenceRelationshipCommands interface {
 	LinkEvidence(context.Context, identitydomain.Actor, string, string, string) (evidencedomain.EvidenceItem, error)
 	RecordLifecycleEvent(context.Context, identitydomain.Actor, string, evidenceapp.RecordLifecycleInput) (evidencedomain.EvidenceLifecycleEvent, error)
 }
-type localEvidenceRelationshipCommands interface {
-	AuthorizeSupersedeEvidence(context.Context, domain.Actor, string, string, string) error
-	AuthorizeLinkEvidence(context.Context, domain.Actor, string, string, string) error
-	AuthorizeLifecycleEvent(context.Context, domain.Actor, string, evidenceapp.RecordLifecycleInput) error
-	SupersedeEvidence(context.Context, domain.Actor, string, string, string) (domain.EvidenceItem, error)
-	LinkEvidence(context.Context, domain.Actor, string, string, string) (domain.EvidenceItem, error)
-	RecordEvidenceLifecycleEvent(context.Context, domain.Actor, string, app.RecordEvidenceLifecycleInput) (domain.EvidenceLifecycleEvent, error)
-}
 
 func decodeEvidenceRelationship(body []byte, target any, fields ...string) error {
 	if !utf8.Valid(body) || jsonbounds.Validate(body, jsonbounds.DefaultLimits()) != nil {
@@ -72,26 +64,14 @@ func (s *Server) supersedeEvidence(w http.ResponseWriter, r *http.Request) {
 		id, in.Replacement, in.Reason, err = evidenceapp.NormalizeEvidenceSupersession(id, in.Replacement, in.Reason)
 		return mapEvidenceCreationCommandError(err)
 	}
-	if s.evidenceRelationshipCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			if err := decode(body); err != nil {
-				return err
-			}
-			return mapEvidenceCreationCommandError(s.evidenceRelationshipCommands.AuthorizeSupersedeEvidence(ctx, a, id, in.Replacement, in.Reason))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.evidenceRelationshipCommands.SupersedeEvidence(ctx, a, id, in.Replacement, in.Reason)
-			return http.StatusCreated, domain.EvidenceFromContextModel(v), mapEvidenceCreationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localEvidenceRelationships.SupersedeEvidence(ctx, a, id, in.Replacement, in.Reason)
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		if err := decode(body); err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localEvidenceRelationships.AuthorizeSupersedeEvidence(r.Context(), a, id, in.Replacement, in.Reason)
+		return mapEvidenceCreationCommandError(s.evidenceRelationshipCommands.AuthorizeSupersedeEvidence(ctx, a, id, in.Replacement, in.Reason))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.evidenceRelationshipCommands.SupersedeEvidence(ctx, a, id, in.Replacement, in.Reason)
+		return http.StatusCreated, domain.EvidenceFromContextModel(v), mapEvidenceCreationCommandError(err)
 	})
 }
 
@@ -113,26 +93,14 @@ func (s *Server) linkEvidence(w http.ResponseWriter, r *http.Request) {
 		id, in.Kind, in.Target, err = evidenceapp.NormalizeEvidenceLink(id, in.Kind, in.Target)
 		return mapEvidenceCreationCommandError(err)
 	}
-	if s.evidenceRelationshipCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			if err := decode(body); err != nil {
-				return err
-			}
-			return mapEvidenceCreationCommandError(s.evidenceRelationshipCommands.AuthorizeLinkEvidence(ctx, a, id, in.Kind, in.Target))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.evidenceRelationshipCommands.LinkEvidence(ctx, a, id, in.Kind, in.Target)
-			return http.StatusCreated, domain.EvidenceFromContextModel(v), mapEvidenceCreationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localEvidenceRelationships.LinkEvidence(ctx, a, id, in.Kind, in.Target)
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		if err := decode(body); err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localEvidenceRelationships.AuthorizeLinkEvidence(r.Context(), a, id, in.Kind, in.Target)
+		return mapEvidenceCreationCommandError(s.evidenceRelationshipCommands.AuthorizeLinkEvidence(ctx, a, id, in.Kind, in.Target))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.evidenceRelationshipCommands.LinkEvidence(ctx, a, id, in.Kind, in.Target)
+		return http.StatusCreated, domain.EvidenceFromContextModel(v), mapEvidenceCreationCommandError(err)
 	})
 }
 
@@ -157,26 +125,14 @@ func (s *Server) recordEvidenceLifecycleEvent(w http.ResponseWriter, r *http.Req
 		id, in, err = evidenceapp.NormalizeEvidenceLifecycle(id, evidenceapp.RecordLifecycleInput{Action: req.Action, Reason: req.Reason, Details: req.Details, ReplacementID: req.Replacement})
 		return mapEvidenceCreationCommandError(err)
 	}
-	if s.evidenceRelationshipCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			if err := decode(body); err != nil {
-				return err
-			}
-			return mapEvidenceCreationCommandError(s.evidenceRelationshipCommands.AuthorizeLifecycleEvent(ctx, a, id, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.evidenceRelationshipCommands.RecordLifecycleEvent(ctx, a, id, in)
-			return http.StatusCreated, evidenceRelationshipLifecycleDTO(v), mapEvidenceCreationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		v, err := s.localEvidenceRelationships.RecordEvidenceLifecycleEvent(ctx, a, id, app.RecordEvidenceLifecycleInput{Action: in.Action, Reason: in.Reason, Details: in.Details, ReplacementID: in.ReplacementID})
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		if err := decode(body); err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localEvidenceRelationships.AuthorizeLifecycleEvent(r.Context(), a, id, in)
+		return mapEvidenceCreationCommandError(s.evidenceRelationshipCommands.AuthorizeLifecycleEvent(ctx, a, id, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.evidenceRelationshipCommands.RecordLifecycleEvent(ctx, a, id, in)
+		return http.StatusCreated, evidenceRelationshipLifecycleDTO(v), mapEvidenceCreationCommandError(err)
 	})
 }
 

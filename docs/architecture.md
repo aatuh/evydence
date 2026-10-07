@@ -97,6 +97,16 @@ authorization; failure-after-write tests prove that environment/event,
 evidence, audit and outbox effects roll back together. This is transport
 retirement, not deletion of the remaining Ledger maps and methods.
 
+Generic evidence creation, supersession, linking and lifecycle-event handlers
+now require focused Evidence command/replay ports. Both broad local evidence
+bindings and their interfaces are deleted. Native structured decoding, exact
+JSON numbers, cookie-origin checks, current ownership/grant guards and response
+mapping remain unchanged. Test-only adapters retain real fixture authorization
+and the isolated command clone. Failure-after-write regressions compare every
+repository effect, reject partial responses and verify that failed commands
+do not publish core, link or supersession changes. The remaining ingestion,
+query and aggregate implementation retirement is still EVY-906 work.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;

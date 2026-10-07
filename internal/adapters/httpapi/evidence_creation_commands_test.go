@@ -39,7 +39,7 @@ func TestEvidenceCreationRequiresNativeReplayAndCurrentAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.evidenceIngestion, s.localEvidenceCreation = nil, nil, nil
+	s.ledger, s.evidenceIngestion = nil, nil
 	body := []byte(`{"type":"manual","title":"Evidence","payload_hash":"sha256:` + strings.Repeat("a", 64) + `"}`)
 	one := postRaw(t, s, secret, "/v1/evidence", "original", body, 201)
 	assertTrustHTTPReplay(t, one, postRaw(t, s, secret, "/v1/evidence", "original", body, 201))

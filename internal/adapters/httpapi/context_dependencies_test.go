@@ -46,8 +46,10 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if reflect.ValueOf(server).Elem().FieldByName("localDeployments").IsValid() {
 		t.Fatal("broad deployment binding was not deleted")
 	}
-	if server.localEvidenceCreation != ledger {
-		t.Fatal("local evidence creation dependency was not rebound")
+	for _, name := range []string{"localEvidenceCreation", "localEvidenceRelationships"} {
+		if reflect.ValueOf(server).Elem().FieldByName(name).IsValid() {
+			t.Fatalf("broad evidence binding %s was not deleted", name)
+		}
 	}
 	if server.localReportTemplates != ledger {
 		t.Fatal("local report template dependency was not rebound")
@@ -133,6 +135,14 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 		query, ok := dependency.(deploymentQueryFixture)
 		if !ok || query.ledger != ledger {
 			t.Fatalf("focused %s fixture query was not rebound", name)
+		}
+	}
+	for name, dependency := range map[string]any{
+		"evidence-creation": server.evidenceCreationCommands, "evidence-relationships": server.evidenceRelationshipCommands,
+	} {
+		commands, ok := dependency.(evidenceFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
 		}
 	}
 }

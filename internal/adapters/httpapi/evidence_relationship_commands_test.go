@@ -23,7 +23,7 @@ type evidenceRelationshipHTTPFake struct {
 	in                                    evidenceapp.RecordLifecycleInput
 }
 
-func TestEvidenceRelationshipStrictPreflightBothProfiles(t *testing.T) {
+func TestEvidenceRelationshipStrictPreflightAcrossFixturePorts(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		for _, tc := range relationshipHTTPRequests {
 			t.Run(fmt.Sprintf("%t/%s", native, tc.name), func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestEvidenceRelationshipStrictPreflightBothProfiles(t *testing.T) {
 	}
 }
 
-func TestEvidenceRelationshipCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
+func TestEvidenceRelationshipCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		for _, tc := range relationshipHTTPRequests {
 			t.Run(fmt.Sprintf("%t/%s", native, tc.name), func(t *testing.T) {
@@ -92,7 +92,7 @@ func TestEvidenceRelationshipCookieOriginAndBearerPrecedenceBothProfiles(t *test
 					if err != nil {
 						t.Fatal(err)
 					}
-					s.ledger, s.evidenceIngestion, s.localEvidenceRelationships = nil, nil, nil
+					s.ledger, s.evidenceIngestion = nil, nil
 				}
 				path := strings.Replace(tc.path, "original", ids[0], 1)
 				body := strings.ReplaceAll(strings.ReplaceAll(tc.body, `" replacement "`, fmt.Sprintf("%q", ids[1])), `" target "`, fmt.Sprintf("%q", value.Data.ID))
@@ -167,7 +167,7 @@ func TestEvidenceRelationshipsRequireDurableExecutionAndReauthorizeReplay(t *tes
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.ledger, s.evidenceIngestion, s.localEvidenceRelationships = nil, nil, nil
+			s.ledger, s.evidenceIngestion = nil, nil
 			one := postRaw(t, s, secret, tc.path, "relationship", []byte(tc.body), 201)
 			assertTrustHTTPReplay(t, one, postRaw(t, s, secret, tc.path, "relationship", []byte(tc.body), 201))
 			if f.id != "original" || tc.name == "supersede" && (f.replacement != "replacement" || f.reason != "reviewed") || tc.name == "link" && (f.kind != "product" || f.target != "target") || tc.name == "lifecycle" && (f.in.Action != "amendment" || f.in.Reason != "reviewed" || f.in.ReplacementID != "replacement" || f.in.Details["sequence"] != json.Number("9007199254740993")) {

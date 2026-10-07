@@ -26,11 +26,6 @@ type EvidenceCreationCommands interface {
 	CreateEvidence(context.Context, identitydomain.Actor, evidenceapp.CreateEvidenceInput) (evidencedomain.EvidenceItem, error)
 }
 
-type localEvidenceCreationCommands interface {
-	AuthorizeEvidenceCreation(context.Context, domain.Actor, evidenceapp.CreateEvidenceInput) error
-	CreateEvidence(context.Context, domain.Actor, app.CreateEvidenceInput) (domain.EvidenceItem, error)
-}
-
 func decodeEvidenceCreation(body []byte) (evidenceapp.CreateEvidenceInput, error) {
 	var r struct {
 		ProductID        string                      `json:"product_id"`
@@ -98,34 +93,16 @@ func (s *Server) createEvidence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in evidenceapp.CreateEvidenceInput
-	if s.evidenceCreationCommands != nil {
-		s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
-			var err error
-			in, err = decodeEvidenceCreation(body)
-			if err != nil {
-				return err
-			}
-			return mapEvidenceCreationCommandError(s.evidenceCreationCommands.AuthorizeEvidenceCreation(ctx, a, in))
-		}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
-			v, err := s.evidenceCreationCommands.CreateEvidence(ctx, a, in)
-			return http.StatusCreated, domain.EvidenceFromContextModel(v), mapEvidenceCreationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, _ []byte) (int, any, error) {
-		refs := make([]domain.SubjectRef, 0, len(in.SubjectRefs))
-		for _, ref := range in.SubjectRefs {
-			refs = append(refs, domain.SubjectRef{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})
-		}
-		v, err := s.localEvidenceCreation.CreateEvidence(ctx, a, app.CreateEvidenceInput{ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, BuildID: in.BuildID, DeploymentID: in.DeploymentID, Type: in.Type, Subtype: in.Subtype, Title: in.Title, SourceSystem: in.SourceSystem, SourceIdentity: in.SourceIdentity, CollectorID: in.CollectorID, ObservedAt: in.ObservedAt, PayloadRef: in.PayloadRef, PayloadHash: in.PayloadHash, PayloadMediaType: in.PayloadMediaType, PayloadSize: in.PayloadSize, SubjectRefs: refs, Metadata: in.Metadata, Tags: in.Tags, Limitations: in.Limitations})
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
+	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error
 		in, err = decodeEvidenceCreation(body)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return body, s.localEvidenceCreation.AuthorizeEvidenceCreation(r.Context(), a, in)
+		return mapEvidenceCreationCommandError(s.evidenceCreationCommands.AuthorizeEvidenceCreation(ctx, a, in))
+	}, func(ctx context.Context, a domain.Actor, _ []byte) (int, any, error) {
+		v, err := s.evidenceCreationCommands.CreateEvidence(ctx, a, in)
+		return http.StatusCreated, domain.EvidenceFromContextModel(v), mapEvidenceCreationCommandError(err)
 	})
 }
 

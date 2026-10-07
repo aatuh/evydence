@@ -99,8 +99,6 @@ type Server struct {
 	durableCommandExecutor            DurableCommandExecutor
 	evidenceCreationCommands          EvidenceCreationCommands
 	evidenceRelationshipCommands      EvidenceRelationshipCommands
-	localEvidenceCreation             localEvidenceCreationCommands
-	localEvidenceRelationships        localEvidenceRelationshipCommands
 	localReportTemplates              localReportTemplateCommands
 	localBundleImport                 localBundleImportCommand
 	localEvidenceBundles              localEvidenceBundleCommands
