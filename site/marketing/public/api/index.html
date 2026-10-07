@@ -1690,13 +1690,13 @@
               <div><dt>Responses</dt><dd>200 application/json: OpenAPIDocument; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/organizations create organization creates a tenant-scoped organization record for human identity grouping. postgresql uses focused identity commands with current tenant-wide human authority and atomic audit/replay; slugs are trimmed and case-sensitive. createorganization evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/organizations create organization creates a tenant-scoped organization record for human identity grouping. focused identity commands check current tenant-wide human authority and use atomic audit/replay; slugs are trimmed and case-sensitive. postgresql is required for local evaluation. createorganization evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/organizations</code>
             </div>
             <h3>Create organization</h3>
-            <p>Creates a tenant-scoped organization record for human identity grouping. PostgreSQL uses focused Identity commands with current tenant-wide human authority and atomic audit/replay; slugs are trimmed and case-sensitive.</p>
+            <p>Creates a tenant-scoped organization record for human identity grouping. Focused Identity commands check current tenant-wide human authority and use atomic audit/replay; slugs are trimmed and case-sensitive. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createOrganization</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2608,13 +2608,13 @@
               <div><dt>Responses</dt><dd>200 application/json: RoleBindingListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/role-bindings create role binding creates a tenant-scoped role binding for a user or collector subject. postgresql uses focused identity commands with current tenant-wide human admin authority and bounded current subject/resource ownership checks before writes and replay. binding, audit and safe replay completion commit atomically. empty/omitted resource type with an empty id, or tenant with an empty/current tenant id, remains tenant-wide; supported scoped resources require a nonempty owned id. a package&#x27;s optional release must match its product. reusing a completed key/body returns the original public binding; a new key intentionally permits another assignment with identical grant coordinates. no credential hashes, target metadata or evidence manifests are loaded. createrolebinding evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/role-bindings create role binding creates a tenant-scoped role binding for a user or collector subject. focused identity commands check current tenant-wide human admin authority and bounded current subject/resource ownership before writes and replay. binding, audit and safe replay completion commit atomically. empty/omitted resource type with an empty id, or tenant with an empty/current tenant id, remains tenant-wide; supported scoped resources require a nonempty owned id. a package&#x27;s optional release must match its product. reusing a completed key/body returns the original public binding; a new key intentionally permits another assignment with identical grant coordinates. no credential hashes, target metadata or evidence manifests are loaded. postgresql is required for local evaluation. createrolebinding evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/role-bindings</code>
             </div>
             <h3>Create role binding</h3>
-            <p>Creates a tenant-scoped role binding for a user or collector subject. PostgreSQL uses focused Identity commands with current tenant-wide human admin authority and bounded current subject/resource ownership checks before writes and replay. Binding, audit and safe replay completion commit atomically. Empty/omitted resource type with an empty ID, or tenant with an empty/current tenant ID, remains tenant-wide; supported scoped resources require a nonempty owned ID. A package&#x27;s optional release must match its product. Reusing a completed key/body returns the original public binding; a new key intentionally permits another assignment with identical grant coordinates. No credential hashes, target metadata or evidence manifests are loaded.</p>
+            <p>Creates a tenant-scoped role binding for a user or collector subject. Focused Identity commands check current tenant-wide human admin authority and bounded current subject/resource ownership before writes and replay. Binding, audit and safe replay completion commit atomically. Empty/omitted resource type with an empty ID, or tenant with an empty/current tenant ID, remains tenant-wide; supported scoped resources require a nonempty owned ID. A package&#x27;s optional release must match its product. Reusing a completed key/body returns the original public binding; a new key intentionally permits another assignment with identical grant coordinates. No credential hashes, target metadata or evidence manifests are loaded. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createRoleBinding</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3084,13 +3084,13 @@
               <div><dt>Responses</dt><dd>201 application/json: TransparencyCheckpointEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/users create user creates a tenant-scoped human user metadata record. authentication is still controlled by api keys or configured sso/session flows. postgresql uses focused identity commands with current tenant-wide human authority and current optional organization ownership. email is trimmed/lowercased and must be a plain mailbox address; this does not verify ownership. the fixed public user dto, including required email, survives authorized durable replay without broadening log or customer-package redaction. createuser evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/users create user creates a tenant-scoped human user metadata record. authentication is still controlled by api keys or configured sso/session flows. focused identity commands check current tenant-wide human authority and current optional organization ownership. email is trimmed/lowercased and must be a plain mailbox address; this does not verify ownership. the fixed public user dto, including required email, survives authorized durable replay without broadening log or customer-package redaction. postgresql is required for local evaluation. createuser evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/users</code>
             </div>
             <h3>Create user</h3>
-            <p>Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows. PostgreSQL uses focused Identity commands with current tenant-wide human authority and current optional organization ownership. Email is trimmed/lowercased and must be a plain mailbox address; this does not verify ownership. The fixed public user DTO, including required email, survives authorized durable replay without broadening log or customer-package redaction.</p>
+            <p>Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows. Focused Identity commands check current tenant-wide human authority and current optional organization ownership. Email is trimmed/lowercased and must be a plain mailbox address; this does not verify ownership. The fixed public user DTO, including required email, survives authorized durable replay without broadening log or customer-package redaction. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createUser</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3101,13 +3101,13 @@
               <div><dt>Responses</dt><dd>201 application/json: HumanUserEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/users/{id}/deactivate deactivate user deactivates a tenant-scoped human user as an audited lifecycle transition. postgresql uses a bounded current-user projection with tenant-wide human authority and current organization ownership; status, audit and replay commit atomically. committed deactivation invalidates current-user session authentication. a completed matching request replays the public dto without another transition; a new transition of an inactive user conflicts. deactivateuser evydence identity:admin">
+          <article class="operation" data-operation data-search="post /v1/users/{id}/deactivate deactivate user deactivates a tenant-scoped human user as an audited lifecycle transition. a focused command uses a bounded current-user projection with tenant-wide human authority and current organization ownership; status, audit and replay commit atomically. committed deactivation invalidates current-user session authentication. a completed matching request replays the public dto without another transition; a new transition of an inactive user conflicts. postgresql is required for local evaluation. deactivateuser evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/users/{id}/deactivate</code>
             </div>
             <h3>Deactivate user</h3>
-            <p>Deactivates a tenant-scoped human user as an audited lifecycle transition. PostgreSQL uses a bounded current-user projection with tenant-wide human authority and current organization ownership; status, audit and replay commit atomically. Committed deactivation invalidates current-user session authentication. A completed matching request replays the public DTO without another transition; a new transition of an inactive user conflicts.</p>
+            <p>Deactivates a tenant-scoped human user as an audited lifecycle transition. A focused command uses a bounded current-user projection with tenant-wide human authority and current organization ownership; status, audit and replay commit atomically. Committed deactivation invalidates current-user session authentication. A completed matching request replays the public DTO without another transition; a new transition of an inactive user conflicts. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>deactivateUser</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

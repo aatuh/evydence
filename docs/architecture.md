@@ -1283,14 +1283,20 @@ Worker/audit fencing precedes tenant and parent locks. Assignment, audit and saf
 replay completion share one transaction; current tenant-wide human authority and
 parents are checked before replay. Live HTTP tests cover real session grants,
 direct foreign rows, foreign/mismatched parents, repeated assignment, restart
-replay and write/audit/replay/deferred-commit rollback. See
+replay and write/audit/replay/deferred-commit rollback. All four membership/role
+handlers now require focused commands, with no optional aggregate branch; the
+broad transport interface no longer exposes these methods. Test-only fixtures
+run native preflight against focused memory Identity readers and keep real
+isolated historical writes. They check tenant/parent ownership, cancellation,
+detached public lifecycle metadata, complete response replay and post-write
+rollback. Memory transactions use optimistic conflicts, not PostgreSQL locks;
+no provider or session credential inventory is read by the new guards. See
 [role binding writes](api.md#role-binding-writes) for compatibility and bounds.
-Other identity commands and startup Ledger retirement
-remain EVY-905 work. Production API-key inventory pages read public metadata from tenant-
-filtered PostgreSQL rows without selecting credential hashes. Role-binding
-inventory also pages current tenant rows in PostgreSQL instead of reading
-the startup Ledger snapshot. Local memory retains the Ledger-backed
-inventories. API and worker runtime commands,
+Other identity handler and aggregate deletion remains EVY-906 work; PostgreSQL
+is required for local evaluation. API-key inventory pages read public metadata
+from tenant-filtered PostgreSQL rows without selecting credential hashes.
+Role-binding inventory also pages current tenant rows through a focused query,
+with no aggregate inventory fallback. API and worker runtime commands,
 including reconciliation and parser replay, now share a composition root for
 profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.

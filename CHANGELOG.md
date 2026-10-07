@@ -68,6 +68,16 @@ removed; existing native credential validation, authorization, atomic replay
 and one-time-secret contracts are unchanged. Other identity writes, sessions
 and aggregate retirement remain unfinished.
 
+Organization creation, user creation/deactivation and role assignment now
+require focused Identity commands. Four handler fallbacks and four broad
+transport-interface methods are removed. Native validation, current authority,
+atomic replay, session invalidation and public DTO contracts are unchanged.
+Test-only adapters use actual focused preflight against transaction-owned
+memory references and preserve real isolated writes, with complete rollback,
+replay, tenant/parent, privacy and cancellation regressions. Affected references
+now require PostgreSQL for evaluation. Other identity/session and aggregate
+retirement remains unfinished under EVY-906.
+
 Deployment environment/event creation, list and event point handlers now use
 only focused Operations ports. Their broad local transport dependency and
 interface are deleted. Native authorization, cookie-origin protection,

@@ -66,72 +66,19 @@ func (s *Server) replayTerminalOutboxJob(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
-	if s.membershipCommands != nil {
-		s.createDurableOrganization(w, r)
-		return
-	}
-	var req struct {
-		Name string `json:"name"`
-		Slug string `json:"slug"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		org, err := s.identityAccess.CreateOrganization(ctx, actor, app.CreateOrganizationInput{Name: req.Name, Slug: req.Slug})
-		return http.StatusCreated, org, err
-	})
+	s.createDurableOrganization(w, r)
 }
 
 func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
-	if s.membershipCommands != nil {
-		s.createDurableUser(w, r)
-		return
-	}
-	var req struct {
-		OrganizationID string `json:"organization_id"`
-		Email          string `json:"email"`
-		DisplayName    string `json:"display_name"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		user, err := s.identityAccess.CreateUser(ctx, actor, app.CreateUserInput{OrganizationID: req.OrganizationID, Email: req.Email, DisplayName: req.DisplayName})
-		return http.StatusCreated, user, err
-	})
+	s.createDurableUser(w, r)
 }
 
 func (s *Server) deactivateUser(w http.ResponseWriter, r *http.Request) {
-	if s.membershipCommands != nil {
-		s.deactivateDurableUser(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		user, err := s.identityAccess.DeactivateUser(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, user, err
-	})
+	s.deactivateDurableUser(w, r)
 }
 
 func (s *Server) createRoleBinding(w http.ResponseWriter, r *http.Request) {
-	if s.roleBindingCommands != nil {
-		s.createDurableRoleBinding(w, r)
-		return
-	}
-	var req struct {
-		SubjectType  string `json:"subject_type"`
-		SubjectID    string `json:"subject_id"`
-		Role         string `json:"role"`
-		ResourceType string `json:"resource_type"`
-		ResourceID   string `json:"resource_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		binding, err := s.identityAccess.CreateRoleBinding(ctx, actor, app.CreateRoleBindingInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, Role: req.Role, ResourceType: req.ResourceType, ResourceID: req.ResourceID})
-		return http.StatusCreated, binding, err
-	})
+	s.createDurableRoleBinding(w, r)
 }
 
 func (s *Server) listRoleBindings(w http.ResponseWriter, r *http.Request) {

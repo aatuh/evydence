@@ -40,6 +40,12 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.identityAccess != ledger {
 		t.Fatal("identity access service was not rebound")
 	}
+	if commands, ok := server.membershipCommands.(membershipFixtureCommands); !ok || commands.ledger != ledger {
+		t.Fatal("focused membership fixture was not rebound")
+	}
+	if commands, ok := server.roleBindingCommands.(membershipFixtureCommands); !ok || commands.ledger != ledger {
+		t.Fatal("focused role-binding fixture was not rebound")
+	}
 	if query, ok := server.readinessQuery.(readinessFixture); !ok || query.ledger != ledger {
 		t.Fatal("focused readiness fixture was not rebound")
 	}

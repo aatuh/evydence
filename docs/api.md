@@ -858,8 +858,9 @@ unchanged; public readiness retains low-detail `503` and `Retry-After` metadata.
 
 #### Organization And User Writes
 
-In the PostgreSQL profile, organization creation, user creation, and user
-deactivation use focused Identity commands, not Ledger state. All three require
+Organization creation, user creation, and user deactivation require focused
+Identity commands, with no aggregate handler fallback. PostgreSQL is required
+for local evaluation. All three require
 `identity:admin` (or admin); human sessions additionally need a current
 tenant-wide grant. Authorization and current optional organization/user parents
 are checked before durable reservation and replay. A foreign parent returns
@@ -884,12 +885,15 @@ rollback leaves them active. Authorized user replay retains the required email
 only in the fixed, versioned public DTO within the existing 24-hour idempotency
 expiry window; expiry does not itself prove physical deletion. Unknown fields,
 credential material, generic log redaction,
-and customer-package redaction do not acquire that exception. Local-memory mode
-retains its explicit compatibility binding and shares input normalization.
+and customer-package redaction do not acquire that exception. Historical
+test-only fixtures run actual focused preflight against transaction-owned
+references and retain isolated writes; they are not a runtime backend or SQL
+locking/durability proof.
 
 #### Role Binding Writes
 
-`POST /v1/role-bindings` uses focused Identity commands in PostgreSQL mode.
+`POST /v1/role-bindings` requires focused Identity commands, with no aggregate
+handler fallback. PostgreSQL is required for local evaluation.
 It requires `identity:admin` (or admin) and a current tenant-wide grant for
 human sessions; a product-only grant cannot delegate roles. Current subject and
 resource ownership is checked before durable reservation and completed replay.
@@ -912,8 +916,10 @@ text, type/role values at most 128 bytes, and IDs at most 1024 bytes. The same
 strict HTTP decoding and 64 KiB body limit as membership writes apply. New
 timestamps use UTC microseconds. Repeating a completed key and body returns
 the original public binding without more effects; a different key intentionally
-creates another assignment even when its grant coordinates match. Local memory
-retains its compatibility binding and shares input normalization. See the
+creates another assignment even when its grant coordinates match. Test-only
+guards read current transaction-owned subject and parent identities without
+private metadata; in-memory optimistic transactions do not prove SQL locks.
+See the
 [unreleased compatibility note](reference/api-versioning.md#unreleased-role-binding-write-boundary).
 
 Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. When an OIDC `access_token` is supplied, the same endpoint can call either the provider's discovered UserInfo endpoint or a configured operator-controlled provider validation gateway, verify the returned subject, and record any configured group-claim mapping checks without storing the access token. The provider validation gateway receives only non-secret request metadata and an `access_token_present` flag, not the supplied token. `POST /v1/sso/session-exchanges` uses local token/assertion verification and a verified identity link to issue a one-time SSO bearer secret and an HttpOnly cookie for browser clients. OIDC group claim values can map to session-scoped roles through the provider `groups_claim` and `role_mapping`; no permanent role binding is created from token claims. External group synchronization into permanent role bindings is not implemented in this slice.
