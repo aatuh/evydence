@@ -2408,7 +2408,7 @@ func (r memoryRiskRepository) InsertSecurityScan(ctx context.Context, scan domai
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
 		}
-		if cloned.ID == "" || !validSecurityScanCategory(cloned.Category) || cloned.Format == "" || cloned.Scanner == "" || cloned.TargetRef == "" || cloned.EvidenceID == "" || !validDigest(cloned.PayloadHash) || cloned.FindingCount < 0 || cloned.Summary == nil || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
+		if cloned.ID == "" || !validSecurityScanCategory(cloned.Category) || cloned.Format == "" || cloned.Scanner == "" || cloned.TargetRef == "" || cloned.EvidenceID == "" || !validDigest(cloned.PayloadHash) || cloned.FindingCount < 0 || cloned.Summary == nil && cloned.FindingCount != 0 || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
 			return ErrValidation
 		}
 		if !memoryResourceBelongsToTenant(cloned.ProductID, cloned.TenantID, state.Products) || !memoryResourceBelongsToTenant(cloned.ArtifactID, cloned.TenantID, state.Artifacts) || !memoryResourceBelongsToTenant(cloned.EvidenceID, cloned.TenantID, state.Evidence) {
