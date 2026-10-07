@@ -49,6 +49,11 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if f, ok := server.answerLibraryQuery.(answerLibraryFixtureQuery); !ok || f.ledger != ledger {
 		t.Fatal("focused answer library query fixture was not rebound")
 	}
+	for name, dependency := range map[string]any{"evidence-summary": server.evidenceSummaryCommands, "questionnaire-draft": server.questionnaireDraftCommands} {
+		if f, ok := dependency.(summaryDraftFixtureCommands); !ok || f.ledger != ledger {
+			t.Fatal("focused summary/draft fixture was not rebound", name)
+		}
+	}
 	for name, dependency := range map[string]any{
 		"pdf": server.pdfReportCommands, "anomaly": server.anomalyReportCommands,
 		"signing-operation": server.signingOperationCommands,
@@ -426,7 +431,7 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	}
 }
 
-func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
+func TestAggregateIdempotencyCommandWrappersAreRetired(t *testing.T) {
 	t.Parallel()
 
 	targets := map[string]string{
@@ -440,7 +445,6 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 			t.Fatalf("parse %s: %v", filename, err)
 		}
 		foundFunction := false
-		bindCalls := 0
 		for _, declaration := range file.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
 			if !ok || function.Name.Name != functionName || function.Body == nil {
@@ -455,9 +459,6 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 						return true
 					}
 					receiver, receiverOK := selector.X.(*ast.Ident)
-					if receiverOK && receiver.Name == "scope" && selector.Sel.Name == "bind" && len(value.Args) == 1 {
-						bindCalls++
-					}
 					if receiverOK && receiver.Name == "commandServer" && selector.Sel.Name == "bindLegacyLedgerFixture" {
 						t.Errorf("%s reaches the Ledger compatibility binder", functionName)
 					}
@@ -484,27 +485,23 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 				return true
 			})
 		}
-		if functionName == "createStreamedEvidence" {
-			if foundFunction {
-				t.Error("retired aggregate streamed command wrapper remains")
-			}
-			continue
-		}
-		if !foundFunction {
-			t.Errorf("%s was not found in %s", functionName, filename)
-		} else if bindCalls != 1 {
-			t.Errorf("%s opaque scope bind calls = %d, want 1", functionName, bindCalls)
+		if foundFunction {
+			t.Errorf("retired aggregate command wrapper %s remains in %s", functionName, filename)
 		}
 	}
 }
 
-func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
+func TestCreateWrappersDelegateToTheFocusedFingerprintExecutor(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ filename, function, target, fingerprint string }{
-		{"router.go", "create", "createWithLimit", ""},
-		{"router.go", "createWithLimit", "createWithFingerprint", "nil"},
-		{"router.go", "createWithFingerprint", "createWithActorFingerprint", "actorFingerprint"},
-		{"router.go", "createWithActorFingerprint", "createWithActorFingerprintAndResponseGuard", "fingerprint"},
+	for _, tc := range []struct {
+		filename, function, target, fingerprint string
+		args, fingerprintIndex                  int
+	}{
+		{"durable_commands.go", "createDurable", "createDurableAfterCommit", "nil", 5, 4},
+		{"durable_commands.go", "createDurableAfterCommit", "createDurableWithFingerprint", "nil", 6, 5},
+		{"durable_commands.go", "createDurableWithLimit", "createDurableWithLimitAndFingerprint", "nil", 7, 6},
+		{"durable_commands.go", "createDurableWithFingerprint", "createDurableWithLimitAndFingerprint", "fingerprint", 7, 6},
+		{"durable_commands.go", "createDurableWithLimitAndFingerprint", "executeDurableCreate", "fingerprint", 8, 6},
 	} {
 		file, err := parser.ParseFile(token.NewFileSet(), tc.filename, nil, 0)
 		if err != nil {
@@ -519,7 +516,7 @@ func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
 			found = true
 			ast.Inspect(fn.Body, func(node ast.Node) bool {
 				selector, ok := node.(*ast.SelectorExpr)
-				if ok && (selector.Sel.Name == "WithBody" || selector.Sel.Name == "ledger" || selector.Sel.Name == "bindLegacyLedgerFixture") {
+				if ok && (selector.Sel.Name == "WithBody" || selector.Sel.Name == "ledger" || selector.Sel.Name == "idempotency" || selector.Sel.Name == "bindLegacyLedgerFixture") {
 					t.Errorf("%s bypasses the opaque executor", tc.function)
 				}
 				call, ok := node.(*ast.CallExpr)
@@ -536,20 +533,17 @@ func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
 				}
 				calls++
 				if tc.fingerprint != "" {
-					wantArgs := 5
-					if tc.target == "createWithActorFingerprintAndResponseGuard" {
-						wantArgs = 6
-					}
+					wantArgs := tc.args
 					if len(call.Args) != wantArgs {
 						t.Errorf("%s executor argument count changed", tc.function)
 						return true
 					}
-					arg, ok := call.Args[4].(*ast.Ident)
+					arg, ok := call.Args[tc.fingerprintIndex].(*ast.Ident)
 					if !ok || arg.Name != tc.fingerprint {
 						t.Errorf("%s fingerprint selection changed", tc.function)
 					}
-					if wantArgs == 6 {
-						if last, ok := call.Args[5].(*ast.Ident); !ok || last.Name != "nil" {
+					if wantArgs == 8 {
+						if last, ok := call.Args[7].(*ast.Ident); !ok || last.Name != "nil" {
 							t.Errorf("%s unexpectedly enabled response authorization", tc.function)
 						}
 					}
@@ -650,6 +644,7 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"portalPackage", "portalArchive",
 		"createQuestionnaireTemplate", "createQuestionnairePackage",
 		"createQuestionnaireAnswerLibraryEntry", "listQuestionnaireAnswerLibrary",
+		"createEvidenceSummary", "createQuestionnaireDraft",
 		"generateDurableAnomalyReport",
 		"createDurableSaaSProfile",
 		"createDurableMarketplaceCollector",

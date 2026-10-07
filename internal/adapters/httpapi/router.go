@@ -33,8 +33,6 @@ import (
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
 
-type requestContext = context.Context
-
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
@@ -2078,63 +2076,6 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 		page.Items = append(page.Items, apiKeyFromQuery(key))
 	}
 	writePage(s, w, r, actor, "api-keys", request, page)
-}
-
-func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error)) {
-	s.createWithLimit(w, r, app.SmallJSONRequestLimit, run)
-}
-
-func (s *Server) createWithLimit(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error)) {
-	s.createWithFingerprint(w, r, limit, run, nil)
-}
-
-func (s *Server) createWithFingerprint(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error), fingerprint func(*http.Request, []byte) ([]byte, error)) {
-	var actorFingerprint func(*http.Request, domain.Actor, []byte) ([]byte, error)
-	if fingerprint != nil {
-		actorFingerprint = func(r *http.Request, _ domain.Actor, body []byte) ([]byte, error) { return fingerprint(r, body) }
-	}
-	s.createWithActorFingerprint(w, r, limit, run, actorFingerprint)
-}
-
-func (s *Server) createWithActorFingerprint(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error), fingerprint func(*http.Request, domain.Actor, []byte) ([]byte, error)) {
-	s.createWithActorFingerprintAndResponseGuard(w, r, limit, run, fingerprint, nil)
-}
-
-func (s *Server) createWithActorFingerprintAndResponseGuard(w http.ResponseWriter, r *http.Request, limit int64, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error), fingerprint func(*http.Request, domain.Actor, []byte) ([]byte, error), guardResponse func(context.Context, domain.Actor, any) error) {
-	actor, ok := s.authenticate(w, r)
-	if !ok {
-		return
-	}
-	ctx := r.Context()
-	body, err := readBodyLimit(r, limit)
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	input := body
-	if fingerprint != nil {
-		input, err = fingerprint(r, actor, body)
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-	}
-	status, response, err := s.idempotency.WithBody(ctx, actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), input, func(commandCtx context.Context, scope commandScope) (int, any, error) {
-		commandServer := *s
-		scope.bind(&commandServer)
-		return run(&commandServer, commandCtx, actor, body)
-	})
-	if err == nil && guardResponse != nil {
-		err = guardResponse(ctx, actor, response)
-	}
-	if err != nil {
-		writeProblem(w, r, err)
-		return
-	}
-	if r.Header.Get("Idempotency-Key") != "" {
-		w.Header().Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
-	}
-	writeData(w, status, response)
 }
 
 func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {

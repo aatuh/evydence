@@ -3,7 +3,6 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -13,18 +12,7 @@ func (s *Server) createEvidenceSummary(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.evidenceSummaryCommands != nil {
-		s.createDurableEvidenceSummary(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeEvidenceSummaryRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		summary, err := s.ledger.CreateEvidenceSummary(ctx, actor, app.CreateEvidenceSummaryInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, EvidenceIDs: req.EvidenceIDs})
-		return http.StatusCreated, summary, err
-	})
+	s.createDurableEvidenceSummary(w, r)
 }
 
 func (s *Server) createQuestionnaireDraft(w http.ResponseWriter, r *http.Request) {
@@ -32,20 +20,7 @@ func (s *Server) createQuestionnaireDraft(w http.ResponseWriter, r *http.Request
 		writeProblem(w, r, err)
 		return
 	}
-	if s.questionnaireDraftCommands != nil {
-		s.createDurableQuestionnaireDraft(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeQuestionnaireDraftRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		draft, err := s.ledger.CreateQuestionnaireDraft(ctx, actor, app.CreateQuestionnaireDraftInput{TemplateID: req.TemplateID, ProductID: req.ProductID, ReleaseID: req.ReleaseID})
-		return http.StatusCreated, draft, err
-	}, func(_ *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		return questionnaireDraftReplayFingerprint(a, body)
-	})
+	s.createDurableQuestionnaireDraft(w, r)
 }
 
 func (s *Server) createGraphSnapshot(w http.ResponseWriter, r *http.Request) {

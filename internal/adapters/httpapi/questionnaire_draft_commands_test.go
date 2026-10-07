@@ -23,7 +23,7 @@ type draftHTTPFake struct {
 }
 
 func TestDraftHTTPLocalReplayCannotRetainPrivateAnswersAfterDowngrade(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	product := postRaw(t, base, secret, "/v1/products", "product", []byte(`{"name":"Product","slug":"product"}`), 201)
 	tpl := postRaw(t, base, secret, "/v1/questionnaire-templates", "template", []byte(`{"name":"Template","version":"1","questions":[{"id":"q","prompt":"Review?"}]}`), 201)
 	postRaw(t, base, secret, "/v1/questionnaire-answer-library", "answer", []byte(`{"question_id":"q","answer":"private-global-answer"}`), 201)

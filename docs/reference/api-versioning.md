@@ -872,6 +872,10 @@ response fields, schema version, citation ordering, assumption/limitation text,
 and stored product/project/release selection semantics are preserved. Evidence
 and build roots are not exact-single-record/build filters, and customer-package
 roots still select current scope rather than a frozen/redacted manifest.
+The handler requires focused command/replay ports, without an aggregate
+fallback. PostgreSQL is required for local evaluation. Test-only adapters
+retain actual guard policy over current memory coordinates, isolated writes
+and complete detached mappings; these are not SQL/durability evidence.
 
 Both HTTP profiles now reject null/malformed/non-object JSON, duplicate/unknown
 fields, invalid UTF-8/NUL identifiers, and blank/duplicate-after-trimming IDs.
@@ -897,6 +901,10 @@ Bounded selector/scope reads replace Ledger maps and full template documents;
 draft, caller-attributed audit and successful replay completion are atomic.
 Existing response fields, response hash/omitempty semantics, question ordering,
 answer specificity/recency/ID ranking, and fallback text remain compatible.
+The handler requires focused command/replay ports, without an aggregate
+fallback. PostgreSQL is required for local evaluation. Test-only adapters
+retain actual guard policy, isolated writes, detached responses and the
+permission fingerprint. Physical aggregate deletion remains EVY-906 work.
 
 Both HTTP profiles reject null/duplicate/unknown fields, invalid UTF-8/NUL IDs
 and raw IDs above 1024 bytes, and require same-host HTTPS Origin protection for

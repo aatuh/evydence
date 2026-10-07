@@ -1818,8 +1818,12 @@ The focused writer rechecks ordered template identities, citations, output
 bounds and the versioned response hash; draft, audit and replay commit together.
 HTTP replay fingerprints also bind the original credential scopes and human
 resource grants, preventing permission downgrades from returning an old private
-answer even when the draft root remains accessible. Local-memory keeps its
-storage facade and shares selection rules through explicit pure helpers.
+answer even when the draft root remains accessible. The handler requires
+focused ports only; PostgreSQL is required for local evaluation. Test-only
+guards read bounded template/root coordinates from memory transactions and
+run the actual focused policy; private selector/candidate/answer/citation
+reads, report writes, audits, clocks and IDs fail loudly during preflight.
+Historical writes remain isolated and returned response metadata is detached.
 See [questionnaire draft creation](api.md#questionnaire-draft-creation) for
 limits and compatibility.
 
@@ -1893,9 +1897,17 @@ worker/audit fence precedes root row locks. Resolved authorization coordinates
 are separate from stored selection filters, preserving evidence/build/package
 root behavior without loading payloads or manifests. See
 [evidence summary creation](api.md#evidence-summary-creation) for limits and
-the customer-package/redaction distinction. Explicit local-memory mode keeps
-its compatibility report path; production startup still constructs Ledger
-while the remaining EVY-905 workflows are migrated.
+the customer-package/redaction distinction. The handler requires focused ports
+only. Test-only guards use current bounded memory root/parent projections and
+actual focused policy, without citation reads or report generation. Raw
+selection filters are not narrowed by inferred authorization parents.
+PostgreSQL is required for local evaluation. Both summary/draft regressions
+cover whole-state rollback, complete DTO/citation/hash/audit bindings, current
+grants, foreign roots, permission-bound replay and detached metadata; memory
+checks are not SQL bounds, locking or durability proof. No HTTP handler calls
+Ledger directly, and the unused aggregate create-helper chain/context alias
+is deleted. The remaining Server field, compatibility interfaces and aggregate
+implementation still require physical retirement in EVY-906.
 
 ## Provider And Deployment Boundaries
 

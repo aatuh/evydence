@@ -1922,9 +1922,12 @@ summary each have a 4 MiB budget. Summary, caller-attributed audit entry, and
 successful replay commit atomically; failures return no summary body.
 
 Cookie-authenticated creates require a single same-host HTTPS `Origin`, while
-explicit bearer credentials retain precedence. Local-memory mode keeps its
-Ledger-backed report generation with the same request decoder and existing
-item/output limits. Response names, deterministic citation order, schema
+explicit bearer credentials retain precedence. The handler requires focused
+ports, without an aggregate fallback; PostgreSQL is required for local
+evaluation. Test-only adapters use the actual read-only guard on bounded
+memory root coordinates, followed by isolated historical report writes.
+They do not prove SQL bounds, locking or durability. Response names,
+deterministic citation order, schema
 version, assumptions, and limitations are unchanged. Summaries organize
 recorded technical evidence; they do not establish legal compliance,
 certification, or release security.
@@ -3261,8 +3264,10 @@ or the ordinary authorization error when it does not. Use a new key for a new
 draft under changed permissions. Permission ordering alone does not change the
 fingerprint. Older body-only draft replay keys conflict rather than exposing
 answers created under unrecorded authority; historical drafts are not rewritten.
-Local-memory storage retains its compatibility command with scoped answer and
-citation checks and the same HTTP replay binding. Drafts require human review;
+The handler requires focused ports, without an aggregate fallback; PostgreSQL
+is required for local evaluation. Test-only adapters retain actual read-only
+guard policy, isolated historical writes and the same permission fingerprint.
+They do not prove SQL locking or durability. Drafts require human review;
 they are not redacted customer packages or compliance conclusions.
 
 ### Integrity, Verification, And Operations

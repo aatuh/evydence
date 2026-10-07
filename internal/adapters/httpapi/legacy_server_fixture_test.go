@@ -85,6 +85,7 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.bindProviderVerificationFixturePort(ledger)
 	s.bindPortalFixturePorts(ledger)
 	s.bindQuestionnaireFixturePorts(ledger)
+	s.bindSummaryDraftFixturePorts(ledger)
 }
 
 type legacyFixtureCommandScope struct {
