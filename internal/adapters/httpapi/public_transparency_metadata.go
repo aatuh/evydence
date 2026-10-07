@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	e "github.com/aatuh/evydence/internal/experimental/app"
 	d "github.com/aatuh/evydence/internal/experimental/domain"
@@ -48,12 +47,6 @@ func decodePublicTransparencyPublication(body []byte) (e.PublicTransparencyPubli
 	}
 	in, err := e.NormalizePublicTransparencyPublicationInput(e.PublicTransparencyPublicationInput{LogID: v.LogID, CheckpointID: v.CheckpointID, ExternalID: v.ExternalID})
 	return in, mapAnomalyReportError(err)
-}
-func legacyPublicTransparencyLogInput(v e.PublicTransparencyLogInput) app.CreatePublicTransparencyLogInput {
-	return app.CreatePublicTransparencyLogInput{Name: v.Name, Endpoint: v.Endpoint, PublicKey: v.PublicKey}
-}
-func legacyPublicTransparencyPublicationInput(v e.PublicTransparencyPublicationInput) app.PublishPublicTransparencyLogEntryInput {
-	return app.PublishPublicTransparencyLogEntryInput{LogID: v.LogID, CheckpointID: v.CheckpointID, ExternalID: v.ExternalID}
 }
 func (s *Server) createDurablePublicTransparencyLog(w http.ResponseWriter, r *http.Request) {
 	var in e.PublicTransparencyLogInput

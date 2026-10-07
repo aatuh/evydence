@@ -795,20 +795,20 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Transparency checkpoint creation request.", "#/components/schemas/CreateTransparencyCheckpointRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created transparency checkpoint envelope.", "#/components/schemas/TransparencyCheckpointEnvelope")
 	case "createPublicTransparencyLog":
-		operation.Description = "Creates tenant metadata for an optional public transparency log trust root."
+		operation.Description = "Records tenant-owned public transparency log configuration through focused Experimental commands without an aggregate fallback. Current tenant-wide human keys:admin authority precedes every replay. Metadata, audit and replay commit together in PostgreSQL, which is required for local evaluation. The supplied public key is metadata, not a validated trust root; no outbound request or external publication occurs."
 		operation.RequestBody = jsonRequest("Public transparency log creation request.", "#/components/schemas/CreatePublicTransparencyLogRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created public transparency log envelope.", "#/components/schemas/PublicTransparencyLogEnvelope")
 	case "publishPublicTransparencyLogEntry":
-		operation.Description = "Records publication metadata for a checkpoint submitted to a configured public transparency log."
+		operation.Description = "Records declared publication metadata through focused Experimental commands without an aggregate fallback. Current tenant-wide human keys:admin authority and owned log, checkpoint and Merkle batch precede every replay. Metadata, canonical entry-hash audit and replay commit atomically in PostgreSQL, which is required for local evaluation. No provider request, external publication or inclusion assurance is performed."
 		operation.RequestBody = jsonRequest("Public transparency log entry publication request.", "#/components/schemas/PublishPublicTransparencyLogEntryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
 	case "verifyPublicTransparencyLogEntry":
-		operation.Description = "Verifies operator-supplied RFC6962-style public transparency inclusion proof material for a published entry."
+		operation.Description = "Assesses operator-supplied RFC6962-style inclusion proof material through focused commands without an aggregate fallback. Current tenant-wide human keys:admin authority and owned entry/root chain precede every replay. Passing or failing local assessment, proof-bound audit and replay commit atomically in PostgreSQL, which is required for local evaluation. Local root recomputation does not authenticate the supplied root or establish public-log trust."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Public transparency log entry id."))
 		operation.RequestBody = jsonRequest("Public transparency log inclusion proof verification request.", "#/components/schemas/VerifyPublicTransparencyLogEntryRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Verified public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
 	case "fetchPublicTransparencyLogEntryProof":
-		operation.Description = "Fetches public transparency inclusion proof material from the configured log endpoint or transparency proof gateway and verifies it locally. Endpoint trust and provider semantics remain deployment responsibilities."
+		operation.Description = "Fetches inclusion proof material through focused commands without an aggregate fallback and assesses it locally. Current tenant-wide human keys:admin authority and owned entry/root chain precede fetching and every saved replay; replay does not refetch. PostgreSQL holds bounded entry/endpoint locks through provider call, assessment, audit and replay commit and is required for local evaluation. Unusable provider results return safe 422 responses; well-formed nonmatching proofs remain not verified. Remote observation cannot be rolled back. Endpoint trust and provider semantics remain deployment responsibilities."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Public transparency log entry id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Fetched and verified public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")

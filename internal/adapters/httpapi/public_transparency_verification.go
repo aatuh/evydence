@@ -46,9 +46,6 @@ func decodePublicTransparencyProof(body []byte, id string) (e.PublicTransparency
 	in, err := e.NormalizePublicTransparencyProofInput(id, e.PublicTransparencyProofInput{LeafHash: v.LeafHash, RootHash: v.RootHash, LeafIndex: v.LeafIndex, TreeSize: v.TreeSize, InclusionProof: v.InclusionProof})
 	return in, mapAnomalyReportError(err)
 }
-func legacyPublicTransparencyProofInput(v e.PublicTransparencyProofInput) app.VerifyPublicTransparencyLogEntryInput {
-	return app.VerifyPublicTransparencyLogEntryInput{LeafHash: v.LeafHash, RootHash: v.RootHash, LeafIndex: v.LeafIndex, TreeSize: v.TreeSize, InclusionProof: v.InclusionProof}
-}
 func (s *Server) verifyDurablePublicTransparencyLogEntry(w http.ResponseWriter, r *http.Request) {
 	var in e.PublicTransparencyProofInput
 	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {

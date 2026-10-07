@@ -34,6 +34,15 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 		t.Fatal("authenticator was not rebound")
 	}
 	for name, dependency := range map[string]any{
+		"transparency-metadata": server.publicTransparencyMetadata,
+		"transparency-proof":    server.publicTransparencyProofs, "transparency-fetch": server.publicTransparencyFetch,
+	} {
+		commands, ok := dependency.(transparencyFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture was not rebound", name)
+		}
+	}
+	for name, dependency := range map[string]any{
 		"graph": server.graphSnapshotCommands, "saas-profile": server.saasProfileCommands,
 		"marketplace-collector": server.marketplaceCollectorCommands,
 	} {
@@ -616,6 +625,8 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"createDurablePublicTransparencyLog", "publishDurablePublicTransparencyLogEntry",
 		"verifyDurablePublicTransparencyLogEntry",
 		"fetchDurablePublicTransparencyLogEntryProof",
+		"createPublicTransparencyLog", "publishPublicTransparencyLogEntry",
+		"verifyPublicTransparencyLogEntry", "fetchPublicTransparencyLogEntryProof",
 		"createDurableQuestionnairePackage",
 		"createDurablePortalAccess", "revokeDurablePortalAccess",
 		"createDurableQuestionnaireTemplate",

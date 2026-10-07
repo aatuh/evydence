@@ -69,27 +69,7 @@ func (s *Server) createPublicTransparencyLog(w http.ResponseWriter, r *http.Requ
 		writeProblem(w, r, err)
 		return
 	}
-	if s.publicTransparencyMetadata != nil {
-		s.createDurablePublicTransparencyLog(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodePublicTransparencyLog(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		log, err := s.ledger.CreatePublicTransparencyLog(ctx, actor, legacyPublicTransparencyLogInput(req))
-		return http.StatusCreated, log, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodePublicTransparencyLog(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeCreatePublicTransparencyLog(r.Context(), a, legacyPublicTransparencyLogInput(in)); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurablePublicTransparencyLog(w, r)
 }
 
 func (s *Server) publishPublicTransparencyLogEntry(w http.ResponseWriter, r *http.Request) {
@@ -97,27 +77,7 @@ func (s *Server) publishPublicTransparencyLogEntry(w http.ResponseWriter, r *htt
 		writeProblem(w, r, err)
 		return
 	}
-	if s.publicTransparencyMetadata != nil {
-		s.publishDurablePublicTransparencyLogEntry(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodePublicTransparencyPublication(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		entry, err := s.ledger.PublishPublicTransparencyLogEntry(ctx, actor, legacyPublicTransparencyPublicationInput(req))
-		return http.StatusCreated, entry, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodePublicTransparencyPublication(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizePublishPublicTransparencyLogEntry(r.Context(), a, legacyPublicTransparencyPublicationInput(in)); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.publishDurablePublicTransparencyLogEntry(w, r)
 }
 
 func (s *Server) verifyPublicTransparencyLogEntry(w http.ResponseWriter, r *http.Request) {
@@ -125,27 +85,7 @@ func (s *Server) verifyPublicTransparencyLogEntry(w http.ResponseWriter, r *http
 		writeProblem(w, r, err)
 		return
 	}
-	if s.publicTransparencyProofs != nil {
-		s.verifyDurablePublicTransparencyLogEntry(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		in, err := decodePublicTransparencyProof(body, r.PathValue("id"))
-		if err != nil {
-			return 0, nil, err
-		}
-		v, err := s.ledger.VerifyPublicTransparencyLogEntry(ctx, actor, r.PathValue("id"), legacyPublicTransparencyProofInput(in))
-		return http.StatusOK, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodePublicTransparencyProof(body, r.PathValue("id"))
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeVerifyPublicTransparencyLogEntry(r.Context(), a, r.PathValue("id"), legacyPublicTransparencyProofInput(in)); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.verifyDurablePublicTransparencyLogEntry(w, r)
 }
 
 func (s *Server) fetchPublicTransparencyLogEntryProof(w http.ResponseWriter, r *http.Request) {
@@ -153,25 +93,7 @@ func (s *Server) fetchPublicTransparencyLogEntryProof(w http.ResponseWriter, r *
 		writeProblem(w, r, err)
 		return
 	}
-	if s.publicTransparencyFetch != nil {
-		s.fetchDurablePublicTransparencyLogEntryProof(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodePublicTransparencyFetch(body, r.PathValue("id")); err != nil {
-			return 0, nil, err
-		}
-		entry, err := s.ledger.FetchAndVerifyPublicTransparencyLogEntry(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, entry, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if err := decodePublicTransparencyFetch(body, r.PathValue("id")); err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeFetchPublicTransparencyLogEntryProof(r.Context(), a, r.PathValue("id")); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.fetchDurablePublicTransparencyLogEntryProof(w, r)
 }
 
 func (s *Server) createMarketplaceCollector(w http.ResponseWriter, r *http.Request) {

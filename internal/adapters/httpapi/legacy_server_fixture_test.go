@@ -80,6 +80,7 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.bindSSOProviderFixturePorts(ledger)
 	s.bindSSOSessionFixturePorts(ledger)
 	s.bindPeripheralFixturePorts(ledger)
+	s.bindTransparencyFixturePorts(ledger)
 }
 
 type legacyFixtureCommandScope struct {

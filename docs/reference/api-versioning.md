@@ -650,13 +650,15 @@ published states, schema versions, audit bindings, and response casing and
 omission. Neither operation performs external publication or inclusion
 verification. Log public-key metadata is not validated cryptographically.
 
-Both profiles require current tenant-wide human key administration and
+The API requires current tenant-wide human key administration and
 reference ownership before replay, strict exact non-null JSON fields, raw
 UTF-8/NUL-free byte bounds, and Origin for cookie mutations. Previously
 accepted oversized/ambiguous text, malformed HTTPS URLs, credential-bearing
 URLs and fragments now return `400`; product-scoped human grants return `403`.
 Publication rejects malformed or oversized persisted Merkle roots. Durable
-timestamps use UTC microseconds. Historical records are not rewritten.
+timestamps use UTC microseconds. Both HTTP handlers use focused commands only;
+PostgreSQL is required for local evaluation. Test-only memory adapters retain
+actual preflight and isolated replay writes. Historical records are not rewritten.
 
 See [public transparency metadata](../api.md#public-transparency-metadata)
 for exact bounds and non-claims. These tightened boundaries require release
@@ -672,7 +674,7 @@ for well-formed passing/failing local assessments. It does not authenticate a
 supplied log root. Same-state compare-and-swap now includes previous proof
 hash/time and publication coordinates; assessment, audit and replay are atomic.
 
-Both profiles reject duplicate/unknown/case-aliased fields, null values/items,
+The API rejects duplicate/unknown/case-aliased fields, null values/items,
 omitted required fields, malformed digests, and text exceeding the documented
 raw byte bounds with `400`. Product-scoped human authority returns `403`;
 missing/foreign/broken current root chains return `404`, including on replay.
@@ -682,8 +684,9 @@ timestamps use UTC microseconds. Historical records are not rewritten.
 
 See [proof verification](../api.md#public-transparency-proof-verification).
 These input/authorization restrictions require release compatibility review;
-this note is not an approved exception. Production startup Ledger retirement
-remains EVY-905 work.
+this note is not an approved exception. The handler uses focused commands only;
+PostgreSQL is required for local evaluation. Test-only memory adapters retain
+actual guards and detached assessments. Remaining aggregate deletion is EVY-906.
 
 ## Unreleased Public Transparency Fetch Boundary
 
@@ -695,7 +698,7 @@ Replays recheck current authority/root ownership and do not contact a provider.
 The source is frozen and compared again after fetching, including endpoint
 and prior assessment. Assessment, audit and replay commit together.
 
-Both profiles accept absent/whitespace bodies and exact empty JSON objects,
+The API accepts absent/whitespace bodies and exact empty JSON objects,
 but no ignored input fields, null/scalar/array values, duplicates or trailing
 JSON. The 64 KiB body limit and bounded IDs/endpoints are enforced before
 fetching. Human product-only authority returns `403`; missing/foreign/broken
@@ -709,8 +712,10 @@ rolled back, so a failed-commit retry may contact the provider again.
 
 See [proof fetching](../api.md#public-transparency-proof-fetching). These
 restrictions require release compatibility review; this note is not an approved
-exception or evidence of authenticated public-log trust. Production startup
-Ledger retirement remains EVY-905 work.
+exception or evidence of authenticated public-log trust. The handler uses focused
+commands only; PostgreSQL is required for local evaluation. Test-only memory
+adapters retain real current guards and fake provider calls, not SQL guarantees
+or external provider evidence. Remaining aggregate deletion is EVY-906 work.
 
 ## Unreleased Marketplace Collector Boundary
 

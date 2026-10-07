@@ -1702,8 +1702,10 @@ worker/audit fence is acquired before root share locks and retained through
 the metadata/audit/replay commit. Publication reads one owned root chain; it
 does not select log endpoint/key metadata or Merkle leaf/signature arrays.
 SQL caps transfer of corrupt batch IDs and root text before core validation.
-Local memory shares pure metadata and canonical entry-hash rules. These
-commands do not publish externally or assign inclusion assurance.
+Both HTTP handlers use focused commands only. PostgreSQL is required for local
+evaluation. Test-only memory adapters retain actual guards, pure canonical
+entry-hash rules and isolated replay writes, not SQL guarantees. These commands
+do not publish externally or assign inclusion assurance.
 See [public transparency metadata](api.md#public-transparency-metadata).
 
 Operator-supplied public-log proof verification now uses focused Experimental
@@ -1711,10 +1713,10 @@ commands and one bounded tenant-owned entry/root-chain projection. It locks
 the assessment row and current roots after the actor-tenant fence, then commits
 the local result, proof-bound audit and replay together. Old diagnostic arrays,
 log endpoints/keys and Merkle leaves are not selected. Same-state updates
-compare previous proof commitments as well as publication coordinates. Local
-memory shares the pure proof/hash rules and deep-copies returned assessments.
-No authenticated public-log root or provider identity is implied. Startup Ledger
-retirement remains EVY-905 work; see
+compare previous proof commitments as well as publication coordinates. The HTTP
+handler has no aggregate fallback. Test-only memory adapters retain real guards,
+proof/hash rules and detached assessments. No authenticated public-log root or
+provider identity is implied. Remaining aggregate deletion is EVY-906 work; see
 [proof verification](api.md#public-transparency-proof-verification).
 
 Public-log proof fetching now uses focused Experimental commands, current
@@ -1724,7 +1726,9 @@ provider call and assessment/audit/replay commit. A frozen source is compared
 again before writing; provider diagnostics never become local authority.
 Replays perform current authorization but no network request. The transaction
 does not roll back remote observation, so a failed-commit retry may refetch.
-Explicit local memory shares snapshot/validation rules. See
+The HTTP handler has no aggregate fallback. Test-only memory adapters preserve
+actual guards, snapshot validation and isolated writes; fake provider calls are
+not undone by rollback and are not provider verification evidence. See
 [proof fetching](api.md#public-transparency-proof-fetching) for timeout,
 tenant-mutation latency, input and provider-trust limits.
 

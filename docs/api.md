@@ -3794,6 +3794,10 @@ safe Problem Details without publishing a success response. Historical
 records are not rewritten. See [API versioning](reference/api-versioning.md#unreleased-public-transparency-metadata-boundary)
 for compatibility-review requirements.
 
+Both handlers use focused commands only, with no aggregate fallback.
+PostgreSQL is required for local evaluation. Test-only memory adapters retain
+actual preflight guards and isolated replay writes, not SQL durability or locks.
+
 ### Public Transparency Proof Verification
 
 `POST /v1/public-transparency-log-entries/{id}/verify` accepts the required
@@ -3807,7 +3811,7 @@ digits. Blank/omitted `leaf_hash` defaults to the published entry hash. Proof
 arrays contain at most 64 nodes; empty arrays are valid input. `tree_size` is
 positive and `0 <= leaf_index < tree_size`.
 
-Both profiles require current tenant-wide human `keys:admin` authority (or an
+The API requires current tenant-wide human `keys:admin` authority (or an
 issued credential with that scope), and a current tenant-owned entry, log,
 checkpoint, and matching Merkle batch before execution or replay. Cookie
 mutations require Origin validation; bearer credentials retain precedence.
@@ -3824,8 +3828,10 @@ the existing canonical field names, omission of operator-source metadata,
 and empty-proof JSON `null` normalization. Changed raw request bytes under the
 same key return `409`; changed authority or ownership cannot reuse a saved
 success. Storage/commit failures return safe Problem Details, not a success
-assessment. Historical audit entries are not rewritten. Production startup
-Ledger retirement remains EVY-905 work.
+assessment. Historical audit entries are not rewritten. The handler uses focused
+commands only; PostgreSQL is required for local evaluation. Test-only memory
+adapters retain real current guards, proof assessment and detached response
+mapping, not SQL locking or durability. Remaining aggregate deletion is EVY-906.
 
 ### Public Transparency Proof Fetching
 
@@ -3836,7 +3842,7 @@ before fetching. The body limit is 64 KiB and IDs are capped at 1024 raw,
 NUL-free UTF-8 bytes before trimming. Raw request bytes remain the idempotency
 fingerprint, so changing an empty body to `{}` under the same key returns `409`.
 
-Both profiles enforce the same current tenant-wide authority, owned root chain,
+The API enforces the same current tenant-wide authority, owned root chain,
 and cookie-Origin policy as [operator verification](#public-transparency-proof-verification),
 before fetching or returning a saved result. PostgreSQL selects one bounded
 entry and at most 4096 raw bytes of log endpoint text, without log public keys,
@@ -3850,8 +3856,9 @@ adapter deadline. PostgreSQL holds the actor-tenant worker/audit fence and
 entry/root-chain locks during the call and through local audit/replay commit;
 this administrative operation can delay other mutations in that tenant while
 the provider responds. Current entry commitments, assessment hash/time, and
-endpoint are compared again before writing. Local memory freezes the same
-snapshot and rejects changes during fetching.
+endpoint are compared again before writing. Test-only memory adapters preserve
+the previous snapshot and reject changes during fetching; this is not a
+database locking or durability guarantee.
 
 Provider material is input to the existing local proof verifier, not an
 authenticated public-log trust assertion. Optional returned external IDs must
@@ -3862,7 +3869,8 @@ and the preserved `source: fetched` proof commitment. Invalid/unavailable
 provider material returns safe `422`; request cancellation propagates without
 publishing an assessment. A replay does not refetch. Local transaction rollback
 cannot undo remote observation/logging; a retry after a failed commit may fetch
-again. Production startup Ledger retirement remains EVY-905 work. See
+again. The handler uses focused commands only; PostgreSQL is required for local
+evaluation. Remaining aggregate deletion is EVY-906 work. See
 [API versioning](reference/api-versioning.md#unreleased-public-transparency-fetch-boundary)
 for compatibility review.
 
