@@ -53,6 +53,10 @@ also removed, together with the broad Server field and transport interface.
 Conditional replay fingerprints, cursor binding and attestation redaction are
 preserved. Remaining aggregate retirement is still in progress.
 
+API-key and role-binding metadata lists no longer fall back to broad aggregate
+inventory reads. Existing native pagination, authorization and public-metadata
+contracts are unchanged; identity writes and sessions remain retirement work.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

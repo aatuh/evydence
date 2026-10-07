@@ -67,6 +67,14 @@ the isolated command clone does not publish product or audit effects on
 rollback. This does not retire the remaining aggregate implementation or
 other contexts' legacy handler branches.
 
+API-key and role-binding metadata lists now require their focused query ports;
+the old inventory-list branches and two broad identity-interface methods are
+deleted. Native page parsing, tenant/admin checks, error mapping and public
+metadata encoding remain unchanged. Test-only readers retain real fixture
+authorization, strip credential hashes and use the shared cursor-key ordering.
+Identity write and session compatibility paths still await retirement; their
+preflight guards must not be replaced with placeholder authorization.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;

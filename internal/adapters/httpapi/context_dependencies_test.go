@@ -107,6 +107,14 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 			t.Fatalf("focused %s fixture query was not rebound", name)
 		}
 	}
+	keys, ok := server.apiKeyQuery.(apiKeyFixtureQuery)
+	if !ok || keys.ledger != ledger {
+		t.Fatal("focused API-key fixture query was not rebound")
+	}
+	bindings, ok := server.roleBindingQuery.(roleBindingFixtureQuery)
+	if !ok || bindings.ledger != ledger {
+		t.Fatal("focused role-binding fixture query was not rebound")
+	}
 }
 
 func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {

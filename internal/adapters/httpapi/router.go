@@ -3249,40 +3249,29 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.apiKeyQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "api-keys")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		result, err := s.apiKeyQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			switch {
-			case errors.Is(err, identityquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
-				err = app.ErrValidation
-			case errors.Is(err, application.ErrUnauthorized):
-				err = app.ErrUnauthorized
-			case errors.Is(err, application.ErrForbidden):
-				err = app.ErrForbidden
-			}
-			writeProblem(w, r, err)
-			return
-		}
-		page := appquery.Result[domain.APIKey]{Next: result.Next, Items: make([]domain.APIKey, 0, len(result.Items))}
-		for _, key := range result.Items {
-			page.Items = append(page.Items, apiKeyFromQuery(key))
-		}
-		writePage(s, w, r, actor, "api-keys", request, page)
-		return
-	}
-	keys, err := s.identityAccess.ListAPIKeys(r.Context(), actor)
+	request, err := s.parsePageRequest(r, actor, "api-keys")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "api-keys", nil, keys, func(key domain.APIKey) (string, time.Time) {
-		return key.ID, key.CreatedAt
-	})
+	result, err := s.apiKeyQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		switch {
+		case errors.Is(err, identityquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
+			err = app.ErrValidation
+		case errors.Is(err, application.ErrUnauthorized):
+			err = app.ErrUnauthorized
+		case errors.Is(err, application.ErrForbidden):
+			err = app.ErrForbidden
+		}
+		writeProblem(w, r, err)
+		return
+	}
+	page := appquery.Result[domain.APIKey]{Next: result.Next, Items: make([]domain.APIKey, 0, len(result.Items))}
+	for _, key := range result.Items {
+		page.Items = append(page.Items, apiKeyFromQuery(key))
+	}
+	writePage(s, w, r, actor, "api-keys", request, page)
 }
 
 func (s *Server) create(w http.ResponseWriter, r *http.Request, run func(*Server, requestContext, domain.Actor, []byte) (int, any, error)) {

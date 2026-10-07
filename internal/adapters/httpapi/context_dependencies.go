@@ -535,12 +535,10 @@ type idempotencyExecutor interface {
 // callers migrate to the context-owned application service.
 type identityAccessService interface {
 	CreateAPIKey(context.Context, domain.Actor, string, []string, *time.Time) (domain.APIKey, string, error)
-	ListAPIKeys(context.Context, domain.Actor) ([]domain.APIKey, error)
 	CreateOrganization(context.Context, domain.Actor, app.CreateOrganizationInput) (domain.Organization, error)
 	CreateUser(context.Context, domain.Actor, app.CreateUserInput) (domain.HumanUser, error)
 	DeactivateUser(context.Context, domain.Actor, string) (domain.HumanUser, error)
 	CreateRoleBinding(context.Context, domain.Actor, app.CreateRoleBindingInput) (domain.RoleBinding, error)
-	ListRoleBindings(context.Context, domain.Actor) ([]domain.RoleBinding, error)
 	CreateSSOProvider(context.Context, domain.Actor, app.CreateSSOProviderInput) (domain.SSOProvider, error)
 	UpdateSSOProviderTrustMaterial(context.Context, domain.Actor, string, app.UpdateSSOProviderTrustMaterialInput) (domain.SSOProvider, error)
 	RefreshSSOProviderOIDCTrustMaterial(context.Context, domain.Actor, string) (domain.SSOProvider, error)
