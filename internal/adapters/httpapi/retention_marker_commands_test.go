@@ -49,10 +49,10 @@ func TestRetentionMarkerHTTPNativeReplayAndGuardErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := &markerHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionMarkerCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionMarkerCommands: f}); err == nil {
 		t.Fatal("native marker accepted Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionMarkerCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionMarkerCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestRetentionMarkerHTTPStrictBodiesCookiesAndLocalReplayAuthority(t *testin
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

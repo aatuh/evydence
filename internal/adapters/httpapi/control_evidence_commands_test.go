@@ -37,7 +37,7 @@ func (f *controlEvidenceCommandFake) AuthorizeControlEvidenceLink(context.Contex
 
 func TestControlEvidenceHTTPRequiresDurableReplay(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := NewServerWithOptions(s.ledger, ServerOptions{ControlEvidenceCommands: &controlEvidenceCommandFake{}}); err == nil || v != nil {
+	if v, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{ControlEvidenceCommands: &controlEvidenceCommandFake{}}); err == nil || v != nil {
 		t.Fatal("focused control linking accepted Ledger replay")
 	}
 }
@@ -74,7 +74,7 @@ func TestControlEvidencePathBoundsRawBeforeTrim(t *testing.T) {
 func TestControlEvidenceNativeHTTPRunsWithoutLedgerAndRejectsBadBodyBeforeGuard(t *testing.T) {
 	base, secret := testServer(t)
 	f := &controlEvidenceCommandFake{value: riskdomain.ControlEvidence{ID: "link", ControlID: "control", SubjectType: "product", SubjectID: "product", EvidenceType: "sbom", Confidence: "high", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion}}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{ControlEvidenceCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ControlEvidenceCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,11 +141,11 @@ func TestControlEvidenceHTTPUsesNarrowCommandAndMapsDTOAndErrors(t *testing.T) {
 	}
 	value := riskdomain.ControlEvidence{ID: "link", TenantID: tenant.ID, ControlID: "control", EvidenceType: "sbom", SubjectType: "sbom", SubjectID: "sbom", ProductID: "product", ReleaseID: "release", Confidence: "medium", Notes: "reviewed", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion, CreatedAt: time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)}
 	commands := &controlEvidenceCommandFake{value: value}
-	base, err := NewServer(ledger)
+	base, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{ControlEvidenceCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{ControlEvidenceCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

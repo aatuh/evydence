@@ -41,10 +41,10 @@ func TestIncidentWebhookHTTPFocusedPortsPreserveProtocolAndSafeErrors(t *testing
 	base, secret := testServer(t)
 	f := &incidentWebhookHTTPFake{}
 	executor := &decisionHTTPExecutorFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{IncidentWebhookCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{IncidentWebhookCommands: f}); err == nil {
 		t.Fatal("receiver creation retained Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{IncidentWebhookCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{IncidentWebhookCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

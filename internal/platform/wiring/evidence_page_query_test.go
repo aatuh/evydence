@@ -8,9 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
-	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
@@ -24,12 +22,8 @@ func evidencePageNativeHTTP(t *testing.T, store *postgres.Store, path string, wa
 	if o.EvidencePageQuery == nil {
 		t.Fatal("native evidence pages missing")
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, o)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +31,8 @@ func evidencePageNativeHTTP(t *testing.T, store *postgres.Store, path string, wa
 	r.Header.Set("Authorization", "Bearer evysso_receipt_fixture")
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-excluded") || strings.Contains(w.Body.String(), "private-foreign") || want != 200 && strings.Contains(w.Body.String(), `"data"`) {
-		t.Fatalf("native evidence page status=%d want=%d loads=%d: %s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-excluded") || strings.Contains(w.Body.String(), "private-foreign") || want != 200 && strings.Contains(w.Body.String(), `"data"`) {
+		t.Fatalf("native evidence page status=%d want=%d canary=%t: %s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	return w.Body.String()
 }

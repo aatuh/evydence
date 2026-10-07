@@ -30,7 +30,7 @@ func TestSSOExchangeTransportRejectsAmbiguousBodiesBeforeCredentialVerification(
 		"{\"provider_id\":\"p\",\"subject\":\"s\",\"id_token\":\"\xff\"}",
 	} {
 		f := &exchangeTransportStub{}
-		s, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{SSOExchangeCommands: f})
+		s, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{SSOExchangeCommands: f})
 		if err != nil {
 			t.Fatal(err)
 		}

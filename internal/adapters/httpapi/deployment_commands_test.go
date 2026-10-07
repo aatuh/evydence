@@ -34,7 +34,7 @@ func (f *deploymentHTTPFake) RecordDeployment(_ context.Context, a identitydomai
 func TestDeploymentHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &deploymentHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{DeploymentCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{DeploymentCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

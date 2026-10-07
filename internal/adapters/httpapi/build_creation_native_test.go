@@ -17,7 +17,7 @@ func nativeBuildBody() string {
 func TestBuildCreationNativeDoesNotUseLedger(t *testing.T) {
 	base, secret := testServer(t)
 	f := &buildCreationHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestBuildCreationNativeDoesNotUseLedger(t *testing.T) {
 func TestBuildCreationRejectsMalformedInputBeforeNativeGuard(t *testing.T) {
 	base, secret := testServer(t)
 	f := &buildCreationHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestBuildCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 		f := &buildCreationHTTPFake{}
 		if native {
 			var err error
-			s, err = NewServerWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}

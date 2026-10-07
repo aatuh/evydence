@@ -26,7 +26,7 @@ func TestPDFHTTPLocalReplayRechecksCurrentGrant(t *testing.T) {
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "product", ResourceID: dataField(t, p, "id"), Scopes: []string{"report:read"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,10 +52,10 @@ func (f *pdfHTTPFake) CreatePDFReportPackage(_ context.Context, a identitydomain
 func TestPDFHTTPFocusedInputAndPrivateErrorMapping(t *testing.T) {
 	base, secret := testServer(t)
 	f := &pdfHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PDFReportCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PDFReportCommands: f}); err == nil {
 		t.Fatal("PDF commands lack durable replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PDFReportCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PDFReportCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestPDFHTTPCookieMutationRequiresOriginBothProfiles(t *testing.T) {
 			opts.PDFReportCommands = f
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := NewServerWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

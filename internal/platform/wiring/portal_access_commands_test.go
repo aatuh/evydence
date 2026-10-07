@@ -19,7 +19,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
@@ -51,12 +50,8 @@ func TestPostgresPortalHTTPLifecycleRestartReplayAndPrivateMetadata(t *testing.T
 		if err != nil || opts.PortalAccessCommands == nil || opts.PortalTokenCommands == nil {
 			t.Fatal("portal lifecycle still Ledger-backed", err)
 		}
-		noReload := &decisionHTTPNoReloadStore{}
-		l, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := httpapi.NewServerWithOptionsContext(ctx, l, opts)
+		noReload := newAggregateLoadCanary(t, ctx, store)
+		s, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -68,8 +63,8 @@ func TestPostgresPortalHTTPLifecycleRestartReplayAndPrivateMetadata(t *testing.T
 		r.Header.Set("Content-Type", kind)
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != want || noReload.loads != 1 {
-			t.Fatal("portal response/refresh differs", path, w.Code, want, noReload.loads)
+		if w.Code != want || !noReload.Intact(ctx) {
+			t.Fatal("portal response/refresh differs", path, w.Code, want, noReload.Intact(ctx))
 		}
 		if want >= 400 && !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") {
 			t.Fatal("portal failure lacks Problem Details")

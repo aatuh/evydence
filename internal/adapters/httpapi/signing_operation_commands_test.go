@@ -33,10 +33,10 @@ func (f *signingOperationHTTPCommands) CreateSigningOperation(_ context.Context,
 func TestSigningOperationHTTPFocusedStrictInputsAndPrivateFailures(t *testing.T) {
 	base, secret := testServer(t)
 	f := &signingOperationHTTPCommands{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SigningOperationCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SigningOperationCommands: f}); err == nil {
 		t.Fatal("focused signing bypassed durable replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SigningOperationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SigningOperationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func localSigningOperationHTTPFixture(t *testing.T) (*Server, string, string, *s
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := NewServer(l)
+	s, err := newLegacyServerFixture(l)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestSigningOperationHTTPLocalStrictJSONAndCurrentGrantReplay(t *testing.T) 
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestSigningOperationHTTPCookieOriginAndBearerPrecedence(t *testing.T) {
 			opts.SigningOperationCommands = &signingOperationHTTPCommands{}
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := NewServerWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -52,12 +51,8 @@ func TestPostgresVEXPreviewsUseBoundedReadOnlySnapshotsWithoutLedger(t *testing.
 		t.Fatal("VEX preview is Ledger-backed", err)
 	}
 	opts.Authenticator = auth
-	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+	noReload := newAggregateLoadCanary(t, ctx, store)
+	server, err := newNativeHTTPFixture(ctx, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,8 +76,8 @@ func TestPostgresVEXPreviewsUseBoundedReadOnlySnapshotsWithoutLedger(t *testing.
 		r.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		server.Handler().ServeHTTP(w, r)
-		if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private") {
-			t.Fatal(w.Code, w.Body.String(), noReload.loads)
+		if w.Code != want || !noReload.Intact(ctx) || strings.Contains(w.Body.String(), "private") {
+			t.Fatal(w.Code, w.Body.String(), noReload.Intact(ctx))
 		}
 		if want >= 400 {
 			return domain.VEXImportPreview{}

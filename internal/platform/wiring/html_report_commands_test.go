@@ -118,6 +118,8 @@ func openHTMLReportWiringStore(t *testing.T) (*postgres.Store, *pgxpool.Pool) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
+	nativeHTTPFixturePools.Store(store, pool)
+	t.Cleanup(func() { nativeHTTPFixturePools.Delete(store) })
 	return store, pool
 }
 

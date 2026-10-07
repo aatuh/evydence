@@ -28,10 +28,10 @@ func (f *bundleImportHTTPFake) AuthorizeBundleImport(context.Context, identitydo
 func TestBundleImportRequiresNativeReplayAndCurrentAuthority(t *testing.T) {
 	base, secret := testServer(t)
 	f := &bundleImportHTTPFake{}
-	if s, err := NewServerWithOptions(base.ledger, ServerOptions{BundleImportCommand: f}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: f}); err == nil || s != nil {
 		t.Error("import receipt accepted aggregate replay")
 	}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func (f *bundleImportHTTPFake) ImportEvidenceBundle(_ context.Context, actor ide
 func TestBundleImportHandlerUsesFocusedCommandAndReplaysReceipt(t *testing.T) {
 	base, secret := testServer(t)
 	commands := &bundleImportHTTPFake{}
-	server, err := NewServerWithOptions(base.ledger, ServerOptions{BundleImportCommand: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	server, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

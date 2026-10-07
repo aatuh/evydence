@@ -13,7 +13,7 @@ func TestReportTemplateStrictPreflightBeforeGuards(t *testing.T) {
 		t.Run(fmt.Sprintf("render=%t", render), func(t *testing.T) {
 			base, secret := testServer(t)
 			f := &reportTemplateHTTPFake{}
-			s, err := NewServerWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -49,7 +49,7 @@ func TestReportTemplateCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T)
 				s := base
 				if native {
 					var err error
-					s, err = NewServerWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}

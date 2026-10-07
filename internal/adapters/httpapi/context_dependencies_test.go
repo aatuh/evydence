@@ -15,12 +15,12 @@ func TestBindLedgerReplacesEveryContextDependency(t *testing.T) {
 
 	first := newLegacyLedgerFixture(app.Config{APIKeyPepper: "first-test-pepper"})
 	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "second-test-pepper"})
-	server, err := NewServer(first)
+	server, err := newLegacyServerFixture(first)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
 	assertServerContextDependencies(t, server, first)
-	server.bindLedger(second)
+	server.bindLegacyLedgerFixture(second)
 	assertServerContextDependencies(t, server, second)
 }
 
@@ -32,7 +32,7 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.authn != ledger {
 		t.Fatal("authenticator was not rebound")
 	}
-	executor, ok := server.idempotency.(ledgerIdempotencyExecutor)
+	executor, ok := server.idempotency.(legacyFixtureIdempotencyExecutor)
 	if !ok || executor.ledger != ledger {
 		t.Fatal("idempotency executor was not rebound")
 	}
@@ -103,7 +103,7 @@ func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {
 					if receiverOK && receiver.Name == "scope" && selector.Sel.Name == "bind" && len(value.Args) == 1 {
 						bindCalls++
 					}
-					if receiverOK && receiver.Name == "commandServer" && selector.Sel.Name == "bindLedger" {
+					if receiverOK && receiver.Name == "commandServer" && selector.Sel.Name == "bindLegacyLedgerFixture" {
 						t.Errorf("%s reaches the Ledger compatibility binder", functionName)
 					}
 				case *ast.SelectorExpr:
@@ -158,7 +158,7 @@ func TestCreateWrappersDelegateToTheOpaqueFingerprintExecutor(t *testing.T) {
 			found = true
 			ast.Inspect(fn.Body, func(node ast.Node) bool {
 				selector, ok := node.(*ast.SelectorExpr)
-				if ok && (selector.Sel.Name == "WithBody" || selector.Sel.Name == "ledger" || selector.Sel.Name == "bindLedger") {
+				if ok && (selector.Sel.Name == "WithBody" || selector.Sel.Name == "ledger" || selector.Sel.Name == "bindLegacyLedgerFixture") {
 					t.Errorf("%s bypasses the opaque executor", tc.function)
 				}
 				call, ok := node.(*ast.CallExpr)
@@ -226,7 +226,7 @@ func TestConditionalTransitionsRetireLedgerWrapperAndUseNativeFingerprintExecuto
 			}
 			found = true
 			ast.Inspect(fn.Body, func(node ast.Node) bool {
-				if selector, ok := node.(*ast.SelectorExpr); ok && (selector.Sel.Name == "ledger" || selector.Sel.Name == "bindLedger" || selector.Sel.Name == "createConditional") {
+				if selector, ok := node.(*ast.SelectorExpr); ok && (selector.Sel.Name == "ledger" || selector.Sel.Name == "bindLegacyLedgerFixture" || selector.Sel.Name == "createConditional") {
 					t.Errorf("%s reaches retired aggregate conditional path", name)
 				}
 				call, ok := node.(*ast.CallExpr)

@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
@@ -31,12 +30,8 @@ func questionnairePackageHTTP(t *testing.T, store *postgres.Store, key, body str
 	if err != nil || opts.QuestionnairePackageCommands == nil {
 		t.Fatal("production remains Ledger-backed", err)
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), ledger, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,8 +40,8 @@ func questionnairePackageHTTP(t *testing.T, store *postgres.Store, key, body str
 	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 {
-		t.Fatalf("status=%d want=%d Ledger loads=%d body=%s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) {
+		t.Fatalf("status=%d want=%d Ledger canary=%t body=%s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	for _, marker := range []string{"private-prompt-marker", "private-payload-ref", "foreign-answer-secret", "do-not-load-manifest", "private package storage"} {
 		if strings.Contains(w.Body.String(), marker) {

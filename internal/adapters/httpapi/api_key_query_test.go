@@ -41,7 +41,7 @@ func TestAPIKeyHandlerUsesFocusedQueryAndRejectsMalformedPagination(t *testing.T
 		t.Fatal(err)
 	}
 	query := &apiKeyQueryFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{APIKeyQuery: query})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{APIKeyQuery: query})
 	if err != nil {
 		t.Fatal(err)
 	}

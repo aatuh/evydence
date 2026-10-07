@@ -46,10 +46,10 @@ const portalHTTPBody = `{"package_id":" package ","customer_name":" Customer ","
 func TestPortalHTTPStrictInputFocusedProjectionAndSafeFailures(t *testing.T) {
 	base, secret := testServer(t)
 	f := &portalHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PortalAccessCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PortalAccessCommands: f}); err == nil {
 		t.Fatal("portal writes lack atomic replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PortalAccessCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PortalAccessCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestPortalHTTPCookieMutationsRequireOriginBothProfiles(t *testing.T) {
 			opts.PortalAccessCommands = f
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := NewServerWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -130,7 +130,7 @@ func (f *portalTokenHTTPFake) AccessPortalPackage(_ context.Context, _ string, _
 func TestPortalTokenHTTPRejectsAmbiguousInputBeforeConsumption(t *testing.T) {
 	base, _ := testServer(t)
 	f := &portalTokenHTTPFake{}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PortalTokenCommands: f})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PortalTokenCommands: f})
 	if err != nil {
 		t.Fatal(err)
 	}

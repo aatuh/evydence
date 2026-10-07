@@ -39,7 +39,7 @@ func (f *productHTTPFake) CreateProduct(_ context.Context, actor identitydomain.
 func TestProductHTTPMapsFocusedDTOReplayValidationAndPrivateErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &productHTTPFake{}
-	server, err := NewServerWithOptions(local.ledger, ServerOptions{ProductCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	server, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{ProductCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

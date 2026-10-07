@@ -467,39 +467,8 @@ type ServerOptions struct {
 	RoleBindingQuery RoleBindingQuery
 }
 
-// NewServer binds an explicitly constructed local compatibility Ledger. Native
-// runtimes must use NewNativeServerWithOptionsContext and focused ports.
-func NewServer(ledger *app.Ledger) (*Server, error) {
-	return NewServerWithOptionsContext(context.Background(), ledger, ServerOptions{})
-}
-
-func NewServerWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, error) {
-	return NewServerWithOptionsContext(context.Background(), ledger, opts)
-}
-
-func NewServerWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions) (*Server, error) {
-	if ctx == nil {
-		return nil, errors.New("server context is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if ledger == nil {
-		return nil, errors.New("local server requires an explicit Ledger")
-	}
-	server, err := newServerWithOptionsContext(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-	server.bindLedger(ledger)
-	if opts.Authenticator != nil {
-		server.authn = opts.Authenticator
-	}
-	return server, nil
-}
-
-// Native composition receives only focused ports. Legacy binding is owned by
-// the explicit local constructor above, never selected inside this core.
+// Native composition receives only focused ports. Legacy test fixture binding
+// is not compiled into production HTTP transport.
 func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Server, error) {
 	if ctx == nil {
 		return nil, errors.New("server context is required")
@@ -816,28 +785,6 @@ func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Serv
 		return nil, err
 	}
 	return server, nil
-}
-
-// bindLedger updates both the shrinking compatibility facade and every
-// context-specific transport dependency. Idempotent commands must bind the
-// isolated command ledger so domain changes and the replay record share the
-// same transaction and are published only after commit.
-func (s *Server) bindLedger(ledger *app.Ledger) {
-	s.ledger = ledger
-	s.authn = ledger
-	s.idempotency = ledgerIdempotencyExecutor{ledger: ledger}
-	s.identityAccess = ledger
-	s.releaseCatalog = ledger
-	s.localDeployments = ledger
-	s.localEvidenceCreation = ledger
-	s.localEvidenceRelationships = ledger
-	s.localReportTemplates = ledger
-	s.localBundleImport = ledger
-	s.localEvidenceBundles = ledger
-	s.evidenceIngestion = ledger
-	s.riskDecisions = ledger
-	s.packages = ledger
-	s.verification = ledger
 }
 
 func (s *Server) Handler() http.Handler {

@@ -9,9 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
@@ -22,12 +20,8 @@ func controlCreationNativeHTTP(t *testing.T, store *postgres.Store, path, key, b
 	if opts.ControlCommands == nil {
 		t.Fatal("missing native control composition")
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +31,8 @@ func controlCreationNativeHTTP(t *testing.T, store *postgres.Store, path, key, b
 	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-") || want != 201 && strings.Contains(w.Body.String(), `"data"`) {
-		t.Fatalf("native control status=%d want=%d loads=%d: %s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-") || want != 201 && strings.Contains(w.Body.String(), `"data"`) {
+		t.Fatalf("native control status=%d want=%d canary=%t: %s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want >= 400 && !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") {
 		t.Fatal("control lost problem contract")

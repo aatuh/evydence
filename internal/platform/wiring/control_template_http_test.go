@@ -3,7 +3,6 @@ package wiring
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http/httptest"
 	"reflect"
@@ -31,7 +30,7 @@ func TestPostgresControlTemplateHTTPUsesFocusedInstallationAndFreshReads(t *test
 	exec(`INSERT INTO tenants(id,name)VALUES('tenant','Templates'),('other','Other')`)
 	actor := domain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"controls:admin", "controls:read", "report:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: "tenant", Scopes: []string{"controls:admin", "controls:read", "report:read"}}}}
 	auth := &attestationHTTPActor{actor: actor}
-	var ledgers []*app.Ledger
+	var servers []*httpapi.Server
 	request := func(method, path, key, body string, want int) string {
 		t.Helper()
 		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
@@ -39,16 +38,12 @@ func TestPostgresControlTemplateHTTPUsesFocusedInstallationAndFreshReads(t *test
 			t.Fatal(err)
 		}
 		opts.Authenticator = auth
-		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
+		noReload := newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ledgers = append(ledgers, ledger)
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
-		if err != nil {
-			t.Fatal(err)
-		}
+		servers = append(servers, server)
 		req := httptest.NewRequest(method, path, strings.NewReader(body))
 		req.Header.Set("Authorization", "Bearer isolated-auth")
 		if key != "" {
@@ -56,7 +51,7 @@ func TestPostgresControlTemplateHTTPUsesFocusedInstallationAndFreshReads(t *test
 		}
 		rec := httptest.NewRecorder()
 		server.Handler().ServeHTTP(rec, req)
-		if rec.Code != want || noReload.loads != 1 || strings.Contains(rec.Body.String(), "private template SQL") {
+		if rec.Code != want || !noReload.Intact(ctx) || strings.Contains(rec.Body.String(), "private template SQL") {
 			t.Fatalf("%s %s got %d want %d: %s", method, path, rec.Code, want, rec.Body.String())
 		}
 		return rec.Body.String()
@@ -116,10 +111,8 @@ func TestPostgresControlTemplateHTTPUsesFocusedInstallationAndFreshReads(t *test
 		if err := json.Unmarshal([]byte(request("GET", "/v1/controls/"+id, "", "", 200)), &child); err != nil || child.Data.FrameworkID != fw.ID || child.Data.Code != template.Code || child.Data.Title != template.Title || child.Data.Objective != template.Objective || child.Data.SchemaVersion != domain.SecurityControlSchemaVersion || len(child.Data.EvidenceRequirements) != len(template.EvidenceRequirements) {
 			t.Fatal("installed control missing from durable point", child, err)
 		}
-		for _, ledger := range ledgers {
-			if _, err := ledger.GetSecurityControl(ctx, actor, id); !errors.Is(err, app.ErrNotFound) {
-				t.Fatal("template installer published authoritative controls", err)
-			}
+		for _, server := range servers {
+			assertNativeHTTPHasNoAggregate(t, server)
 		}
 	}
 	var report struct {
@@ -128,10 +121,8 @@ func TestPostgresControlTemplateHTTPUsesFocusedInstallationAndFreshReads(t *test
 	if err := json.Unmarshal([]byte(request("GET", "/v1/reports/control-coverage?framework_id="+fw.ID, "", "", 200)), &report); err != nil || report.Data.FrameworkID != fw.ID || len(report.Data.Controls) != len(pack.Controls) || report.Data.Result != "failed" {
 		t.Fatal("template not visible to downstream report", report, err)
 	}
-	for _, ledger := range ledgers {
-		if frames, err := ledger.ListControlFrameworks(ctx, actor); err != nil || len(frames) != 0 {
-			t.Fatal("template installer published authoritative frameworks", frames, err)
-		}
+	for _, server := range servers {
+		assertNativeHTTPHasNoAggregate(t, server)
 	}
 	request("POST", "/v1/control-framework-template-packs/unknown/install", "unknown", "", 404)
 	request("POST", "/v1/control-framework-template-packs/%20/install", "blank", "", 404)

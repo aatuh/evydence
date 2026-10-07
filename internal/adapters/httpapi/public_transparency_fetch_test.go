@@ -39,10 +39,10 @@ func (f *transparencyFetchHTTPFake) FetchAndVerifyPublicTransparencyLogEntry(_ c
 func TestPublicTransparencyFetchHTTPStrictBodyPrivateErrorsAndCookiePolicy(t *testing.T) {
 	base, secret, _ := marketplaceHTTPFixture(t)
 	f := &transparencyFetchHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyFetchCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyFetchCommands: f}); err == nil {
 		t.Fatal("fetch bypassed durable replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyFetchCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyFetchCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestPublicTransparencyFetchHTTPLocalReplayDoesNotRefetchOrKeepRevokedAuthor
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), l, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), l, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

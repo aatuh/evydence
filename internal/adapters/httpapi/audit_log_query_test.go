@@ -42,7 +42,7 @@ func TestAuditLogHandlerUsesFocusedQueryAndRejectsMalformedFilters(t *testing.T)
 		t.Fatal(err)
 	}
 	query := &auditLogQueryFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{AuditLogQuery: query})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{AuditLogQuery: query})
 	if err != nil {
 		t.Fatal(err)
 	}

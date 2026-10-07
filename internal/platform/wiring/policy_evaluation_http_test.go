@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -41,12 +40,8 @@ func TestPostgresPolicyEvaluationHTTPUsesFocusedDurableTransactions(t *testing.T
 			t.Fatal("policy evaluation still bound to Ledger")
 		}
 		opts.Authenticator = auth
-		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		noReload := newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,8 +51,8 @@ func TestPostgresPolicyEvaluationHTTPUsesFocusedDurableTransactions(t *testing.T
 		req.Header.Set("Idempotency-Key", key)
 		rec := httptest.NewRecorder()
 		server.Handler().ServeHTTP(rec, req)
-		if rec.Code != want || noReload.loads != 1 || strings.Contains(rec.Body.String(), "private policy evaluation SQL") {
-			t.Fatalf("policy evaluation got %d want %d loads=%d: %s", rec.Code, want, noReload.loads, rec.Body.String())
+		if rec.Code != want || !noReload.Intact(ctx) || strings.Contains(rec.Body.String(), "private policy evaluation SQL") {
+			t.Fatalf("policy evaluation got %d want %d canary=%t: %s", rec.Code, want, noReload.Intact(ctx), rec.Body.String())
 		}
 		if want >= 400 {
 			if !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/problem+json") {

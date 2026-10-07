@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -109,12 +108,8 @@ func TestPostgresGraphHTTPRestartReplayCurrentGrantsAndNoLedgerReload(t *testing
 		if err != nil || opts.GraphSnapshotCommands == nil {
 			t.Fatal("graph still Ledger-backed", err)
 		}
-		notLoaded := &decisionHTTPNoReloadStore{}
-		l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: notLoaded, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, opts)
+		notLoaded := newAggregateLoadCanary(t, t.Context(), store)
+		s, err := newNativeHTTPFixture(t.Context(), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -124,8 +119,8 @@ func TestPostgresGraphHTTPRestartReplayCurrentGrantsAndNoLedgerReload(t *testing
 		r.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != want || notLoaded.loads != 1 {
-			t.Fatal("graph response or Ledger refresh differs", w.Code, want, notLoaded.loads, w.Body.String())
+		if w.Code != want || !notLoaded.Intact(t.Context()) {
+			t.Fatal("graph response or Ledger refresh differs", w.Code, want, notLoaded.Intact(t.Context()), w.Body.String())
 		}
 		return w.Body.Bytes()
 	}

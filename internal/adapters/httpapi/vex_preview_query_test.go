@@ -52,7 +52,7 @@ func (f *vexPreviewHTTPFake) PreviewVEXImport(_ context.Context, a identitydomai
 func TestVEXPreviewHTTPUsesFocusedQueryWithoutIdempotencyAndRejectsMalformedEnvelopes(t *testing.T) {
 	base, secret := testServer(t)
 	f := &vexPreviewHTTPFake{}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{VEXPreviewQuery: f})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{VEXPreviewQuery: f})
 	if err != nil {
 		t.Fatal(err)
 	}

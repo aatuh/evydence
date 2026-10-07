@@ -62,18 +62,14 @@ func exchangeWiringCounts(t *testing.T, pool *pgxpool.Pool) [4]int {
 	}
 	return out
 }
-func newExchangeWiringServer(t *testing.T, store *postgres.Store) (*httpapi.Server, *decisionHTTPNoReloadStore) {
+func newExchangeWiringServer(t *testing.T, store *postgres.Store) (*httpapi.Server, *aggregateLoadCanary) {
 	t.Helper()
 	opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "exchange-test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
 	if err != nil || opts.SSOExchangeCommands == nil {
 		t.Fatal("exchange remains Ledger-backed", err)
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), ledger, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,8 +92,8 @@ func TestPostgresSSOExchangeHTTPAuthenticatesWithoutLedgerOrSecretReplay(t *test
 		r.Header.Set("Idempotency-Key", "not-a-secret-replay-surface")
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != 201 || noReload.loads != 1 || strings.Contains(w.Body.String(), in.IDToken) {
-			t.Fatal("exchange failed, reloaded state or leaked provider token", w.Code, noReload.loads)
+		if w.Code != 201 || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), in.IDToken) {
+			t.Fatal("exchange failed, reloaded state or leaked provider token", w.Code, noReload.Intact(t.Context()))
 		}
 		var out struct {
 			Data struct {
@@ -173,7 +169,7 @@ func TestPostgresSSOExchangeWriteAuditAndDeferredCommitFailuresReturnNoCookie(t 
 		s, noReload := newExchangeWiringServer(t, store)
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, httptest.NewRequest("POST", "/v1/sso/session-exchanges", bytes.NewReader(body)).WithContext(t.Context()))
-		if w.Code != 500 || w.Header().Get("Set-Cookie") != "" || noReload.loads != 1 || strings.Contains(w.Body.String(), "secret") || strings.Contains(w.Body.String(), in.IDToken) || strings.Contains(w.Body.String(), "private exchange storage") || exchangeWiringCounts(t, pool) != before {
+		if w.Code != 500 || w.Header().Get("Set-Cookie") != "" || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "secret") || strings.Contains(w.Body.String(), in.IDToken) || strings.Contains(w.Body.String(), "private exchange storage") || exchangeWiringCounts(t, pool) != before {
 			t.Fatal("failed exchange leaked cookie/result or effects", stage, w.Code)
 		}
 		if _, err := pool.Exec(t.Context(), teardown); err != nil {
@@ -253,7 +249,7 @@ func TestPostgresSSOExchangeDenialsPersistOnlySafeVerificationAndNoCookie(t *tes
 		s, noReload := newExchangeWiringServer(t, store)
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, httptest.NewRequest("POST", "/v1/sso/session-exchanges", bytes.NewReader(body)).WithContext(t.Context()))
-		if w.Code != want || w.Header().Get("Set-Cookie") != "" || noReload.loads != 1 || strings.Contains(w.Body.String(), in.IDToken) || exchangeWiringCounts(t, pool) != [4]int{1, 0, 1, 0} {
+		if w.Code != want || w.Header().Get("Set-Cookie") != "" || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), in.IDToken) || exchangeWiringCounts(t, pool) != [4]int{1, 0, 1, 0} {
 			t.Fatal("denied exchange issued credentials or lost safe receipt", scenario, w.Code)
 		}
 		var result string

@@ -65,12 +65,8 @@ func TestPostgresVEXIngestionUsesFocusedAtomicUploadsAndRestartReplay(t *testing
 		}
 		opts.Authenticator = auth
 		opts.VEXIngestionCommands = countedVEXIngestionCommands{opts.VEXIngestionCommands, &uploads}
-		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		noReload := newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -89,8 +85,8 @@ func TestPostgresVEXIngestionUsesFocusedAtomicUploadsAndRestartReplay(t *testing
 		}
 		w := httptest.NewRecorder()
 		server.Handler().ServeHTTP(w, r)
-		if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private VEX SQL") {
-			t.Fatalf("got %d want %d loads=%d: %s", w.Code, want, noReload.loads, w.Body.String())
+		if w.Code != want || !noReload.Intact(ctx) || strings.Contains(w.Body.String(), "private VEX SQL") {
+			t.Fatalf("got %d want %d canary=%t: %s", w.Code, want, noReload.Intact(ctx), w.Body.String())
 		}
 		if want >= 400 {
 			if !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") {

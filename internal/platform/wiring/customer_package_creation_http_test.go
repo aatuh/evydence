@@ -61,12 +61,8 @@ func customerCreationHTTP(t *testing.T, store *postgres.Store, key, body string,
 	for _, fn := range configure {
 		fn(&opts)
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), ledger, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,8 +72,8 @@ func customerCreationHTTP(t *testing.T, store *postgres.Store, key, body string,
 	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-") || want != 201 && strings.Contains(w.Body.String(), `"manifest"`) {
-		t.Fatalf("unsafe customer creation status=%d want=%d loads=%d body=%s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-") || want != 201 && strings.Contains(w.Body.String(), `"manifest"`) {
+		t.Fatalf("unsafe customer creation status=%d want=%d canary=%t body=%s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want == 201 && w.Header().Get("Idempotency-Key") != key {
 		t.Fatal("replay key missing")

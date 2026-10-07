@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -225,15 +224,8 @@ func TestPostgresEvidenceCreationHTTPUsesFocusedRootAndSafeReplay(t *testing.T) 
 			t.Fatal("missing focused evidence binding")
 		}
 		opts.Authenticator = auth
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		probe := domain.Actor{TenantID: "tenant", KeyID: "probe", Scopes: []string{"release:read"}}
-		if _, err := ledger.GetRelease(ctx, probe, "release"); !errors.Is(err, app.ErrNotFound) {
-			t.Fatal("HTTP harness must not have a cached release", err)
-		}
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		_ = newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

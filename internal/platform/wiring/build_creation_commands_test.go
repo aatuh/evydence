@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -108,16 +107,8 @@ func TestPostgresBuildCreationHTTPAndConsumersUseDurableStateWithoutLedgerBuild(
 			t.Fatal("missing focused build chain")
 		}
 		opts.Authenticator = auth
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store, ObjectStore: objects})
-		if err != nil {
-			t.Fatal(err)
-		}
-		probe := actor
-		probe.Scopes = []string{"project:read"}
-		if _, err := ledger.GetProject(ctx, probe, "project"); !errors.Is(err, app.ErrNotFound) {
-			t.Fatal("HTTP harness has cached parents", err)
-		}
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		_ = newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

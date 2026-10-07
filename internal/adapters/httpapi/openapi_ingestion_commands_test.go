@@ -54,12 +54,12 @@ func TestOpenAPIIngestionHTTPRequiresStreamedExecutorAndSafeErrors(t *testing.T)
 	base, secret := testServer(t)
 	f := &openAPIIngestionHTTPFake{}
 	for _, executor := range []DurableCommandExecutor{nil, &decisionHTTPExecutorFake{}} {
-		if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{OpenAPIIngestionCommands: f, DurableCommandExecutor: executor}); err == nil {
+		if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{OpenAPIIngestionCommands: f, DurableCommandExecutor: executor}); err == nil {
 			t.Fatal("focused ingestion fell back to Ledger streamed idempotency")
 		}
 	}
 	executor := &openAPIStreamedHTTPExecutorFake{}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{OpenAPIIngestionCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{OpenAPIIngestionCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestOpenAPIIngestionNativeHTTPBoundsHeadersAndCleansSpool(t *testing.T) {
 	base, secret := testServer(t)
 	f := &openAPIIngestionHTTPFake{}
 	executor := &openAPIStreamedHTTPExecutorFake{}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{OpenAPIIngestionCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{OpenAPIIngestionCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

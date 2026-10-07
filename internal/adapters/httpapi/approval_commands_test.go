@@ -44,11 +44,11 @@ func TestApprovalHTTPUsesNarrowPortAndPreservesDTOAndSafeErrors(t *testing.T) {
 	}
 	now := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
 	f := &approvalHTTPFake{value: riskdomain.ApprovalRecord{ID: "approval", TenantID: tenant.ID, SubjectType: "release", SubjectID: "release", Decision: "approved", Reason: "Review", ApproverID: "human", EvidenceID: "evidence", SchemaVersion: riskdomain.ApprovalRecordSchemaVersion, CreatedAt: now}}
-	if _, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{ApprovalCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{ApprovalCommands: f}); err == nil {
 		t.Fatal("approval silently used Ledger idempotency")
 	}
 	executor := &decisionHTTPExecutorFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{ApprovalCommands: f, DurableCommandExecutor: executor})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{ApprovalCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -43,10 +43,10 @@ func (f *customerCreationHTTPFake) CreateCustomerSecurityPackage(_ context.Conte
 func TestCustomerCreationHTTPFocusedPortAndStrictInput(t *testing.T) {
 	base, secret := testServer(t)
 	f := &customerCreationHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{CustomerPackageCreationCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{CustomerPackageCreationCommands: f}); err == nil {
 		t.Fatal("focused customer creation silently used Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{CustomerPackageCreationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{CustomerPackageCreationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestCustomerCreationHTTPBothProfilesCookieAndLocalReplay(t *testing.T) {
 			opts.CustomerPackageCreationCommands = f
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := NewServerWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,7 +172,7 @@ func TestCustomerCreationHTTPBothProfilesCookieAndLocalReplay(t *testing.T) {
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "product", ResourceID: product, Scopes: []string{"package:write"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

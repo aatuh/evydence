@@ -28,7 +28,7 @@ func TestCreateProductConcurrentIdempotencyRetriesOneStoredResponse(t *testing.T
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}

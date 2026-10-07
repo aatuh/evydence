@@ -14,7 +14,7 @@ import (
 func TestEvidenceBundleExportStrictPreflightAndBothProfileCookies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &exportBundleHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestEvidenceBundleExportStrictPreflightAndBothProfileCookies(t *testing.T) 
 			server := base
 			if native {
 				var err error
-				server, err = NewServerWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: &exportBundleHTTPFake{}, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				server, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceBundleCommands: &exportBundleHTTPFake{}, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -78,7 +78,7 @@ func TestEvidenceBundleLocalReplayAuthorizesOriginalSelectionUnderChangedGrants(
 		t.Fatal(err)
 	}
 	auth := &configuredAuthenticator{actor: domain.Actor{TenantID: owner.TenantID, UserID: "local-user", Scopes: []string{"bundle:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: product.ID, Scopes: []string{"bundle:read"}}}}}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

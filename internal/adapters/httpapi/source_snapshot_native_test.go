@@ -15,7 +15,7 @@ func TestSourceSnapshotNativeHandlersDoNotUseLedger(t *testing.T) {
 	for _, provider := range []string{"github", "gitlab"} {
 		base, secret := testServer(t)
 		f := &sourceSnapshotHTTPFake{}
-		s, err := NewServerWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+		s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -41,7 +41,7 @@ func TestSourceSnapshotMalformedInputStopsBeforeNativeGuard(t *testing.T) {
 			f := &sourceSnapshotHTTPFake{}
 			if native {
 				var err error
-				s, err = NewServerWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -67,7 +67,7 @@ func TestSourceSnapshotCookieOriginAndBearerPrecedence(t *testing.T) {
 			f := &sourceSnapshotHTTPFake{}
 			if native {
 				var err error
-				s, err = NewServerWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}

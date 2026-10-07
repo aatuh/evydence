@@ -39,7 +39,7 @@ func TestSourceWritesMalformedInputDoesNotReachNativeGuard(t *testing.T) {
 		base, secret := testServer(t)
 		o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
 		counts, _ := tc.configure(&o)
-		s, err := NewServerWithOptions(base.ledger, o)
+		s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,7 +83,7 @@ func TestSourceWritesRequireNativeDurableExecutor(t *testing.T) {
 		base, _ := testServer(t)
 		var o ServerOptions
 		tc.configure(&o)
-		if v, err := NewServerWithOptions(base.ledger, o); err == nil || v != nil {
+		if v, err := newLegacyServerFixtureWithOptions(base.ledger, o); err == nil || v != nil {
 			t.Fatal("source write accepted aggregate replay", tc.path)
 		}
 	}
@@ -95,7 +95,7 @@ func TestSourceWritesCheckCurrentGuardBeforeReplay(t *testing.T) {
 			base, secret := testServer(t)
 			o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
 			counts, deny := tc.configure(&o)
-			s, err := NewServerWithOptions(base.ledger, o)
+			s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,7 +116,7 @@ func TestSourceWritesNativeHandlersDoNotUseLedger(t *testing.T) {
 			base, secret := testServer(t)
 			o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
 			counts, deny := tc.configure(&o)
-			s, err := NewServerWithOptions(base.ledger, o)
+			s, err := newLegacyServerFixtureWithOptions(base.ledger, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -142,7 +142,7 @@ func TestSourceWritesCookieOriginAndBearerPrecedence(t *testing.T) {
 				o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
 				tc.configure(&o)
 				var err error
-				s, err = NewServerWithOptions(base.ledger, o)
+				s, err = newLegacyServerFixtureWithOptions(base.ledger, o)
 				if err != nil {
 					t.Fatal(err)
 				}

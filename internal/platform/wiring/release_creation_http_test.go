@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -37,14 +35,8 @@ func TestPostgresReleaseCreationHTTPAndConsumersDoNotRequireLedgerReleases(t *te
 			t.Fatal("focused release chain missing", err)
 		}
 		opts.Authenticator = auth
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := ledger.GetProduct(ctx, domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"product:read"}}, "product"); !errors.Is(err, app.ErrNotFound) {
-			t.Fatal("HTTP harness has cached parents", err)
-		}
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		_ = newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

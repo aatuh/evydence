@@ -26,7 +26,7 @@ func TestAnomalyHTTPLocalReplayRechecksCurrentGrant(t *testing.T) {
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "product", ResourceID: dataField(t, p, "id"), Scopes: []string{"report:read"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,10 +52,10 @@ func (f *anomalyHTTPFake) GenerateAnomalyReport(_ context.Context, a identitydom
 func TestAnomalyHTTPFocusedValidationAndPrivateFailures(t *testing.T) {
 	base, secret := testServer(t)
 	f := &anomalyHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{AnomalyReportCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{AnomalyReportCommands: f}); err == nil {
 		t.Fatal("focused anomaly bypassed durable replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{AnomalyReportCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{AnomalyReportCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestAnomalyHTTPCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
 			opts.AnomalyReportCommands = f
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := NewServerWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -23,7 +23,7 @@ type providerReceiptHTTPFake struct {
 func TestProviderReceiptHTTPCookieMutationRequiresSameHTTPSOrigin(t *testing.T) {
 	base, secret := testServer(t)
 	f := &providerReceiptHTTPFake{}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{ProviderVerificationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ProviderVerificationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,10 +70,10 @@ func (f *providerReceiptHTTPFake) VerifyProviderIdentity(_ context.Context, a id
 func TestProviderReceiptHTTPUsesFocusedPortStrictJSONAndSafeErrors(t *testing.T) {
 	base, secret := testServer(t)
 	f := &providerReceiptHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{ProviderVerificationCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ProviderVerificationCommands: f}); err == nil {
 		t.Fatal("receipt commands allowed without durable replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{ProviderVerificationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ProviderVerificationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

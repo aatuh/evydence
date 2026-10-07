@@ -34,10 +34,10 @@ func TestReportTemplatesRequireNativeReplayAndCurrentAuthority(t *testing.T) {
 		t.Run(map[bool]string{false: "create", true: "render"}[render], func(t *testing.T) {
 			base, secret := testServer(t)
 			f := &reportTemplateHTTPFake{}
-			if s, err := NewServerWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f}); err == nil || s != nil {
+			if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f}); err == nil || s != nil {
 				t.Error("report templates accepted aggregate replay")
 			}
-			s, err := NewServerWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -69,7 +69,7 @@ func (f *reportTemplateHTTPFake) RenderCustomReport(_ context.Context, actor ide
 func TestReportTemplateHandlersUseFocusedCommandsAndReplayResponses(t *testing.T) {
 	base, secret := testServer(t)
 	commands := &reportTemplateHTTPFake{}
-	server, err := NewServerWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	server, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ReportTemplateCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

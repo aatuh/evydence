@@ -33,10 +33,10 @@ func (f *roleBindingHTTPFake) CreateRoleBinding(_ context.Context, a identitydom
 func TestRoleBindingHTTPFocusedCommandMapsDTOAndRejectsAmbiguousInput(t *testing.T) {
 	base, secret := testServer(t)
 	f := &roleBindingHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{RoleBindingCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RoleBindingCommands: f}); err == nil {
 		t.Fatal("role assignments retained Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{RoleBindingCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RoleBindingCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

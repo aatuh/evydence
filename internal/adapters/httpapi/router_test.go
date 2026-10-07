@@ -22,9 +22,9 @@ import (
 
 func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
-		t.Fatalf("NewServer: %v", err)
+		t.Fatalf("newLegacyServerFixture: %v", err)
 	}
 	if err := server.ValidateRoutes(); err != nil {
 		t.Fatalf("ValidateRoutes: %v", err)
@@ -512,7 +512,7 @@ func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -557,7 +557,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if _, err := ledger.LinkSSOIdentity(t.Context(), admin, app.LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("link: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -614,7 +614,7 @@ func TestPublicTransparencyProofFetchRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -815,9 +815,9 @@ func TestRegisterArtifactRequiresMediaType(t *testing.T) {
 
 func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	server, err := NewServerWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
+	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
 	if err != nil {
-		t.Fatalf("NewServerWithOptions: %v", err)
+		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
 	handler := server.Handler()
 	for i := 0; i < 2; i++ {
@@ -989,7 +989,7 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap B: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -1017,7 +1017,7 @@ func TestInstanceAdminHTTPRequiresExplicitScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap instance: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -1055,7 +1055,7 @@ func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap instance: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -1948,7 +1948,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -2135,7 +2135,7 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 	if err != nil {
 		t.Fatalf("bootstrap instance administrator: %v", err)
 	}
-	server, err := NewServerWithOptions(ledger, ServerOptions{BuildIdentity: runtimeinfo.Identity{
+	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{BuildIdentity: runtimeinfo.Identity{
 		Version:               "v1.2.3",
 		Commit:                "0123456789abcdef",
 		BuildTime:             "2026-07-24T12:00:00Z",
@@ -2217,7 +2217,7 @@ func testServer(t *testing.T) (*Server, string) {
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}

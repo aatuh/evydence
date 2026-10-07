@@ -14,10 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -40,12 +38,8 @@ func bundleImportNativeHTTP(t *testing.T, store *postgres.Store, key, body strin
 	if o.BundleImportCommand == nil {
 		t.Fatal("native import composition is missing")
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, o)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,8 +49,8 @@ func bundleImportNativeHTTP(t *testing.T, store *postgres.Store, key, body strin
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-") || want != 201 && strings.Contains(w.Body.String(), `"data"`) {
-		t.Fatalf("native import status=%d want=%d loads=%d: %s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-") || want != 201 && strings.Contains(w.Body.String(), `"data"`) {
+		t.Fatalf("native import status=%d want=%d canary=%t: %s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want == 201 && w.Header().Get("Idempotency-Key") != key {
 		t.Fatal("import lost replay key")

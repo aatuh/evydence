@@ -15,7 +15,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
@@ -51,12 +50,8 @@ func packageArchiveHTTP(t *testing.T, store *postgres.Store, path string, want i
 	if err != nil || opts.CustomerPackageAccessCommands == nil {
 		t.Fatal("missing focused package access", err)
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), ledger, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,8 +59,8 @@ func packageArchiveHTTP(t *testing.T, store *postgres.Store, path string, want i
 	r.Header.Set("Authorization", "Bearer evysso_receipt_fixture")
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private archive storage") {
-		t.Fatalf("archive status=%d want=%d loads=%d body=%s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private archive storage") {
+		t.Fatalf("archive status=%d want=%d canary=%t body=%s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want != 200 && (w.Header().Get("Content-Disposition") != "" || w.Header().Get("X-Evydence-Archive-Hash") != "") {
 		t.Fatal("failed archive published download headers")

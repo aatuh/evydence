@@ -35,7 +35,7 @@ func TestCommercialCollectorHandlerUsesFocusedQueryAndValidatesPagination(t *tes
 		t.Fatal(err)
 	}
 	query := &commercialCollectorQueryFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{CommercialCollectorQuery: query})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{CommercialCollectorQuery: query})
 	if err != nil {
 		t.Fatal(err)
 	}

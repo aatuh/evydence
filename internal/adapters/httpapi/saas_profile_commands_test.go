@@ -36,7 +36,7 @@ func saasHTTPFixture(t *testing.T) (*Server, string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := NewServer(l)
+	s, err := newLegacyServerFixture(l)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,10 +45,10 @@ func saasHTTPFixture(t *testing.T) (*Server, string, string) {
 func TestSaaSProfileHTTPFocusedStrictInputsAndPrivateFailures(t *testing.T) {
 	base, secret, body := saasHTTPFixture(t)
 	f := &saasHTTPCommands{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SaaSProfileCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SaaSProfileCommands: f}); err == nil {
 		t.Fatal("focused profiles bypass durable replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SaaSProfileCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SaaSProfileCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestSaaSProfileHTTPLocalReplayRequiresCurrentInstanceAuthority(t *testing.T
 		t.Fatal(err)
 	}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestSaaSProfileHTTPCookieOriginAndBearerPrecedence(t *testing.T) {
 			opts.SaaSProfileCommands = &saasHTTPCommands{}
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := NewServerWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -75,7 +75,7 @@ func TestReleaseBundleHTTPBothProfilesCookiesAndLocalReplayGrant(t *testing.T) {
 			a.Scopes = []string{"bundle:write"}
 			a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: p, Scopes: a.Scopes}}
 			auth := &configuredAuthenticator{actor: a}
-			s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+			s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -129,10 +129,10 @@ func (f *releaseBundleHTTPFake) CreateReleaseBundle(_ context.Context, actor ide
 func TestReleaseBundleHandlerUsesFocusedCommandAndReplay(t *testing.T) {
 	base, secret := testServer(t)
 	commands := &releaseBundleHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{ReleaseBundleCommands: commands}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ReleaseBundleCommands: commands}); err == nil {
 		t.Fatal("native bundle accepted Ledger replay")
 	}
-	server, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{ReleaseBundleCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{ReleaseBundleCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -52,10 +52,10 @@ func TestBackupGenerationOpenAPIDeclaresMetadataCommitmentNotRestoreProof(t *tes
 func TestBackupGenerationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &backupGenerationHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{BackupGenerationCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{BackupGenerationCommands: f}); err == nil {
 		t.Fatal("focused backup accepted Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{BackupGenerationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{BackupGenerationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestBackupGenerationHTTPCookieAndLocalReplayAuthority(t *testing.T) {
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func (f *backupGenerationHTTPFake) GenerateBackupManifest(_ context.Context, a i
 func TestBackupGenerationHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &backupGenerationHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{BackupGenerationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{BackupGenerationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

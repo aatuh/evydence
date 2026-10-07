@@ -46,7 +46,7 @@ func TestNativeCompositionCoreDoesNotAcceptOrConstructLedger(t *testing.T) {
 			if ok && qualifier.Name == legacyAlias && (selector.Sel.Name == "Ledger" || selector.Sel.Name == "NewLedger" || selector.Sel.Name == "NewLedgerWithContext") {
 				t.Errorf("native composition core retains %s.%s", qualifier.Name, selector.Sel.Name)
 			}
-			if selector.Sel.Name == "bindLedger" {
+			if selector.Sel.Name == "bindLegacyLedgerFixture" {
 				t.Error("native composition core binds a legacy aggregate")
 			}
 			return true
@@ -67,7 +67,7 @@ func TestNativeCompositionCoreDoesNotAcceptOrConstructLedger(t *testing.T) {
 func TestLocalConstructorKeepsExplicitAuthenticatorAfterLegacyBinding(t *testing.T) {
 	ledger := newLegacyLedgerFixture(app.Config{})
 	authenticator := &configuredAuthenticator{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{Authenticator: authenticator})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{Authenticator: authenticator})
 	if err != nil || server.ledger != ledger || server.authn != authenticator || server.idempotency == nil {
 		t.Fatalf("local constructor lost explicit auth or compatibility binding: %v", err)
 	}
@@ -75,12 +75,12 @@ func TestLocalConstructorKeepsExplicitAuthenticatorAfterLegacyBinding(t *testing
 
 func TestLocalConstructorsRequireExplicitLedger(t *testing.T) {
 	for name, construct := range map[string]func() (*Server, error){
-		"default": func() (*Server, error) { return NewServer(nil) },
+		"default": func() (*Server, error) { return newLegacyServerFixture(nil) },
 		"options": func() (*Server, error) {
-			return NewServerWithOptions(nil, ServerOptions{})
+			return newLegacyServerFixtureWithOptions(nil, ServerOptions{})
 		},
 		"context": func() (*Server, error) {
-			return NewServerWithOptionsContext(t.Context(), nil, ServerOptions{})
+			return newLegacyServerFixtureWithOptionsContext(t.Context(), nil, ServerOptions{})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestLocalConstructorsRequireExplicitLedger(t *testing.T) {
 func TestLocalConstructorRejectsInvalidContextBeforeComposition(t *testing.T) {
 	ledger := newLegacyLedgerFixture(app.Config{})
 	var missingContext context.Context
-	if server, err := NewServerWithOptionsContext(missingContext, ledger, ServerOptions{}); server != nil || err == nil || err.Error() != "server context is required" {
+	if server, err := newLegacyServerFixtureWithOptionsContext(missingContext, ledger, ServerOptions{}); server != nil || err == nil || err.Error() != "server context is required" {
 		t.Fatalf("missing context accepted: server present=%t err=%v", server != nil, err)
 	}
 	canceled, cancel := context.WithCancel(t.Context())
@@ -112,7 +112,7 @@ func TestLocalConstructorRejectsInvalidContextBeforeComposition(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			for _, dependency := range []*app.Ledger{nil, ledger} {
-				server, err := NewServerWithOptionsContext(test.ctx, dependency, ServerOptions{})
+				server, err := newLegacyServerFixtureWithOptionsContext(test.ctx, dependency, ServerOptions{})
 				if server != nil || !errors.Is(err, test.want) {
 					t.Fatalf("inactive context did not stop composition: server present=%t err=%v", server != nil, err)
 				}
@@ -122,7 +122,7 @@ func TestLocalConstructorRejectsInvalidContextBeforeComposition(t *testing.T) {
 }
 
 func TestLocalConstructorRequiresLedgerBeforeValidatingServiceOptions(t *testing.T) {
-	server, err := NewServerWithOptionsContext(t.Context(), nil, ServerOptions{APIKeyCommands: &apiKeyHTTPFake{}})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), nil, ServerOptions{APIKeyCommands: &apiKeyHTTPFake{}})
 	if server != nil || err == nil || err.Error() != "local server requires an explicit Ledger" {
 		t.Fatalf("missing Ledger reached option composition: server present=%t err=%v", server != nil, err)
 	}
@@ -220,6 +220,71 @@ func TestHTTPTransportCannotConstructLedger(t *testing.T) {
 				t.Errorf("%s constructs a Ledger inside HTTP transport", name)
 			}
 			return true
+		})
+	}
+}
+
+func TestHTTPProductionCannotBindAggregateServices(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		alias := ""
+		for _, spec := range file.Imports {
+			path, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if path == "github.com/aatuh/evydence/internal/app" {
+				alias = "app"
+				if spec.Name != nil {
+					alias = spec.Name.Name
+				}
+			}
+		}
+		for _, declaration := range file.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			// Aggregate-accepting factories, binders, and replay callbacks
+			// must not be part of the production composition surface.
+			ast.Inspect(function.Type, func(node ast.Node) bool {
+				selector, ok := node.(*ast.SelectorExpr)
+				if ok && selector.Sel.Name == "Ledger" {
+					if owner, ok := selector.X.(*ast.Ident); ok && owner.Name == alias {
+						t.Errorf("%s: %s accepts or returns the aggregate", name, function.Name.Name)
+					}
+				}
+				return true
+			})
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			spec, ok := node.(*ast.TypeSpec)
+			if !ok || spec.Name.Name == "Server" {
+				// The remaining Server field and legacy handlers are
+				// separate deletion work, not an approved binding path.
+				return true
+			}
+			ast.Inspect(spec.Type, func(node ast.Node) bool {
+				selector, ok := node.(*ast.SelectorExpr)
+				if ok && selector.Sel.Name == "Ledger" {
+					if owner, ok := selector.X.(*ast.Ident); ok && owner.Name == alias {
+						t.Errorf("%s: %s retains an aggregate replay/binding adapter", name, spec.Name.Name)
+					}
+				}
+				return true
+			})
+			return false
 		})
 	}
 }

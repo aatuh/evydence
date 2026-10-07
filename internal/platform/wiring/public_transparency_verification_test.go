@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
 	e "github.com/aatuh/evydence/internal/experimental/app"
@@ -149,12 +148,8 @@ func TestPostgresPublicTransparencyVerificationHTTPRestartAndCurrentReplayAuthor
 		if err != nil || opts.PublicTransparencyProofCommands == nil {
 			t.Fatal("verification remains Ledger-backed", err)
 		}
-		noReload := &decisionHTTPNoReloadStore{}
-		l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, opts)
+		noReload := newAggregateLoadCanary(t, t.Context(), store)
+		s, err := newNativeHTTPFixture(t.Context(), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,8 +159,8 @@ func TestPostgresPublicTransparencyVerificationHTTPRestartAndCurrentReplayAuthor
 		r.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "evysso_receipt_fixture") {
-			t.Fatal("legacy/private proof response", want, w.Code, noReload.loads, w.Body.String())
+		if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "evysso_receipt_fixture") {
+			t.Fatal("legacy/private proof response", want, w.Code, noReload.Intact(t.Context()), w.Body.String())
 		}
 		return w.Body.Bytes()
 	}

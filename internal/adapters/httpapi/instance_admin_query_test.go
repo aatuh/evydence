@@ -39,7 +39,7 @@ func TestInstanceAdminHandlerUsesFocusedCountsAndPreservesExplicitScope(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{InstanceAdminQuery: query})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{InstanceAdminQuery: query})
 	if err != nil {
 		t.Fatal(err)
 	}

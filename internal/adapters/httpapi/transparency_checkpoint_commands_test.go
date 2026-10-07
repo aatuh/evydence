@@ -33,10 +33,10 @@ func (f *recordedCheckpointHTTPFake) CreateTransparencyCheckpoint(_ context.Cont
 func TestRecordedCheckpointHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &recordedCheckpointHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{TransparencyCheckpointCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{TransparencyCheckpointCommands: f}); err == nil {
 		t.Fatal("focused checkpoint accepted Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{TransparencyCheckpointCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{TransparencyCheckpointCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestRecordedCheckpointHTTPLocalReplayRechecksCurrentTenantGrant(t *testing.
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestRecordedCheckpointHTTPLocalReplayRechecksCurrentTenantGrant(t *testing.
 func TestRecordedTransparencyCheckpointHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &recordedCheckpointHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{TransparencyCheckpointCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{TransparencyCheckpointCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

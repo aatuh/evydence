@@ -50,10 +50,10 @@ func (f *transparencyMetadataHTTPFake) PublishPublicTransparencyLogEntry(_ conte
 func TestPublicTransparencyMetadataHTTPFocusedContractsAndPrivateFailures(t *testing.T) {
 	base, secret, _ := marketplaceHTTPFixture(t)
 	f := &transparencyMetadataHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: f}); err == nil {
 		t.Fatal("metadata bypasses durable replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestPublicTransparencyMetadataHTTPLocalReplayRequiresCurrentTenantGrant(t *
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestPublicTransparencyMetadataHTTPCookieOriginAndBearerPrecedence(t *testin
 		if strings.HasSuffix(path, "entries") {
 			body = `{"log_id":"log","checkpoint_id":"checkpoint","external_id":"external"}`
 		}
-		s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: &transparencyMetadataHTTPFake{}, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{PublicTransparencyMetadataCommands: &transparencyMetadataHTTPFake{}, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 		if err != nil {
 			t.Fatal(err)
 		}

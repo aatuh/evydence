@@ -12,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
@@ -94,12 +93,8 @@ func providerReceiptHTTP(t *testing.T, store *postgres.Store, live app.ProviderI
 	if err != nil || opts.ProviderVerificationCommands == nil {
 		t.Fatal("provider receipts remain Ledger-backed", err)
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), ledger, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,8 +104,8 @@ func providerReceiptHTTP(t *testing.T, store *postgres.Store, live app.ProviderI
 	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "access-token-secret") || strings.Contains(w.Body.String(), "evysso_receipt_fixture") {
-		t.Fatalf("unsafe/legacy provider receipt: status=%d want=%d loads=%d body=%s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "access-token-secret") || strings.Contains(w.Body.String(), "evysso_receipt_fixture") {
+		t.Fatalf("unsafe/legacy provider receipt: status=%d want=%d canary=%t body=%s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want >= 400 && !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") {
 		t.Fatal("missing problem contract")

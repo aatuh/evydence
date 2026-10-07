@@ -228,7 +228,7 @@ func TestNativeServerInstallsNoAggregateOrLocalFallbackAndPreservesRoutes(t *tes
 	if s.authn != options.Authenticator || s.durableCommandExecutor != options.DurableCommandExecutor {
 		t.Fatal("native explicit dependencies not bound")
 	}
-	local, err := NewServerWithOptionsContext(t.Context(), newLegacyLedgerFixture(app.Config{}), ServerOptions{PaginationSecret: options.PaginationSecret})
+	local, err := newLegacyServerFixtureWithOptionsContext(t.Context(), newLegacyLedgerFixture(app.Config{}), ServerOptions{PaginationSecret: options.PaginationSecret})
 	if err != nil {
 		t.Fatal(err)
 	}

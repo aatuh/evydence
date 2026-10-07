@@ -39,12 +39,12 @@ func TestSBOMIngestionHTTPUsesFocusedCommandsAndSafeErrors(t *testing.T) {
 	base, secret := testServer(t)
 	f := &sbomIngestionHTTPFake{}
 	for _, executor := range []DurableCommandExecutor{nil, &decisionHTTPExecutorFake{}} {
-		if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SBOMIngestionCommands: f, DurableCommandExecutor: executor}); err == nil {
+		if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SBOMIngestionCommands: f, DurableCommandExecutor: executor}); err == nil {
 			t.Fatal("SBOM ingestion retained Ledger idempotency")
 		}
 	}
 	executor := &openAPIStreamedHTTPExecutorFake{}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SBOMIngestionCommands: f, DurableCommandExecutor: executor})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SBOMIngestionCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestSBOMIngestionNativeHTTPBoundsAndCleansSpool(t *testing.T) {
 			base, secret := testServer(t)
 			f := &sbomIngestionHTTPFake{}
 			executor := &openAPIStreamedHTTPExecutorFake{}
-			s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SBOMIngestionCommands: f, DurableCommandExecutor: executor})
+			s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SBOMIngestionCommands: f, DurableCommandExecutor: executor})
 			if err != nil {
 				t.Fatal(err)
 			}

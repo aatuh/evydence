@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
@@ -134,12 +133,8 @@ func TestPostgresPDFHTTPRestartReplayCurrentGrantAndNoLedgerReload(t *testing.T)
 		if err != nil || opts.PDFReportCommands == nil {
 			t.Fatal("durable PDF still Ledger-backed", err)
 		}
-		notLoaded := &decisionHTTPNoReloadStore{}
-		l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: notLoaded, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, opts)
+		notLoaded := newAggregateLoadCanary(t, t.Context(), store)
+		s, err := newNativeHTTPFixture(t.Context(), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,8 +144,8 @@ func TestPostgresPDFHTTPRestartReplayCurrentGrantAndNoLedgerReload(t *testing.T)
 		r.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != want || notLoaded.loads != 1 {
-			t.Fatal("PDF response or Ledger refresh differs", w.Code, want, notLoaded.loads, w.Body.String())
+		if w.Code != want || !notLoaded.Intact(t.Context()) {
+			t.Fatal("PDF response or Ledger refresh differs", w.Code, want, notLoaded.Intact(t.Context()), w.Body.String())
 		}
 		return w.Body.Bytes()
 	}

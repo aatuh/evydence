@@ -12,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/verification/sigstore"
@@ -70,12 +69,8 @@ func cosignHTTP(t *testing.T, store *postgres.Store, objects *countedDSSEReader,
 	if err != nil || opts.CosignVerification == nil || opts.DurableCommandExecutor == nil {
 		t.Fatal("native Cosign composition missing", err)
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,8 +80,8 @@ func cosignHTTP(t *testing.T, store *postgres.Store, objects *countedDSSEReader,
 	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-") || want != 200 && strings.Contains(w.Body.String(), `"data"`) {
-		t.Fatalf("unsafe/legacy Cosign route status=%d want=%d loads=%d body=%s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-") || want != 200 && strings.Contains(w.Body.String(), `"data"`) {
+		t.Fatalf("unsafe/legacy Cosign route status=%d want=%d canary=%t body=%s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want == 200 && w.Header().Get("Idempotency-Key") != key {
 		t.Fatal("missing replay key")

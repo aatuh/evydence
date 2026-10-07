@@ -106,10 +106,10 @@ func TestRetentionHandlersRejectMalformedBodiesBeforeCommandsInBothProfiles(t *t
 func TestRetentionHTTPNativeReplayRequiredAndLegacyDependenciesUnused(t *testing.T) {
 	base, secret := testServer(t)
 	f := &retentionHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionCommands: f}); err == nil {
 		t.Fatal("retention accepted Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{RetentionCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestRetentionHTTPBothProfilesCookieGuardAndLocalReplayAuthority(t *testing.
 			opts.RetentionCommands = f
 			opts.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
 		}
-		s, err := NewServerWithOptionsContext(t.Context(), base.ledger, opts)
+		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -233,7 +233,7 @@ func TestRetentionHTTPBothProfilesCookieGuardAndLocalReplayAuthority(t *testing.
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"admin", "verify:read"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

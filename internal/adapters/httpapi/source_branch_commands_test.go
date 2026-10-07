@@ -35,7 +35,7 @@ func (f *sourceBranchHTTPFake) UpsertSourceBranch(_ context.Context, a identityd
 func TestSourceBranchHTTPUsesFocusedCommandAndPreservesReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &sourceBranchHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceBranchCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{SourceBranchCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

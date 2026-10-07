@@ -13,7 +13,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -89,12 +88,8 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 		if err != nil || opts.SSOIdentityLinkCommands == nil {
 			t.Fatal("identity linking remains Ledger-backed", err)
 		}
-		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		noReload := newAggregateLoadCanary(t, ctx, store)
+		s, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -104,8 +99,8 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 		r.Header.Set("Idempotency-Key", key)
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), secret) || len(w.Body.Bytes()) > 32768 {
-			t.Fatal("identity link response/bounded persistence changed", w.Code, want, noReload.loads, w.Body.String())
+		if w.Code != want || !noReload.Intact(ctx) || strings.Contains(w.Body.String(), secret) || len(w.Body.Bytes()) > 32768 {
+			t.Fatal("identity link response/bounded persistence changed", w.Code, want, noReload.Intact(ctx), w.Body.String())
 		}
 		if want >= 400 {
 			if !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") {

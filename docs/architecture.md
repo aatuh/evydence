@@ -36,14 +36,24 @@ point no longer constructs Ledger or `app.Config` in any branch. PostgreSQL is
 required for local evaluation as well as deployment. Request middleware, route
 registration and response contracts are unchanged.
 
-HTTP transport no longer constructs a Ledger implicitly. Its local constructor
-requires an explicit non-nil dependency and rejects missing, canceled or expired
-contexts before composition. The unused non-context `app.NewLedger` factory has
-also been deleted; convenience initialization exists only in test fixtures.
-The remaining legacy constructor and aggregate implementations serve existing
-library/test callers only and still await physical retirement in EVY-906. They
-are not supported runtime backend options. See the
+HTTP transport exposes no Ledger-accepting server constructor or aggregate
+replay/binding adapter. The pre-retirement local constructor, isolated replay
+binding, and compile-time compatibility assertions now exist only in
+`legacy_server_fixture_test.go`; existing HTTP test assertions are preserved.
+Production callers use `NewNativeServerWithOptionsContext`. The unused
+non-context `app.NewLedger` factory has also been deleted. The remaining
+Server aggregate field, legacy handler branches, application constructor, and
+aggregate implementation still await physical retirement in EVY-906. This
+fixture separation is not completion of that work and does not create another
+supported runtime backend. See the
 [unreleased migration note](reference/configuration.md#retired-local-memory-profile-unreleased).
+
+PostgreSQL HTTP integration fixtures now construct native servers directly,
+without an otherwise empty Ledger. Their former reload-counter/cache probes
+are replaced by an unreadable database snapshot canary and assertions that no
+legacy transport binding is installed. The canary must remain unchanged after
+requests and at fixture cleanup. Existing HTTP status, DTO, tenant/grant,
+rollback, privacy and restart/replay expectations remain in place.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime

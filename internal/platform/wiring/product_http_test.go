@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -32,7 +31,7 @@ func TestPostgresProductHTTPAndConsumersDoNotRequireLedgerProducts(t *testing.T)
 	exec(`INSERT INTO tenants(id,name)VALUES('tenant','Product HTTP'),('other','Other')`)
 	actor := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"product:read", "product:write", "project:write", "release:write", "deployment:write"}}
 	auth := &attestationHTTPActor{actor: actor}
-	var ledgers []*app.Ledger
+	var servers []*httpapi.Server
 	newServer := func() http.Handler {
 		t.Helper()
 		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
@@ -40,15 +39,12 @@ func TestPostgresProductHTTPAndConsumersDoNotRequireLedgerProducts(t *testing.T)
 			t.Fatal("focused product chain not composed", err)
 		}
 		opts.Authenticator = auth
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store})
+		_ = newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ledgers = append(ledgers, ledger)
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
-		if err != nil {
-			t.Fatal(err)
-		}
+		servers = append(servers, server)
 		return server.Handler()
 	}
 	request := func(method, path, key string, body []byte, want int) []byte {
@@ -157,10 +153,8 @@ func TestPostgresProductHTTPAndConsumersDoNotRequireLedgerProducts(t *testing.T)
 	request("POST", "/v1/releases", "product-release", []byte(`{"product_id":"`+product.ID+`","version":"1.0.0"}`), 201)
 	request("POST", "/v1/environments", "product-environment", []byte(`{"product_id":"`+product.ID+`","name":"Production","kind":"production"}`), 201)
 	assertCounts([5]int{3, 1, 1, 1, 6})
-	for _, ledger := range ledgers {
-		if _, err := ledger.GetProduct(ctx, domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"product:read"}}, product.ID); !errors.Is(err, app.ErrNotFound) {
-			t.Fatal("focused command published authoritative product cache", err)
-		}
+	for _, server := range servers {
+		assertNativeHTTPHasNoAggregate(t, server)
 	}
 	for _, table := range []string{"products", "audit_chain_entries"} {
 		exec(`CREATE FUNCTION reject_product()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'private product SQL';END$$;CREATE TRIGGER reject_product BEFORE INSERT ON ` + table + ` FOR EACH ROW EXECUTE FUNCTION reject_product()`)

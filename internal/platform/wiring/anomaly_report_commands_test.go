@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -175,12 +174,8 @@ func TestPostgresAnomalyHTTPRestartReplayCurrentGrantAndNoLedgerReload(t *testin
 		if err != nil || opts.AnomalyReportCommands == nil {
 			t.Fatal("anomaly remains Ledger-backed", err)
 		}
-		noReload := &decisionHTTPNoReloadStore{}
-		l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, opts)
+		noReload := newAggregateLoadCanary(t, t.Context(), store)
+		s, err := newNativeHTTPFixture(t.Context(), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,8 +185,8 @@ func TestPostgresAnomalyHTTPRestartReplayCurrentGrantAndNoLedgerReload(t *testin
 		r.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != want || noReload.loads != 1 {
-			t.Fatal("anomaly response or Ledger refresh differs", w.Code, want, noReload.loads, w.Body.String())
+		if w.Code != want || !noReload.Intact(t.Context()) {
+			t.Fatal("anomaly response or Ledger refresh differs", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 		}
 		return w.Body.Bytes()
 	}

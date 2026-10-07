@@ -26,12 +26,8 @@ func subjectVerificationOptions(t *testing.T, store *postgres.Store, objects app
 func subjectVerificationHTTP(t *testing.T, store *postgres.Store, objects app.ObjectStore, key, body string, want int) string {
 	t.Helper()
 	opts := subjectVerificationOptions(t, store, objects)
-	noReload := &decisionHTTPNoReloadStore{}
-	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,8 +37,8 @@ func subjectVerificationHTTP(t *testing.T, store *postgres.Store, objects app.Ob
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-") || want != 200 && strings.Contains(w.Body.String(), `"data"`) {
-		t.Fatalf("generic verification status=%d want=%d loads=%d body=%s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-") || want != 200 && strings.Contains(w.Body.String(), `"data"`) {
+		t.Fatalf("generic verification status=%d want=%d canary=%t body=%s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want == 200 && w.Header().Get("Idempotency-Key") != key {
 		t.Fatal("missing replay key")

@@ -150,6 +150,9 @@ bytes. Missing or typed-nil dependencies fail startup instead of enabling a
 local fallback. API startup no longer constructs or accepts Ledger and does not
 use `app.Config`. Legacy library/test utilities still await physical deletion
 under EVY-906; they are not runtime backend options.
+Ledger-accepting HTTP constructors and their aggregate replay binders are no
+longer compiled into production transport. The remaining local HTTP setup is
+explicitly test-only; legacy handler and aggregate deletion remain unfinished.
 API routes and response schemas are unchanged. This is an API composition
 boundary, not proof that EVY-905's full validation gates are complete. The worker
 daemon uses a closed native processor as described in the

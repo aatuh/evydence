@@ -3,7 +3,6 @@ package wiring
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -31,8 +30,8 @@ func TestPostgresControlCreationHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 	exec(`INSERT INTO tenants(id,name)VALUES('tenant','Controls'),('other','Other')`)
 	actor := domain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"controls:admin", "controls:read", "report:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: "tenant", Scopes: []string{"controls:admin", "controls:read", "report:read"}}}}
 	auth := &attestationHTTPActor{actor: actor}
-	var ledgers []*app.Ledger
-	var reloads []*decisionHTTPNoReloadStore
+	var servers []*httpapi.Server
+	var reloads []*aggregateLoadCanary
 	newServer := func() http.Handler {
 		t.Helper()
 		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
@@ -40,17 +39,13 @@ func TestPostgresControlCreationHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 			t.Fatal(err)
 		}
 		opts.Authenticator = auth
-		noReload := &decisionHTTPNoReloadStore{}
+		noReload := newAggregateLoadCanary(t, ctx, store)
 		reloads = append(reloads, noReload)
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ledgers = append(ledgers, ledger)
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
-		if err != nil {
-			t.Fatal(err)
-		}
+		servers = append(servers, server)
 		return server.Handler()
 	}
 	request := func(method, path, key, body string, want int) string {
@@ -63,7 +58,7 @@ func TestPostgresControlCreationHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 		}
 		rec := httptest.NewRecorder()
 		newServer().ServeHTTP(rec, req)
-		if rec.Code != want || reloads[len(reloads)-1].loads != 1 || strings.Contains(rec.Body.String(), "private control SQL") {
+		if rec.Code != want || !reloads[len(reloads)-1].Intact(ctx) || strings.Contains(rec.Body.String(), "private control SQL") {
 			t.Fatalf("HTTP %s %s got %d want %d: %s", method, path, rec.Code, want, rec.Body.String())
 		}
 		return rec.Body.String()
@@ -137,13 +132,8 @@ func TestPostgresControlCreationHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 	if err := json.Unmarshal([]byte(request("GET", "/v1/reports/control-coverage?framework_id="+fw.ID, "", "", 200)), &report); err != nil || report.Data.FrameworkID != fw.ID || len(report.Data.Controls) != 1 || report.Data.Controls[0].ControlID != control.ID || report.Data.Controls[0].Status != "missing" || report.Data.Result != "failed" {
 		t.Fatal("new control not visible to durable downstream report", report, err)
 	}
-	for _, ledger := range ledgers {
-		if _, err := ledger.GetSecurityControl(ctx, actor, control.ID); !errors.Is(err, app.ErrNotFound) {
-			t.Fatal("focused control published an authoritative cache", err)
-		}
-		if inventory, err := ledger.ListControlFrameworks(ctx, actor); err != nil || len(inventory) != 0 {
-			t.Fatal("focused framework published an authoritative cache", inventory, err)
-		}
+	for _, server := range servers {
+		assertNativeHTTPHasNoAggregate(t, server)
 	}
 	for i, bad := range []string{`{`, `{} {}`, `[]`, `null`, `{}`, `{"name":null,"version":"1"}`, `{"name":1,"version":"1"}`, `{"name":"X","version":null}`, `{"name":"X","version":"1","name":"Y"}`, `{"name":"X","version":"1","tenant_id":"other"}`, `{"name":" ","version":"1"}`, `{"name":"bad\u0000","version":"1"}`, `{"name":"X","slug":"` + strings.Repeat("x", 1024) + `","version":"1"}`} {
 		request("POST", "/v1/control-frameworks", fmt.Sprintf("bad-framework-%d", i), bad, 400)

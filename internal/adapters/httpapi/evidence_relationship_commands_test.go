@@ -32,7 +32,7 @@ func TestEvidenceRelationshipStrictPreflightBothProfiles(t *testing.T) {
 				f := &evidenceRelationshipHTTPFake{}
 				if native {
 					var err error
-					s, err = NewServerWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -88,7 +88,7 @@ func TestEvidenceRelationshipCookieOriginAndBearerPrecedenceBothProfiles(t *test
 				}
 				if native {
 					var err error
-					s, err = NewServerWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -160,10 +160,10 @@ func TestEvidenceRelationshipsRequireDurableExecutionAndReauthorizeReplay(t *tes
 		t.Run(tc.name, func(t *testing.T) {
 			base, secret := testServer(t)
 			f := &evidenceRelationshipHTTPFake{}
-			if s, err := NewServerWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f}); err == nil || s != nil {
+			if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f}); err == nil || s != nil {
 				t.Fatal("relationships accepted aggregate replay")
 			}
-			s, err := NewServerWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -188,7 +188,7 @@ func TestEvidenceRelationshipsMapErrorsWithoutLeakingResults(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			base, secret := testServer(t)
 			f := &evidenceRelationshipHTTPFake{}
-			s, err := NewServerWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{EvidenceRelationshipCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}

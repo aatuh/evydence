@@ -41,7 +41,7 @@ func TestRoleBindingHandlerUsesFocusedQueryAndRejectsMalformedPagination(t *test
 		t.Fatal(err)
 	}
 	query := &roleBindingQueryFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{RoleBindingQuery: query})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{RoleBindingQuery: query})
 	if err != nil {
 		t.Fatal(err)
 	}

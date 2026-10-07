@@ -43,7 +43,7 @@ func TestMarketplaceCollectorHandlersUseFocusedQueryAndValidatePagination(t *tes
 		t.Fatal(err)
 	}
 	query := &marketplaceCollectorQueryFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{MarketplaceCollectorQuery: query})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{MarketplaceCollectorQuery: query})
 	if err != nil {
 		t.Fatal(err)
 	}

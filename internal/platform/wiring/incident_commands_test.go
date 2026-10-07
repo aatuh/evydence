@@ -12,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -48,12 +47,8 @@ func TestPostgresIncidentCommandsUseFocusedAtomicWritesAndRestartReplay(t *testi
 			t.Fatal("incidents remain Ledger-backed", err)
 		}
 		opts.Authenticator = auth
-		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		noReload := newAggregateLoadCanary(t, ctx, store)
+		s, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,8 +58,8 @@ func TestPostgresIncidentCommandsUseFocusedAtomicWritesAndRestartReplay(t *testi
 		r.Header.Set("Idempotency-Key", key)
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private") {
-			t.Fatal(path, w.Code, w.Body.String(), noReload.loads)
+		if w.Code != want || !noReload.Intact(ctx) || strings.Contains(w.Body.String(), "private") {
+			t.Fatal(path, w.Code, w.Body.String(), noReload.Intact(ctx))
 		}
 		if want >= 400 {
 			if !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") {

@@ -12,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -49,12 +48,8 @@ func (f *exceptionHTTPFixture) request(path, key, body string, want int) domain.
 		f.t.Fatal("production exception composition missing")
 	}
 	opts.Authenticator = f.auth
-	noReload := &decisionHTTPNoReloadStore{}
-	ledger, err := newLegacyLedgerFixtureWithContext(f.ctx, app.Config{Store: noReload, UnitOfWork: f.store})
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	server, err := httpapi.NewServerWithOptionsContext(f.ctx, ledger, opts)
+	noReload := newAggregateLoadCanary(f.t, f.ctx, f.store)
+	server, err := newNativeHTTPFixture(f.ctx, opts)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -64,8 +59,8 @@ func (f *exceptionHTTPFixture) request(path, key, body string, want int) domain.
 	req.Header.Set("Idempotency-Key", key)
 	rec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rec, req)
-	if rec.Code != want || noReload.loads != 1 || strings.Contains(rec.Body.String(), "private exception SQL") {
-		f.t.Fatalf("exception got %d want %d loads=%d: %s", rec.Code, want, noReload.loads, rec.Body.String())
+	if rec.Code != want || !noReload.Intact(f.ctx) || strings.Contains(rec.Body.String(), "private exception SQL") {
+		f.t.Fatalf("exception got %d want %d canary=%t: %s", rec.Code, want, noReload.Intact(f.ctx), rec.Body.String())
 	}
 	if want >= 400 {
 		if !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/problem+json") {

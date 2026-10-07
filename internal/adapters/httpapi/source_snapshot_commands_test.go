@@ -31,7 +31,7 @@ func (f *sourceSnapshotHTTPFake) AuthorizeSourceSnapshot(context.Context, identi
 
 func TestSourceSnapshotHTTPRequiresNativeDurableReplay(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := NewServerWithOptions(s.ledger, ServerOptions{SourceSnapshotCommands: &sourceSnapshotHTTPFake{}}); err == nil || v != nil {
+	if v, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{SourceSnapshotCommands: &sourceSnapshotHTTPFake{}}); err == nil || v != nil {
 		t.Fatal("snapshot accepted aggregate-backed replay")
 	}
 }
@@ -64,7 +64,7 @@ func TestSourceSnapshotHTTPUsesFocusedCommandsAndRejectsMalformedNestedInputs(t 
 		t.Run(provider, func(t *testing.T) {
 			local, secret := testServer(t)
 			f := &sourceSnapshotHTTPFake{}
-			s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+			s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{SourceSnapshotCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}

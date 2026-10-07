@@ -35,7 +35,7 @@ func (f *sourceCommitHTTPFake) RecordSourceCommit(_ context.Context, a identityd
 func TestSourceCommitHTTPUsesFocusedCommandAndRejectsMalformedEnvelopes(t *testing.T) {
 	local, secret := testServer(t)
 	f := &sourceCommitHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{SourceCommitCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{SourceCommitCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

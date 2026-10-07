@@ -12,12 +12,12 @@ import (
 )
 
 func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
-	ledgerServer, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
+	ledgerServer, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
 		RateLimitRequestsPerMinute: 1,
 		TrustedProxyCIDRs:          []string{"10.0.0.0/8"},
 	})
 	if err != nil {
-		t.Fatalf("NewServerWithOptions: %v", err)
+		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
 
 	request := func(remote, forwarded string) *httptest.ResponseRecorder {
@@ -39,9 +39,9 @@ func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
 		t.Fatalf("trusted proxy repeated client status=%d, want rate limited", got)
 	}
 
-	untrustedServer, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{RateLimitRequestsPerMinute: 1})
+	untrustedServer, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{RateLimitRequestsPerMinute: 1})
 	if err != nil {
-		t.Fatalf("NewServerWithOptions untrusted: %v", err)
+		t.Fatalf("newLegacyServerFixtureWithOptions untrusted: %v", err)
 	}
 	for _, forwarded := range []string{"198.51.100.20", "198.51.100.21"} {
 		recorder := httptest.NewRecorder()
@@ -59,12 +59,12 @@ func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
 }
 
 func TestServerRateLimiterBoundsClientBuckets(t *testing.T) {
-	server, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
+	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
 		RateLimitRequestsPerMinute: 10,
 		RateLimitBucketCapacity:    2,
 	})
 	if err != nil {
-		t.Fatalf("NewServerWithOptions: %v", err)
+		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
 	for _, remote := range []string{"198.51.100.1:443", "198.51.100.2:443", "198.51.100.3:443"} {
 		recorder := httptest.NewRecorder()
@@ -95,9 +95,9 @@ func TestRequestRateLimiterExpiresWindowState(t *testing.T) {
 }
 
 func TestIngressRejectsOversizedURLsAndUnsupportedBodyEncodings(t *testing.T) {
-	server, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{MaxURLBytes: 24})
+	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{MaxURLBytes: 24})
 	if err != nil {
-		t.Fatalf("NewServerWithOptions: %v", err)
+		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
 	handler := server.ingressValidationMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -127,9 +127,9 @@ func TestIngressRejectsOversizedURLsAndUnsupportedBodyEncodings(t *testing.T) {
 }
 
 func TestIngressLimitsInFlightRequestsAndNativeUploads(t *testing.T) {
-	server, err := NewServerWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{MaxInFlightRequests: 1, MaxConcurrentUploads: 1})
+	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{MaxInFlightRequests: 1, MaxConcurrentUploads: 1})
 	if err != nil {
-		t.Fatalf("NewServerWithOptions: %v", err)
+		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
 
 	for _, testCase := range []struct {
@@ -178,9 +178,9 @@ func TestExpensiveTenantRateLimitIsScopedToTenantAndRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap tenant B: %v", err)
 	}
-	server, err := NewServerWithOptions(ledger, ServerOptions{ExpensiveTenantRequestsPerMinute: 1})
+	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{ExpensiveTenantRequestsPerMinute: 1})
 	if err != nil {
-		t.Fatalf("NewServerWithOptions: %v", err)
+		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
 	request := func(secret, path, remote string) int {
 		recorder := httptest.NewRecorder()

@@ -33,10 +33,10 @@ func (f *sessionHTTPFake) CreateSSOSession(_ context.Context, a identitydomain.A
 func TestSSOSessionHTTPUsesFocusedIssuanceAndStrictDecoder(t *testing.T) {
 	base, secret := testServer(t)
 	f := &sessionHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOSessionCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOSessionCommands: f}); err == nil {
 		t.Fatal("session issuance retained Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOSessionCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOSessionCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

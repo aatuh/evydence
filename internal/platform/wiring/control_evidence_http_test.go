@@ -22,7 +22,7 @@ func TestPostgresControlEvidenceHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 	seedControlEvidenceSubjects(t, ctx, store, pool)
 	actor := domain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"controls:write", "controls:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "product", Scopes: []string{"controls:write", "controls:read"}}}}
 	auth := &attestationHTTPActor{actor: actor}
-	var ledgers []*app.Ledger
+	var servers []*httpapi.Server
 	request := func(method, path, key, body string, want int) string {
 		t.Helper()
 		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
@@ -30,16 +30,12 @@ func TestPostgresControlEvidenceHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 			t.Fatal(err)
 		}
 		opts.Authenticator = auth
-		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
+		noReload := newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ledgers = append(ledgers, ledger)
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
-		if err != nil {
-			t.Fatal(err)
-		}
+		servers = append(servers, server)
 		req := httptest.NewRequest(method, path, strings.NewReader(body))
 		req.Header.Set("Authorization", "Bearer isolated-auth")
 		req.Header.Set("Content-Type", "application/json")
@@ -48,7 +44,7 @@ func TestPostgresControlEvidenceHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 		}
 		rec := httptest.NewRecorder()
 		server.Handler().ServeHTTP(rec, req)
-		if rec.Code != want || noReload.loads != 1 || strings.Contains(rec.Body.String(), "private link HTTP SQL") {
+		if rec.Code != want || !noReload.Intact(ctx) || strings.Contains(rec.Body.String(), "private link HTTP SQL") {
 			t.Fatalf("%s %s got %d want %d: %s", method, path, rec.Code, want, rec.Body.String())
 		}
 		if want >= 400 && !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/problem+json") {
@@ -107,10 +103,8 @@ func TestPostgresControlEvidenceHTTPUsesFreshDurableStateWithoutLedgerMaps(t *te
 			t.Fatal("durable list changed link DTO", link)
 		}
 	}
-	for _, ledger := range ledgers {
-		if links, err := ledger.ListControlEvidence(ctx, actor, "control", "", ""); err != nil || len(links) != 0 {
-			t.Fatal("HTTP binding published authoritative Ledger links", len(links), err)
-		}
+	for _, server := range servers {
+		assertNativeHTTPHasNoAggregate(t, server)
 	}
 	base := `"evidence_type":"sbom","subject_type":"product","subject_id":"product","confidence":"high"`
 	for i, bad := range []string{`{`, `{} {}`, `[]`, `null`, `{}`, `{` + base + `,"subject_id":"other-product"}`, `{` + base + `,"tenant_id":"other"}`, `{` + base + `,"notes":1}`, `{` + base + `,"notes":"bad\u0000"}`, strings.ReplaceAll(`{`+base+`}`, `"high"`, `"invalid"`), strings.ReplaceAll(`{`+base+`}`, `"sbom"`, `"invalid"`), `{` + base + `,"product_id":"` + strings.Repeat("x", 1025) + `"}`} {

@@ -38,7 +38,7 @@ func (f *projectHTTPFake) CreateProject(_ context.Context, actor identitydomain.
 func TestProjectHTTPMapsFocusedDTOReplayAndPrivateErrors(t *testing.T) {
 	local, secret := testServer(t)
 	commands := &projectHTTPFake{}
-	server, err := NewServerWithOptions(local.ledger, ServerOptions{ProjectCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	server, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{ProjectCommands: commands, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

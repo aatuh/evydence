@@ -39,7 +39,7 @@ func (f *controlCreationHTTPFake) CreateSecurityControl(_ context.Context, a ide
 
 func TestControlCreationRequiresDurableExecutor(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := NewServerWithOptions(s.ledger, ServerOptions{ControlCommands: &controlCreationHTTPFake{}}); err == nil || v != nil {
+	if v, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{ControlCommands: &controlCreationHTTPFake{}}); err == nil || v != nil {
 		t.Fatal("manual creation accepted Ledger replay")
 	}
 }
@@ -80,7 +80,7 @@ func TestControlCreationBoundsRawInputsOverHTTP(t *testing.T) {
 func TestControlCreationNativeHandlersDoNotUseLedger(t *testing.T) {
 	base, secret := testServer(t)
 	f := &controlCreationHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{ControlCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ControlCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

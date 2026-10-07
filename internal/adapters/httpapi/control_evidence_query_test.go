@@ -37,7 +37,7 @@ func TestControlEvidenceHandlerUsesFocusedQueryAndValidatesFilters(t *testing.T)
 		t.Fatal(err)
 	}
 	query := &controlEvidenceQueryFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{ControlEvidenceQuery: query})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{ControlEvidenceQuery: query})
 	if err != nil {
 		t.Fatal(err)
 	}

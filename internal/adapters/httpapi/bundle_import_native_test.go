@@ -28,7 +28,7 @@ func bundleImportNativeBody(t *testing.T) string {
 func TestBundleImportStrictPreflightBeforeCurrentAuthority(t *testing.T) {
 	base, secret := testServer(t)
 	f := &bundleImportHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestBundleImportCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
 			s := base
 			if native {
 				var err error
-				s, err = NewServerWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BundleImportCommand: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}

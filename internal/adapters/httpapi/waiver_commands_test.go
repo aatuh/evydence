@@ -37,11 +37,11 @@ func (f *waiverHTTPFake) ApproveWaiver(context.Context, identitydomain.Actor, st
 func TestWaiverHTTPRejectsIncompleteCompositionAndUnauthenticatedTransactions(t *testing.T) {
 	base, secret := testServer(t)
 	f := &waiverHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{WaiverCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{WaiverCommands: f}); err == nil {
 		t.Fatal("waivers silently fell back to Ledger idempotency")
 	}
 	executor := &decisionHTTPExecutorFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{WaiverCommands: f, DurableCommandExecutor: executor})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{WaiverCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

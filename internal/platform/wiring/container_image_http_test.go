@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -39,16 +37,8 @@ func TestPostgresContainerImageHTTPUsesDurableArtifactsAndImmutableReplay(t *tes
 			t.Fatal("missing durable image binding", err)
 		}
 		opts.Authenticator = auth
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		probe := actor
-		probe.Scopes = []string{"evidence:read"}
-		if _, err := ledger.GetArtifact(ctx, probe, "artifact"); !errors.Is(err, app.ErrNotFound) {
-			t.Fatal("HTTP harness has a cached artifact", err)
-		}
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		_ = newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

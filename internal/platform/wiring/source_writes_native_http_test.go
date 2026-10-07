@@ -11,9 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 )
@@ -42,12 +40,8 @@ func sourceWritesNativeHTTP(t *testing.T, store *postgres.Store, tc sourceWriteN
 	if opts.SourceCommitCommands == nil || opts.SourceBranchCommands == nil || opts.PullRequestCommands == nil {
 		t.Fatal("missing native source write composition")
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, opts)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +51,8 @@ func sourceWritesNativeHTTP(t *testing.T, store *postgres.Store, tc sourceWriteN
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-") || strings.Contains(w.Body.String(), "exact sensitive message") || want != 201 && strings.Contains(w.Body.String(), `"data"`) {
-		t.Fatalf("native source status=%d want=%d loads=%d path=%s: %s", w.Code, want, noReload.loads, tc.path, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-") || strings.Contains(w.Body.String(), "exact sensitive message") || want != 201 && strings.Contains(w.Body.String(), `"data"`) {
+		t.Fatalf("native source status=%d want=%d canary=%t path=%s: %s", w.Code, want, noReload.Intact(t.Context()), tc.path, w.Body.String())
 	}
 	if want == 201 && w.Header().Get("Idempotency-Key") != key {
 		t.Fatal("source replay lost key")

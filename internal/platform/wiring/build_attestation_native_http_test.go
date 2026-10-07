@@ -13,7 +13,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
@@ -37,12 +36,8 @@ func attestationNativeHTTP(t *testing.T, store *postgres.Store, objects app.Obje
 	if err != nil {
 		t.Fatal(err)
 	}
-	noReload := &decisionHTTPNoReloadStore{}
-	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, o)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,8 +47,8 @@ func attestationNativeHTTP(t *testing.T, store *postgres.Store, objects app.Obje
 	r.Header.Set("Content-Type", "application/vnd.dsse.envelope+json")
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-") || want != 201 && strings.Contains(w.Body.String(), `"data"`) {
-		t.Fatalf("native attestation status=%d want=%d loads=%d: %s", w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-") || want != 201 && strings.Contains(w.Body.String(), `"data"`) {
+		t.Fatalf("native attestation status=%d want=%d canary=%t: %s", w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want == 201 && w.Header().Get("Idempotency-Key") != key {
 		t.Fatal("attestation lost replay key")

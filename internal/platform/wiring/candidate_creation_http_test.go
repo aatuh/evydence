@@ -3,7 +3,6 @@ package wiring
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +33,7 @@ func TestPostgresCandidateCreationHTTPAndTransitionsDoNotRequireLedgerCandidates
 	}
 	actor := domain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"release:read", "release:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: "release", Scopes: []string{"release:read", "release:write"}}}}
 	auth := &attestationHTTPActor{actor: actor}
-	var ledgers []*app.Ledger
+	var servers []*httpapi.Server
 	newServer := func() http.Handler {
 		t.Helper()
 		opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
@@ -42,15 +41,12 @@ func TestPostgresCandidateCreationHTTPAndTransitionsDoNotRequireLedgerCandidates
 			t.Fatal("candidate commands not composed", err)
 		}
 		opts.Authenticator = auth
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store})
+		_ = newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ledgers = append(ledgers, ledger)
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
-		if err != nil {
-			t.Fatal(err)
-		}
+		servers = append(servers, server)
 		return server.Handler()
 	}
 	request := func(method, path, key, tag, body string, want int) string {
@@ -159,10 +155,8 @@ func TestPostgresCandidateCreationHTTPAndTransitionsDoNotRequireLedgerCandidates
 		t.Fatal("newly created candidate transition changed snapshot", promoted, want)
 	}
 	counts(1, 2)
-	for _, ledger := range ledgers {
-		if _, err := ledger.GetReleaseCandidate(ctx, domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"release:read"}}, created.ID); !errors.Is(err, app.ErrNotFound) {
-			t.Fatal("focused creation published authoritative Ledger candidate", err)
-		}
+	for _, server := range servers {
+		assertNativeHTTPHasNoAggregate(t, server)
 	}
 	for _, table := range []string{"release_candidates", "audit_chain_entries"} {
 		exec(`CREATE FUNCTION reject_candidate_create_http()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'private candidate SQL';END$$;CREATE TRIGGER reject_candidate_create_http BEFORE INSERT ON ` + table + ` FOR EACH ROW EXECUTE FUNCTION reject_candidate_create_http()`)

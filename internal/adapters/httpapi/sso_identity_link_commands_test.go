@@ -58,10 +58,10 @@ func (f *identityLinkHTTPFake) LinkSSOIdentity(_ context.Context, a identitydoma
 func TestSSOIdentityLinkHTTPUsesFocusedCommandAndStrictDecoder(t *testing.T) {
 	base, secret := testServer(t)
 	f := &identityLinkHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOIdentityLinkCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOIdentityLinkCommands: f}); err == nil {
 		t.Fatal("identity links retained Ledger replay")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOIdentityLinkCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{SSOIdentityLinkCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -162,8 +161,8 @@ func TestPostgresBuildAttestationIngestionCommitsAtomicEvidencePayloadJobsAndRep
 	if err := pool.QueryRow(ctx, `SELECT verification_status,payload_type FROM build_attestations WHERE id=$1`, inlineResult.ID).Scan(&status, &payloadType); err != nil || status != "structurally_valid" || payloadType != "application/vnd.in-toto+json" {
 		t.Fatal("inline projection", status, payloadType, err)
 	}
-	// Exercise the actual composition root and HTTP route with an empty Ledger:
-	// that compatibility harness owns only the transitional replay envelope.
+	// Exercise the actual native composition and HTTP route with aggregate
+	// loading forbidden; no transitional Ledger or replay envelope is bound.
 	auth := &attestationHTTPActor{actor: actor}
 	newServer := func() http.Handler {
 		t.Helper()
@@ -172,16 +171,8 @@ func TestPostgresBuildAttestationIngestionCommitsAtomicEvidencePayloadJobsAndRep
 			t.Fatal(err)
 		}
 		options.Authenticator = auth
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		cacheProbe := actor
-		cacheProbe.Scopes = []string{"build:read"}
-		if _, err := ledger.GetBuildRun(ctx, cacheProbe, "build"); !errors.Is(err, app.ErrNotFound) {
-			t.Fatal("HTTP harness must have no cached build", err)
-		}
-		server, err := httpapi.NewServerWithOptionsContext(ctx, ledger, options)
+		_ = newAggregateLoadCanary(t, ctx, store)
+		server, err := newNativeHTTPFixture(ctx, options)
 		if err != nil {
 			t.Fatal(err)
 		}

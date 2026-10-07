@@ -36,7 +36,7 @@ func TestOutboxDiagnosticsHandlerUsesFocusedQueryWithoutLedgerOperator(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestOutboxDiagnosticsHandlerMapsFocusedQueryErrors(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		server, err := NewServer(ledger)
+		server, err := newLegacyServerFixture(ledger)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -14,7 +14,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
@@ -61,12 +60,8 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 		if err != nil || opts.SSOSessionRevocationCommands == nil {
 			t.Fatal("revocation remains Ledger-backed", err)
 		}
-		noReload := &decisionHTTPNoReloadStore{}
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{Store: noReload, UnitOfWork: store})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := httpapi.NewServerWithOptionsContext(ctx, ledger, opts)
+		noReload := newAggregateLoadCanary(t, ctx, store)
+		s, err := newNativeHTTPFixture(ctx, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,8 +77,8 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 		}
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
-		if w.Code != want || noReload.loads != 1 || len(w.Body.Bytes()) > 32768 {
-			t.Fatal("revocation response or no-reload contract changed", w.Code, want, noReload.loads)
+		if w.Code != want || !noReload.Intact(ctx) || len(w.Body.Bytes()) > 32768 {
+			t.Fatal("revocation response or no-reload contract changed", w.Code, want, noReload.Intact(ctx))
 		}
 		for _, value := range secrets {
 			if strings.Contains(w.Body.String(), value) || strings.Contains(w.Body.String(), credentials.Hash(value)) {

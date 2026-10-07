@@ -30,7 +30,7 @@ func (f *subjectVerificationHTTPFake) AuthorizeSubjectVerification(_ context.Con
 
 func TestSubjectVerificationRequiresDurableExecutor(t *testing.T) {
 	local, _ := testServer(t)
-	if s, err := NewServerWithOptions(local.ledger, ServerOptions{SubjectVerification: &subjectVerificationHTTPFake{}}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{SubjectVerification: &subjectVerificationHTTPFake{}}); err == nil || s != nil {
 		t.Fatal("generic verification accepted Ledger-only replay")
 	}
 }
@@ -49,7 +49,7 @@ func TestSubjectVerificationHandlerUsesComposedPortWithoutLedgerFallback(t *test
 	local, secret := testServer(t)
 	postJSON(t, local, secret, "/v1/verify", "legacy-unsupported-subject", map[string]any{"subject_type": "unknown", "subject_id": "id"}, http.StatusBadRequest)
 	f := &subjectVerificationHTTPFake{}
-	s, err := NewServerWithOptions(local.ledger, ServerOptions{SubjectVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := newLegacyServerFixtureWithOptions(local.ledger, ServerOptions{SubjectVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

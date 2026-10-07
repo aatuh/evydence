@@ -60,10 +60,10 @@ func (f *incidentHTTPFake) CreateRemediationTask(_ context.Context, a identitydo
 func TestIncidentHTTPFocusedCommandsPreserveDTOsAndRejectInvalidEnvelopes(t *testing.T) {
 	base, secret := testServer(t)
 	f := &incidentHTTPFake{}
-	if _, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{IncidentCommands: f}); err == nil {
+	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{IncidentCommands: f}); err == nil {
 		t.Fatal("focused incidents retained Ledger idempotency")
 	}
-	s, err := NewServerWithOptionsContext(t.Context(), base.ledger, ServerOptions{IncidentCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), base.ledger, ServerOptions{IncidentCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

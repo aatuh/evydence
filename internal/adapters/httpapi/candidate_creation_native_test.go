@@ -34,10 +34,10 @@ func (f *candidateCreationHTTPFake) CreateReleaseCandidate(_ context.Context, a 
 func TestCandidateCreationRequiresNativeReplayAndCurrentGuard(t *testing.T) {
 	base, secret := testServer(t)
 	f := &candidateCreationHTTPFake{}
-	if s, err := NewServerWithOptions(base.ledger, ServerOptions{CandidateCommands: f}); err == nil || s != nil {
+	if s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{CandidateCommands: f}); err == nil || s != nil {
 		t.Error("focused candidate creation accepted aggregate replay")
 	}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestCandidateCreationRequiresNativeReplayAndCurrentGuard(t *testing.T) {
 func TestCandidateCreationStrictPreflightRunsBeforeCommands(t *testing.T) {
 	base, secret := testServer(t)
 	f := &candidateCreationHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestCandidateCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 			s := base
 			if native {
 				var err error
-				s, err = NewServerWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{CandidateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}

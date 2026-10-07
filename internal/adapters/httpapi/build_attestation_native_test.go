@@ -13,7 +13,7 @@ import (
 func TestBuildAttestationNativeDoesNotUseLedgerAndUsesApplicationPayloadLimit(t *testing.T) {
 	base, secret := testServer(t)
 	f := &buildAttestationHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestBuildAttestationUploadUsesNativeUploadConcurrencyBudget(t *testing.T) {
 func TestBuildAttestationCookieOriginAndBearerPrecedence(t *testing.T) {
 	base, secret := testServer(t)
 	f := &buildAttestationHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{BuildAttestationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

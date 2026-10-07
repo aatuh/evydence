@@ -38,10 +38,12 @@ methods without changing API, portal access, export or report behavior.
 Remaining Ledger retirement is in progress; this is not a production
 readiness or release-publication claim.
 
-HTTP server construction no longer creates a Ledger for a missing local
-dependency and stops on canceled or expired construction contexts. The unused
-non-context `app.NewLedger` factory is removed. HTTP response contracts remain
-unchanged while EVY-906 continues.
+Ledger-accepting HTTP server constructors and their aggregate replay binders
+are removed from production source. Explicit test-only setup retains the local
+fixture's cancellation, authentication override, transaction and replay checks
+without adding a supported backend. The unused non-context `app.NewLedger`
+factory is removed. HTTP response contracts remain unchanged; legacy handler
+and aggregate deletion remain unfinished under EVY-906.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the

@@ -38,7 +38,7 @@ func TestSigningKeyHandlerUsesFocusedQueryAndRejectsMalformedPagination(t *testi
 		t.Fatal(err)
 	}
 	query := &signingKeyQueryFake{}
-	server, err := NewServerWithOptionsContext(t.Context(), ledger, ServerOptions{SigningKeyQuery: query})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{SigningKeyQuery: query})
 	if err != nil {
 		t.Fatal(err)
 	}

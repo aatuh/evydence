@@ -13,7 +13,6 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/adapters/postgres"
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
@@ -84,12 +83,8 @@ func seedStateTransitionNative(t *testing.T, p *pgxpool.Pool, c nativeTransition
 func stateTransitionNativeHTTP(t *testing.T, store *postgres.Store, c nativeTransitionCase, key, body string, rev int64, want int) string {
 	t.Helper()
 	o := subjectVerificationOptions(t, store, nil)
-	noReload := &decisionHTTPNoReloadStore{}
-	l, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{Store: noReload, UnitOfWork: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := httpapi.NewServerWithOptionsContext(t.Context(), l, o)
+	noReload := newAggregateLoadCanary(t, t.Context(), store)
+	s, err := newNativeHTTPFixture(t.Context(), o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,8 +95,8 @@ func stateTransitionNativeHTTP(t *testing.T, store *postgres.Store, c nativeTran
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	s.Handler().ServeHTTP(w, r)
-	if w.Code != want || noReload.loads != 1 || strings.Contains(w.Body.String(), "private-") || want != 200 && strings.Contains(w.Body.String(), `"data"`) {
-		t.Fatalf("native %s status=%d want=%d loads=%d: %s", c.kind, w.Code, want, noReload.loads, w.Body.String())
+	if w.Code != want || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), "private-") || want != 200 && strings.Contains(w.Body.String(), `"data"`) {
+		t.Fatalf("native %s status=%d want=%d canary=%t: %s", c.kind, w.Code, want, noReload.Intact(t.Context()), w.Body.String())
 	}
 	if want == 200 && w.Header().Get("Idempotency-Key") != key {
 		t.Fatal("transition lost replay key")

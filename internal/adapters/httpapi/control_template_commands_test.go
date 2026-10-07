@@ -24,7 +24,7 @@ type controlTemplateHTTPFake struct {
 func TestControlTemplateInstallRunsWithoutLedgerAndPreservesBodyFingerprints(t *testing.T) {
 	base, secret := testServer(t)
 	f := &controlTemplateHTTPFake{}
-	s, err := NewServerWithOptions(base.ledger, ServerOptions{ControlTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := newLegacyServerFixtureWithOptions(base.ledger, ServerOptions{ControlTemplateCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func (f *controlTemplateHTTPFake) InstallControlFrameworkTemplatePack(_ context.
 
 func TestControlTemplateInstallRequiresDurableExecutor(t *testing.T) {
 	s, _ := testServer(t)
-	if server, err := NewServerWithOptions(s.ledger, ServerOptions{ControlTemplateCommands: &controlTemplateHTTPFake{}}); err == nil || server != nil {
+	if server, err := newLegacyServerFixtureWithOptions(s.ledger, ServerOptions{ControlTemplateCommands: &controlTemplateHTTPFake{}}); err == nil || server != nil {
 		t.Fatal("focused template installation accepted Ledger replay")
 	}
 }

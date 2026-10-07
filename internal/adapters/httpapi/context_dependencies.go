@@ -519,10 +519,9 @@ type RoleBindingQuery interface {
 	ListPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[identitydomain.RoleBinding], error)
 }
 
-// commandScope binds transaction-local command services without exposing the
-// compatibility Ledger type to HTTP command wrappers or context-owned
-// handlers. The Ledger-backed implementation remains an adapter until the
-// composition root is replaced by EVY-905.
+// commandScope is retained while legacy command handlers await deletion.
+// Its aggregate-backed implementation belongs exclusively to test fixtures;
+// native production commands use DurableCommandExecutor.
 type commandScope interface {
 	bind(*Server)
 }
@@ -530,36 +529,6 @@ type commandScope interface {
 type idempotencyExecutor interface {
 	WithBody(context.Context, domain.Actor, string, string, string, []byte, func(context.Context, commandScope) (int, any, error)) (int, any, error)
 	WithBodyDigest(context.Context, domain.Actor, string, string, string, string, func(context.Context, commandScope) (int, any, error)) (int, any, error)
-}
-
-type ledgerCommandScope struct {
-	ledger *app.Ledger
-}
-
-func (scope ledgerCommandScope) bind(server *Server) {
-	server.bindLedger(scope.ledger)
-}
-
-type ledgerIdempotencyExecutor struct {
-	ledger *app.Ledger
-}
-
-func (executor ledgerIdempotencyExecutor) WithBody(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, run func(context.Context, commandScope) (int, any, error)) (int, any, error) {
-	if executor.ledger == nil || run == nil {
-		return 0, nil, app.ErrValidation
-	}
-	return executor.ledger.WithIdempotency(ctx, actor, method, path, key, body, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		return run(commandCtx, ledgerCommandScope{ledger: commandLedger})
-	})
-}
-
-func (executor ledgerIdempotencyExecutor) WithBodyDigest(ctx context.Context, actor domain.Actor, method, path, key, bodyDigest string, run func(context.Context, commandScope) (int, any, error)) (int, any, error) {
-	if executor.ledger == nil || run == nil {
-		return 0, nil, app.ErrValidation
-	}
-	return executor.ledger.WithIdempotencyRequestHash(ctx, actor, method, path, key, bodyDigest, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		return run(commandCtx, ledgerCommandScope{ledger: commandLedger})
-	})
 }
 
 // identityAccessService is the HTTP-facing compatibility port for identity
@@ -709,14 +678,3 @@ type verificationService interface {
 	RevokeSigningKeyWithPolicy(context.Context, domain.Actor, string, app.SigningKeyRevocationInput) (domain.SigningKey, error)
 	CreateSigningProvider(context.Context, domain.Actor, app.CreateSigningProviderInput) (domain.SigningProvider, error)
 }
-
-var (
-	_ Authenticator            = (*app.Ledger)(nil)
-	_ idempotencyExecutor      = ledgerIdempotencyExecutor{}
-	_ identityAccessService    = (*app.Ledger)(nil)
-	_ releaseCatalogService    = (*app.Ledger)(nil)
-	_ evidenceIngestionService = (*app.Ledger)(nil)
-	_ riskDecisionService      = (*app.Ledger)(nil)
-	_ packageService           = (*app.Ledger)(nil)
-	_ verificationService      = (*app.Ledger)(nil)
-)
