@@ -233,7 +233,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		delete(operation.Responses, http.StatusCreated)
 		operation.Responses[http.StatusOK] = jsonResponse("Release evidence flow envelope.", "#/components/schemas/ReleaseEvidenceFlowEnvelope")
 	case "releaseSecuritySummary":
-		operation.Description = "Returns a tenant-scoped release security summary for review surfaces without raw evidence payload bytes."
+		operation.Description = "Returns a tenant-scoped release security summary through a bounded focused Risk query, requiring report:read and current tenant/product/release grants for human sessions. Raw evidence payload bytes and private decision notes are excluded. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release security summary envelope.", "#/components/schemas/ReleaseSecuritySummaryEnvelope")
 	case "freezeRelease":
@@ -513,7 +513,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability decision list envelope.", "#/components/schemas/VulnerabilityDecisionListEnvelope")
 	case "recordVulnerabilityWorkflow":
-		operation.Description = "Records an append-only vulnerability workflow event for a tenant-scoped finding."
+		operation.Description = "Records an append-only vulnerability workflow annotation through a focused Risk command and durable replay. Current finding/source/parent ownership and security:write grants are checked before every fresh request or replay; replay does not read historical workflow reasons or reapply effects. The annotation does not change a finding or decision. Record, principal audit and replay result commit together. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
 		operation.RequestBody = jsonRequest("Vulnerability workflow event request.", "#/components/schemas/RecordVulnerabilityWorkflowRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability workflow record envelope.", "#/components/schemas/VulnerabilityWorkflowRecordEnvelope")
@@ -531,11 +531,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved exception envelope.", "#/components/schemas/ExceptionEnvelope")
 	case "createCustomPolicy":
-		operation.Description = "Creates a deterministic custom policy definition for tenant-managed release checks."
+		operation.Description = "Creates an immutable tenant-wide custom policy through a focused Risk command and durable replay. Human sessions require a current tenant-wide policy:write grant. Current tenant authority is checked before every fresh request or replay; definition, principal audit and replay result commit together. Duplicate tenant/name/version definitions return 409. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Custom policy creation request.", "#/components/schemas/CreateCustomPolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created custom policy envelope.", "#/components/schemas/CustomPolicyEnvelope")
 	case "evaluateCustomPolicy":
-		operation.Description = "Evaluates a tenant custom policy against a release and records the input hash."
+		operation.Description = "Evaluates evidence presence for a tenant-owned custom policy and release through a focused Risk command, recording the normalized input hash. Human sessions need a current tenant/product/release policy:read grant. Replay checks current ownership/grants without reading rules or evidence and returns the original result; changed request bytes conflict. Evaluation, principal audit and replay result commit together. This does not verify payloads, freshness, control effectiveness or compliance. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Custom policy id."))
 		operation.RequestBody = jsonRequest("Custom policy evaluation request.", "#/components/schemas/EvaluatePolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Custom policy evaluation envelope.", "#/components/schemas/CustomPolicyEvaluationEnvelope")
@@ -763,7 +763,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("SBOM diff creation request.", "#/components/schemas/CreateSBOMDiffRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM diff envelope.", "#/components/schemas/SBOMDiffEnvelope")
 	case "vulnerabilityPostureReport":
-		operation.Description = "Returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only; decisions, VEX, exceptions, and workflow records are not included. Without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. Raw findings are not returned, and scanner coverage is not independently verified."
+		operation.Description = "Returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only through a focused bounded query; decisions, VEX, exceptions, and workflow records are not included. Without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. Raw findings are not returned, and scanner coverage is not independently verified. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Optional single release id; blank or duplicate values are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability posture report envelope.", "#/components/schemas/VulnerabilityPostureReportEnvelope")
 	case "vulnerabilityDecisionSummaryReport":

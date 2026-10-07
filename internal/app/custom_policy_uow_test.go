@@ -69,3 +69,53 @@ func TestCustomPolicyWritesUseUnitOfWorkAndPublishOnlyAfterCommit(t *testing.T) 
 		t.Fatalf("failed custom policy write published durable state: before=%#v after=%#v", snapshot, after)
 	}
 }
+
+func TestCustomPolicyWritesRecordHumanAuditIdentity(t *testing.T) {
+	for _, transactional := range []bool{true, false} {
+		name := "maps"
+		if transactional {
+			name = "memory_transaction"
+		}
+		t.Run(name, func(t *testing.T) {
+			memory := NewMemoryUnitOfWorkFactory()
+			ledger, _, owner := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+			product, err := ledger.CreateProduct(t.Context(), owner, "Policy", "policy")
+			if err != nil {
+				t.Fatal(err)
+			}
+			release, err := ledger.CreateRelease(t.Context(), owner, product.ID, "1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !transactional {
+				ledger.unitOfWork = nil
+			}
+			human := domain.Actor{TenantID: owner.TenantID, UserID: "reviewer", Scopes: []string{ScopePolicyWrite, ScopePolicyRead}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.TenantID, Scopes: []string{ScopePolicyWrite}}, {ResourceType: "product", ResourceID: product.ID, Scopes: []string{ScopePolicyRead}}}}
+			before := len(ledger.chain[owner.TenantID])
+			policy, err := ledger.CreateCustomPolicy(t.Context(), human, CreateCustomPolicyInput{Name: "Policy", Version: "1", Rules: []domain.PolicyRule{{Name: "SBOM", EvidenceType: "sbom", Severity: "high", Required: true}}})
+			if err != nil {
+				t.Fatal("human policy creation:", err)
+			}
+			evaluation, err := ledger.EvaluateCustomPolicy(t.Context(), human, policy.ID, release.ID)
+			if err != nil {
+				t.Fatal("human policy evaluation:", err)
+			}
+			entries := ledger.chain[owner.TenantID][before:]
+			if transactional {
+				snapshot, err := memory.Snapshot()
+				if err != nil {
+					t.Fatal(err)
+				}
+				entries = snapshot.AuditEntries[owner.TenantID][before:]
+			}
+			if len(entries) != 2 || entries[0].SubjectID != policy.ID || entries[0].EntryType != "custom_policy.created" || entries[1].SubjectID != evaluation.ID || entries[1].EntryType != "custom_policy.evaluated" || entries[1].PayloadHash != evaluation.InputHash || evaluation.InputHash == "" {
+				t.Fatal("policy/evaluation lost exactly one attributed audit each")
+			}
+			for _, entry := range entries {
+				if entry.ActorType != "human_user" || entry.ActorID != human.UserID {
+					t.Fatal("custom policy audit lost actual human identity", entry)
+				}
+			}
+		})
+	}
+}

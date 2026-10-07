@@ -1024,21 +1024,12 @@ func (s *Server) releaseSecuritySummary(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if s.releaseSecuritySummaryQuery != nil {
-		summary, err := s.releaseSecuritySummaryQuery.Summary(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapReleaseSecuritySummaryQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, releaseSecuritySummaryFromQuery(summary))
-		return
-	}
-	summary, err := s.ledger.ReleaseSecuritySummary(r.Context(), actor, r.PathValue("id"))
+	summary, err := s.releaseSecuritySummaryQuery.Summary(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapReleaseSecuritySummaryQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, summary)
+	writeData(w, http.StatusOK, releaseSecuritySummaryFromQuery(summary))
 }
 
 func (s *Server) listReleaseCandidates(w http.ResponseWriter, r *http.Request) {
@@ -1664,21 +1655,7 @@ func externalVulnerabilityDecision(decision domain.VulnerabilityDecision) vulner
 }
 
 func (s *Server) recordVulnerabilityWorkflow(w http.ResponseWriter, r *http.Request) {
-	if s.vulnerabilityWorkflowCommands != nil {
-		s.recordDurableVulnerabilityWorkflow(w, r)
-		return
-	}
-	var req struct {
-		Action string `json:"action"`
-		Reason string `json:"reason"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		record, err := s.ledger.RecordVulnerabilityWorkflow(ctx, actor, app.RecordVulnerabilityWorkflowInput{FindingID: r.PathValue("id"), Action: req.Action, Reason: req.Reason})
-		return http.StatusCreated, record, err
-	})
+	s.recordDurableVulnerabilityWorkflow(w, r)
 }
 
 func (s *Server) vulnerabilityPostureReport(w http.ResponseWriter, r *http.Request) {
@@ -1691,21 +1668,12 @@ func (s *Server) vulnerabilityPostureReport(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, err)
 		return
 	}
-	if s.vulnerabilityPostureQuery != nil {
-		report, err := s.vulnerabilityPostureQuery.Report(r.Context(), actor, releaseID)
-		if err != nil {
-			writeProblem(w, r, mapVulnerabilityPostureQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, vulnerabilityPostureFromQuery(report))
-		return
-	}
-	report, err := s.ledger.VulnerabilityPostureReport(r.Context(), actor, releaseID)
+	report, err := s.vulnerabilityPostureQuery.Report(r.Context(), actor, releaseID)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapVulnerabilityPostureQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, vulnerabilityPostureFromQuery(report))
 }
 
 func (s *Server) vulnerabilityDecisionSummaryReport(w http.ResponseWriter, r *http.Request) {
@@ -1752,40 +1720,11 @@ func (s *Server) evaluatePolicy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createCustomPolicy(w http.ResponseWriter, r *http.Request) {
-	if s.customPolicyCommands != nil {
-		s.createDurableCustomPolicy(w, r)
-		return
-	}
-	var req struct {
-		Name        string              `json:"name"`
-		Version     string              `json:"version"`
-		Description string              `json:"description"`
-		Rules       []domain.PolicyRule `json:"rules"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		policy, err := s.ledger.CreateCustomPolicy(ctx, actor, app.CreateCustomPolicyInput{Name: req.Name, Version: req.Version, Description: req.Description, Rules: req.Rules})
-		return http.StatusCreated, policy, err
-	})
+	s.createDurableCustomPolicy(w, r)
 }
 
 func (s *Server) evaluateCustomPolicy(w http.ResponseWriter, r *http.Request) {
-	if s.customPolicyCommands != nil {
-		s.evaluateDurableCustomPolicy(w, r)
-		return
-	}
-	var req struct {
-		ReleaseID string `json:"release_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		eval, err := s.ledger.EvaluateCustomPolicy(ctx, actor, r.PathValue("id"), req.ReleaseID)
-		return http.StatusCreated, eval, err
-	})
+	s.evaluateDurableCustomPolicy(w, r)
 }
 
 func (s *Server) missingEvidenceReport(w http.ResponseWriter, r *http.Request) {

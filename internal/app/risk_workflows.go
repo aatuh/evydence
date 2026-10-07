@@ -938,7 +938,7 @@ func (l *Ledger) CreateCustomPolicy(ctx context.Context, actor domain.Actor, in 
 				return err
 			}
 			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(policy.CreatedAt, actor.TenantID, "custom_policy.created", "custom_policy", policy.ID, "api_key", actor.KeyID, "", ""))
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(policy.CreatedAt, actor.TenantID, "custom_policy.created", "custom_policy", policy.ID, actorType(actor), actorID(actor), "", ""))
 			return err
 		}); err != nil {
 			return domain.CustomPolicy{}, err
@@ -948,7 +948,7 @@ func (l *Ledger) CreateCustomPolicy(ctx context.Context, actor domain.Actor, in 
 		return policy, nil
 	}
 	l.customPolicies[policy.ID] = policy
-	_, _ = l.appendChainLocked(actor.TenantID, "custom_policy.created", "custom_policy", policy.ID, "api_key", actor.KeyID, "", "")
+	_, _ = l.appendChainLocked(actor.TenantID, "custom_policy.created", "custom_policy", policy.ID, actorType(actor), actorID(actor), "", "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.CustomPolicy{}, err
 	}
@@ -993,7 +993,7 @@ func (l *Ledger) EvaluateCustomPolicy(ctx context.Context, actor domain.Actor, p
 				return err
 			}
 			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(eval.CreatedAt, actor.TenantID, "custom_policy.evaluated", "custom_policy_evaluation", eval.ID, "api_key", actor.KeyID, inputHash, ""))
+			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(eval.CreatedAt, actor.TenantID, "custom_policy.evaluated", "custom_policy_evaluation", eval.ID, actorType(actor), actorID(actor), inputHash, ""))
 			return err
 		}); err != nil {
 			return domain.CustomPolicyEvaluation{}, err
@@ -1003,7 +1003,7 @@ func (l *Ledger) EvaluateCustomPolicy(ctx context.Context, actor domain.Actor, p
 		return eval, nil
 	}
 	l.customPolicyEvals[eval.ID] = eval
-	_, _ = l.appendChainLocked(actor.TenantID, "custom_policy.evaluated", "custom_policy_evaluation", eval.ID, "api_key", actor.KeyID, inputHash, "")
+	_, _ = l.appendChainLocked(actor.TenantID, "custom_policy.evaluated", "custom_policy_evaluation", eval.ID, actorType(actor), actorID(actor), inputHash, "")
 	if err := l.persistLocked(ctx); err != nil {
 		return domain.CustomPolicyEvaluation{}, err
 	}

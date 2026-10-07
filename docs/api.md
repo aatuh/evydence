@@ -405,6 +405,9 @@ resource-specific endpoints.
 summary for review surfaces. It includes artifact, SBOM, scan, finding,
 decision, approval, exception, readiness, and package-generation status, but it
 does not include raw evidence payload bytes or private decision notes.
+The handler requires a focused Risk query with a bounded PostgreSQL snapshot;
+human sessions require a current tenant/product/release `report:read` grant.
+PostgreSQL is required for local evaluation.
 
 ### 2. Register Artifact And Upload Evidence
 
@@ -2453,8 +2456,8 @@ retains its 64 KiB limit. Decision/exception diagnostic IDs and package counts
 share a 4096-record budget, selected IDs are limited to 1024 bytes, and signed
 bundle verification considers at most 256 signature rows with bounded public
 material. Trusted snapshot replay may add historical evaluations but cannot
-rewrite existing results, checks, or policy-set versions. Local-memory mode
-retains its explicit compatibility path.
+rewrite existing results, checks, or policy-set versions. PostgreSQL is required
+for local evaluation; there is no map-backed API alternative.
 
 Source/test evidence: `internal/risk/app/policy_evaluation_commands.go`,
 `internal/adapters/postgres/policy_evaluation_repository.go`, and
@@ -2468,11 +2471,11 @@ Name/version/description are trimmed; rule names and severity labels retain
 their original text and order. Severity is any nonblank label, not a closed
 severity enum. Evidence types use the existing custom-policy vocabulary;
 omitting `evidence_type` makes a metadata-only rule. Duplicate tenant/name/version
-definitions return 409. Creation requires `policy:write`; in PostgreSQL mode,
+definitions return 409. Creation requires `policy:write`;
 human sessions require a tenant-wide grant, not merely a product or release grant.
 
 `POST /v1/custom-policies/{id}/evaluate` accepts `release_id` and appends an
-evaluation. It requires `policy:read` and, for PostgreSQL human sessions, a
+evaluation. It requires `policy:read` and, for human sessions, a
 matching current tenant/product/release grant. Both policy and release must belong to the caller's
 tenant, with valid current product ownership. Evaluation checks evidence presence
 only: a required missing type fails, an optional missing type passes, and a
@@ -2497,8 +2500,8 @@ stay within the database uniqueness-index budget. Descriptions and rule names
 are limited to 65536 bytes, severity/evidence-type labels to 128 bytes, and
 definitions to 4096 rules. Stored rule JSON has an 8 MiB read ceiling; oversized
 definitions fail without truncation for new evaluations. The HTTP body still
-has its existing 64 KiB limit, including JSON syntax and escapes. Local-memory
-mode retains its explicit compatibility path.
+has its existing 64 KiB limit, including JSON syntax and escapes. PostgreSQL
+is required for local evaluation; there is no map-backed API alternative.
 
 Source/test evidence: `internal/risk/app/custom_policy_commands.go`,
 `internal/adapters/postgres/repositories/custom_policy_reads.go`, and
@@ -2527,11 +2530,29 @@ NUL text, or explicit null fields return 400. The entire JSON body retains its
 idempotency completion commit together. Same-key replay returns the original
 record only after current parent/grant checks; changed request bytes conflict.
 New records retain `vulnerability-workflow.v1.0.0` and UTC microsecond timestamps.
-Local-memory mode keeps its non-durable compatibility path.
+PostgreSQL is required for local evaluation; there is no map-backed API alternative.
 
 Source/test evidence: `internal/risk/app/vulnerability_workflow_commands.go`,
 `internal/adapters/postgres/repositories/vulnerability_workflow_reads.go`, and
 `internal/platform/wiring/vulnerability_workflow_http_test.go`.
+
+Custom-policy creation/evaluation, workflow annotation, release security
+summary and vulnerability posture handlers require their focused ports; the
+five aggregate fallback paths are deleted. Historical HTTP tests use test-only
+isolated commands and actual native guards over transaction-owned references.
+These fixture checks do not establish SQL locks or parsed-source projection
+guarantees. Policy creation/evaluation in the historical fixture now attributes
+human audits correctly; native PostgreSQL already used the actual principal.
+Report fixtures preserve former grants and detach mutable metadata; production
+reports retain bounded SQL/current-parent validation.
+The memory fixture has an identifier-only workflow reader that retains a scan's
+declared release-less state; it does not use the stricter waiver/decision reader
+or consult vulnerability text and historical reasons for workflow authority.
+
+Transport regression evidence:
+`internal/adapters/httpapi/risk_command_transport_boundary_test.go`,
+`internal/adapters/httpapi/risk_workflow_fixture_regression_test.go`, and
+`internal/adapters/httpapi/risk_report_fixture_regression_test.go`.
 
 ### Exception Lifecycle
 

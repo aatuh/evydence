@@ -148,6 +148,24 @@ audits correctly; native PostgreSQL already used the actual principal.
 These fixture checks are not SQL locking evidence or completion of aggregate
 retirement. Runtime query limits and current-subject validation remain in SQL.
 
+Custom-policy creation/evaluation, vulnerability workflow annotation, release
+security summary and vulnerability posture handlers require focused Risk or
+Package ports. Their five aggregate fallback paths are deleted. Native guards,
+structured decoders, durable replay and public DTOs are unchanged. Test-only
+guards run the actual focused authorization algorithms on transaction-owned
+tenant/policy/release/finding references; policy-rule/evidence-content reads,
+effects, hashes, clocks and IDs fail loudly during preflight. Historical writes
+retain isolated replay clones. Three full-state rollback/replay regressions
+cover current human grants and foreign parents; report checks cover all public
+fields, tenant/grant filtering, private-note omission, cancellation and detached
+metadata. The historical custom-policy commands now attribute human audits
+correctly, matching existing native behavior. Fixture ownership and inventory
+checks are not evidence of SQL locks or bounded production reads.
+The memory Risk repository now has a focused identifier-only workflow reader:
+it validates current typed source/parents and ambiguity, preserves a scan's
+declared release-less state, and ignores vulnerability text and old reasons.
+It uses the transaction snapshot, not Ledger maps or PostgreSQL locks.
+
 Evidence list/search and point reads, lifecycle pages, SBOM documents/components,
 scan/contract points, VEX documents/reports and both VEX previews also require
 focused query ports. Their twelve fallback branches and sixteen obsolete broad-

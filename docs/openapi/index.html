@@ -806,13 +806,13 @@
               <div><dt>Responses</dt><dd>201 application/json: ControlEvidenceEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/custom-policies create custom policy creates a deterministic custom policy definition for tenant-managed release checks. createcustompolicy evydence policy:write">
+          <article class="operation" data-operation data-search="post /v1/custom-policies create custom policy creates an immutable tenant-wide custom policy through a focused risk command and durable replay. human sessions require a current tenant-wide policy:write grant. current tenant authority is checked before every fresh request or replay; definition, principal audit and replay result commit together. duplicate tenant/name/version definitions return 409. postgresql is required for local evaluation. createcustompolicy evydence policy:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/custom-policies</code>
             </div>
             <h3>Create custom policy</h3>
-            <p>Creates a deterministic custom policy definition for tenant-managed release checks.</p>
+            <p>Creates an immutable tenant-wide custom policy through a focused Risk command and durable replay. Human sessions require a current tenant-wide policy:write grant. Current tenant authority is checked before every fresh request or replay; definition, principal audit and replay result commit together. Duplicate tenant/name/version definitions return 409. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createCustomPolicy</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -823,13 +823,13 @@
               <div><dt>Responses</dt><dd>201 application/json: CustomPolicyEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/custom-policies/{id}/evaluate evaluate custom policy evaluates a tenant custom policy against a release and records the input hash. evaluatecustompolicy evydence policy:read">
+          <article class="operation" data-operation data-search="post /v1/custom-policies/{id}/evaluate evaluate custom policy evaluates evidence presence for a tenant-owned custom policy and release through a focused risk command, recording the normalized input hash. human sessions need a current tenant/product/release policy:read grant. replay checks current ownership/grants without reading rules or evidence and returns the original result; changed request bytes conflict. evaluation, principal audit and replay result commit together. this does not verify payloads, freshness, control effectiveness or compliance. postgresql is required for local evaluation. evaluatecustompolicy evydence policy:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/custom-policies/{id}/evaluate</code>
             </div>
             <h3>Evaluate custom policy</h3>
-            <p>Evaluates a tenant custom policy against a release and records the input hash.</p>
+            <p>Evaluates evidence presence for a tenant-owned custom policy and release through a focused Risk command, recording the normalized input hash. Human sessions need a current tenant/product/release policy:read grant. Replay checks current ownership/grants without reading rules or evidence and returns the original result; changed request bytes conflict. Evaluation, principal audit and replay result commit together. This does not verify payloads, freshness, control effectiveness or compliance. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>evaluateCustomPolicy</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2251,13 +2251,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ReleaseEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/releases/{id}/security-summary release security summary returns a tenant-scoped release security summary for review surfaces without raw evidence payload bytes. releasesecuritysummary evydence report:read">
+          <article class="operation" data-operation data-search="get /v1/releases/{id}/security-summary release security summary returns a tenant-scoped release security summary through a bounded focused risk query, requiring report:read and current tenant/product/release grants for human sessions. raw evidence payload bytes and private decision notes are excluded. postgresql is required for local evaluation. releasesecuritysummary evydence report:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/releases/{id}/security-summary</code>
             </div>
             <h3>Release security summary</h3>
-            <p>Returns a tenant-scoped release security summary for review surfaces without raw evidence payload bytes.</p>
+            <p>Returns a tenant-scoped release security summary through a bounded focused Risk query, requiring report:read and current tenant/product/release grants for human sessions. Raw evidence payload bytes and private decision notes are excluded. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>releaseSecuritySummary</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2557,13 +2557,13 @@
               <div><dt>Responses</dt><dd>200 application/json: VulnerabilityDecisionSummaryReportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/reports/vulnerability-posture vulnerability posture report returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only; decisions, vex, exceptions, and workflow records are not included. without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. raw findings are not returned, and scanner coverage is not independently verified. vulnerabilityposturereport evydence security:read">
+          <article class="operation" data-operation data-search="get /v1/reports/vulnerability-posture vulnerability posture report returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only through a focused bounded query; decisions, vex, exceptions, and workflow records are not included. without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. raw findings are not returned, and scanner coverage is not independently verified. postgresql is required for local evaluation. vulnerabilityposturereport evydence security:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/reports/vulnerability-posture</code>
             </div>
             <h3>Vulnerability posture report</h3>
-            <p>Returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only; decisions, VEX, exceptions, and workflow records are not included. Without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. Raw findings are not returned, and scanner coverage is not independently verified.</p>
+            <p>Returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only through a focused bounded query; decisions, VEX, exceptions, and workflow records are not included. Without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. Raw findings are not returned, and scanner coverage is not independently verified. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>vulnerabilityPostureReport</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3288,13 +3288,13 @@
               <div><dt>Responses</dt><dd>201 application/json: VulnerabilityDecisionEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/vulnerability-findings/{id}/workflow record vulnerability workflow event records an append-only vulnerability workflow event for a tenant-scoped finding. recordvulnerabilityworkflow evydence security:write">
+          <article class="operation" data-operation data-search="post /v1/vulnerability-findings/{id}/workflow record vulnerability workflow event records an append-only vulnerability workflow annotation through a focused risk command and durable replay. current finding/source/parent ownership and security:write grants are checked before every fresh request or replay; replay does not read historical workflow reasons or reapply effects. the annotation does not change a finding or decision. record, principal audit and replay result commit together. postgresql is required for local evaluation. recordvulnerabilityworkflow evydence security:write">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/vulnerability-findings/{id}/workflow</code>
             </div>
             <h3>Record vulnerability workflow event</h3>
-            <p>Records an append-only vulnerability workflow event for a tenant-scoped finding.</p>
+            <p>Records an append-only vulnerability workflow annotation through a focused Risk command and durable replay. Current finding/source/parent ownership and security:write grants are checked before every fresh request or replay; replay does not read historical workflow reasons or reapply effects. The annotation does not change a finding or decision. Record, principal audit and replay result commit together. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>recordVulnerabilityWorkflow</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>

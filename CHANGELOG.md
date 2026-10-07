@@ -94,7 +94,19 @@ definition regressions. The legacy template-install command now records human
 audit identity correctly; the production PostgreSQL command already did so.
 Affected API descriptions no longer advertise local-memory evaluation.
 Other aggregate dependencies remain unfinished under EVY-906.
-Remaining aggregate retirement is still in progress under EVY-906.
+
+Custom-policy creation/evaluation, vulnerability workflow annotation, release
+security summary and vulnerability posture handlers now require focused ports.
+Five aggregate fallback paths are removed; native guards, durable replay,
+structured decoding and public DTOs are unchanged. Test-only regressions cover
+full-state rollback/replay, current grants/foreign parents, report completeness,
+privacy, cancellation and detached metadata. Historical custom-policy commands
+now attribute human audits correctly; native PostgreSQL already did so.
+The memory Risk test adapter now exposes identifier-only workflow ownership
+reads, including release-less scans, without consulting vulnerability text or
+historical reasons. It remains a test backend, not SQL locking evidence.
+Affected API and architecture descriptions require PostgreSQL local evaluation.
+Remaining aggregate cleanup and final ticket gates are still unfinished.
 
 Generic evidence creation, supersession, linking and lifecycle-event handlers
 now use only focused Evidence ports. Their two broad local dependencies and
