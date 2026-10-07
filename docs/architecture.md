@@ -55,14 +55,17 @@ legacy transport binding is installed. The canary must remain unchanged after
 requests and at fixture cleanup. Existing HTTP status, DTO, tenant/grant,
 rollback, privacy and restart/replay expectations remain in place.
 
-Product, project, release, artifact, container-image, build and candidate
-creation handlers now have only the focused command/replay path. Their legacy
-branches and 14 corresponding broad-interface methods are deleted. The native
-decoders, cookie-origin checks, command guards and response mappings are
-unchanged. Transitional local test setup supplies test-only focused adapters;
-its failure-after-write regression verifies that the isolated command clone
-does not publish product or audit effects on rollback. This does not retire
-the remaining aggregate implementation or other legacy handler branches.
+Release-context HTTP creation, lifecycle transitions, attestation ingestion,
+catalog point/page reads and evidence-flow plans now have only focused
+command/query paths. The broad `releaseCatalog` Server field and its entire
+interface are deleted, including the remaining 16 methods after the earlier
+creation cleanup. Native decoders, cookie-origin checks, command guards,
+revision fingerprints, cursor binding, payload-coordinate redaction and
+response mappings are unchanged. Transitional local test setup supplies
+test-only focused adapters; its failure-after-write regression verifies that
+the isolated command clone does not publish product or audit effects on
+rollback. This does not retire the remaining aggregate implementation or
+other contexts' legacy handler branches.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime

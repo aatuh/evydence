@@ -48,7 +48,6 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.authn = ledger
 	s.idempotency = legacyFixtureIdempotencyExecutor{ledger: ledger}
 	s.identityAccess = ledger
-	s.releaseCatalog = ledger
 	s.localDeployments = ledger
 	s.localEvidenceCreation = ledger
 	s.localEvidenceRelationships = ledger
@@ -61,6 +60,8 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.verification = ledger
 	s.bindCatalogFixturePorts(ledger)
 	s.bindRegistrationFixturePorts(ledger)
+	s.bindLifecycleFixturePorts(ledger)
+	s.bindCatalogQueryFixturePorts(ledger)
 }
 
 type legacyFixtureCommandScope struct {
@@ -97,7 +98,6 @@ var (
 	_ Authenticator            = (*app.Ledger)(nil)
 	_ idempotencyExecutor      = legacyFixtureIdempotencyExecutor{}
 	_ identityAccessService    = (*app.Ledger)(nil)
-	_ releaseCatalogService    = (*app.Ledger)(nil)
 	_ evidenceIngestionService = (*app.Ledger)(nil)
 	_ riskDecisionService      = (*app.Ledger)(nil)
 	_ packageService           = (*app.Ledger)(nil)

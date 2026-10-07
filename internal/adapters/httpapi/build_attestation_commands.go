@@ -30,27 +30,14 @@ func (s *Server) uploadBuildAttestation(w http.ResponseWriter, r *http.Request) 
 		writeProblem(w, r, mapBuildAttestationCommandError(err))
 		return
 	}
-	if s.buildAttestationCommands != nil {
-		s.createDurableWithLimit(w, r, releaseapp.BuildAttestationPayloadLimit, func(ctx context.Context, a domain.Actor, raw []byte) error {
-			if len(raw) == 0 {
-				return app.NewValidationError(app.FieldViolation{Field: "/body", Code: "invalid_size"})
-			}
-			return mapBuildAttestationCommandError(s.buildAttestationCommands.AuthorizeBuildAttestationCreation(ctx, a, id))
-		}, func(ctx context.Context, a domain.Actor, raw []byte) (int, any, error) {
-			v, err := s.buildAttestationCommands.UploadBuildAttestation(ctx, a, id, raw)
-			return http.StatusCreated, buildAttestationFromCommand(v), mapBuildAttestationCommandError(err)
-		})
-		return
-	}
-	s.createWithActorFingerprint(w, r, releaseapp.BuildAttestationPayloadLimit, func(s *Server, ctx requestContext, a domain.Actor, raw []byte) (int, any, error) {
-		v, err := s.releaseCatalog.UploadBuildAttestation(ctx, a, id, raw)
-		v.PayloadRef = ""
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		if len(body) == 0 {
-			return nil, app.NewValidationError(app.FieldViolation{Field: "/body", Code: "invalid_size"})
+	s.createDurableWithLimit(w, r, releaseapp.BuildAttestationPayloadLimit, func(ctx context.Context, a domain.Actor, raw []byte) error {
+		if len(raw) == 0 {
+			return app.NewValidationError(app.FieldViolation{Field: "/body", Code: "invalid_size"})
 		}
-		return body, s.releaseCatalog.AuthorizeBuildAttestationCreation(r.Context(), a, id)
+		return mapBuildAttestationCommandError(s.buildAttestationCommands.AuthorizeBuildAttestationCreation(ctx, a, id))
+	}, func(ctx context.Context, a domain.Actor, raw []byte) (int, any, error) {
+		v, err := s.buildAttestationCommands.UploadBuildAttestation(ctx, a, id, raw)
+		return http.StatusCreated, buildAttestationFromCommand(v), mapBuildAttestationCommandError(err)
 	})
 }
 

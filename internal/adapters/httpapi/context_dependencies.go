@@ -312,7 +312,7 @@ type ProductQuery interface {
 }
 
 // CatalogPointQuery reads projects and releases from tenant-filtered durable
-// storage while the local-memory profile retains compatibility readers.
+// storage. In-memory readers are limited to explicit test fixture setup.
 type CatalogPointQuery interface {
 	GetProject(context.Context, domain.Actor, string) (releasedomain.Project, error)
 	GetRelease(context.Context, domain.Actor, string) (releasedomain.Release, error)
@@ -549,28 +549,6 @@ type identityAccessService interface {
 	ExchangeSSOCredential(context.Context, app.ExchangeSSOCredentialInput) (domain.ProviderVerification, domain.SSOSession, string, error)
 	RevokeSSOSession(context.Context, domain.Actor, string) (domain.SSOSession, error)
 	RevokeCurrentSSOSession(context.Context, domain.Actor) (domain.SSOSession, error)
-}
-
-// releaseCatalogService contains only release-catalog operations owned by the
-// release context. Verification, decision, package, and platform operations
-// remain on their separate migration paths.
-type releaseCatalogService interface {
-	ListProducts(context.Context, domain.Actor) ([]domain.Product, error)
-	GetProduct(context.Context, domain.Actor, string) (domain.Product, error)
-	GetProject(context.Context, domain.Actor, string) (domain.Project, error)
-	GetRelease(context.Context, domain.Actor, string) (domain.Release, error)
-	ReleaseEvidenceFlowPlan(context.Context, domain.Actor, string) (domain.ReleaseEvidenceFlow, error)
-	FreezeRelease(context.Context, domain.Actor, string, int64) (domain.Release, error)
-	AuthorizeReleaseTransition(context.Context, domain.Actor, string) error
-	AuthorizeCandidateTransition(context.Context, domain.Actor, string) error
-	ApproveRelease(context.Context, domain.Actor, string, int64) (domain.Release, error)
-	ListReleaseCandidates(context.Context, domain.Actor, string) ([]domain.ReleaseCandidate, error)
-	GetReleaseCandidate(context.Context, domain.Actor, string) (domain.ReleaseCandidate, error)
-	UpdateReleaseCandidateState(context.Context, domain.Actor, string, string, string, int64) (domain.ReleaseCandidate, error)
-	GetArtifact(context.Context, domain.Actor, string) (domain.Artifact, error)
-	GetBuildRun(context.Context, domain.Actor, string) (domain.BuildRun, error)
-	AuthorizeBuildAttestationCreation(context.Context, domain.Actor, string) error
-	UploadBuildAttestation(context.Context, domain.Actor, string, []byte) (domain.BuildAttestation, error)
 }
 
 // evidenceIngestionService contains accepted-evidence, document-ingestion,

@@ -48,8 +48,10 @@ and aggregate deletion remain unfinished under EVY-906.
 Product, project, release, artifact, container-image, build and candidate
 creation no longer contain legacy HTTP command fallbacks. Their existing
 native validation, authorization, replay and response contracts are unchanged.
-Fourteen unused broad transport-interface methods are deleted; remaining
-aggregate retirement is still in progress.
+The remaining release-catalog lifecycle, attestation and query fallbacks are
+also removed, together with the broad Server field and transport interface.
+Conditional replay fingerprints, cursor binding and attestation redaction are
+preserved. Remaining aggregate retirement is still in progress.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the

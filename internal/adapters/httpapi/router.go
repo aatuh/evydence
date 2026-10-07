@@ -156,7 +156,6 @@ type Server struct {
 	questionnaireTemplateCommands     QuestionnaireTemplateCommands
 	redactionProfileCommands          RedactionProfileCommands
 	answerLibraryCommands             AnswerLibraryCommands
-	releaseCatalog                    releaseCatalogService
 	productQuery                      ProductQuery
 	catalogPointQuery                 CatalogPointQuery
 	evidenceFlowQuery                 EvidenceFlowQuery
@@ -1037,40 +1036,29 @@ func (s *Server) listProducts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.productQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "products")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.productQuery.ListProductsPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			switch {
-			case errors.Is(err, releasequery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
-				err = app.ErrValidation
-			case errors.Is(err, application.ErrUnauthorized):
-				err = app.ErrUnauthorized
-			case errors.Is(err, application.ErrForbidden):
-				err = app.ErrForbidden
-			}
-			writeProblem(w, r, err)
-			return
-		}
-		mapped := appquery.Result[domain.Product]{Next: page.Next, Items: make([]domain.Product, 0, len(page.Items))}
-		for _, product := range page.Items {
-			mapped.Items = append(mapped.Items, domain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt})
-		}
-		writePage(s, w, r, actor, "products", request, mapped)
-		return
-	}
-	products, err := s.releaseCatalog.ListProducts(r.Context(), actor)
+	request, err := s.parsePageRequest(r, actor, "products")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "products", nil, products, func(product domain.Product) (string, time.Time) {
-		return product.ID, product.CreatedAt
-	})
+	page, err := s.productQuery.ListProductsPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		switch {
+		case errors.Is(err, releasequery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
+			err = app.ErrValidation
+		case errors.Is(err, application.ErrUnauthorized):
+			err = app.ErrUnauthorized
+		case errors.Is(err, application.ErrForbidden):
+			err = app.ErrForbidden
+		}
+		writeProblem(w, r, err)
+		return
+	}
+	mapped := appquery.Result[domain.Product]{Next: page.Next, Items: make([]domain.Product, 0, len(page.Items))}
+	for _, product := range page.Items {
+		mapped.Items = append(mapped.Items, domain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt})
+	}
+	writePage(s, w, r, actor, "products", request, mapped)
 }
 
 func (s *Server) getProduct(w http.ResponseWriter, r *http.Request) {
@@ -1078,31 +1066,22 @@ func (s *Server) getProduct(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.productQuery != nil {
-		product, err := s.productQuery.GetProduct(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			switch {
-			case errors.Is(err, releasequery.ErrValidation):
-				err = app.ErrValidation
-			case errors.Is(err, releasequery.ErrNotFound):
-				err = app.ErrNotFound
-			case errors.Is(err, application.ErrUnauthorized):
-				err = app.ErrUnauthorized
-			case errors.Is(err, application.ErrForbidden):
-				err = app.ErrForbidden
-			}
-			writeProblem(w, r, err)
-			return
-		}
-		writeData(w, http.StatusOK, domain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt})
-		return
-	}
-	product, err := s.releaseCatalog.GetProduct(r.Context(), actor, r.PathValue("id"))
+	product, err := s.productQuery.GetProduct(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
+		switch {
+		case errors.Is(err, releasequery.ErrValidation):
+			err = app.ErrValidation
+		case errors.Is(err, releasequery.ErrNotFound):
+			err = app.ErrNotFound
+		case errors.Is(err, application.ErrUnauthorized):
+			err = app.ErrUnauthorized
+		case errors.Is(err, application.ErrForbidden):
+			err = app.ErrForbidden
+		}
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, product)
+	writeData(w, http.StatusOK, domain.Product{ID: product.ID, TenantID: product.TenantID, Name: product.Name, Slug: product.Slug, CreatedAt: product.CreatedAt})
 }
 
 func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
@@ -1110,21 +1089,12 @@ func (s *Server) getProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.catalogPointQuery != nil {
-		project, err := s.catalogPointQuery.GetProject(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapCatalogPointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, domain.Project{ID: project.ID, TenantID: project.TenantID, ProductID: project.ProductID, Name: project.Name, CreatedAt: project.CreatedAt})
-		return
-	}
-	project, err := s.releaseCatalog.GetProject(r.Context(), actor, r.PathValue("id"))
+	project, err := s.catalogPointQuery.GetProject(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapCatalogPointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, project)
+	writeData(w, http.StatusOK, domain.Project{ID: project.ID, TenantID: project.TenantID, ProductID: project.ProductID, Name: project.Name, CreatedAt: project.CreatedAt})
 }
 
 func (s *Server) getRelease(w http.ResponseWriter, r *http.Request) {
@@ -1132,21 +1102,12 @@ func (s *Server) getRelease(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.catalogPointQuery != nil {
-		release, err := s.catalogPointQuery.GetRelease(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapCatalogPointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, domain.ReleaseFromContextModel(release))
-		return
-	}
-	release, err := s.releaseCatalog.GetRelease(r.Context(), actor, r.PathValue("id"))
+	release, err := s.catalogPointQuery.GetRelease(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapCatalogPointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, release)
+	writeData(w, http.StatusOK, domain.ReleaseFromContextModel(release))
 }
 
 func mapCatalogPointQueryError(err error) error {
@@ -1169,21 +1130,12 @@ func (s *Server) startReleaseEvidenceFlow(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if s.evidenceFlowQuery != nil {
-		flow, err := s.evidenceFlowQuery.Plan(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapCatalogPointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, domain.ReleaseEvidenceFlowFromContextModel(flow))
-		return
-	}
-	flow, err := s.releaseCatalog.ReleaseEvidenceFlowPlan(r.Context(), actor, r.PathValue("id"))
+	flow, err := s.evidenceFlowQuery.Plan(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapCatalogPointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, flow)
+	writeData(w, http.StatusOK, domain.ReleaseEvidenceFlowFromContextModel(flow))
 }
 
 func (s *Server) releaseSecuritySummary(w http.ResponseWriter, r *http.Request) {
@@ -1213,32 +1165,21 @@ func (s *Server) listReleaseCandidates(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.releaseCandidateQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "release-candidates", "release_id")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		page, err := s.releaseCandidateQuery.ListPage(r.Context(), actor, r.URL.Query().Get("release_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapReleaseCandidateQueryError(err))
-			return
-		}
-		mapped := appquery.Result[domain.ReleaseCandidate]{Next: page.Next, Items: make([]domain.ReleaseCandidate, 0, len(page.Items))}
-		for _, candidate := range page.Items {
-			mapped.Items = append(mapped.Items, releaseCandidateFromQuery(candidate))
-		}
-		writePage(s, w, r, actor, "release-candidates", request, mapped)
-		return
-	}
-	candidates, err := s.releaseCatalog.ListReleaseCandidates(r.Context(), actor, r.URL.Query().Get("release_id"))
+	request, err := s.parsePageRequest(r, actor, "release-candidates", "release_id")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "release-candidates", []string{"release_id"}, candidates, func(candidate domain.ReleaseCandidate) (string, time.Time) {
-		return candidate.ID, candidate.CreatedAt
-	})
+	page, err := s.releaseCandidateQuery.ListPage(r.Context(), actor, r.URL.Query().Get("release_id"), appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapReleaseCandidateQueryError(err))
+		return
+	}
+	mapped := appquery.Result[domain.ReleaseCandidate]{Next: page.Next, Items: make([]domain.ReleaseCandidate, 0, len(page.Items))}
+	for _, candidate := range page.Items {
+		mapped.Items = append(mapped.Items, releaseCandidateFromQuery(candidate))
+	}
+	writePage(s, w, r, actor, "release-candidates", request, mapped)
 }
 
 func (s *Server) getReleaseCandidate(w http.ResponseWriter, r *http.Request) {
@@ -1246,21 +1187,12 @@ func (s *Server) getReleaseCandidate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.releaseCandidateQuery != nil {
-		candidate, err := s.releaseCandidateQuery.GetReleaseCandidate(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapReleaseCandidateQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, releaseCandidateFromQuery(candidate))
-		return
-	}
-	candidate, err := s.releaseCatalog.GetReleaseCandidate(r.Context(), actor, r.PathValue("id"))
+	candidate, err := s.releaseCandidateQuery.GetReleaseCandidate(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapReleaseCandidateQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, candidate)
+	writeData(w, http.StatusOK, releaseCandidateFromQuery(candidate))
 }
 
 func (s *Server) promoteReleaseCandidate(w http.ResponseWriter, r *http.Request) {
@@ -1276,21 +1208,12 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.artifactPointQuery != nil {
-		artifact, err := s.artifactPointQuery.GetArtifact(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapArtifactPointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, artifactFromQuery(artifact))
-		return
-	}
-	artifact, err := s.releaseCatalog.GetArtifact(r.Context(), actor, r.PathValue("id"))
+	artifact, err := s.artifactPointQuery.GetArtifact(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapArtifactPointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, artifact)
+	writeData(w, http.StatusOK, artifactFromQuery(artifact))
 }
 
 func (s *Server) getArtifactSignature(w http.ResponseWriter, r *http.Request) {
@@ -1320,21 +1243,12 @@ func (s *Server) getBuild(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.buildPointQuery != nil {
-		build, err := s.buildPointQuery.GetBuildRun(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapCatalogPointQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, buildRunFromQuery(build))
-		return
-	}
-	build, err := s.releaseCatalog.GetBuildRun(r.Context(), actor, r.PathValue("id"))
+	build, err := s.buildPointQuery.GetBuildRun(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapCatalogPointQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, build)
+	writeData(w, http.StatusOK, buildRunFromQuery(build))
 }
 
 func (s *Server) listSourceRepositories(w http.ResponseWriter, r *http.Request) {

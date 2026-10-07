@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -39,8 +40,8 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.identityAccess != ledger {
 		t.Fatal("identity access service was not rebound")
 	}
-	if server.releaseCatalog != ledger {
-		t.Fatal("release catalog service was not rebound")
+	if reflect.ValueOf(server).Elem().FieldByName("releaseCatalog").IsValid() {
+		t.Fatal("broad release catalog binding was not deleted")
 	}
 	if server.localDeployments != ledger {
 		t.Fatal("local deployment dependency was not rebound")
@@ -88,6 +89,23 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	durable, ok := server.durableCommandExecutor.(catalogFixtureReplayExecutor)
 	if !ok || durable.ledger != ledger {
 		t.Fatal("focused fixture replay was not rebound")
+	}
+	for name, dependency := range map[string]any{
+		"release-state": server.releaseStateCommands, "candidate-state": server.candidateStateCommands, "attestation": server.buildAttestationCommands,
+	} {
+		commands, ok := dependency.(lifecycleFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture port was not rebound", name)
+		}
+	}
+	for name, dependency := range map[string]any{
+		"products": server.productQuery, "catalog-points": server.catalogPointQuery, "flow": server.evidenceFlowQuery,
+		"artifacts": server.artifactPointQuery, "builds": server.buildPointQuery, "candidates": server.releaseCandidateQuery,
+	} {
+		query, ok := dependency.(catalogQueryFixture)
+		if !ok || query.ledger != ledger {
+			t.Fatalf("focused %s fixture query was not rebound", name)
+		}
 	}
 }
 
@@ -246,7 +264,7 @@ func TestConditionalTransitionsRetireLedgerWrapperAndUseNativeFingerprintExecuto
 			}
 			found = true
 			ast.Inspect(fn.Body, func(node ast.Node) bool {
-				if selector, ok := node.(*ast.SelectorExpr); ok && (selector.Sel.Name == "ledger" || selector.Sel.Name == "bindLegacyLedgerFixture" || selector.Sel.Name == "createConditional") {
+				if selector, ok := node.(*ast.SelectorExpr); ok && (selector.Sel.Name == "ledger" || selector.Sel.Name == "releaseCatalog" || selector.Sel.Name == "bindLegacyLedgerFixture" || selector.Sel.Name == "createConditional" || selector.Sel.Name == "createWithActorFingerprint") {
 					t.Errorf("%s reaches retired aggregate conditional path", name)
 				}
 				call, ok := node.(*ast.CallExpr)
@@ -262,8 +280,8 @@ func TestConditionalTransitionsRetireLedgerWrapperAndUseNativeFingerprintExecuto
 				return true
 			})
 		}
-		if !found || native != 1 || fingerprints != 2 {
-			t.Errorf("%s found=%t native=%d fingerprints=%d; want one native and both profile fingerprints", name, found, native, fingerprints)
+		if !found || native != 1 || fingerprints != 1 {
+			t.Errorf("%s found=%t native=%d fingerprints=%d; want one native path and its revision fingerprint", name, found, native, fingerprints)
 		}
 	}
 }

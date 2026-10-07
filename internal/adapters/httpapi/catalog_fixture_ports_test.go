@@ -55,11 +55,7 @@ func (f catalogFixtureCommands) CreateRelease(ctx context.Context, actor identit
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	state, err := releasedomain.ParseReleaseState(value.State)
-	if err != nil {
-		return releasedomain.Release{}, app.ErrValidation
-	}
-	return releasedomain.Release{ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, Version: value.Version, Revision: value.Revision, State: state, CreatedAt: value.CreatedAt, FrozenAt: value.FrozenAt, ApprovedAt: value.ApprovedAt}, nil
+	return releaseFixtureModel(value)
 }
 
 type catalogFixtureReplayExecutor struct{ ledger *app.Ledger }

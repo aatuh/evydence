@@ -32,7 +32,7 @@ func (f registrationFixtureCommands) AuthorizeArtifactRegistration(ctx context.C
 
 func (f registrationFixtureCommands) RegisterArtifact(ctx context.Context, actor identitydomain.Actor, input releaseapp.RegisterArtifactInput) (releasedomain.Artifact, error) {
 	value, err := f.commandLedger(ctx).RegisterArtifact(ctx, actor, input.Name, input.MediaType, input.Digest, input.Size)
-	return releasedomain.Artifact{ID: value.ID, TenantID: value.TenantID, Name: value.Name, MediaType: value.MediaType, Digest: value.Digest, Size: value.Size, CreatedAt: value.CreatedAt}, err
+	return artifactFixtureModel(value), err
 }
 
 func (f registrationFixtureCommands) AuthorizeContainerImageRegistration(ctx context.Context, actor identitydomain.Actor, input releaseapp.RegisterContainerImageInput) error {
@@ -50,11 +50,7 @@ func (f registrationFixtureCommands) AuthorizeBuildCreation(ctx context.Context,
 
 func (f registrationFixtureCommands) CreateBuildRun(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateBuildRunInput) (releasedomain.BuildRun, error) {
 	value, err := f.commandLedger(ctx).CreateBuildRun(ctx, actor, localBuildCreationInput(input))
-	outputs := make([]releasedomain.BuildOutput, 0, len(value.Outputs))
-	for _, output := range value.Outputs {
-		outputs = append(outputs, releasedomain.BuildOutput{ArtifactID: output.ArtifactID, Digest: output.Digest})
-	}
-	return releasedomain.BuildRun{ID: value.ID, TenantID: value.TenantID, ProjectID: value.ProjectID, ReleaseID: value.ReleaseID, CollectorID: value.CollectorID, Provider: value.Provider, CommitSHA: value.CommitSHA, Repository: value.Repository, WorkflowRef: value.WorkflowRef, RunID: value.RunID, RunAttempt: value.RunAttempt, JobID: value.JobID, Actor: value.Actor, Ref: value.Ref, OIDCSubject: value.OIDCSubject, Status: value.Status, StartedAt: value.StartedAt, FinishedAt: value.FinishedAt, ParametersHash: value.ParametersHash, EnvironmentHash: value.EnvironmentHash, SourceIdentity: value.SourceIdentity, Outputs: outputs, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt}, err
+	return buildFixtureModel(value), err
 }
 
 func (f registrationFixtureCommands) AuthorizeCandidateCreation(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateReleaseCandidateInput) error {
@@ -66,11 +62,7 @@ func (f registrationFixtureCommands) CreateReleaseCandidate(ctx context.Context,
 	if err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	state, err := releasedomain.ParseReleaseCandidateState(value.State)
-	if err != nil {
-		return releasedomain.ReleaseCandidate{}, app.ErrValidation
-	}
-	return releasedomain.ReleaseCandidate{ID: value.ID, TenantID: value.TenantID, ReleaseID: value.ReleaseID, Name: value.Name, Revision: value.Revision, State: state, BuildIDs: value.BuildIDs, ArtifactIDs: value.ArtifactIDs, SBOMIDs: value.SBOMIDs, ScanIDs: value.ScanIDs, VEXIDs: value.VEXIDs, ContractIDs: value.ContractIDs, BundleIDs: value.BundleIDs, SnapshotHash: value.SnapshotHash, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt, PromotedAt: value.PromotedAt, RejectedAt: value.RejectedAt}, nil
+	return candidateFixtureModel(value)
 }
 
 func (s *Server) bindRegistrationFixturePorts(ledger *app.Ledger) {
