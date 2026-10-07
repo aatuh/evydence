@@ -78,7 +78,7 @@ func TestAnswerLibraryHTTPStrictJSONFocusedProjectionAndSafeErrors(t *testing.T)
 	}
 }
 func TestAnswerLibraryHTTPLocalReplayRechecksCurrentHumanGrants(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestAnswerLibraryHTTPLocalReplayRechecksCurrentHumanGrants(t *testing.T) {
 	postRaw(t, s, secret, "/v1/questionnaire-answer-library", "replay", []byte(body), 403)
 }
 func TestAnswerLibraryHTTPCookieOriginBothProfiles(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	for _, focused := range []bool{false, true} {
 		opts := ServerOptions{}
 		if focused {

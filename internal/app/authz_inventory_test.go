@@ -35,9 +35,11 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"control_evidence_replay_guard.go":  {"AuthorizeControlEvidenceLink", "authorizeControlEvidenceLinkLocked"},
 		"source_repository_replay_guard.go": {"AuthorizeSourceRepositoryCreation", "authorizeSourceRepositoryCreationLocked"},
 		"source_write_replay_guard.go":      {"AuthorizeSourceCommitRecording", "AuthorizeSourceBranchUpsert", "AuthorizePullRequestRecording", "authorizeLocalSourceWriteLocked"},
-		"enterprise.go": {
+		"legacy_answer_library_oracle_test.go": {
 			"CreateQuestionnaireAnswerLibraryEntry",
 			"ListQuestionnaireAnswerLibrary",
+			"AuthorizeQuestionnaireAnswerLibraryCreate",
+			"authorizeAnswerLibraryCreateLocked",
 		},
 		// Preserve the historical command authorization assertions in their
 		// test-only oracle. Uncalled replay guards are now covered by the
@@ -54,10 +56,6 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"public_transparency_verification.go":      {"AuthorizeVerifyPublicTransparencyLogEntry"},
 		"public_transparency_fetch.go":             {"AuthorizeFetchPublicTransparencyLogEntryProof", "FetchAndVerifyPublicTransparencyLogEntry"},
 		"future_extensions.go":                     {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation", "CreateSaaSEditionProfile", "CreateMarketplaceCollector", "CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry", "VerifyPublicTransparencyLogEntry"},
-		"answer_library_creation.go": {
-			"AuthorizeQuestionnaireAnswerLibraryCreate",
-			"authorizeAnswerLibraryCreateLocked",
-		},
 		"legacy_questionnaire_oracle_test.go": {
 			"CreateQuestionnairePackage",
 			"AuthorizeQuestionnairePackageCreate",

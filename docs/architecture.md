@@ -1909,7 +1909,13 @@ question responses. Historical generator declarations and inputs are now
 excluded from production and retained in
 `internal/app/legacy_questionnaire_oracle_test.go` solely for package-local
 regressions. The obsolete package guard file and unused fixture input conversion
-are deleted. Answer-library fixtures still retain isolated historical writes.
+are deleted. Answer-library fixtures now also use real focused commands and
+the focused paged reader over memory transactions, without publishing answer
+caches back into Ledger. Current-parent and grant predicates precede pagination
+and private answer projection. Historical answer-library declarations are
+excluded from production and retained unchanged in
+`internal/app/legacy_answer_library_oracle_test.go` solely for package-local
+regressions; the obsolete answer-library guard file is deleted.
 Existing and new tests cover whole-state rollback,
 complete DTO/hash/audit, current-grant/foreign-reference, permission-fingerprint,
 page and nested-metadata detachment regressions. They are not SQL bounds,

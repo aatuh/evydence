@@ -36,10 +36,11 @@ func seedQuestionnaireFixtureScope(t *testing.T, ledger *app.Ledger, name string
 		t.Fatal(err)
 	}
 	f.template = domain.QuestionnaireTemplate{ID: tpl.ID, TenantID: tpl.TenantID, Name: tpl.Name, Version: tpl.Version, Questions: questionnaireQuestionsFromCommand(tpl.Questions), SchemaVersion: tpl.SchemaVersion, CreatedAt: tpl.CreatedAt}
-	f.entry, err = ledger.CreateQuestionnaireAnswerLibraryEntry(t.Context(), f.actor, app.CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", EvidenceType: "security_review", ControlID: f.control.ID, ProductID: f.product.ID, ReleaseID: f.release.ID, Answer: "Recorded scoped review", EvidenceIDs: []string{f.evidence.ID}, Limitations: []string{"Human review required"}})
+	entry, err := (questionnaireFixtureCommands{catalogFixtureCommands{ledger: ledger}}).CreateAnswerLibraryEntry(t.Context(), f.actor, packageapp.CreateAnswerLibraryEntryInput{QuestionID: "q1", EvidenceType: "security_review", ControlID: f.control.ID, ProductID: f.product.ID, ReleaseID: f.release.ID, Answer: "Recorded scoped review", EvidenceIDs: []string{f.evidence.ID}, Limitations: []string{"Human review required"}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.entry = answerLibraryEntryFromQuery(entry)
 	profile, err := ledger.CreateRedactionProfile(t.Context(), f.actor, app.CreateRedactionProfileInput{Preset: "customer_safe"})
 	if err != nil {
 		t.Fatal(err)
@@ -215,12 +216,12 @@ func TestQuestionnaireFixtureLibraryPagesAreScopedCompleteDetachedAndReadOnly(t 
 	owner, foreign := seedQuestionnaireFixtureScope(t, ledger, "Owner"), seedQuestionnaireFixtureScope(t, ledger, "Foreign")
 	for _, f := range []questionnaireFixtureScope{owner, foreign} {
 		for i := 0; i < 2; i++ {
-			if _, err := ledger.CreateQuestionnaireAnswerLibraryEntry(t.Context(), f.actor, app.CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", ProductID: f.product.ID, ReleaseID: f.release.ID, Answer: "Another scoped answer", EvidenceIDs: []string{f.evidence.ID}, Limitations: []string{"Review"}}); err != nil {
+			if _, err := (questionnaireFixtureCommands{catalogFixtureCommands{ledger: ledger}}).CreateAnswerLibraryEntry(t.Context(), f.actor, packageapp.CreateAnswerLibraryEntryInput{QuestionID: "q1", ProductID: f.product.ID, ReleaseID: f.release.ID, Answer: "Another scoped answer", EvidenceIDs: []string{f.evidence.ID}, Limitations: []string{"Review"}}); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	if _, err := ledger.CreateQuestionnaireAnswerLibraryEntry(t.Context(), owner.actor, app.CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: "q1", Answer: "private-global-answer"}); err != nil {
+	if _, err := (questionnaireFixtureCommands{catalogFixtureCommands{ledger: ledger}}).CreateAnswerLibraryEntry(t.Context(), owner.actor, packageapp.CreateAnswerLibraryEntryInput{QuestionID: "q1", Answer: "private-global-answer"}); err != nil {
 		t.Fatal(err)
 	}
 	s, err := newLegacyServerFixture(ledger)

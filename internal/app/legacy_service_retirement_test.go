@@ -17,7 +17,12 @@ func TestLegacyQuestionnaireGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"prepareLocalQuestionnairePackage": true, "questionnairePackageToContext": true, "cloneQuestionnairePackageDTO": true,
 		"CreateQuestionnaireDraft": true, "evidenceIDsForQuestionLocked": true, "questionnaireResponseForQuestionLocked": true,
 		"questionnaireAnswerLibraryMatchLocked": true, "questionnaireAnswerMatchesQuestion": true, "questionnaireAnswerSpecificity": true,
-		"evidenceIDsForRefsLocked": true,
+		"evidenceIDsForRefsLocked":                   true,
+		"CreateQuestionnaireAnswerLibraryEntryInput": true, "ListQuestionnaireAnswerLibraryInput": true,
+		"CreateQuestionnaireAnswerLibraryEntry": true, "ListQuestionnaireAnswerLibrary": true,
+		"validateQuestionnaireTemplateControlsLocked": true, "prepareLocalAnswerLibraryInput": true,
+		"AuthorizeQuestionnaireAnswerLibraryCreate": true, "authorizeAnswerLibraryCreateLocked": true,
+		"answerLibraryCitationParentsLocked": true, "answerLibraryEntryToContext": true, "cloneAnswerLibraryDTO": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

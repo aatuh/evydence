@@ -12,9 +12,9 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
-// Template/package operations use focused services on transaction repositories;
-// answer-library operations still retain isolated historical writes. These
-// test-only bridges are not runtime ports or evidence of SQL limits/locking.
+// Questionnaire and answer-library operations use focused services and
+// transaction repositories. These test-only bridges are not runtime ports or
+// evidence of SQL limits/locking.
 type questionnaireFixtureCommands struct{ catalogFixtureCommands }
 type answerLibraryFixtureQuery struct{ catalogFixtureCommands }
 
@@ -24,9 +24,6 @@ func questionnaireQuestionsFromCommand(qs []packagedomain.QuestionnaireQuestion)
 		out[i] = domain.QuestionnaireQuestion{ID: q.ID, Prompt: q.Prompt, EvidenceType: q.EvidenceType, ControlID: q.ControlID, AllowedFields: slices.Clone(q.AllowedFields)}
 	}
 	return out
-}
-func answerLibraryLegacyInput(in packageapp.CreateAnswerLibraryEntryInput) app.CreateQuestionnaireAnswerLibraryEntryInput {
-	return app.CreateQuestionnaireAnswerLibraryEntryInput{QuestionID: in.QuestionID, EvidenceType: in.EvidenceType, ControlID: in.ControlID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Answer: in.Answer, EvidenceIDs: slices.Clone(in.EvidenceIDs), Limitations: slices.Clone(in.Limitations)}
 }
 func questionnaireTemplateFixtureModel(v domain.QuestionnaireTemplate) packagedomain.QuestionnaireTemplate {
 	qs := make([]packagedomain.QuestionnaireQuestion, len(v.Questions))
@@ -74,27 +71,38 @@ func (f questionnaireFixtureCommands) CreateQuestionnairePackage(ctx context.Con
 	return c.CreateQuestionnairePackage(ctx, a, in)
 }
 func (f questionnaireFixtureCommands) AuthorizeCreateAnswerLibraryEntry(ctx context.Context, a domain.Actor, in packageapp.CreateAnswerLibraryEntryInput) error {
-	return f.commandLedger(ctx).AuthorizeQuestionnaireAnswerLibraryCreate(ctx, a, answerLibraryLegacyInput(in))
+	c, err := f.nativeAnswerLibrary(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeCreateAnswerLibraryEntry(ctx, a, in)
 }
 func (f questionnaireFixtureCommands) CreateAnswerLibraryEntry(ctx context.Context, a domain.Actor, in packageapp.CreateAnswerLibraryEntryInput) (packagedomain.QuestionnaireAnswerLibraryEntry, error) {
-	v, err := f.commandLedger(ctx).CreateQuestionnaireAnswerLibraryEntry(ctx, a, answerLibraryLegacyInput(in))
-	return answerLibraryFixtureModel(v), err
+	c, err := f.nativeAnswerLibrary(false)
+	if err != nil {
+		return packagedomain.QuestionnaireAnswerLibraryEntry{}, err
+	}
+	return c.CreateAnswerLibraryEntry(ctx, a, in)
 }
 func (f answerLibraryFixtureQuery) ListPage(ctx context.Context, a domain.Actor, filter packagequery.AnswerLibraryFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListQuestionnaireAnswerLibrary(ctx, a, app.ListQuestionnaireAnswerLibraryInput{QuestionID: filter.QuestionID, ProductID: filter.ProductID, ReleaseID: filter.ReleaseID})
+	c, err := packagequery.NewAnswerLibrary(f)
 	if err != nil {
 		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, err
 	}
-	items := make([]packagedomain.QuestionnaireAnswerLibraryEntry, 0, len(values))
-	for _, v := range values {
-		items = append(items, answerLibraryFixtureModel(v))
-	}
-	return appquery.Page(items, request, after, func(v packagedomain.QuestionnaireAnswerLibraryEntry, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(v.ID, v.CreatedAt, sort)
+	return c.ListPage(ctx, a, filter, request, after)
+}
+func (f answerLibraryFixtureQuery) PageAnswerLibrary(ctx context.Context, request packagequery.AnswerLibraryPageRequest) (appquery.Result[packagequery.AnswerLibraryPoint], error) {
+	var out appquery.Result[packagequery.AnswerLibraryPoint]
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
+		r, ok := repos.Enterprise.(packagequery.AnswerLibraryReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = r.PageAnswerLibrary(ctx, request)
+		return err
 	})
+	return out, err
 }
 func (s *Server) bindQuestionnaireFixturePorts(ledger *app.Ledger) {
 	f := questionnaireFixtureCommands{catalogFixtureCommands{ledger: ledger}}

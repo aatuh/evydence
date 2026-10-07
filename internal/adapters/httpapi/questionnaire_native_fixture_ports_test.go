@@ -17,6 +17,8 @@ type questionnaireNativeRepository interface {
 	InsertFocusedQuestionnaireTemplate(context.Context, packagedomain.QuestionnaireTemplate) error
 	packageapp.QuestionnairePackageReader
 	InsertFocusedQuestionnairePackage(context.Context, packagedomain.QuestionnairePackage) error
+	packageapp.AnswerLibraryReader
+	InsertFocusedAnswerLibraryEntry(context.Context, packagedomain.QuestionnaireAnswerLibraryEntry) error
 }
 type questionnaireNativeDraftRepository interface {
 	packageapp.QuestionnaireDraftReader
@@ -59,6 +61,22 @@ func (f questionnaireNativeFixtureTransactions) ExecuteQuestionnairePackage(ctx 
 }
 func (f questionnaireNativeFixtureTransactions) ExecuteQuestionnaireDraft(ctx context.Context, tenant string, fn func(context.Context, packageapp.QuestionnaireDraftTransaction) error) error {
 	return f.execute(ctx, tenant, func(ctx context.Context, tx questionnaireNativeFixtureTransaction) error { return fn(ctx, tx) })
+}
+func (f questionnaireNativeFixtureTransactions) ExecuteAnswerLibrary(ctx context.Context, tenant string, fn func(context.Context, packageapp.AnswerLibraryTransaction) error) error {
+	return f.execute(ctx, tenant, func(ctx context.Context, tx questionnaireNativeFixtureTransaction) error { return fn(ctx, tx) })
+}
+func (tx questionnaireNativeFixtureTransaction) ReadAnswerLibraryScope(ctx context.Context, tenant, product, release string) (packageapp.AnswerLibraryScope, error) {
+	v, err := tx.questionnaireNativeRepository.ReadAnswerLibraryScope(ctx, tenant, product, release)
+	return v, portalFixtureError(err)
+}
+func (tx questionnaireNativeFixtureTransaction) ValidateAnswerLibraryReferences(ctx context.Context, s packageapp.AnswerLibraryScope, control string, ids []string) error {
+	return portalFixtureError(tx.questionnaireNativeRepository.ValidateAnswerLibraryReferences(ctx, s, control, ids))
+}
+func (tx questionnaireNativeFixtureTransaction) InsertAnswerLibraryEntry(ctx context.Context, v packagedomain.QuestionnaireAnswerLibraryEntry) error {
+	if tx.readOnly {
+		panic("answer-library preflight wrote an answer")
+	}
+	return portalFixtureError(tx.InsertFocusedAnswerLibraryEntry(ctx, v))
 }
 func (tx questionnaireNativeFixtureTransaction) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
 	return tx.authorizer.Authorize(ctx, a, r)
@@ -137,4 +155,9 @@ func (f summaryDraftFixtureCommands) nativeDraft(readOnly bool) (*packageapp.Que
 	a := packagequery.NewQuestionnaireDraftAuthorizer()
 	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
 	return packageapp.NewQuestionnaireDraftCommands(packageapp.QuestionnaireDraftCommandConfig{Transactions: questionnaireNativeFixtureTransactions{f.catalogFixtureCommands, readOnly, a}, Authorizer: a, Clock: clock, IDs: ids})
+}
+func (f questionnaireFixtureCommands) nativeAnswerLibrary(readOnly bool) (*packageapp.AnswerLibraryCommands, error) {
+	a := packagequery.NewAnswerLibraryAuthorizer()
+	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
+	return packageapp.NewAnswerLibraryCommands(packageapp.AnswerLibraryCommandConfig{Transactions: questionnaireNativeFixtureTransactions{f.catalogFixtureCommands, readOnly, a}, Authorizer: a, Clock: clock, IDs: ids})
 }

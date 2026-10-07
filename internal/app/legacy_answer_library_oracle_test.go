@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -11,6 +12,136 @@ import (
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
+
+// Historical declarations retained unchanged for package-local regression tests.
+// HTTP fixtures use focused commands and transaction repository projections;
+// these methods are not a runtime backend or proof of native SQL behavior.
+
+type CreateQuestionnaireAnswerLibraryEntryInput struct {
+	QuestionID   string
+	EvidenceType string
+	ControlID    string
+	ProductID    string
+	ReleaseID    string
+	Answer       string
+	EvidenceIDs  []string
+	Limitations  []string
+}
+
+type ListQuestionnaireAnswerLibraryInput struct {
+	QuestionID string
+	ProductID  string
+	ReleaseID  string
+}
+
+func (l *Ledger) validateQuestionnaireTemplateControlsLocked(tenant string, ids []string) error {
+	if len(ids) > packageapp.MaxQuestionnaireTemplateQuestions {
+		return ErrValidation
+	}
+	if _, ok := l.tenants[tenant]; !ok {
+		return ErrNotFound
+	}
+	for _, id := range ids {
+		c, ok := l.controls[id]
+		f, frameworkExists := l.frameworks[c.FrameworkID]
+		if !ok || c.TenantID != tenant || !frameworkExists || f.TenantID != tenant {
+			return ErrNotFound
+		}
+	}
+	return nil
+}
+
+func (l *Ledger) CreateQuestionnaireAnswerLibraryEntry(ctx context.Context, actor domain.Actor, raw CreateQuestionnaireAnswerLibraryEntryInput) (domain.QuestionnaireAnswerLibraryEntry, error) {
+	in, err := prepareLocalAnswerLibraryInput(ctx, actor, raw)
+	if err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.authorizeAnswerLibraryCreateLocked(ctx, actor, in); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, err
+	}
+	entry := domain.QuestionnaireAnswerLibraryEntry{
+		ID:            newID("qal"),
+		TenantID:      actor.TenantID,
+		QuestionID:    in.QuestionID,
+		EvidenceType:  in.EvidenceType,
+		ControlID:     in.ControlID,
+		ProductID:     in.ProductID,
+		ReleaseID:     in.ReleaseID,
+		Answer:        in.Answer,
+		EvidenceIDs:   in.EvidenceIDs,
+		Limitations:   in.Limitations,
+		SchemaVersion: domain.QuestionnaireAnswerLibraryVersion,
+		CreatedAt:     l.now(),
+	}
+	if err := packageapp.ValidateAnswerLibraryRecord(answerLibraryEntryToContext(entry)); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, fromPackageContextError(err)
+	}
+	if l.unitOfWork != nil {
+		var auditEntry domain.AuditChainEntry
+		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
+			if err := repos.Enterprise.InsertQuestionnaireAnswerLibraryEntry(ctx, entry); err != nil {
+				return err
+			}
+			var err error
+			auditEntry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(entry.CreatedAt, actor.TenantID, "questionnaire_answer_library.created", "questionnaire_answer_library", entry.ID, actorType(actor), actorID(actor), "", ""))
+			return err
+		}); err != nil {
+			return domain.QuestionnaireAnswerLibraryEntry{}, err
+		}
+		l.answerLibrary[entry.ID] = entry
+		l.publishCommittedAuditEntryLocked(auditEntry)
+		return cloneAnswerLibraryDTO(entry), nil
+	}
+	l.answerLibrary[entry.ID] = entry
+	_, _ = l.appendChainLocked(actor.TenantID, "questionnaire_answer_library.created", "questionnaire_answer_library", entry.ID, actorType(actor), actorID(actor), "", "")
+	if err := l.persistLocked(ctx); err != nil {
+		return domain.QuestionnaireAnswerLibraryEntry{}, err
+	}
+	return cloneAnswerLibraryDTO(entry), nil
+}
+
+func (l *Ledger) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domain.Actor, in ListQuestionnaireAnswerLibraryInput) ([]domain.QuestionnaireAnswerLibraryEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := require(actor, ScopePackageRead); err != nil {
+		return nil, err
+	}
+	in.QuestionID, in.ProductID, in.ReleaseID = strings.TrimSpace(in.QuestionID), strings.TrimSpace(in.ProductID), strings.TrimSpace(in.ReleaseID)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if in.ProductID != "" || in.ReleaseID != "" {
+		if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
+			return nil, err
+		}
+		if err := l.authorizeResourceLocked(actor, ScopePackageRead, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
+			return nil, err
+		}
+	}
+	out := []domain.QuestionnaireAnswerLibraryEntry{}
+	for _, entry := range l.answerLibrary {
+		if entry.TenantID != actor.TenantID {
+			continue
+		}
+		if in.QuestionID != "" && entry.QuestionID != in.QuestionID {
+			continue
+		}
+		if in.ProductID != "" && entry.ProductID != "" && entry.ProductID != in.ProductID {
+			continue
+		}
+		if in.ReleaseID != "" && entry.ReleaseID != "" && entry.ReleaseID != in.ReleaseID {
+			continue
+		}
+		if !l.resourceAllowedLocked(actor, ScopePackageRead, resourceRefs{ProductID: entry.ProductID, ReleaseID: entry.ReleaseID}) {
+			continue
+		}
+		out = append(out, cloneAnswerLibraryDTO(entry))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
 
 func prepareLocalAnswerLibraryInput(ctx context.Context, a domain.Actor, in CreateQuestionnaireAnswerLibraryEntryInput) (packageapp.CreateAnswerLibraryEntryInput, error) {
 	if err := packagequery.NewAnswerLibraryAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true}); err != nil {
@@ -34,6 +165,7 @@ func (l *Ledger) AuthorizeQuestionnaireAnswerLibraryCreate(ctx context.Context, 
 	defer l.mu.Unlock()
 	return l.authorizeAnswerLibraryCreateLocked(ctx, a, in)
 }
+
 func (l *Ledger) authorizeAnswerLibraryCreateLocked(ctx context.Context, a domain.Actor, in packageapp.CreateAnswerLibraryEntryInput) error {
 	refs := application.ResourceReferences{ProductID: in.ProductID, ReleaseID: in.ReleaseID}
 	if in.ReleaseID != "" {
@@ -126,9 +258,11 @@ func (l *Ledger) answerLibraryCitationParentsLocked(item domain.EvidenceItem) bo
 	}
 	return true
 }
+
 func answerLibraryEntryToContext(v domain.QuestionnaireAnswerLibraryEntry) packagedomain.QuestionnaireAnswerLibraryEntry {
 	return packagedomain.QuestionnaireAnswerLibraryEntry{ID: v.ID, TenantID: v.TenantID, QuestionID: v.QuestionID, EvidenceType: v.EvidenceType, ControlID: v.ControlID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, Answer: v.Answer, EvidenceIDs: v.EvidenceIDs, Limitations: v.Limitations, SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
 }
+
 func cloneAnswerLibraryDTO(v domain.QuestionnaireAnswerLibraryEntry) domain.QuestionnaireAnswerLibraryEntry {
 	v.EvidenceIDs = append([]string(nil), v.EvidenceIDs...)
 	v.Limitations = append([]string(nil), v.Limitations...)
