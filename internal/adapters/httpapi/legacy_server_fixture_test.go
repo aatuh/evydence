@@ -79,6 +79,7 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.bindMembershipFixturePorts(ledger)
 	s.bindSSOProviderFixturePorts(ledger)
 	s.bindSSOSessionFixturePorts(ledger)
+	s.bindPeripheralFixturePorts(ledger)
 }
 
 type legacyFixtureCommandScope struct {

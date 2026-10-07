@@ -720,14 +720,16 @@ case, `registered` state, schema, limitations, response casing/omission and
 manifest-hash audit binding remain unchanged. Optional evidence references
 remain optional; registration is not package verification or endorsement.
 
-Both profiles enforce tenant-wide human administration and current reference
+The API enforces tenant-wide human administration and current reference
 ownership before replay, strict exact non-null JSON fields, raw UTF-8/NUL-free
 byte bounds before trimming, and Origin for cookie mutations. Previously
 accepted oversized, ambiguous, NUL-containing or malformed UTF-8 input now
 returns `400`; whitespace-only optional references now return `400` rather
 than a reference miss. Product-scoped human administration now returns `403`.
-Durable timestamps use UTC microseconds. Returned local-memory limitations
-no longer alias stored records. Historical records are not rewritten.
+Durable timestamps use UTC microseconds. Registration, list and health use
+focused ports only, with no aggregate fallback. PostgreSQL is required for
+local evaluation; memory adapters are test-only and return detached records.
+Historical records are not rewritten.
 
 See [marketplace collector creation](../api.md#marketplace-collector-creation)
 for exact limits, duplicate metadata and raw-body replay behavior. These
@@ -740,9 +742,10 @@ not an approved exception or proof of complete production Ledger retirement.
 two-tenant-ID projection in PostgreSQL. Profile ownership, deliberate
 instance-admin cross-tenant admin references, raw-value configuration hash
 profile, status, schema, limitations, response fields and audit binding remain
-unchanged. Local memory shares the pure rules and copies stored limitations.
+unchanged. The HTTP handler uses focused commands only. PostgreSQL is required
+for local evaluation; memory adapters are test-only.
 
-Both profiles require an authenticated exact issued `instance:admin` actor,
+The API requires an authenticated exact issued `instance:admin` actor,
 current tenant existence before replay, strict exact non-null JSON fields,
 raw UTF-8/NUL-free byte bounds before trimming, and Origin for cookie mutations.
 Oversized or ambiguous requests that were previously accepted now return `400`;
@@ -825,10 +828,12 @@ exception, PDF-reader certification or proof of production Ledger retirement.
 PostgreSQL profile. Route, response fields, schema version, normalized-JSON
 adjacency hash, node/edge ordering, opaque and digest-only reference behavior,
 stored-coordinate selection, and adjacency-only limitation are preserved.
-The builder is shared with explicit local memory. Creation no longer reads
-Ledger maps in PostgreSQL, and current root/grant guards precede replay.
+The HTTP handler uses focused commands only, and current root/grant guards
+precede replay. PostgreSQL is required for local evaluation. Test-only memory
+adapters retain the pure builder, actual guards and isolated replay writes;
+they do not prove database locking or durability.
 
-Both profiles now reject case aliases, duplicate/unknown/null fields, malformed
+The API rejects case aliases, duplicate/unknown/null fields, malformed
 JSON, invalid UTF-8/NUL IDs, and raw IDs above 1024 bytes. Mismatched
 product/release ownership and inconsistent selected evidence parents fail
 closed; local responses cannot mutate cached immutable snapshots. Cookie

@@ -33,6 +33,18 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.authn != ledger {
 		t.Fatal("authenticator was not rebound")
 	}
+	for name, dependency := range map[string]any{
+		"graph": server.graphSnapshotCommands, "saas-profile": server.saasProfileCommands,
+		"marketplace-collector": server.marketplaceCollectorCommands,
+	} {
+		commands, ok := dependency.(peripheralFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture was not rebound", name)
+		}
+	}
+	if query, ok := server.marketplaceCollectorQuery.(marketplaceQueryFixture); !ok || query.ledger != ledger {
+		t.Fatal("focused marketplace fixture query was not rebound")
+	}
 	executor, ok := server.idempotency.(legacyFixtureIdempotencyExecutor)
 	if !ok || executor.ledger != ledger {
 		t.Fatal("idempotency executor was not rebound")
@@ -595,6 +607,8 @@ func TestContextOwnedHandlersDoNotCallLedgerDirectly(t *testing.T) {
 		"importEvidenceBundle", "createReportTemplate", "renderReportTemplate", "craReadinessHTMLPackage", "releaseReadinessReport",
 		"createDurableQuestionnaireDraft",
 		"createDurableGraphSnapshot",
+		"createGraphSnapshot", "createSaaSEditionProfile", "createMarketplaceCollector",
+		"listMarketplaceCollectors", "marketplaceCollectorHealth",
 		"createDurablePDFReportPackage",
 		"generateDurableAnomalyReport",
 		"createDurableSaaSProfile",

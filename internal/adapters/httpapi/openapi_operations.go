@@ -391,7 +391,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "createGraphSnapshot":
-		operation.Description = "Creates a deterministic product/release evidence adjacency snapshot from stored tenant-scoped evidence records."
+		operation.Description = "Creates a deterministic product/release evidence adjacency snapshot through focused Package commands without an aggregate fallback. Current ownership and evidence:read grants precede every replay; PostgreSQL commits bounded adjacency, audit and replay atomically. PostgreSQL is required for local evaluation. Recorded references do not prove trust or evidence completeness."
 		operation.RequestBody = jsonRequest("Evidence graph snapshot creation request.", "#/components/schemas/CreateGraphSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence graph snapshot envelope.", "#/components/schemas/EvidenceGraphSnapshotEnvelope")
 	case "listSBOMComponents":
@@ -723,14 +723,14 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Lists tenant-scoped commercial collector definitions under collector:read; human sessions require a current tenant-level grant. PostgreSQL results are keyset-paginated."
 		operation.Responses[http.StatusOK] = jsonResponse("Commercial collector definition list envelope.", "#/components/schemas/CommercialCollectorDefinitionListEnvelope")
 	case "createMarketplaceCollector":
-		operation.Description = "Creates tenant-scoped marketplace collector package metadata and evidence references."
+		operation.Description = "Records tenant-scoped marketplace collector metadata through focused Experimental commands without an aggregate fallback. Current tenant-wide human collector:admin authority and signature, SBOM and scan ownership precede every replay. Metadata, manifest-hash audit and replay commit atomically in PostgreSQL, which is required for local evaluation. Registration does not verify package bytes, publish a package or endorse a provider."
 		operation.RequestBody = jsonRequest("Marketplace collector creation request.", "#/components/schemas/CreateMarketplaceCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created marketplace collector envelope.", "#/components/schemas/MarketplaceCollectorEnvelope")
 	case "listMarketplaceCollectors":
-		operation.Description = "Keyset-pages tenant-scoped marketplace collector metadata. Human sessions need a current tenant-level collector:read grant; PostgreSQL applies the tenant limit in SQL."
+		operation.Description = "Keyset-pages tenant-scoped marketplace collector metadata through a focused query without an aggregate fallback. Human sessions need a current tenant-level collector:read grant; PostgreSQL applies the tenant limit in SQL and is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector list envelope.", "#/components/schemas/MarketplaceCollectorListEnvelope")
 	case "marketplaceCollectorHealth":
-		operation.Description = "Returns marketplace collector package health from current tenant-owned signature, SBOM, and scan references. Presence does not prove package safety, marketplace trust, or provider endorsement."
+		operation.Description = "Returns marketplace collector health through a focused read-only query without an aggregate fallback. Human sessions need a current tenant-level collector:read grant. PostgreSQL, required for local evaluation, resolves current owned signature, SBOM and scan references without reading their payloads. Presence does not prove package safety, marketplace trust or provider endorsement."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Marketplace collector id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector health report envelope.", "#/components/schemas/MarketplaceCollectorHealthReportEnvelope")
 	case "listControlFrameworkTemplatePacks":
@@ -840,7 +840,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Retention report envelope.", "#/components/schemas/RetentionReportEnvelope")
 	case "createSaaSEditionProfile":
-		operation.Description = "Creates a SaaS edition profile record for future hosted deployment planning; it is not a production readiness claim."
+		operation.Description = "Records experimental hosted-deployment intent through focused commands without an aggregate fallback. Exact issued instance:admin authority and both existing tenant roots precede every replay; tenant admin or wildcard authority is insufficient. An instance administrator may reference another admin tenant. Profile, raw-value configuration hash audit and replay commit atomically in PostgreSQL, which is required for local evaluation. No deployment, isolation enforcement or readiness certification is performed."
 		operation.RequestBody = jsonRequest("SaaS edition profile creation request.", "#/components/schemas/CreateSaaSEditionProfileRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SaaS edition profile envelope.", "#/components/schemas/SaaSEditionProfileEnvelope")
 	case "craReadinessReport":

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
@@ -36,9 +35,6 @@ func decodeMarketplaceCollectorRequest(body []byte) (experimentalapp.Marketplace
 	}
 	in, err := experimentalapp.NormalizeMarketplaceCollectorInput(experimentalapp.MarketplaceCollectorInput{Name: req.Name, Provider: req.Provider, Version: req.Version, Publisher: req.Publisher, ManifestHash: req.ManifestHash, SignatureID: req.SignatureID, SBOMID: req.SBOMID, ScanID: req.ScanID})
 	return in, mapAnomalyReportError(err)
-}
-func marketplaceCollectorLegacyInput(in experimentalapp.MarketplaceCollectorInput) app.CreateMarketplaceCollectorInput {
-	return app.CreateMarketplaceCollectorInput{Name: in.Name, Provider: in.Provider, Version: in.Version, Publisher: in.Publisher, ManifestHash: in.ManifestHash, SignatureID: in.SignatureID, SBOMID: in.SBOMID, ScanID: in.ScanID}
 }
 func (s *Server) createDurableMarketplaceCollector(w http.ResponseWriter, r *http.Request) {
 	var in experimentalapp.MarketplaceCollectorInput

@@ -1735,15 +1735,18 @@ signature, SBOM and scan rows are tenant-filtered and share-locked through the
 collector/audit/replay commit; the query never selects signature bytes, signing
 keys, component arrays or scan findings. Missing/foreign references fail closed
 and successful replay rechecks current human tenant grants and references.
-Pure metadata rules and deep-copied limitations are shared with explicit local
-memory. No package bytes are verified or published, and no provider is endorsed.
+HTTP registration, list and health handlers use focused ports only; PostgreSQL
+is required for local evaluation. Test-only memory adapters retain real guards,
+detached metadata, pagination and isolated replay writes, not SQL guarantees.
+No package bytes are verified or published, and no provider is endorsed.
 See [marketplace collector creation](api.md#marketplace-collector-creation).
-Broad startup Ledger retirement remains EVY-905 work.
+Remaining aggregate code deletion remains EVY-906 work.
 
 Experimental SaaS profile creation now uses focused commands and at most two
 current tenant keys, with exact instance-admin authority. Profile, audit and
 replay writes are atomic and root deletion is locked through commit. Pure
-raw-value hashing and record rules are shared with explicit local memory.
+raw-value hashing and record rules are shared with test-only memory adapters.
+The HTTP handler has no aggregate fallback or local-memory runtime path.
 These records express hosted-deployment intent only, not provisioned isolation.
 See [SaaS profile creation](api.md#saas-profile-creation) for the deliberate
 cross-tenant admin-reference boundary and compatibility limits.
@@ -1774,7 +1777,9 @@ unrelated tenant state. Snapshots and their hash-linked audit entries are
 append-only; failures publish no result. Recorded opaque references are not
 verification authority or evidence completeness. See
 [graph snapshot creation](api.md#graph-snapshot-creation) for exact limits and
-privacy-safe replay caveats. Startup Ledger removal remains outstanding.
+privacy-safe replay caveats. The HTTP handler has no aggregate fallback;
+test-only adapters retain actual guards, detached adjacency and isolated replay
+writes. Remaining aggregate code deletion remains EVY-906 work.
 
 PostgreSQL questionnaire drafts bind focused Package commands and a pure
 tenant/product/release policy in the composition root. The worker/audit fence

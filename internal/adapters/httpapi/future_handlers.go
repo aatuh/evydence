@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
@@ -54,27 +53,7 @@ func (s *Server) createGraphSnapshot(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.graphSnapshotCommands != nil {
-		s.createDurableGraphSnapshot(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeGraphSnapshotRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		graph, err := s.ledger.CreateGraphSnapshot(ctx, actor, app.CreateGraphSnapshotInput{ProductID: req.ProductID, ReleaseID: req.ReleaseID})
-		return http.StatusCreated, graph, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeGraphSnapshotRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeCreateGraphSnapshot(r.Context(), a, app.CreateGraphSnapshotInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurableGraphSnapshot(w, r)
 }
 
 func (s *Server) createSaaSEditionProfile(w http.ResponseWriter, r *http.Request) {
@@ -82,27 +61,7 @@ func (s *Server) createSaaSEditionProfile(w http.ResponseWriter, r *http.Request
 		writeProblem(w, r, err)
 		return
 	}
-	if s.saasProfileCommands != nil {
-		s.createDurableSaaSProfile(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeSaaSProfileRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		profile, err := s.ledger.CreateSaaSEditionProfile(ctx, actor, app.CreateSaaSEditionProfileInput{Name: req.Name, Region: req.Region, AdminTenantID: req.AdminTenantID, IsolationModel: req.IsolationModel})
-		return http.StatusCreated, profile, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeSaaSProfileRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeCreateSaaSEditionProfile(r.Context(), a, app.CreateSaaSEditionProfileInput{Name: in.Name, Region: in.Region, AdminTenantID: in.AdminTenantID, IsolationModel: in.IsolationModel}); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurableSaaSProfile(w, r)
 }
 
 func (s *Server) createPublicTransparencyLog(w http.ResponseWriter, r *http.Request) {
@@ -220,27 +179,7 @@ func (s *Server) createMarketplaceCollector(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, err)
 		return
 	}
-	if s.marketplaceCollectorCommands != nil {
-		s.createDurableMarketplaceCollector(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeMarketplaceCollectorRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		collector, err := s.ledger.CreateMarketplaceCollector(ctx, actor, marketplaceCollectorLegacyInput(req))
-		return http.StatusCreated, collector, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeMarketplaceCollectorRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.ledger.AuthorizeCreateMarketplaceCollector(r.Context(), a, marketplaceCollectorLegacyInput(in)); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurableMarketplaceCollector(w, r)
 }
 
 func (s *Server) listMarketplaceCollectors(w http.ResponseWriter, r *http.Request) {
@@ -248,32 +187,21 @@ func (s *Server) listMarketplaceCollectors(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if s.marketplaceCollectorQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "marketplace-collectors")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		result, err := s.marketplaceCollectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapMarketplaceCollectorQueryError(err))
-			return
-		}
-		page := appquery.Result[domain.MarketplaceCollector]{Next: result.Next, Items: make([]domain.MarketplaceCollector, 0, len(result.Items))}
-		for _, collector := range result.Items {
-			page.Items = append(page.Items, marketplaceCollectorFromQuery(collector))
-		}
-		writePage(s, w, r, actor, "marketplace-collectors", request, page)
-		return
-	}
-	collectors, err := s.ledger.ListMarketplaceCollectors(r.Context(), actor)
+	request, err := s.parsePageRequest(r, actor, "marketplace-collectors")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "marketplace-collectors", nil, collectors, func(collector domain.MarketplaceCollector) (string, time.Time) {
-		return collector.ID, collector.CreatedAt
-	})
+	result, err := s.marketplaceCollectorQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapMarketplaceCollectorQueryError(err))
+		return
+	}
+	page := appquery.Result[domain.MarketplaceCollector]{Next: result.Next, Items: make([]domain.MarketplaceCollector, 0, len(result.Items))}
+	for _, collector := range result.Items {
+		page.Items = append(page.Items, marketplaceCollectorFromQuery(collector))
+	}
+	writePage(s, w, r, actor, "marketplace-collectors", request, page)
 }
 
 func (s *Server) marketplaceCollectorHealth(w http.ResponseWriter, r *http.Request) {
@@ -281,21 +209,12 @@ func (s *Server) marketplaceCollectorHealth(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if s.marketplaceCollectorQuery != nil {
-		report, err := s.marketplaceCollectorQuery.Health(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapMarketplaceCollectorQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, marketplaceCollectorHealthFromQuery(report))
-		return
-	}
-	report, err := s.ledger.MarketplaceCollectorHealth(r.Context(), actor, r.PathValue("id"))
+	report, err := s.marketplaceCollectorQuery.Health(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapMarketplaceCollectorQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, marketplaceCollectorHealthFromQuery(report))
 }
 
 func (s *Server) createPDFReportPackage(w http.ResponseWriter, r *http.Request) {

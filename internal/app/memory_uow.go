@@ -4357,6 +4357,8 @@ func memoryResourceTenantID(resource any) string {
 		return value.TenantID
 	case domain.ArtifactSignature:
 		return value.TenantID
+	case domain.Signature:
+		return value.TenantID
 	case domain.ContainerImage:
 		return value.TenantID
 	case domain.EvidenceItem:

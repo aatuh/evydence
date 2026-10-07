@@ -1763,13 +1763,14 @@ Successful registration returns `201`, state `registered`, the existing
 schema and limitation, and omits empty reference fields. PostgreSQL writes
 the collector, audit binding to its declared manifest digest, and replay
 response atomically; durable timestamps use UTC microseconds. In PostgreSQL,
-a duplicate tenant/provider/name/version returns `409`; in both profiles,
+a duplicate tenant/provider/name/version returns `409`;
 a changed raw request under the same idempotency key returns `409`.
 Invalid input returns `400`, insufficient
 authority `403`, and storage failures safe Problem Details without a success
 record. Cookie-authenticated mutations require Origin; Bearer authentication
-takes precedence. Local memory shares normalization and authorization rules
-and copies returned limitations rather than exposing stored slices.
+takes precedence. The handler uses focused commands only; PostgreSQL is
+required for local evaluation. Test-only memory adapters retain real guards
+and isolated replay writes, not PostgreSQL durability or locking guarantees.
 
 Registration records metadata and references only. It does not retrieve or
 verify package bytes, publish a package, establish marketplace trust, or
@@ -1927,13 +1928,13 @@ certification, or release security.
 `POST /v1/evidence-graph-snapshots` requires `evidence:read`, an
 `Idempotency-Key`, and at least one non-blank `product_id` or `release_id`.
 Raw IDs are bounded at 1024 UTF-8 bytes before trimming and cannot contain NUL.
-Both profiles reject malformed/non-object JSON, unknown or duplicate fields,
+The API rejects malformed/non-object JSON, unknown or duplicate fields,
 case aliases, null fields, and invalid UTF-8 with `400`. Cookie-authenticated
 creation requires the same-host HTTPS `Origin`; bearer credentials take
 precedence. Foreign/missing roots and mismatched product/release pairs return
 `404`. Human sessions need a current matching tenant, product, or release grant.
 
-The PostgreSQL profile binds focused Package commands. Current ownership and
+The handler binds focused Package commands only. Current ownership and
 grants are checked before replay without reading labels or existing snapshots.
 Creation holds the worker/audit fence and current root/evidence/parent locks
 through snapshot, audit, and replay commit. Stored labels, IDs, coordinates,
@@ -1958,8 +1959,9 @@ PostgreSQL preflights a 4 MiB selected metadata/reference budget; the existing
 4 MiB encoded adjacency budget remains. Overflow fails rather than truncates.
 The schema version, adjacency-only limitation, and normalized-JSON SHA-256 over
 exact `nodes`/`edges` fields remain unchanged. Durable timestamps use UTC
-microsecond precision. Explicit local-memory mode uses the same pure graph
-builder and current replay guard, but retains its in-process persistence limits.
+microsecond precision. PostgreSQL is required, including local evaluation.
+Test-only memory adapters retain the pure graph builder, real current guards
+and isolated replay writes; they do not prove database locking or durability.
 
 This is an internal evidence view, not a redacted customer package. Labels and
 recorded references can contain sensitive metadata. Existing privacy-safe
@@ -3873,7 +3875,7 @@ actor with the exact issued `instance:admin` scope and an `Idempotency-Key`;
 tenant `admin` and `*` do not confer this authority.
 
 The body has exactly four non-null string fields: `name`, `region`,
-`admin_tenant_id`, and `isolation_model`. Both runtime profiles reject malformed,
+`admin_tenant_id`, and `isolation_model`. The API rejects malformed,
 non-object, duplicate, unknown, mixed-case, null, invalid UTF-8 and NUL-containing
 inputs with `400`. Raw byte caps, applied before trimming, are 256 for name,
 128 for region, 1024 for admin tenant ID, and 256 for isolation model.
@@ -3900,9 +3902,10 @@ request, including replay. The status remains `proposed`, the schema remains
 The existing normalized-JSON configuration hash commits to the four raw field
 values under the legacy `Name`, `Region`, `AdminTenantID`, and `IsolationModel`
 keys; trimming stored labels does not change that commitment. Durable timestamps
-use UTC microseconds. Explicit local memory shares input/actor rules, hashing,
-record construction and copied limitations, but retains in-process persistence
-and locking limitations. Historical records are not rewritten.
+use UTC microseconds. The handler uses focused commands only; PostgreSQL is
+required for local evaluation. Test-only memory adapters retain actual guards,
+raw-value hashing, detached records and isolated replay writes, not database
+locking or durability guarantees. Historical records are not rewritten.
 
 ### Signing Operation Creation
 

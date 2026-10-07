@@ -1197,13 +1197,13 @@
               <div><dt>Responses</dt><dd>201 application/json: EvidenceBundleImportEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/evidence-graph-snapshots create evidence graph snapshot creates a deterministic product/release evidence adjacency snapshot from stored tenant-scoped evidence records. creategraphsnapshot evydence evidence:read">
+          <article class="operation" data-operation data-search="post /v1/evidence-graph-snapshots create evidence graph snapshot creates a deterministic product/release evidence adjacency snapshot through focused package commands without an aggregate fallback. current ownership and evidence:read grants precede every replay; postgresql commits bounded adjacency, audit and replay atomically. postgresql is required for local evaluation. recorded references do not prove trust or evidence completeness. creategraphsnapshot evydence evidence:read">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/evidence-graph-snapshots</code>
             </div>
             <h3>Create evidence graph snapshot</h3>
-            <p>Creates a deterministic product/release evidence adjacency snapshot from stored tenant-scoped evidence records.</p>
+            <p>Creates a deterministic product/release evidence adjacency snapshot through focused Package commands without an aggregate fallback. Current ownership and evidence:read grants precede every replay; PostgreSQL commits bounded adjacency, audit and replay atomically. PostgreSQL is required for local evaluation. Recorded references do not prove trust or evidence completeness.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createGraphSnapshot</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1486,13 +1486,13 @@
               <div><dt>Responses</dt><dd>201 application/json: LegalHoldEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/marketplace-collectors list marketplace collector records keyset-pages tenant-scoped marketplace collector metadata. human sessions need a current tenant-level collector:read grant; postgresql applies the tenant limit in sql. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listmarketplacecollectors evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/marketplace-collectors list marketplace collector records keyset-pages tenant-scoped marketplace collector metadata through a focused query without an aggregate fallback. human sessions need a current tenant-level collector:read grant; postgresql applies the tenant limit in sql and is required for local evaluation. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listmarketplacecollectors evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/marketplace-collectors</code>
             </div>
             <h3>List marketplace collector records</h3>
-            <p>Keyset-pages tenant-scoped marketplace collector metadata. Human sessions need a current tenant-level collector:read grant; PostgreSQL applies the tenant limit in SQL. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <p>Keyset-pages tenant-scoped marketplace collector metadata through a focused query without an aggregate fallback. Human sessions need a current tenant-level collector:read grant; PostgreSQL applies the tenant limit in SQL and is required for local evaluation. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>listMarketplaceCollectors</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1503,13 +1503,13 @@
               <div><dt>Responses</dt><dd>200 application/json: MarketplaceCollectorListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/marketplace-collectors create marketplace collector record creates tenant-scoped marketplace collector package metadata and evidence references. createmarketplacecollector evydence collector:admin">
+          <article class="operation" data-operation data-search="post /v1/marketplace-collectors create marketplace collector record records tenant-scoped marketplace collector metadata through focused experimental commands without an aggregate fallback. current tenant-wide human collector:admin authority and signature, sbom and scan ownership precede every replay. metadata, manifest-hash audit and replay commit atomically in postgresql, which is required for local evaluation. registration does not verify package bytes, publish a package or endorse a provider. createmarketplacecollector evydence collector:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/marketplace-collectors</code>
             </div>
             <h3>Create marketplace collector record</h3>
-            <p>Creates tenant-scoped marketplace collector package metadata and evidence references.</p>
+            <p>Records tenant-scoped marketplace collector metadata through focused Experimental commands without an aggregate fallback. Current tenant-wide human collector:admin authority and signature, SBOM and scan ownership precede every replay. Metadata, manifest-hash audit and replay commit atomically in PostgreSQL, which is required for local evaluation. Registration does not verify package bytes, publish a package or endorse a provider.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createMarketplaceCollector</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1520,13 +1520,13 @@
               <div><dt>Responses</dt><dd>201 application/json: MarketplaceCollectorEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/marketplace-collectors/{id}/health marketplace collector health report returns marketplace collector package health from current tenant-owned signature, sbom, and scan references. presence does not prove package safety, marketplace trust, or provider endorsement. marketplacecollectorhealth evydence collector:read">
+          <article class="operation" data-operation data-search="get /v1/marketplace-collectors/{id}/health marketplace collector health report returns marketplace collector health through a focused read-only query without an aggregate fallback. human sessions need a current tenant-level collector:read grant. postgresql, required for local evaluation, resolves current owned signature, sbom and scan references without reading their payloads. presence does not prove package safety, marketplace trust or provider endorsement. marketplacecollectorhealth evydence collector:read">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/marketplace-collectors/{id}/health</code>
             </div>
             <h3>Marketplace collector health report</h3>
-            <p>Returns marketplace collector package health from current tenant-owned signature, SBOM, and scan references. Presence does not prove package safety, marketplace trust, or provider endorsement.</p>
+            <p>Returns marketplace collector health through a focused read-only query without an aggregate fallback. Human sessions need a current tenant-level collector:read grant. PostgreSQL, required for local evaluation, resolves current owned signature, SBOM and scan references without reading their payloads. Presence does not prove package safety, marketplace trust or provider endorsement.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>marketplaceCollectorHealth</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2625,13 +2625,13 @@
               <div><dt>Responses</dt><dd>201 application/json: RoleBindingEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/saas/profiles create saas edition profile creates a saas edition profile record for future hosted deployment planning; it is not a production readiness claim. createsaaseditionprofile evydence instance:admin">
+          <article class="operation" data-operation data-search="post /v1/saas/profiles create saas edition profile records experimental hosted-deployment intent through focused commands without an aggregate fallback. exact issued instance:admin authority and both existing tenant roots precede every replay; tenant admin or wildcard authority is insufficient. an instance administrator may reference another admin tenant. profile, raw-value configuration hash audit and replay commit atomically in postgresql, which is required for local evaluation. no deployment, isolation enforcement or readiness certification is performed. createsaaseditionprofile evydence instance:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/saas/profiles</code>
             </div>
             <h3>Create SaaS edition profile</h3>
-            <p>Creates a SaaS edition profile record for future hosted deployment planning; it is not a production readiness claim.</p>
+            <p>Records experimental hosted-deployment intent through focused commands without an aggregate fallback. Exact issued instance:admin authority and both existing tenant roots precede every replay; tenant admin or wildcard authority is insufficient. An instance administrator may reference another admin tenant. Profile, raw-value configuration hash audit and replay commit atomically in PostgreSQL, which is required for local evaluation. No deployment, isolation enforcement or readiness certification is performed.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>createSaaSEditionProfile</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
