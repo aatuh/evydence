@@ -165,17 +165,23 @@ scope-before-limit PostgreSQL reads, error mapping and response schemas are
 unchanged. Test-only readers retain actual tenant/resource-grant filtering,
 supersession and visibility semantics, omit internal notes before the query
 boundary, and copy public report/approval metadata. Read-only state and mapping
-regressions cover these fixtures. Seven Risk command/approval fallbacks and the
-broader aggregate retirement remain unfinished.
+regressions cover these fixtures.
 
 The explicit in-memory unit-of-work test adapter now supplies focused waiver,
 exception and approval readers. They resolve current typed tenant/product/
 release/source ownership, reject ambiguous findings, separate authority-only
 transition reads from bounded fresh records, and detach mutable timestamps.
 Tests exercise the real native governance guards and fresh commands/audits
-without constructing Ledger. This enables subsequent HTTP fixture migration;
-it does not install another API runtime, prove SQL locks or retire the remaining
-Risk handlers by itself.
+without constructing Ledger. The five waiver/exception creation and approval,
+and approval-record transport fallbacks and their broad-interface methods are
+also deleted; these handlers unconditionally use focused commands. Native
+callbacks and API schemas are unchanged. Governance HTTP fixtures explicitly
+opt into the repository adapter, execute actual native authority guards and
+preserve isolated replay writes. Failure-after-write tests cover complete effect
+rollback; retries recheck current grants without reapplying transitions. These
+test-only bridges do not install another API runtime or prove SQL locks. The
+two decision/evaluation command fallbacks and broader aggregate retirement
+remain unfinished.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime

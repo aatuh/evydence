@@ -206,6 +206,14 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if !ok || summary.ledger != ledger {
 		t.Fatal("focused decision summary fixture query was not rebound")
 	}
+	for name, dependency := range map[string]any{
+		"waiver": server.waiverCommands, "exception": server.exceptionCommands, "approval": server.approvalCommands,
+	} {
+		commands, ok := dependency.(governanceFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
 }
 
 func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {

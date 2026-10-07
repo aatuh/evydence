@@ -104,15 +104,19 @@ Vulnerability-decision and exception pages and the customer-safe decision
 summary now use only focused Risk queries. Three broad transport branches and
 interface methods are removed. Native tenant/resource grants, pagination,
 active-history filtering, private-note omission and response contracts are
-unchanged. Risk command/approval fallbacks and aggregate retirement remain
-in progress.
+unchanged.
 
 The explicit in-memory test adapter now supports focused waiver/exception/
 approval ownership and transition reads. Real native guard/command tests cover
 current and removed grants, foreign/broken parents, ambiguous findings,
 read-only state, detached metadata and audited fresh mutations without Ledger.
-This is a test-fixture migration prerequisite, not a new API runtime or ticket
-completion claim.
+Waiver/exception creation and approval and approval-record creation now use
+only focused commands: five transport fallbacks and broad-interface methods
+are removed. Native callbacks and public schemas remain unchanged. Explicit
+governance HTTP fixtures preserve actual authority checks, isolated writes,
+complete rollback and current-grant replay without reapplying transitions.
+These are test-only adapters, not a new API runtime or SQL-locking proof. Two
+Risk decision/evaluation fallbacks and aggregate retirement remain unfinished.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the

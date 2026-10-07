@@ -1550,60 +1550,15 @@ func (s *Server) uploadManualSecurityDocument(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) createWaiver(w http.ResponseWriter, r *http.Request) {
-	if s.waiverCommands != nil {
-		s.createDurableWaiver(w, r)
-		return
-	}
-	var req struct {
-		ScopeType  string    `json:"scope_type"`
-		ScopeID    string    `json:"scope_id"`
-		ControlID  string    `json:"control_id"`
-		PolicyID   string    `json:"policy_id"`
-		Owner      string    `json:"owner"`
-		Risk       string    `json:"risk"`
-		Reason     string    `json:"reason"`
-		ExpiresAt  time.Time `json:"expires_at"`
-		Supersedes string    `json:"supersedes"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		waiver, err := s.riskDecisions.CreateWaiver(ctx, actor, app.CreateWaiverInput{ScopeType: req.ScopeType, ScopeID: req.ScopeID, ControlID: req.ControlID, PolicyID: req.PolicyID, Owner: req.Owner, Risk: req.Risk, Reason: req.Reason, ExpiresAt: req.ExpiresAt, Supersedes: req.Supersedes})
-		return http.StatusCreated, waiver, err
-	})
+	s.createDurableWaiver(w, r)
 }
 
 func (s *Server) approveWaiver(w http.ResponseWriter, r *http.Request) {
-	if s.waiverCommands != nil {
-		s.approveDurableWaiver(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		waiver, err := s.riskDecisions.ApproveWaiver(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, waiver, err
-	})
+	s.approveDurableWaiver(w, r)
 }
 
 func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
-	if s.approvalCommands != nil {
-		s.createDurableApproval(w, r)
-		return
-	}
-	var req struct {
-		SubjectType string `json:"subject_type"`
-		SubjectID   string `json:"subject_id"`
-		Decision    string `json:"decision"`
-		Reason      string `json:"reason"`
-		EvidenceID  string `json:"evidence_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		approval, err := s.riskDecisions.CreateApprovalRecord(ctx, actor, app.CreateApprovalInput{SubjectType: req.SubjectType, SubjectID: req.SubjectID, Decision: req.Decision, Reason: req.Reason, EvidenceID: req.EvidenceID})
-		return http.StatusCreated, approval, err
-	})
+	s.createDurableApproval(w, r)
 }
 
 func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) {
@@ -2575,32 +2530,7 @@ func (s *Server) missingEvidenceReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createException(w http.ResponseWriter, r *http.Request) {
-	if s.exceptionCommands != nil {
-		s.createDurableException(w, r)
-		return
-	}
-	var req struct {
-		ReleaseID string    `json:"release_id"`
-		FindingID string    `json:"finding_id"`
-		ControlID string    `json:"control_id"`
-		Reason    string    `json:"reason"`
-		Owner     string    `json:"owner"`
-		ExpiresAt time.Time `json:"expires_at"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		exception, err := s.riskDecisions.CreateException(ctx, actor, app.CreateExceptionInput{
-			ReleaseID: req.ReleaseID,
-			FindingID: req.FindingID,
-			ControlID: req.ControlID,
-			Reason:    req.Reason,
-			Owner:     req.Owner,
-			ExpiresAt: req.ExpiresAt,
-		})
-		return http.StatusCreated, exception, err
-	})
+	s.createDurableException(w, r)
 }
 
 func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
@@ -2626,14 +2556,7 @@ func (s *Server) listExceptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) approveException(w http.ResponseWriter, r *http.Request) {
-	if s.exceptionCommands != nil {
-		s.approveDurableException(w, r)
-		return
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, _ []byte) (int, any, error) {
-		exception, err := s.riskDecisions.ApproveException(ctx, actor, r.PathValue("id"))
-		return http.StatusOK, exception, err
-	})
+	s.approveDurableException(w, r)
 }
 
 func (s *Server) releaseReadinessReport(w http.ResponseWriter, r *http.Request) {

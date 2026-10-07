@@ -12,8 +12,8 @@ import (
 )
 
 func TestApprovalHTTPAcceptsPublishedEnumWithoutChangingLifecycle(t *testing.T) {
-	store := app.NewMemoryStore()
-	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{APIKeyPepper: "test", Store: store})
+	factory := app.NewMemoryUnitOfWorkFactory()
+	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{APIKeyPepper: "test", UnitOfWork: factory})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,8 +28,9 @@ func TestApprovalHTTPAcceptsPublishedEnumWithoutChangingLifecycle(t *testing.T) 
 	productID := dataField(t, postJSON(t, server, secret, "/v1/products", "approval-product", map[string]any{"name": "Product", "slug": "product"}, http.StatusCreated), "id")
 	releaseID := dataField(t, postJSON(t, server, secret, "/v1/releases", "approval-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated), "id")
 	waiverID := dataField(t, postJSON(t, server, secret, "/v1/waivers", "approval-waiver", map[string]any{"scope_type": "release", "scope_id": releaseID, "owner": "security", "risk": "low", "reason": "temporary", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated), "id")
-	before, exists, err := store.LoadState(t.Context())
-	if err != nil || !exists || before.Waivers[waiverID].Approved {
+	before, err := factory.Snapshot()
+	waiver, exists := before.Waivers[waiverID]
+	if err != nil || !exists || waiver.Approved {
 		t.Fatal("invalid unapproved fixture", err)
 	}
 	raw, err := server.OpenAPI()
@@ -72,7 +73,7 @@ func TestApprovalHTTPAcceptsPublishedEnumWithoutChangingLifecycle(t *testing.T) 
 			postJSON(t, server, secret, "/v1/approvals", key, body, http.StatusConflict)
 		}
 	}
-	after, _, err := store.LoadState(t.Context())
+	after, err := factory.Snapshot()
 	if err != nil || !reflect.DeepEqual(before.Releases, after.Releases) || !reflect.DeepEqual(before.Waivers, after.Waivers) || len(after.Approvals) != 6 {
 		t.Fatal("approval changed lifecycle or replay duplicated records", err)
 	}

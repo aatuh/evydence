@@ -1302,7 +1302,7 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 	}
 }
 
-func TestVEXAndExceptionHTTPValidation(t *testing.T) {
+func TestVEXHTTPValidation(t *testing.T) {
 	server, secret := testServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "vex-prod", map[string]any{"name": "VEX Product", "slug": "vex-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
@@ -1389,7 +1389,12 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 		t.Fatalf("manual linked VEX decision response unsafe or incomplete: %s", manualDecision)
 	}
 	postJSON(t, server, secret, "/v1/vex", "vex-bad", map[string]any{"release_id": releaseID, "payload": map[string]any{"author": "a", "timestamp": "2026-05-27T12:00:00Z", "statements": []any{}, "extra": true}}, http.StatusBadRequest)
+}
 
+func TestExceptionHTTPFlowPreservesLifecycleAndScope(t *testing.T) {
+	server, secret := governanceTestServer(t)
+	productID := dataField(t, postJSON(t, server, secret, "/v1/products", "exception-product", map[string]any{"name": "Exception Product", "slug": "exception-product"}, http.StatusCreated), "id")
+	releaseID := dataField(t, postJSON(t, server, secret, "/v1/releases", "exception-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated), "id")
 	exceptionBody := postJSON(t, server, secret, "/v1/exceptions", "exception-create", map[string]any{"release_id": releaseID, "reason": "temporary acceptance", "owner": "security", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
 	exceptionID := dataField(t, exceptionBody, "id")
 	postJSON(t, server, secret, "/v1/exceptions/"+exceptionID+"/approve", "exception-approve", map[string]any{}, http.StatusOK)
@@ -1698,7 +1703,7 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 }
 
 func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "gov-prod", map[string]any{"name": "Gov Product", "slug": "gov-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "gov-release", map[string]any{"product_id": productID, "version": "5.0.0"}, http.StatusCreated)
