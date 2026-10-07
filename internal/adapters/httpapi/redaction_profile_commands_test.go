@@ -43,7 +43,7 @@ func TestRedactionHTTPRejectsMalformedInputBeforeCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.ledger = nil
-	s.packages = nil
+
 	s.idempotency = nil
 	const path = "/v1/redaction-profiles"
 	for i, bad := range []string{"null", "[]", "{", `{} {}`, `{"name":null}`, `{"preset":"customer_safe","allowed_types":null}`, `{"preset":"customer_safe","excluded_fields":[null]}`, `{"preset":"customer_safe","unknown":true}`, `{"preset":"customer_safe","preset":"security_review"}`, `{"preset":"customer_safe","PRESET":null}`, `{"name":"Customer","allowed_types":[null]}`, `{"name":"Customer","allowed_types":[" "]}`, `{"name":"Customer","allowed_types":"sbom"}`, `{"name":"Customer","description":"bad\u0000","allowed_types":["sbom"]}`, `{"name":"` + string([]byte{0xff}) + `","allowed_types":["sbom"]}`, `{"preset":"customer_safe","allowed_types":["sbom"]}`, `{"name":"Customer","allowed_types":["` + strings.Repeat("x", 1025) + `"]}`, strings.Repeat(" ", 65537)} {

@@ -5,13 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
-	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
 // CustomerPackageCreationCommands can authorize and freeze one public package;
@@ -44,27 +41,7 @@ func (s *Server) createCustomerPackage(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
-	if s.customerPackageCreationCommands != nil {
-		s.createDurableCustomerPackage(w, r)
-		return
-	}
-	// Explicit local-memory compatibility uses the same decoder and current
-	// grant policy before replay. Fresh creation still resolves local parents.
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, a domain.Actor, body []byte) (int, any, error) {
-		in, err := decodeCustomerPackageCreationRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		v, err := s.packages.CreateCustomerSecurityPackage(ctx, a, app.CreateCustomerPackageInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID, RedactionProfileID: in.RedactionProfileID, Title: in.Title, ExpiresAt: in.ExpiresAt})
-		return http.StatusCreated, v, err
-	}, func(r *http.Request, a domain.Actor, body []byte) ([]byte, error) {
-		in, err := decodeCustomerPackageCreationRequest(body)
-		if err != nil {
-			return nil, err
-		}
-		err = packagequery.NewCustomerPackageCreationAuthorizer().Authorize(r.Context(), a, application.AuthorizationRequest{Scope: app.ScopePackageWrite, Resources: application.ResourceReferences{ProductID: in.ProductID, ReleaseID: in.ReleaseID}})
-		return body, mapCustomerPackageAccessError(err)
-	})
+	s.createDurableCustomerPackage(w, r)
 }
 
 func (s *Server) createDurableCustomerPackage(w http.ResponseWriter, r *http.Request) {

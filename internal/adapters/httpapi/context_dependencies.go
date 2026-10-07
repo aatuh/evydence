@@ -574,21 +574,6 @@ type riskDecisionService interface {
 	ApproveException(context.Context, domain.Actor, string) (domain.Exception, error)
 }
 
-// packageService contains the package generation, access, and read-only
-// readiness-report operations migrated by EVY-904.
-type packageService interface {
-	CreateReleaseBundle(context.Context, domain.Actor, string) (domain.ReleaseBundle, error)
-	CreateRedactionProfile(context.Context, domain.Actor, app.CreateRedactionProfileInput) (domain.RedactionProfile, error)
-	CreateCustomerSecurityPackage(context.Context, domain.Actor, app.CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error)
-	AccessCustomerSecurityPackage(context.Context, domain.Actor, string) (domain.CustomerSecurityPackage, error)
-	ExportEvidenceBundle(context.Context, domain.Actor, string, []string) (domain.EvidenceBundle, error)
-	ImportEvidenceBundle(context.Context, domain.Actor, domain.EvidenceBundle) (domain.EvidenceBundleImport, error)
-	CreateCustomReportTemplate(context.Context, domain.Actor, app.CreateReportTemplateInput) (domain.CustomReportTemplate, error)
-	RenderCustomReport(context.Context, domain.Actor, app.RenderReportInput) (domain.RenderedCustomReport, error)
-	CRAReadinessHTMLPackage(context.Context, domain.Actor, string, string) (domain.HTMLReportPackage, error)
-	ReleaseReadinessReport(context.Context, domain.Actor, string) (domain.ReleaseReadinessReport, error)
-}
-
 // verificationService exposes provider-independent verification policy and
 // signing-key administration without giving handlers unrelated Ledger methods.
 type verificationService interface {

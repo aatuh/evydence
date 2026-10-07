@@ -50,7 +50,7 @@ func TestEvidenceBundleExportRequiresNativeHistoricalReplayAuthority(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.packages = nil, nil
+	s.ledger = nil
 	s.idempotency = nil
 	path, body := "/v1/evidence-bundles", []byte(`{}`)
 	one := postRaw(t, s, secret, path, "original", body, 201)

@@ -188,7 +188,6 @@ type Server struct {
 	roleBindingQuery                  RoleBindingQuery
 	evidenceIngestion                 evidenceIngestionService
 	riskDecisions                     riskDecisionService
-	packages                          packageService
 	verification                      verificationService
 	mux                               *http.ServeMux
 	specs                             *specs.Registry
@@ -1613,26 +1612,7 @@ func (s *Server) createRedactionProfile(w http.ResponseWriter, r *http.Request) 
 		writeProblem(w, r, err)
 		return
 	}
-	if s.redactionProfileCommands != nil {
-		s.createDurableRedactionProfile(w, r)
-		return
-	}
-	s.createWithActorFingerprint(w, r, app.SmallJSONRequestLimit, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		req, err := decodeRedactionProfileRequest(body)
-		if err != nil {
-			return 0, nil, err
-		}
-		profile, err := s.packages.CreateRedactionProfile(ctx, actor, app.CreateRedactionProfileInput{Name: req.Name, Description: req.Description, Preset: req.Preset, AllowedTypes: req.AllowedTypes, ExcludedFields: req.ExcludedFields})
-		return http.StatusCreated, profile, err
-	}, func(r *http.Request, actor domain.Actor, body []byte) ([]byte, error) {
-		if _, err := decodeRedactionProfileRequest(body); err != nil {
-			return nil, err
-		}
-		if err := mapCustomerPackageAccessError(application.AuthorizeTenantWideScope(r.Context(), actor, app.ScopePackageWrite)); err != nil {
-			return nil, err
-		}
-		return body, nil
-	})
+	s.createDurableRedactionProfile(w, r)
 }
 
 func (s *Server) getCustomerPackage(w http.ResponseWriter, r *http.Request) {
@@ -1640,21 +1620,12 @@ func (s *Server) getCustomerPackage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.customerPackageAccessCommands != nil {
-		pkg, err := s.customerPackageAccessCommands.AccessCustomerSecurityPackage(r.Context(), actor, r.PathValue("id"))
-		if err != nil {
-			writeProblem(w, r, mapCustomerPackageAccessError(err))
-			return
-		}
-		writeData(w, http.StatusOK, customerPackageFromAccess(pkg))
-		return
-	}
-	pkg, err := s.packages.AccessCustomerSecurityPackage(r.Context(), actor, r.PathValue("id"))
+	pkg, err := s.customerPackageAccessCommands.AccessCustomerSecurityPackage(r.Context(), actor, r.PathValue("id"))
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapCustomerPackageAccessError(err))
 		return
 	}
-	writeData(w, http.StatusOK, pkg)
+	writeData(w, http.StatusOK, customerPackageFromAccess(pkg))
 }
 
 func (s *Server) downloadCustomerPackage(w http.ResponseWriter, r *http.Request) {
@@ -1675,26 +1646,17 @@ func (s *Server) securityReviewPackageReport(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	if s.customerPackageAccessCommands != nil {
-		id, err := optionalSingletonQuery(r, "package_id")
-		if err != nil || id == "" {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		report, err := s.customerPackageAccessCommands.SecurityReviewPackageReport(r.Context(), actor, id)
-		if err != nil {
-			writeProblem(w, r, mapCustomerPackageAccessError(err))
-			return
-		}
-		writeData(w, http.StatusOK, securityReviewPackageFromAccess(report))
+	id, err := optionalSingletonQuery(r, "package_id")
+	if err != nil || id == "" {
+		writeProblem(w, r, app.ErrValidation)
 		return
 	}
-	report, err := s.ledger.SecurityReviewPackageReport(r.Context(), actor, r.URL.Query().Get("package_id"))
+	report, err := s.customerPackageAccessCommands.SecurityReviewPackageReport(r.Context(), actor, id)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapCustomerPackageAccessError(err))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, securityReviewPackageFromAccess(report))
 }
 
 func (s *Server) craReadinessHTMLPackage(w http.ResponseWriter, r *http.Request) {
@@ -1707,21 +1669,12 @@ func (s *Server) craReadinessHTMLPackage(w http.ResponseWriter, r *http.Request)
 		writeProblem(w, r, err)
 		return
 	}
-	if s.htmlReportCommands != nil {
-		report, err := s.htmlReportCommands.CRAReadinessHTMLPackage(r.Context(), actor, filter.ProductID, filter.ReleaseID)
-		if err != nil {
-			writeProblem(w, r, mapCustomerPackageAccessError(mapControlCoverageQueryError(err)))
-			return
-		}
-		writeData(w, http.StatusOK, htmlReportFromCommands(report))
-		return
-	}
-	report, err := s.packages.CRAReadinessHTMLPackage(r.Context(), actor, filter.ProductID, filter.ReleaseID)
+	report, err := s.htmlReportCommands.CRAReadinessHTMLPackage(r.Context(), actor, filter.ProductID, filter.ReleaseID)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapCustomerPackageAccessError(mapControlCoverageQueryError(err)))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, htmlReportFromCommands(report))
 }
 
 func (s *Server) uploadSPDXSBOM(w http.ResponseWriter, r *http.Request) {
@@ -2741,26 +2694,17 @@ func (s *Server) releaseReadinessReport(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if s.releaseReadinessReportQuery != nil {
-		releaseID, err := optionalSingletonQuery(r, "release_id")
-		if err != nil || releaseID == "" {
-			writeProblem(w, r, app.ErrValidation)
-			return
-		}
-		report, err := s.releaseReadinessReportQuery.Report(r.Context(), actor, releaseID)
-		if err != nil {
-			writeProblem(w, r, mapReleaseReadinessReportQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, releaseReadinessReportFromQuery(report))
+	releaseID, err := optionalSingletonQuery(r, "release_id")
+	if err != nil || releaseID == "" {
+		writeProblem(w, r, app.ErrValidation)
 		return
 	}
-	report, err := s.packages.ReleaseReadinessReport(r.Context(), actor, r.URL.Query().Get("release_id"))
+	report, err := s.releaseReadinessReportQuery.Report(r.Context(), actor, releaseID)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapReleaseReadinessReportQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, releaseReadinessReportFromQuery(report))
 }
 
 func (s *Server) controlCoverageReport(w http.ResponseWriter, r *http.Request) {

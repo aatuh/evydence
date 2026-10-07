@@ -76,7 +76,12 @@ now use only focused Package ports. Three broad local bindings and interfaces
 are removed. Native input limits, field whitelists, cookie-origin protection,
 receipts, signing and replay contracts are unchanged. Export replay still
 reauthorizes the saved evidence selection without rebuilding or signing it.
-Other Package transport and aggregate retirement remain unfinished.
+Release/customer creation, redaction-profile creation, audited package access
+and download, security-review, HTML and readiness-report fallbacks are also
+removed, together with the ten-method broad Package interface and Server
+binding. The release-bundle request description now accurately requires
+PostgreSQL for local evaluation; its schema and response contracts are unchanged.
+Other direct Package-context Ledger calls and aggregate retirement remain unfinished.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the

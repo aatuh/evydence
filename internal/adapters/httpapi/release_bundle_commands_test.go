@@ -136,7 +136,7 @@ func TestReleaseBundleHandlerUsesFocusedCommandAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.ledger, server.idempotency, server.packages = nil, nil, nil
+	server.ledger, server.idempotency = nil, nil
 	input := map[string]any{"release_id": "release"}
 	response := postJSON(t, server, secret, "/v1/release-bundles", "focused-release-bundle", input, http.StatusCreated)
 	if dataField(t, response, "id") != "rb_focused" || dataField(t, response, "state") != "generated" || dataField(t, response, "manifest_hash") != "sha256:focused" {

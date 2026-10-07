@@ -63,7 +63,7 @@ func TestCustomerArchiveUsesFocusedAccessAndFrozenRecord(t *testing.T) {
 	f := &customerArchiveHTTPFake{pkg: packagedomain.CustomerSecurityPackage{ID: "csp_archive", TenantID: "tenant", ProductID: "product", ReleaseID: "release", RedactionProfileID: "profile", Title: "Customer <script>bad</script>", State: "generated", Manifest: map[string]any{"evidence_ids": []string{"ev_frozen"}, "title": "Frozen"}, ManifestHash: "sha256:" + strings.Repeat("a", 64), DistributionWatermark: "reviewer watermark", ExpiresAt: time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC), CreatedAt: time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC), SchemaVersion: packagedomain.CustomerPackageSchemaVersion}}
 	s.customerPackageAccessCommands = f
 	s.ledger = nil
-	s.packages = nil
+
 	s.idempotency = nil
 	w := getRaw(t, s, secret, "/v1/customer-packages/csp_archive/download", 200)
 	if f.calls != 1 || f.id != "csp_archive" || f.actor.TenantID == "" || w.Header().Get("Content-Type") != "application/zip" || w.Header().Get("Content-Disposition") != `attachment; filename="evydence-customer-package-csp_archive.zip"` || w.Header().Get("Content-Length") != strconv.Itoa(w.Body.Len()) {
@@ -101,7 +101,7 @@ func TestCustomerArchiveErrorsNeverPublishZIPOrPrivateDetails(t *testing.T) {
 	f := &customerArchiveHTTPFake{}
 	s.customerPackageAccessCommands = f
 	s.ledger = nil
-	s.packages = nil
+
 	for _, tc := range []struct {
 		err    error
 		status int

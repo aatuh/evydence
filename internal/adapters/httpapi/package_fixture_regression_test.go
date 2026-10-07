@@ -2,10 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -41,6 +44,92 @@ func (f *failingPackageFixtureCommands) ImportEvidenceBundle(ctx context.Context
 func (f *failingPackageFixtureCommands) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, release string, ids []string) (packagedomain.EvidenceBundle, error) {
 	value, err := f.packageFixtureCommands.ExportEvidenceBundle(ctx, actor, release, ids)
 	return value, f.failAfterWrite(ctx, value.ID, err)
+}
+
+func (f *failingPackageFixtureCommands) CreateRedactionProfile(ctx context.Context, actor domain.Actor, input packageapp.CreateRedactionProfileInput) (packagedomain.RedactionProfile, error) {
+	value, err := f.packageFixtureCommands.CreateRedactionProfile(ctx, actor, input)
+	return value, f.failAfterWrite(ctx, value.ID, err)
+}
+func (f *failingPackageFixtureCommands) CreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, input packageapp.CreateCustomerPackageInput) (packagedomain.CustomerSecurityPackage, error) {
+	value, err := f.packageFixtureCommands.CreateCustomerSecurityPackage(ctx, actor, input)
+	return value, f.failAfterWrite(ctx, value.ID, err)
+}
+func (f *failingPackageFixtureCommands) CreateReleaseBundle(ctx context.Context, actor domain.Actor, release string) (packagedomain.ReleaseBundle, error) {
+	value, err := f.packageFixtureCommands.CreateReleaseBundle(ctx, actor, release)
+	return value, f.failAfterWrite(ctx, value.ID, err)
+}
+
+func TestPackageFixtureCreationRollsBackPrivacySigningAndAuditEffects(t *testing.T) {
+	for _, action := range []string{"redaction", "customer", "release-bundle"} {
+		t.Run(action, func(t *testing.T) {
+			factory := app.NewMemoryUnitOfWorkFactory()
+			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+			scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
+			path, body := "/v1/redaction-profiles", `{"preset":"customer_safe"}`
+			switch action {
+			case "customer":
+				profile, err := ledger.CreateRedactionProfile(t.Context(), scope.actor, app.CreateRedactionProfileInput{Preset: "customer_safe"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				path, body = "/v1/customer-packages", fmt.Sprintf(`{"product_id":%q,"redaction_profile_id":%q,"title":"Review","expires_at":%q}`, scope.product.ID, profile.ID, time.Now().UTC().Add(24*time.Hour).Format(time.RFC3339Nano))
+			case "release-bundle":
+				release, err := ledger.CreateRelease(t.Context(), scope.actor, scope.product.ID, "1")
+				if err != nil {
+					t.Fatal(err)
+				}
+				path, body = "/v1/release-bundles", fmt.Sprintf(`{"release_id":%q}`, release.ID)
+			}
+			server, err := newLegacyServerFixture(ledger)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server.authn = &configuredAuthenticator{actor: scope.actor}
+			commands := &failingPackageFixtureCommands{packageFixtureCommands: packageFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			server.redactionProfileCommands, server.customerPackageCreationCommands, server.releaseBundleCommands = commands, commands, commands
+			before, err := factory.Snapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := postRaw(t, server, scope.secret, path, "fixture-creation-failure", []byte(body), 500)
+			if commands.createdID == "" || !commands.isolated || strings.Contains(out, commands.createdID) || strings.Contains(out, `"data"`) || strings.Contains(out, "private package") {
+				t.Fatal("failed package creation bypassed isolation or exposed private effects")
+			}
+			after, err := factory.Snapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(after.Idempotency) != 1 {
+				t.Fatal("failed package creation lost its replay failure record")
+			}
+			for _, record := range after.Idempotency {
+				if record.State != app.IdempotencyFailed || record.Response != nil || record.Status != 0 {
+					t.Fatal("failed package creation stored a partial response")
+				}
+			}
+			after.Idempotency = before.Idempotency
+			if !reflect.DeepEqual(before, after) {
+				t.Fatal("failed package creation committed profile, package, signature, audit or worker effects")
+			}
+		})
+	}
+}
+
+func TestReadinessFixtureMappingPreservesEveryPublicReportField(t *testing.T) {
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	report := packagedomain.ReleaseReadinessReport{
+		ReportType: "release_readiness", TemplateVersion: "1", ReleaseID: "release", Result: "unknown", PolicySet: "policy",
+		Summary:            packagedomain.ReadinessSummary{Headline: "Headline", Result: "unknown", HumanSummary: "Summary", PolicySet: "policy"},
+		Checks:             []packagedomain.PolicyCheckSnapshot{{Name: "Check", Result: "unknown", Severity: "high", Missing: []string{"evidence"}, Explanation: "Explanation", Remediation: "Remediation"}},
+		Sections:           []packagedomain.ReadinessSection{{ID: "section", Title: "Section", Status: "unknown", Summary: "Summary", Questions: []packagedomain.ReadinessQuestion{{ID: "question", Question: "Question", Answer: "Answer", Status: "unknown", Evidence: []string{"evidence"}, Checks: []string{"Check"}, MissingEvidence: []string{"missing"}, FailedPolicies: []string{"failed"}, KnownLimitations: []string{"limited"}}}}},
+		BlockingFindings:   []packagedomain.BlockingFinding{{FindingID: "finding", ScanID: "scan", ReleaseID: "release", Vulnerability: "vulnerability", Component: "component", Severity: "high", State: "open"}},
+		AcceptedExceptions: []packagedomain.AcceptedExceptionSnapshot{{ID: "exception", TenantID: "tenant", ReleaseID: "release", FindingID: "finding", ControlID: "control", Reason: "Reason", Owner: "Owner", ExpiresAt: now.Add(time.Hour), Approved: true, ApprovedBy: "approver", ApprovedAt: &now, CreatedAt: now}},
+		Gaps:               []string{"gap"}, MissingEvidence: []string{"missing"}, FailedPolicies: []string{"failed"}, KnownLimitations: []string{"limited"},
+		NonClaims: []string{"not certification"}, Assumptions: []string{"assumption"}, Limitations: []string{"limitation"}, Metadata: map[string]any{"exact": json.Number("9007199254740993")}, GeneratedAt: now,
+	}
+	if got := readinessFixtureReportModel(releaseReadinessReportFromQuery(report)); !reflect.DeepEqual(report, got) {
+		t.Fatal("readiness fixture mapping lost a public field, exact number or nested item")
+	}
 }
 
 func TestPackageFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T) {

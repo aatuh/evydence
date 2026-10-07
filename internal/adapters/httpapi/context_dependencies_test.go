@@ -62,8 +62,8 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.riskDecisions != ledger {
 		t.Fatal("risk decision service was not rebound")
 	}
-	if server.packages != ledger {
-		t.Fatal("package service was not rebound")
+	if reflect.ValueOf(server).Elem().FieldByName("packages").IsValid() {
+		t.Fatal("broad Package service binding was not deleted")
 	}
 	if server.verification != ledger {
 		t.Fatal("verification service was not rebound")
@@ -143,11 +143,17 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	}
 	for name, dependency := range map[string]any{
 		"report-template": server.reportTemplateCommands, "bundle-import": server.bundleImportCommand, "bundle-export": server.evidenceBundleCommands,
+		"release-bundle": server.releaseBundleCommands, "customer-package": server.customerPackageCreationCommands, "redaction": server.redactionProfileCommands,
+		"customer-access": server.customerPackageAccessCommands, "html-report": server.htmlReportCommands,
 	} {
 		commands, ok := dependency.(packageFixtureCommands)
 		if !ok || commands.ledger != ledger {
 			t.Fatalf("focused %s fixture command was not rebound", name)
 		}
+	}
+	readiness, ok := server.releaseReadinessReportQuery.(packageReadinessFixtureQuery)
+	if !ok || readiness.ledger != ledger {
+		t.Fatal("focused readiness fixture query was not rebound")
 	}
 }
 

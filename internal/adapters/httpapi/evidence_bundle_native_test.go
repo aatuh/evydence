@@ -18,7 +18,7 @@ func TestEvidenceBundleExportStrictPreflightAndFixturePortCookies(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.ledger, s.packages = nil, nil
+	s.ledger = nil
 	bad := []string{"", " ", "{", "null", "[]", `{"Release_ID":"id"}`, `{"evidence_ids":[null]}`, `{"evidence_ids":["id\u0000"]}`, `{"release_id":"x\u0000"}`, `{"release_id":"` + strings.Repeat(" ", 1024) + `x"}`, `{"evidence_ids":["` + strings.Repeat(" ", 1024) + `x"]}`}
 	for n, body := range bad {
 		postRaw(t, s, secret, "/v1/evidence-bundles", fmt.Sprintf("invalid-%d", n), []byte(body), 400)

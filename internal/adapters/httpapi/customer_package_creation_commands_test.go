@@ -51,7 +51,7 @@ func TestCustomerCreationHTTPFocusedPortAndStrictInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Any accidental route access to a broad compatibility dependency fails.
-	s.ledger, s.packages, s.idempotency = nil, nil, nil
+	s.ledger, s.idempotency = nil, nil
 	const path = "/v1/customer-packages"
 	const body = `{"product_id":" product ","release_id":" release ","redaction_profile_id":" profile ","title":" Review ","expires_at":"2030-01-01T12:00:00+02:00"}`
 	bad := []string{"", "null", "[]", "{", `{}`, `{} {}`, `{"unknown":true}`, strings.Repeat(" ", 65537)}

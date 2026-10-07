@@ -50,7 +50,6 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.identityAccess = ledger
 	s.evidenceIngestion = ledger
 	s.riskDecisions = ledger
-	s.packages = ledger
 	s.verification = ledger
 	s.bindCatalogFixturePorts(ledger)
 	s.bindRegistrationFixturePorts(ledger)
@@ -99,6 +98,5 @@ var (
 	_ identityAccessService    = (*app.Ledger)(nil)
 	_ evidenceIngestionService = (*app.Ledger)(nil)
 	_ riskDecisionService      = (*app.Ledger)(nil)
-	_ packageService           = (*app.Ledger)(nil)
 	_ verificationService      = (*app.Ledger)(nil)
 )

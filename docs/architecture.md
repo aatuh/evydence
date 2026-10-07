@@ -116,7 +116,14 @@ it does not rebuild the manifest or sign again. Test-only clone adapters retain
 the legacy response guard after execution, not SQL ownership locking. Their
 failure-after-write tests check rollback of all repository effects, including
 definitions, rendered reports, receipts, bundles, signatures and audits. Other
-Package handlers and aggregate state still await retirement.
+release/customer creation, audited package access/download, security-review,
+HTML and readiness-report fallbacks have also been deleted, along with the
+ten-method `packageService` interface and Server binding. Test-only adapters
+preserve the former real scope policies, signing, privacy and access-audit
+behavior; native ports continue enforcing bounded SQL ownership/transactions.
+The release-bundle API description now states that PostgreSQL is required,
+including local evaluation. Other direct Package-context Ledger calls and
+aggregate state still await retirement.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
