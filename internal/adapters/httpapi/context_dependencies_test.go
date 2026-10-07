@@ -59,8 +59,16 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if server.evidenceIngestion != ledger {
 		t.Fatal("evidence ingestion service was not rebound")
 	}
-	if server.riskDecisions != ledger {
-		t.Fatal("risk decision service was not rebound")
+	if reflect.ValueOf(server).Elem().FieldByName("riskDecisions").IsValid() {
+		t.Fatal("broad Risk service binding was not deleted")
+	}
+	for name, dependency := range map[string]any{
+		"vulnerability-decision": server.vulnerabilityDecisionCommands, "policy-evaluation": server.policyEvaluationCommands,
+	} {
+		commands, ok := dependency.(riskCommandFixture)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
 	}
 	if reflect.ValueOf(server).Elem().FieldByName("packages").IsValid() {
 		t.Fatal("broad Package service binding was not deleted")

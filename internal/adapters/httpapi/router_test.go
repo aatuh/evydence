@@ -1130,7 +1130,7 @@ func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
 }
 
 func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := riskCommandTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "security-summary-prod", map[string]any{"name": "Summary Product", "slug": "summary-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "security-summary-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -1173,7 +1173,7 @@ func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
 }
 
 func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := riskCommandTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "risk-prod", map[string]any{"name": "Payments", "slug": "risk-payments"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "risk-rel", map[string]any{"product_id": productID, "version": "2.0.0"}, http.StatusCreated)
@@ -1375,6 +1375,7 @@ func TestVEXHTTPValidation(t *testing.T) {
 	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "created asynchronously") || strings.Contains(importReport, "unavailable") || strings.Contains(importReport, "payload_ref") {
 		t.Fatalf("unsafe or incomplete VEX import report: %s", importReport)
 	}
+	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: server.ledger}}, scanID: dataField(t, scanBody, "id")}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
 		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
 	}, http.StatusBadRequest)
@@ -1389,6 +1390,34 @@ func TestVEXHTTPValidation(t *testing.T) {
 		t.Fatalf("manual linked VEX decision response unsafe or incomplete: %s", manualDecision)
 	}
 	postJSON(t, server, secret, "/v1/vex", "vex-bad", map[string]any{"release_id": releaseID, "payload": map[string]any{"author": "a", "timestamp": "2026-05-27T12:00:00Z", "statements": []any{}, "extra": true}}, http.StatusBadRequest)
+}
+
+func TestManualDecisionHTTPLinksVEXWithinItsOwnedRelease(t *testing.T) {
+	server, secret := riskCommandTestServer(t)
+	productID := dataField(t, postJSON(t, server, secret, "/v1/products", "manual-vex-product", map[string]any{"name": "Manual VEX Product", "slug": "manual-vex-product"}, http.StatusCreated), "id")
+	releaseID := dataField(t, postJSON(t, server, secret, "/v1/releases", "manual-vex-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated), "id")
+	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "manual-vex-scan", map[string]any{
+		"scanner": "grype", "target_ref": "pkg:oci/payments-api", "release_id": releaseID,
+		"findings": []map[string]any{{"vulnerability": "CVE-2026-0100", "component": "pkg:apk/openssl@3.1.0", "severity": "critical", "state": "open"}},
+	}, http.StatusCreated)
+	findingID := firstFindingID(t, scanBody)
+	vexBody := postJSON(t, server, secret, "/v1/vex", "manual-vex-upload", map[string]any{
+		"release_id": releaseID,
+		"payload": map[string]any{
+			"@context": "https://openvex.dev/ns/v0.2.0", "@id": "https://example.test/vex/manual", "author": "security@example.test", "timestamp": "2026-05-27T12:00:00Z", "version": 1,
+			"statements": []map[string]any{{"vulnerability": map[string]any{"name": "CVE-2026-0100"}, "products": []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}}, "status": "fixed", "justification": "fixed in release candidate", "impact_statement": "patched before release", "action_statement": "ship fixed artifact"}},
+		},
+	}, http.StatusCreated)
+	vexID := dataField(t, vexBody, "id")
+	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
+		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
+	}, http.StatusBadRequest)
+	manualDecision := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link", map[string]any{
+		"status": "not_affected", "justification": "manual review linked to stored VEX", "impact_statement": "This release is not affected based on a manual review linked to the stored VEX document.", "customer_visible": true, "vex_document_id": vexID,
+	}, http.StatusCreated)
+	if !strings.Contains(manualDecision, `"vex_document_id":"`+vexID+`"`) || strings.Contains(manualDecision, "payload_ref") {
+		t.Fatalf("manual linked VEX decision response unsafe or incomplete: %s", manualDecision)
+	}
 }
 
 func TestExceptionHTTPFlowPreservesLifecycleAndScope(t *testing.T) {

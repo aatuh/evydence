@@ -179,9 +179,19 @@ callbacks and API schemas are unchanged. Governance HTTP fixtures explicitly
 opt into the repository adapter, execute actual native authority guards and
 preserve isolated replay writes. Failure-after-write tests cover complete effect
 rollback; retries recheck current grants without reapplying transitions. These
-test-only bridges do not install another API runtime or prove SQL locks. The
-two decision/evaluation command fallbacks and broader aggregate retirement
-remain unfinished.
+test-only bridges do not install another API runtime or prove SQL locks.
+
+Vulnerability-decision creation and built-in release evaluation now also
+unconditionally use focused Risk commands. Their two remaining broad fallback
+branches, the `riskDecisionService` interface and Server binding are deleted.
+Native input validation, current-authority guards, private-note omission,
+append-only decision history and atomic evaluation/audit/replay callbacks are
+unchanged. Test-only bridges use actual Risk authorizers and current owned
+coordinates, isolate writes, preserve exact replay and detach recorded checks.
+The existing synchronous VEX import/manual-link assertions remain intact;
+additional repository-fixture coverage exercises links to queued documents.
+The broad Risk transport surface is gone, but direct context-to-Ledger calls
+and aggregate state still require retirement before EVY-906 can close.
 
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime

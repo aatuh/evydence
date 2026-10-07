@@ -115,8 +115,13 @@ only focused commands: five transport fallbacks and broad-interface methods
 are removed. Native callbacks and public schemas remain unchanged. Explicit
 governance HTTP fixtures preserve actual authority checks, isolated writes,
 complete rollback and current-grant replay without reapplying transitions.
-These are test-only adapters, not a new API runtime or SQL-locking proof. Two
-Risk decision/evaluation fallbacks and aggregate retirement remain unfinished.
+These are test-only adapters, not a new API runtime or SQL-locking proof.
+The last two Risk decision/evaluation transport fallbacks, broad interface and
+Server binding are also removed. Native validation, current ownership/grants,
+private-note omission, append-only history and atomic audit/replay behavior are
+unchanged. Regression tests preserve byte-for-byte replay, rollback all effects,
+retain synchronous VEX/manual-link assertions and cover queued-document links.
+Direct context-to-Ledger calls and aggregate retirement remain unfinished.
 
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the

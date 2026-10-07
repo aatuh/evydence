@@ -558,10 +558,3 @@ type evidenceIngestionService interface {
 	GetOpenAPIContract(context.Context, domain.Actor, string) (domain.OpenAPIContract, error)
 	CreateContractDiff(context.Context, domain.Actor, app.CreateContractDiffInput) (domain.ContractDiff, error)
 }
-
-// riskDecisionService retains only unmigrated decision/evaluation commands.
-// Governance commands, lists and summaries use focused Risk ports.
-type riskDecisionService interface {
-	CreateVulnerabilityDecision(context.Context, domain.Actor, string, app.CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error)
-	EvaluateRelease(context.Context, domain.Actor, string) (domain.PolicyEvaluation, error)
-}

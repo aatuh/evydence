@@ -187,7 +187,6 @@ type Server struct {
 	apiKeyQuery                       APIKeyQuery
 	roleBindingQuery                  RoleBindingQuery
 	evidenceIngestion                 evidenceIngestionService
-	riskDecisions                     riskDecisionService
 	mux                               *http.ServeMux
 	specs                             *specs.Registry
 	routes                            *routecontracts.Registry
@@ -2154,45 +2153,7 @@ func (s *Server) getVulnerabilityScan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createVulnerabilityDecision(w http.ResponseWriter, r *http.Request) {
-	if s.vulnerabilityDecisionCommands != nil {
-		s.createDurableVulnerabilityDecision(w, r)
-		return
-	}
-	var req struct {
-		Status          string              `json:"status"`
-		Justification   string              `json:"justification"`
-		ImpactStatement string              `json:"impact_statement"`
-		ActionStatement string              `json:"action_statement"`
-		CustomerVisible bool                `json:"customer_visible"`
-		InternalNotes   string              `json:"internal_notes"`
-		EvidenceIDs     []string            `json:"evidence_ids"`
-		SupportingRefs  []domain.SubjectRef `json:"supporting_refs"`
-		VEXDocumentID   string              `json:"vex_document_id"`
-		ReviewedAt      *time.Time          `json:"reviewed_at"`
-		ReviewDueAt     *time.Time          `json:"review_due_at"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		decision, err := s.riskDecisions.CreateVulnerabilityDecision(ctx, actor, r.PathValue("id"), app.CreateVulnerabilityDecisionInput{
-			Status:          req.Status,
-			Justification:   req.Justification,
-			ImpactStatement: req.ImpactStatement,
-			ActionStatement: req.ActionStatement,
-			CustomerVisible: req.CustomerVisible,
-			InternalNotes:   req.InternalNotes,
-			EvidenceIDs:     req.EvidenceIDs,
-			SupportingRefs:  req.SupportingRefs,
-			VEXDocumentID:   req.VEXDocumentID,
-			ReviewedAt:      req.ReviewedAt,
-			ReviewDueAt:     req.ReviewDueAt,
-		})
-		if err != nil {
-			return 0, nil, err
-		}
-		return http.StatusCreated, externalVulnerabilityDecision(decision), nil
-	})
+	s.createDurableVulnerabilityDecision(w, r)
 }
 
 func (s *Server) listVulnerabilityDecisions(w http.ResponseWriter, r *http.Request) {
@@ -2449,20 +2410,7 @@ func (s *Server) createOpenAPIDiff(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) evaluatePolicy(w http.ResponseWriter, r *http.Request) {
-	if s.policyEvaluationCommands != nil {
-		s.evaluateDurablePolicy(w, r)
-		return
-	}
-	var req struct {
-		ReleaseID string `json:"release_id"`
-	}
-	s.create(w, r, func(s *Server, ctx requestContext, actor domain.Actor, body []byte) (int, any, error) {
-		if err := decodeJSON(body, &req); err != nil {
-			return 0, nil, err
-		}
-		eval, err := s.riskDecisions.EvaluateRelease(ctx, actor, req.ReleaseID)
-		return http.StatusCreated, eval, err
-	})
+	s.evaluateDurablePolicy(w, r)
 }
 
 func (s *Server) createCustomPolicy(w http.ResponseWriter, r *http.Request) {
