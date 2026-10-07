@@ -195,10 +195,3 @@ func writeCreatedAtPaginated[T any](s *Server, w http.ResponseWriter, r *http.Re
 		return appquery.RecordSortKey(id, createdAt, sort)
 	})
 }
-
-func writeCreatedAtPaginatedWithLegacyLimit[T any](s *Server, w http.ResponseWriter, r *http.Request, actor domain.Actor, resource string, filters []string, items []T, identity func(T) (string, time.Time)) {
-	writePaginatedWithLegacyLimit(s, w, r, actor, resource, filters, true, items, func(item T, sort appquery.Sort) appquery.SortKey {
-		id, createdAt := identity(item)
-		return appquery.RecordSortKey(id, createdAt, sort)
-	})
-}

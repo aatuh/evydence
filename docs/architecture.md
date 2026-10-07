@@ -125,6 +125,18 @@ The release-bundle API description now states that PostgreSQL is required,
 including local evaluation. Other direct Package-context Ledger calls and
 aggregate state still await retirement.
 
+Signing-key and audit-log pages, custody reports, and audit-chain/Merkle/backup
+verification handlers now require their focused Verification ports. Six broad
+read/report branches and four obsolete transport-interface methods are deleted.
+Native page parsing, cursor binding, public key DTOs, error mapping and failed-
+verification response semantics remain unchanged. Test-only readers retain
+actual tenant/admin policies, omit private key bytes and preserve lifecycle,
+assurance-profile and report metadata. Their pure query tests verify no writes;
+verification calls retain their existing result/audit behavior. The local audit
+fixture retains its former 500-entry inventory cap; runtime SQL pages filter
+before limiting. Verification command fallbacks and aggregate deletion remain
+unfinished.
+
 `cmd/openapi` renders the shared route contracts through
 `httpapi.GenerateOpenAPI`, without constructing Ledger, credentials or runtime
 ports. This path returns only the validated document, not a runnable server;

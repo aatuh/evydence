@@ -33,6 +33,16 @@ type custodyFallbackSpy struct {
 	calls int
 }
 
+type custodyFixtureQuerySpy struct {
+	custodyFixtureQuery
+	calls int
+}
+
+func (f *custodyFixtureQuerySpy) Report(ctx context.Context, actor domain.Actor) (verificationdomain.SigningCustodyReviewReport, error) {
+	f.calls++
+	return f.custodyFixtureQuery.Report(ctx, actor)
+}
+
 func (f *custodyFallbackSpy) SigningCustodyReviewReport(_ context.Context, actor domain.Actor) (domain.SigningCustodyReviewReport, error) {
 	f.calls++
 	return domain.SigningCustodyReviewReport{ReportType: "signing_custody_review", TenantID: actor.TenantID}, nil
@@ -70,10 +80,13 @@ func TestSigningCustodyHandlerUsesDurableQueryWithoutFallbackAndSafeErrors(t *te
 	if spy.calls != 0 {
 		t.Fatal("query error fell back to Ledger")
 	}
-	server.signingCustodyQuery = nil
+	// Local test data is now supplied through an explicit focused fixture
+	// reader, not by removing the runtime port to select a broad fallback.
+	fixture := &custodyFixtureQuerySpy{custodyFixtureQuery: custodyFixtureQuery{catalogFixtureCommands{ledger: server.ledger}}}
+	server.signingCustodyQuery = fixture
 	getRaw(t, server, secret, "/v1/reports/custody-review?unknown=value", http.StatusBadRequest)
 	getRaw(t, server, secret, "/v1/reports/custody-review", http.StatusOK)
-	if spy.calls != 1 {
-		t.Fatal("explicit local-memory compatibility removed")
+	if fixture.calls != 1 || spy.calls != 0 {
+		t.Fatal("explicit focused fixture query was bypassed or broad fallback invoked")
 	}
 }

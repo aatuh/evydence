@@ -155,6 +155,26 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if !ok || readiness.ledger != ledger {
 		t.Fatal("focused readiness fixture query was not rebound")
 	}
+	for name, dependency := range map[string]any{
+		"audit-chain": server.auditChainVerification, "merkle": server.merkleVerification, "backup": server.backupVerification,
+	} {
+		commands, ok := dependency.(verificationReadFixtureCommands)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture verifier was not rebound", name)
+		}
+	}
+	keyReader, ok := server.signingKeyQuery.(signingKeyFixtureQuery)
+	if !ok || keyReader.ledger != ledger {
+		t.Fatal("focused signing-key fixture reader was not rebound")
+	}
+	auditReader, ok := server.auditLogQuery.(auditLogFixtureQuery)
+	if !ok || auditReader.ledger != ledger {
+		t.Fatal("focused audit-log fixture reader was not rebound")
+	}
+	custodyReader, ok := server.signingCustodyQuery.(custodyFixtureQuery)
+	if !ok || custodyReader.ledger != ledger {
+		t.Fatal("focused custody fixture reader was not rebound")
+	}
 }
 
 func TestIdempotencyCommandWrappersUseOpaqueContextRebinding(t *testing.T) {

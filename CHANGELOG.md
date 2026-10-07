@@ -83,6 +83,13 @@ binding. The release-bundle request description now accurately requires
 PostgreSQL for local evaluation; its schema and response contracts are unchanged.
 Other direct Package-context Ledger calls and aggregate retirement remain unfinished.
 
+Signing-key and audit-log pages, custody reports, and audit-chain/Merkle/backup
+verification handlers now use only focused Verification ports. Six broad
+read/report branches and four obsolete interface methods are removed. Native
+tenant checks, key privacy, pagination, assurance-profile and failed-result
+contracts are unchanged. Verification command and aggregate retirement remain
+in progress.
+
 Candidate transition requests now mark `reason` required in OpenAPI, matching
 the existing promotion/rejection validation. See the
 [migration note](docs/reference/api-versioning.md#unreleased-candidate-transition-schema-correction).

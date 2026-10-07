@@ -2888,22 +2888,13 @@ func (s *Server) verifyAuditChain(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.auditChainVerification != nil {
-		result, err := s.auditChainVerification.VerifyAuditChain(r.Context(), actor)
-		err = mapVerificationCommandError(err)
-		if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
-			writeProblem(w, r, err)
-			return
-		}
-		writeData(w, http.StatusOK, verificationResultFromFocused(result))
-		return
-	}
-	result, err := s.verification.VerifySubject(r.Context(), actor, "audit_chain", "")
+	result, err := s.auditChainVerification.VerifyAuditChain(r.Context(), actor)
+	err = mapVerificationCommandError(err)
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, result)
+	writeData(w, http.StatusOK, verificationResultFromFocused(result))
 }
 
 func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
@@ -2911,14 +2902,10 @@ func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var pageRequest pageRequest
-	if s.auditLogQuery != nil {
-		var err error
-		pageRequest, err = s.parsePageRequestWithLegacyLimit(r, actor, "audit-log", true, "subject_type", "subject_id", "since")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
+	pageRequest, err := s.parsePageRequestWithLegacyLimit(r, actor, "audit-log", true, "subject_type", "subject_id", "since")
+	if err != nil {
+		writeProblem(w, r, err)
+		return
 	}
 	var since *time.Time
 	if value := strings.TrimSpace(r.URL.Query().Get("since")); value != "" {
@@ -2929,42 +2916,26 @@ func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
 		}
 		since = &parsed
 	}
-	if s.auditLogQuery != nil {
-		result, err := s.auditLogQuery.ListPage(r.Context(), actor, verificationquery.AuditFilter{
-			SubjectType: r.URL.Query().Get("subject_type"), SubjectID: r.URL.Query().Get("subject_id"), Since: since,
-		}, appquery.PageRequest{PageSize: pageRequest.pageSize, Sort: pageRequest.sort, Direction: pageRequest.direction}, pageRequest.after)
-		if err != nil {
-			switch {
-			case errors.Is(err, verificationquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
-				err = app.ErrValidation
-			case errors.Is(err, application.ErrUnauthorized):
-				err = app.ErrUnauthorized
-			case errors.Is(err, application.ErrForbidden):
-				err = app.ErrForbidden
-			}
-			writeProblem(w, r, err)
-			return
-		}
-		page := appquery.Result[domain.AuditChainEntry]{Next: result.Next, Items: make([]domain.AuditChainEntry, 0, len(result.Items))}
-		for _, entry := range result.Items {
-			page.Items = append(page.Items, auditChainEntryFromQuery(entry))
-		}
-		writePage(s, w, r, actor, "audit-log", pageRequest, page)
-		return
-	}
-	entries, err := s.ledger.ListAuditLog(r.Context(), actor, app.AuditLogFilter{
-		SubjectType: r.URL.Query().Get("subject_type"),
-		SubjectID:   r.URL.Query().Get("subject_id"),
-		Since:       since,
-		Limit:       500,
-	})
+	result, err := s.auditLogQuery.ListPage(r.Context(), actor, verificationquery.AuditFilter{
+		SubjectType: r.URL.Query().Get("subject_type"), SubjectID: r.URL.Query().Get("subject_id"), Since: since,
+	}, appquery.PageRequest{PageSize: pageRequest.pageSize, Sort: pageRequest.sort, Direction: pageRequest.direction}, pageRequest.after)
 	if err != nil {
+		switch {
+		case errors.Is(err, verificationquery.ErrValidation), errors.Is(err, appquery.ErrInvalidPage), errors.Is(err, appquery.ErrInvalidCursor):
+			err = app.ErrValidation
+		case errors.Is(err, application.ErrUnauthorized):
+			err = app.ErrUnauthorized
+		case errors.Is(err, application.ErrForbidden):
+			err = app.ErrForbidden
+		}
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginatedWithLegacyLimit(s, w, r, actor, "audit-log", []string{"subject_type", "subject_id", "since"}, entries, func(entry domain.AuditChainEntry) (string, time.Time) {
-		return entry.ID, entry.OccurredAt
-	})
+	page := appquery.Result[domain.AuditChainEntry]{Next: result.Next, Items: make([]domain.AuditChainEntry, 0, len(result.Items))}
+	for _, entry := range result.Items {
+		page.Items = append(page.Items, auditChainEntryFromQuery(entry))
+	}
+	writePage(s, w, r, actor, "audit-log", pageRequest, page)
 }
 
 func (s *Server) verifyMerkleBatch(w http.ResponseWriter, r *http.Request) {
@@ -2972,22 +2943,13 @@ func (s *Server) verifyMerkleBatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.merkleVerification != nil {
-		result, err := s.merkleVerification.VerifyMerkleBatch(r.Context(), actor, r.PathValue("id"))
-		err = mapVerificationCommandError(err)
-		if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
-			writeProblem(w, r, err)
-			return
-		}
-		writeData(w, http.StatusOK, verificationResultFromFocused(result))
-		return
-	}
-	result, err := s.verification.VerifyMerkleBatch(r.Context(), actor, r.PathValue("id"))
+	result, err := s.merkleVerification.VerifyMerkleBatch(r.Context(), actor, r.PathValue("id"))
+	err = mapVerificationCommandError(err)
 	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
 		writeProblem(w, r, err)
 		return
 	}
-	writeData(w, http.StatusOK, result)
+	writeData(w, http.StatusOK, verificationResultFromFocused(result))
 }
 
 func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Request) {
@@ -2999,21 +2961,12 @@ func (s *Server) signingCustodyReviewReport(w http.ResponseWriter, r *http.Reque
 		writeProblem(w, r, app.ErrValidation)
 		return
 	}
-	if s.signingCustodyQuery != nil {
-		report, err := s.signingCustodyQuery.Report(r.Context(), actor)
-		if err != nil {
-			writeProblem(w, r, mapSigningCustodyQueryError(err))
-			return
-		}
-		writeData(w, http.StatusOK, domain.SigningCustodyReviewFromContextModel(report))
-		return
-	}
-	report, err := s.verification.SigningCustodyReviewReport(r.Context(), actor)
+	report, err := s.signingCustodyQuery.Report(r.Context(), actor)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapSigningCustodyQueryError(err))
 		return
 	}
-	writeData(w, http.StatusOK, report)
+	writeData(w, http.StatusOK, domain.SigningCustodyReviewFromContextModel(report))
 }
 
 func (s *Server) verifyBackupManifest(w http.ResponseWriter, r *http.Request) {
@@ -3021,22 +2974,13 @@ func (s *Server) verifyBackupManifest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.backupVerification != nil {
-		result, err := s.backupVerification.VerifyBackupManifest(r.Context(), actor, r.PathValue("id"))
-		mapped := mapVerificationCommandError(err)
-		if mapped != nil && !errors.Is(mapped, app.ErrVerificationFailed) {
-			writeProblem(w, r, mapped)
-			return
-		}
-		writeData(w, http.StatusOK, verificationResultFromFocused(result))
+	result, err := s.backupVerification.VerifyBackupManifest(r.Context(), actor, r.PathValue("id"))
+	mapped := mapVerificationCommandError(err)
+	if mapped != nil && !errors.Is(mapped, app.ErrVerificationFailed) {
+		writeProblem(w, r, mapped)
 		return
 	}
-	result, err := s.verification.VerifyBackupManifest(r.Context(), actor, r.PathValue("id"))
-	if err != nil && !errors.Is(err, app.ErrVerificationFailed) {
-		writeProblem(w, r, err)
-		return
-	}
-	writeData(w, http.StatusOK, result)
+	writeData(w, http.StatusOK, verificationResultFromFocused(result))
 }
 
 func (s *Server) listSigningKeys(w http.ResponseWriter, r *http.Request) {
@@ -3044,32 +2988,21 @@ func (s *Server) listSigningKeys(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if s.signingKeyQuery != nil {
-		request, err := s.parsePageRequest(r, actor, "signing-keys")
-		if err != nil {
-			writeProblem(w, r, err)
-			return
-		}
-		result, err := s.signingKeyQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
-		if err != nil {
-			writeProblem(w, r, mapSigningKeyQueryError(err))
-			return
-		}
-		page := appquery.Result[domain.SigningKey]{Next: result.Next, Items: make([]domain.SigningKey, 0, len(result.Items))}
-		for _, key := range result.Items {
-			page.Items = append(page.Items, signingKeyFromQuery(key))
-		}
-		writePage(s, w, r, actor, "signing-keys", request, page)
-		return
-	}
-	keys, err := s.verification.ListSigningKeys(r.Context(), actor)
+	request, err := s.parsePageRequest(r, actor, "signing-keys")
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	writeCreatedAtPaginated(s, w, r, actor, "signing-keys", nil, keys, func(key domain.SigningKey) (string, time.Time) {
-		return key.ID, key.CreatedAt
-	})
+	result, err := s.signingKeyQuery.ListPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapSigningKeyQueryError(err))
+		return
+	}
+	page := appquery.Result[domain.SigningKey]{Next: result.Next, Items: make([]domain.SigningKey, 0, len(result.Items))}
+	for _, key := range result.Items {
+		page.Items = append(page.Items, signingKeyFromQuery(key))
+	}
+	writePage(s, w, r, actor, "signing-keys", request, page)
 }
 
 func (s *Server) createCommercialCollector(w http.ResponseWriter, r *http.Request) {
