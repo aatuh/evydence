@@ -37,7 +37,7 @@ func (f *marketplaceHTTPCommands) CreateMarketplaceCollector(_ context.Context, 
 }
 func marketplaceHTTPFixture(t *testing.T) (*Server, string, string) {
 	t.Helper()
-	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

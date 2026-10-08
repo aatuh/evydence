@@ -24,6 +24,14 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"AuthorizeQuestionnaireAnswerLibraryCreate": true, "authorizeAnswerLibraryCreateLocked": true,
 		"answerLibraryCitationParentsLocked": true, "answerLibraryEntryToContext": true, "cloneAnswerLibraryDTO": true,
 		"CreateEvidenceSummaryInput": true, "CreateEvidenceSummary": true,
+		"CreateGraphSnapshotInput": true, "CreateSaaSEditionProfileInput": true, "CreateMarketplaceCollectorInput": true,
+		"CreateGraphSnapshot": true, "CreateSaaSEditionProfile": true, "CreateMarketplaceCollector": true,
+		"ListMarketplaceCollectors": true, "MarketplaceCollectorHealth": true, "worseHealth": true,
+		"sortMarketplaceCollectors": true, "evidenceIDsForRefsBoundedLocked": true, "evidenceMatchesRefs": true,
+		"authorizeGraphSnapshotLocked": true, "AuthorizeCreateGraphSnapshot": true,
+		"saasProfileInput": true, "AuthorizeCreateSaaSEditionProfile": true,
+		"marketplaceCollectorInput": true, "cloneLocalMarketplaceCollector": true,
+		"AuthorizeCreateMarketplaceCollector": true, "authorizeMarketplaceReferencesLocked": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

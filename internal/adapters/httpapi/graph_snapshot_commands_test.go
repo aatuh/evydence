@@ -17,7 +17,7 @@ import (
 )
 
 func TestGraphHTTPLocalReplayRechecksCurrentGrant(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	p := postRaw(t, base, secret, "/v1/products", "product", []byte(`{"name":"Product","slug":"product"}`), 201)
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {

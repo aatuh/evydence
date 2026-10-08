@@ -251,10 +251,11 @@ func TestMarketplaceFixtureReadsKeepCompleteOwnedPagesHealthAndDetachedMetadata(
 			if index == 1 {
 				in.SignatureID, in.SBOMID, in.ScanID = "", "", ""
 			}
-			v, err := ledger.CreateMarketplaceCollector(t.Context(), scope.actor, marketplaceCollectorLegacyInput(in))
+			created, err := (peripheralFixtureCommands{catalogFixtureCommands{ledger: ledger}}).CreateMarketplaceCollector(t.Context(), scope.actor, in)
 			if err != nil {
 				t.Fatal(err)
 			}
+			v := app.MarketplaceCollectorLegacyRecord(created)
 			if scope.actor.TenantID == owner.actor.TenantID {
 				raw, err := json.Marshal(v)
 				if err != nil {
@@ -301,9 +302,9 @@ func TestMarketplaceFixtureReadsKeepCompleteOwnedPagesHealthAndDetachedMetadata(
 		}
 		assertTrustHTTPReplay(t, want[v.ID], string(response.Data[0]))
 		found[v.ID] = true
-		report, err := ledger.MarketplaceCollectorHealth(t.Context(), human, v.ID)
-		if err != nil || len(report.Checks) != 4 || v.SignatureID == "" && report.SupplyChainStatus != "incomplete" || v.SignatureID != "" && report.SupplyChainStatus != "verified" {
-			t.Fatal("health test lacks complete reference status", err)
+		report := expectedPeripheralFixtureHealth(v)
+		if len(report.Checks) != 4 || v.SignatureID == "" && report.SupplyChainStatus != "incomplete" || v.SignatureID != "" && report.SupplyChainStatus != "verified" {
+			t.Fatal("health test lacks complete reference status")
 		}
 		wantHealth, err := json.Marshal(map[string]any{"data": report, "meta": map[string]string{"api_version": "v1"}})
 		if err != nil {
@@ -435,26 +436,32 @@ func TestBindLedgerPreservesExplicitPeripheralPorts(t *testing.T) {
 }
 
 func TestPeripheralFixtureMappersPreserveEveryPublicFieldWithoutAliasing(t *testing.T) {
-	ledger, _ := integrationRegressionLedger()
+	ledger, factory := integrationRegressionLedger()
 	owner := seedPeripheralFixtureScope(t, ledger, "Owner")
-	graph, err := ledger.CreateGraphSnapshot(t.Context(), owner.actor, app.CreateGraphSnapshotInput{ProductID: owner.product.ID, ReleaseID: owner.release.ID})
-	if err != nil || len(graph.Nodes) == 0 || len(graph.Edges) == 0 || len(graph.Limitations) == 0 {
+	commands := peripheralFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	g, err := commands.CreateGraphSnapshot(t.Context(), owner.actor, packageapp.CreateGraphSnapshotInput{ProductID: owner.product.ID, ReleaseID: owner.release.ID})
+	if err != nil || len(g.Nodes) == 0 || len(g.Edges) == 0 || len(g.Limitations) == 0 {
 		t.Fatal("graph mapper lacks nested source", err)
 	}
 	operator := owner.actor
 	operator.Scopes = []string{"instance:admin"}
-	saas, err := ledger.CreateSaaSEditionProfile(t.Context(), operator, app.CreateSaaSEditionProfileInput{Name: "Hosted", Region: "eu", AdminTenantID: owner.actor.TenantID, IsolationModel: "shared"})
-	if err != nil || len(saas.Limitations) == 0 {
+	s, err := commands.CreateSaaSProfile(t.Context(), operator, experimentalapp.SaaSProfileInput{Name: "Hosted", Region: "eu", AdminTenantID: owner.actor.TenantID, IsolationModel: "shared"})
+	if err != nil || len(s.Limitations) == 0 {
 		t.Fatal(err)
 	}
 	in, err := decodeMarketplaceCollectorRequest([]byte(peripheralFixtureRequests(owner, owner.actor.TenantID)[2].body))
 	if err != nil {
 		t.Fatal(err)
 	}
-	collector, err := ledger.CreateMarketplaceCollector(t.Context(), owner.actor, marketplaceCollectorLegacyInput(in))
-	if err != nil || len(collector.Limitations) == 0 {
+	c, err := commands.CreateMarketplaceCollector(t.Context(), owner.actor, in)
+	if err != nil || len(c.Limitations) == 0 {
 		t.Fatal(err)
 	}
+	saved, err := factory.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	graph, saas, collector := saved.EvidenceGraphSnapshots[g.ID], saved.SaaSEditionProfiles[s.ID], saved.MarketplaceCollectors[c.ID]
 	graphModel, saasModel, collectorModel := graphFixtureModel(graph), saasFixtureModel(saas), marketplaceFixtureModel(collector)
 	for _, pair := range []struct {
 		original any

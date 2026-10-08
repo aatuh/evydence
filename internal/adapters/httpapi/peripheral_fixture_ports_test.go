@@ -9,25 +9,17 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
+	experimentalquery "github.com/aatuh/evydence/internal/experimental/query"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
 
-// Former local setup retains real preflight authorization and isolated writes
-// through test-only focused ports. These adapters are not runtime backends or
+// Test-only fixtures run focused commands and query services on transaction
+// repositories. These adapters are not runtime backends or
 // evidence of PostgreSQL locking, durability, or bounded SQL selection.
 type peripheralFixtureCommands struct{ catalogFixtureCommands }
 type marketplaceQueryFixture struct{ catalogFixtureCommands }
 
-func graphFixtureInput(in packageapp.CreateGraphSnapshotInput) app.CreateGraphSnapshotInput {
-	return app.CreateGraphSnapshotInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID}
-}
-func saasFixtureInput(in experimentalapp.SaaSProfileInput) app.CreateSaaSEditionProfileInput {
-	return app.CreateSaaSEditionProfileInput{Name: in.Name, Region: in.Region, AdminTenantID: in.AdminTenantID, IsolationModel: in.IsolationModel}
-}
-func marketplaceCollectorLegacyInput(in experimentalapp.MarketplaceCollectorInput) app.CreateMarketplaceCollectorInput {
-	return app.CreateMarketplaceCollectorInput{Name: in.Name, Provider: in.Provider, Version: in.Version, Publisher: in.Publisher, ManifestHash: in.ManifestHash, SignatureID: in.SignatureID, SBOMID: in.SBOMID, ScanID: in.ScanID}
-}
 func graphFixtureModel(v domain.EvidenceGraphSnapshot) packagedomain.EvidenceGraphSnapshot {
 	nodes := make([]packagedomain.GraphNode, len(v.Nodes))
 	for i, n := range v.Nodes {
@@ -45,53 +37,61 @@ func saasFixtureModel(v domain.SaaSEditionProfile) experimentaldomain.SaaSEditio
 func marketplaceFixtureModel(v domain.MarketplaceCollector) experimentaldomain.MarketplaceCollector {
 	return experimentaldomain.MarketplaceCollector{ID: v.ID, TenantID: v.TenantID, Name: v.Name, Provider: v.Provider, Version: v.Version, Publisher: v.Publisher, ManifestHash: v.ManifestHash, SignatureID: v.SignatureID, SBOMID: v.SBOMID, ScanID: v.ScanID, State: v.State, Limitations: slices.Clone(v.Limitations), SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
 }
-func marketplaceHealthFixtureModel(v domain.MarketplaceCollectorHealthReport) experimentaldomain.MarketplaceCollectorHealthReport {
-	checks := make([]experimentaldomain.VerificationCheck, len(v.Checks))
-	for i, c := range v.Checks {
-		checks[i] = experimentaldomain.VerificationCheck{Name: c.Name, Result: c.Result, Detail: c.Detail}
-	}
-	return experimentaldomain.MarketplaceCollectorHealthReport{ReportType: v.ReportType, CollectorID: v.CollectorID, Name: v.Name, Provider: v.Provider, Version: v.Version, SupplyChainStatus: v.SupplyChainStatus, Checks: checks, Collector: marketplaceFixtureModel(v.Collector), Assumptions: slices.Clone(v.Assumptions), Limitations: slices.Clone(v.Limitations), GeneratedAt: v.GeneratedAt}
-}
 func (f peripheralFixtureCommands) AuthorizeCreateGraphSnapshot(ctx context.Context, a domain.Actor, in packageapp.CreateGraphSnapshotInput) error {
-	return f.commandLedger(ctx).AuthorizeCreateGraphSnapshot(ctx, a, graphFixtureInput(in))
+	c, err := f.nativeGraph(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeCreateGraphSnapshot(ctx, a, in)
 }
 func (f peripheralFixtureCommands) CreateGraphSnapshot(ctx context.Context, a domain.Actor, in packageapp.CreateGraphSnapshotInput) (packagedomain.EvidenceGraphSnapshot, error) {
-	v, err := f.commandLedger(ctx).CreateGraphSnapshot(ctx, a, graphFixtureInput(in))
-	return graphFixtureModel(v), err
+	c, err := f.nativeGraph(false)
+	if err != nil {
+		return packagedomain.EvidenceGraphSnapshot{}, err
+	}
+	return c.CreateGraphSnapshot(ctx, a, in)
 }
 func (f peripheralFixtureCommands) AuthorizeCreateSaaSProfile(ctx context.Context, a domain.Actor, in experimentalapp.SaaSProfileInput) error {
-	return f.commandLedger(ctx).AuthorizeCreateSaaSEditionProfile(ctx, a, saasFixtureInput(in))
+	c, err := f.nativeSaaS(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeCreateSaaSProfile(ctx, a, in)
 }
 func (f peripheralFixtureCommands) CreateSaaSProfile(ctx context.Context, a domain.Actor, in experimentalapp.SaaSProfileInput) (experimentaldomain.SaaSEditionProfile, error) {
-	v, err := f.commandLedger(ctx).CreateSaaSEditionProfile(ctx, a, saasFixtureInput(in))
-	return saasFixtureModel(v), err
+	c, err := f.nativeSaaS(false)
+	if err != nil {
+		return experimentaldomain.SaaSEditionProfile{}, err
+	}
+	return c.CreateSaaSProfile(ctx, a, in)
 }
 func (f peripheralFixtureCommands) AuthorizeCreateMarketplaceCollector(ctx context.Context, a domain.Actor, in experimentalapp.MarketplaceCollectorInput) error {
-	return f.commandLedger(ctx).AuthorizeCreateMarketplaceCollector(ctx, a, marketplaceCollectorLegacyInput(in))
+	c, err := f.nativeMarketplace(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeCreateMarketplaceCollector(ctx, a, in)
 }
 func (f peripheralFixtureCommands) CreateMarketplaceCollector(ctx context.Context, a domain.Actor, in experimentalapp.MarketplaceCollectorInput) (experimentaldomain.MarketplaceCollector, error) {
-	v, err := f.commandLedger(ctx).CreateMarketplaceCollector(ctx, a, marketplaceCollectorLegacyInput(in))
-	return marketplaceFixtureModel(v), err
+	c, err := f.nativeMarketplace(false)
+	if err != nil {
+		return experimentaldomain.MarketplaceCollector{}, err
+	}
+	return c.CreateMarketplaceCollector(ctx, a, in)
 }
 func (f marketplaceQueryFixture) ListPage(ctx context.Context, a domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[experimentaldomain.MarketplaceCollector], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[experimentaldomain.MarketplaceCollector]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListMarketplaceCollectors(ctx, a)
+	c, err := experimentalquery.NewMarketplaceCollectors(f, peripheralFixtureQueryClock)
 	if err != nil {
 		return appquery.Result[experimentaldomain.MarketplaceCollector]{}, err
 	}
-	items := make([]experimentaldomain.MarketplaceCollector, 0, len(values))
-	for _, v := range values {
-		items = append(items, marketplaceFixtureModel(v))
-	}
-	return appquery.Page(items, request, after, func(v experimentaldomain.MarketplaceCollector, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(v.ID, v.CreatedAt, sort)
-	})
+	return c.ListPage(ctx, a, request, after)
 }
 func (f marketplaceQueryFixture) Health(ctx context.Context, a domain.Actor, id string) (experimentaldomain.MarketplaceCollectorHealthReport, error) {
-	v, err := f.commandLedger(ctx).MarketplaceCollectorHealth(ctx, a, id)
-	return marketplaceHealthFixtureModel(v), err
+	c, err := experimentalquery.NewMarketplaceCollectors(f, peripheralFixtureQueryClock)
+	if err != nil {
+		return experimentaldomain.MarketplaceCollectorHealthReport{}, err
+	}
+	return c.Health(ctx, a, id)
 }
 func (s *Server) bindPeripheralFixturePorts(ledger *app.Ledger) {
 	f := catalogFixtureCommands{ledger: ledger}

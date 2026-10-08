@@ -45,17 +45,15 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		// test-only oracle. Uncalled replay guards are now covered by the
 		// production-surface retirement test, not a live runtime inventory.
 		"legacy_portal_oracle_test.go":             {"CreateCustomerPortalAccess", "RevokeCustomerPortalAccess", "authorizePortalWriteLocked"},
-		"graph_snapshot_creation.go":               {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked"},
+		"legacy_peripheral_oracle_test.go":         {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked", "AuthorizeCreateSaaSEditionProfile", "AuthorizeCreateMarketplaceCollector", "CreateGraphSnapshot", "CreateSaaSEditionProfile", "CreateMarketplaceCollector"},
 		"product_release_authorization.go":         {"authorizeProductReleaseLocked"},
 		"pdf_report_creation.go":                   {"AuthorizeCreatePDFReportPackage"},
 		"anomaly_report_creation.go":               {"AuthorizeGenerateAnomalyReport"},
 		"signing_operation_creation.go":            {"AuthorizeCreateSigningOperation"},
-		"saas_profile_creation.go":                 {"AuthorizeCreateSaaSEditionProfile"},
-		"marketplace_collector_creation.go":        {"AuthorizeCreateMarketplaceCollector"},
 		"public_transparency_metadata_creation.go": {"AuthorizeCreatePublicTransparencyLog", "AuthorizePublishPublicTransparencyLogEntry"},
 		"public_transparency_verification.go":      {"AuthorizeVerifyPublicTransparencyLogEntry"},
 		"public_transparency_fetch.go":             {"AuthorizeFetchPublicTransparencyLogEntryProof", "FetchAndVerifyPublicTransparencyLogEntry"},
-		"future_extensions.go":                     {"CreateGraphSnapshot", "CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation", "CreateSaaSEditionProfile", "CreateMarketplaceCollector", "CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry", "VerifyPublicTransparencyLogEntry"},
+		"future_extensions.go":                     {"CreatePDFReportPackage", "GenerateAnomalyReport", "CreateSigningOperation", "CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry", "VerifyPublicTransparencyLogEntry"},
 		"legacy_questionnaire_oracle_test.go": {
 			"CreateQuestionnairePackage",
 			"AuthorizeQuestionnairePackageCreate",

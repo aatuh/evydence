@@ -1777,8 +1777,12 @@ collector/audit/replay commit; the query never selects signature bytes, signing
 keys, component arrays or scan findings. Missing/foreign references fail closed
 and successful replay rechecks current human tenant grants and references.
 HTTP registration, list and health handlers use focused ports only; PostgreSQL
-is required for local evaluation. Test-only memory adapters retain real guards,
-detached metadata, pagination and isolated replay writes, not SQL guarantees.
+is required for local evaluation. HTTP fixtures run the actual focused commands
+and marketplace query service on memory transactions, not collector caches.
+Their reference ports project only ownership IDs; current health points retain
+the distinction between missing and invalid references. Paging filters the
+tenant before selecting and detaching complete records. Read-only guards cannot
+write, audit, generate IDs or use clocks. These checks are not SQL guarantees.
 No package bytes are verified or published, and no provider is endorsed.
 See [marketplace collector creation](api.md#marketplace-collector-creation).
 Remaining aggregate code deletion remains EVY-906 work.
@@ -1787,6 +1791,9 @@ Experimental SaaS profile creation now uses focused commands and at most two
 current tenant keys, with exact instance-admin authority. Profile, audit and
 replay writes are atomic and root deletion is locked through commit. Pure
 raw-value hashing and record rules are shared with test-only memory adapters.
+HTTP fixtures run the actual focused profile command on memory transactions,
+including the deliberate existing cross-tenant admin reference; an instance
+grant does not establish provisioned isolation or provider readiness.
 The HTTP handler has no aggregate fallback or local-memory runtime path.
 These records express hosted-deployment intent only, not provisioned isolation.
 See [SaaS profile creation](api.md#saas-profile-creation) for the deliberate
@@ -1821,9 +1828,18 @@ unrelated tenant state. Snapshots and their hash-linked audit entries are
 append-only; failures publish no result. Recorded opaque references are not
 verification authority or evidence completeness. See
 [graph snapshot creation](api.md#graph-snapshot-creation) for exact limits and
-privacy-safe replay caveats. The HTTP handler has no aggregate fallback;
-test-only adapters retain actual guards, detached adjacency and isolated replay
-writes. Remaining aggregate code deletion remains EVY-906 work.
+privacy-safe replay caveats. The HTTP handler has no aggregate fallback. HTTP
+fixtures run the actual focused graph command on memory transactions, selecting
+bounded root labels and structured adjacency directly from repository rows.
+They preserve raw product/release selection and inferred authorization parents;
+coordinate-only guards cannot read labels, adjacency or hash a graph. Twenty
+historical graph/profile/marketplace declarations and helpers are excluded from
+production and retained unchanged in
+`internal/app/legacy_peripheral_oracle_test.go` for package-local regressions.
+Three obsolete production guard files are deleted; only detached DTO mappers
+remain in `internal/app/peripheral_legacy_records.go` for persistence translation.
+These tests do not prove SQL locking, durability or provider trust. Aggregate
+maps, snapshots and other methods still require physical retirement in EVY-906.
 
 PostgreSQL questionnaire drafts bind focused Package commands and a pure
 tenant/product/release policy in the composition root. The worker/audit fence

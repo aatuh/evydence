@@ -31,7 +31,7 @@ func (f *saasHTTPCommands) CreateSaaSProfile(_ context.Context, a identitydomain
 }
 func saasHTTPFixture(t *testing.T) (*Server, string, string) {
 	t.Helper()
-	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	tenant, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatal(err)
