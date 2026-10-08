@@ -29,6 +29,10 @@ func TestPackageReportNativeFixturesRetainClockAndDiscardProjectionOnCommitFailu
 	if err != nil || len(handling.AcceptedExceptions) != 1 || !handling.GeneratedAt.Equal(clock.at) || clock.calls != 2 {
 		t.Fatal("handling rebinding lost native rows or explicit clock", handling, err)
 	}
+	update, err := server.securityUpdateEvidenceQuery.Report(t.Context(), owner.actor, owner.product.ID, owner.release.ID)
+	if err != nil || len(update.FixedDecisions) != 1 || len(update.Incidents) != 1 || len(update.RemediationTasks) != 1 || !update.GeneratedAt.Equal(clock.at) || clock.calls != 3 {
+		t.Fatal("security-update rebinding lost current native rows or explicit clock", update, err)
+	}
 	before, err := factory.base.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -43,15 +47,20 @@ func TestPackageReportNativeFixturesRetainClockAndDiscardProjectionOnCommitFailu
 	if err == nil || !reflect.DeepEqual(handling, packagedomain.CRAVulnerabilityHandlingReport{}) || factory.rollbacks != rollbacks+2 {
 		t.Fatal("failed handling commit returned partial data or retained transaction", handling, err)
 	}
+	clockCalls := clock.calls
+	update, err = server.securityUpdateEvidenceQuery.Report(t.Context(), owner.actor, owner.product.ID, owner.release.ID)
+	if err == nil || !reflect.DeepEqual(update, packagedomain.SecurityUpdateEvidenceReport{}) || factory.rollbacks != rollbacks+3 || clock.calls != clockCalls {
+		t.Fatal("failed security-update commit returned partial data, retained transaction or reached clock", update, err)
+	}
 	after, err := factory.base.Snapshot()
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("failed report commit changed repository state", err)
 	}
-	coveragePort, handlingPort := &controlReportHTTPFake{}, &craVulnerabilityHTTPFake{}
-	server.controlCoverageQuery, server.craVulnerabilityQuery = coveragePort, handlingPort
+	coveragePort, handlingPort, updatePort := &controlReportHTTPFake{}, &craVulnerabilityHTTPFake{}, &securityUpdateHTTPFake{}
+	server.controlCoverageQuery, server.craVulnerabilityQuery, server.securityUpdateEvidenceQuery = coveragePort, handlingPort, updatePort
 	server.bindLegacyLedgerFixture(rebound)
 	server.bindPackageReportFixtureClock(clock.Now)
-	if server.controlCoverageQuery != coveragePort || server.craVulnerabilityQuery != handlingPort {
+	if server.controlCoverageQuery != coveragePort || server.craVulnerabilityQuery != handlingPort || server.securityUpdateEvidenceQuery != updatePort {
 		t.Fatal("fixture rebinding replaced explicit report ports")
 	}
 }

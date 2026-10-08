@@ -21,6 +21,36 @@ func (f packageHandlingFixture) now() time.Time {
 	return time.Now()
 }
 
+func (f packageUpdateFixture) now() time.Time {
+	if f.clock != nil {
+		return f.clock()
+	}
+	return time.Now()
+}
+
+func (f packageUpdateFixture) ReadSecurityUpdateSnapshot(ctx context.Context, tenant, product, release string) (packagequery.SecurityUpdateSnapshot, error) {
+	if ctx == nil {
+		return packagequery.SecurityUpdateSnapshot{}, packagequery.ErrSecurityUpdateValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return packagequery.SecurityUpdateSnapshot{}, err
+	}
+	var out packagequery.SecurityUpdateSnapshot
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Packages.(packagequery.SecurityUpdateReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadSecurityUpdateSnapshot(ctx, tenant, product, release)
+		return err
+	})
+	if err != nil {
+		return packagequery.SecurityUpdateSnapshot{}, err
+	}
+	return out, nil
+}
+
 func (f packageCoverageFixture) ReadControlCoverageSnapshot(ctx context.Context, tenant, framework, product, release string, at time.Time) (packagequery.ControlCoverageSnapshot, error) {
 	if ctx == nil {
 		return packagequery.ControlCoverageSnapshot{}, packagequery.ErrControlCoverageValidation
@@ -76,9 +106,14 @@ func (s *Server) bindPackageReportFixtureClock(clock func() time.Time) {
 		f.clock = clock
 		s.craVulnerabilityQuery = f
 	}
+	if f, ok := s.securityUpdateEvidenceQuery.(packageUpdateFixture); ok {
+		f.clock = clock
+		s.securityUpdateEvidenceQuery = f
+	}
 }
 
 var (
 	_ packagequery.ControlCoverageReader  = packageCoverageFixture{}
 	_ packagequery.CRAVulnerabilityReader = packageHandlingFixture{}
+	_ packagequery.SecurityUpdateReader   = packageUpdateFixture{}
 )

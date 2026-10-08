@@ -29,12 +29,12 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"controls.go": {
 			"LinkControlEvidence",
 			"ListControlEvidence",
-			"SecurityUpdateEvidenceReport",
 		},
-		"legacy_control_reports_oracle_test.go": {"ControlCoverageReport", "CRAReadinessReport", "CRAVulnerabilityHandlingReport"},
-		"control_evidence_replay_guard.go":      {"AuthorizeControlEvidenceLink", "authorizeControlEvidenceLinkLocked"},
-		"source_repository_replay_guard.go":     {"AuthorizeSourceRepositoryCreation", "authorizeSourceRepositoryCreationLocked"},
-		"source_write_replay_guard.go":          {"AuthorizeSourceCommitRecording", "AuthorizeSourceBranchUpsert", "AuthorizePullRequestRecording", "authorizeLocalSourceWriteLocked"},
+		"legacy_security_update_report_oracle_test.go": {"SecurityUpdateEvidenceReport"},
+		"legacy_control_reports_oracle_test.go":        {"ControlCoverageReport", "CRAReadinessReport", "CRAVulnerabilityHandlingReport"},
+		"control_evidence_replay_guard.go":             {"AuthorizeControlEvidenceLink", "authorizeControlEvidenceLinkLocked"},
+		"source_repository_replay_guard.go":            {"AuthorizeSourceRepositoryCreation", "authorizeSourceRepositoryCreationLocked"},
+		"source_write_replay_guard.go":                 {"AuthorizeSourceCommitRecording", "AuthorizeSourceBranchUpsert", "AuthorizePullRequestRecording", "authorizeLocalSourceWriteLocked"},
 		"legacy_answer_library_oracle_test.go": {
 			"CreateQuestionnaireAnswerLibraryEntry",
 			"ListQuestionnaireAnswerLibrary",

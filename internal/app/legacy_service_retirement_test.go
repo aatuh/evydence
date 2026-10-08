@@ -127,6 +127,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"CreateWaiver": true, "ApproveWaiver": true,
 		"CreateException": true, "ApproveException": true, "CreateApprovalRecord": true,
 		"ListExceptions": true, "ControlCoverageReport": true, "CRAReadinessReport": true, "CRAVulnerabilityHandlingReport": true,
+		"SecurityUpdateEvidenceReport": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

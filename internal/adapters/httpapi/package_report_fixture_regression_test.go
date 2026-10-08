@@ -26,6 +26,7 @@ type packageReportFixtureScope struct {
 	exception   domain.Exception
 	scan        domain.VulnerabilityScan
 	decision    domain.VulnerabilityDecision
+	task        domain.RemediationTask
 }
 
 func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) packageReportFixtureScope {
@@ -65,7 +66,8 @@ func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string
 	if err != nil {
 		t.Fatal("report fixed decision:", err)
 	}
-	if _, err := ledger.CreateRemediationTask(t.Context(), f.actor, app.CreateRemediationTaskInput{IncidentID: f.incident.ID, ReleaseID: f.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: f.evidence.ID}); err != nil {
+	f.task, err = ledger.CreateRemediationTask(t.Context(), f.actor, app.CreateRemediationTaskInput{IncidentID: f.incident.ID, ReleaseID: f.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: f.evidence.ID})
+	if err != nil {
 		t.Fatal("report remediation task:", err)
 	}
 	f.bundle, err = ledger.CreateReleaseBundle(t.Context(), f.actor, f.release.ID)
@@ -89,13 +91,12 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 	clock := func() time.Time { return owner.release.CreatedAt }
 	server.bindPackageReportFixtureClock(clock)
 	filter := packagequery.ControlCoverageFilter{FrameworkID: owner.framework.ID, ProductID: owner.product.ID, ReleaseID: owner.release.ID}
-	coverage, cra, handling := expectedPackageReportFixtureResponses(owner)
+	coverage, cra, handling, update := expectedPackageReportFixtureResponses(owner)
 	if len(coverage.Controls) != 3 || len(coverage.MissingEvidence) == 0 || len(coverage.AcceptedExceptions) != 1 || len(handling.Decisions) != 1 || handling.Decisions[0].ReviewedAt == nil || len(handling.AcceptedExceptions) != 1 {
 		t.Fatal("independent report expectations lack meaningful nested data")
 	}
-	update, err := ledger.SecurityUpdateEvidenceReport(t.Context(), human, owner.product.ID, owner.release.ID)
-	if err != nil || len(update.FixedDecisions) != 1 || len(update.Incidents) != 1 || len(update.RemediationTasks) != 1 || update.RemediationTasks[0].DueAt == nil {
-		t.Fatal("update fixture lacks fixed decisions/incident/task", err)
+	if len(update.FixedDecisions) != 1 || len(update.Incidents) != 1 || len(update.RemediationTasks) != 1 || update.RemediationTasks[0].DueAt == nil {
+		t.Fatal("independent update expectation lacks fixed decisions/incident/task")
 	}
 	readiness, err := ledger.ReleaseReadinessReport(t.Context(), domain.Actor{TenantID: human.TenantID, KeyID: "fixture-owned-readiness-reader", Scopes: []string{"verify:read"}}, owner.release.ID)
 	if err != nil {
@@ -146,7 +147,7 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 	auth.actor = human
 	for _, request := range requests {
 		foreignPath := strings.NewReplacer(owner.product.ID, foreign.product.ID, owner.release.ID, foreign.release.ID, owner.framework.ID, foreign.framework.ID, owner.bundle.ID, foreign.bundle.ID).Replace(request.path)
-		if strings.HasPrefix(request.path, "/v1/reports/control-coverage?") || strings.HasPrefix(request.path, "/v1/reports/cra-readiness?") || strings.HasPrefix(request.path, "/v1/reports/cra-vulnerability-handling?") {
+		if strings.HasPrefix(request.path, "/v1/reports/control-coverage?") || strings.HasPrefix(request.path, "/v1/reports/cra-readiness?") || strings.HasPrefix(request.path, "/v1/reports/cra-vulnerability-handling?") || strings.HasPrefix(request.path, "/v1/reports/security-update-evidence?") {
 			// Native queries reject an ungranted product before touching storage.
 			// A tenant-wide reader must still receive a scoped not-found result.
 			getRaw(t, server, "fixture-auth", foreignPath, 403)
@@ -189,7 +190,7 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 	projectedHandling.Decisions[0].SupportingRefs[0].ID = "modified"
 	*projectedHandling.Decisions[0].ReviewedAt = projectedHandling.Decisions[0].ReviewedAt.AddDate(1, 0, 0)
 	*projectedHandling.Decisions[0].ReviewDueAt = projectedHandling.Decisions[0].ReviewDueAt.AddDate(1, 0, 0)
-	projectedUpdate, err := (packageUpdateFixture{base}).Report(t.Context(), human, owner.product.ID, owner.release.ID)
+	projectedUpdate, err := (packageUpdateFixture{catalogFixtureCommands: base, clock: clock}).Report(t.Context(), human, owner.product.ID, owner.release.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +232,7 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 			return err
 		},
 		func(ctx context.Context) error {
-			_, err := (packageUpdateFixture{base}).Report(ctx, human, owner.product.ID, owner.release.ID)
+			_, err := (packageUpdateFixture{catalogFixtureCommands: base, clock: clock}).Report(ctx, human, owner.product.ID, owner.release.ID)
 			return err
 		},
 		func(ctx context.Context) error {

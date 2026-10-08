@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"maps"
-	"slices"
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -23,21 +21,13 @@ type packageHandlingFixture struct {
 	catalogFixtureCommands
 	clock func() time.Time
 }
-type packageUpdateFixture struct{ catalogFixtureCommands }
+type packageUpdateFixture struct {
+	catalogFixtureCommands
+	clock func() time.Time
+}
 type packageBundleReadFixture struct{ catalogFixtureCommands }
 type packageMissingFixture struct{ catalogFixtureCommands }
 
-func packageFixtureDecisions(values []domain.VulnerabilityDecisionCustomerSummary) []packagedomain.VulnerabilityDecisionSnapshot {
-	items := make([]packagedomain.VulnerabilityDecisionSnapshot, 0, len(values))
-	for _, v := range values {
-		refs := make([]packagedomain.SupportingReference, 0, len(v.SupportingRefs))
-		for _, ref := range v.SupportingRefs {
-			refs = append(refs, packagedomain.SupportingReference(ref))
-		}
-		items = append(items, packagedomain.VulnerabilityDecisionSnapshot{ID: v.ID, FindingID: v.FindingID, ScanID: v.ScanID, ReleaseID: v.ReleaseID, Vulnerability: v.Vulnerability, Component: v.Component, SBOMID: v.SBOMID, SBOMComponentPURL: v.SBOMComponentPURL, SBOMComponentName: v.SBOMComponentName, Status: v.Status, Justification: v.Justification, ImpactStatement: v.ImpactStatement, ActionStatement: v.ActionStatement, Source: v.Source, EvidenceID: v.EvidenceID, EvidenceIDs: slices.Clone(v.EvidenceIDs), SupportingRefs: refs, VEXDocumentID: v.VEXDocumentID, ReviewedAt: copyDecisionSummaryTime(v.ReviewedAt), ReviewDueAt: copyDecisionSummaryTime(v.ReviewDueAt), CreatedAt: v.CreatedAt})
-	}
-	return items
-}
 func (f packageCoverageFixture) Coverage(ctx context.Context, a domain.Actor, filter packagequery.ControlCoverageFilter) (packagedomain.ControlCoverageReport, error) {
 	query, err := packagequery.NewControlCoverageReport(f, f.now)
 	if err != nil {
@@ -60,21 +50,11 @@ func (f packageHandlingFixture) Report(ctx context.Context, a domain.Actor, prod
 	return query.Report(ctx, a, product, release)
 }
 func (f packageUpdateFixture) Report(ctx context.Context, a domain.Actor, product, release string) (packagedomain.SecurityUpdateEvidenceReport, error) {
-	v, err := f.commandLedger(ctx).SecurityUpdateEvidenceReport(ctx, a, product, release)
+	query, err := packagequery.NewSecurityUpdateEvidence(f, f.now)
 	if err != nil {
 		return packagedomain.SecurityUpdateEvidenceReport{}, err
 	}
-	incidents := make([]packagedomain.IncidentSnapshot, 0, len(v.Incidents))
-	for _, incident := range v.Incidents {
-		incident.ClosedAt = copyDecisionSummaryTime(incident.ClosedAt)
-		incidents = append(incidents, packagedomain.IncidentSnapshot(incident))
-	}
-	tasks := make([]packagedomain.RemediationTaskSnapshot, 0, len(v.RemediationTasks))
-	for _, task := range v.RemediationTasks {
-		task.DueAt = copyDecisionSummaryTime(task.DueAt)
-		tasks = append(tasks, packagedomain.RemediationTaskSnapshot(task))
-	}
-	return packagedomain.SecurityUpdateEvidenceReport{ReportType: v.ReportType, TemplateVersion: v.TemplateVersion, ProductID: v.ProductID, ReleaseID: v.ReleaseID, Summary: maps.Clone(v.Summary), FixedDecisions: packageFixtureDecisions(v.FixedDecisions), Incidents: incidents, RemediationTasks: tasks, EvidenceIDs: slices.Clone(v.EvidenceIDs), Assumptions: slices.Clone(v.Assumptions), Limitations: slices.Clone(v.Limitations), GeneratedAt: v.GeneratedAt}, nil
+	return query.Report(ctx, a, product, release)
 }
 func (f packageBundleReadFixture) GetReleaseBundle(ctx context.Context, a domain.Actor, id string) (packagedomain.ReleaseBundle, error) {
 	v, err := f.commandLedger(ctx).GetReleaseBundle(ctx, a, id)
@@ -115,8 +95,9 @@ func (s *Server) bindPackageReportFixtureQueries(ledger *app.Ledger) {
 		query.catalogFixtureCommands = f
 		s.craVulnerabilityQuery = query
 	}
-	if _, fixture := s.securityUpdateEvidenceQuery.(packageUpdateFixture); s.securityUpdateEvidenceQuery == nil || fixture {
-		s.securityUpdateEvidenceQuery = packageUpdateFixture{f}
+	if query, fixture := s.securityUpdateEvidenceQuery.(packageUpdateFixture); s.securityUpdateEvidenceQuery == nil || fixture {
+		query.catalogFixtureCommands = f
+		s.securityUpdateEvidenceQuery = query
 	}
 	if _, fixture := s.releaseBundleQuery.(packageBundleReadFixture); s.releaseBundleQuery == nil || fixture {
 		s.releaseBundleQuery = packageBundleReadFixture{f}

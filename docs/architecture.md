@@ -230,13 +230,16 @@ including local evaluation.
 Control coverage, CRA readiness/vulnerability handling, security-update,
 missing-evidence and both release-bundle reads also require focused queries;
 their seven aggregate fallback paths are deleted. Native filters, errors,
-current grants/parents and bounded SQL are unchanged. Coverage, CRA-readiness
-and vulnerability-handling fixtures now compose the actual Package queries
-with current repository readers and explicit clocks; their three Ledger
+current grants/parents and bounded SQL are unchanged. Coverage, CRA-readiness,
+vulnerability-handling and security-update fixtures compose the actual Package
+queries with current repository readers and explicit clocks; their four Ledger
 methods are unchanged test-only oracles. The memory coverage reader resolves
 every supported subject's current parents and observation time, shares the
 4,096-entry budget across controls, links and exceptions, and conservatively
-bounds selected text/JSON. Other test readers detach report and manifest data. The
+bounds selected text/JSON. The security-update reader selects fixed decisions,
+current incidents and coherent task parents, verifies linked evidence scope,
+omits private notes and shares the native row/reference budgets. Other test
+readers detach report and manifest data. The
 missing-evidence fixture uses real current authority and a pure readiness
 preview with the same Package renderer, not the old write-producing helper.
 Regressions compare all public DTO fields and complete repository state after
@@ -1938,7 +1941,7 @@ Control coverage and CRA-readiness reports use versioned tenant-created controls
 
 In the PostgreSQL profile, these reports read controls, current tenant-owned evidence subjects, and active exceptions from one repeatable-read snapshot. Subject scope and observed time are resolved from durable records before freshness is evaluated; stored link coordinates alone do not grant report inclusion. The reader rejects reports above 4096 combined controls, links, and exceptions or 8 MiB of selected text rather than silently truncating them; SQL preflight bounds individual control, link, and exception rows before transfer. An empty framework yields unknown coverage, and broad reports do not apply release-specific waivers. Historical coverage/CRA-readiness methods are test-only oracles; repository-backed fixtures use the native query service, not an API runtime profile. These reports organize recorded technical evidence; they do not determine legal compliance.
 
-The production security-update evidence report reads fixed decisions, scans, incidents, and remediation tasks for one tenant-owned release from a repeatable-read PostgreSQL snapshot. It omits private decision notes, verifies linked evidence remains in the tenant and report scope, and rejects rather than truncates reports above 4096 source rows or linked evidence identifiers. It organizes recorded evidence only; it does not prove legal sufficiency, notification completeness, or release security. Local-memory mode retains the Ledger report path.
+The production security-update evidence report reads fixed decisions, scans, incidents, and remediation tasks for one tenant-owned release from a repeatable-read PostgreSQL snapshot. It omits private decision notes, verifies linked evidence remains in the tenant and report scope, and rejects rather than truncates reports above 4096 source rows or linked evidence identifiers. It organizes recorded evidence only; it does not prove legal sufficiency, notification completeness, or release security. The historical Ledger method is a test-only oracle; repository-backed fixtures compose the native query with explicit time, detached public records and current evidence ownership. The memory test adapter does not establish SQL transfer/work bounds or durability.
 
 The production CRA vulnerability-handling report uses the same tenant/release snapshot and evidence-scope discipline. PostgreSQL aggregates scan finding counts without loading raw finding arrays into the API, then projects active decisions and approved unexpired exceptions with a 4096-row/evidence-ID cap. It excludes private decision notes and does not claim complete detection, scanner authority, legal compliance, or release security. The historical Ledger method is a test-only oracle; repository-backed fixtures compose the native report query without consulting aggregate caches.
 

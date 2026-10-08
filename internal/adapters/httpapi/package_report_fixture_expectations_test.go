@@ -23,7 +23,7 @@ func assertPackageReportFixtureResponse(t *testing.T, path, want, got string) {
 
 // These independent public DTOs derive from known fixture inputs and returned
 // write receipts, not the report query under test or obsolete aggregate caches.
-func expectedPackageReportFixtureResponses(f packageReportFixtureScope) (domain.ControlCoverageReport, domain.CRAReadinessReport, domain.CRAVulnerabilityHandlingReport) {
+func expectedPackageReportFixtureResponses(f packageReportFixtureScope) (domain.ControlCoverageReport, domain.CRAReadinessReport, domain.CRAVulnerabilityHandlingReport, domain.SecurityUpdateEvidenceReport) {
 	controls := []domain.ControlCoverageItem{
 		{ControlID: f.control.ID, Code: "REVIEW", Title: "Review", Status: "missing", Confidence: "unsupported", LinkedEvidence: []domain.ControlEvidence{}, Missing: []string{}, Explanation: "required control evidence is missing", Limitations: []string{"Human review required"}},
 		{ControlID: f.sbomControl.ID, Code: "SBOM", Title: "sbom review", Status: "missing", Confidence: "unsupported", LinkedEvidence: []domain.ControlEvidence{}, Missing: []string{"sbom"}, Explanation: "required control evidence is missing", Limitations: []string{"Review required"}},
@@ -42,5 +42,12 @@ func expectedPackageReportFixtureResponses(f packageReportFixtureScope) (domain.
 		Assumptions: []string{"This report summarizes vulnerability handling records for CRA readiness review using evidence stored in this tenant."},
 		Limitations: []string{"Report contents do not prove legal compliance, certification, complete vulnerability detection, scanner authority, or release security status."}, GeneratedAt: f.release.CreatedAt,
 	}
-	return coverage, cra, handling
+	update := domain.SecurityUpdateEvidenceReport{
+		ReportType: "security_update_evidence", TemplateVersion: "security-update-evidence.v1.0.0", ProductID: f.product.ID, ReleaseID: f.release.ID,
+		Summary:        map[string]int{"fixed_decisions_total": 1, "incidents_total": 1, "remediation_tasks_total": 1, "linked_evidence_total": 2, "security_update_subjects": 3},
+		FixedDecisions: handling.Decisions, Incidents: []domain.Incident{f.incident}, RemediationTasks: []domain.RemediationTask{f.task}, EvidenceIDs: evidenceIDs,
+		Assumptions: []string{"This report summarizes recorded release evidence that may support security update review."},
+		Limitations: []string{"Security update evidence is scoped to records in this Evydence tenant and does not prove legal sufficiency, customer notification completeness, or release security status."}, GeneratedAt: f.release.CreatedAt,
+	}
+	return coverage, cra, handling, update
 }
