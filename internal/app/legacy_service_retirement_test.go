@@ -32,6 +32,11 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"saasProfileInput": true, "AuthorizeCreateSaaSEditionProfile": true,
 		"marketplaceCollectorInput": true, "cloneLocalMarketplaceCollector": true,
 		"AuthorizeCreateMarketplaceCollector": true, "authorizeMarketplaceReferencesLocked": true,
+		"CreatePDFReportPackageInput": true, "CreateSigningOperationInput": true,
+		"CreatePDFReportPackage": true, "CreateSigningOperation": true,
+		"AuthorizeCreatePDFReportPackage": true, "AuthorizeCreateSigningOperation": true,
+		"canonicalSigningRequestHash": true, "validateSigningResult": true, "signingRequestToVerification": true, "cloneLocalSigningOperation": true,
+		"signingRequestProfile": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -55,6 +60,12 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 				declared = value.Name.Name
 			case *ast.FuncDecl:
 				declared = value.Name.Name
+			case *ast.ValueSpec:
+				for _, id := range value.Names {
+					if retired[id.Name] {
+						t.Errorf("%s retains historical package value %s", name, id.Name)
+					}
+				}
 			}
 			if retired[declared] {
 				t.Errorf("%s retains historical package declaration %s", name, declared)

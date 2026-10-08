@@ -123,7 +123,7 @@ func TestReportSigningFixturesRollBackRecordPayloadJobSignatureAuditAndReplayAft
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: reportSigningFixtureHuman(owner)}
-			commands := &failingReportSigningFixture{reportSigningFixtureCommands: reportSigningFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingReportSigningFixture{reportSigningFixtureCommands: reportSigningFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, objects: objects, signer: signer}}
 			server.pdfReportCommands, server.anomalyReportCommands, server.signingOperationCommands = commands, commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -189,6 +189,7 @@ func TestReportSigningFixturesPreserveCompleteDTOHashAuditAndReplayWithoutRepeat
 		t.Fatal(err)
 	}
 	human := reportSigningFixtureHuman(owner)
+	server.bindReportSigningFixtureResources(objects, signer)
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth
 	for _, request := range reportSigningFixtureRequests(owner) {
@@ -341,7 +342,7 @@ func TestReportSigningFixtureGuardsArePureAndHonorCancellation(t *testing.T) {
 	ledger, factory, objects, signer := reportSigningRegressionLedger(t)
 	owner := seedReportSigningFixtureScope(t, ledger, "Owner")
 	human := reportSigningFixtureHuman(owner)
-	commands := reportSigningFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	commands := reportSigningFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, objects: objects, signer: signer}
 	pdf := packageapp.CreatePDFReportInput{ReportType: "release_readiness", ReleaseID: owner.release.ID, Title: "Readiness"}
 	anomaly := experimentalapp.AnomalyReportInput{SubjectType: "release", SubjectID: owner.release.ID}
 	signing := verificationapp.SigningOperationInput{ProviderID: owner.provider.ID, SubjectType: "release", SubjectID: owner.release.ID, PayloadHash: "sha256:" + strings.Repeat("a", 64)}
@@ -394,20 +395,26 @@ func TestBindLedgerPreservesExplicitReportSigningPorts(t *testing.T) {
 }
 
 func TestReportSigningFixtureMappersPreserveCompleteDTOsWithoutNestedAliasing(t *testing.T) {
-	ledger, _, _, _ := reportSigningRegressionLedger(t)
+	ledger, factory, objects, signer := reportSigningRegressionLedger(t)
 	owner := seedReportSigningFixtureScope(t, ledger, "Owner")
-	pdf, err := ledger.CreatePDFReportPackage(t.Context(), owner.actor, app.CreatePDFReportPackageInput{ReportType: "release_readiness", ProductID: owner.product.ID, ReleaseID: owner.release.ID, Title: "Readiness"})
-	if err != nil || len(pdf.Limitations) == 0 {
+	commands := reportSigningFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, objects: objects, signer: signer}
+	p, err := commands.CreatePDFReportPackage(t.Context(), owner.actor, packageapp.CreatePDFReportInput{ReportType: "release_readiness", ProductID: owner.product.ID, ReleaseID: owner.release.ID, Title: "Readiness"})
+	if err != nil || len(p.Limitations) == 0 {
 		t.Fatal(err)
 	}
 	anomaly, err := ledger.GenerateAnomalyReport(t.Context(), owner.actor, app.AnomalyReportInput{SubjectType: "release", SubjectID: owner.release.ID})
 	if err != nil || len(anomaly.Signals) == 0 || len(anomaly.Assumptions) == 0 || len(anomaly.Limitations) == 0 {
 		t.Fatal(err)
 	}
-	signing, err := ledger.CreateSigningOperation(t.Context(), owner.actor, app.CreateSigningOperationInput{ProviderID: owner.provider.ID, SubjectType: "release", SubjectID: owner.release.ID, PayloadHash: "sha256:" + strings.Repeat("a", 64)})
-	if err != nil || len(signing.Checks) == 0 {
+	op, err := commands.CreateSigningOperation(t.Context(), owner.actor, verificationapp.SigningOperationInput{ProviderID: owner.provider.ID, SubjectType: "release", SubjectID: owner.release.ID, PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	if err != nil || len(op.Checks) == 0 {
 		t.Fatal(err)
 	}
+	saved, err := factory.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pdf, signing := saved.PDFReports[p.ID], saved.SigningOperations[op.ID]
 	pdfModel, anomalyModel, signingModel := pdfFixtureModel(pdf), anomalyFixtureModel(anomaly), signingOperationFixtureModel(signing)
 	for _, pair := range []struct {
 		value  any
@@ -439,13 +446,14 @@ func TestReportSigningFixtureMappersPreserveCompleteDTOsWithoutNestedAliasing(t 
 func TestSigningOperationFixtureProviderFailuresNeverCommitSuccess(t *testing.T) {
 	for _, mode := range []string{"unavailable", "wrong-binding", "failed-check"} {
 		t.Run(mode, func(t *testing.T) {
-			ledger, factory, _, signer := reportSigningRegressionLedger(t)
+			ledger, factory, objects, signer := reportSigningRegressionLedger(t)
 			owner := seedReportSigningFixtureScope(t, ledger, "Owner")
 			signer.mode = mode
 			server, err := newLegacyServerFixture(ledger)
 			if err != nil {
 				t.Fatal(err)
 			}
+			server.bindReportSigningFixtureResources(objects, signer)
 			server.authn = &configuredAuthenticator{actor: reportSigningFixtureHuman(owner)}
 			before, err := factory.Snapshot()
 			if err != nil {

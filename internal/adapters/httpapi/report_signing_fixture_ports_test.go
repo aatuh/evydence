@@ -14,20 +14,18 @@ import (
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
-// Historical setup is test-only: real root guards precede receipt lookup, and
-// real writes use the isolated command clone. Neither physical object staging
-// nor an external signer observation is undone by a failed database command.
-// These fixtures are not native SQL locking, durability or provider evidence.
-type reportSigningFixtureCommands struct{ catalogFixtureCommands }
-
-func pdfFixtureInput(in packageapp.CreatePDFReportInput) app.CreatePDFReportPackageInput {
-	return app.CreatePDFReportPackageInput{ReportType: in.ReportType, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Title: in.Title}
+// PDF and signing fixtures use real focused services on memory transactions;
+// anomaly writes remain historical until their readiness facts are migrated.
+// Physical staging and provider observations are not undone by database
+// rollback. These fixtures are not SQL locking, durability or provider proof.
+type reportSigningFixtureCommands struct {
+	catalogFixtureCommands
+	objects app.PayloadObjectStore
+	signer  app.SigningExecutor
 }
+
 func anomalyFixtureInput(in experimentalapp.AnomalyReportInput) app.AnomalyReportInput {
 	return app.AnomalyReportInput{SubjectType: in.SubjectType, SubjectID: in.SubjectID}
-}
-func signingOperationFixtureInput(in verificationapp.SigningOperationInput) app.CreateSigningOperationInput {
-	return app.CreateSigningOperationInput{ProviderID: in.ProviderID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, PayloadHash: in.PayloadHash}
 }
 func pdfFixtureModel(v domain.PDFReportPackage) packagedomain.PDFReportPackage {
 	return packagedomain.PDFReportPackage{ID: v.ID, TenantID: v.TenantID, ReportType: v.ReportType, ProductID: v.ProductID, ReleaseID: v.ReleaseID, Title: v.Title, PayloadRef: v.PayloadRef, PayloadHash: v.PayloadHash, PayloadSize: v.PayloadSize, Limitations: slices.Clone(v.Limitations), SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
@@ -47,11 +45,18 @@ func signingOperationFixtureModel(v domain.SigningOperation) verificationdomain.
 	return verificationdomain.SigningOperation{ID: v.ID, TenantID: v.TenantID, ProviderID: v.ProviderID, SubjectType: v.SubjectType, SubjectID: v.SubjectID, PayloadHash: v.PayloadHash, CanonicalPayloadHash: v.CanonicalPayloadHash, RequestID: v.RequestID, ProviderRequestID: v.ProviderRequestID, SignatureRef: v.SignatureRef, Result: v.Result, Checks: checks, SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
 }
 func (f reportSigningFixtureCommands) AuthorizeCreatePDFReportPackage(ctx context.Context, a domain.Actor, in packageapp.CreatePDFReportInput) error {
-	return f.commandLedger(ctx).AuthorizeCreatePDFReportPackage(ctx, a, pdfFixtureInput(in))
+	c, err := f.nativePDF(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeCreatePDFReportPackage(ctx, a, in)
 }
 func (f reportSigningFixtureCommands) CreatePDFReportPackage(ctx context.Context, a domain.Actor, in packageapp.CreatePDFReportInput) (packagedomain.PDFReportPackage, error) {
-	v, err := f.commandLedger(ctx).CreatePDFReportPackage(ctx, a, pdfFixtureInput(in))
-	return pdfFixtureModel(v), err
+	c, err := f.nativePDF(false)
+	if err != nil {
+		return packagedomain.PDFReportPackage{}, err
+	}
+	return c.CreatePDFReportPackage(ctx, a, in)
 }
 func (f reportSigningFixtureCommands) AuthorizeGenerateAnomalyReport(ctx context.Context, a domain.Actor, in experimentalapp.AnomalyReportInput) error {
 	return f.commandLedger(ctx).AuthorizeGenerateAnomalyReport(ctx, a, anomalyFixtureInput(in))
@@ -61,21 +66,34 @@ func (f reportSigningFixtureCommands) GenerateAnomalyReport(ctx context.Context,
 	return anomalyFixtureModel(v), err
 }
 func (f reportSigningFixtureCommands) AuthorizeCreateSigningOperation(ctx context.Context, a domain.Actor, in verificationapp.SigningOperationInput) error {
-	return f.commandLedger(ctx).AuthorizeCreateSigningOperation(ctx, a, signingOperationFixtureInput(in))
+	c, err := f.nativeSigning(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeCreateSigningOperation(ctx, a, in)
 }
 func (f reportSigningFixtureCommands) CreateSigningOperation(ctx context.Context, a domain.Actor, in verificationapp.SigningOperationInput) (verificationdomain.SigningOperation, error) {
-	v, err := f.commandLedger(ctx).CreateSigningOperation(ctx, a, signingOperationFixtureInput(in))
-	return signingOperationFixtureModel(v), err
+	c, err := f.nativeSigning(false)
+	if err != nil {
+		return verificationdomain.SigningOperation{}, err
+	}
+	return c.CreateSigningOperation(ctx, a, in)
 }
 func (s *Server) bindReportSigningFixturePorts(ledger *app.Ledger) {
-	f := reportSigningFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.pdfReportCommands.(reportSigningFixtureCommands); s.pdfReportCommands == nil || fixture {
+	f := reportSigningFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.pdfReportCommands.(reportSigningFixtureCommands); fixture {
+		old.ledger = ledger
+		s.pdfReportCommands = old
+	} else if s.pdfReportCommands == nil {
 		s.pdfReportCommands = f
 	}
 	if _, fixture := s.anomalyReportCommands.(reportSigningFixtureCommands); s.anomalyReportCommands == nil || fixture {
 		s.anomalyReportCommands = f
 	}
-	if _, fixture := s.signingOperationCommands.(reportSigningFixtureCommands); s.signingOperationCommands == nil || fixture {
+	if old, fixture := s.signingOperationCommands.(reportSigningFixtureCommands); fixture {
+		old.ledger = ledger
+		s.signingOperationCommands = old
+	} else if s.signingOperationCommands == nil {
 		s.signingOperationCommands = f
 	}
 }

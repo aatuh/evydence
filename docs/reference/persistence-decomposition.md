@@ -54,9 +54,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateCommercialCollectorDefinition` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateLegalHold` | `persistLocked` |
 | enterprise identity and retention | `internal/app/enterprise.go` | `CreateRetentionOverride` | `persistLocked` |
-| future extensions and generated reports | `internal/app/future_extensions.go` | `CreatePDFReportPackage` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `CreatePublicTransparencyLog` | `persistLocked` |
-| future extensions and generated reports | `internal/app/future_extensions.go` | `CreateSigningOperation` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `GenerateAnomalyReport` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `PublishPublicTransparencyLogEntry` | `persistLocked` |
 | future extensions and generated reports | `internal/app/future_extensions.go` | `verifyPublicTransparencyEntryLocked` | `persistLocked` |

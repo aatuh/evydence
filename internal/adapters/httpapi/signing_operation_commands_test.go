@@ -89,7 +89,7 @@ func (f *signingOperationHTTPLocalSigner) Sign(_ context.Context, r app.SigningR
 func localSigningOperationHTTPFixture(t *testing.T) (*Server, string, string, *signingOperationHTTPLocalSigner) {
 	t.Helper()
 	f := &signingOperationHTTPLocalSigner{}
-	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Signer: f})
+	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Signer: f, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	tenant, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +106,7 @@ func localSigningOperationHTTPFixture(t *testing.T) (*Server, string, string, *s
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.bindReportSigningFixtureResources(nil, f)
 	return s, secret, fmt.Sprintf(`{"provider_id":%q,"subject_type":"tenant","subject_id":%q,"payload_hash":"sha256:%s"}`, p.ID, tenant.ID, strings.Repeat("a", 64)), f
 }
 func TestSigningOperationHTTPLocalStrictJSONAndCurrentGrantReplay(t *testing.T) {
@@ -127,6 +128,7 @@ func TestSigningOperationHTTPLocalStrictJSONAndCurrentGrantReplay(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.bindReportSigningFixtureResources(nil, f)
 	postRaw(t, s, secret, "/v1/signing-operations", "signing", []byte(body), 201)
 	auth.actor.ResourceGrants = nil
 	postRaw(t, s, secret, "/v1/signing-operations", "signing", []byte(body), 403)
@@ -135,7 +137,7 @@ func TestSigningOperationHTTPLocalStrictJSONAndCurrentGrantReplay(t *testing.T) 
 	}
 }
 func TestSigningOperationHTTPCookieOriginAndBearerPrecedence(t *testing.T) {
-	base, secret, body, _ := localSigningOperationHTTPFixture(t)
+	base, secret, body, signer := localSigningOperationHTTPFixture(t)
 	for _, focused := range []bool{false, true} {
 		opts := ServerOptions{}
 		if focused {
@@ -146,6 +148,7 @@ func TestSigningOperationHTTPCookieOriginAndBearerPrecedence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		s.bindReportSigningFixtureResources(nil, signer)
 		for _, bearer := range []bool{false, true} {
 			r := httptest.NewRequest("POST", "https://api.example.test/v1/signing-operations", strings.NewReader(body))
 			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: "invalid"})

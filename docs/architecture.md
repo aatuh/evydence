@@ -1680,8 +1680,19 @@ hashing and receipt validation are shared with test-only memory adapters. The
 provider call, receipt/operation/audit writes and replay completion run under
 current root/provider locks and the projection fence. Database rollback cannot
 undo a provider call. The HTTP handler uses focused commands only; PostgreSQL
-is required for local evaluation. Test-only adapters retain actual guards,
-detached checks and isolated replay writes, not SQL or provider evidence.
+is required for local evaluation. HTTP fixtures run the actual focused signing
+service on memory transactions, reading current owned subject coordinates and
+bounded provider metadata directly from repositories. Provider results are
+validated before metadata redaction; signature, operation, audit and replay
+writes remain atomic. Read-only guards cannot sign, write, audit, use clocks or
+generate IDs. Fake signing dependencies stay in explicit test-only command
+ports, not Server/Ledger fields or a global registry. Eleven historical PDF and
+signing declarations are excluded from production and retained unchanged in
+`internal/app/legacy_pdf_signing_oracle_test.go` for package-local regressions.
+The obsolete PDF guard file is deleted; pure signing boundary mappers remain.
+Whole-state rollback, complete DTO, provider-failure and replay tests do not
+prove SQL locking, durability or real-provider trust. Aggregate maps, snapshots
+and other methods still require physical retirement in EVY-906.
 See [signing operation creation](api.md#signing-operation-creation)
 for bounds, replay authorization, retry limitations and non-claims.
 
@@ -1813,8 +1824,15 @@ coordinates in PostgreSQL. Verified staging, lifecycle metadata, finalizer job,
 report, audit and replay completion commit together; failures publish no report
 result. The payload remains a minimal title-only envelope, not stored evidence
 or report-type-specific pages. The HTTP handler has no aggregate fallback.
-Test-only memory adapters retain actual guards, identical payload bytes and
-isolated replay writes; physical staged bytes can outlive rollback. See
+HTTP fixtures run the actual focused Package service on memory transactions.
+Coordinate-only guards cannot stage, hash, write, audit, use clocks or generate
+IDs. Focused inserts recheck current ownership and the complete record's
+versioned payload hash, byte count and canonical object reference. Existing
+whole-state failure, complete DTO, actual staged-byte and current-grant replay
+checks retain their assertions. Storage dependencies stay in explicit test-only
+ports; physical staged bytes can outlive rollback. These checks are not SQL
+locking or durability evidence. The anomaly fixture still uses historical
+writes until its separate readiness-fact projection is migrated. See
 [PDF report packaging](api.md#pdf-report-packaging) for byte/hash compatibility,
 storage modes, physical orphan recovery and privacy-safe replay limitations.
 
