@@ -20,7 +20,7 @@ type ingestionDiffFixtureGuard struct {
 }
 
 func (f ingestionFixtureAuthority) diffSource(ctx context.Context, tenant, id, kind, product, release string) (application.ResourceReferences, error) {
-	value, err := f.commandLedger(ctx).GetEvidence(ctx, fixtureOwnerReader(tenant), id)
+	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetEvidence(ctx, fixtureOwnerReader(tenant), id)
 	if err != nil {
 		return application.ResourceReferences{}, err
 	}

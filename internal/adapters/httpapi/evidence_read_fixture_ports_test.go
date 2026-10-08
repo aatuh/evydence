@@ -20,8 +20,12 @@ type lifecyclePageFixture struct{ catalogFixtureCommands }
 type sbomComponentsFixture struct{ catalogFixtureCommands }
 
 func (f evidenceReadFixture) GetEvidence(ctx context.Context, actor domain.Actor, id string) (evidencedomain.EvidenceItem, error) {
-	value, err := f.commandLedger(ctx).GetEvidence(ctx, actor, id)
-	return domain.EvidenceToContextModel(value), err
+	query, err := evidencequery.NewEvidencePoints(f)
+	if err != nil {
+		return evidencedomain.EvidenceItem{}, err
+	}
+	value, err := query.GetEvidence(ctx, actor, id)
+	return value, legacyParsedPointError(err)
 }
 
 func (f evidencePageFixture) ListPage(ctx context.Context, actor domain.Actor, filter evidencequery.EvidencePageFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[evidencedomain.EvidenceItem], error) {

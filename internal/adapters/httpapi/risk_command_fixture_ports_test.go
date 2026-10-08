@@ -11,7 +11,6 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
-	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -22,13 +21,13 @@ import (
 // They are not a runtime backend or a proof of PostgreSQL locking.
 type riskCommandFixture struct{ catalogFixtureCommands }
 
-// The known scan ID is only a locator. The native query uses a current repository
-// reader, or an explicitly supplied immutable receipt in the synchronous
-// characterization. Actual source/parent authority is always rechecked.
+// Only the synchronous repository-free characterization explicitly supplies
+// immutable receipt readers. Ordinary readers use current repository rows.
 type vexDecisionPointFixture struct {
 	riskCommandFixture
-	scanID     string
-	scanReader evidencequery.VulnerabilityScanPointReader
+	scanID         string
+	scanReader     evidencequery.VulnerabilityScanPointReader
+	evidenceReader evidencequery.EvidencePointReader
 }
 
 func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Context, actor domain.Actor, id string) error {
@@ -41,18 +40,16 @@ func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Cont
 	}
 	reader := domain.Actor{TenantID: actor.TenantID, KeyID: "fixture-owner-reader", Scopes: []string{"evidence:read", "release:read", "product:read"}}
 	ledger := f.commandLedger(ctx)
-	var scan evidencedomain.VulnerabilityScan
-	var err error
-	if f.scanReader != nil {
-		query, buildErr := evidencequery.NewVulnerabilityScanPoints(f.scanReader)
-		if buildErr != nil {
-			return buildErr
-		}
-		scan, err = query.GetVulnerabilityScan(ctx, reader, f.scanID)
-		err = legacyParsedPointError(err)
-	} else {
-		scan, err = (evidenceReadFixture{f.catalogFixtureCommands}).GetVulnerabilityScan(ctx, reader, f.scanID)
+	scanReader := f.scanReader
+	if scanReader == nil {
+		scanReader = evidenceReadFixture{f.catalogFixtureCommands}
 	}
+	scanQuery, err := evidencequery.NewVulnerabilityScanPoints(scanReader)
+	if err != nil {
+		return err
+	}
+	scan, err := scanQuery.GetVulnerabilityScan(ctx, reader, f.scanID)
+	err = legacyParsedPointError(err)
 	if err != nil {
 		return err
 	}
@@ -68,7 +65,16 @@ func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Cont
 	if count != 1 {
 		return app.ErrConflict
 	}
-	evidence, err := ledger.GetEvidence(ctx, reader, scan.EvidenceID)
+	sourceReader := f.evidenceReader
+	if sourceReader == nil {
+		sourceReader = evidenceReadFixture{catalogFixtureCommands{ledger: ledger}}
+	}
+	sourceQuery, err := evidencequery.NewEvidencePoints(sourceReader)
+	if err != nil {
+		return err
+	}
+	evidence, err := sourceQuery.GetEvidence(ctx, reader, scan.EvidenceID)
+	err = legacyParsedPointError(err)
 	if err != nil {
 		return err
 	}

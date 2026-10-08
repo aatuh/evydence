@@ -73,11 +73,6 @@ func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in Crea
 	return evidenceFromContext(value), fromEvidenceContextError(err)
 }
 
-func (l *Ledger) GetEvidence(ctx context.Context, actor domain.Actor, id string) (domain.EvidenceItem, error) {
-	value, err := l.evidenceCommands.GetEvidence(ctx, actor, id)
-	return evidenceFromContext(value), fromEvidenceContextError(err)
-}
-
 func (l *Ledger) ListEvidence(ctx context.Context, actor domain.Actor, releaseID, typ string) ([]domain.EvidenceItem, error) {
 	values, err := l.evidenceCommands.ListEvidence(ctx, actor, releaseID, typ)
 	if err != nil {

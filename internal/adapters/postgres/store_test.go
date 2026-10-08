@@ -1773,7 +1773,11 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil || restoredSBOM.ComponentCount != sbom.ComponentCount {
 		t.Fatalf("restored sbom = %#v err=%v", restoredSBOM, err)
 	}
-	evidence, err := restored.GetEvidence(ctx, restoredActor, restoredSBOM.EvidenceID)
+	points, err := evidencequery.NewEvidencePoints(targetStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := points.GetEvidence(ctx, restoredActor, restoredSBOM.EvidenceID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -198,9 +198,11 @@ empty OpenAPI operation arrays remain distinct from unfinished projections
 through both ingestion paths and memory copies. The legacy diff service also
 reads configured repositories so replay snapshots cannot cause a false exact
 recheck conflict. Only the repository-free synchronous VEX characterization
-explicitly supplies immutable scan-receipt metadata; its native query and
-current source/parent guard assertions remain in force. This does not add an
-API runtime backend or establish SQL JSON, transfer/work or locking guarantees.
+explicitly supplies immutable scan/source receipts; native queries validate
+receipt identity and worker-record coherence, and the current parent guard
+remains in force. Receipt fixtures are not current storage snapshots. This does
+not add an API runtime backend or establish SQL JSON, transfer/work or locking
+guarantees.
 
 SBOM component fixtures now compose the focused Evidence query on current typed
 repository rows, without the former 500-component inventory ceiling. The
@@ -227,6 +229,14 @@ HTTP redaction and cursor binding remain unchanged. Failures return no partial
 point or page. The former list facade is an unchanged test-only oracle.
 These typed memory checks are not SQL JSON-shape, transfer/work, lock or
 durability evidence, and remaining aggregate retirement is still incomplete.
+
+Evidence point fixtures and their diff/decision callers now compose the focused
+Evidence query with the same current selected-provenance reader used by lifecycle
+pages. The historical getter is an unchanged test-only oracle. Point tests cover
+complete recorded metadata, exact JSON numbers, detached copies, current grants,
+masked foreign/missing roots, cancellation and failed commits. Restore/replay
+assertions use the native PostgreSQL point query. Public schemas and SQL are
+unchanged; other evidence lists and remaining aggregate state are still EVY-906.
 
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require

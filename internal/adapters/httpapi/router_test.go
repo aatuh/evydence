@@ -988,7 +988,7 @@ func TestCosignVerificationRejectsLegacyMetadataFields(t *testing.T) {
 }
 
 func TestCrossTenantEvidenceReadDenied(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secretA, err := ledger.BootstrapTenant(t.Context(), "Tenant A", "admin-a", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap A: %v", err)
@@ -1005,6 +1005,10 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 		"type": "build", "title": "Build", "payload_hash": "sha256:44575cf5b2853284ce5d55751bc9e87d165bd64d5ef12c55fa291e9d40afae86",
 	}, http.StatusCreated)
 	id := dataField(t, body, "id")
+	owned := getJSON(t, server, secretA, "/v1/evidence/"+id, http.StatusOK)
+	if dataField(t, owned, "id") != id {
+		t.Fatal("owned evidence was not persisted for the cross-tenant check")
+	}
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/evidence/"+id, nil)
@@ -1409,9 +1413,10 @@ func TestVEXHTTPValidation(t *testing.T) {
 		Data domain.VulnerabilityScan `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(scanBody), &scanReceipt); err != nil || scanReceipt.Data.ID == "" {
-		t.Fatal("scan receipt cannot seed the synchronous characterization reader", err)
+		t.Fatal("scan receipt cannot locate the characterization reader", err)
 	}
-	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}, scanID: scanReceipt.Data.ID, scanReader: immutableScanReceiptFixture{point: evidencequery.VulnerabilityScanPoint{Scan: fixtureVulnerabilityScan(scanReceipt.Data), ProductID: productID}}}
+	reader := immutableScanReceiptFixture{point: evidencequery.VulnerabilityScanPoint{Scan: fixtureVulnerabilityScan(scanReceipt.Data), ProductID: productID}}
+	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}, scanID: scanReceipt.Data.ID, scanReader: reader, evidenceReader: reader}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
 		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
 	}, http.StatusBadRequest)

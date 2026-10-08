@@ -13,6 +13,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
 
 func TestParserReplayBecomesVisibleToAlreadyRunningLedger(t *testing.T) {
@@ -153,7 +154,11 @@ func TestParserReplayBecomesVisibleToAlreadyRunningLedger(t *testing.T) {
 	}
 
 	actor := domain.Actor{TenantID: tenantID, KeyID: "key_parser_reader", Scopes: []string{app.ScopeEvidenceRead}}
-	item, err := ledger.GetEvidence(ctx, actor, result.EvidenceID)
+	points, err := evidencequery.NewEvidencePoints(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := points.GetEvidence(ctx, actor, result.EvidenceID)
 	if err != nil || item.ID != result.EvidenceID || item.Type != "parser_normalization" {
 		t.Fatalf("GetEvidence item=%#v err=%v", item, err)
 	}

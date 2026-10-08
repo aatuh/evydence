@@ -110,11 +110,11 @@ func TestEvidenceFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
-			original, err := ledger.GetEvidence(t.Context(), scope.actor, scope.original.ID)
+			original, err := readFixtureEvidence(t.Context(), ledger, scope.actor, scope.original.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			replacement, err := ledger.GetEvidence(t.Context(), scope.actor, scope.replacement.ID)
+			replacement, err := readFixtureEvidence(t.Context(), ledger, scope.actor, scope.replacement.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -147,13 +147,13 @@ func TestEvidenceFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T
 				t.Fatal("failed evidence command committed repository effects")
 			}
 			for _, value := range []domain.EvidenceItem{original, replacement} {
-				current, err := ledger.GetEvidence(t.Context(), scope.actor, value.ID)
+				current, err := readFixtureEvidence(t.Context(), ledger, scope.actor, value.ID)
 				if err != nil || !reflect.DeepEqual(value, current) {
 					t.Fatal("failed command published a link, supersession or core mutation", err)
 				}
 			}
 			if action == "create" {
-				if _, err := ledger.GetEvidence(t.Context(), scope.actor, commands.changedID); !errors.Is(err, app.ErrNotFound) {
+				if _, err := readFixtureEvidence(t.Context(), ledger, scope.actor, commands.changedID); !errors.Is(err, app.ErrNotFound) {
 					t.Fatal("failed creation was published to authoritative fixture reads", err)
 				}
 			}
