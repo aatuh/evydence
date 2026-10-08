@@ -549,11 +549,12 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("provider: %v", err)
 	}
-	org, err := ledger.CreateOrganization(t.Context(), admin, app.CreateOrganizationInput{Name: "Example", Slug: "example"})
+	memberCommands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	org, err := memberCommands.CreateOrganization(t.Context(), admin, identityapp.CreateOrganizationInput{Name: "Example", Slug: "example"})
 	if err != nil {
 		t.Fatalf("org: %v", err)
 	}
-	user, err := ledger.CreateUser(t.Context(), admin, app.CreateUserInput{OrganizationID: org.ID, Email: "user@example.test", DisplayName: "User"})
+	user, err := memberCommands.CreateUser(t.Context(), admin, identityapp.CreateUserInput{OrganizationID: org.ID, Email: "user@example.test", DisplayName: "User"})
 	if err != nil {
 		t.Fatalf("user: %v", err)
 	}

@@ -70,7 +70,8 @@ func seedFixtureSession(t *testing.T, l *app.Ledger, f ssoProviderFixtureScope) 
 
 func grantFixtureSessionUser(t *testing.T, l *app.Ledger, f ssoProviderFixtureScope) {
 	t.Helper()
-	if _, err := l.CreateRoleBinding(t.Context(), f.actor, app.CreateRoleBindingInput{SubjectType: "user", SubjectID: f.user.ID, Role: "release_manager", ResourceType: "tenant", ResourceID: f.actor.TenantID}); err != nil {
+	commands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: l}, clock: providerVerificationFixtureClock()}
+	if _, err := commands.CreateRoleBinding(t.Context(), f.actor, identityapp.CreateRoleBindingInput{SubjectType: "user", SubjectID: f.user.ID, Role: "release_manager", ResourceType: "tenant", ResourceID: f.actor.TenantID}); err != nil {
 		t.Fatal(err)
 	}
 }

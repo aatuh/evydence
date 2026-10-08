@@ -3,12 +3,15 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	identityquery "github.com/aatuh/evydence/internal/identity/query"
 )
 
 // These scoped readers serve existing local HTTP fixtures only. Production
@@ -34,23 +37,54 @@ func (f apiKeyFixtureQuery) ListPage(ctx context.Context, actor domain.Actor, re
 	})
 }
 
+func TestRoleBindingFixturePagesRepositoryOnlyAssignments(t *testing.T) {
+	ledger, factory := integrationRegressionLedger()
+	owner := seedMembershipFixtureScope(t, ledger, "Owner")
+	binding := domain.RoleBinding{ID: "repository-role", TenantID: owner.actor.TenantID, SubjectType: "user", SubjectID: owner.user.ID, Role: "security_engineer", ResourceType: "tenant", ResourceID: owner.actor.TenantID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: owner.user.CreatedAt}
+	if err := ledger.ExecuteUnitOfWork(t.Context(), func(ctx context.Context, r app.Repositories) error { return r.Identity.InsertRoleBinding(ctx, binding) }); err != nil {
+		t.Fatal(err)
+	}
+	before, err := factory.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := roleBindingFixtureQuery{catalogFixtureCommands{ledger: ledger}}
+	got, err := f.ListPage(t.Context(), owner.actor, appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}, nil)
+	if err != nil || len(got.Items) != 1 || got.Next != nil || got.Items[0] != identitydomain.RoleBinding(binding) {
+		t.Fatal("role page ignored repository-only assignment", got, err)
+	}
+	after, err := factory.Snapshot()
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatal("role query changed repository state", err)
+	}
+}
+
 type roleBindingFixtureQuery struct{ catalogFixtureCommands }
 
-func (f roleBindingFixtureQuery) ListPage(ctx context.Context, actor domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[identitydomain.RoleBinding], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[identitydomain.RoleBinding]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListRoleBindings(ctx, actor)
+func (f roleBindingFixtureQuery) PageRoleBindings(ctx context.Context, req identityquery.RoleBindingPageRequest) (appquery.Result[identitydomain.RoleBinding], error) {
+	var out appquery.Result[identitydomain.RoleBinding]
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Identity.(identityquery.RoleBindingReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageRoleBindings(ctx, req)
+		return err
+	})
 	if err != nil {
 		return appquery.Result[identitydomain.RoleBinding]{}, err
 	}
-	items := make([]identitydomain.RoleBinding, 0, len(values))
-	for _, value := range values {
-		items = append(items, identitydomain.RoleBinding(value))
+	return out, nil
+}
+
+func (f roleBindingFixtureQuery) ListPage(ctx context.Context, actor domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[identitydomain.RoleBinding], error) {
+	q, err := identityquery.NewRoleBindings(f)
+	if err != nil {
+		return appquery.Result[identitydomain.RoleBinding]{}, err
 	}
-	return appquery.Page(items, request, after, func(value identitydomain.RoleBinding, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
-	})
+	result, err := q.ListPage(ctx, actor, request, after)
+	return result, providerVerificationFixtureError(err)
 }
 
 func (s *Server) bindIdentityQueryFixturePorts(ledger *app.Ledger) {
@@ -68,7 +102,7 @@ var (
 )
 
 func TestIdentityQueryFixturesPreserveTenantIsolationAndAdminChecks(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
 	keys := apiKeyFixtureQuery{catalogFixtureCommands{ledger: ledger}}
 	roles := roleBindingFixtureQuery{catalogFixtureCommands{ledger: ledger}}
@@ -83,15 +117,16 @@ func TestIdentityQueryFixturesPreserveTenantIsolationAndAdminChecks(t *testing.T
 			t.Fatal(err)
 		}
 		actors = append(actors, actor)
-		org, err := ledger.CreateOrganization(t.Context(), actor, app.CreateOrganizationInput{Name: name, Slug: name})
+		commands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+		org, err := commands.CreateOrganization(t.Context(), actor, identityapp.CreateOrganizationInput{Name: name, Slug: name})
 		if err != nil {
 			t.Fatal(err)
 		}
-		user, err := ledger.CreateUser(t.Context(), actor, app.CreateUserInput{OrganizationID: org.ID, Email: name + "@example.test", DisplayName: name})
+		user, err := commands.CreateUser(t.Context(), actor, identityapp.CreateUserInput{OrganizationID: org.ID, Email: name + "@example.test", DisplayName: name})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ledger.CreateRoleBinding(t.Context(), actor, app.CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "tenant_admin", ResourceType: "tenant", ResourceID: actor.TenantID}); err != nil {
+		if _, err := commands.CreateRoleBinding(t.Context(), actor, identityapp.CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "tenant_admin", ResourceType: "tenant", ResourceID: actor.TenantID}); err != nil {
 			t.Fatal(err)
 		}
 	}

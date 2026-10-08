@@ -54,6 +54,8 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"CreateSSOSessionInput":  true,
 		"CreateSSOProviderInput": true, "LinkSSOIdentityInput": true, "ExchangeSSOCredentialInput": true,
 		"CreateSSOProvider": true, "LinkSSOIdentity": true, "ExchangeSSOCredential": true,
+		"CreateOrganizationInput": true, "CreateUserInput": true, "CreateRoleBindingInput": true,
+		"CreateOrganization": true, "CreateUser": true, "DeactivateUser": true, "CreateRoleBinding": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -104,6 +106,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ensureApprovalSubjectLocked": true, "ensureWaiverScopeLocked": true,
 		"uploadSourceSnapshot": true, "sourceSnapshot": true,
 		"CreateSSOSession": true, "RevokeSSOSession": true, "RevokeCurrentSSOSession": true,
+		"ListRoleBindings": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

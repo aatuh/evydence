@@ -1360,18 +1360,27 @@ parents are checked before replay. Live HTTP tests cover real session grants,
 direct foreign rows, foreign/mismatched parents, repeated assignment, restart
 replay and write/audit/replay/deferred-commit rollback. All four membership/role
 handlers now require focused commands, with no optional aggregate branch; the
-broad transport interface no longer exposes these methods. Test-only fixtures
-run native preflight against focused memory Identity readers and keep real
-isolated historical writes. They check tenant/parent ownership, cancellation,
-detached public lifecycle metadata, complete response replay and post-write
-rollback. Memory transactions use optimistic conflicts, not PostgreSQL locks;
-no provider or session credential inventory is read by the new guards. See
+broad transport interface no longer exposes these methods. HTTP fixtures run
+actual focused membership/assignment commands on current memory repositories,
+without organization/user/role cache publication. Repository-only parent/user
+regressions reject stale-cache authority. Read-only guards cannot write, audit,
+use clocks or generate IDs. Tests retain tenant/parent ownership, cancellation,
+detached public lifecycle metadata, complete response replay and whole-state
+post-write rollback. Eight unchanged historical declarations are excluded from
+production and retained in `internal/app/legacy_membership_oracle_test.go`;
+`internal/app/identity_service.go` is deleted and source guards forbid its
+retired facade declarations. Memory transactions use optimistic conflicts,
+not PostgreSQL locks; guards do not read provider/session credential inventories. See
 [role binding writes](api.md#role-binding-writes) for compatibility and bounds.
 Other identity handler and aggregate deletion remains EVY-906 work; PostgreSQL
 is required for local evaluation. API-key inventory pages read public metadata
 from tenant-filtered PostgreSQL rows without selecting credential hashes.
 Role-binding inventory also pages current tenant rows through a focused query,
-with no aggregate inventory fallback. API and worker runtime commands,
+with no aggregate inventory fallback. HTTP role-page fixtures run that query
+on current repository rows. Their memory reader applies tenant/keyset selection
+before projecting complete selected metadata, and rejects corrupt selected
+fields without returning a partial page. It does not inspect user/credential
+inventories or confer SQL transfer/locking/durability guarantees. API and worker runtime commands,
 including reconciliation and parser replay, now share a composition root for
 profile/load-mode validation, PostgreSQL migrations, object-store selection,
 and the production API writer lease.

@@ -7,6 +7,27 @@ import (
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
+// Unchanged historical declarations retained for package-local oracles only.
+// HTTP membership commands and role pages use focused Identity services.
+type CreateOrganizationInput struct {
+	Name string
+	Slug string
+}
+
+type CreateUserInput struct {
+	OrganizationID string
+	Email          string
+	DisplayName    string
+}
+
+type CreateRoleBindingInput struct {
+	SubjectType  string
+	SubjectID    string
+	Role         string
+	ResourceType string
+	ResourceID   string
+}
+
 func (l *Ledger) CreateOrganization(ctx context.Context, actor domain.Actor, in CreateOrganizationInput) (domain.Organization, error) {
 	organization, err := l.identityCommands.CreateOrganization(ctx, actor, identityapp.CreateOrganizationInput{Name: in.Name, Slug: in.Slug})
 	return organizationFromIdentityContext(organization), fromIdentityContextError(err)

@@ -22,6 +22,96 @@ type membershipFixtureScope struct {
 	product      domain.Product
 }
 
+func TestMembershipFixturesUseRepositoryOnlyParentsAndUsers(t *testing.T) {
+	for _, action := range []string{"user", "deactivate", "role"} {
+		t.Run(action, func(t *testing.T) {
+			ledger, factory := integrationRegressionLedger()
+			owner := seedMembershipFixtureScope(t, ledger, "Owner")
+			organization, user := owner.organization, owner.user
+			organization.ID, organization.Slug = "repository-org", "repository-org"
+			user.ID, user.OrganizationID, user.Email = "repository-user", organization.ID, "repository@example.test"
+			if err := ledger.ExecuteUnitOfWork(t.Context(), func(ctx context.Context, r app.Repositories) error {
+				if err := r.Identity.InsertOrganization(ctx, organization); err != nil {
+					return err
+				}
+				return r.Identity.InsertHumanUser(ctx, user)
+			}); err != nil {
+				t.Fatal(err)
+			}
+			commands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+			before, err := factory.Snapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var id string
+			var expectedUser domain.HumanUser
+			var expectedRole domain.RoleBinding
+			switch action {
+			case "user":
+				in := identityapp.CreateUserInput{OrganizationID: organization.ID, Email: "new-repository@example.test", DisplayName: "Repository User"}
+				if err := commands.AuthorizeCreateUser(t.Context(), owner.actor, in); err != nil {
+					t.Fatal(err)
+				}
+				v, err := commands.CreateUser(t.Context(), owner.actor, in)
+				if err != nil || v.OrganizationID != organization.ID || v.Email != in.Email || v.Status != "active" {
+					t.Fatal("user creation ignored repository-only parent", v, err)
+				}
+				id = v.ID
+				expectedUser = domain.HumanUser(v)
+			case "deactivate":
+				if err := commands.AuthorizeDeactivateUser(t.Context(), owner.actor, user.ID); err != nil {
+					t.Fatal(err)
+				}
+				v, err := commands.DeactivateUser(t.Context(), owner.actor, user.ID)
+				if err != nil || v.ID != user.ID || v.Status != "deactivated" || v.DeactivatedAt == nil {
+					t.Fatal("deactivation ignored repository-only user", v, err)
+				}
+				id = v.ID
+				expectedUser = domain.HumanUser(v)
+			case "role":
+				in := identityapp.CreateRoleBindingInput{SubjectType: "user", SubjectID: user.ID, Role: "release_manager", ResourceType: "product", ResourceID: owner.product.ID}
+				if err := commands.AuthorizeCreateRoleBinding(t.Context(), owner.actor, in); err != nil {
+					t.Fatal(err)
+				}
+				v, err := commands.CreateRoleBinding(t.Context(), owner.actor, in)
+				if err != nil || v.SubjectID != user.ID || v.ResourceID != owner.product.ID || v.Role != in.Role {
+					t.Fatal("role assignment ignored repository-only user", v, err)
+				}
+				id = v.ID
+				expectedRole = domain.RoleBinding(v)
+			}
+			after, err := factory.Snapshot()
+			if err != nil || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+1 || id == "" {
+				t.Fatal("native membership command lost metadata or audit", err)
+			}
+			entries := after.AuditEntries[owner.actor.TenantID]
+			audit := entries[len(entries)-1]
+			if audit.ActorType != "api_key" || audit.ActorID != owner.actor.KeyID || audit.SubjectID != id {
+				t.Fatal("membership audit lost principal or result identity", audit)
+			}
+			if action == "role" {
+				if after.RoleBindings[id] != expectedRole {
+					t.Fatal("role result differs from persisted DTO")
+				}
+				delete(after.RoleBindings, id)
+			} else {
+				if !reflect.DeepEqual(after.Users[id], expectedUser) {
+					t.Fatal("user result differs from persisted DTO")
+				}
+				if action == "user" {
+					delete(after.Users, id)
+				} else {
+					after.Users[id] = before.Users[id]
+				}
+			}
+			after.AuditEntries = before.AuditEntries
+			if !reflect.DeepEqual(before, after) {
+				t.Fatal("membership command changed unrelated repository state")
+			}
+		})
+	}
+}
+
 func seedMembershipFixtureScope(t *testing.T, ledger *app.Ledger, name string) membershipFixtureScope {
 	t.Helper()
 	var f membershipFixtureScope
@@ -33,14 +123,17 @@ func seedMembershipFixtureScope(t *testing.T, ledger *app.Ledger, name string) m
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.organization, err = ledger.CreateOrganization(t.Context(), f.actor, app.CreateOrganizationInput{Name: name, Slug: strings.ToLower(name)})
+	commands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: providerVerificationFixtureClock()}
+	organization, err := commands.CreateOrganization(t.Context(), f.actor, identityapp.CreateOrganizationInput{Name: name, Slug: strings.ToLower(name)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.user, err = ledger.CreateUser(t.Context(), f.actor, app.CreateUserInput{OrganizationID: f.organization.ID, Email: strings.ToLower(name) + "@example.test", DisplayName: name})
+	f.organization = domain.Organization(organization)
+	user, err := commands.CreateUser(t.Context(), f.actor, identityapp.CreateUserInput{OrganizationID: f.organization.ID, Email: strings.ToLower(name) + "@example.test", DisplayName: name})
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.user = domain.HumanUser(user)
 	f.product, err = ledger.CreateProduct(t.Context(), f.actor, name, strings.ToLower(name))
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +197,7 @@ func TestMembershipFixturesRollBackEveryEffectAfterRealWriteFailure(t *testing.T
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
-			commands := &failingMembershipFixture{membershipFixtureCommands: membershipFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingMembershipFixture{membershipFixtureCommands: membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.membershipCommands, server.roleBindingCommands = commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -145,7 +238,8 @@ func TestMembershipFixturesReplayFullDTOsOnlyWithCurrentTenantWideAuthority(t *t
 			if err != nil {
 				t.Fatal(err)
 			}
-			operator, err := ledger.CreateUser(t.Context(), owner.actor, app.CreateUserInput{OrganizationID: owner.organization.ID, Email: "operator@example.test", DisplayName: "Operator"})
+			commands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: providerVerificationFixtureClock()}
+			operator, err := commands.CreateUser(t.Context(), owner.actor, identityapp.CreateUserInput{OrganizationID: owner.organization.ID, Email: "operator@example.test", DisplayName: "Operator"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -211,7 +305,7 @@ func TestMembershipFixturesReplayFullDTOsOnlyWithCurrentTenantWideAuthority(t *t
 func TestMembershipFixtureGuardsArePureAndKeepExplicitBindings(t *testing.T) {
 	ledger, factory := integrationRegressionLedger()
 	f := seedMembershipFixtureScope(t, ledger, "Owner")
-	commands := membershipFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	commands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	before, err := factory.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -249,5 +343,28 @@ func TestMembershipFixtureGuardsArePureAndKeepExplicitBindings(t *testing.T) {
 	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
 	if server.membershipCommands != membership || server.roleBindingCommands != role {
 		t.Fatal("fixture binding replaced explicit focused commands")
+	}
+}
+
+func TestMembershipNativeFixturesPreserveClockDuringRebinding(t *testing.T) {
+	ledger, _ := integrationRegressionLedger()
+	s, err := newLegacyServerFixture(ledger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock := &ssoFixtureRebindClock{at: peripheralFixtureQueryClock()}
+	member := s.membershipCommands.(membershipFixtureCommands)
+	member.clock = clock
+	s.membershipCommands = member
+	role := s.roleBindingCommands.(membershipFixtureCommands)
+	role.clock = clock
+	s.roleBindingCommands = role
+	second := newLegacyLedgerFixture(app.Config{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	s.bindLegacyLedgerFixture(second)
+	for name, port := range map[string]any{"member": s.membershipCommands, "role": s.roleBindingCommands} {
+		f := port.(membershipFixtureCommands)
+		if f.ledger != second || f.clock != clock {
+			t.Fatal("membership fixture rebinding lost explicit clock or transaction owner", name)
+		}
 	}
 }

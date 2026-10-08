@@ -713,7 +713,7 @@ Current non-HTTP commands and queries are assigned by the same owner rule:
 
 | Current source surface | Owner | Required split outcome |
 | --- | --- | --- |
-| `internal/identity/app` with adapters in `internal/app/identity_service.go` and `identity_context_adapter.go` | Identity and access | Focused service owns commands; the old facade forwards and still supplies compatibility queries and DTO mapping. |
+| `internal/identity/app` with remaining adapters in `internal/app/identity_context_adapter.go` | Identity and access | Focused services own production commands. The membership/provider/session facade file is retired; remaining bootstrap/API-key/authentication adapters and DTO mapping still need retirement. |
 | `internal/release/app` with adapters in `internal/app/release_evidence_service.go`, `release_context_adapter.go`, and build paths | Release catalog | Focused service owns release/catalog/build commands; the old facade forwards during migration. |
 | `internal/evidence/app` with adapters in `internal/app/evidence_context_adapter.go`, parser adapters, and remaining `vex.go` compatibility | Evidence ingestion, with decision effects emitted after commit | Focused service owns evidence/document commands and normalization; decision creation remains a separate decision command. |
 | `internal/app/governance_packages.go`, `controls.go`, and policy paths | Vulnerability decisions and governance; Package and reporting for output/rendering | Policy mutation and read-only package rendering separate. |

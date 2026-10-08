@@ -11,27 +11,34 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-// Tests retain real isolated historical writes; preflight uses actual focused
-// Identity command algorithms on transaction-owned references. No runtime
-// Ledger compatibility path or no-op authorization is added.
-type membershipFixtureCommands struct{ catalogFixtureCommands }
-type membershipFixtureTransactions struct{ catalogFixtureCommands }
+// Actual focused commands use the fixture's active repositories, never its
+// organization/user/role caches. Read-only guards cannot perform effects.
+type membershipFixtureCommands struct {
+	catalogFixtureCommands
+	clock application.Clock
+}
+type membershipFixtureTransactions struct {
+	catalogFixtureCommands
+	readOnly bool
+}
 type membershipFixtureGuard struct {
 	identityapp.MembershipWriteReader
 	identityapp.RoleBindingWriteReader
+	repos    app.Repositories
+	readOnly bool
 }
 
 func (f membershipFixtureTransactions) execute(ctx context.Context, run func(context.Context, membershipFixtureGuard) error) error {
 	return f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
 		members, ok := repos.Identity.(identityapp.MembershipWriteReader)
-		if !ok {
+		if !ok || repos.Audit == nil {
 			return app.ErrValidation
 		}
 		roles, ok := repos.Identity.(identityapp.RoleBindingWriteReader)
 		if !ok {
 			return app.ErrValidation
 		}
-		return run(ctx, membershipFixtureGuard{members, roles})
+		return run(ctx, membershipFixtureGuard{members, roles, repos, f.readOnly})
 	})
 }
 func (f membershipFixtureTransactions) ExecuteMembership(ctx context.Context, run func(context.Context, identityapp.MembershipTransaction) error) error {
@@ -43,79 +50,125 @@ func (f membershipFixtureTransactions) ExecuteRoleBinding(ctx context.Context, r
 func (membershipFixtureGuard) Authorize(ctx context.Context, a domain.Actor, request application.AuthorizationRequest) error {
 	return identityapp.NewMembershipWriteAuthorizer().Authorize(ctx, a, request)
 }
-func (membershipFixtureGuard) InsertOrganization(context.Context, identitydomain.Organization) error {
-	panic("membership guard inserted organization")
+func (g membershipFixtureGuard) InsertOrganization(ctx context.Context, v identitydomain.Organization) error {
+	if g.readOnly {
+		panic("membership guard inserted organization")
+	}
+	return g.repos.Identity.InsertOrganization(ctx, domain.Organization(v))
 }
-func (membershipFixtureGuard) InsertHumanUser(context.Context, identitydomain.HumanUser) error {
-	panic("membership guard inserted user")
+func (g membershipFixtureGuard) InsertHumanUser(ctx context.Context, v identitydomain.HumanUser) error {
+	if g.readOnly {
+		panic("membership guard inserted user")
+	}
+	return g.repos.Identity.InsertHumanUser(ctx, domain.HumanUser(v))
 }
-func (membershipFixtureGuard) DeactivateHumanUser(context.Context, identitydomain.HumanUser) error {
-	panic("membership guard deactivated user")
+func (g membershipFixtureGuard) DeactivateHumanUser(ctx context.Context, v identitydomain.HumanUser) error {
+	if g.readOnly {
+		panic("membership guard deactivated user")
+	}
+	return g.repos.Identity.DeactivateHumanUser(ctx, domain.HumanUser(v))
 }
-func (membershipFixtureGuard) InsertRoleBinding(context.Context, identitydomain.RoleBinding) error {
-	panic("membership guard inserted role")
+func (g membershipFixtureGuard) InsertRoleBinding(ctx context.Context, v identitydomain.RoleBinding) error {
+	if g.readOnly {
+		panic("membership guard inserted role")
+	}
+	return g.repos.Identity.InsertRoleBinding(ctx, domain.RoleBinding(v))
 }
-func (membershipFixtureGuard) AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error) {
-	panic("membership guard appended audit")
+func (g membershipFixtureGuard) AppendAudit(ctx context.Context, v application.AuditEvent) (application.AuditReceipt, error) {
+	if g.readOnly {
+		panic("membership guard appended audit")
+	}
+	return (portalFixtureTransaction{repos: g.repos}).AppendAudit(ctx, v)
 }
 func membershipFixtureClock() time.Time { panic("membership guard read clock") }
 func membershipFixtureID(string) string { panic("membership guard allocated ID") }
-func (f membershipFixtureCommands) membershipGuard() (*identityapp.MembershipCommands, error) {
-	return identityapp.NewMembershipCommands(identityapp.MembershipCommandConfig{Transactions: membershipFixtureTransactions(f), Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
+func (f membershipFixtureCommands) clockIDs(readOnly bool) (application.Clock, application.IDGenerator) {
+	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
+	if !readOnly && f.clock != nil {
+		clock = f.clock
+	}
+	return clock, ids
 }
-func (f membershipFixtureCommands) roleGuard() (*identityapp.RoleBindingCommands, error) {
-	return identityapp.NewRoleBindingCommands(identityapp.RoleBindingCommandConfig{Transactions: membershipFixtureTransactions(f), Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
+func (f membershipFixtureCommands) membershipCommands(readOnly bool) (*identityapp.MembershipCommands, error) {
+	clock, ids := f.clockIDs(readOnly)
+	return identityapp.NewMembershipCommands(identityapp.MembershipCommandConfig{Transactions: membershipFixtureTransactions{f.catalogFixtureCommands, readOnly}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: clock, IDs: ids})
+}
+func (f membershipFixtureCommands) roleCommands(readOnly bool) (*identityapp.RoleBindingCommands, error) {
+	clock, ids := f.clockIDs(readOnly)
+	return identityapp.NewRoleBindingCommands(identityapp.RoleBindingCommandConfig{Transactions: membershipFixtureTransactions{f.catalogFixtureCommands, readOnly}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: clock, IDs: ids})
 }
 func (f membershipFixtureCommands) AuthorizeCreateOrganization(ctx context.Context, a domain.Actor, in identityapp.CreateOrganizationInput) error {
-	g, err := f.membershipGuard()
+	g, err := f.membershipCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeCreateOrganization(ctx, a, in)
 }
 func (f membershipFixtureCommands) AuthorizeCreateUser(ctx context.Context, a domain.Actor, in identityapp.CreateUserInput) error {
-	g, err := f.membershipGuard()
+	g, err := f.membershipCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeCreateUser(ctx, a, in)
 }
 func (f membershipFixtureCommands) AuthorizeDeactivateUser(ctx context.Context, a domain.Actor, id string) error {
-	g, err := f.membershipGuard()
+	g, err := f.membershipCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeDeactivateUser(ctx, a, id)
 }
 func (f membershipFixtureCommands) AuthorizeCreateRoleBinding(ctx context.Context, a domain.Actor, in identityapp.CreateRoleBindingInput) error {
-	g, err := f.roleGuard()
+	g, err := f.roleCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeCreateRoleBinding(ctx, a, in)
 }
 func (f membershipFixtureCommands) CreateOrganization(ctx context.Context, a domain.Actor, in identityapp.CreateOrganizationInput) (identitydomain.Organization, error) {
-	v, err := f.commandLedger(ctx).CreateOrganization(ctx, a, app.CreateOrganizationInput(in))
-	return identitydomain.Organization(v), err
+	c, err := f.membershipCommands(false)
+	if err != nil {
+		return identitydomain.Organization{}, err
+	}
+	v, err := c.CreateOrganization(ctx, a, in)
+	return v, providerVerificationFixtureError(err)
 }
 func (f membershipFixtureCommands) CreateUser(ctx context.Context, a domain.Actor, in identityapp.CreateUserInput) (identitydomain.HumanUser, error) {
-	v, err := f.commandLedger(ctx).CreateUser(ctx, a, app.CreateUserInput(in))
-	return identitydomain.HumanUser(v), err
+	c, err := f.membershipCommands(false)
+	if err != nil {
+		return identitydomain.HumanUser{}, err
+	}
+	v, err := c.CreateUser(ctx, a, in)
+	return v, providerVerificationFixtureError(err)
 }
 func (f membershipFixtureCommands) DeactivateUser(ctx context.Context, a domain.Actor, id string) (identitydomain.HumanUser, error) {
-	v, err := f.commandLedger(ctx).DeactivateUser(ctx, a, id)
-	return identitydomain.HumanUser(v), err
+	c, err := f.membershipCommands(false)
+	if err != nil {
+		return identitydomain.HumanUser{}, err
+	}
+	v, err := c.DeactivateUser(ctx, a, id)
+	return v, providerVerificationFixtureError(err)
 }
 func (f membershipFixtureCommands) CreateRoleBinding(ctx context.Context, a domain.Actor, in identityapp.CreateRoleBindingInput) (identitydomain.RoleBinding, error) {
-	v, err := f.commandLedger(ctx).CreateRoleBinding(ctx, a, app.CreateRoleBindingInput(in))
-	return identitydomain.RoleBinding(v), err
+	c, err := f.roleCommands(false)
+	if err != nil {
+		return identitydomain.RoleBinding{}, err
+	}
+	v, err := c.CreateRoleBinding(ctx, a, in)
+	return v, providerVerificationFixtureError(err)
 }
 func (s *Server) bindMembershipFixturePorts(ledger *app.Ledger) {
-	f := membershipFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.membershipCommands.(membershipFixtureCommands); s.membershipCommands == nil || fixture {
+	f := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.membershipCommands.(membershipFixtureCommands); fixture {
+		old.ledger = ledger
+		s.membershipCommands = old
+	} else if s.membershipCommands == nil {
 		s.membershipCommands = f
 	}
-	if _, fixture := s.roleBindingCommands.(membershipFixtureCommands); s.roleBindingCommands == nil || fixture {
+	if old, fixture := s.roleBindingCommands.(membershipFixtureCommands); fixture {
+		old.ledger = ledger
+		s.roleBindingCommands = old
+	} else if s.roleBindingCommands == nil {
 		s.roleBindingCommands = f
 	}
 }

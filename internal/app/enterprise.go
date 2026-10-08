@@ -12,25 +12,6 @@ import (
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 )
 
-type CreateOrganizationInput struct {
-	Name string
-	Slug string
-}
-
-type CreateUserInput struct {
-	OrganizationID string
-	Email          string
-	DisplayName    string
-}
-
-type CreateRoleBindingInput struct {
-	SubjectType  string
-	SubjectID    string
-	Role         string
-	ResourceType string
-	ResourceID   string
-}
-
 type CreateLegalHoldInput struct {
 	ScopeType string
 	ScopeID   string
