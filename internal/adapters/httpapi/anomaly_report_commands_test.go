@@ -17,7 +17,7 @@ import (
 )
 
 func TestAnomalyHTTPLocalReplayRechecksCurrentGrant(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	p := postRaw(t, base, secret, "/v1/products", "product", []byte(`{"name":"Product","slug":"product"}`), 201)
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {
@@ -91,7 +91,7 @@ func TestAnomalyHTTPFocusedValidationAndPrivateFailures(t *testing.T) {
 	}
 }
 func TestAnomalyHTTPCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	p := postRaw(t, base, secret, "/v1/products", "product", []byte(`{"name":"Product","slug":"product"}`), 201)
 	body := fmt.Sprintf(`{"subject_type":"product","subject_id":%q}`, dataField(t, p, "id"))
 	for _, focused := range []bool{false, true} {

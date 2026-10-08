@@ -402,8 +402,8 @@ func TestReportSigningFixtureMappersPreserveCompleteDTOsWithoutNestedAliasing(t 
 	if err != nil || len(p.Limitations) == 0 {
 		t.Fatal(err)
 	}
-	anomaly, err := ledger.GenerateAnomalyReport(t.Context(), owner.actor, app.AnomalyReportInput{SubjectType: "release", SubjectID: owner.release.ID})
-	if err != nil || len(anomaly.Signals) == 0 || len(anomaly.Assumptions) == 0 || len(anomaly.Limitations) == 0 {
+	an, err := commands.GenerateAnomalyReport(t.Context(), owner.actor, experimentalapp.AnomalyReportInput{SubjectType: "release", SubjectID: owner.release.ID})
+	if err != nil || len(an.Signals) == 0 || len(an.Assumptions) == 0 || len(an.Limitations) == 0 {
 		t.Fatal(err)
 	}
 	op, err := commands.CreateSigningOperation(t.Context(), owner.actor, verificationapp.SigningOperationInput{ProviderID: owner.provider.ID, SubjectType: "release", SubjectID: owner.release.ID, PayloadHash: "sha256:" + strings.Repeat("a", 64)})
@@ -414,7 +414,7 @@ func TestReportSigningFixtureMappersPreserveCompleteDTOsWithoutNestedAliasing(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	pdf, signing := saved.PDFReports[p.ID], saved.SigningOperations[op.ID]
+	pdf, anomaly, signing := saved.PDFReports[p.ID], saved.AnomalyReports[an.ID], saved.SigningOperations[op.ID]
 	pdfModel, anomalyModel, signingModel := pdfFixtureModel(pdf), anomalyFixtureModel(anomaly), signingOperationFixtureModel(signing)
 	for _, pair := range []struct {
 		value  any

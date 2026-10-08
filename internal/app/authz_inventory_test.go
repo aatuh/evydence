@@ -48,11 +48,11 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"legacy_peripheral_oracle_test.go":         {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked", "AuthorizeCreateSaaSEditionProfile", "AuthorizeCreateMarketplaceCollector", "CreateGraphSnapshot", "CreateSaaSEditionProfile", "CreateMarketplaceCollector"},
 		"product_release_authorization.go":         {"authorizeProductReleaseLocked"},
 		"legacy_pdf_signing_oracle_test.go":        {"AuthorizeCreatePDFReportPackage", "AuthorizeCreateSigningOperation", "CreatePDFReportPackage", "CreateSigningOperation"},
-		"anomaly_report_creation.go":               {"AuthorizeGenerateAnomalyReport"},
+		"legacy_anomaly_oracle_test.go":            {"AuthorizeGenerateAnomalyReport", "GenerateAnomalyReport"},
 		"public_transparency_metadata_creation.go": {"AuthorizeCreatePublicTransparencyLog", "AuthorizePublishPublicTransparencyLogEntry"},
 		"public_transparency_verification.go":      {"AuthorizeVerifyPublicTransparencyLogEntry"},
 		"public_transparency_fetch.go":             {"AuthorizeFetchPublicTransparencyLogEntryProof", "FetchAndVerifyPublicTransparencyLogEntry"},
-		"future_extensions.go":                     {"GenerateAnomalyReport", "CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry", "VerifyPublicTransparencyLogEntry"},
+		"future_extensions.go":                     {"CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry", "VerifyPublicTransparencyLogEntry"},
 		"legacy_questionnaire_oracle_test.go": {
 			"CreateQuestionnairePackage",
 			"AuthorizeQuestionnairePackageCreate",

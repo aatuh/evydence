@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -3761,10 +3762,7 @@ func (r memoryFutureExtensionsRepository) InsertQuestionnaireDraft(ctx context.C
 }
 
 func (r memoryFutureExtensionsRepository) InsertAnomalyReport(ctx context.Context, report domain.AnomalyReport) error {
-	cloned, err := cloneMemoryJSON(report)
-	if err != nil {
-		return err
-	}
+	cloned := cloneMemoryAnomalyReport(report)
 	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
@@ -4251,13 +4249,23 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.QuestionnaireDrafts, err = cloneMemoryMap(snapshot.QuestionnaireDrafts); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
-	if cloned.AnomalyReports, err = cloneMemoryMap(snapshot.AnomalyReports); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.AnomalyReports = make(map[string]domain.AnomalyReport, len(snapshot.AnomalyReports))
+	for key, report := range snapshot.AnomalyReports {
+		cloned.AnomalyReports[key] = cloneMemoryAnomalyReport(report)
 	}
 	if cloned.SigningOperations, err = cloneMemoryMap(snapshot.SigningOperations); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
 	return cloned, nil
+}
+
+// The legacy JSON tag omits empty signals. Typed copies preserve the valid
+// empty-vs-nil invariant for clear reports without relaxing validation.
+func cloneMemoryAnomalyReport(v domain.AnomalyReport) domain.AnomalyReport {
+	v.Signals = slices.Clone(v.Signals)
+	v.Assumptions = slices.Clone(v.Assumptions)
+	v.Limitations = slices.Clone(v.Limitations)
+	return v
 }
 
 func cloneMemoryMap[T any](input map[string]T) (map[string]T, error) {

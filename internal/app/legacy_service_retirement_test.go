@@ -37,6 +37,9 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"AuthorizeCreatePDFReportPackage": true, "AuthorizeCreateSigningOperation": true,
 		"canonicalSigningRequestHash": true, "validateSigningResult": true, "signingRequestToVerification": true, "cloneLocalSigningOperation": true,
 		"signingRequestProfile": true,
+		"AnomalyReportInput":    true, "GenerateAnomalyReport": true,
+		"AuthorizeGenerateAnomalyReport": true, "ensureFutureSubjectLocked": true,
+		"anomalyReportFromContext": true, "cloneLocalAnomalyReport": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

@@ -14,8 +14,8 @@ import (
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
-// PDF and signing fixtures use real focused services on memory transactions;
-// anomaly writes remain historical until their readiness facts are migrated.
+// PDF, anomaly and signing fixtures use real focused services on memory
+// transactions, not historical aggregate generators or readiness snapshots.
 // Physical staging and provider observations are not undone by database
 // rollback. These fixtures are not SQL locking, durability or provider proof.
 type reportSigningFixtureCommands struct {
@@ -24,9 +24,6 @@ type reportSigningFixtureCommands struct {
 	signer  app.SigningExecutor
 }
 
-func anomalyFixtureInput(in experimentalapp.AnomalyReportInput) app.AnomalyReportInput {
-	return app.AnomalyReportInput{SubjectType: in.SubjectType, SubjectID: in.SubjectID}
-}
 func pdfFixtureModel(v domain.PDFReportPackage) packagedomain.PDFReportPackage {
 	return packagedomain.PDFReportPackage{ID: v.ID, TenantID: v.TenantID, ReportType: v.ReportType, ProductID: v.ProductID, ReleaseID: v.ReleaseID, Title: v.Title, PayloadRef: v.PayloadRef, PayloadHash: v.PayloadHash, PayloadSize: v.PayloadSize, Limitations: slices.Clone(v.Limitations), SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
 }
@@ -59,11 +56,18 @@ func (f reportSigningFixtureCommands) CreatePDFReportPackage(ctx context.Context
 	return c.CreatePDFReportPackage(ctx, a, in)
 }
 func (f reportSigningFixtureCommands) AuthorizeGenerateAnomalyReport(ctx context.Context, a domain.Actor, in experimentalapp.AnomalyReportInput) error {
-	return f.commandLedger(ctx).AuthorizeGenerateAnomalyReport(ctx, a, anomalyFixtureInput(in))
+	c, err := f.nativeAnomaly(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeGenerateAnomalyReport(ctx, a, in)
 }
 func (f reportSigningFixtureCommands) GenerateAnomalyReport(ctx context.Context, a domain.Actor, in experimentalapp.AnomalyReportInput) (experimentaldomain.AnomalyReport, error) {
-	v, err := f.commandLedger(ctx).GenerateAnomalyReport(ctx, a, anomalyFixtureInput(in))
-	return anomalyFixtureModel(v), err
+	c, err := f.nativeAnomaly(false)
+	if err != nil {
+		return experimentaldomain.AnomalyReport{}, err
+	}
+	return c.GenerateAnomalyReport(ctx, a, in)
 }
 func (f reportSigningFixtureCommands) AuthorizeCreateSigningOperation(ctx context.Context, a domain.Actor, in verificationapp.SigningOperationInput) error {
 	c, err := f.nativeSigning(true)

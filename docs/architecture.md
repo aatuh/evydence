@@ -1815,7 +1815,23 @@ to the report/audit/replay transaction. Release checks share readiness presence
 predicates without loading full readiness or Ledger snapshots. Other subjects
 currently have no checks; `clear` is not a security conclusion. The HTTP handler
 has no aggregate fallback. Test-only adapters retain actual guards, detached
-signals and isolated writes, not SQL guarantees. See
+signals and isolated writes, not SQL guarantees. HTTP fixtures now run the
+actual focused anomaly command on memory transactions. The repository returns
+only three release-fact booleans and owned IDs, matching registered artifact
+digests, coherent build/attestation sources, trusted receipt profile/version,
+exact active finding decisions and approved unexpired scoped exceptions.
+Fact readers reconstruct neither Ledger nor a full readiness snapshot.
+Read-only guards cannot read facts, write, audit, use clocks or generate IDs.
+Whole-state failure and
+current-grant replay tests retain their assertions; repository-only scan tests
+reject stale-cache authority. Typed memory copies preserve valid empty signals
+for clear reports while still rejecting nil signals. Six historical anomaly
+declarations are excluded from production and retained unchanged in
+`internal/app/legacy_anomaly_oracle_test.go`; the obsolete guard file is deleted
+and its pure error mapper remains in `internal/app/experimental_command_error.go`.
+These tests do not prove SQL locking, durability or cryptographic validity of
+recorded receipts. Aggregate maps, locks and snapshots still require deletion.
+See
 [anomaly report generation](api.md#anomaly-report-generation) for exact signals,
 input limits, current-grant replay and remaining limitations.
 
@@ -1831,8 +1847,7 @@ versioned payload hash, byte count and canonical object reference. Existing
 whole-state failure, complete DTO, actual staged-byte and current-grant replay
 checks retain their assertions. Storage dependencies stay in explicit test-only
 ports; physical staged bytes can outlive rollback. These checks are not SQL
-locking or durability evidence. The anomaly fixture still uses historical
-writes until its separate readiness-fact projection is migrated. See
+locking or durability evidence. See
 [PDF report packaging](api.md#pdf-report-packaging) for byte/hash compatibility,
 storage modes, physical orphan recovery and privacy-safe replay limitations.
 
