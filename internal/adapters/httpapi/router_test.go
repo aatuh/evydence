@@ -722,7 +722,7 @@ func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
 }
 
 func TestIdempotencyReplayOmitsOneTimeAPIKeySecret(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := apiKeyTestServer(t)
 	payload := map[string]any{"name": "automation", "scopes": []string{"evidence:read"}}
 	first := postJSON(t, server, secret, "/v1/api-keys", "one-time-api-key", payload, http.StatusCreated)
 	oneTimeSecret := nestedDataField(t, first, "secret")
@@ -1136,6 +1136,7 @@ func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
 
 func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
 	server, secret := riskCommandTestServer(t)
+	server.bindAPIKeyFixtureResources("test", nil)
 	productBody := postJSON(t, server, secret, "/v1/products", "security-summary-prod", map[string]any{"name": "Summary Product", "slug": "summary-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "security-summary-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -1436,7 +1437,7 @@ func TestExceptionHTTPFlowPreservesLifecycleAndScope(t *testing.T) {
 }
 
 func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "prov-prod", map[string]any{"name": "Provenance Product", "slug": "provenance-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	projectBody := postJSON(t, server, secret, "/v1/projects", "prov-project", map[string]any{"product_id": productID, "name": "api"}, http.StatusCreated)
@@ -1491,7 +1492,7 @@ func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 }
 
 func TestCollectorSupplyChainHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	collectorBody := postJSON(t, server, secret, "/v1/collectors", "supply-collector", map[string]any{"name": "import-bundle", "type": "import_bundle", "version": "0.1.0", "scopes": []string{"bundle:write", "evidence:write"}}, http.StatusCreated)
 	collector, ok := dataMap(t, collectorBody)["collector"].(map[string]any)
 	if !ok {
@@ -1664,6 +1665,7 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 
 func TestRiskWorkflowHTTPFlow(t *testing.T) {
 	server, secret := operationsTestServer(t)
+	server.bindAPIKeyFixtureResources("test", nil)
 	productBody := postJSON(t, server, secret, "/v1/products", "risk2-prod", map[string]any{"name": "Risk Product", "slug": "risk-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "risk2-release", map[string]any{"product_id": productID, "version": "4.0.0"}, http.StatusCreated)

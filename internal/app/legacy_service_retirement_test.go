@@ -107,6 +107,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"uploadSourceSnapshot": true, "sourceSnapshot": true,
 		"CreateSSOSession": true, "RevokeSSOSession": true, "RevokeCurrentSSOSession": true,
 		"ListRoleBindings": true,
+		"CreateAPIKey":     true, "ListAPIKeys": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

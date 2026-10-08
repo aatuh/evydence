@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 
+	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -19,17 +21,19 @@ func (f collectorFixtureGuard) Authorize(ctx context.Context, a domain.Actor, r 
 	return integrationapp.NewCollectorWriteAuthorizer().Authorize(ctx, a, r)
 }
 func (f collectorFixtureGuard) LockCollectorWrites(ctx context.Context, tenant string) error {
-	// Historical fixture tenants are created by BootstrapTenant, which creates
-	// at least one key. The inventory includes revoked keys; this does not grant
-	// the caller access to their metadata or to another tenant.
-	keys, err := f.commandLedger(ctx).ListAPIKeys(ctx, domain.Actor{TenantID: tenant, KeyID: "fixture-owner-reader", Scopes: []string{"*"}})
-	if err != nil {
-		return err
-	}
-	if len(keys) == 0 {
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Identity.(interface {
+			LockAPIKeyCreation(context.Context, string) error
+		})
+		if !ok {
+			return app.ErrValidation
+		}
+		return reader.LockAPIKeyCreation(ctx, tenant)
+	})
+	if errors.Is(err, app.ErrNotFound) {
 		return integrationapp.ErrNotFound
 	}
-	return nil
+	return err
 }
 func (f collectorFixtureGuard) ReadCollectorReleaseReference(ctx context.Context, tenant, kind, id string) (integrationapp.CollectorReference, error) {
 	reader := domain.Actor{TenantID: tenant, KeyID: "fixture-owner-reader", Scopes: []string{"*"}}

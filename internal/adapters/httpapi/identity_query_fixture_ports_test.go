@@ -18,23 +18,30 @@ import (
 // metadata queries enforce tenant/limit predicates in PostgreSQL.
 type apiKeyFixtureQuery struct{ catalogFixtureCommands }
 
-func (f apiKeyFixtureQuery) ListPage(ctx context.Context, actor domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[identitydomain.APIKey], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[identitydomain.APIKey]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListAPIKeys(ctx, actor)
+func (f apiKeyFixtureQuery) PageAPIKeys(ctx context.Context, req identityquery.APIKeyPageRequest) (appquery.Result[identitydomain.APIKey], error) {
+	var out appquery.Result[identitydomain.APIKey]
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Identity.(identityquery.APIKeyReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageAPIKeys(ctx, req)
+		return err
+	})
 	if err != nil {
 		return appquery.Result[identitydomain.APIKey]{}, err
 	}
-	items := make([]identitydomain.APIKey, 0, len(values))
-	for _, value := range values {
-		key := identitydomain.APIKey(value)
-		key.Hash = ""
-		items = append(items, key)
+	return out, nil
+}
+
+func (f apiKeyFixtureQuery) ListPage(ctx context.Context, actor domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[identitydomain.APIKey], error) {
+	q, err := identityquery.NewAPIKeys(f)
+	if err != nil {
+		return appquery.Result[identitydomain.APIKey]{}, err
 	}
-	return appquery.Page(items, request, after, func(value identitydomain.APIKey, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
-	})
+	v, err := q.ListPage(ctx, actor, request, after)
+	return v, providerVerificationFixtureError(err)
 }
 
 func TestRoleBindingFixturePagesRepositoryOnlyAssignments(t *testing.T) {

@@ -1329,15 +1329,30 @@ API-key and SSO-session verification now has a
 standalone identity application service with narrow credential-read and
 activity-write ports. The PostgreSQL profile binds those ports to current
 credential, session, user, role-binding, and provider rows; API-key and collector
-activity updates commit atomically. Local-memory mode retains the Ledger-backed
-adapter. PostgreSQL API-key issuance now binds a separate focused Identity
+activity updates commit atomically. API-key-dependent HTTP fixtures can now bind
+that actual authenticator with explicit credential/clock ports and bounded memory
+prefix/collector projections, without credential-cache fallback. Activity rechecks
+current key/collector identities, expiry and revocation before updating both
+monotonic heartbeats under one transaction lock. Other legacy test authentication
+setup still awaits migration; it is not a supported local-memory runtime.
+PostgreSQL API-key issuance now binds a separate focused Identity
 command with flat credential/audit transaction ports. It reads only a current
 tenant identity, fences worker/audit writes in the established order, and
 shares the HMAC issuer and production pepper policy with authentication.
 Authority is checked before durable reservation/replay; key, audit and replay
 completion share one commit. A fixed public DTO projection preserves replay
 metadata without the hash or one-time secret; generic diagnostic/package
-redaction is unchanged. See [API key issuance](api.md#api-key-issuance) for
+redaction is unchanged. HTTP issuance fixtures run that actual focused command
+on their active repositories; guards check current tenant identity without
+bootstrap-key inventory and cannot mint credentials, write, audit or use clocks/IDs.
+Scoped tests preserve complete public DTOs, one-time-secret omission on replay,
+repository-only credential authentication, expiry and full failed-write rollback.
+Two unchanged historical key facades are excluded from production and retained
+in `internal/app/legacy_api_key_oracle_test.go`; source guards forbid their return.
+Memory replay clones preserve concrete DTO JSON ordering, exact interface-field
+numbers and detached metadata, retaining existing byte-equality assertions when
+collector fixtures move to transactions. These checks are not SQL durability,
+locking or field-transfer evidence. See [API key issuance](api.md#api-key-issuance) for
 bounds and compatibility. PostgreSQL organization/user creation and user
 deactivation bind focused Identity membership commands with flat read/write,
 authorization and audit ports. SQL selects tenant-scoped identity predicates,
@@ -1375,6 +1390,12 @@ not PostgreSQL locks; guards do not read provider/session credential inventories
 Other identity handler and aggregate deletion remains EVY-906 work; PostgreSQL
 is required for local evaluation. API-key inventory pages read public metadata
 from tenant-filtered PostgreSQL rows without selecting credential hashes.
+HTTP key-page fixtures use the focused query over current memory rows, selecting
+public fields only after tenant/keyset filtering. Credential hashes are neither
+copied nor validated by metadata reads; oversized selected data fails without a
+partial page. Collector preflight checks current tenant identity without key
+inventory. Historical default fixture authentication and remaining aggregate
+state/methods still require retirement in EVY-906.
 Role-binding inventory also pages current tenant rows through a focused query,
 with no aggregate inventory fallback. HTTP role-page fixtures run that query
 on current repository rows. Their memory reader applies tenant/keyset selection

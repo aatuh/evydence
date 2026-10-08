@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -4322,7 +4323,16 @@ func cloneMemoryIdempotencyRecord(record IdempotencyRecord) (IdempotencyRecord, 
 	var response any
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.UseNumber()
-	if err := decoder.Decode(&response); err != nil {
+	// Keep concrete response DTOs concrete so memory transaction cloning does
+	// not reorder their JSON fields on completed replay. Map/interface fields
+	// still use exact JSON numbers and all mutable data is decoded afresh.
+	if typ := reflect.TypeOf(record.Response); typ != nil && (typ.Kind() == reflect.Struct || typ.Kind() == reflect.Pointer) {
+		target := reflect.New(typ)
+		if err := decoder.Decode(target.Interface()); err != nil {
+			return IdempotencyRecord{}, err
+		}
+		response = target.Elem().Interface()
+	} else if err := decoder.Decode(&response); err != nil {
 		return IdempotencyRecord{}, err
 	}
 	cloned.Response = response
