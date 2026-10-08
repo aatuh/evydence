@@ -598,23 +598,20 @@ func (r memoryIdentityRepository) InsertSSOSession(ctx context.Context, session 
 }
 
 func (r memoryIdentityRepository) ValidateActiveSSOSession(ctx context.Context, session domain.SSOSession, now time.Time) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
 	if session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" || now.IsZero() {
 		return ErrValidation
 	}
-	r.uow.mu.Lock()
-	defer r.uow.mu.Unlock()
-	stored, ok := r.uow.state.SSOSessions[session.ID]
-	if !ok || stored.TenantID != session.TenantID || stored.UserID != session.UserID || stored.ProviderID != session.ProviderID || stored.Prefix != session.Prefix || !secretHashEqual(stored.Hash, session.Hash) || stored.RevokedAt != nil || !stored.ExpiresAt.After(now) {
-		return ErrUnauthorized
-	}
-	user, ok := r.uow.state.Users[stored.UserID]
-	if !ok || user.TenantID != stored.TenantID || user.Status != "active" {
-		return ErrUnauthorized
-	}
-	return nil
+	return r.membershipRead(ctx, session.TenantID, func(state *MemoryUnitOfWorkSnapshot) error {
+		stored, ok := state.SSOSessions[session.ID]
+		if !ok || stored.ID != session.ID || stored.TenantID != session.TenantID || stored.UserID != session.UserID || stored.ProviderID != session.ProviderID || stored.Prefix != session.Prefix || !secretHashEqual(stored.Hash, session.Hash) || stored.RevokedAt != nil || !stored.ExpiresAt.After(now) {
+			return ErrUnauthorized
+		}
+		user, ok := state.Users[stored.UserID]
+		if !ok || user.ID != stored.UserID || user.TenantID != stored.TenantID || user.Status != "active" {
+			return ErrUnauthorized
+		}
+		return nil
+	})
 }
 
 func (r memoryIdentityRepository) RevokeSSOSession(ctx context.Context, session domain.SSOSession) error {

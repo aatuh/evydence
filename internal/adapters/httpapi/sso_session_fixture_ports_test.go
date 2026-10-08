@@ -12,13 +12,22 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-// Tests retain real historical issuance/revocation in the isolated command
-// clone. Public exchange owns its real transaction and is not HTTP idempotency.
-type ssoSessionFixtureCommands struct{ catalogFixtureCommands }
-type ssoSessionFixtureTransactions struct{ catalogFixtureCommands }
+// Native issuance/revocation share the real isolated command transaction.
+// Public exchange remains a historical fixture and is not HTTP idempotency.
+type ssoSessionFixtureCommands struct {
+	catalogFixtureCommands
+	credentials identityapp.SessionCredentialManager
+	clock       application.Clock
+}
+type ssoSessionFixtureTransactions struct {
+	catalogFixtureCommands
+	readOnly bool
+}
 type ssoSessionFixtureGuard struct {
 	identityapp.SSOSessionWriteReader
 	identityapp.SSOSessionRevocationReader
+	repos    app.Repositories
+	readOnly bool
 }
 
 func (f ssoSessionFixtureTransactions) execute(ctx context.Context, run func(context.Context, ssoSessionFixtureGuard) error) error {
@@ -31,7 +40,10 @@ func (f ssoSessionFixtureTransactions) execute(ctx context.Context, run func(con
 		if !ok {
 			return app.ErrValidation
 		}
-		return run(ctx, ssoSessionFixtureGuard{issue, revoke})
+		if repos.Audit == nil {
+			return app.ErrValidation
+		}
+		return run(ctx, ssoSessionFixtureGuard{issue, revoke, repos, f.readOnly})
 	})
 }
 func (f ssoSessionFixtureTransactions) ExecuteSSOSession(ctx context.Context, run func(context.Context, identityapp.SSOSessionTransaction) error) error {
@@ -46,56 +58,98 @@ func (g ssoSessionFixtureGuard) LockSSOSessionWrites(ctx context.Context, tenant
 func (ssoSessionFixtureGuard) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
 	return identityapp.NewSSOSessionRevocationAuthorizer().Authorize(ctx, a, r)
 }
-func (ssoSessionFixtureGuard) InsertSSOSession(context.Context, identitydomain.SSOSession) error {
-	panic("session preflight inserted session")
+func (g ssoSessionFixtureGuard) InsertSSOSession(ctx context.Context, v identitydomain.SSOSession) error {
+	if g.readOnly {
+		panic("session preflight inserted session")
+	}
+	return g.repos.Identity.InsertSSOSession(ctx, domain.SSOSession(v))
 }
-func (ssoSessionFixtureGuard) RevokeSSOSessionMetadata(context.Context, identitydomain.SSOSession, time.Time) error {
-	panic("session preflight revoked session")
+func (g ssoSessionFixtureGuard) RevokeSSOSessionMetadata(ctx context.Context, v identitydomain.SSOSession, now time.Time) error {
+	if g.readOnly {
+		panic("session preflight revoked session")
+	}
+	w, ok := g.repos.Identity.(interface {
+		RevokeSSOSessionMetadata(context.Context, identitydomain.SSOSession, time.Time) error
+	})
+	if !ok {
+		return app.ErrValidation
+	}
+	return w.RevokeSSOSessionMetadata(ctx, v, now)
 }
-func (ssoSessionFixtureGuard) AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error) {
-	panic("session preflight appended audit")
+func (g ssoSessionFixtureGuard) AppendAudit(ctx context.Context, v application.AuditEvent) (application.AuditReceipt, error) {
+	if g.readOnly {
+		panic("session preflight appended audit")
+	}
+	return (portalFixtureTransaction{repos: g.repos}).AppendAudit(ctx, v)
 }
 func (ssoSessionFixtureGuard) GenerateSession() (identityapp.Credential, error) {
 	panic("session preflight minted credential")
 }
-func (f ssoSessionFixtureCommands) issueGuard() (*identityapp.SSOSessionCommands, error) {
-	return identityapp.NewSSOSessionCommands(identityapp.SSOSessionCommandConfig{Transactions: ssoSessionFixtureTransactions(f), Credentials: ssoSessionFixtureGuard{}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
+func (f ssoSessionFixtureCommands) clockIDs(readOnly bool) (application.Clock, application.IDGenerator) {
+	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
+	if !readOnly && f.clock != nil {
+		clock = f.clock
+	}
+	return clock, ids
 }
-func (f ssoSessionFixtureCommands) revokeGuard() (*identityapp.SSOSessionRevocationCommands, error) {
-	return identityapp.NewSSOSessionRevocationCommands(identityapp.SSOSessionRevocationConfig{Transactions: ssoSessionFixtureTransactions(f), Authorizer: identityapp.NewSSOSessionRevocationAuthorizer(), Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
+func (f ssoSessionFixtureCommands) issueCommands(readOnly bool) (*identityapp.SSOSessionCommands, error) {
+	clock, ids := f.clockIDs(readOnly)
+	c := f.credentials
+	if readOnly {
+		c = ssoSessionFixtureGuard{}
+	} else if c == nil {
+		c = fixtureSessionCredentials("test")
+	}
+	return identityapp.NewSSOSessionCommands(identityapp.SSOSessionCommandConfig{Transactions: ssoSessionFixtureTransactions{f.catalogFixtureCommands, readOnly}, Credentials: c, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: clock, IDs: ids})
+}
+func (f ssoSessionFixtureCommands) revokeCommands(readOnly bool) (*identityapp.SSOSessionRevocationCommands, error) {
+	clock, ids := f.clockIDs(readOnly)
+	return identityapp.NewSSOSessionRevocationCommands(identityapp.SSOSessionRevocationConfig{Transactions: ssoSessionFixtureTransactions{f.catalogFixtureCommands, readOnly}, Authorizer: identityapp.NewSSOSessionRevocationAuthorizer(), Clock: clock, IDs: ids})
 }
 func (f ssoSessionFixtureCommands) AuthorizeCreateSSOSession(ctx context.Context, a domain.Actor, in identityapp.CreateSSOSessionInput) error {
-	g, err := f.issueGuard()
+	g, err := f.issueCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeCreateSSOSession(ctx, a, in)
 }
 func (f ssoSessionFixtureCommands) AuthorizeRevokeSSOSession(ctx context.Context, a domain.Actor, id string) error {
-	g, err := f.revokeGuard()
+	g, err := f.revokeCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeRevokeSSOSession(ctx, a, id)
 }
 func (f ssoSessionFixtureCommands) AuthorizeRevokeCurrentSSOSession(ctx context.Context, a domain.Actor) error {
-	g, err := f.revokeGuard()
+	g, err := f.revokeCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeRevokeCurrentSSOSession(ctx, a)
 }
 func (f ssoSessionFixtureCommands) CreateSSOSession(ctx context.Context, a domain.Actor, in identityapp.CreateSSOSessionInput) (identitydomain.SSOSession, string, error) {
-	v, secret, err := f.commandLedger(ctx).CreateSSOSession(ctx, a, app.CreateSSOSessionInput(in))
-	return identitydomain.SSOSession(v), secret, err
+	c, err := f.issueCommands(false)
+	if err != nil {
+		return identitydomain.SSOSession{}, "", err
+	}
+	v, secret, err := c.CreateSSOSession(ctx, a, in)
+	return v, secret, providerVerificationFixtureError(err)
 }
 func (f ssoSessionFixtureCommands) RevokeSSOSession(ctx context.Context, a domain.Actor, id string) (identitydomain.SSOSession, error) {
-	v, err := f.commandLedger(ctx).RevokeSSOSession(ctx, a, id)
-	return identitydomain.SSOSession(v), err
+	c, err := f.revokeCommands(false)
+	if err != nil {
+		return identitydomain.SSOSession{}, err
+	}
+	v, err := c.RevokeSSOSession(ctx, a, id)
+	return v, providerVerificationFixtureError(err)
 }
 func (f ssoSessionFixtureCommands) RevokeCurrentSSOSession(ctx context.Context, a domain.Actor) (identitydomain.SSOSession, error) {
-	v, err := f.commandLedger(ctx).RevokeCurrentSSOSession(ctx, a)
-	return identitydomain.SSOSession(v), err
+	c, err := f.revokeCommands(false)
+	if err != nil {
+		return identitydomain.SSOSession{}, err
+	}
+	v, err := c.RevokeCurrentSSOSession(ctx, a)
+	return v, providerVerificationFixtureError(err)
 }
 func (f ssoSessionFixtureCommands) ExchangeSSOCredential(ctx context.Context, in identityapp.ExchangeSSOCredentialInput) (identitydomain.ProviderVerification, identitydomain.SSOSession, string, error) {
 	v, session, secret, err := f.commandLedger(ctx).ExchangeSSOCredential(ctx, app.ExchangeSSOCredentialInput(in))
@@ -113,15 +167,49 @@ func ssoFixtureVerificationModel(v domain.ProviderVerification) identitydomain.P
 	return identitydomain.ProviderVerification{ID: v.ID, TenantID: v.TenantID, ProviderType: v.ProviderType, ProviderID: v.ProviderID, Subject: v.Subject, Result: v.Result, Checks: checks, Profile: p, Limitations: slices.Clone(v.Limitations), SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
 }
 func (s *Server) bindSSOSessionFixturePorts(ledger *app.Ledger) {
-	f := ssoSessionFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.ssoSessionCommands.(ssoSessionFixtureCommands); s.ssoSessionCommands == nil || fixture {
+	f := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.ssoSessionCommands.(ssoSessionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.ssoSessionCommands = old
+	} else if s.ssoSessionCommands == nil {
 		s.ssoSessionCommands = f
 	}
-	if _, fixture := s.ssoSessionRevocationCommands.(ssoSessionFixtureCommands); s.ssoSessionRevocationCommands == nil || fixture {
+	if old, fixture := s.ssoSessionRevocationCommands.(ssoSessionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.ssoSessionRevocationCommands = old
+	} else if s.ssoSessionRevocationCommands == nil {
 		s.ssoSessionRevocationCommands = f
 	}
-	if _, fixture := s.ssoExchangeCommands.(ssoSessionFixtureCommands); s.ssoExchangeCommands == nil || fixture {
+	if old, fixture := s.ssoExchangeCommands.(ssoSessionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.ssoExchangeCommands = old
+	} else if s.ssoExchangeCommands == nil {
 		s.ssoExchangeCommands = f
+	}
+	if old, fixture := s.authn.(ssoFixtureAuthenticator); fixture {
+		old.ledger = ledger
+		s.authn = old
+	} else if _, historical := s.authn.(*app.Ledger); historical {
+		s.authn = fixtureSessionAuthenticator(ledger, "test", nil)
+	}
+}
+
+func (s *Server) bindSSOSessionFixtureResources(pepper string, clock application.Clock) {
+	credentials := fixtureSessionCredentials(pepper)
+	if f, ok := s.ssoSessionCommands.(ssoSessionFixtureCommands); ok {
+		f.credentials, f.clock = credentials, clock
+		s.ssoSessionCommands = f
+	}
+	if f, ok := s.ssoSessionRevocationCommands.(ssoSessionFixtureCommands); ok {
+		f.clock = clock
+		s.ssoSessionRevocationCommands = f
+	}
+	if f, ok := s.authn.(ssoFixtureAuthenticator); ok {
+		f.credentials = credentials
+		if clock != nil {
+			f.clock = clock
+		}
+		s.authn = f
 	}
 }
 

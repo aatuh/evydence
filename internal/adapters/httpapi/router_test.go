@@ -516,6 +516,7 @@ func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
+	server.bindSSOProviderFixtureResources(discovery, nil)
 	body := postJSON(t, server, secret, "/v1/sso/providers", "sso-discovery-provider", map[string]any{"name": "OIDC", "type": "oidc", "issuer": "https://idp.example.test", "client_id": "client"}, http.StatusCreated)
 	providerID := dataField(t, body, "id")
 	refreshed := postJSON(t, server, secret, "/v1/sso/providers/"+providerID+"/discover-oidc", "sso-discovery-refresh", map[string]any{}, http.StatusOK)
@@ -589,7 +590,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if rec.Code != http.StatusForbidden || rec.Header().Get("Set-Cookie") != "" {
 		t.Fatal("cross-origin logout revoked session or changed cookie", rec.Code)
 	}
-	if _, err := ledger.Authenticate(t.Context(), cookie.Value); err != nil {
+	if _, err := server.authn.Authenticate(t.Context(), cookie.Value); err != nil {
 		t.Fatal("rejected cross-origin logout changed session", err)
 	}
 	rec = httptest.NewRecorder()

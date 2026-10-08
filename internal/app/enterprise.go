@@ -42,23 +42,12 @@ type CreateSSOProviderInput struct {
 	SAMLSigningCertificates []string
 }
 
-type UpdateSSOProviderTrustMaterialInput struct {
-	JWKS                    map[string]any
-	SAMLSigningCertificates []string
-}
-
 type LinkSSOIdentityInput struct {
 	UserID     string
 	ProviderID string
 	Subject    string
 	Email      string
 	Verified   bool
-}
-
-type CreateSSOSessionInput struct {
-	UserID     string
-	ProviderID string
-	ExpiresAt  time.Time
 }
 
 type ExchangeSSOCredentialInput struct {

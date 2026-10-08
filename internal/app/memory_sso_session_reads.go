@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"slices"
+	"time"
 
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -78,3 +80,28 @@ var (
 	_ identityapp.SSOSessionWriteReader      = memoryIdentityRepository{}
 	_ identityapp.SSOSessionRevocationReader = memoryIdentityRepository{}
 )
+
+// Compare the entire public metadata snapshot under the same transaction lock
+// as revocation. The credential hash is neither selected nor overwritten.
+func (r memoryIdentityRepository) RevokeSSOSessionMetadata(ctx context.Context, previous identitydomain.SSOSession, now time.Time) error {
+	if !memoryMembershipQueryText(previous.ID, 1024) || previous.Hash != "" || previous.RevokedAt != nil || now.IsZero() {
+		return ErrValidation
+	}
+	return r.membershipRead(ctx, previous.TenantID, func(state *MemoryUnitOfWorkSnapshot) error {
+		stored, ok := state.SSOSessions[previous.ID]
+		if !ok || stored.ID != previous.ID || stored.TenantID != previous.TenantID || stored.RevokedAt != nil {
+			return ErrConflict
+		}
+		groups := slices.Clone(stored.Groups)
+		if len(groups) == 0 {
+			groups = nil
+		}
+		if stored.UserID != previous.UserID || stored.ProviderID != previous.ProviderID || stored.Prefix != previous.Prefix || stored.SchemaVersion != previous.SchemaVersion || !stored.ExpiresAt.Equal(previous.ExpiresAt) || !stored.CreatedAt.Equal(previous.CreatedAt) || !reflect.DeepEqual(groups, previous.Groups) {
+			return ErrConflict
+		}
+		at := now.UTC()
+		stored.RevokedAt = &at
+		state.SSOSessions[stored.ID] = stored
+		return nil
+	})
+}

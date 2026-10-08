@@ -75,9 +75,9 @@ func providerVerificationFixtureError(err error) error {
 		return app.ErrConflict
 	case errors.Is(err, identityapp.ErrVerificationFailed):
 		return app.ErrVerificationFailed
-	case errors.Is(err, application.ErrUnauthorized):
+	case errors.Is(err, application.ErrUnauthorized), errors.Is(err, identityapp.ErrUnauthorized):
 		return app.ErrUnauthorized
-	case errors.Is(err, application.ErrForbidden):
+	case errors.Is(err, application.ErrForbidden), errors.Is(err, identityapp.ErrForbidden):
 		return app.ErrForbidden
 	default:
 		return err

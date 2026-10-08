@@ -1185,14 +1185,17 @@ same transaction as safe replay completion. Live tests cover current grants,
 restart replay without refetching, unavailable providers and all four rollback
 stages. Trust rotation, discovery and identity-link handlers also require
 focused commands; four methods are removed from the broad transport port.
-Test-only preflight uses the native guard algorithms with focused memory
-provider/link readers and preserves real isolated historical writes. Provider
-reads preserve bounded complete metadata with defensive copies; linking checks
-only current tenant-owned user/provider coordinates and exact email, not login
-eligibility. The preflight discovery sentinel panics on I/O; real optional
-configuration stays with the fixture command. These bridges are not runtime
-backends, configuration evidence or SQL-locking/durability proof. Remaining
-session handler and aggregate deletion is EVY-906 work.
+HTTP fixtures run the actual focused provider creation, trust rotation,
+discovery and identity-link commands on their current memory repositories.
+Repository-only provider tests reject stale-cache authority. Provider reads
+preserve bounded complete metadata with defensive copies; linking checks only
+current tenant-owned user/provider coordinates and exact email, not login
+eligibility. Read-only guards cannot write, audit, hash, fetch, use clocks or
+generate IDs. Optional discovery and fixed clocks stay in explicit test-only
+ports and survive fixture rebinding; no Server/Ledger resource fields or global
+registry are added. Fake discovery calls are not undone by rollback and do not
+establish provider truth. These fixtures are not runtime backends or SQL
+locking/durability evidence. Remaining aggregate deletion is EVY-906 work.
 Session issuance now has a focused Identity command and one
 tenant-owned user/provider query that requires an active user. Shared parent
 locks hold status/ownership through session/audit/replay commit without reading user
@@ -1234,13 +1237,25 @@ revocation and logout handlers now require their focused commands, with no
 aggregate fallback. The broad `identityAccess` Server field and transport
 interface are deleted. Focused memory issuance checks current active-user and
 provider ownership; revocation reads detached, bounded hash-free metadata even
-when login parents are unavailable. Test-only adapters preserve real isolated
-issuance/revocation and the public exchange's self-owned verification/transaction
-algorithm. Their regressions cover complete metadata replay, no secret reissue,
-post-write rollback, current authority, cancellation, credential invalidation
-and post-commit cookie clearing; they are not SQL-locking or durability proof.
-PostgreSQL is required for local evaluation. Other handler and aggregate
-deletion remains EVY-906 work. Identity linking
+when login parents are unavailable. HTTP fixtures run actual focused issuance,
+revocation/logout and session authentication, without session-cache publication.
+Memory authentication selects at most 64 prefix candidates and 256 owned user
+bindings; it reads only user ID/tenant/email/status and provider group mappings,
+not unrelated user details or public/private trust material. Excess or corrupt
+selected data returns no partial identity. Revocation compares complete public
+metadata under one transaction lock and preserves the unselected credential
+hash. Final active-session validation rejects closed transactions and changed
+stored session/user IDs. Explicit test credentials and clocks survive rebinding.
+The public credential-exchange and API-key authentication fixtures still use
+historical paths. Regressions preserve complete metadata replay, no secret
+reissue, whole-state post-write rollback, current authority, cancellation,
+credential invalidation and post-commit cookie clearing. Seven historical
+trust/session declarations are excluded from production and retained unchanged
+in `internal/app/legacy_sso_trust_oracle_test.go` and
+`internal/app/legacy_sso_session_oracle_test.go`; source guards forbid their
+production return. These checks are not SQL-locking or durability proof.
+PostgreSQL is required for local evaluation. Remaining aggregate maps, locks,
+snapshots and methods still require deletion in EVY-906. Identity linking
 now uses a separate focused Identity command with a tenant/projection lock and
 one current user/provider/email existence query. Parent share locks hold
 ownership and email through link/audit/replay commit; no user display metadata
@@ -1248,8 +1263,8 @@ or provider trust inventory is transferred. Current tenant-wide authority and
 parents are checked even before completed replay. Live checks cover uniqueness,
 permission/parent changes, restart DTO replay, all four rollback stages and
 parent-lock contention. This stores an administrator assertion, not provider
-credential verification or a session/role grant. Production Ledger startup
-removal remains open. Transitional credential-exchange snapshot validation
+credential verification or a session/role grant. Physical aggregate retirement
+remains open. Transitional credential-exchange snapshot validation
 now acquires the same mutation fence before identity-table/parent locks,
 avoiding inverted ordering with focused identity writes; token verification
 still runs outside that transaction. See

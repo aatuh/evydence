@@ -30,7 +30,7 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	if legacyFixtureLedger(server) != ledger {
 		t.Fatal("compatibility ledger was not rebound")
 	}
-	if server.authn != ledger {
+	if authn, ok := server.authn.(ssoFixtureAuthenticator); !ok || authn.ledger != ledger {
 		t.Fatal("authenticator was not rebound")
 	}
 	if command, ok := server.providerVerificationCommands.(providerVerificationFixtureCommands); !ok || command.ledger != ledger {

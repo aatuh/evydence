@@ -60,11 +60,12 @@ func fixtureSessionPost(t *testing.T, s *Server, secret, path, key, body string,
 func seedFixtureSession(t *testing.T, l *app.Ledger, f ssoProviderFixtureScope) (domain.SSOSession, string) {
 	t.Helper()
 	grantFixtureSessionUser(t, l, f)
-	v, secret, err := l.CreateSSOSession(t.Context(), f.actor, app.CreateSSOSessionInput{UserID: f.user.ID, ProviderID: f.provider.ID, ExpiresAt: time.Date(2026, 10, 8, 16, 0, 0, 0, time.UTC)})
+	c := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: l}, credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
+	v, secret, err := c.CreateSSOSession(t.Context(), f.actor, identityapp.CreateSSOSessionInput{UserID: f.user.ID, ProviderID: f.provider.ID, ExpiresAt: time.Date(2026, 10, 8, 16, 0, 0, 0, time.UTC)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return v, secret
+	return domain.SSOSession(v), secret
 }
 
 func grantFixtureSessionUser(t *testing.T, l *app.Ledger, f ssoProviderFixtureScope) {
@@ -94,7 +95,8 @@ func TestSSOSessionFixturesRollbackSecretsLifecycleAuditsAndCookies(t *testing.T
 				t.Fatal(err)
 			}
 			s.authn = &configuredAuthenticator{actor: actor}
-			commands := &failingSSOSessionFixture{ssoSessionFixtureCommands: ssoSessionFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			s.bindSSOSessionFixtureResources("fixture-pepper", providerVerificationFixtureClock())
+			commands := &failingSSOSessionFixture{ssoSessionFixtureCommands: ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}}
 			s.ssoSessionCommands, s.ssoSessionRevocationCommands = commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -120,11 +122,11 @@ func TestSSOSessionFixturesRollbackSecretsLifecycleAuditsAndCookies(t *testing.T
 			if !reflect.DeepEqual(before, after) {
 				t.Fatal("failed session write changed session, revocation, audit, credential or job state")
 			}
-			if _, err := ledger.Authenticate(t.Context(), secret); err != nil {
+			if _, err := fixtureSessionAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret); err != nil {
 				t.Fatal("failed command invalidated existing session", err)
 			}
 			if commands.secret != "" {
-				if _, err := ledger.Authenticate(t.Context(), commands.secret); !errors.Is(err, app.ErrUnauthorized) {
+				if _, err := fixtureSessionAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), commands.secret); !errors.Is(err, app.ErrUnauthorized) {
 					t.Fatal("failed issuance produced usable credential", err)
 				}
 			}
@@ -141,6 +143,7 @@ func TestSSOSessionIssuanceFixtureReplaysMetadataWithoutReissuingSecret(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.bindSSOSessionFixtureResources("fixture-pepper", providerVerificationFixtureClock())
 	human := owner.actor
 	human.KeyID, human.UserID = "", owner.user.ID
 	human.Scopes = []string{"identity:admin"}
@@ -168,7 +171,7 @@ func TestSSOSessionIssuanceFixtureReplaysMetadataWithoutReissuingSecret(t *testi
 	if first.Header().Get("Set-Cookie") != "" {
 		t.Fatal("administrative issuance unexpectedly set browser cookie")
 	}
-	if actor, err := ledger.Authenticate(t.Context(), secret); err != nil || actor.UserID != owner.user.ID {
+	if actor, err := fixtureSessionAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret); err != nil || actor.UserID != owner.user.ID {
 		t.Fatal("fresh session credential is not usable", err)
 	}
 	replay := fixtureSessionPost(t, s, "fixture-auth", "/v1/sso/sessions", "same-session", body, 201)
@@ -210,6 +213,7 @@ func TestSSOSessionRevocationFixtureReplaysPublicMetadataAndLogoutInvalidatesAcc
 			if err != nil {
 				t.Fatal(err)
 			}
+			s.bindSSOSessionFixtureResources("fixture-pepper", providerVerificationFixtureClock())
 			actor := owner.actor
 			path := "/v1/sso/sessions/" + session.ID + "/revoke"
 			if self {
@@ -238,7 +242,7 @@ func TestSSOSessionRevocationFixtureReplaysPublicMetadataAndLogoutInvalidatesAcc
 			} else if first.Header().Get("Set-Cookie") != "" {
 				t.Fatal("administrative revocation changed cookie")
 			}
-			if _, err := ledger.Authenticate(t.Context(), secret); !errors.Is(err, app.ErrUnauthorized) {
+			if _, err := fixtureSessionAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret); !errors.Is(err, app.ErrUnauthorized) {
 				t.Fatal("committed revocation left old credential usable", err)
 			}
 			// The configured actor isolates receipt authorization from transport
@@ -262,7 +266,7 @@ func TestSSOSessionRevocationFixtureReplaysPublicMetadataAndLogoutInvalidatesAcc
 			if err != nil || !reflect.DeepEqual(saved, after) {
 				t.Fatal("revocation replay/conflict/denial changed stored state", err)
 			}
-			s.authn = ledger
+			s.authn = fixtureSessionAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock())
 			failed := fixtureSessionPost(t, s, secret, path, "same-revoke", `{}`, 401)
 			if failed.Header().Get("Set-Cookie") != "" {
 				t.Fatal("unauthenticated retry changed cookie")
@@ -275,7 +279,7 @@ func TestSSOSessionFixtureGuardsArePureCancellableAndKeepExplicitPorts(t *testin
 	ledger, factory, _ := ssoFixtureLedger()
 	owner := seedSSOProviderFixtureScope(t, ledger, "Owner")
 	session, _ := seedFixtureSession(t, ledger, owner)
-	f := ssoSessionFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	f := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	self := domain.Actor{TenantID: owner.actor.TenantID, UserID: owner.user.ID, SessionID: session.ID}
 	before, err := factory.Snapshot()
 	if err != nil {

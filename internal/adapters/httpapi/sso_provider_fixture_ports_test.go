@@ -11,7 +11,13 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-type ssoProviderFixtureCommands struct{ catalogFixtureCommands }
+// Native focused commands share the fixture's actual transaction, never its
+// provider/link caches. Optional discovery and time are explicit test ports.
+type ssoProviderFixtureCommands struct {
+	catalogFixtureCommands
+	discovery app.OIDCDiscoveryClient
+	clock     application.Clock
+}
 
 func identityTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
@@ -27,23 +33,28 @@ func identityTestServer(t *testing.T) (*Server, string) {
 	return server, secret
 }
 
-type ssoProviderFixtureTransactions struct{ catalogFixtureCommands }
+type ssoProviderFixtureTransactions struct {
+	catalogFixtureCommands
+	readOnly bool
+}
 type ssoProviderFixtureGuard struct {
 	identityapp.SSOProviderWriteReader
 	identityapp.SSOIdentityLinkWriteReader
+	repos    app.Repositories
+	readOnly bool
 }
 
 func (f ssoProviderFixtureTransactions) execute(ctx context.Context, run func(context.Context, ssoProviderFixtureGuard) error) error {
 	return f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
 		providers, ok := repos.Identity.(identityapp.SSOProviderWriteReader)
-		if !ok {
+		if !ok || repos.Audit == nil {
 			return app.ErrValidation
 		}
 		links, ok := repos.Identity.(identityapp.SSOIdentityLinkWriteReader)
 		if !ok {
 			return app.ErrValidation
 		}
-		return run(ctx, ssoProviderFixtureGuard{providers, links})
+		return run(ctx, ssoProviderFixtureGuard{providers, links, repos, f.readOnly})
 	})
 }
 func (f ssoProviderFixtureTransactions) ExecuteSSOProvider(ctx context.Context, run func(context.Context, identityapp.SSOProviderTransaction) error) error {
@@ -55,82 +66,148 @@ func (f ssoProviderFixtureTransactions) ExecuteSSOIdentityLink(ctx context.Conte
 func (ssoProviderFixtureGuard) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
 	return identityapp.NewMembershipWriteAuthorizer().Authorize(ctx, a, r)
 }
-func (ssoProviderFixtureGuard) InsertSSOProvider(context.Context, identitydomain.SSOProvider) error {
-	panic("SSO preflight inserted provider")
+func (g ssoProviderFixtureGuard) InsertSSOProvider(ctx context.Context, v identitydomain.SSOProvider) error {
+	if g.readOnly {
+		panic("SSO preflight inserted provider")
+	}
+	return g.repos.Identity.InsertSSOProvider(ctx, domain.SSOProvider(v))
 }
-func (ssoProviderFixtureGuard) CompareAndSwapSSOProviderTrustMaterial(context.Context, identitydomain.SSOProvider, identitydomain.SSOProvider) error {
-	panic("SSO preflight changed trust")
+func (g ssoProviderFixtureGuard) CompareAndSwapSSOProviderTrustMaterial(ctx context.Context, expected, v identitydomain.SSOProvider) error {
+	if g.readOnly {
+		panic("SSO preflight changed trust")
+	}
+	return g.repos.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, domain.SSOProvider(expected), domain.SSOProvider(v))
 }
-func (ssoProviderFixtureGuard) InsertUserIdentityLink(context.Context, identitydomain.UserIdentityLink) error {
-	panic("SSO preflight linked identity")
+func (g ssoProviderFixtureGuard) InsertUserIdentityLink(ctx context.Context, v identitydomain.UserIdentityLink) error {
+	if g.readOnly {
+		panic("SSO preflight linked identity")
+	}
+	return g.repos.Identity.InsertUserIdentityLink(ctx, domain.UserIdentityLink(v))
 }
-func (ssoProviderFixtureGuard) AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error) {
-	panic("SSO preflight appended audit")
+func (g ssoProviderFixtureGuard) AppendAudit(ctx context.Context, v application.AuditEvent) (application.AuditReceipt, error) {
+	if g.readOnly {
+		panic("SSO preflight appended audit")
+	}
+	return (portalFixtureTransaction{repos: g.repos}).AppendAudit(ctx, v)
 }
 func (ssoProviderFixtureGuard) Hash(any) (string, error) { panic("SSO preflight hashed trust") }
 func (ssoProviderFixtureGuard) FetchOIDCTrustMaterial(context.Context, identityapp.OIDCDiscoveryRequest) (identityapp.OIDCDiscoveryResult, error) {
 	panic("SSO preflight performed discovery")
 }
 
-// The sentinel proves preflight does not perform network I/O. Actual optional
-// discovery configuration and execution remain owned by the historical command;
-// this test bridge is not configuration, SQL-locking or durability evidence.
-func (f ssoProviderFixtureCommands) providerGuard() (*identityapp.SSOProviderCommands, error) {
-	return identityapp.NewSSOProviderCommands(identityapp.SSOProviderCommandConfig{Transactions: ssoProviderFixtureTransactions(f), Authorizer: identityapp.NewMembershipWriteAuthorizer(), TrustMaterial: identityapp.PublicTrustMaterialValidator{}, Hasher: ssoProviderFixtureGuard{}, OIDCDiscovery: ssoProviderFixtureGuard{}, Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
+type ssoProviderFixtureDiscovery struct{ client app.OIDCDiscoveryClient }
+
+func (d ssoProviderFixtureDiscovery) FetchOIDCTrustMaterial(ctx context.Context, in identityapp.OIDCDiscoveryRequest) (identityapp.OIDCDiscoveryResult, error) {
+	v, err := d.client.FetchOIDCTrustMaterial(ctx, app.OIDCDiscoveryRequest{TenantID: in.TenantID, ProviderID: in.ProviderID, Issuer: in.Issuer})
+	if err != nil {
+		return identityapp.OIDCDiscoveryResult{}, err
+	}
+	return identityapp.OIDCDiscoveryResult{Issuer: v.Issuer, JWKS: v.JWKS}, nil
 }
-func (f ssoProviderFixtureCommands) linkGuard() (*identityapp.SSOIdentityLinkCommands, error) {
-	return identityapp.NewSSOIdentityLinkCommands(identityapp.SSOIdentityLinkCommandConfig{Transactions: ssoProviderFixtureTransactions(f), Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
+func (f ssoProviderFixtureCommands) clockIDs(readOnly bool) (application.Clock, application.IDGenerator) {
+	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
+	if !readOnly && f.clock != nil {
+		clock = f.clock
+	}
+	return clock, ids
+}
+func (f ssoProviderFixtureCommands) providerCommands(readOnly bool) (*identityapp.SSOProviderCommands, error) {
+	clock, ids := f.clockIDs(readOnly)
+	var discovery identityapp.OIDCDiscovery
+	if f.discovery != nil {
+		discovery = ssoProviderFixtureDiscovery{f.discovery}
+		if readOnly {
+			discovery = ssoProviderFixtureGuard{}
+		}
+	}
+	return identityapp.NewSSOProviderCommands(identityapp.SSOProviderCommandConfig{Transactions: ssoProviderFixtureTransactions{f.catalogFixtureCommands, readOnly}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), TrustMaterial: identityapp.PublicTrustMaterialValidator{}, Hasher: peripheralNativeHasher{readOnly: readOnly}, OIDCDiscovery: discovery, Clock: clock, IDs: ids})
+}
+func (f ssoProviderFixtureCommands) linkCommands(readOnly bool) (*identityapp.SSOIdentityLinkCommands, error) {
+	clock, ids := f.clockIDs(readOnly)
+	return identityapp.NewSSOIdentityLinkCommands(identityapp.SSOIdentityLinkCommandConfig{Transactions: ssoProviderFixtureTransactions{f.catalogFixtureCommands, readOnly}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: clock, IDs: ids})
 }
 func (f ssoProviderFixtureCommands) AuthorizeCreateSSOProvider(ctx context.Context, a domain.Actor, in identityapp.CreateSSOProviderInput) error {
-	g, err := f.providerGuard()
+	g, err := f.providerCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeCreateSSOProvider(ctx, a, in)
 }
 func (f ssoProviderFixtureCommands) AuthorizeUpdateSSOProviderTrustMaterial(ctx context.Context, a domain.Actor, id string, in identityapp.UpdateSSOProviderTrustMaterialInput) error {
-	g, err := f.providerGuard()
+	g, err := f.providerCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeUpdateSSOProviderTrustMaterial(ctx, a, id, in)
 }
 func (f ssoProviderFixtureCommands) AuthorizeRefreshSSOProviderOIDCTrustMaterial(ctx context.Context, a domain.Actor, id string) error {
-	g, err := f.providerGuard()
+	g, err := f.providerCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeRefreshSSOProviderOIDCTrustMaterial(ctx, a, id)
 }
 func (f ssoProviderFixtureCommands) AuthorizeLinkSSOIdentity(ctx context.Context, a domain.Actor, in identityapp.LinkSSOIdentityInput) error {
-	g, err := f.linkGuard()
+	g, err := f.linkCommands(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeLinkSSOIdentity(ctx, a, in)
 }
 func (f ssoProviderFixtureCommands) CreateSSOProvider(ctx context.Context, a domain.Actor, in identityapp.CreateSSOProviderInput) (identitydomain.SSOProvider, error) {
-	v, err := f.commandLedger(ctx).CreateSSOProvider(ctx, a, app.CreateSSOProviderInput(in))
-	return identitydomain.SSOProvider(v), err
+	c, err := f.providerCommands(false)
+	if err != nil {
+		return identitydomain.SSOProvider{}, err
+	}
+	v, err := c.CreateSSOProvider(ctx, a, in)
+	return v, providerVerificationFixtureError(err)
 }
 func (f ssoProviderFixtureCommands) UpdateSSOProviderTrustMaterial(ctx context.Context, a domain.Actor, id string, in identityapp.UpdateSSOProviderTrustMaterialInput) (identitydomain.SSOProvider, error) {
-	v, err := f.commandLedger(ctx).UpdateSSOProviderTrustMaterial(ctx, a, id, app.UpdateSSOProviderTrustMaterialInput(in))
-	return identitydomain.SSOProvider(v), err
+	c, err := f.providerCommands(false)
+	if err != nil {
+		return identitydomain.SSOProvider{}, err
+	}
+	v, err := c.UpdateSSOProviderTrustMaterial(ctx, a, id, in)
+	return v, providerVerificationFixtureError(err)
 }
 func (f ssoProviderFixtureCommands) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, a domain.Actor, id string) (identitydomain.SSOProvider, error) {
-	v, err := f.commandLedger(ctx).RefreshSSOProviderOIDCTrustMaterial(ctx, a, id)
-	return identitydomain.SSOProvider(v), err
+	c, err := f.providerCommands(false)
+	if err != nil {
+		return identitydomain.SSOProvider{}, err
+	}
+	v, err := c.RefreshSSOProviderOIDCTrustMaterial(ctx, a, id)
+	return v, providerVerificationFixtureError(err)
 }
 func (f ssoProviderFixtureCommands) LinkSSOIdentity(ctx context.Context, a domain.Actor, in identityapp.LinkSSOIdentityInput) (identitydomain.UserIdentityLink, error) {
-	v, err := f.commandLedger(ctx).LinkSSOIdentity(ctx, a, app.LinkSSOIdentityInput(in))
-	return identitydomain.UserIdentityLink(v), err
+	c, err := f.linkCommands(false)
+	if err != nil {
+		return identitydomain.UserIdentityLink{}, err
+	}
+	v, err := c.LinkSSOIdentity(ctx, a, in)
+	return v, providerVerificationFixtureError(err)
 }
 func (s *Server) bindSSOProviderFixturePorts(ledger *app.Ledger) {
-	f := ssoProviderFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.ssoProviderCommands.(ssoProviderFixtureCommands); s.ssoProviderCommands == nil || fixture {
+	if old, fixture := s.ssoProviderCommands.(ssoProviderFixtureCommands); fixture {
+		old.ledger = ledger
+		s.ssoProviderCommands = old
+	} else if s.ssoProviderCommands == nil {
+		s.ssoProviderCommands = ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	}
+	if old, fixture := s.ssoIdentityLinkCommands.(ssoProviderFixtureCommands); fixture {
+		old.ledger = ledger
+		s.ssoIdentityLinkCommands = old
+	} else if s.ssoIdentityLinkCommands == nil {
+		s.ssoIdentityLinkCommands = ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	}
+}
+
+func (s *Server) bindSSOProviderFixtureResources(discovery app.OIDCDiscoveryClient, clock application.Clock) {
+	if f, ok := s.ssoProviderCommands.(ssoProviderFixtureCommands); ok {
+		f.discovery, f.clock = discovery, clock
 		s.ssoProviderCommands = f
 	}
-	if _, fixture := s.ssoIdentityLinkCommands.(ssoProviderFixtureCommands); s.ssoIdentityLinkCommands == nil || fixture {
+	if f, ok := s.ssoIdentityLinkCommands.(ssoProviderFixtureCommands); ok {
+		f.clock = clock
 		s.ssoIdentityLinkCommands = f
 	}
 }

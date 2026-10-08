@@ -50,6 +50,8 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"AuthorizeFetchPublicTransparencyLogEntryProof": true, "publicTransparencyFetchSourceLocked": true, "FetchAndVerifyPublicTransparencyLogEntry": true,
 		"VerifyProviderIdentityInput": true, "VerifyProviderIdentity": true, "verifyProviderIdentity": true,
 		"localProviderVerificationReader": true, "localProviderVerificationTransactions": true, "localProviderVerificationTransaction": true,
+		"UpdateSSOProviderTrustMaterialInput": true, "UpdateSSOProviderTrustMaterial": true, "RefreshSSOProviderOIDCTrustMaterial": true,
+		"CreateSSOSessionInput": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -99,6 +101,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"UploadSPDXSBOM": true, "UploadBuildAttestationPayload": true,
 		"ensureApprovalSubjectLocked": true, "ensureWaiverScopeLocked": true,
 		"uploadSourceSnapshot": true, "sourceSnapshot": true,
+		"CreateSSOSession": true, "RevokeSSOSession": true, "RevokeCurrentSSOSession": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

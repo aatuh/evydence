@@ -105,7 +105,7 @@ func TestSSOProviderFixturesRollBackProviderTrustLinkAuditAndJobEffects(t *testi
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
-			commands := &failingSSOProviderFixture{ssoProviderFixtureCommands: ssoProviderFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingSSOProviderFixture{ssoProviderFixtureCommands: ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, discovery: discovery, clock: providerVerificationFixtureClock()}}
 			server.ssoProviderCommands, server.ssoIdentityLinkCommands = commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -153,6 +153,7 @@ func TestSSOProviderFixturesReplayPublicDTOsAndRecheckCurrentAuthority(t *testin
 			if err != nil {
 				t.Fatal(err)
 			}
+			server.bindSSOProviderFixtureResources(discovery, providerVerificationFixtureClock())
 			human := owner.actor
 			human.KeyID, human.UserID = "", owner.user.ID
 			human.Scopes = []string{"identity:admin"}
@@ -217,7 +218,7 @@ func TestSSOProviderFixturesReplayPublicDTOsAndRecheckCurrentAuthority(t *testin
 func TestSSOProviderFixtureGuardsArePureCancellableAndPreserveExplicitPorts(t *testing.T) {
 	ledger, factory, discovery := ssoFixtureLedger()
 	owner := seedSSOProviderFixtureScope(t, ledger, "Owner")
-	f := ssoProviderFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	f := ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, discovery: discovery, clock: providerVerificationFixtureClock()}
 	before, err := factory.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -252,5 +253,125 @@ func TestSSOProviderFixtureGuardsArePureCancellableAndPreserveExplicitPorts(t *t
 	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
 	if server.ssoProviderCommands != providers || server.ssoIdentityLinkCommands != links {
 		t.Fatal("fixture binding replaced explicit SSO ports")
+	}
+}
+
+func TestSSOProviderFixturesUseRepositoryOnlyProvidersForTrustAndLink(t *testing.T) {
+	for _, action := range []string{"update", "discover", "link"} {
+		t.Run(action, func(t *testing.T) {
+			ledger, factory, discovery := ssoFixtureLedger()
+			owner := seedSSOProviderFixtureScope(t, ledger, "Owner")
+			provider := owner.provider
+			provider.ID = "sso_repository_only"
+			if err := ledger.ExecuteUnitOfWork(t.Context(), func(ctx context.Context, repos app.Repositories) error {
+				return repos.Identity.InsertSSOProvider(ctx, provider)
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// No aggregate cache publication: a fresh command must read its
+			// complete owned provider from the authoritative transaction.
+			before, err := factory.Snapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var linkedID string
+			f := ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, discovery: discovery, clock: providerVerificationFixtureClock()}
+			if action == "link" {
+				in := identityapp.LinkSSOIdentityInput{UserID: owner.user.ID, ProviderID: provider.ID, Subject: "repository-subject", Email: owner.user.Email, Verified: true}
+				if err := f.AuthorizeLinkSSOIdentity(t.Context(), owner.actor, in); err != nil {
+					t.Fatal(err)
+				}
+				got, err := f.LinkSSOIdentity(t.Context(), owner.actor, in)
+				if err != nil || got.ProviderID != provider.ID || got.UserID != owner.user.ID || got.Subject != in.Subject || !got.Verified {
+					t.Fatal("link command did not use repository-only provider", got, err)
+				}
+				linkedID = got.ID
+			} else {
+				var got identitydomain.SSOProvider
+				var err error
+				if action == "update" {
+					in := identityapp.UpdateSSOProviderTrustMaterialInput{JWKS: publicSSOFixtureJWKS("updated")}
+					if err := f.AuthorizeUpdateSSOProviderTrustMaterial(t.Context(), owner.actor, provider.ID, in); err != nil {
+						t.Fatal(err)
+					}
+					got, err = f.UpdateSSOProviderTrustMaterial(t.Context(), owner.actor, provider.ID, in)
+				} else {
+					if err := f.AuthorizeRefreshSSOProviderOIDCTrustMaterial(t.Context(), owner.actor, provider.ID); err != nil {
+						t.Fatal(err)
+					}
+					got, err = f.RefreshSSOProviderOIDCTrustMaterial(t.Context(), owner.actor, provider.ID)
+				}
+				if err != nil || got.ID != provider.ID || got.TenantID != provider.TenantID || got.Issuer != provider.Issuer || got.TrustMaterialUpdatedAt == nil {
+					t.Fatal("trust command did not use repository-only provider", got, err)
+				}
+				provider.JWKS, provider.TrustMaterialUpdatedAt = got.JWKS, got.TrustMaterialUpdatedAt
+				if !reflect.DeepEqual(got, identitydomain.SSOProvider(provider)) {
+					t.Fatal("trust command lost non-trust provider fields")
+				}
+			}
+			after, err := factory.Snapshot()
+			if err != nil || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+1 || len(after.Idempotency) != 0 || len(after.SSOSessions) != 0 {
+				t.Fatal("native provider command lost audit or introduced replay/session effects", err)
+			}
+			entries := after.AuditEntries[owner.actor.TenantID]
+			audit := entries[len(entries)-1]
+			wantType := map[string]string{"update": "sso_provider.trust_material_updated", "discover": "sso_provider.oidc_trust_material_refreshed", "link": "identity_link.created"}[action]
+			if audit.EntryType != wantType || audit.ActorID != owner.actor.KeyID || audit.TenantID != owner.actor.TenantID {
+				t.Fatal("provider/link audit lost command or actor identity", audit)
+			}
+			if !reflect.DeepEqual(after.SSOProviders[provider.ID], provider) {
+				t.Fatal("provider result differs from persisted record")
+			}
+			if linkedID != "" {
+				if link := after.IdentityLinks[linkedID]; link.ProviderID != provider.ID || link.UserID != owner.user.ID || link.Subject != "repository-subject" || link.Email != owner.user.Email || !link.Verified {
+					t.Fatal("link result was not persisted intact", link)
+				}
+				delete(after.IdentityLinks, linkedID)
+			}
+			after.AuditEntries = before.AuditEntries
+			after.SSOProviders[provider.ID] = before.SSOProviders[provider.ID]
+			if !reflect.DeepEqual(before, after) {
+				t.Fatal("provider/link command changed unrelated repository state")
+			}
+			wantCalls := 0
+			if action == "discover" {
+				wantCalls = 1
+			}
+			if discovery.calls != wantCalls {
+				t.Fatal("unexpected discovery calls", discovery.calls, wantCalls)
+			}
+		})
+	}
+}
+
+type ssoFixtureRebindClock struct{ at time.Time }
+
+func (c *ssoFixtureRebindClock) Now() time.Time { return c.at }
+
+func TestSSONativeFixtureRebindingPreservesExplicitResources(t *testing.T) {
+	ledger, _, discovery := ssoFixtureLedger()
+	s, err := newLegacyServerFixture(ledger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock := &ssoFixtureRebindClock{at: peripheralFixtureQueryClock()}
+	s.bindSSOProviderFixtureResources(discovery, clock)
+	s.bindSSOSessionFixtureResources("fixture-pepper", clock)
+	authBefore := s.authn.(ssoFixtureAuthenticator)
+	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	s.bindLegacyLedgerFixture(second)
+	for name, port := range map[string]any{"provider": s.ssoProviderCommands, "link": s.ssoIdentityLinkCommands} {
+		f := port.(ssoProviderFixtureCommands)
+		if f.ledger != second || f.clock != clock || name == "provider" && f.discovery != discovery {
+			t.Fatal("provider/link rebinding lost explicit resource", name)
+		}
+	}
+	issue, revoke := s.ssoSessionCommands.(ssoSessionFixtureCommands), s.ssoSessionRevocationCommands.(ssoSessionFixtureCommands)
+	if issue.ledger != second || revoke.ledger != second || issue.credentials != authBefore.credentials || issue.clock != clock || revoke.clock != clock {
+		t.Fatal("session rebinding lost explicit resources")
+	}
+	authAfter := s.authn.(ssoFixtureAuthenticator)
+	if authAfter.ledger != second || authAfter.clock != clock || authAfter.credentials != authBefore.credentials {
+		t.Fatal("authentication rebinding lost explicit resources")
 	}
 }

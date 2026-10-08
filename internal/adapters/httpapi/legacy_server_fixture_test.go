@@ -56,7 +56,12 @@ func legacyFixtureLedger(server *Server) *app.Ledger {
 // Focused replay fixture ports keep isolated command effects and their replay
 // record in the same transaction; there is no legacy Server replay field.
 func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
-	s.authn = ledger
+	if authn, ok := s.authn.(ssoFixtureAuthenticator); ok {
+		authn.ledger = ledger
+		s.authn = authn
+	} else {
+		s.authn = ledger
+	}
 	s.bindCatalogFixturePorts(ledger)
 	s.bindRegistrationFixturePorts(ledger)
 	s.bindLifecycleFixturePorts(ledger)
