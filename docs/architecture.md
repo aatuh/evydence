@@ -231,20 +231,25 @@ Control coverage, CRA readiness/vulnerability handling, security-update,
 missing-evidence and both release-bundle reads also require focused queries;
 their seven aggregate fallback paths are deleted. Native filters, errors,
 current grants/parents and bounded SQL are unchanged. Coverage, CRA-readiness,
-vulnerability-handling and security-update fixtures compose the actual Package
-queries with current repository readers and explicit clocks; their four Ledger
-methods are unchanged test-only oracles. The memory coverage reader resolves
-every supported subject's current parents and observation time, shares the
+vulnerability-handling, security-update and release-readiness fixtures compose
+the actual Package queries with current repository readers and explicit clocks;
+their five Ledger methods are unchanged test-only oracles. The memory coverage
+reader resolves every supported subject's current parents and observation time, shares the
 4,096-entry budget across controls, links and exceptions, and conservatively
 bounds selected text/JSON. The security-update reader selects fixed decisions,
 current incidents and coherent task parents, verifies linked evidence scope,
 omits private notes and shares the native row/reference budgets. Other test
-readers detach report and manifest data. The
-missing-evidence fixture uses real current authority and a pure readiness
-preview with the same Package renderer, not the old write-producing helper.
+readers detach report and manifest data. The readiness report reader shares
+canonical trust predicates with Risk-owned readiness facts, scopes critical
+blockers and unexpired exceptions, and shares the native detail/diagnostic
+budget. The missing-evidence fixture composes the native Risk preview and
+Package renderer with real current authority, not an aggregate-derived result
+or the old write-producing helper. Memory scan copies preserve completed empty
+findings arrays separately from unfinished parser projections without changing
+legacy JSON tags or relaxing readiness validation.
 Regressions compare all public DTO fields and complete repository state after
-reads, denials, cancellation and nested metadata mutations. The memory ownership
-dispatch now recognizes control-scoped exceptions without weakening wrong-tenant
+reads, denials, cancellation, failed commits and nested metadata mutations.
+The memory ownership dispatch now recognizes control-scoped exceptions without weakening wrong-tenant
 checks. Other direct Package-context Ledger calls and aggregate state remain
 EVY-906 work; fixture inventories do not establish SQL limits or locking.
 

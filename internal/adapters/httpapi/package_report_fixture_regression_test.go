@@ -98,7 +98,7 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 	if len(update.FixedDecisions) != 1 || len(update.Incidents) != 1 || len(update.RemediationTasks) != 1 || update.RemediationTasks[0].DueAt == nil {
 		t.Fatal("independent update expectation lacks fixed decisions/incident/task")
 	}
-	readiness, err := ledger.ReleaseReadinessReport(t.Context(), domain.Actor{TenantID: human.TenantID, KeyID: "fixture-owned-readiness-reader", Scopes: []string{"verify:read"}}, owner.release.ID)
+	readiness, err := expectedPackageFixtureReadiness(owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,6 +113,7 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 		path string
 		want any
 	}{
+		{"/v1/reports/release-readiness?release_id=" + owner.release.ID, readiness},
 		{"/v1/reports/missing-evidence?release_id=" + owner.release.ID, wantMissing},
 		{"/v1/reports/control-coverage?framework_id=" + owner.framework.ID + "&" + coordinates, coverage},
 		{"/v1/reports/cra-readiness?" + coordinates, cra},
@@ -240,7 +241,7 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 			return err
 		},
 		func(ctx context.Context) error {
-			_, err := (packageMissingFixture{base}).Report(ctx, human, owner.release.ID)
+			_, err := (packageMissingFixture{catalogFixtureCommands: base, clock: clock}).Report(ctx, human, owner.release.ID)
 			return err
 		},
 	} {

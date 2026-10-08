@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -94,11 +95,17 @@ func (f packageFixtureCommands) CRAReadinessHTMLPackage(ctx context.Context, act
 	return packagedomain.HTMLReportPackage(value), err
 }
 
-type packageReadinessFixtureQuery struct{ catalogFixtureCommands }
+type packageReadinessFixtureQuery struct {
+	catalogFixtureCommands
+	clock func() time.Time
+}
 
 func (f packageReadinessFixtureQuery) Report(ctx context.Context, actor domain.Actor, release string) (packagedomain.ReleaseReadinessReport, error) {
-	value, err := f.commandLedger(ctx).ReleaseReadinessReport(ctx, actor, release)
-	return readinessFixtureReportModel(value), err
+	query, err := packagequery.NewReleaseReadinessReport(f, f.now)
+	if err != nil {
+		return packagedomain.ReleaseReadinessReport{}, err
+	}
+	return query.Report(ctx, actor, release)
 }
 
 func readinessFixtureReportModel(value domain.ReleaseReadinessReport) packagedomain.ReleaseReadinessReport {
@@ -156,8 +163,9 @@ func (s *Server) bindPackageFixturePorts(ledger *app.Ledger) {
 	if _, fixture := s.htmlReportCommands.(packageFixtureCommands); s.htmlReportCommands == nil || fixture {
 		s.htmlReportCommands = commands
 	}
-	if _, fixture := s.releaseReadinessReportQuery.(packageReadinessFixtureQuery); s.releaseReadinessReportQuery == nil || fixture {
-		s.releaseReadinessReportQuery = packageReadinessFixtureQuery{catalogFixtureCommands{ledger: ledger}}
+	if query, fixture := s.releaseReadinessReportQuery.(packageReadinessFixtureQuery); s.releaseReadinessReportQuery == nil || fixture {
+		query.catalogFixtureCommands = catalogFixtureCommands{ledger: ledger}
+		s.releaseReadinessReportQuery = query
 	}
 }
 

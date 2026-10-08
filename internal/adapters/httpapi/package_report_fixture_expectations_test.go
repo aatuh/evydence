@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/domain"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
+	packagedomain "github.com/aatuh/evydence/internal/package/domain"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 func assertPackageReportFixtureResponse(t *testing.T, path, want, got string) {
@@ -19,6 +22,25 @@ func assertPackageReportFixtureResponse(t *testing.T, path, want, got string) {
 	if a.Decode(&left) != nil || b.Decode(&right) != nil || !reflect.DeepEqual(left, right) {
 		t.Fatalf("report %s changed complete JSON response\nwant: %s\ngot: %s", path, want, got)
 	}
+}
+
+// Fixed fixture inputs establish these facts independently of the repository
+// query. Canonical pure interpretation/rendering is tested in its own packages.
+func expectedPackageFixtureReadiness(f packageReportFixtureScope) (domain.ReleaseReadinessReport, error) {
+	facts := riskdomain.ReadinessSnapshot{SnapshotVersion: riskdomain.ReadinessSnapshotVersion, TenantID: f.actor.TenantID, ProductID: f.product.ID, ReleaseID: f.release.ID, HasVulnerabilityScan: true, HasVerifiedSignedBundle: true}
+	evaluation, err := riskdomain.EvaluateReadinessSnapshot(facts, f.release.CreatedAt)
+	if err != nil {
+		return domain.ReleaseReadinessReport{}, err
+	}
+	checks := make([]packagedomain.PolicyCheckSnapshot, 0, len(evaluation.Checks))
+	for _, check := range evaluation.Checks {
+		checks = append(checks, packagedomain.PolicyCheckSnapshot{Name: check.Name, Result: check.Result, Severity: check.Severity, Missing: check.Missing, Explanation: check.Explanation, Remediation: check.Remediation})
+	}
+	value, err := packageapp.RenderReleaseReadinessReport(packageapp.ReadinessReportSnapshot{SnapshotVersion: packageapp.ReadinessReportSnapshotVersion, TenantID: f.actor.TenantID, ProductID: f.product.ID, ReleaseID: f.release.ID, Result: evaluation.Result, PolicySet: evaluation.PolicySet, Checks: checks, AcceptedExceptions: []packagedomain.AcceptedExceptionSnapshot{packagedomain.AcceptedExceptionSnapshot(f.exception)}, ActiveDecisionCount: 1}, f.release.CreatedAt)
+	if err != nil {
+		return domain.ReleaseReadinessReport{}, err
+	}
+	return releaseReadinessReportFromQuery(value), nil
 }
 
 // These independent public DTOs derive from known fixture inputs and returned

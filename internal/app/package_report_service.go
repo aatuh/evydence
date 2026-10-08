@@ -7,11 +7,6 @@ import (
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 )
 
-func (l *Ledger) ReleaseReadinessReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseReadinessReport, error) {
-	value, err := l.packageCommands.ReleaseReadinessReport(ctx, actor, releaseID)
-	return releaseReadinessReportFromPackageContext(value), fromPackageContextError(err)
-}
-
 func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseBundle, error) {
 	value, err := l.packageCommands.CreateReleaseBundle(ctx, actor, releaseID)
 	return domain.ReleaseBundleFromContextModel(value), fromPackageContextError(err)

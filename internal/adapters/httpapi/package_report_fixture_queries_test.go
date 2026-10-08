@@ -9,6 +9,7 @@ import (
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
+	riskquery "github.com/aatuh/evydence/internal/risk/query"
 )
 
 // Historical report fixtures retain actual former owned read/grant rules and
@@ -26,7 +27,10 @@ type packageUpdateFixture struct {
 	clock func() time.Time
 }
 type packageBundleReadFixture struct{ catalogFixtureCommands }
-type packageMissingFixture struct{ catalogFixtureCommands }
+type packageMissingFixture struct {
+	catalogFixtureCommands
+	clock func() time.Time
+}
 
 func (f packageCoverageFixture) Coverage(ctx context.Context, a domain.Actor, filter packagequery.ControlCoverageFilter) (packagedomain.ControlCoverageReport, error) {
 	query, err := packagequery.NewControlCoverageReport(f, f.now)
@@ -64,19 +68,14 @@ func (f packageBundleReadFixture) GetReleaseBundle(ctx context.Context, a domain
 	return domain.ReleaseBundleToContextModel(v)
 }
 
-// The retired missing-evidence GET called a write-producing evaluation. Use
-// real fixture authority plus a read-only readiness report instead, then the
-// same pure Package renderer used by the supported PostgreSQL query.
+// Compose the actual read-only Risk query and the native Package renderer.
+// Neither authorization nor evaluation consults aggregate report caches.
 func (f packageMissingFixture) Preview(ctx context.Context, a domain.Actor, id string) (riskdomain.PolicyEvaluation, error) {
-	if err := riskCommandFixture(f).AuthorizeEvaluateRelease(ctx, a, id); err != nil {
-		return riskdomain.PolicyEvaluation{}, err
-	}
-	reader := domain.Actor{TenantID: a.TenantID, KeyID: "fixture-owned-readiness-reader", Scopes: []string{"verify:read"}}
-	v, err := f.commandLedger(ctx).ReleaseReadinessReport(ctx, reader, id)
+	query, err := riskquery.NewReleaseReadinessQuery(f, f.now)
 	if err != nil {
 		return riskdomain.PolicyEvaluation{}, err
 	}
-	return policyEvaluationFixtureModel(domain.PolicyEvaluation{TenantID: a.TenantID, ReleaseID: id, Result: v.Result, PolicySet: v.PolicySet, Checks: v.Checks, CreatedAt: v.GeneratedAt}), nil
+	return query.Preview(ctx, a, id)
 }
 func (f packageMissingFixture) Report(ctx context.Context, a domain.Actor, id string) (map[string]any, error) {
 	renderer, err := packagequery.NewMissingEvidenceReport(f)
@@ -102,8 +101,9 @@ func (s *Server) bindPackageReportFixtureQueries(ledger *app.Ledger) {
 	if _, fixture := s.releaseBundleQuery.(packageBundleReadFixture); s.releaseBundleQuery == nil || fixture {
 		s.releaseBundleQuery = packageBundleReadFixture{f}
 	}
-	if _, fixture := s.missingEvidenceQuery.(packageMissingFixture); s.missingEvidenceQuery == nil || fixture {
-		s.missingEvidenceQuery = packageMissingFixture{f}
+	if query, fixture := s.missingEvidenceQuery.(packageMissingFixture); s.missingEvidenceQuery == nil || fixture {
+		query.catalogFixtureCommands = f
+		s.missingEvidenceQuery = query
 	}
 }
 

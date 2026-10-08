@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -1305,10 +1306,7 @@ func (r memoryEvidenceRepository) InsertSBOM(ctx context.Context, sbom domain.SB
 }
 
 func (r memoryEvidenceRepository) InsertVulnerabilityScan(ctx context.Context, scan domain.VulnerabilityScan) error {
-	cloned, err := cloneMemoryJSON(scan)
-	if err != nil {
-		return err
-	}
+	cloned := cloneMemoryVulnerabilityScan(scan)
 	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
@@ -4022,8 +4020,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.SBOMs, err = cloneMemoryMap(snapshot.SBOMs); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
-	if cloned.VulnerabilityScans, err = cloneMemoryMap(snapshot.VulnerabilityScans); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.VulnerabilityScans = make(map[string]domain.VulnerabilityScan, len(snapshot.VulnerabilityScans))
+	for id, scan := range snapshot.VulnerabilityScans {
+		cloned.VulnerabilityScans[id] = cloneMemoryVulnerabilityScan(scan)
 	}
 	if cloned.OpenAPIContracts, err = cloneMemoryMap(snapshot.OpenAPIContracts); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
@@ -4263,6 +4262,14 @@ func cloneMemoryAnomalyReport(v domain.AnomalyReport) domain.AnomalyReport {
 	v.Signals = slices.Clone(v.Signals)
 	v.Assumptions = slices.Clone(v.Assumptions)
 	v.Limitations = slices.Clone(v.Limitations)
+	return v
+}
+
+// A completed empty findings array is not an unfinished parser projection.
+// The legacy JSON tag omits it, so repository copies must preserve it directly.
+func cloneMemoryVulnerabilityScan(v domain.VulnerabilityScan) domain.VulnerabilityScan {
+	v.Findings = slices.Clone(v.Findings)
+	v.Summary = maps.Clone(v.Summary)
 	return v
 }
 

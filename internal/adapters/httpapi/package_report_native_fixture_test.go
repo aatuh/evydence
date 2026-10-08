@@ -110,6 +110,14 @@ func (s *Server) bindPackageReportFixtureClock(clock func() time.Time) {
 		f.clock = clock
 		s.securityUpdateEvidenceQuery = f
 	}
+	if f, ok := s.releaseReadinessReportQuery.(packageReadinessFixtureQuery); ok {
+		f.clock = clock
+		s.releaseReadinessReportQuery = f
+	}
+	if f, ok := s.missingEvidenceQuery.(packageMissingFixture); ok {
+		f.clock = clock
+		s.missingEvidenceQuery = f
+	}
 }
 
 var (
