@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
@@ -78,126 +77,18 @@ func (r memoryFutureExtensionsRepository) ReadAnomalyReleaseFacts(ctx context.Co
 		if err != nil {
 			return err
 		}
-		product := scope.Resources.ProductID
-		digests := map[string]bool{}
-		for id := range state.Evidence {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			e, ok := memoryAnomalyEvidence(state, tenant, product, release, id)
-			if !ok {
-				continue
-			}
-			for _, ref := range e.SubjectRefs {
-				if ref.Type != "artifact" {
-					continue
-				}
-				a, ok := state.Artifacts[ref.ID]
-				if ok && a.ID == ref.ID && a.TenantID == tenant && validDigest(a.Digest) {
-					digests[a.Digest] = true
-				}
-			}
+		facts, err := readMemoryReadinessFacts(ctx, state, tenant, scope.Resources.ProductID, release, at)
+		if err != nil {
+			return err
 		}
-		out = experimentalapp.AnomalyReleaseFacts{TenantID: tenant, ReleaseID: release}
-		for id := range state.BuildRuns {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			b, ok := memoryAnomalyBuild(state, tenant, product, release, id)
-			if !ok || b.Status != "passed" {
-				continue
-			}
-			for _, output := range b.Outputs {
-				if digests[output.Digest] {
-					out.HasPassedBuild = true
-				}
-			}
-		}
-		for id, a := range state.BuildAttestations {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if a.ID != id || a.TenantID != tenant || len(a.SubjectDigests) > 4096 {
-				continue
-			}
-			b, ok := memoryAnomalyBuild(state, tenant, product, release, a.BuildID)
-			if !ok {
-				continue
-			}
-			e, ok := memoryAnomalyEvidence(state, tenant, product, release, a.EvidenceID)
-			if !ok || e.Type != "build_attestation" || e.ProductID != product || e.ProjectID != b.ProjectID || e.BuildID != b.ID || e.DeploymentID != "" || e.PayloadHash != a.PayloadHash || e.PayloadSize != a.PayloadSize || e.PayloadRef != a.PayloadRef {
-				continue
-			}
-			linked := false
-			for _, digest := range a.SubjectDigests {
-				linked = linked || digests[digest]
-			}
-			if !linked {
-				continue
-			}
-			for key, v := range state.VerificationResults {
-				if v.ID == key && v.TenantID == tenant && v.SubjectType == "build_attestation" && v.SubjectID == a.ID && v.Result == "passed" && v.Profile.ID == domain.VerificationProfileDSSEAttestationSignature && v.SchemaVersion == domain.VerificationResultSchemaVersion {
-					out.HasVerifiedBuildAttestation = true
-					break
-				}
-			}
-		}
-		scans := map[string][]domain.VulnerabilityFinding{}
-		for id, v := range state.VulnerabilityScans {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if v.ID != id || v.TenantID != tenant || v.ReleaseID != release {
-				continue
-			}
-			e, ok := memoryAnomalyEvidence(state, tenant, product, release, v.EvidenceID)
-			if !ok || e.Type != "vulnerability_scan" {
-				continue
-			}
-			if v.Findings == nil {
-				return ErrValidation
-			}
-			for _, f := range v.Findings {
-				if strings.TrimSpace(f.ID) == "" || strings.TrimSpace(f.Severity) == "" {
-					return ErrValidation
-				}
-			}
-			scans[id] = v.Findings
-		}
-		for scan, findings := range scans {
-			counts := map[string]int{}
-			for _, f := range findings {
-				counts[f.ID]++
-			}
-			for _, f := range findings {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-				status := strings.ToLower(f.State)
-				if strings.ToLower(f.Severity) != "critical" || status != "" && status != "open" {
-					continue
-				}
-				handled := false
-				for key, d := range state.Decisions {
-					if d.ID == key && d.TenantID == tenant && d.ReleaseID == release && d.ScanID == scan && d.FindingID == f.ID && d.Vulnerability == f.Vulnerability && d.Component == f.Component && d.SupersededBy == "" && counts[f.ID] == 1 && (d.Status == "fixed" || d.Status == "not_affected") {
-						handled = true
-						break
-					}
-				}
-				if !handled {
-					handled = memoryAnomalyException(state, tenant, release, f.ID, at, scans)
-				}
-				out.UnhandledCritical = out.UnhandledCritical || !handled
-			}
-		}
-		return ctx.Err()
+		out = experimentalapp.AnomalyReleaseFacts{TenantID: tenant, ReleaseID: release, HasPassedBuild: facts.HasPassedBuild, HasVerifiedBuildAttestation: facts.HasVerifiedBuildAttestation, UnhandledCritical: facts.UnhandledCritical}
+		return nil
 	})
 	if err != nil {
 		return experimentalapp.AnomalyReleaseFacts{}, err
 	}
 	return out, nil
 }
-
 func memoryAnomalyException(state *MemoryUnitOfWorkSnapshot, tenant, release, finding string, at time.Time, scans map[string][]domain.VulnerabilityFinding) bool {
 	for id, x := range state.Exceptions {
 		if x.ID != id || x.TenantID != tenant || x.ReleaseID != release || !x.Approved || !x.ExpiresAt.After(at) || x.FindingID != "" && x.FindingID != finding {

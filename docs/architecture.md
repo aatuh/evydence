@@ -1506,6 +1506,22 @@ regressions. No repository failure falls back to a cache. Historical synchronous
 ingestion fixtures still call the Ledger artifact facade, so its physical
 retirement remains open; this unit does not remove that production declaration.
 These memory models do not prove SQL transfer/work budgets or row locks.
+The Risk memory adapter now supplies the existing focused release-readiness
+query port, plus an explicit-time fact read for deterministic fixture evaluation.
+Readiness and anomaly projections share current owned-source, registered-digest,
+build/attestation-receipt and finding-handling predicates rather than Ledger
+state. Readiness returns only policy facts and detached, sorted identifier lists;
+the combined lists retain the SQL model's 4,096-ID/manifest-byte budgets. Package
+checks require current product ownership, explicit redaction and expiry. Bundle
+trust checks bind tenant, subject, algorithm, public key and historical validity,
+with the existing 256-candidate/selected-value budgets; key private bytes and
+bundle manifests are not part of that selected proof. Focused policy preview,
+grant removal, false/foreign trust, ambiguous findings, expiry, boundary budgets,
+signature scope/lifecycle, cancellation and read-purity have regressions. This is
+the missing test-backend dependency for migrating the remaining readiness and
+release-summary fixture callers, not deletion of those Ledger declarations.
+Memory still clones whole transaction snapshots and does not prove PostgreSQL
+transfer/work budgets, repeatable-read semantics or durability.
 The 32-caller HTTP idempotency fixture now uses native credential authentication
 and records actual credential-use writes. Its memory transaction admission is
 serialized to avoid optimistic whole-snapshot conflicts; HTTP callers remain
