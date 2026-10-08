@@ -153,17 +153,30 @@ Package ports. Their five aggregate fallback paths are deleted. Native guards,
 structured decoders, durable replay and public DTOs are unchanged. Test-only
 guards run the actual focused authorization algorithms on transaction-owned
 tenant/policy/release/finding references; policy-rule/evidence-content reads,
-effects, hashes, clocks and IDs fail loudly during preflight. Historical writes
-retain isolated replay clones. Three full-state rollback/replay regressions
+effects, hashes, clocks and IDs fail loudly during preflight. Fresh Risk writes
+now compose the actual focused services on transaction-owned repositories, with
+explicit clocks/IDs retained across rebinding. The historical replay executor
+still supplies its isolated command context. Three full-state rollback/replay regressions
 cover current human grants and foreign parents; report checks cover all public
 fields, tenant/grant filtering, private-note omission, cancellation and detached
 metadata. The historical custom-policy commands now attribute human audits
-correctly, matching existing native behavior. Fixture ownership and inventory
+correctly, matching existing native behavior; these commands, their two aggregate
+input types and the rule-evaluation helper now compile only as unchanged
+package-local test oracles. Independent complete-row, actor/audit, normalized-hash
+and explicit-resource checks protect fresh writes. Fixture ownership and inventory
 checks are not evidence of SQL locks or bounded production reads.
 The memory Risk repository now has a focused identifier-only workflow reader:
 it validates current typed source/parents and ambiguity, preserves a scan's
 declared release-less state, and ignores vulnerability text and old reasons.
 It uses the transaction snapshot, not Ledger maps or PostgreSQL locks.
+The memory Risk adapter also supplies current tenant/policy/release ownership,
+detached selected policy definitions and at most 19 requested evidence-presence
+facts. Rules retain the 4,096-item/8 MiB JSON budgets and public text limits;
+facts require coherent owned product/project/release parents, without loading
+private evidence content. Oversized definitions cannot widen identifier-only
+replay guards. These typed memory projections do not model arbitrary SQL JSON
+shape errors, row locks, transfer/work bounds or durability. Other aggregate
+state and production declarations still require retirement in EVY-906.
 
 Evidence list/search and point reads, lifecycle pages, SBOM documents/components,
 scan/contract points, VEX documents/reports and both VEX previews also require

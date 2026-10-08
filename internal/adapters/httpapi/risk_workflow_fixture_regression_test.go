@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -50,7 +51,9 @@ func seedRiskWorkflowFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 	t.Helper()
 	f := riskWorkflowFixtureScope{riskQueryFixtureScope: seedRiskQueryFixtureScope(t, ledger, name)}
 	var err error
-	f.policy, err = ledger.CreateCustomPolicy(t.Context(), f.actor, app.CreateCustomPolicyInput{Name: "Fixture policy", Version: "1", Description: "Recorded requirements", Rules: []domain.PolicyRule{{Name: "SBOM required", EvidenceType: "sbom", Severity: "high", Required: true}, {Name: "Build optional", EvidenceType: "build", Severity: "low", Required: false}}})
+	commands := riskWorkflowFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.release.CreatedAt })}
+	policy, err := commands.CreateCustomPolicy(t.Context(), f.actor, riskapp.CreateCustomPolicyInput{Name: "Fixture policy", Version: "1", Description: "Recorded requirements", Rules: []riskdomain.PolicyRule{{Name: "SBOM required", EvidenceType: "sbom", Severity: "high", Required: true}, {Name: "Build optional", EvidenceType: "build", Severity: "low", Required: false}}})
+	f.policy = domain.CustomPolicyFromContext(policy)
 	if err != nil {
 		t.Fatal("seed policy:", err)
 	}
@@ -77,7 +80,7 @@ func TestRiskWorkflowFixturesRollbackPolicyEvaluationWorkflowAuditAndReplay(t *t
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
-			commands := &failingRiskWorkflowFixture{riskWorkflowFixtureCommands: riskWorkflowFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingRiskWorkflowFixture{riskWorkflowFixtureCommands: riskWorkflowFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.customPolicyCommands, server.vulnerabilityWorkflowCommands = commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -145,7 +148,7 @@ func TestRiskWorkflowFixturesReplayRechecksCurrentHumanGrantsAndForeignParents(t
 			}
 		})
 	}
-	guard := riskWorkflowFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	guard := riskWorkflowFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	before, err := factory.Snapshot()
 	if err != nil {
 		t.Fatal(err)

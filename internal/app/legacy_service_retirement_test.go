@@ -122,6 +122,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ReleaseEvidenceFlowPlan":    true,
 		"ReleaseSecuritySummary":     true,
 		"VulnerabilityPostureReport": true,
+		"CreateCustomPolicy":         true, "EvaluateCustomPolicy": true,
+		"RecordVulnerabilityWorkflow": true, "evaluatePolicyRuleLocked": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -143,6 +145,9 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 			case *ast.TypeSpec:
 				if value.Name.Name == "sourceSnapshot" {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
+				}
+				if value.Name.Name == "CreateCustomPolicyInput" || value.Name.Name == "RecordVulnerabilityWorkflowInput" {
+					t.Errorf("%s retains retired Risk aggregate input %s", name, value.Name.Name)
 				}
 			case *ast.FuncDecl:
 				if retiredSummaryHelpers[value.Name.Name] {

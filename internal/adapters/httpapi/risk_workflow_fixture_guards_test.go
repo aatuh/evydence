@@ -92,10 +92,10 @@ func riskWorkflowFixtureGuardClock() time.Time { panic("Risk replay guard read c
 func riskWorkflowFixtureGuardID(string) string { panic("Risk replay guard allocated ID") }
 
 func (f riskWorkflowFixtureCommands) policyGuard() (*riskapp.CustomPolicyCommands, error) {
-	return riskapp.NewCustomPolicyCommands(riskapp.CustomPolicyCommandConfig{Authorizer: riskapp.NewCustomPolicyAuthorizer(), Transactions: riskWorkflowFixtureTransactions(f), Hasher: riskWorkflowFixtureGuard{}, Clock: application.ClockFunc(riskWorkflowFixtureGuardClock), IDs: application.IDGeneratorFunc(riskWorkflowFixtureGuardID)})
+	return riskapp.NewCustomPolicyCommands(riskapp.CustomPolicyCommandConfig{Authorizer: riskapp.NewCustomPolicyAuthorizer(), Transactions: riskWorkflowFixtureTransactions{f.catalogFixtureCommands}, Hasher: riskWorkflowFixtureGuard{}, Clock: application.ClockFunc(riskWorkflowFixtureGuardClock), IDs: application.IDGeneratorFunc(riskWorkflowFixtureGuardID)})
 }
 func (f riskWorkflowFixtureCommands) workflowGuard() (*riskapp.VulnerabilityWorkflowCommands, error) {
-	return riskapp.NewVulnerabilityWorkflowCommands(riskapp.VulnerabilityWorkflowCommandConfig{Authorizer: riskapp.NewVulnerabilityWorkflowWriteAuthorizer(), Transactions: riskWorkflowFixtureTransactions(f), Clock: application.ClockFunc(riskWorkflowFixtureGuardClock), IDs: application.IDGeneratorFunc(riskWorkflowFixtureGuardID)})
+	return riskapp.NewVulnerabilityWorkflowCommands(riskapp.VulnerabilityWorkflowCommandConfig{Authorizer: riskapp.NewVulnerabilityWorkflowWriteAuthorizer(), Transactions: riskWorkflowFixtureTransactions{f.catalogFixtureCommands}, Clock: application.ClockFunc(riskWorkflowFixtureGuardClock), IDs: application.IDGeneratorFunc(riskWorkflowFixtureGuardID)})
 }
 func (f riskWorkflowFixtureCommands) AuthorizeCreateCustomPolicy(ctx context.Context, a domain.Actor, in riskapp.CreateCustomPolicyInput) error {
 	g, err := f.policyGuard()
