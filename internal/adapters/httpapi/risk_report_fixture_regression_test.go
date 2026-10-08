@@ -6,16 +6,23 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
-func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) riskQueryFixtureScope {
+type riskReportFixtureScope struct {
+	riskQueryFixtureScope
+	scan domain.VulnerabilityScan
+}
+
+func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) riskReportFixtureScope {
 	t.Helper()
-	f := riskQueryFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}
+	f := riskReportFixtureScope{riskQueryFixtureScope: riskQueryFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}}
 	var err error
 	f.release, err = ledger.CreateRelease(t.Context(), f.actor, f.product.ID, "1")
 	if err != nil {
@@ -25,6 +32,7 @@ func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) r
 	if err != nil || len(scan.Findings) != 3 {
 		t.Fatal("seed report scan:", err)
 	}
+	f.scan = scan
 	f.head, err = ledger.CreateVulnerabilityDecision(t.Context(), f.actor, scan.Findings[0].ID, app.CreateVulnerabilityDecisionInput{Status: "affected", Justification: "Reviewed", ImpactStatement: "Under review", ActionStatement: "Patch planned", CustomerVisible: true, InternalNotes: "private triage " + name})
 	if err != nil {
 		t.Fatal("seed report decision:", err)
@@ -32,10 +40,50 @@ func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) r
 	return f
 }
 
+// Independent expected DTO: no aggregate or native summary query supplies it.
+func expectedRiskReportFixtureSummary(f riskReportFixtureScope) domain.ReleaseSecuritySummary {
+	missing := make([]domain.ReleaseSecurityMissingDecision, 0, len(f.scan.Findings))
+	for _, finding := range f.scan.Findings {
+		missing = append(missing, domain.ReleaseSecurityMissingDecision{FindingID: finding.ID, ScanID: f.scan.ID, Vulnerability: finding.Vulnerability, Component: finding.Component, Severity: finding.Severity, State: finding.State})
+	}
+	sort.Slice(missing, func(i, j int) bool {
+		if missing[i].FindingID == missing[j].FindingID {
+			return missing[i].ScanID < missing[j].ScanID
+		}
+		return missing[i].FindingID < missing[j].FindingID
+	})
+	return domain.ReleaseSecuritySummary{
+		Product:    domain.ReleaseSecurityProductSummary{ID: f.product.ID, Name: f.product.Name, Slug: f.product.Slug},
+		Release:    domain.ReleaseSecurityReleaseSummary{ID: f.release.ID, Version: f.release.Version, State: f.release.State},
+		SBOMStatus: "missing", VulnerabilityScanStatus: "present",
+		OpenFindingsBySeverity: map[string]int{"high": 2, "critical": 1}, DecisionsByStatus: map[string]int{"affected": 1},
+		MissingRequiredDecisions: missing, ReadinessStatus: "failed", PackageStatus: "not_generated",
+		Counts: map[string]int{"artifact_refs": 0, "passed_builds": 0, "build_attestations": 0, "sboms": 0, "vulnerability_scans": 1, "vex_documents": 0, "vulnerability_decisions": 1, "release_bundles": 0, "customer_packages": 0},
+		Assumptions: []string{
+			"Summary values are derived only from evidence, decisions, exceptions, approvals, bundles, packages, and build records in this Evydence tenant.",
+			"Open finding counts reflect uploaded scanner evidence and recorded decisions or exceptions; scanner results are not treated as complete or authoritative coverage.",
+		},
+		Limitations: []string{
+			"This summary supports technical review and compliance readiness, not legal compliance conclusions, certification, or release security guarantees.",
+			"Raw SBOM, scanner, VEX, build, and package payload bytes are intentionally excluded from the summary.",
+		},
+		SchemaVersion: domain.ReleaseSecuritySummaryVersion, GeneratedAt: f.release.CreatedAt.UTC(),
+	}
+}
+
 func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetadata(t *testing.T) {
 	ledger, factory := integrationRegressionLedger()
 	owner := seedRiskReportFixtureScope(t, ledger, "Owner")
 	foreign := seedRiskReportFixtureScope(t, ledger, "Foreign")
+	// Commit directly through repositories, without publishing aggregate maps.
+	if err := ledger.ExecuteUnitOfWork(t.Context(), func(ctx context.Context, r app.Repositories) error {
+		if err := r.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{ID: "repository-approval", TenantID: owner.actor.TenantID, SubjectType: "release", SubjectID: owner.release.ID, Decision: "approved", Reason: "private approval reason", ApproverID: owner.actor.KeyID, SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: owner.release.CreatedAt}); err != nil {
+			return err
+		}
+		return r.Decisions.InsertException(ctx, domain.Exception{ID: "repository-exception", TenantID: owner.actor.TenantID, ReleaseID: owner.release.ID, Owner: "security", Reason: "private exception reason", ExpiresAt: owner.release.CreatedAt.Add(time.Hour), CreatedAt: owner.release.CreatedAt})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
@@ -44,9 +92,14 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth
 	reader := riskReportFixture{catalogFixtureCommands{ledger: ledger}}
-	wantSummary, err := ledger.ReleaseSecuritySummary(t.Context(), human, owner.release.ID)
-	if err != nil || len(wantSummary.MissingRequiredDecisions) == 0 {
-		t.Fatal("summary lacks meaningful missing-decision data", err)
+	clock := &evidenceFlowFixtureClock{at: owner.release.CreatedAt}
+	server.bindReleaseSummaryFixtureClock(clock.Now)
+	summaryReader := server.releaseSecuritySummaryQuery.(releaseSummaryNativeFixture)
+	wantSummary := expectedRiskReportFixtureSummary(owner)
+	wantSummary.ApprovalSummary = domain.ReleaseSecurityApprovalSummary{Total: 1, Approved: 1}
+	wantSummary.ExceptionSummary = domain.ReleaseSecurityExceptionSummary{Total: 1, Unapproved: 1}
+	if len(wantSummary.MissingRequiredDecisions) != 3 {
+		t.Fatal("summary lacks meaningful missing-decision data")
 	}
 	wantPosture, err := ledger.VulnerabilityPostureReport(t.Context(), human, owner.release.ID)
 	if err != nil || wantPosture.OpenCritical != 1 || wantPosture.Summary["high"] != 2 || wantPosture.Summary["critical"] != 1 {
@@ -68,7 +121,7 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 			t.Fatal(err)
 		}
 		assertTrustHTTPReplay(t, string(want), out.Body.String())
-		for _, private := range []string{"private triage", "internal_notes", foreign.product.ID, foreign.release.ID} {
+		for _, private := range []string{"private triage", "internal_notes", "private approval reason", "private exception reason", foreign.product.ID, foreign.release.ID} {
 			if strings.Contains(out.Body.String(), private) {
 				t.Fatal("Risk report exposed private or foreign metadata", private)
 			}
@@ -92,7 +145,7 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	if err := json.Unmarshal(out.Body.Bytes(), &all); err != nil || all.Data.ReleaseID != "" || all.Data.OpenCritical != 1 || all.Data.Summary["high"] != 2 || all.Data.Summary["critical"] != 1 {
 		t.Fatal("tenant-wide posture included foreign findings or lost filters", err)
 	}
-	projectedSummary, err := reader.Summary(t.Context(), human, owner.release.ID)
+	projectedSummary, err := summaryReader.Summary(t.Context(), human, owner.release.ID)
 	if err != nil || !reflect.DeepEqual(releaseSecuritySummaryFromQuery(projectedSummary), wantSummary) {
 		t.Fatal("summary fixture mapper lost public fields", err)
 	}
@@ -109,8 +162,8 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	}
 	projectedPosture.Summary["critical"] = -1
 	projectedPosture.Assumptions[0], projectedPosture.Limitations[0] = "modified", "modified"
-	againSummary, err := ledger.ReleaseSecuritySummary(t.Context(), human, owner.release.ID)
-	if err != nil || !reflect.DeepEqual(againSummary, wantSummary) {
+	againSummary, err := summaryReader.Summary(t.Context(), human, owner.release.ID)
+	if err != nil || !reflect.DeepEqual(releaseSecuritySummaryFromQuery(againSummary), wantSummary) {
 		t.Fatal("summary fixture exposed stored aliases", err)
 	}
 	againPosture, err := ledger.VulnerabilityPostureReport(t.Context(), human, owner.release.ID)
@@ -119,11 +172,22 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := reader.Summary(cancelled, human, owner.release.ID); !errors.Is(err, context.Canceled) {
+	if _, err := summaryReader.Summary(cancelled, human, owner.release.ID); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled summary accepted", err)
 	}
 	if _, err := reader.Report(cancelled, human, owner.release.ID); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled posture accepted", err)
+	}
+	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { panic("summary consulted aggregate clock") }})
+	server.bindLegacyLedgerFixture(rebound)
+	server.authn = auth
+	clock.at = owner.release.CreatedAt.Add(2 * time.Hour)
+	calls := clock.calls
+	result, err := server.releaseSecuritySummaryQuery.Summary(t.Context(), human, owner.release.ID)
+	wantSummary.ExceptionSummary = domain.ReleaseSecurityExceptionSummary{Total: 1, Expired: 1}
+	wantSummary.GeneratedAt = clock.at.UTC()
+	if err != nil || !reflect.DeepEqual(releaseSecuritySummaryFromQuery(result), wantSummary) || clock.calls != calls+2 {
+		t.Fatal("rebind lost live explicit snapshot/evaluation clock or current rows", result, err)
 	}
 	after, err := factory.Snapshot()
 	if err != nil || !reflect.DeepEqual(before, after) {

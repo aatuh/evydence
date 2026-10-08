@@ -1,5 +1,8 @@
 package app
 
+// Unchanged historical report behavior is a package-local test oracle only.
+// HTTP fixtures compose the focused Risk query against repository-owned facts.
+
 import (
 	"context"
 	"strings"

@@ -122,16 +122,7 @@ func readMemoryReadinessFacts(ctx context.Context, state *MemoryUnitOfWorkSnapsh
 				if severity != "critical" && severity != "high" || status != "" && status != "open" {
 					continue
 				}
-				handled := false
-				for key, d := range state.Decisions {
-					if d.ID == key && d.TenantID == tenant && d.ReleaseID == release && d.ScanID == scan && d.FindingID == f.ID && d.Vulnerability == f.Vulnerability && d.Component == f.Component && d.SupersededBy == "" && counts[f.ID] == 1 && (d.Status == "fixed" || d.Status == "not_affected") {
-						handled = true
-						break
-					}
-				}
-				if !handled {
-					handled = memoryAnomalyException(state, tenant, release, f.ID, at, scans)
-				}
+				handled := memoryReleaseFindingHandled(state, tenant, release, scan, f, counts[f.ID], at, scans)
 				if severity == "critical" {
 					out.UnhandledCritical = out.UnhandledCritical || !handled
 				} else {

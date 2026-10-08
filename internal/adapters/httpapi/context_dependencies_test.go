@@ -217,7 +217,10 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 			t.Fatalf("focused %s fixture command was not rebound", name)
 		}
 	}
-	for name, dependency := range map[string]any{"release-security-summary": server.releaseSecuritySummaryQuery, "vulnerability-posture": server.vulnerabilityPostureQuery} {
+	if reader, ok := server.releaseSecuritySummaryQuery.(releaseSummaryNativeFixture); !ok || reader.ledger != ledger {
+		t.Fatal("focused release-security-summary fixture query was not rebound")
+	}
+	for name, dependency := range map[string]any{"vulnerability-posture": server.vulnerabilityPostureQuery} {
 		reader, ok := dependency.(riskReportFixture)
 		if !ok || reader.ledger != ledger {
 			t.Fatalf("focused %s fixture query was not rebound", name)

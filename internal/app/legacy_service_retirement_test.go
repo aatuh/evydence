@@ -98,6 +98,13 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 }
 
 func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
+	retiredSummaryHelpers := map[string]bool{
+		"releaseEvidenceFlowCountsLocked":            true,
+		"releaseSecurityFindingDecisionCountsLocked": true,
+		"releaseSecurityApprovalSummaryLocked":       true,
+		"releaseSecurityExceptionSummaryLocked":      true,
+		"presentMissingStatus":                       true,
+	}
 	retired := map[string]bool{
 		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
 		"SearchEvidence": true, "UploadAPISecurityScan": true,
@@ -113,6 +120,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListProducts": true, "GetProject": true,
 		"GetBuildRun": true, "GetReleaseCandidate": true, "ListReleaseCandidates": true,
 		"ReleaseEvidenceFlowPlan": true,
+		"ReleaseSecuritySummary":  true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -136,6 +144,9 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}
 			case *ast.FuncDecl:
+				if retiredSummaryHelpers[value.Name.Name] {
+					t.Errorf("%s retains retired aggregate summary helper %s", name, value.Name.Name)
+				}
 				if !retired[value.Name.Name] || value.Recv == nil || len(value.Recv.List) != 1 {
 					break
 				}

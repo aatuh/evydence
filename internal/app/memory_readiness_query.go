@@ -29,6 +29,26 @@ func (r memoryDecisionRepository) ReadReleaseReadinessSnapshotAt(ctx context.Con
 	}
 	var out riskapp.ReadinessSnapshot
 	err := memoryGovernanceRead(ctx, r.uow, tenant, release, func(s *MemoryUnitOfWorkSnapshot) error {
+		var err error
+		out, err = readMemoryReadinessSnapshot(ctx, s, tenant, release, at)
+		return err
+	})
+	if errors.Is(err, ErrNotFound) {
+		err = riskapp.ErrNotFound
+	}
+	if errors.Is(err, ErrValidation) {
+		err = riskapp.ErrValidation
+	}
+	if err != nil {
+		return riskapp.ReadinessSnapshot{}, err
+	}
+	return out, nil
+}
+
+// Shared by report readers while holding the same transaction snapshot lock.
+func readMemoryReadinessSnapshot(ctx context.Context, s *MemoryUnitOfWorkSnapshot, tenant, release string, at time.Time) (riskapp.ReadinessSnapshot, error) {
+	var out riskapp.ReadinessSnapshot
+	err := func() error {
 		root, err := memoryOperationsCoordinates(s, tenant, application.ResourceReferences{ReleaseID: release})
 		if err != nil {
 			return err
@@ -108,13 +128,7 @@ func (r memoryDecisionRepository) ReadReleaseReadinessSnapshotAt(ctx context.Con
 		}
 		out.HasVerifiedSignedBundle, err = memoryReadinessSignedBundle(ctx, s, tenant, release, at)
 		return err
-	})
-	if errors.Is(err, ErrNotFound) {
-		err = riskapp.ErrNotFound
-	}
-	if errors.Is(err, ErrValidation) {
-		err = riskapp.ErrValidation
-	}
+	}()
 	if err != nil {
 		return riskapp.ReadinessSnapshot{}, err
 	}

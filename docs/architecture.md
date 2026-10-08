@@ -1489,9 +1489,8 @@ across rebinding. The nine scalar categories match the existing SQL vocabulary,
 including deduplicated SBOM/VEX/build artifact references, current decisions,
 and same-tenant attestation/build joins. Reads reserve no replay record; denied,
 cancelled or failed-commit reads return no plan and do not consult the plan clock.
-Its Ledger plan method is now an unchanged test-only oracle. The old aggregate
-count helper still serves the remaining release-security-summary facade;
-other aggregate surfaces remain EVY-906 work. Memory
+Its Ledger plan method and the old aggregate count helper now exist only as
+unchanged test-only oracles; other aggregate surfaces remain EVY-906 work. Memory
 count scans still do not establish SQL transfer/work bounds or durability.
 Artifact HTTP fixtures now also compose the actual focused query on current
 owned artifact points and association visibility. Repository-backed ingestion
@@ -1517,11 +1516,22 @@ trust checks bind tenant, subject, algorithm, public key and historical validity
 with the existing 256-candidate/selected-value budgets; key private bytes and
 bundle manifests are not part of that selected proof. Focused policy preview,
 grant removal, false/foreign trust, ambiguous findings, expiry, boundary budgets,
-signature scope/lifecycle, cancellation and read-purity have regressions. This is
-the missing test-backend dependency for migrating the remaining readiness and
-release-summary fixture callers, not deletion of those Ledger declarations.
+signature scope/lifecycle, cancellation and read-purity have regressions. The
+remaining Ledger readiness facade still requires physical retirement.
 Memory still clones whole transaction snapshots and does not prove PostgreSQL
 transfer/work budgets, repeatable-read semantics or durability.
+Release-security-summary HTTP fixtures now compose the focused Risk query with
+one transaction-owned memory view and an explicit snapshot/evaluation clock
+retained across rebinding. Readiness facts, nine scalar counts, approvals,
+exceptions and public finding metadata share that view; no aggregate report or
+cache fallback remains. Selected values retain the native SQL reader's 32-group,
+64-byte group-key, 1 KiB public-text and 4,096-missing-finding limits, rejecting
+overflow without partial results. Independent complete-DTO, repository-only-row,
+current-grant, privacy, expiry, mutation-detachment, cancellation and failed-commit
+regressions protect the contract. The release-summary facade and its five
+aggregate helpers now compile only as unchanged package-local test oracles.
+These fixtures do not establish PostgreSQL durability or complete Ledger
+retirement; aggregate state and other production declarations remain EVY-906 work.
 The 32-caller HTTP idempotency fixture now uses native credential authentication
 and records actual credential-use writes. Its memory transaction admission is
 serialized to avoid optimistic whole-snapshot conflicts; HTTP callers remain
