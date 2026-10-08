@@ -123,7 +123,7 @@ func TestIngestionFixturesRollBackEveryDocumentPayloadAuditJobAndDiffEffect(t *t
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
 			base := catalogFixtureCommands{ledger: ledger}
-			commands := &failingIngestionFixture{ingestionFixtureCommands: ingestionFixtureCommands{base}, diffs: ingestionDiffFixture{base}}
+			commands := &failingIngestionFixture{ingestionFixtureCommands: ingestionFixtureCommands{catalogFixtureCommands: base, repositoryScope: true}, diffs: ingestionDiffFixture{base}}
 			server.sbomIngestionCommands, server.vexIngestionCommands, server.scanIngestionCommands, server.openAPIIngestionCommands, server.securityDocumentCommands, server.sbomDiffCommands, server.contractDiffCommands = commands, commands, commands, commands, commands, commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -163,6 +163,7 @@ func TestIngestionFixturesRecheckCurrentGrantsAndNeverReapplyCompletedEffects(t 
 	if err != nil {
 		t.Fatal(err)
 	}
+	server.bindRepositoryIngestionFixtureScope()
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{app.ScopeEvidenceRead, app.ScopeEvidenceWrite, app.ScopeSecurityWrite}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"*"}}}}
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth

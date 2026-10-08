@@ -170,8 +170,18 @@ func (ingestionFixtureGuardEffects) HashEvidence(context.Context, evidencedomain
 func ingestionFixtureGuardClock() time.Time { panic("ingestion guard read clock") }
 func ingestionFixtureGuardID(string) string { panic("ingestion guard allocated ID") }
 
+type ingestionFixtureReadAuthority interface {
+	commandLedger(context.Context) *app.Ledger
+	authorizer(bool) (application.Authorizer, error)
+	ResolveEvidenceCreationScope(context.Context, string, application.ResourceReferences) (application.ResourceReferences, error)
+	GetArtifactPoint(context.Context, releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error)
+	ValidateScope(context.Context, string, evidenceapp.EvidenceScope) error
+	ValidateArtifactReference(context.Context, string, string, string) error
+	diffSource(context.Context, string, string, string, string, string) (application.ResourceReferences, error)
+}
+
 type ingestionFixtureGuardTransaction struct {
-	ingestionFixtureAuthority
+	ingestionFixtureAuthority ingestionFixtureReadAuthority
 	application.Authorizer
 	ingestionFixtureGuardEffects
 }
@@ -187,49 +197,64 @@ func (t ingestionFixtureGuardTransaction) Authorize(ctx context.Context, actor d
 }
 
 type ingestionFixtureGuardRunner struct {
-	ingestionFixtureAuthority
-	security bool
+	ingestionFixtureAuthority ingestionFixtureReadAuthority
+	security                  bool
 }
 
 func (f ingestionFixtureGuardRunner) transaction() (ingestionFixtureGuardTransaction, error) {
-	authorizer, err := f.authorizer(f.security)
+	authorizer, err := f.ingestionFixtureAuthority.authorizer(f.security)
 	return ingestionFixtureGuardTransaction{ingestionFixtureAuthority: f.ingestionFixtureAuthority, Authorizer: authorizer}, err
 }
 
+func (t ingestionFixtureGuardTransaction) commandLedger(ctx context.Context) *app.Ledger {
+	return t.ingestionFixtureAuthority.commandLedger(ctx)
+}
+func (t ingestionFixtureGuardTransaction) ResolveEvidenceCreationScope(ctx context.Context, tenant string, refs application.ResourceReferences) (application.ResourceReferences, error) {
+	return t.ingestionFixtureAuthority.ResolveEvidenceCreationScope(ctx, tenant, refs)
+}
+func (t ingestionFixtureGuardTransaction) diffSource(ctx context.Context, tenant, id, kind, product, release string) (application.ResourceReferences, error) {
+	return t.ingestionFixtureAuthority.diffSource(ctx, tenant, id, kind, product, release)
+}
+
 func (f ingestionFixtureGuardRunner) ExecuteSBOMIngestion(ctx context.Context, run func(context.Context, evidenceapp.SBOMIngestionTransaction) error) error {
-	tx, err := f.transaction()
-	if err != nil {
-		return err
-	}
-	return run(ctx, tx)
+	return f.execute(ctx, func(ctx context.Context, tx ingestionFixtureGuardTransaction) error { return run(ctx, tx) })
 }
 func (f ingestionFixtureGuardRunner) ExecuteVEXIngestion(ctx context.Context, run func(context.Context, evidenceapp.VEXIngestionTransaction) error) error {
-	tx, err := f.transaction()
-	if err != nil {
-		return err
-	}
-	return run(ctx, tx)
+	return f.execute(ctx, func(ctx context.Context, tx ingestionFixtureGuardTransaction) error { return run(ctx, tx) })
 }
 func (f ingestionFixtureGuardRunner) ExecuteVulnerabilityScanIngestion(ctx context.Context, run func(context.Context, evidenceapp.VulnerabilityScanIngestionTransaction) error) error {
-	tx, err := f.transaction()
-	if err != nil {
-		return err
-	}
-	return run(ctx, tx)
+	return f.execute(ctx, func(ctx context.Context, tx ingestionFixtureGuardTransaction) error { return run(ctx, tx) })
 }
 func (f ingestionFixtureGuardRunner) ExecuteOpenAPIIngestion(ctx context.Context, run func(context.Context, evidenceapp.OpenAPIIngestionTransaction) error) error {
-	tx, err := f.transaction()
-	if err != nil {
-		return err
-	}
-	return run(ctx, tx)
+	return f.execute(ctx, func(ctx context.Context, tx ingestionFixtureGuardTransaction) error { return run(ctx, tx) })
 }
 func (f ingestionFixtureGuardRunner) ExecuteSecurityDocument(ctx context.Context, run func(context.Context, evidenceapp.SecurityDocumentTransaction) error) error {
-	tx, err := f.transaction()
-	if err != nil {
-		return err
+	return f.execute(ctx, func(ctx context.Context, tx ingestionFixtureGuardTransaction) error { return run(ctx, tx) })
+}
+func (f ingestionFixtureGuardRunner) execute(ctx context.Context, run func(context.Context, ingestionFixtureGuardTransaction) error) error {
+	if ctx == nil || run == nil {
+		return app.ErrValidation
 	}
-	return run(ctx, tx)
+	command := func(ctx context.Context) error {
+		tx, err := f.transaction()
+		if err != nil {
+			return err
+		}
+		return run(ctx, tx)
+	}
+	if native, ok := f.ingestionFixtureAuthority.(repositoryIngestionFixtureAuthority); ok {
+		return native.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+			native.repositories = &r
+			bound := f
+			bound.ingestionFixtureAuthority = native
+			tx, err := bound.transaction()
+			if err != nil {
+				return err
+			}
+			return run(ctx, tx)
+		})
+	}
+	return command(ctx)
 }
 
 func fixtureIngestionError(err error) error {

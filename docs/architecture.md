@@ -301,6 +301,21 @@ unchanged. Test-only bridges use actual Risk authorizers and current owned
 coordinates, isolate writes, preserve exact replay and detach recorded checks.
 The existing synchronous VEX import/manual-link assertions remain intact;
 additional repository-fixture coverage exercises links to queued documents.
+Repository-backed ingestion fixtures now resolve product/project/release
+ownership through the actual focused Evidence scope capability, rather than
+catalog DTO/cache reads. Validation and the current grant check share one
+fixture transaction; the reader selects only coherent owned IDs, including
+current tenant existence, and ignores unrelated descriptive/lifecycle fields.
+Explicit repository configuration survives rebinding and does not fall back
+to legacy caches after missing-dependency or commit failure. Six native guard
+regressions cover repository-only parents, removed/foreign grants, no clock/ID
+or write effects, cancellation, one-transaction reads and safe failed preflight.
+Operations, governance and identity repository helpers opt into this scope
+configuration. The memory capability reuses coherent point-coordinate reads;
+it is not PostgreSQL locking, durability or bounded-transfer evidence. Artifact
+and diff fixture reads, historical parser writes and unsupported synchronous
+fixtures retain separate retirement dependencies. This removes guard coupling
+for configured fixtures, not the remaining production Ledger implementation.
 The broad Risk transport surface is gone, but direct context-to-Ledger calls
 and aggregate state still require retirement before EVY-906 can close.
 

@@ -25,6 +25,7 @@ func operationsTestServer(t *testing.T) (*Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	server.bindRepositoryIngestionFixtureScope()
 	return server, secret
 }
 func (f operationsFixtureCommands) CreateIncident(ctx context.Context, a domain.Actor, in operationsapp.CreateIncidentInput) (operationsdomain.Incident, error) {

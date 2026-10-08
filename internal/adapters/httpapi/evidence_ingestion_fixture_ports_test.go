@@ -17,10 +17,17 @@ import (
 // Only test binaries use these command adapters. Native guards run the actual
 // algorithms and authorizers on current fixture parents. Fresh writes retain
 // the real legacy parser/stager and isolated replay transaction, not guard stubs.
-type ingestionFixtureCommands struct{ catalogFixtureCommands }
+type ingestionFixtureCommands struct {
+	catalogFixtureCommands
+	repositoryScope bool
+}
 
-func (f ingestionFixtureCommands) authority() ingestionFixtureAuthority {
-	return ingestionFixtureAuthority(f)
+func (f ingestionFixtureCommands) authority() ingestionFixtureReadAuthority {
+	legacy := ingestionFixtureAuthority{f.catalogFixtureCommands}
+	if f.repositoryScope {
+		return repositoryIngestionFixtureAuthority{ingestionFixtureAuthority: legacy}
+	}
+	return legacy
 }
 
 func (f ingestionFixtureCommands) sbomGuard() (*evidenceapp.SBOMIngestionCommands, error) {
@@ -200,20 +207,35 @@ func (f ingestionFixtureCommands) UploadManualSecurityDocument(ctx context.Conte
 }
 
 func (s *Server) bindIngestionFixturePorts(ledger *app.Ledger) {
-	commands := ingestionFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.sbomIngestionCommands.(ingestionFixtureCommands); s.sbomIngestionCommands == nil || fixture {
+	commands := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.sbomIngestionCommands.(ingestionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.sbomIngestionCommands = old
+	} else if s.sbomIngestionCommands == nil {
 		s.sbomIngestionCommands = commands
 	}
-	if _, fixture := s.vexIngestionCommands.(ingestionFixtureCommands); s.vexIngestionCommands == nil || fixture {
+	if old, fixture := s.vexIngestionCommands.(ingestionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.vexIngestionCommands = old
+	} else if s.vexIngestionCommands == nil {
 		s.vexIngestionCommands = commands
 	}
-	if _, fixture := s.scanIngestionCommands.(ingestionFixtureCommands); s.scanIngestionCommands == nil || fixture {
+	if old, fixture := s.scanIngestionCommands.(ingestionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.scanIngestionCommands = old
+	} else if s.scanIngestionCommands == nil {
 		s.scanIngestionCommands = commands
 	}
-	if _, fixture := s.openAPIIngestionCommands.(ingestionFixtureCommands); s.openAPIIngestionCommands == nil || fixture {
+	if old, fixture := s.openAPIIngestionCommands.(ingestionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.openAPIIngestionCommands = old
+	} else if s.openAPIIngestionCommands == nil {
 		s.openAPIIngestionCommands = commands
 	}
-	if _, fixture := s.securityDocumentCommands.(ingestionFixtureCommands); s.securityDocumentCommands == nil || fixture {
+	if old, fixture := s.securityDocumentCommands.(ingestionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.securityDocumentCommands = old
+	} else if s.securityDocumentCommands == nil {
 		s.securityDocumentCommands = commands
 	}
 	if _, fixture := s.durableStreamedCommandExecutor.(catalogFixtureReplayExecutor); s.durableStreamedCommandExecutor == nil || fixture {

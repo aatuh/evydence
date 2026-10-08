@@ -30,6 +30,7 @@ func identityTestServer(t *testing.T) (*Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	server.bindRepositoryIngestionFixtureScope()
 	return server, secret
 }
 

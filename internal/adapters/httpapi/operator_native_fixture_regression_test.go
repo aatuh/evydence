@@ -68,9 +68,10 @@ func TestOperatorNativeFixturesSelectCommittedCountsWithoutAggregatePublication(
 }
 
 type operatorQueryFailureFactory struct {
-	base      *app.MemoryUnitOfWorkFactory
-	fail      bool
-	rollbacks int
+	base       *app.MemoryUnitOfWorkFactory
+	fail       bool
+	rollbacks  int
+	beginCalls int
 }
 type operatorQueryFailureTransaction struct {
 	app.UnitOfWork
@@ -78,6 +79,7 @@ type operatorQueryFailureTransaction struct {
 }
 
 func (f *operatorQueryFailureFactory) BeginUnitOfWork(ctx context.Context) (app.UnitOfWork, error) {
+	f.beginCalls++
 	u, err := f.base.BeginUnitOfWork(ctx)
 	if err != nil {
 		return nil, err
