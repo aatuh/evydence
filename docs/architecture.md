@@ -236,7 +236,22 @@ pages. The historical getter is an unchanged test-only oracle. Point tests cover
 complete recorded metadata, exact JSON numbers, detached copies, current grants,
 masked foreign/missing roots, cancellation and failed commits. Restore/replay
 assertions use the native PostgreSQL point query. Public schemas and SQL are
-unchanged; other evidence lists and remaining aggregate state are still EVY-906.
+unchanged; remaining aggregate state is still EVY-906.
+
+Evidence list/search fixtures now share the focused Evidence page query and
+current typed repositories. Conservative direct/inferred grant candidates are
+selected in bounded keyset windows, then current parents and worker provenance
+are rechecked before metadata. Only actual policy denials are suppressed;
+granted corrupt candidates and invalid lookahead fail closed. Stored fields
+define search matches even when authorization infers parent coordinates. The
+memory model retains independent selected-item/provenance budgets and the
+16 MiB returned-page budget; lookahead is validated but is not a returned row.
+Three aggregate list/page methods and six authorization/projection helpers are
+unchanged test-only oracles. Native PostgreSQL replay/pagination assertions use
+focused readers, including committed visibility and revoked grants. SQL and
+public contracts are unchanged. These memory checks do not prove SQL JSON
+shapes, transfer/work bounds, locks or durability; aggregate retirement remains
+unfinished in EVY-906.
 
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require

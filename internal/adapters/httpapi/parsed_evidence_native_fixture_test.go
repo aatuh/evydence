@@ -72,6 +72,16 @@ func (f evidenceReadFixture) GetEvidencePoint(ctx context.Context, tenant, id st
 	})
 }
 
+func (f evidencePageFixture) PageEvidence(ctx context.Context, request evidencequery.EvidencePageRequest, guard evidencequery.EvidenceReadGuard) (appquery.Result[evidencequery.EvidencePoint], error) {
+	return parsedFixtureRead(ctx, f.catalogFixtureCommands, func(ctx context.Context, r app.Repositories) (appquery.Result[evidencequery.EvidencePoint], error) {
+		reader, ok := r.Evidence.(evidencequery.EvidencePageReader)
+		if !ok {
+			return appquery.Result[evidencequery.EvidencePoint]{}, app.ErrValidation
+		}
+		return reader.PageEvidence(ctx, request, guard)
+	})
+}
+
 // Preserve historical DTO comparisons through the native query, not caches.
 func readFixtureEvidence(ctx context.Context, ledger *app.Ledger, actor domain.Actor, id string) (domain.EvidenceItem, error) {
 	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: ledger}}).GetEvidence(ctx, actor, id)

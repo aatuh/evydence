@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -12,11 +13,12 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
 
-func TestParserReplayBecomesVisibleToAlreadyRunningLedger(t *testing.T) {
+func TestParserReplayBecomesVisibleToAlreadyRunningQueries(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
@@ -73,9 +75,13 @@ func TestParserReplayBecomesVisibleToAlreadyRunningLedger(t *testing.T) {
 		t.Fatalf("seed source evidence: %v", err)
 	}
 
-	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test", Store: store})
+	points, err := evidencequery.NewEvidencePoints(store)
 	if err != nil {
-		t.Fatalf("start API ledger: %v", err)
+		t.Fatal(err)
+	}
+	pages, err := evidencequery.NewEvidencePages(store)
+	if err != nil {
+		t.Fatal(err)
 	}
 	replayState, ok, err := store.LoadState(ctx)
 	if err != nil || !ok {
@@ -88,6 +94,10 @@ func TestParserReplayBecomesVisibleToAlreadyRunningLedger(t *testing.T) {
 	result, err := app.ReplayParserEvidence(&replayState, raw, request)
 	if err != nil || !result.Created {
 		t.Fatalf("replay parser evidence result=%#v err=%v", result, err)
+	}
+	actor := domain.Actor{TenantID: tenantID, KeyID: "key_parser_reader", Scopes: []string{app.ScopeEvidenceRead}}
+	if item, err := points.GetEvidence(ctx, actor, result.EvidenceID); !errors.Is(err, evidencequery.ErrNotFound) || item.ID != "" {
+		t.Fatalf("uncommitted replay became visible: item=%#v err=%v", item, err)
 	}
 	mutation, err := app.ParserReplayMutation(&replayState, request, result)
 	if err != nil {
@@ -153,18 +163,13 @@ func TestParserReplayBecomesVisibleToAlreadyRunningLedger(t *testing.T) {
 		t.Fatalf("other parser normalization projection = %#v", otherProjection.ParserNormalizations)
 	}
 
-	actor := domain.Actor{TenantID: tenantID, KeyID: "key_parser_reader", Scopes: []string{app.ScopeEvidenceRead}}
-	points, err := evidencequery.NewEvidencePoints(store)
-	if err != nil {
-		t.Fatal(err)
-	}
 	item, err := points.GetEvidence(ctx, actor, result.EvidenceID)
 	if err != nil || item.ID != result.EvidenceID || item.Type != "parser_normalization" {
 		t.Fatalf("GetEvidence item=%#v err=%v", item, err)
 	}
-	items, err := ledger.ListEvidence(ctx, actor, "rel_parser", "parser_normalization")
-	if err != nil || len(items) != 1 || items[0].ID != result.EvidenceID {
-		t.Fatalf("ListEvidence items=%#v err=%v", items, err)
+	items, err := pages.ListPage(ctx, actor, evidencequery.EvidencePageFilter{ReleaseID: "rel_parser", Type: "parser_normalization"}, appquery.PageRequest{PageSize: 500, Sort: appquery.SortID, Direction: appquery.Ascending}, nil)
+	if err != nil || len(items.Items) != 1 || items.Items[0].ID != result.EvidenceID || items.Next != nil {
+		t.Fatalf("focused evidence page=%#v err=%v", items, err)
 	}
 }
 

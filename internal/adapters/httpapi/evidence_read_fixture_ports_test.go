@@ -29,22 +29,12 @@ func (f evidenceReadFixture) GetEvidence(ctx context.Context, actor domain.Actor
 }
 
 func (f evidencePageFixture) ListPage(ctx context.Context, actor domain.Actor, filter evidencequery.EvidencePageFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[evidencedomain.EvidenceItem], error) {
-	ledger := f.commandLedger(ctx)
-	var page appquery.Result[domain.EvidenceItem]
-	var err error
-	if filter == (evidencequery.EvidencePageFilter{ReleaseID: filter.ReleaseID, Type: filter.Type}) {
-		page, err = ledger.ListEvidencePage(ctx, actor, app.EvidencePageRequest{ReleaseID: filter.ReleaseID, Type: filter.Type, Page: request, After: after})
-	} else {
-		page, err = ledger.SearchEvidencePage(ctx, actor, app.EvidenceSearchPageRequest{Filter: app.EvidenceSearchInput{ProductID: filter.ProductID, ProjectID: filter.ProjectID, ReleaseID: filter.ReleaseID, BuildID: filter.BuildID, DeploymentID: filter.DeploymentID, Type: filter.Type, Subtype: filter.Subtype, SourceSystem: filter.SourceSystem, CollectorID: filter.CollectorID, VerificationStatus: filter.VerificationStatus, SubjectType: filter.SubjectType, SubjectID: filter.SubjectID, Tag: filter.Tag, CreatedAfter: filter.CreatedAfter, CreatedBefore: filter.CreatedBefore}, Page: request, After: after})
-	}
+	query, err := evidencequery.NewEvidencePages(f)
 	if err != nil {
 		return appquery.Result[evidencedomain.EvidenceItem]{}, err
 	}
-	result := appquery.Result[evidencedomain.EvidenceItem]{Next: page.Next, Items: make([]evidencedomain.EvidenceItem, 0, len(page.Items))}
-	for _, value := range page.Items {
-		result.Items = append(result.Items, domain.EvidenceToContextModel(value))
-	}
-	return result, nil
+	result, err := query.ListPage(ctx, actor, filter, request, after)
+	return result, legacyParsedPointError(err)
 }
 
 func (f lifecyclePageFixture) ListPage(ctx context.Context, actor domain.Actor, id string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[evidencedomain.EvidenceLifecycleEvent], error) {

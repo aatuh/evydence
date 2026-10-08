@@ -94,7 +94,7 @@ func TestListProductsUsesBoundedTenantBoundCursorPagination(t *testing.T) {
 }
 
 func TestEvidenceSearchCursorPagesDoNotTruncateMatchingRecords(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
 	for _, key := range []string{"search-page-a", "search-page-b", "search-page-c"} {
 		postJSON(t, server, secret, "/v1/evidence", key, map[string]any{"type": "build", "title": key, "payload_hash": digest}, http.StatusCreated)

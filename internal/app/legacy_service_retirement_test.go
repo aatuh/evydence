@@ -105,6 +105,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"releaseSecurityExceptionSummaryLocked":      true,
 		"presentMissingStatus":                       true,
 		"sbomComponentMatches":                       true,
+		"actorHasTenantWideRead":                     true,
+		"evidencePageConflict":                       true,
 	}
 	retired := map[string]bool{
 		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
@@ -135,6 +137,9 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListSBOMComponents":          true,
 		"ListEvidenceLifecycleEvents": true,
 		"GetEvidence":                 true,
+		"ListEvidence":                true, "ListEvidencePage": true, "SearchEvidencePage": true,
+		"refreshEvidencePageAuthorization": true, "evidencePageVisibility": true,
+		"validateEvidencePageProjection": true, "validatePagedParserNormalizations": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

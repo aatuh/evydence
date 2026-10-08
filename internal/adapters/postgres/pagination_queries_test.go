@@ -14,6 +14,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
 
 func TestStoreListEvidencePageUsesTenantBoundKeyset(t *testing.T) {
@@ -225,7 +226,7 @@ func TestStoreListEvidencePageUsesTenantBoundKeyset(t *testing.T) {
 	if _, err := store.pool.Exec(ctx, `UPDATE evidence_items SET product_id = 'prod_hidden' WHERE id = 'ev_a'`); err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test", Store: store})
+	pages, err := evidencequery.NewEvidencePages(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,21 +234,17 @@ func TestStoreListEvidencePageUsesTenantBoundKeyset(t *testing.T) {
 		TenantID: "ten_page", UserID: "usr_restricted", Scopes: []string{app.ScopeEvidenceRead},
 		ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_allowed", Scopes: []string{app.ScopeEvidenceRead}}},
 	}
-	boundRequest := app.EvidencePageRequest{Page: appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}}
-	firstBound, err := ledger.ListEvidencePage(ctx, actor, boundRequest)
-	if err != nil || evidenceIDs(firstBound.Items) != "ev_b" || firstBound.Next == nil {
-		t.Fatalf("restricted ledger first page=%#v error=%v", firstBound, err)
+	boundPage := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
+	firstBound, err := pages.ListPage(ctx, actor, evidencequery.EvidencePageFilter{}, boundPage, nil)
+	if err != nil || len(firstBound.Items) != 1 || firstBound.Items[0].ID != "ev_b" || firstBound.Next == nil {
+		t.Fatalf("restricted focused first page=%#v error=%v", firstBound, err)
 	}
-	boundRequest.After = firstBound.Next
-	secondBound, err := ledger.ListEvidencePage(ctx, actor, boundRequest)
-	if err != nil || evidenceIDs(secondBound.Items) != "ev_c" || secondBound.Next != nil {
-		t.Fatalf("restricted ledger second page=%#v error=%v", secondBound, err)
+	secondBound, err := pages.ListPage(ctx, actor, evidencequery.EvidencePageFilter{}, boundPage, firstBound.Next)
+	if err != nil || len(secondBound.Items) != 1 || secondBound.Items[0].ID != "ev_c" || secondBound.Next != nil {
+		t.Fatalf("restricted focused second page=%#v error=%v", secondBound, err)
 	}
 	actor.ResourceGrants = nil
-	revoked, err := ledger.SearchEvidencePage(ctx, actor, app.EvidenceSearchPageRequest{
-		Filter: app.EvidenceSearchInput{Type: "build"},
-		Page:   appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending},
-	})
+	revoked, err := pages.ListPage(ctx, actor, evidencequery.EvidencePageFilter{Type: "build"}, boundPage, nil)
 	if err != nil || len(revoked.Items) != 0 || revoked.Next != nil {
 		t.Fatalf("revoked ledger search=%#v error=%v", revoked, err)
 	}
