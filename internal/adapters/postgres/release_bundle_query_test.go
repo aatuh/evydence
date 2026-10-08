@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -50,6 +51,26 @@ func TestPostgresReleaseBundlePointRequiresCurrentTenantParent(t *testing.T) {
 	bundle, err := service.GetReleaseBundle(ctx, actor, "bun_a")
 	if err != nil || bundle.Manifest["private"] != "manifest" || len(bundle.SignatureRefs) != 1 {
 		t.Fatalf("allowed bundle=%#v error=%v", bundle, err)
+	}
+	exactManifest := `{"decimal":0.12345678901234567890123456789,"integer":9007199254740993,"nested":[18446744073709551615,{"negative":-9007199254740993}]}`
+	if _, err := store.pool.Exec(ctx, `INSERT INTO release_bundles (id, tenant_id, release_id, state, manifest, manifest_hash, signature_refs, created_at) VALUES ('bun_exact', 'ten_bundle', 'rel_prod_a', 'generated', $1::jsonb, 'sha256:hash', '[]'::jsonb, $2)`, exactManifest, now); err != nil {
+		t.Fatal(err)
+	}
+	exact, err := service.GetReleaseBundle(ctx, actor, "bun_exact")
+	if err != nil || exact.SignatureRefs == nil || len(exact.SignatureRefs) != 0 {
+		t.Fatal("exact-number bundle point lost its valid empty signature array", err)
+	}
+	encoded, err := json.Marshal(exact.Manifest)
+	if err != nil || string(encoded) != exactManifest {
+		t.Fatal("live bundle point rounded signed manifest numbers", string(encoded), err)
+	}
+	exactState, ok, err := store.LoadWorkerJobState(ctx, ClaimedJob{TenantID: "ten_bundle", Kind: "sign_bundle", SubjectType: "release_bundle", SubjectID: "bun_exact"})
+	if err != nil || !ok || len(exactState.Bundles) != 1 {
+		t.Fatal("focused bundle worker lost its exact-number point", err)
+	}
+	encoded, err = json.Marshal(exactState.Bundles["bun_exact"].Manifest)
+	if err != nil || string(encoded) != exactManifest {
+		t.Fatal("focused bundle worker rounded committed manifest numbers", string(encoded), err)
 	}
 	job := ClaimedJob{TenantID: "ten_bundle", Kind: "sign_bundle", SubjectType: "release_bundle", SubjectID: "bun_a"}
 	state, ok, err := store.LoadWorkerJobState(ctx, job)

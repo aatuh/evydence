@@ -239,8 +239,15 @@ reader resolves every supported subject's current parents and observation time, 
 bounds selected text/JSON. The security-update reader selects fixed decisions,
 current incidents and coherent task parents, verifies linked evidence scope,
 omits private notes and shares the native row/reference budgets. Other test
-readers detach report and manifest data. The readiness report reader shares
-canonical trust predicates with Risk-owned readiness facts, scopes critical
+readers detach report and manifest data. Bundle and manifest fixtures now use
+the native point query against current bundle/release/product rows; their
+former getter is an unchanged test-only oracle. Fixture point reads preserve empty
+signature arrays, detach nested manifests and timestamps, and discard the
+whole result on cancellation or transaction failure. PostgreSQL bundle reads
+and memory bundle copies preserve exact JSON numbers in signed manifest
+metadata rather than rounding through floating point; this does not repair
+previously rounded records or verify their signatures. The readiness report
+reader shares canonical trust predicates with Risk-owned readiness facts, scopes critical
 blockers and unexpired exceptions, and shares the native detail/diagnostic
 budget. The missing-evidence fixture composes the native Risk preview and
 Package renderer with real current authority, not an aggregate-derived result

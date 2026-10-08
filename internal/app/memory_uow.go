@@ -2749,7 +2749,7 @@ func (r memorySupplyChainRepository) InsertArtifactSignature(ctx context.Context
 }
 
 func (r memoryPackageRepository) InsertReleaseBundle(ctx context.Context, bundle domain.ReleaseBundle) error {
-	cloned, err := cloneMemoryJSON(bundle)
+	cloned, err := cloneMemoryReleaseBundle(bundle)
 	if err != nil {
 		return err
 	}
@@ -4119,8 +4119,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.ObjectPayloads, err = cloneMemoryMap(snapshot.ObjectPayloads); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
-	if cloned.ReleaseBundles, err = cloneMemoryMap(snapshot.ReleaseBundles); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.ReleaseBundles = make(map[string]domain.ReleaseBundle, len(snapshot.ReleaseBundles))
+	for id, bundle := range snapshot.ReleaseBundles {
+		cloned.ReleaseBundles[id], err = cloneMemoryReleaseBundle(bundle)
+		if err != nil {
+			return MemoryUnitOfWorkSnapshot{}, err
+		}
 	}
 	if cloned.EvidenceBundles, err = cloneMemoryMap(snapshot.EvidenceBundles); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err

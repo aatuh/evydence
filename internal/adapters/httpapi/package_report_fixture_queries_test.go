@@ -61,11 +61,11 @@ func (f packageUpdateFixture) Report(ctx context.Context, a domain.Actor, produc
 	return query.Report(ctx, a, product, release)
 }
 func (f packageBundleReadFixture) GetReleaseBundle(ctx context.Context, a domain.Actor, id string) (packagedomain.ReleaseBundle, error) {
-	v, err := f.commandLedger(ctx).GetReleaseBundle(ctx, a, id)
+	query, err := packagequery.NewReleaseBundles(f)
 	if err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
-	return domain.ReleaseBundleToContextModel(v)
+	return query.GetReleaseBundle(ctx, a, id)
 }
 
 // Compose the actual read-only Risk query and the native Package renderer.

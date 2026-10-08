@@ -1,10 +1,13 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -51,7 +54,8 @@ func (s *Store) GetReleaseBundlePoint(ctx context.Context, tenantID, id string) 
 	if err != nil {
 		return packagequery.ReleaseBundlePoint{}, packagequery.ErrReleaseBundleProjection
 	}
-	if err := decodeJSON(manifest, &bundle.Manifest); err != nil || bundle.Manifest == nil {
+	bundle.Manifest, err = decodeReleaseBundleManifest(manifest)
+	if err != nil {
 		return packagequery.ReleaseBundlePoint{}, packagequery.ErrReleaseBundleProjection
 	}
 	if err := decodeJSON(signatureRefs, &bundle.SignatureRefs); err != nil || bundle.SignatureRefs == nil {
@@ -60,4 +64,18 @@ func (s *Store) GetReleaseBundlePoint(ctx context.Context, tenantID, id string) 
 	bundle.PublishedAt = nullableSQLTime(publishedAt)
 	bundle.RevokedAt = nullableSQLTime(revokedAt)
 	return point, nil
+}
+
+func decodeReleaseBundleManifest(raw []byte) (map[string]any, error) {
+	var manifest map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&manifest); err != nil || manifest == nil {
+		return nil, packagequery.ErrReleaseBundleProjection
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return nil, packagequery.ErrReleaseBundleProjection
+	}
+	return manifest, nil
 }
