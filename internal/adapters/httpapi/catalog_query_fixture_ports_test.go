@@ -11,8 +11,9 @@ import (
 )
 
 // Product/candidate pages and catalog/build/candidate points run the actual
-// focused query services on transaction-owned test readers. Other catalog surfaces
-// still retain their historical fixtures; none is a production query adapter.
+// focused query services on transaction-owned test readers. Artifact points
+// remain historical; evidence-flow has its own focused fixture and clock.
+// None is a production query adapter.
 type catalogQueryFixture struct{ catalogFixtureCommands }
 
 func (f catalogQueryFixture) ListProductsPage(ctx context.Context, actor domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[releasedomain.Product], error) {
@@ -76,18 +77,6 @@ func (f catalogQueryFixture) ListPage(ctx context.Context, actor domain.Actor, r
 	return query.ListPage(ctx, actor, releaseID, request, after)
 }
 
-func (f catalogQueryFixture) Plan(ctx context.Context, actor domain.Actor, id string) (releasedomain.ReleaseEvidenceFlow, error) {
-	value, err := f.commandLedger(ctx).ReleaseEvidenceFlowPlan(ctx, actor, id)
-	if err != nil {
-		return releasedomain.ReleaseEvidenceFlow{}, err
-	}
-	steps := make([]releasedomain.ReleaseEvidenceFlowStep, 0, len(value.Steps))
-	for _, step := range value.Steps {
-		steps = append(steps, releasedomain.ReleaseEvidenceFlowStep{ID: step.ID, Title: step.Title, Status: step.Status, Required: step.Required, Method: step.Method, Path: step.Path, RequiredScopes: step.RequiredScopes, IdempotencyRequired: step.IdempotencyRequired, Description: step.Description, NextReference: step.NextReference})
-	}
-	return releasedomain.ReleaseEvidenceFlow{ReleaseID: value.ReleaseID, ProductID: value.ProductID, Status: value.Status, Counts: value.Counts, Steps: steps, Assumptions: value.Assumptions, Limitations: value.Limitations, SchemaVersion: value.SchemaVersion, GeneratedAt: value.GeneratedAt}, nil
-}
-
 func (s *Server) bindCatalogQueryFixturePorts(ledger *app.Ledger) {
 	query := catalogQueryFixture{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.productQuery.(catalogQueryFixture); s.productQuery == nil || fixture {
@@ -96,8 +85,9 @@ func (s *Server) bindCatalogQueryFixturePorts(ledger *app.Ledger) {
 	if _, fixture := s.catalogPointQuery.(catalogQueryFixture); s.catalogPointQuery == nil || fixture {
 		s.catalogPointQuery = query
 	}
-	if _, fixture := s.evidenceFlowQuery.(catalogQueryFixture); s.evidenceFlowQuery == nil || fixture {
-		s.evidenceFlowQuery = query
+	if flow, fixture := s.evidenceFlowQuery.(evidenceFlowFixture); s.evidenceFlowQuery == nil || fixture {
+		flow.catalogFixtureCommands = query.catalogFixtureCommands
+		s.evidenceFlowQuery = flow
 	}
 	if _, fixture := s.artifactPointQuery.(catalogQueryFixture); s.artifactPointQuery == nil || fixture {
 		s.artifactPointQuery = query
@@ -113,7 +103,6 @@ func (s *Server) bindCatalogQueryFixturePorts(ledger *app.Ledger) {
 var (
 	_ ProductQuery          = catalogQueryFixture{}
 	_ CatalogPointQuery     = catalogQueryFixture{}
-	_ EvidenceFlowQuery     = catalogQueryFixture{}
 	_ ArtifactPointQuery    = catalogQueryFixture{}
 	_ BuildPointQuery       = catalogQueryFixture{}
 	_ ReleaseCandidateQuery = catalogQueryFixture{}

@@ -1478,12 +1478,21 @@ arrays use the creation model's identifier/count budgets. Nested identity JSON
 uses exact-number decoding, but this is not a claim about the older whole-memory
 snapshot clone or PostgreSQL generic-number decoding. Mutable build/candidate
 metadata and release lifecycle timestamps are detached. Selected malformed
-metadata or failed query commits cannot return a partial projection. These memory scans are test-model
-semantics, not PostgreSQL transfer/locking/durability evidence. The product-list,
+metadata or failed query commits cannot return a partial projection. These memory
+scans are test-model semantics, not PostgreSQL transfer/locking/durability evidence. The product-list,
 project-read, build-read and candidate-read/list Ledger facades now exist only as
-unchanged package-local test oracles. Product/release facades still serve historical synchronous ingestion
-guards and require their migration before physical retirement. Other catalog
-fixture reads and the remaining aggregate are still EVY-906 work.
+unchanged package-local test oracles. Product/release facades still serve
+historical synchronous ingestion guards and require migration before retirement.
+The evidence-flow HTTP fixture now separately composes the focused Release
+query with current transaction-owned counts and an explicit clock retained
+across rebinding. The nine scalar categories match the existing SQL vocabulary,
+including deduplicated SBOM/VEX/build artifact references, current decisions,
+and same-tenant attestation/build joins. Reads reserve no replay record; denied,
+cancelled or failed-commit reads return no plan and do not consult the plan clock.
+Its Ledger plan method is now an unchanged test-only oracle. The old aggregate
+count helper still serves the remaining release-security-summary facade;
+artifact fixture reads and other aggregate surfaces remain EVY-906 work. Memory
+count scans still do not establish SQL transfer/work bounds or durability.
 The 32-caller HTTP idempotency fixture now uses native credential authentication
 and records actual credential-use writes. Its memory transaction admission is
 serialized to avoid optimistic whole-snapshot conflicts; HTTP callers remain

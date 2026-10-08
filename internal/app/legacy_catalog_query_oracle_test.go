@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"strings"
 
 	"github.com/aatuh/evydence/internal/domain"
+	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
 // Unchanged historical algorithms remain package-local test oracles only.
@@ -17,6 +19,33 @@ func (l *Ledger) ListProducts(ctx context.Context, actor domain.Actor) ([]domain
 		result = append(result, productFromReleaseContext(value))
 	}
 	return result, nil
+}
+
+func (l *Ledger) ReleaseEvidenceFlowPlan(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseEvidenceFlow, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.ReleaseEvidenceFlow{}, err
+	}
+	if err := require(actor, ScopeReleaseRead); err != nil {
+		return domain.ReleaseEvidenceFlow{}, err
+	}
+	releaseID = strings.TrimSpace(releaseID)
+	if releaseID == "" {
+		return domain.ReleaseEvidenceFlow{}, ErrValidation
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
+		return domain.ReleaseEvidenceFlow{}, err
+	}
+	release, ok := l.releases[releaseID]
+	if !ok || release.TenantID != actor.TenantID {
+		return domain.ReleaseEvidenceFlow{}, ErrNotFound
+	}
+	if err := l.authorizeResourceLocked(actor, ScopeReleaseRead, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
+		return domain.ReleaseEvidenceFlow{}, err
+	}
+	counts := releaseEvidenceFlowCountsLocked(l, actor.TenantID, release.ID)
+	return domain.ReleaseEvidenceFlowFromContextModel(releasequery.AssembleEvidenceFlow(release.ID, release.ProductID, counts, l.now())), nil
 }
 
 func (l *Ledger) GetProject(ctx context.Context, actor domain.Actor, id string) (domain.Project, error) {

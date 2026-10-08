@@ -1126,7 +1126,7 @@ func TestReleaseBundleVerifyFlow(t *testing.T) {
 }
 
 func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "flow-prod", map[string]any{"name": "Flow Product", "slug": "flow-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "flow-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)

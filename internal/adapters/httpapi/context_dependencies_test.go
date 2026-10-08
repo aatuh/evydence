@@ -288,13 +288,16 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 		}
 	}
 	for name, dependency := range map[string]any{
-		"products": server.productQuery, "catalog-points": server.catalogPointQuery, "flow": server.evidenceFlowQuery,
+		"products": server.productQuery, "catalog-points": server.catalogPointQuery,
 		"artifacts": server.artifactPointQuery, "builds": server.buildPointQuery, "candidates": server.releaseCandidateQuery,
 	} {
 		query, ok := dependency.(catalogQueryFixture)
 		if !ok || query.ledger != ledger {
 			t.Fatalf("focused %s fixture query was not rebound", name)
 		}
+	}
+	if query, ok := server.evidenceFlowQuery.(evidenceFlowFixture); !ok || query.ledger != ledger {
+		t.Fatal("focused flow fixture query was not rebound")
 	}
 	keys, ok := server.apiKeyQuery.(apiKeyFixtureQuery)
 	if !ok || keys.ledger != ledger {
