@@ -1404,6 +1404,16 @@ func TestVEXHTTPValidation(t *testing.T) {
 		},
 	}, http.StatusCreated)
 	vexID := dataField(t, vexBody, "id")
+	var vexReceipt struct {
+		Data domain.VEXDocument `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(vexBody), &vexReceipt); err != nil || vexReceipt.Data.ID != vexID {
+		t.Fatal("VEX upload did not return its actual document receipt", err)
+	}
+	server.vexPointQuery = immutableVEXDocumentReceiptFixture{
+		evidenceReadFixture: evidenceReadFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}},
+		point:               evidencequery.VEXDocumentPoint{Document: fixtureVEXDocument(vexReceipt.Data), ProductID: productID},
+	}
 	getJSON(t, server, secret, "/v1/vex/"+vexID, http.StatusOK)
 	importReport := getJSON(t, server, secret, "/v1/vex/"+vexID+"/import-report", http.StatusOK)
 	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "created asynchronously") || strings.Contains(importReport, "unavailable") || strings.Contains(importReport, "payload_ref") {

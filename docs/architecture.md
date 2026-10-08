@@ -253,6 +253,21 @@ public contracts are unchanged. These memory checks do not prove SQL JSON
 shapes, transfer/work bounds, locks or durability; aggregate retirement remains
 unfinished in EVY-906.
 
+VEX document fixtures now compose the focused Evidence point query with current
+typed repositories. The former document getter is an unchanged test-only
+oracle. The memory reader checks current source/release/product/artifact
+coherence, detaches metadata and models each selected 16 MiB JSON limit. Its
+report port rejects duplicate owned reports and preserves document linkage;
+completed legacy timestamp normalization affects only the returned copy.
+Repository rebinding, revoked grants, cancellation and failed commits are
+covered. Only the repository-free synchronous characterization supplies its
+actual immutable document upload receipt; the focused query checks identity,
+shape and grants, without claiming a current storage snapshot. Its existing
+completed-report assertions remain unchanged. The report facade and synchronous
+completion migration still require retirement. Public contracts and PostgreSQL
+queries are unchanged; memory checks do not prove SQL JSON shapes, work/transfer
+bounds, locks or durability, and EVY-906 remains incomplete.
+
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require
 focused Evidence commands. Their eleven transport fallbacks, fifteen-method

@@ -161,28 +161,6 @@ func (l *Ledger) GetVEXImportReport(ctx context.Context, actor domain.Actor, vex
 	return domain.VEXImportReport{}, ErrNotFound
 }
 
-func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	vex, ok := l.vexDocuments[strings.TrimSpace(id)]
-	if !ok || vex.TenantID != actor.TenantID {
-		return domain.VEXDocument{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: vex.ReleaseID}); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	return vex, nil
-}
-
 func customerDecisionSummary(decision domain.VulnerabilityDecision) domain.VulnerabilityDecisionCustomerSummary {
 	return domain.VulnerabilityDecisionCustomerSummary{
 		ID:                decision.ID,

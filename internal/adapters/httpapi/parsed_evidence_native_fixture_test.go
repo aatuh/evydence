@@ -128,6 +128,26 @@ func (f evidenceReadFixture) GetOpenAPIContractPoint(ctx context.Context, tenant
 	})
 }
 
+func (f evidenceReadFixture) GetVEXDocumentPoint(ctx context.Context, tenant, id string) (evidencequery.VEXDocumentPoint, error) {
+	return parsedFixtureRead(ctx, f.catalogFixtureCommands, func(ctx context.Context, r app.Repositories) (evidencequery.VEXDocumentPoint, error) {
+		reader, ok := r.Evidence.(evidencequery.VEXPointReader)
+		if !ok {
+			return evidencequery.VEXDocumentPoint{}, app.ErrValidation
+		}
+		return reader.GetVEXDocumentPoint(ctx, tenant, id)
+	})
+}
+
+func (f evidenceReadFixture) GetVEXImportReportPoint(ctx context.Context, tenant, id string) (evidencequery.VEXImportReportPoint, error) {
+	return parsedFixtureRead(ctx, f.catalogFixtureCommands, func(ctx context.Context, r app.Repositories) (evidencequery.VEXImportReportPoint, error) {
+		reader, ok := r.Evidence.(evidencequery.VEXPointReader)
+		if !ok {
+			return evidencequery.VEXImportReportPoint{}, app.ErrValidation
+		}
+		return reader.GetVEXImportReportPoint(ctx, tenant, id)
+	})
+}
+
 // The synchronous repository-free VEX characterization supplies only its real
 // immutable upload receipt. These readers model receipt identity/provenance,
 // not a current storage snapshot. The decision guard rechecks owned parents.

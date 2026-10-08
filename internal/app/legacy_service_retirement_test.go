@@ -137,6 +137,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListSBOMComponents":          true,
 		"ListEvidenceLifecycleEvents": true,
 		"GetEvidence":                 true,
+		"GetVEXDocument":              true,
 		"ListEvidence":                true, "ListEvidencePage": true, "SearchEvidencePage": true,
 		"refreshEvidencePageAuthorization": true, "evidencePageVisibility": true,
 		"validateEvidencePageProjection": true, "validatePagedParserNormalizations": true,

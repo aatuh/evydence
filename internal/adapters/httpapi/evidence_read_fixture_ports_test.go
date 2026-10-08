@@ -114,8 +114,12 @@ func fixtureVEXDocument(value domain.VEXDocument) evidencedomain.VEXDocument {
 }
 
 func (f evidenceReadFixture) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (evidencedomain.VEXDocument, error) {
-	value, err := f.commandLedger(ctx).GetVEXDocument(ctx, actor, id)
-	return fixtureVEXDocument(value), err
+	query, err := evidencequery.NewVEXPoints(f)
+	if err != nil {
+		return evidencedomain.VEXDocument{}, err
+	}
+	value, err := query.GetVEXDocument(ctx, actor, id)
+	return value, legacyParsedPointError(err)
 }
 
 func fixtureVEXIssues(values []domain.VEXImportIssue) []evidencedomain.VEXImportIssue {
