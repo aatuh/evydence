@@ -10,21 +10,32 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-// Only historical tests use this bridge. Native read-only preflight uses the
-// existing bounded provider reader; actual receipt writes use the isolated
-// command clone. This is not native SQL locking or provider trust evidence.
-type providerVerificationFixtureCommands struct{ catalogFixtureCommands }
-type providerVerificationFixtureReader struct{ catalogFixtureCommands }
+// Real focused provider receipt commands use active transaction repositories,
+// not Ledger caches. Fake provider calls are not undone by rollback and do not
+// establish provider trust or SQL locking/durability.
+type providerVerificationFixtureCommands struct {
+	catalogFixtureCommands
+	live  app.ProviderIdentityValidator
+	clock application.Clock
+}
+type providerVerificationFixtureReader struct {
+	catalogFixtureCommands
+	readOnly bool
+}
 type providerVerificationGuardSentinel struct{}
 
 func (f providerVerificationFixtureReader) ReadOwnedSSOProvider(ctx context.Context, tenant, id string) (identitydomain.SSOProvider, error) {
 	var out identitydomain.SSOProvider
 	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
-		reader, ok := repos.Identity.(interface {
-			ReadOwnedSSOProvider(context.Context, string, string) (identitydomain.SSOProvider, error)
+		reader, ok := repos.Identity.(identityapp.ProviderVerificationReader)
+		fence, canFence := repos.Identity.(interface {
+			LockAPIKeyCreation(context.Context, string) error
 		})
-		if !ok {
+		if !ok || !canFence {
 			return app.ErrValidation
+		}
+		if err := fence.LockAPIKeyCreation(ctx, tenant); err != nil {
+			return err
 		}
 		var err error
 		out, err = reader.ReadOwnedSSOProvider(ctx, tenant, id)
@@ -32,8 +43,28 @@ func (f providerVerificationFixtureReader) ReadOwnedSSOProvider(ctx context.Cont
 	})
 	return out, err
 }
-func (providerVerificationFixtureReader) IdentityLink(context.Context, string, string, string) (identitydomain.UserIdentityLink, bool, error) {
-	panic("provider preflight read identity links")
+func (f providerVerificationFixtureReader) IdentityLink(ctx context.Context, tenant, provider, subject string) (identitydomain.UserIdentityLink, bool, error) {
+	if f.readOnly {
+		panic("provider preflight read identity links")
+	}
+	var out identitydomain.UserIdentityLink
+	var found bool
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
+		reader, ok := repos.Identity.(identityapp.ProviderVerificationReader)
+		fence, canFence := repos.Identity.(interface {
+			LockAPIKeyCreation(context.Context, string) error
+		})
+		if !ok || !canFence {
+			return app.ErrValidation
+		}
+		if err := fence.LockAPIKeyCreation(ctx, tenant); err != nil {
+			return err
+		}
+		var err error
+		out, found, err = reader.IdentityLink(ctx, tenant, provider, subject)
+		return err
+	})
+	return out, found, err
 }
 func (providerVerificationGuardSentinel) ExecuteProviderVerification(context.Context, func(context.Context, identityapp.ProviderVerificationTransaction) error) error {
 	panic("provider preflight wrote receipt")
@@ -45,19 +76,26 @@ func (providerVerificationGuardSentinel) ValidateProviderIdentity(context.Contex
 	panic("provider preflight contacted provider")
 }
 func (f providerVerificationFixtureCommands) AuthorizeVerifyProviderIdentity(ctx context.Context, a domain.Actor, in identityapp.VerifyProviderIdentityInput) error {
-	g, err := identityapp.NewProviderVerificationCommands(identityapp.ProviderVerificationCommandConfig{Reader: providerVerificationFixtureReader(f), Transactions: providerVerificationGuardSentinel{}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Verifier: providerVerificationGuardSentinel{}, LiveProvider: providerVerificationGuardSentinel{}, VerificationPolicy: app.LocalSSOVerificationPolicy{}, Clock: application.ClockFunc(membershipFixtureClock), IDs: application.IDGeneratorFunc(membershipFixtureID)})
+	g, err := f.nativeProviderVerification(true)
 	if err != nil {
 		return err
 	}
 	return g.AuthorizeVerifyProviderIdentity(ctx, a, in)
 }
 func (f providerVerificationFixtureCommands) VerifyProviderIdentity(ctx context.Context, a domain.Actor, in identityapp.VerifyProviderIdentityInput) (identitydomain.ProviderVerification, error) {
-	v, err := f.commandLedger(ctx).VerifyProviderIdentity(ctx, a, app.VerifyProviderIdentityInput{ProviderType: in.ProviderType, ProviderID: in.ProviderID, Subject: in.Subject, IDToken: in.IDToken, SAMLAssertion: in.SAMLAssertion, AccessToken: in.AccessToken})
-	return ssoFixtureVerificationModel(v), err
+	c, err := f.nativeProviderVerification(false)
+	if err != nil {
+		return identitydomain.ProviderVerification{}, err
+	}
+	v, err := c.VerifyProviderIdentity(ctx, a, in)
+	return v, providerVerificationFixtureError(err)
 }
 func (s *Server) bindProviderVerificationFixturePort(ledger *app.Ledger) {
-	if _, fixture := s.providerVerificationCommands.(providerVerificationFixtureCommands); s.providerVerificationCommands == nil || fixture {
-		s.providerVerificationCommands = providerVerificationFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.providerVerificationCommands.(providerVerificationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.providerVerificationCommands = old
+	} else if s.providerVerificationCommands == nil {
+		s.providerVerificationCommands = providerVerificationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	}
 }
 

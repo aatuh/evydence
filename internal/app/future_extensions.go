@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rsa"
@@ -17,17 +16,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
-	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
-
-type VerifyProviderIdentityInput struct {
-	ProviderType  string
-	ProviderID    string
-	Subject       string
-	IDToken       string
-	SAMLAssertion string
-	AccessToken   string
-}
 
 type oidcJWTHeader struct {
 	Alg string `json:"alg"`
@@ -307,12 +296,4 @@ func verifySAMLAssertionSignature(certs []string, payload, signature []byte) err
 		}
 	}
 	return errors.New("no configured saml signing certificate verified assertion")
-}
-
-func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor, in VerifyProviderIdentityInput) (domain.ProviderVerification, error) {
-	record, err := l.verifyProviderIdentity(ctx, actor, identityapp.VerifyProviderIdentityInput{
-		ProviderType: in.ProviderType, ProviderID: in.ProviderID, Subject: in.Subject,
-		IDToken: in.IDToken, SAMLAssertion: in.SAMLAssertion, AccessToken: in.AccessToken,
-	})
-	return ProviderVerificationFromIdentity(record), fromIdentityContextError(err)
 }

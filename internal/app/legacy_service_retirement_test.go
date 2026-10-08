@@ -48,6 +48,8 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"publicTransparencyProofInput": true, "PublicTransparencyVerificationCoreRecord": true,
 		"AuthorizeVerifyPublicTransparencyLogEntry": true, "publicTransparencyVerificationSourceLocked": true,
 		"AuthorizeFetchPublicTransparencyLogEntryProof": true, "publicTransparencyFetchSourceLocked": true, "FetchAndVerifyPublicTransparencyLogEntry": true,
+		"VerifyProviderIdentityInput": true, "VerifyProviderIdentity": true, "verifyProviderIdentity": true,
+		"localProviderVerificationReader": true, "localProviderVerificationTransactions": true, "localProviderVerificationTransaction": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

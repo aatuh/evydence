@@ -95,8 +95,9 @@ func TestProviderVerificationFixtureRollsBackReceiptAuditAndReplayAfterRealWrite
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.bindProviderVerificationFixtureResources(live, providerVerificationFixtureClock())
 	s.authn = &configuredAuthenticator{actor: providerVerificationFixtureHuman(owner)}
-	f := &failingProviderVerificationFixture{providerVerificationFixtureCommands: providerVerificationFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+	f := &failingProviderVerificationFixture{providerVerificationFixtureCommands: providerVerificationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, live: live, clock: providerVerificationFixtureClock()}}
 	s.providerVerificationCommands = f
 	before, err := factory.Snapshot()
 	if err != nil {
@@ -136,6 +137,7 @@ func TestProviderVerificationFixturePreservesCompleteDTOAndCredentialFreeReplayW
 			}
 			human := providerVerificationFixtureHuman(owner)
 			auth := &configuredAuthenticator{actor: human}
+			s.bindProviderVerificationFixtureResources(live, providerVerificationFixtureClock())
 			s.authn = auth
 			const token = "access-token-redaction-canary"
 			credential, wantCalls := "", 0
@@ -230,6 +232,7 @@ func TestProviderVerificationFixtureFailedAssessmentsRollBackOnlyForHTTPCreate(t
 			if err != nil {
 				t.Fatal(err)
 			}
+			s.bindProviderVerificationFixtureResources(live, providerVerificationFixtureClock())
 			s.authn = &configuredAuthenticator{actor: owner.actor}
 			const token = "credential-failure-canary"
 			credential := `,"access_token":"` + token + `"`
@@ -264,7 +267,7 @@ func TestProviderVerificationFixtureFailedAssessmentsRollBackOnlyForHTTPCreate(t
 			if err != nil {
 				t.Fatal(err)
 			}
-			commands := providerVerificationFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+			commands := providerVerificationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, live: live, clock: providerVerificationFixtureClock()}
 			v, err := commands.VerifyProviderIdentity(t.Context(), owner.actor, in)
 			if !errors.Is(err, app.ErrVerificationFailed) || v.ID == "" || v.Profile.ID == "" || (v.Result != "failed" && v.Result != "error") {
 				t.Fatal("direct command did not return committed failed assessment", err, v.Result)
@@ -293,7 +296,7 @@ func TestProviderVerificationFixtureGuardsArePureCancellableAndKeepExplicitBindi
 	ledger, factory, live := providerVerificationRegressionLedger()
 	owner := seedProviderVerificationFixture(t, ledger, "Owner")
 	foreign := seedProviderVerificationFixture(t, ledger, "Foreign")
-	f := providerVerificationFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	f := providerVerificationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, live: live, clock: providerVerificationFixtureClock()}
 	in := identityapp.VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: owner.provider.ID, Subject: "subject-Owner", AccessToken: "guard-credential-canary"}
 	before, err := factory.Snapshot()
 	if err != nil {
