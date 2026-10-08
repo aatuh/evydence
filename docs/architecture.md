@@ -215,6 +215,19 @@ The old list method, input and matcher are unchanged test-only oracles. Memory
 tests model policy and bounded selection, not SQL JSON shapes, work/transfer
 bounds, locks or durability. Remaining aggregate retirement is still EVY-906.
 
+Lifecycle fixtures now use the focused Evidence query and one current typed
+repository view instead of the aggregate list facade. The parent guard runs
+before selected metadata, parser facts and history details. Selected worker
+records use the existing immutable-source validators; replay markers also
+require owned source and linked/adjacent audit facts. Memory reads model the
+4,096-fact and independent 8 MiB evidence/provenance and event-page budgets,
+including event lookahead. Only selected events are detached and returned;
+ID or creation-time keysets use stable ID ties in both directions. Existing
+HTTP redaction and cursor binding remain unchanged. Failures return no partial
+point or page. The former list facade is an unchanged test-only oracle.
+These typed memory checks are not SQL JSON-shape, transfer/work, lock or
+durability evidence, and remaining aggregate retirement is still incomplete.
+
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require
 focused Evidence commands. Their eleven transport fallbacks, fifteen-method

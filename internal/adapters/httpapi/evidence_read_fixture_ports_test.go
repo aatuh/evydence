@@ -44,24 +44,12 @@ func (f evidencePageFixture) ListPage(ctx context.Context, actor domain.Actor, f
 }
 
 func (f lifecyclePageFixture) ListPage(ctx context.Context, actor domain.Actor, id string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[evidencedomain.EvidenceLifecycleEvent], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[evidencedomain.EvidenceLifecycleEvent]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListEvidenceLifecycleEvents(ctx, actor, id)
+	query, err := evidencequery.NewLifecycleEvents(f)
 	if err != nil {
 		return appquery.Result[evidencedomain.EvidenceLifecycleEvent]{}, err
 	}
-	items := make([]evidencedomain.EvidenceLifecycleEvent, 0, len(values))
-	for _, value := range values {
-		action, err := evidencedomain.ParseEvidenceLifecycleState(value.Action)
-		if err != nil {
-			return appquery.Result[evidencedomain.EvidenceLifecycleEvent]{}, evidencequery.ErrConflict
-		}
-		items = append(items, evidencedomain.EvidenceLifecycleEvent{ID: value.ID, TenantID: value.TenantID, EvidenceID: value.EvidenceID, Action: action, Reason: value.Reason, Details: value.Details, ReplacementID: value.ReplacementID, ActorID: value.ActorID, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt})
-	}
-	return appquery.Page(items, request, after, func(value evidencedomain.EvidenceLifecycleEvent, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
-	})
+	result, err := query.ListPage(ctx, actor, id, request, after)
+	return result, legacyParsedPointError(err)
 }
 
 func fixtureSBOM(value domain.SBOM) evidencedomain.SBOM {

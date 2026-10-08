@@ -68,6 +68,16 @@ func (f sbomComponentsFixture) PageSBOMComponents(ctx context.Context, request e
 	})
 }
 
+func (f lifecyclePageFixture) PageLifecycleEvents(ctx context.Context, tenant, id string, request appquery.PageRequest, after *appquery.SortKey, guard evidencequery.EvidenceReadGuard) (evidencequery.LifecyclePage, error) {
+	return parsedFixtureRead(ctx, f.catalogFixtureCommands, func(ctx context.Context, r app.Repositories) (evidencequery.LifecyclePage, error) {
+		reader, ok := r.Evidence.(evidencequery.LifecycleEventReader)
+		if !ok {
+			return evidencequery.LifecyclePage{}, app.ErrValidation
+		}
+		return reader.PageLifecycleEvents(ctx, tenant, id, request, after, guard)
+	})
+}
+
 func (f evidenceReadFixture) GetVulnerabilityScanPoint(ctx context.Context, tenant, id string) (evidencequery.VulnerabilityScanPoint, error) {
 	return parsedFixtureRead(ctx, f.catalogFixtureCommands, func(ctx context.Context, r app.Repositories) (evidencequery.VulnerabilityScanPoint, error) {
 		reader, ok := r.Evidence.(evidencequery.VulnerabilityScanPointReader)

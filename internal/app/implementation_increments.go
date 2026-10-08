@@ -141,18 +141,6 @@ func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.
 	return lifecycleFromEvidenceContext(event), fromEvidenceContextError(err)
 }
 
-func (l *Ledger) ListEvidenceLifecycleEvents(ctx context.Context, actor domain.Actor, evidenceID string) ([]domain.EvidenceLifecycleEvent, error) {
-	events, err := l.evidenceCommands.ListLifecycleEvents(ctx, actor, evidenceID)
-	if err != nil {
-		return nil, fromEvidenceContextError(err)
-	}
-	result := make([]domain.EvidenceLifecycleEvent, 0, len(events))
-	for _, event := range events {
-		result = append(result, lifecycleFromEvidenceContext(event))
-	}
-	return result, nil
-}
-
 func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor, in CreateReleaseCandidateInput) (domain.ReleaseCandidate, error) {
 	value, err := l.releaseCommands.CreateReleaseCandidate(ctx, actor, releaseapp.CreateReleaseCandidateInput{
 		ReleaseID: in.ReleaseID, Name: in.Name, BuildIDs: append([]string(nil), in.BuildIDs...),
