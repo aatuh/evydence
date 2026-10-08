@@ -44,15 +44,6 @@ type ListVulnerabilityDecisionsInput struct {
 	Active        *bool
 }
 
-type CreateExceptionInput struct {
-	ReleaseID string
-	FindingID string
-	ControlID string
-	Reason    string
-	Owner     string
-	ExpiresAt time.Time
-}
-
 type openVEXDocument struct {
 	Context    any                `json:"@context"`
 	ID         string             `json:"@id"`

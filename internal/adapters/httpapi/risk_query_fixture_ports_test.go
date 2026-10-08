@@ -50,21 +50,34 @@ func (f decisionQueryFixture) ListPage(ctx context.Context, actor domain.Actor, 
 type exceptionQueryFixture struct{ catalogFixtureCommands }
 
 func (f exceptionQueryFixture) ListPage(ctx context.Context, actor domain.Actor, releaseID string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[riskdomain.Exception], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[riskdomain.Exception]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListExceptions(ctx, actor, releaseID)
+	query, err := riskquery.NewExceptions(f)
 	if err != nil {
 		return appquery.Result[riskdomain.Exception]{}, err
 	}
-	items := make([]riskdomain.Exception, 0, len(values))
-	for _, value := range values {
-		value.ApprovedAt = copyDecisionSummaryTime(value.ApprovedAt)
-		items = append(items, riskdomain.Exception(value))
+	return query.ListPage(ctx, actor, releaseID, request, after)
+}
+
+func (f exceptionQueryFixture) PageExceptions(ctx context.Context, request riskquery.ExceptionPageRequest) (riskquery.ExceptionPage, error) {
+	if ctx == nil {
+		return riskquery.ExceptionPage{}, riskquery.ErrValidation
 	}
-	return appquery.Page(items, request, after, func(value riskdomain.Exception, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
+	if err := ctx.Err(); err != nil {
+		return riskquery.ExceptionPage{}, err
+	}
+	var out riskquery.ExceptionPage
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Decisions.(riskquery.ExceptionReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageExceptions(ctx, request)
+		return err
 	})
+	if err != nil {
+		return riskquery.ExceptionPage{}, err
+	}
+	return out, nil
 }
 
 type decisionSummaryQueryFixture struct{ catalogFixtureCommands }

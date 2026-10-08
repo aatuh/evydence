@@ -12,9 +12,13 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
-// Only HTTP tests use this bridge. Preflight executes the actual native guard
-// algorithm on focused repositories; writes retain the isolated fixture clone.
-type governanceFixtureCommands struct{ catalogFixtureCommands }
+// Only tests use this composition. Both preflight and fresh writes execute the
+// actual Risk algorithms on transaction-owned repositories, never Ledger methods.
+type governanceFixtureCommands struct {
+	catalogFixtureCommands
+	clock application.Clock
+	ids   application.IDGenerator
+}
 
 // Only tests exercising real governance writes opt into these repositories;
 // unrelated legacy fixtures retain their previous backend/serialization.
@@ -49,6 +53,12 @@ type governanceFixtureTransaction struct {
 }
 
 func (r governanceFixtureTransactions) execute(ctx context.Context, run func(context.Context, governanceFixtureTransaction) error) error {
+	if ctx == nil || run == nil {
+		return app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return r.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
 		waivers, ok := repos.Governance.(riskapp.WaiverCommandReader)
 		if !ok {
@@ -101,49 +111,66 @@ func (t governanceFixtureTransaction) AppendAudit(ctx context.Context, value app
 func governanceFixtureGuardClock() time.Time { panic("governance replay guard read a clock") }
 func governanceFixtureGuardID(string) string { panic("governance replay guard allocated an ID") }
 
-func (f governanceFixtureCommands) waiverGuard() (*riskapp.WaiverCommands, error) {
+func (f governanceFixtureCommands) clockIDs(readOnly bool) (application.Clock, application.IDGenerator) {
+	if readOnly {
+		return application.ClockFunc(governanceFixtureGuardClock), application.IDGeneratorFunc(governanceFixtureGuardID)
+	}
+	clock, ids := questionnaireNativeFixtureClockIDs(false)
+	if f.clock != nil {
+		clock = f.clock
+	}
+	if f.ids != nil {
+		ids = f.ids
+	}
+	return clock, ids
+}
+
+func (f governanceFixtureCommands) nativeWaiver(readOnly bool) (*riskapp.WaiverCommands, error) {
 	authorizer := riskapp.NewWaiverWriteAuthorizer()
-	return riskapp.NewWaiverCommands(riskapp.WaiverCommandConfig{Authorizer: authorizer, Transactions: governanceFixtureTransactions{f.catalogFixtureCommands, authorizer}, Clock: application.ClockFunc(governanceFixtureGuardClock), IDs: application.IDGeneratorFunc(governanceFixtureGuardID)})
+	clock, ids := f.clockIDs(readOnly)
+	return riskapp.NewWaiverCommands(riskapp.WaiverCommandConfig{Authorizer: authorizer, Transactions: governanceFixtureTransactions{f.catalogFixtureCommands, authorizer}, Clock: clock, IDs: ids})
 }
-func (f governanceFixtureCommands) exceptionGuard() (*riskapp.ExceptionCommands, error) {
+func (f governanceFixtureCommands) nativeException(readOnly bool) (*riskapp.ExceptionCommands, error) {
 	authorizer := riskapp.NewExceptionWriteAuthorizer()
-	return riskapp.NewExceptionCommands(riskapp.ExceptionCommandConfig{Authorizer: authorizer, Transactions: governanceFixtureTransactions{f.catalogFixtureCommands, authorizer}, Clock: application.ClockFunc(governanceFixtureGuardClock), IDs: application.IDGeneratorFunc(governanceFixtureGuardID)})
+	clock, ids := f.clockIDs(readOnly)
+	return riskapp.NewExceptionCommands(riskapp.ExceptionCommandConfig{Authorizer: authorizer, Transactions: governanceFixtureTransactions{f.catalogFixtureCommands, authorizer}, Clock: clock, IDs: ids})
 }
-func (f governanceFixtureCommands) approvalGuard() (*riskapp.ApprovalCommands, error) {
+func (f governanceFixtureCommands) nativeApproval(readOnly bool) (*riskapp.ApprovalCommands, error) {
 	authorizer := riskapp.NewApprovalWriteAuthorizer()
-	return riskapp.NewApprovalCommands(riskapp.ApprovalCommandConfig{Authorizer: authorizer, Transactions: governanceFixtureTransactions{f.catalogFixtureCommands, authorizer}, Clock: application.ClockFunc(governanceFixtureGuardClock), IDs: application.IDGeneratorFunc(governanceFixtureGuardID)})
+	clock, ids := f.clockIDs(readOnly)
+	return riskapp.NewApprovalCommands(riskapp.ApprovalCommandConfig{Authorizer: authorizer, Transactions: governanceFixtureTransactions{f.catalogFixtureCommands, authorizer}, Clock: clock, IDs: ids})
 }
 
 func (f governanceFixtureCommands) AuthorizeCreateWaiver(ctx context.Context, actor domain.Actor, input riskapp.CreateWaiverInput) error {
-	guard, err := f.waiverGuard()
+	guard, err := f.nativeWaiver(true)
 	if err != nil {
 		return err
 	}
 	return guard.AuthorizeCreateWaiver(ctx, actor, input)
 }
 func (f governanceFixtureCommands) AuthorizeApproveWaiver(ctx context.Context, actor domain.Actor, id string) error {
-	guard, err := f.waiverGuard()
+	guard, err := f.nativeWaiver(true)
 	if err != nil {
 		return err
 	}
 	return guard.AuthorizeApproveWaiver(ctx, actor, id)
 }
 func (f governanceFixtureCommands) AuthorizeCreateException(ctx context.Context, actor domain.Actor, input riskapp.CreateExceptionInput) error {
-	guard, err := f.exceptionGuard()
+	guard, err := f.nativeException(true)
 	if err != nil {
 		return err
 	}
 	return guard.AuthorizeCreateException(ctx, actor, input)
 }
 func (f governanceFixtureCommands) AuthorizeApproveException(ctx context.Context, actor domain.Actor, id string) error {
-	guard, err := f.exceptionGuard()
+	guard, err := f.nativeException(true)
 	if err != nil {
 		return err
 	}
 	return guard.AuthorizeApproveException(ctx, actor, id)
 }
 func (f governanceFixtureCommands) AuthorizeApproval(ctx context.Context, actor domain.Actor, input riskapp.CreateApprovalInput) error {
-	guard, err := f.approvalGuard()
+	guard, err := f.nativeApproval(true)
 	if err != nil {
 		return err
 	}
@@ -151,36 +178,68 @@ func (f governanceFixtureCommands) AuthorizeApproval(ctx context.Context, actor 
 }
 
 func (f governanceFixtureCommands) CreateWaiver(ctx context.Context, actor domain.Actor, input riskapp.CreateWaiverInput) (riskdomain.Waiver, error) {
-	value, err := f.commandLedger(ctx).CreateWaiver(ctx, actor, app.CreateWaiverInput(input))
-	return riskdomain.Waiver(value), err
+	commands, err := f.nativeWaiver(false)
+	if err != nil {
+		return riskdomain.Waiver{}, err
+	}
+	return commands.CreateWaiver(ctx, actor, input)
 }
 func (f governanceFixtureCommands) ApproveWaiver(ctx context.Context, actor domain.Actor, id string) (riskdomain.Waiver, error) {
-	value, err := f.commandLedger(ctx).ApproveWaiver(ctx, actor, id)
-	return riskdomain.Waiver(value), err
+	commands, err := f.nativeWaiver(false)
+	if err != nil {
+		return riskdomain.Waiver{}, err
+	}
+	return commands.ApproveWaiver(ctx, actor, id)
 }
 func (f governanceFixtureCommands) CreateException(ctx context.Context, actor domain.Actor, input riskapp.CreateExceptionInput) (riskdomain.Exception, error) {
-	value, err := f.commandLedger(ctx).CreateException(ctx, actor, app.CreateExceptionInput(input))
-	return riskdomain.Exception(value), err
+	commands, err := f.nativeException(false)
+	if err != nil {
+		return riskdomain.Exception{}, err
+	}
+	return commands.CreateException(ctx, actor, input)
 }
 func (f governanceFixtureCommands) ApproveException(ctx context.Context, actor domain.Actor, id string) (riskdomain.Exception, error) {
-	value, err := f.commandLedger(ctx).ApproveException(ctx, actor, id)
-	return riskdomain.Exception(value), err
+	commands, err := f.nativeException(false)
+	if err != nil {
+		return riskdomain.Exception{}, err
+	}
+	return commands.ApproveException(ctx, actor, id)
 }
 func (f governanceFixtureCommands) CreateApprovalRecord(ctx context.Context, actor domain.Actor, input riskapp.CreateApprovalInput) (riskdomain.ApprovalRecord, error) {
-	value, err := f.commandLedger(ctx).CreateApprovalRecord(ctx, actor, app.CreateApprovalInput(input))
-	return riskdomain.ApprovalRecord(value), err
+	commands, err := f.nativeApproval(false)
+	if err != nil {
+		return riskdomain.ApprovalRecord{}, err
+	}
+	return commands.CreateApprovalRecord(ctx, actor, input)
 }
 
 func (s *Server) bindGovernanceFixturePorts(ledger *app.Ledger) {
-	commands := governanceFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.waiverCommands.(governanceFixtureCommands); s.waiverCommands == nil || fixture {
+	if commands, fixture := s.waiverCommands.(governanceFixtureCommands); s.waiverCommands == nil || fixture {
+		commands.catalogFixtureCommands = catalogFixtureCommands{ledger: ledger}
 		s.waiverCommands = commands
 	}
-	if _, fixture := s.exceptionCommands.(governanceFixtureCommands); s.exceptionCommands == nil || fixture {
+	if commands, fixture := s.exceptionCommands.(governanceFixtureCommands); s.exceptionCommands == nil || fixture {
+		commands.catalogFixtureCommands = catalogFixtureCommands{ledger: ledger}
 		s.exceptionCommands = commands
 	}
-	if _, fixture := s.approvalCommands.(governanceFixtureCommands); s.approvalCommands == nil || fixture {
+	if commands, fixture := s.approvalCommands.(governanceFixtureCommands); s.approvalCommands == nil || fixture {
+		commands.catalogFixtureCommands = catalogFixtureCommands{ledger: ledger}
 		s.approvalCommands = commands
+	}
+}
+
+func (s *Server) bindGovernanceFixtureResources(clock application.Clock, ids application.IDGenerator) {
+	if f, ok := s.waiverCommands.(governanceFixtureCommands); ok {
+		f.clock, f.ids = clock, ids
+		s.waiverCommands = f
+	}
+	if f, ok := s.exceptionCommands.(governanceFixtureCommands); ok {
+		f.clock, f.ids = clock, ids
+		s.exceptionCommands = f
+	}
+	if f, ok := s.approvalCommands.(governanceFixtureCommands); ok {
+		f.clock, f.ids = clock, ids
+		s.approvalCommands = f
 	}
 }
 

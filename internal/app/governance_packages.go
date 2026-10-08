@@ -21,26 +21,6 @@ import (
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
-type CreateWaiverInput struct {
-	ScopeType  string
-	ScopeID    string
-	ControlID  string
-	PolicyID   string
-	Owner      string
-	Risk       string
-	Reason     string
-	ExpiresAt  time.Time
-	Supersedes string
-}
-
-type CreateApprovalInput struct {
-	SubjectType string
-	SubjectID   string
-	Decision    string
-	Reason      string
-	EvidenceID  string
-}
-
 type CreateRedactionProfileInput struct {
 	Name           string
 	Description    string

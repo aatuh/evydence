@@ -60,11 +60,12 @@ func TestGovernanceFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing
 				t.Fatal(err)
 			}
 			expires := time.Now().UTC().Add(time.Hour)
-			waiver, err := ledger.CreateWaiver(t.Context(), scope.actor, app.CreateWaiverInput{ScopeType: "release", ScopeID: release.ID, Owner: "security", Risk: "low", Reason: "reviewed", ExpiresAt: expires})
+			seedCommands := governanceFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+			waiver, err := seedCommands.CreateWaiver(t.Context(), scope.actor, riskapp.CreateWaiverInput{ScopeType: "release", ScopeID: release.ID, Owner: "security", Risk: "low", Reason: "reviewed", ExpiresAt: expires})
 			if err != nil {
 				t.Fatal(err)
 			}
-			exception, err := ledger.CreateException(t.Context(), scope.actor, app.CreateExceptionInput{ReleaseID: release.ID, Owner: "security", Reason: "reviewed", ExpiresAt: expires})
+			exception, err := seedCommands.CreateException(t.Context(), scope.actor, riskapp.CreateExceptionInput{ReleaseID: release.ID, Owner: "security", Reason: "reviewed", ExpiresAt: expires})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -73,7 +74,7 @@ func TestGovernanceFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: scope.actor}
-			commands := &failingGovernanceFixtureCommands{governanceFixtureCommands: governanceFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingGovernanceFixtureCommands{governanceFixtureCommands: governanceFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.waiverCommands, server.exceptionCommands, server.approvalCommands = commands, commands, commands
 			path, body := "/v1/waivers", fmt.Sprintf(`{"scope_type":"release","scope_id":%q,"owner":"security","risk":"low","reason":"supersession","expires_at":%q,"supersedes":%q}`, release.ID, expires.Format(time.RFC3339Nano), waiver.ID)
 			switch action {
@@ -165,7 +166,7 @@ func TestGovernanceFixtureReplaysRequireCurrentGrantsWithoutReapplyingTransition
 		auth.actor = human
 		postRaw(t, server, owner.secret, tc.path, tc.key, []byte(tc.body+" "), 409)
 	}
-	guard := governanceFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	guard := governanceFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if err := guard.AuthorizeApproveWaiver(t.Context(), foreign.actor, waiverID); !errors.Is(err, app.ErrNotFound) {
 		t.Fatal("foreign tenant could replay waiver authority", err)
 	}

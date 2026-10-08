@@ -12,31 +12,44 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
 type packageReportFixtureScope struct {
 	controlFixtureScope
-	bundle domain.ReleaseBundle
+	bundle      domain.ReleaseBundle
+	sbomControl domain.SecurityControl
+	vexControl  domain.SecurityControl
+	exception   domain.Exception
+	scan        domain.VulnerabilityScan
+	decision    domain.VulnerabilityDecision
 }
 
 func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) packageReportFixtureScope {
 	t.Helper()
 	f := packageReportFixtureScope{controlFixtureScope: seedControlFixtureScope(t, ledger, name)}
+	governance := governanceFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.release.CreatedAt })}
 	for _, kind := range []string{"sbom", "vex"} {
 		control, err := ledger.CreateSecurityControl(t.Context(), f.actor, app.CreateSecurityControlInput{FrameworkID: f.framework.ID, Code: strings.ToUpper(kind), Title: kind + " review", Objective: "Record " + kind, EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: kind, Required: true}}, Limitations: []string{"Review required"}})
 		if err != nil {
 			t.Fatal("report control", kind, err)
 		}
 		if kind == "vex" {
-			exception, err := ledger.CreateException(t.Context(), f.actor, app.CreateExceptionInput{ReleaseID: f.release.ID, ControlID: control.ID, Reason: "Recorded exception", Owner: "Security Team", ExpiresAt: f.release.CreatedAt.Add(time.Hour)})
+			f.vexControl = control
+			exception, err := governance.CreateException(t.Context(), f.actor, riskapp.CreateExceptionInput{ReleaseID: f.release.ID, ControlID: control.ID, Reason: "Recorded exception", Owner: "Security Team", ExpiresAt: f.release.CreatedAt.Add(time.Hour)})
 			if err != nil {
 				t.Fatal("report exception:", err)
 			}
-			if _, err := ledger.ApproveException(t.Context(), f.actor, exception.ID); err != nil {
+			approved, err := governance.ApproveException(t.Context(), f.actor, exception.ID)
+			if err != nil {
 				t.Fatal("report exception approval:", err)
 			}
+			f.exception = domain.Exception(approved)
+		} else {
+			f.sbomControl = control
 		}
 	}
 	if _, err := ledger.LinkControlEvidence(t.Context(), f.actor, f.control.ID, app.LinkControlEvidenceInput{EvidenceType: "build", SubjectType: "evidence", SubjectID: f.evidence.ID, ProductID: f.product.ID, ReleaseID: f.release.ID, Confidence: "high", Notes: "Recorded link"}); err != nil {
@@ -46,8 +59,10 @@ func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string
 	if err != nil || len(scan.Findings) != 1 {
 		t.Fatal("report scan:", err)
 	}
+	f.scan = scan
 	due, reviewed := f.release.CreatedAt.Add(24*time.Hour), f.release.CreatedAt
-	if _, err := ledger.CreateVulnerabilityDecision(t.Context(), f.actor, scan.Findings[0].ID, app.CreateVulnerabilityDecisionInput{Status: "fixed", Justification: "Reviewed", ImpactStatement: "Patched", ActionStatement: "Ship patch", InternalNotes: "private-triage-" + name, EvidenceIDs: []string{f.evidence.ID}, SupportingRefs: []domain.SubjectRef{{Type: "incident", ID: f.incident.ID}}, ReviewedAt: &reviewed, ReviewDueAt: &due}); err != nil {
+	f.decision, err = ledger.CreateVulnerabilityDecision(t.Context(), f.actor, scan.Findings[0].ID, app.CreateVulnerabilityDecisionInput{Status: "fixed", Justification: "Reviewed", ImpactStatement: "Patched", ActionStatement: "Ship patch", InternalNotes: "private-triage-" + name, EvidenceIDs: []string{f.evidence.ID}, SupportingRefs: []domain.SubjectRef{{Type: "incident", ID: f.incident.ID}}, ReviewedAt: &reviewed, ReviewDueAt: &due})
+	if err != nil {
 		t.Fatal("report fixed decision:", err)
 	}
 	if _, err := ledger.CreateRemediationTask(t.Context(), f.actor, app.CreateRemediationTaskInput{IncidentID: f.incident.ID, ReleaseID: f.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: f.evidence.ID}); err != nil {
@@ -71,18 +86,12 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "reader", Scopes: []string{"report:read", "verify:read", "bundle:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"report:read", "verify:read", "bundle:read"}}}}
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth
+	clock := func() time.Time { return owner.release.CreatedAt }
+	server.bindPackageReportFixtureClock(clock)
 	filter := packagequery.ControlCoverageFilter{FrameworkID: owner.framework.ID, ProductID: owner.product.ID, ReleaseID: owner.release.ID}
-	coverage, err := ledger.ControlCoverageReport(t.Context(), human, app.ControlCoverageReportInput(filter))
-	if err != nil || len(coverage.Controls) != 3 || len(coverage.MissingEvidence) == 0 || len(coverage.AcceptedExceptions) != 1 {
-		t.Fatal("coverage fixture lacks meaningful nested data", err)
-	}
-	cra, err := ledger.CRAReadinessReport(t.Context(), human, app.CRAReadinessReportInput{ProductID: owner.product.ID, ReleaseID: owner.release.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	handling, err := ledger.CRAVulnerabilityHandlingReport(t.Context(), human, owner.product.ID, owner.release.ID)
-	if err != nil || len(handling.Decisions) != 1 || handling.Decisions[0].ReviewedAt == nil || len(handling.AcceptedExceptions) != 1 {
-		t.Fatal("handling fixture lacks decision/exception metadata", err)
+	coverage, cra, handling := expectedPackageReportFixtureResponses(owner)
+	if len(coverage.Controls) != 3 || len(coverage.MissingEvidence) == 0 || len(coverage.AcceptedExceptions) != 1 || len(handling.Decisions) != 1 || handling.Decisions[0].ReviewedAt == nil || len(handling.AcceptedExceptions) != 1 {
+		t.Fatal("independent report expectations lack meaningful nested data")
 	}
 	update, err := ledger.SecurityUpdateEvidenceReport(t.Context(), human, owner.product.ID, owner.release.ID)
 	if err != nil || len(update.FixedDecisions) != 1 || len(update.Incidents) != 1 || len(update.RemediationTasks) != 1 || update.RemediationTasks[0].DueAt == nil {
@@ -121,7 +130,7 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertTrustHTTPReplay(t, string(want), out.Body.String())
+		assertPackageReportFixtureResponse(t, request.path, string(want), out.Body.String())
 		for _, private := range []string{"private-triage", "internal_notes", foreign.product.ID, foreign.release.ID, foreign.bundle.ID} {
 			if strings.Contains(out.Body.String(), private) {
 				t.Fatal("package report leaked private/foreign data", request.path, private)
@@ -137,13 +146,22 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 	auth.actor = human
 	for _, request := range requests {
 		foreignPath := strings.NewReplacer(owner.product.ID, foreign.product.ID, owner.release.ID, foreign.release.ID, owner.framework.ID, foreign.framework.ID, owner.bundle.ID, foreign.bundle.ID).Replace(request.path)
-		getRaw(t, server, "fixture-auth", foreignPath, 404)
+		if strings.HasPrefix(request.path, "/v1/reports/control-coverage?") || strings.HasPrefix(request.path, "/v1/reports/cra-readiness?") || strings.HasPrefix(request.path, "/v1/reports/cra-vulnerability-handling?") {
+			// Native queries reject an ungranted product before touching storage.
+			// A tenant-wide reader must still receive a scoped not-found result.
+			getRaw(t, server, "fixture-auth", foreignPath, 403)
+			auth.actor = domain.Actor{TenantID: human.TenantID, KeyID: "owned-report-reader", Scopes: []string{"*"}}
+			getRaw(t, server, "fixture-auth", foreignPath, 404)
+			auth.actor = human
+		} else {
+			getRaw(t, server, "fixture-auth", foreignPath, 404)
+		}
 		if strings.Contains(request.path, "?") {
 			getRaw(t, server, "fixture-auth", request.path+"&release_id="+foreign.release.ID, 400)
 		}
 	}
 	base := catalogFixtureCommands{ledger: ledger}
-	projectedCoverage, err := (packageCoverageFixture{base}).Coverage(t.Context(), human, filter)
+	projectedCoverage, err := (packageCoverageFixture{catalogFixtureCommands: base, clock: clock}).Coverage(t.Context(), human, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +180,7 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 			v.Limitations[0] = "modified"
 		}
 	}
-	projectedHandling, err := (packageHandlingFixture{base}).Report(t.Context(), human, owner.product.ID, owner.release.ID)
+	projectedHandling, err := (packageHandlingFixture{catalogFixtureCommands: base, clock: clock}).Report(t.Context(), human, owner.product.ID, owner.release.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,21 +213,21 @@ func TestPackageReportFixturesPreserveCompleteResponsesAuthorityPrivacyAndReadOn
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertTrustHTTPReplay(t, string(want), out.Body.String())
+		assertPackageReportFixtureResponse(t, request.path, string(want), out.Body.String())
 	}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	for _, check := range []func(context.Context) error{
 		func(ctx context.Context) error {
-			_, err := (packageCoverageFixture{base}).Coverage(ctx, human, filter)
+			_, err := (packageCoverageFixture{catalogFixtureCommands: base, clock: clock}).Coverage(ctx, human, filter)
 			return err
 		},
 		func(ctx context.Context) error {
-			_, err := (packageCoverageFixture{base}).CRAReadiness(ctx, human, owner.product.ID, owner.release.ID)
+			_, err := (packageCoverageFixture{catalogFixtureCommands: base, clock: clock}).CRAReadiness(ctx, human, owner.product.ID, owner.release.ID)
 			return err
 		},
 		func(ctx context.Context) error {
-			_, err := (packageHandlingFixture{base}).Report(ctx, human, owner.product.ID, owner.release.ID)
+			_, err := (packageHandlingFixture{catalogFixtureCommands: base, clock: clock}).Report(ctx, human, owner.product.ID, owner.release.ID)
 			return err
 		},
 		func(ctx context.Context) error {

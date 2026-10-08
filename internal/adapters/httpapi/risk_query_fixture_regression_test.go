@@ -11,7 +11,9 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 )
 
@@ -46,13 +48,14 @@ func seedRiskQueryFixtureScope(t *testing.T, ledger *app.Ledger, name string) ri
 			scope.head = value
 		}
 	}
+	governance := governanceFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return scope.release.CreatedAt })}
 	for i := range 2 {
-		exception, err := ledger.CreateException(t.Context(), scope.actor, app.CreateExceptionInput{ReleaseID: scope.release.ID, Reason: fmt.Sprintf("exception-%d", i), Owner: "security", ExpiresAt: scope.release.CreatedAt.Add(time.Hour)})
+		exception, err := governance.CreateException(t.Context(), scope.actor, riskapp.CreateExceptionInput{ReleaseID: scope.release.ID, Reason: fmt.Sprintf("exception-%d", i), Owner: "security", ExpiresAt: scope.release.CreatedAt.Add(time.Hour)})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if i == 0 {
-			if _, err := ledger.ApproveException(t.Context(), scope.actor, exception.ID); err != nil {
+			if _, err := governance.ApproveException(t.Context(), scope.actor, exception.ID); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -119,7 +122,7 @@ func TestRiskQueryFixturesPreserveTenantFiltersPrivacyPagingAndReadOnlyState(t *
 		if _, err := decisions.ListPage(t.Context(), foreign.actor, filter, request, nil); !errors.Is(err, app.ErrNotFound) {
 			t.Fatal("decision fixture accepted foreign parent filters", err)
 		}
-		if _, err := exceptions.ListPage(t.Context(), foreign.actor, owner.release.ID, request, nil); !errors.Is(err, app.ErrNotFound) {
+		if _, err := exceptions.ListPage(t.Context(), foreign.actor, owner.release.ID, request, nil); !errors.Is(err, riskquery.ErrNotFound) {
 			t.Fatal("exception fixture accepted a foreign release", err)
 		}
 		if _, err := summaries.SummaryReport(t.Context(), foreign.actor, owner.release.ID); !errors.Is(err, app.ErrNotFound) {
@@ -130,7 +133,7 @@ func TestRiskQueryFixturesPreserveTenantFiltersPrivacyPagingAndReadOnlyState(t *
 		if _, err := decisions.ListPage(t.Context(), denied, filter, request, nil); !errors.Is(err, app.ErrForbidden) {
 			t.Fatal("decision fixture skipped evidence read authority", err)
 		}
-		if _, err := exceptions.ListPage(t.Context(), denied, owner.release.ID, request, nil); !errors.Is(err, app.ErrForbidden) {
+		if _, err := exceptions.ListPage(t.Context(), denied, owner.release.ID, request, nil); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal("exception fixture skipped verification read authority", err)
 		}
 		if _, err := summaries.SummaryReport(t.Context(), denied, owner.release.ID); !errors.Is(err, app.ErrForbidden) {
@@ -154,7 +157,7 @@ func TestRiskQueryFixturesPreserveTenantFiltersPrivacyPagingAndReadOnlyState(t *
 			if _, err := decisions.ListPage(t.Context(), human, filter, request, nil); !errors.Is(err, app.ErrForbidden) {
 				t.Fatal("decision fixture retained wrong or removed resource authority", err)
 			}
-			if _, err := exceptions.ListPage(t.Context(), human, owner.release.ID, request, nil); !errors.Is(err, app.ErrForbidden) {
+			if _, err := exceptions.ListPage(t.Context(), human, owner.release.ID, request, nil); !errors.Is(err, application.ErrForbidden) {
 				t.Fatal("exception fixture retained wrong or removed resource authority", err)
 			}
 			if _, err := summaries.SummaryReport(t.Context(), human, owner.release.ID); !errors.Is(err, app.ErrForbidden) {

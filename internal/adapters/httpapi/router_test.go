@@ -1538,7 +1538,7 @@ func TestCollectorSupplyChainHTTPFlow(t *testing.T) {
 }
 
 func TestControlsAndReportsHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "ctrl-prod", map[string]any{"name": "Controls Product", "slug": "controls-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "ctrl-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)

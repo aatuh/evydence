@@ -230,8 +230,13 @@ including local evaluation.
 Control coverage, CRA readiness/vulnerability handling, security-update,
 missing-evidence and both release-bundle reads also require focused queries;
 their seven aggregate fallback paths are deleted. Native filters, errors,
-current grants/parents and bounded SQL are unchanged. Test-only readers retain
-actual former grant rules and detach mutable report and manifest data. The
+current grants/parents and bounded SQL are unchanged. Coverage, CRA-readiness
+and vulnerability-handling fixtures now compose the actual Package queries
+with current repository readers and explicit clocks; their three Ledger
+methods are unchanged test-only oracles. The memory coverage reader resolves
+every supported subject's current parents and observation time, shares the
+4,096-entry budget across controls, links and exceptions, and conservatively
+bounds selected text/JSON. Other test readers detach report and manifest data. The
 missing-evidence fixture uses real current authority and a pure readiness
 preview with the same Package renderer, not the old write-producing helper.
 Regressions compare all public DTO fields and complete repository state after
@@ -300,8 +305,13 @@ without constructing Ledger. The five waiver/exception creation and approval,
 and approval-record transport fallbacks and their broad-interface methods are
 also deleted; these handlers unconditionally use focused commands. Native
 callbacks and API schemas are unchanged. Governance HTTP fixtures explicitly
-opt into the repository adapter, execute actual native authority guards and
-preserve isolated replay writes. Failure-after-write tests cover complete effect
+opt into the repository adapter and compose actual native authority guards,
+fresh commands and audit writes. Explicit clocks and IDs survive rebinding;
+guards never consult them. Five Ledger write facades and their three input types
+are unchanged test-only oracles. Exception paging also composes the native Risk
+query on current repository rows, filtering grants before keyset selection and
+detaching selected approval timestamps; its Ledger facade is test-only.
+Failure-after-write tests cover complete effect
 rollback; retries recheck current grants without reapplying transitions. These
 test-only bridges do not install another API runtime or prove SQL locks.
 
@@ -1926,11 +1936,11 @@ for bounds, privacy-safe replay and existing archive-content limitations.
 
 Control coverage and CRA-readiness reports use versioned tenant-created controls, explicit evidence links, approved unexpired control exceptions, and built-in starter packs for CRA-readiness, NIST SSDF-lite, SOC 2-style technical evidence, and ISO 27001-style technical evidence.
 
-In the PostgreSQL profile, these reports read controls, current tenant-owned evidence subjects, and active exceptions from one repeatable-read snapshot. Subject scope and observed time are resolved from durable records before freshness is evaluated; stored link coordinates alone do not grant report inclusion. The reader rejects reports above 4096 combined controls, links, and exceptions or 8 MiB of selected text rather than silently truncating them; SQL preflight bounds individual control, link, and exception rows before transfer. An empty framework yields unknown coverage, and broad reports do not apply release-specific waivers. Local-memory mode retains the compatibility Ledger report path. These reports organize recorded technical evidence; they do not determine legal compliance.
+In the PostgreSQL profile, these reports read controls, current tenant-owned evidence subjects, and active exceptions from one repeatable-read snapshot. Subject scope and observed time are resolved from durable records before freshness is evaluated; stored link coordinates alone do not grant report inclusion. The reader rejects reports above 4096 combined controls, links, and exceptions or 8 MiB of selected text rather than silently truncating them; SQL preflight bounds individual control, link, and exception rows before transfer. An empty framework yields unknown coverage, and broad reports do not apply release-specific waivers. Historical coverage/CRA-readiness methods are test-only oracles; repository-backed fixtures use the native query service, not an API runtime profile. These reports organize recorded technical evidence; they do not determine legal compliance.
 
 The production security-update evidence report reads fixed decisions, scans, incidents, and remediation tasks for one tenant-owned release from a repeatable-read PostgreSQL snapshot. It omits private decision notes, verifies linked evidence remains in the tenant and report scope, and rejects rather than truncates reports above 4096 source rows or linked evidence identifiers. It organizes recorded evidence only; it does not prove legal sufficiency, notification completeness, or release security. Local-memory mode retains the Ledger report path.
 
-The production CRA vulnerability-handling report uses the same tenant/release snapshot and evidence-scope discipline. PostgreSQL aggregates scan finding counts without loading raw finding arrays into the API, then projects active decisions and approved unexpired exceptions with a 4096-row/evidence-ID cap. It excludes private decision notes and does not claim complete detection, scanner authority, legal compliance, or release security. Local-memory mode retains the Ledger report path.
+The production CRA vulnerability-handling report uses the same tenant/release snapshot and evidence-scope discipline. PostgreSQL aggregates scan finding counts without loading raw finding arrays into the API, then projects active decisions and approved unexpired exceptions with a 4096-row/evidence-ID cap. It excludes private decision notes and does not claim complete detection, scanner authority, legal compliance, or release security. The historical Ledger method is a test-only oracle; repository-backed fixtures compose the native report query without consulting aggregate caches.
 
 Source snapshots, deployment records, signed incident webhook events, incident packages, security scans, manual reviews, SBOM diffs, contract diffs, API security checks, customer packages, customer portal package access, questionnaire packages, evidence bundles, and custom policies add traceability and reproducible decisions. Reports include gaps, assumptions, and limitations.
 

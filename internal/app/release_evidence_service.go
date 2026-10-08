@@ -444,31 +444,6 @@ func (l *Ledger) VulnerabilityDecisionSummaryReport(ctx context.Context, actor d
 	}, nil
 }
 
-func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
-	value, err := l.riskCommands.CreateException(ctx, actor, riskapp.CreateExceptionInput{
-		ReleaseID: in.ReleaseID, FindingID: in.FindingID, ControlID: in.ControlID,
-		Reason: in.Reason, Owner: in.Owner, ExpiresAt: in.ExpiresAt,
-	})
-	return exceptionFromRiskContext(value), fromRiskContextError(err)
-}
-
-func (l *Ledger) ListExceptions(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.Exception, error) {
-	values, err := l.riskCommands.ListExceptions(ctx, actor, releaseID)
-	if err != nil {
-		return nil, fromRiskContextError(err)
-	}
-	result := make([]domain.Exception, 0, len(values))
-	for _, value := range values {
-		result = append(result, exceptionFromRiskContext(value))
-	}
-	return result, nil
-}
-
-func (l *Ledger) ApproveException(ctx context.Context, actor domain.Actor, id string) (domain.Exception, error) {
-	value, err := l.riskCommands.ApproveException(ctx, actor, id)
-	return exceptionFromRiskContext(value), fromRiskContextError(err)
-}
-
 func supportingRefsToRiskContext(values []domain.SubjectRef) []riskdomain.SupportingReference {
 	result := make([]riskdomain.SupportingReference, 0, len(values))
 	for _, value := range values {

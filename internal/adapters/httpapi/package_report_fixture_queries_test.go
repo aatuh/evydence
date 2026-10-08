@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -14,31 +15,18 @@ import (
 
 // Historical report fixtures retain actual former owned read/grant rules and
 // detach mutable metadata. Runtime readers remain bounded SQL projections.
-type packageCoverageFixture struct{ catalogFixtureCommands }
-type packageHandlingFixture struct{ catalogFixtureCommands }
+type packageCoverageFixture struct {
+	catalogFixtureCommands
+	clock func() time.Time
+}
+type packageHandlingFixture struct {
+	catalogFixtureCommands
+	clock func() time.Time
+}
 type packageUpdateFixture struct{ catalogFixtureCommands }
 type packageBundleReadFixture struct{ catalogFixtureCommands }
 type packageMissingFixture struct{ catalogFixtureCommands }
 
-func packageFixtureCoverageItems(values []domain.ControlCoverageItem) []packagedomain.ControlCoverageItem {
-	items := make([]packagedomain.ControlCoverageItem, 0, len(values))
-	for _, v := range values {
-		links := make([]packagedomain.ControlEvidenceSnapshot, 0, len(v.LinkedEvidence))
-		for _, link := range v.LinkedEvidence {
-			links = append(links, packagedomain.ControlEvidenceSnapshot(link))
-		}
-		items = append(items, packagedomain.ControlCoverageItem{ControlID: v.ControlID, Code: v.Code, Title: v.Title, Status: v.Status, Confidence: v.Confidence, LinkedEvidence: links, Missing: slices.Clone(v.Missing), Explanation: v.Explanation, Limitations: slices.Clone(v.Limitations)})
-	}
-	return items
-}
-func packageFixtureExceptions(values []domain.Exception) []packagedomain.AcceptedExceptionSnapshot {
-	items := make([]packagedomain.AcceptedExceptionSnapshot, 0, len(values))
-	for _, v := range values {
-		v.ApprovedAt = copyDecisionSummaryTime(v.ApprovedAt)
-		items = append(items, packagedomain.AcceptedExceptionSnapshot(v))
-	}
-	return items
-}
 func packageFixtureDecisions(values []domain.VulnerabilityDecisionCustomerSummary) []packagedomain.VulnerabilityDecisionSnapshot {
 	items := make([]packagedomain.VulnerabilityDecisionSnapshot, 0, len(values))
 	for _, v := range values {
@@ -51,25 +39,25 @@ func packageFixtureDecisions(values []domain.VulnerabilityDecisionCustomerSummar
 	return items
 }
 func (f packageCoverageFixture) Coverage(ctx context.Context, a domain.Actor, filter packagequery.ControlCoverageFilter) (packagedomain.ControlCoverageReport, error) {
-	v, err := f.commandLedger(ctx).ControlCoverageReport(ctx, a, app.ControlCoverageReportInput(filter))
+	query, err := packagequery.NewControlCoverageReport(f, f.now)
 	if err != nil {
 		return packagedomain.ControlCoverageReport{}, err
 	}
-	return packagedomain.ControlCoverageReport{ReportType: v.ReportType, TemplateVersion: v.TemplateVersion, FrameworkID: v.FrameworkID, ProductID: v.ProductID, ReleaseID: v.ReleaseID, Result: v.Result, Controls: packageFixtureCoverageItems(v.Controls), MissingEvidence: slices.Clone(v.MissingEvidence), AcceptedExceptions: packageFixtureExceptions(v.AcceptedExceptions), Assumptions: slices.Clone(v.Assumptions), Limitations: slices.Clone(v.Limitations), GeneratedAt: v.GeneratedAt}, nil
+	return query.Coverage(ctx, a, filter)
 }
 func (f packageCoverageFixture) CRAReadiness(ctx context.Context, a domain.Actor, product, release string) (packagedomain.CRAReadinessReport, error) {
-	v, err := f.commandLedger(ctx).CRAReadinessReport(ctx, a, app.CRAReadinessReportInput{ProductID: product, ReleaseID: release})
+	query, err := packagequery.NewControlCoverageReport(f, f.now)
 	if err != nil {
 		return packagedomain.CRAReadinessReport{}, err
 	}
-	return packagedomain.CRAReadinessReport{ReportType: v.ReportType, TemplateVersion: v.TemplateVersion, ProductID: v.ProductID, ReleaseID: v.ReleaseID, Result: v.Result, Controls: packageFixtureCoverageItems(v.Controls), MissingEvidence: slices.Clone(v.MissingEvidence), AcceptedExceptions: packageFixtureExceptions(v.AcceptedExceptions), Assumptions: slices.Clone(v.Assumptions), Limitations: slices.Clone(v.Limitations), GeneratedAt: v.GeneratedAt}, nil
+	return query.CRAReadiness(ctx, a, product, release)
 }
 func (f packageHandlingFixture) Report(ctx context.Context, a domain.Actor, product, release string) (packagedomain.CRAVulnerabilityHandlingReport, error) {
-	v, err := f.commandLedger(ctx).CRAVulnerabilityHandlingReport(ctx, a, product, release)
+	query, err := packagequery.NewCRAVulnerabilityHandling(f, f.now)
 	if err != nil {
 		return packagedomain.CRAVulnerabilityHandlingReport{}, err
 	}
-	return packagedomain.CRAVulnerabilityHandlingReport{ReportType: v.ReportType, TemplateVersion: v.TemplateVersion, ProductID: v.ProductID, ReleaseID: v.ReleaseID, Summary: maps.Clone(v.Summary), Decisions: packageFixtureDecisions(v.Decisions), AcceptedExceptions: packageFixtureExceptions(v.AcceptedExceptions), EvidenceIDs: slices.Clone(v.EvidenceIDs), Assumptions: slices.Clone(v.Assumptions), Limitations: slices.Clone(v.Limitations), GeneratedAt: v.GeneratedAt}, nil
+	return query.Report(ctx, a, product, release)
 }
 func (f packageUpdateFixture) Report(ctx context.Context, a domain.Actor, product, release string) (packagedomain.SecurityUpdateEvidenceReport, error) {
 	v, err := f.commandLedger(ctx).SecurityUpdateEvidenceReport(ctx, a, product, release)
@@ -119,11 +107,13 @@ func (f packageMissingFixture) Report(ctx context.Context, a domain.Actor, id st
 }
 func (s *Server) bindPackageReportFixtureQueries(ledger *app.Ledger) {
 	f := catalogFixtureCommands{ledger: ledger}
-	if _, fixture := s.controlCoverageQuery.(packageCoverageFixture); s.controlCoverageQuery == nil || fixture {
-		s.controlCoverageQuery = packageCoverageFixture{f}
+	if query, fixture := s.controlCoverageQuery.(packageCoverageFixture); s.controlCoverageQuery == nil || fixture {
+		query.catalogFixtureCommands = f
+		s.controlCoverageQuery = query
 	}
-	if _, fixture := s.craVulnerabilityQuery.(packageHandlingFixture); s.craVulnerabilityQuery == nil || fixture {
-		s.craVulnerabilityQuery = packageHandlingFixture{f}
+	if query, fixture := s.craVulnerabilityQuery.(packageHandlingFixture); s.craVulnerabilityQuery == nil || fixture {
+		query.catalogFixtureCommands = f
+		s.craVulnerabilityQuery = query
 	}
 	if _, fixture := s.securityUpdateEvidenceQuery.(packageUpdateFixture); s.securityUpdateEvidenceQuery == nil || fixture {
 		s.securityUpdateEvidenceQuery = packageUpdateFixture{f}
