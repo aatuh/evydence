@@ -41,7 +41,7 @@ func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
 }
 
 func TestListProductsUsesBoundedTenantBoundCursorPagination(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	for _, product := range []struct {
 		name string
 		slug string
@@ -135,7 +135,7 @@ func TestEvidenceSearchCursorPagesDoNotTruncateMatchingRecords(t *testing.T) {
 }
 
 func TestResourceReadsUsePrivateConditionalETags(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	product := postJSON(t, server, secret, "/v1/products", "etag-product", map[string]any{"name": "ETag product", "slug": "etag-product"}, http.StatusCreated)
 	productID := dataField(t, product, "id")
 	first := getRaw(t, server, secret, "/v1/products/"+productID, http.StatusOK)
@@ -741,7 +741,7 @@ func TestIdempotencyReplayOmitsOneTimeAPIKeySecret(t *testing.T) {
 }
 
 func TestProductProjectArtifactReadEndpoints(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "ci-read-product", map[string]any{"name": "Payments", "slug": "ci-read-payments"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	projectBody := postJSON(t, server, secret, "/v1/projects", "ci-read-project", map[string]any{"product_id": productID, "name": "API"}, http.StatusCreated)

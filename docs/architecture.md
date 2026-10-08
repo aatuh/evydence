@@ -1452,6 +1452,24 @@ tenant-bound PostgreSQL queries. Their actor-scope and catalog-grant checks
 no longer read the Ledger's product, project, release, or build maps. The
 build query joins its project, release, and product in one statement before
 the service applies resource grants.
+HTTP product pages and product/project/release point fixtures now run those
+actual focused services against current transaction-owned readers, without an
+aggregate query fallback. The memory reader filters tenant and product grants
+and applies keyset selection before projecting selected public metadata;
+project/release points require a same-tenant parent product. Release lifecycle
+timestamps are detached, and selected malformed metadata or failed query
+commits cannot return a partial projection. These memory scans are test-model
+semantics, not PostgreSQL transfer/locking/durability evidence. The product-list
+and project-read Ledger facades now exist only as unchanged package-local test
+oracles. Product/release facades still serve historical synchronous ingestion
+guards and require their migration before physical retirement. Other catalog
+fixture reads and the remaining aggregate are still EVY-906 work.
+The 32-caller HTTP idempotency fixture now uses native credential authentication
+and records actual credential-use writes. Its memory transaction admission is
+serialized to avoid optimistic whole-snapshot conflicts; HTTP callers remain
+concurrent and retain their original exactly-once/replay assertions. Cancellation
+and commit/rollback admission release have regressions. This is not proof of
+parallel PostgreSQL transactions or retirement of the remaining Ledger locks.
 The built-in control-template catalog is owned by the risk context and read
 without the Ledger in the PostgreSQL profile. It contains static starter
 definitions, not tenant state. Installation binds a focused risk command and

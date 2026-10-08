@@ -163,17 +163,17 @@ func (f riskCommandFixture) AuthorizeEvaluateRelease(ctx context.Context, actor 
 	// No result is exposed until the actual Risk write authorizer has checked
 	// the request actor's current grant against the resolved coordinates.
 	reader := domain.Actor{TenantID: actor.TenantID, KeyID: "fixture-owner-reader", Scopes: []string{"product:read", "release:read"}}
-	ledger := f.commandLedger(ctx)
-	release, err := ledger.GetRelease(ctx, reader, id)
+	query := catalogQueryFixture(f)
+	release, err := query.GetRelease(ctx, reader, id)
 	if err != nil {
-		return err
+		return mapCatalogPointQueryError(err)
 	}
 	if release.TenantID != actor.TenantID || release.ID != id || release.ProductID == "" {
 		return app.ErrNotFound
 	}
-	product, err := ledger.GetProduct(ctx, reader, release.ProductID)
+	product, err := query.GetProduct(ctx, reader, release.ProductID)
 	if err != nil {
-		return err
+		return mapCatalogPointQueryError(err)
 	}
 	if product.ID != release.ProductID || product.TenantID != actor.TenantID {
 		return app.ErrNotFound

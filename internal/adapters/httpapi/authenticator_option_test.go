@@ -26,7 +26,7 @@ func (a *configuredAuthenticator) Authenticate(_ context.Context, secret string)
 
 func TestConfiguredAuthenticatorPrefersBearerOverSessionCookie(t *testing.T) {
 	configured := &configuredAuthenticator{actor: identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"product:read"}}}
-	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), newLegacyLedgerFixture(app.Config{}), ServerOptions{Authenticator: configured})
+	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), newLegacyLedgerFixture(app.Config{}), ServerOptions{Authenticator: configured, ProductQuery: &productPageQueryFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestServerUsesConfiguredAuthenticatorAndMapsIdentityErrors(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			configured := &configuredAuthenticator{actor: test.actor, err: test.err}
-			server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), newLegacyLedgerFixture(app.Config{}), ServerOptions{Authenticator: configured})
+			server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), newLegacyLedgerFixture(app.Config{}), ServerOptions{Authenticator: configured, ProductQuery: &productPageQueryFake{}})
 			if err != nil {
 				t.Fatal(err)
 			}

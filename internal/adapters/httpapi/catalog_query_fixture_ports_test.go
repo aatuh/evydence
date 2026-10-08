@@ -7,46 +7,44 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
+	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
-// These are in-memory HTTP test readers, never production query adapters.
-// Authorization/filtering stays on the real fixture service; production reads
-// remain bounded PostgreSQL queries rather than aggregate map scans.
+// Product pages and product/project/release points run the actual focused
+// query services on transaction-owned test readers. Other catalog surfaces
+// still retain their historical fixtures; none is a production query adapter.
 type catalogQueryFixture struct{ catalogFixtureCommands }
 
 func (f catalogQueryFixture) ListProductsPage(ctx context.Context, actor domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[releasedomain.Product], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[releasedomain.Product]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListProducts(ctx, actor)
+	query, err := releasequery.NewProducts(catalogNativeFixtureReader(f), releasequery.NewCatalogAuthorizer())
 	if err != nil {
 		return appquery.Result[releasedomain.Product]{}, err
 	}
-	items := make([]releasedomain.Product, 0, len(values))
-	for _, value := range values {
-		items = append(items, releasedomain.Product{ID: value.ID, TenantID: value.TenantID, Name: value.Name, Slug: value.Slug, CreatedAt: value.CreatedAt})
-	}
-	return appquery.Page(items, request, after, func(value releasedomain.Product, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
-	})
+	return query.ListProductsPage(ctx, actor, request, after)
 }
 
 func (f catalogQueryFixture) GetProduct(ctx context.Context, actor domain.Actor, id string) (releasedomain.Product, error) {
-	value, err := f.commandLedger(ctx).GetProduct(ctx, actor, id)
-	return releasedomain.Product{ID: value.ID, TenantID: value.TenantID, Name: value.Name, Slug: value.Slug, CreatedAt: value.CreatedAt}, err
+	query, err := releasequery.NewProducts(catalogNativeFixtureReader(f), releasequery.NewCatalogAuthorizer())
+	if err != nil {
+		return releasedomain.Product{}, err
+	}
+	return query.GetProduct(ctx, actor, id)
 }
 
 func (f catalogQueryFixture) GetProject(ctx context.Context, actor domain.Actor, id string) (releasedomain.Project, error) {
-	value, err := f.commandLedger(ctx).GetProject(ctx, actor, id)
-	return releasedomain.Project{ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, Name: value.Name, CreatedAt: value.CreatedAt}, err
+	query, err := releasequery.NewCatalogPoints(catalogNativeFixtureReader(f), releasequery.NewCatalogAuthorizer())
+	if err != nil {
+		return releasedomain.Project{}, err
+	}
+	return query.GetProject(ctx, actor, id)
 }
 
 func (f catalogQueryFixture) GetRelease(ctx context.Context, actor domain.Actor, id string) (releasedomain.Release, error) {
-	value, err := f.commandLedger(ctx).GetRelease(ctx, actor, id)
+	query, err := releasequery.NewCatalogPoints(catalogNativeFixtureReader(f), releasequery.NewCatalogAuthorizer())
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	return releaseFixtureModel(value)
+	return query.GetRelease(ctx, actor, id)
 }
 
 func (f catalogQueryFixture) GetArtifact(ctx context.Context, actor domain.Actor, id string) (releasedomain.Artifact, error) {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
@@ -167,8 +168,8 @@ func TestCatalogFixtureReplayKeepsFailedWritesInsideTheCommandClone(t *testing.T
 	if commands.createdID == "" || !commands.isolated || strings.Contains(body, "private fixture") || strings.Contains(body, commands.createdID) {
 		t.Fatal("failed fixture command bypassed the clone or exposed its partial result")
 	}
-	products, err := ledger.ListProducts(t.Context(), actor)
-	if err != nil || len(products) != 0 {
+	products, err := server.productQuery.ListProductsPage(t.Context(), actor, appquery.PageRequest{PageSize: 50, Sort: appquery.SortID, Direction: appquery.Ascending}, nil)
+	if err != nil || len(products.Items) != 0 {
 		t.Fatal("failed fixture command published an authoritative product", products, err)
 	}
 	after, err := factory.Snapshot()

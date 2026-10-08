@@ -8,7 +8,7 @@ import (
 )
 
 func TestProductSchemaMatchesActualCreateReadAndListFields(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	created := postRaw(t, server, secret, "/v1/products", "schema-product", []byte(`{"name":"Product","slug":"product"}`), 201)
 	id := dataField(t, created, "id")
 	for _, body := range []string{created, getJSON(t, server, secret, "/v1/products/"+id, 200)} {

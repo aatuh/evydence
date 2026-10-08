@@ -110,6 +110,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"CreateAPIKey":     true, "ListAPIKeys": true,
 		"ReadinessStatus": true, "ReadinessDiagnostics": true, "Metrics": true,
 		"InstanceAdminSnapshot": true, "OutboxOperatorDiagnostics": true, "ReplayTerminalOutboxJob": true,
+		"ListProducts": true, "GetProject": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

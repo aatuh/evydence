@@ -12,7 +12,7 @@ import (
 )
 
 func TestConditionalActionsBindRevisionToIdempotencyReplay(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	product := postJSON(t, server, secret, "/v1/products", "conditional-product", map[string]any{"name": "Conditional", "slug": "conditional"}, 201)
 	release := postJSON(t, server, secret, "/v1/releases", "conditional-release", map[string]any{"product_id": dataField(t, product, "id"), "version": "1"}, 201)
 	id := dataField(t, release, "id")

@@ -20,7 +20,7 @@ import (
 type ingestionFixtureAuthority struct{ catalogFixtureCommands }
 
 func fixtureOwnerReader(tenant string) domain.Actor {
-	return domain.Actor{TenantID: tenant, KeyID: "fixture-owner-reader", Scopes: []string{"product:read", "release:read", "evidence:read"}}
+	return domain.Actor{TenantID: tenant, KeyID: "fixture-owner-reader", Scopes: []string{"product:read", "project:read", "release:read", "evidence:read"}}
 }
 
 func (f ingestionFixtureAuthority) ResolveEvidenceCreationScope(ctx context.Context, tenant string, refs application.ResourceReferences) (application.ResourceReferences, error) {
@@ -30,9 +30,9 @@ func (f ingestionFixtureAuthority) ResolveEvidenceCreationScope(ctx context.Cont
 	ledger, reader := f.commandLedger(ctx), fixtureOwnerReader(tenant)
 	product := refs.ProductID
 	if refs.ProjectID != "" {
-		project, err := ledger.GetProject(ctx, reader, refs.ProjectID)
+		project, err := catalogQueryFixture(f).GetProject(ctx, reader, refs.ProjectID)
 		if err != nil {
-			return application.ResourceReferences{}, err
+			return application.ResourceReferences{}, mapCatalogPointQueryError(err)
 		}
 		if product != "" && product != project.ProductID {
 			return application.ResourceReferences{}, app.ErrNotFound
