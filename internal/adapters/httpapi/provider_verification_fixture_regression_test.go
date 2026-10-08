@@ -48,7 +48,8 @@ func providerVerificationRegressionLedger() (*app.Ledger, *app.MemoryUnitOfWorkF
 func seedProviderVerificationFixture(t *testing.T, ledger *app.Ledger, name string) ssoProviderFixtureScope {
 	t.Helper()
 	f := seedSSOProviderFixtureScope(t, ledger, name)
-	_, err := ledger.LinkSSOIdentity(t.Context(), f.actor, app.LinkSSOIdentityInput{UserID: f.user.ID, ProviderID: f.provider.ID, Subject: "subject-" + name, Email: f.user.Email, Verified: true})
+	commands := ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: providerVerificationFixtureClock()}
+	_, err := commands.LinkSSOIdentity(t.Context(), f.actor, identityapp.LinkSSOIdentityInput{UserID: f.user.ID, ProviderID: f.provider.ID, Subject: "subject-" + name, Email: f.user.Email, Verified: true})
 	if err != nil {
 		t.Fatal(err)
 	}

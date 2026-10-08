@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
@@ -543,7 +544,8 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 		t.Fatalf("auth: %v", err)
 	}
 	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-login", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
-	provider, err := ledger.CreateSSOProvider(t.Context(), admin, app.CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}, JWKS: jwks})
+	providerCommands := ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	provider, err := providerCommands.CreateSSOProvider(t.Context(), admin, identityapp.CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}, JWKS: jwks})
 	if err != nil {
 		t.Fatalf("provider: %v", err)
 	}
@@ -555,7 +557,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("user: %v", err)
 	}
-	if _, err := ledger.LinkSSOIdentity(t.Context(), admin, app.LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
+	if _, err := providerCommands.LinkSSOIdentity(t.Context(), admin, identityapp.LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("link: %v", err)
 	}
 	server, err := newLegacyServerFixture(ledger)

@@ -51,7 +51,9 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"VerifyProviderIdentityInput": true, "VerifyProviderIdentity": true, "verifyProviderIdentity": true,
 		"localProviderVerificationReader": true, "localProviderVerificationTransactions": true, "localProviderVerificationTransaction": true,
 		"UpdateSSOProviderTrustMaterialInput": true, "UpdateSSOProviderTrustMaterial": true, "RefreshSSOProviderOIDCTrustMaterial": true,
-		"CreateSSOSessionInput": true,
+		"CreateSSOSessionInput":  true,
+		"CreateSSOProviderInput": true, "LinkSSOIdentityInput": true, "ExchangeSSOCredentialInput": true,
+		"CreateSSOProvider": true, "LinkSSOIdentity": true, "ExchangeSSOCredential": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

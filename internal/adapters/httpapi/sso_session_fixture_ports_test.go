@@ -13,7 +13,7 @@ import (
 )
 
 // Native issuance/revocation share the real isolated command transaction.
-// Public exchange remains a historical fixture and is not HTTP idempotency.
+// Public exchange owns its native transaction and is not HTTP idempotency.
 type ssoSessionFixtureCommands struct {
 	catalogFixtureCommands
 	credentials identityapp.SessionCredentialManager
@@ -152,8 +152,12 @@ func (f ssoSessionFixtureCommands) RevokeCurrentSSOSession(ctx context.Context, 
 	return v, providerVerificationFixtureError(err)
 }
 func (f ssoSessionFixtureCommands) ExchangeSSOCredential(ctx context.Context, in identityapp.ExchangeSSOCredentialInput) (identitydomain.ProviderVerification, identitydomain.SSOSession, string, error) {
-	v, session, secret, err := f.commandLedger(ctx).ExchangeSSOCredential(ctx, app.ExchangeSSOCredentialInput(in))
-	return ssoFixtureVerificationModel(v), identitydomain.SSOSession(session), secret, err
+	c, err := f.exchangeCommands()
+	if err != nil {
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
+	}
+	v, session, secret, err := c.ExchangeSSOCredential(ctx, in)
+	return v, session, secret, providerVerificationFixtureError(err)
 }
 func ssoFixtureVerificationModel(v domain.ProviderVerification) identitydomain.ProviderVerification {
 	checks := make([]identitydomain.VerificationCheck, len(v.Checks))
@@ -203,6 +207,10 @@ func (s *Server) bindSSOSessionFixtureResources(pepper string, clock application
 	if f, ok := s.ssoSessionRevocationCommands.(ssoSessionFixtureCommands); ok {
 		f.clock = clock
 		s.ssoSessionRevocationCommands = f
+	}
+	if f, ok := s.ssoExchangeCommands.(ssoSessionFixtureCommands); ok {
+		f.credentials, f.clock = credentials, clock
+		s.ssoExchangeCommands = f
 	}
 	if f, ok := s.authn.(ssoFixtureAuthenticator); ok {
 		f.credentials = credentials

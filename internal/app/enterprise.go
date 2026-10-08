@@ -31,33 +31,6 @@ type CreateRoleBindingInput struct {
 	ResourceID   string
 }
 
-type CreateSSOProviderInput struct {
-	Name                    string
-	Type                    string
-	Issuer                  string
-	ClientID                string
-	GroupsClaim             string
-	RoleMapping             map[string]string
-	JWKS                    map[string]any
-	SAMLSigningCertificates []string
-}
-
-type LinkSSOIdentityInput struct {
-	UserID     string
-	ProviderID string
-	Subject    string
-	Email      string
-	Verified   bool
-}
-
-type ExchangeSSOCredentialInput struct {
-	ProviderID    string
-	Subject       string
-	IDToken       string
-	SAMLAssertion string
-	ExpiresAt     time.Time
-}
-
 type CreateLegalHoldInput struct {
 	ScopeType string
 	ScopeID   string

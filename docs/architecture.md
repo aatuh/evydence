@@ -1246,14 +1246,26 @@ selected data returns no partial identity. Revocation compares complete public
 metadata under one transaction lock and preserves the unselected credential
 hash. Final active-session validation rejects closed transactions and changed
 stored session/user IDs. Explicit test credentials and clocks survive rebinding.
-The public credential-exchange and API-key authentication fixtures still use
-historical paths. Regressions preserve complete metadata replay, no secret
+Public credential-exchange fixtures also run the actual focused command on
+bounded current provider/link/user/grant ports, with local signature verification
+outside the write transaction. Signed-login tests use repository-only providers
+and links; repeated exchanges create distinct sessions without replay receipts.
+Failures after real receipt/session/audit writes or before commit roll back all
+effects and expose no cookie or secret. Denials commit only a safe verification
+receipt and audit. Trust, user or grant changes after verification conflict at
+the final snapshot fence. Memory readers detach selected metadata and reject
+oversized identities or excess grant rows without truncation. API-key
+authentication fixtures still use their historical path. Regressions preserve
+complete metadata replay, no secret
 reissue, whole-state post-write rollback, current authority, cancellation,
 credential invalidation and post-commit cookie clearing. Seven historical
 trust/session declarations are excluded from production and retained unchanged
 in `internal/app/legacy_sso_trust_oracle_test.go` and
 `internal/app/legacy_sso_session_oracle_test.go`; source guards forbid their
-production return. These checks are not SQL-locking or durability proof.
+production return. Six additional provider/link/exchange declarations are
+excluded from production and retained unchanged in
+`internal/app/legacy_sso_provider_exchange_oracle_test.go`. These checks are not
+SQL-locking, durability or external provider-truth proof.
 PostgreSQL is required for local evaluation. Remaining aggregate maps, locks,
 snapshots and methods still require deletion in EVY-906. Identity linking
 now uses a separate focused Identity command with a tenant/projection lock and

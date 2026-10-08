@@ -43,27 +43,3 @@ func (l *Ledger) ListRoleBindings(ctx context.Context, actor domain.Actor) ([]do
 	}
 	return result, nil
 }
-
-func (l *Ledger) CreateSSOProvider(ctx context.Context, actor domain.Actor, in CreateSSOProviderInput) (domain.SSOProvider, error) {
-	provider, err := l.identityCommands.CreateSSOProvider(ctx, actor, identityapp.CreateSSOProviderInput{
-		Name: in.Name, Type: in.Type, Issuer: in.Issuer, ClientID: in.ClientID, GroupsClaim: in.GroupsClaim,
-		RoleMapping: cloneStringMap(in.RoleMapping), JWKS: cloneIdentityAnyMap(in.JWKS),
-		SAMLSigningCertificates: append([]string(nil), in.SAMLSigningCertificates...),
-	})
-	return ssoProviderFromIdentityContext(provider), fromIdentityContextError(err)
-}
-
-func (l *Ledger) LinkSSOIdentity(ctx context.Context, actor domain.Actor, in LinkSSOIdentityInput) (domain.UserIdentityLink, error) {
-	link, err := l.identityCommands.LinkSSOIdentity(ctx, actor, identityapp.LinkSSOIdentityInput{
-		UserID: in.UserID, ProviderID: in.ProviderID, Subject: in.Subject, Email: in.Email, Verified: in.Verified,
-	})
-	return userIdentityLinkFromIdentityContext(link), fromIdentityContextError(err)
-}
-
-func (l *Ledger) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCredentialInput) (domain.ProviderVerification, domain.SSOSession, string, error) {
-	verification, session, secret, err := l.identityCommands.ExchangeSSOCredential(ctx, identityapp.ExchangeSSOCredentialInput{
-		ProviderID: in.ProviderID, Subject: in.Subject, IDToken: in.IDToken,
-		SAMLAssertion: in.SAMLAssertion, ExpiresAt: in.ExpiresAt,
-	})
-	return providerVerificationFromIdentityContext(verification), ssoSessionFromIdentityContext(session), secret, fromIdentityContextError(err)
-}

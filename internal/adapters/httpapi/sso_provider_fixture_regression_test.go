@@ -42,11 +42,12 @@ type ssoProviderFixtureScope struct {
 func seedSSOProviderFixtureScope(t *testing.T, ledger *app.Ledger, name string) ssoProviderFixtureScope {
 	t.Helper()
 	f := ssoProviderFixtureScope{membershipFixtureScope: seedMembershipFixtureScope(t, ledger, name)}
-	var err error
-	f.provider, err = ledger.CreateSSOProvider(t.Context(), f.actor, app.CreateSSOProviderInput{Name: name, Type: "oidc", Issuer: "https://issuer.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"token-reviewers": "security_engineer"}, JWKS: publicSSOFixtureJWKS("initial")})
+	commands := ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: providerVerificationFixtureClock()}
+	provider, err := commands.CreateSSOProvider(t.Context(), f.actor, identityapp.CreateSSOProviderInput{Name: name, Type: "oidc", Issuer: "https://issuer.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"token-reviewers": "security_engineer"}, JWKS: publicSSOFixtureJWKS("initial")})
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.provider = domain.SSOProvider(provider)
 	return f
 }
 func ssoProviderFixtureRequests(f ssoProviderFixtureScope) []struct {
@@ -369,6 +370,10 @@ func TestSSONativeFixtureRebindingPreservesExplicitResources(t *testing.T) {
 	issue, revoke := s.ssoSessionCommands.(ssoSessionFixtureCommands), s.ssoSessionRevocationCommands.(ssoSessionFixtureCommands)
 	if issue.ledger != second || revoke.ledger != second || issue.credentials != authBefore.credentials || issue.clock != clock || revoke.clock != clock {
 		t.Fatal("session rebinding lost explicit resources")
+	}
+	exchange := s.ssoExchangeCommands.(ssoSessionFixtureCommands)
+	if exchange.ledger != second || exchange.credentials != authBefore.credentials || exchange.clock != clock {
+		t.Fatal("exchange rebinding lost explicit resources")
 	}
 	authAfter := s.authn.(ssoFixtureAuthenticator)
 	if authAfter.ledger != second || authAfter.clock != clock || authAfter.credentials != authBefore.credentials {
