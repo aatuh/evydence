@@ -52,10 +52,12 @@ func seedTransparencyFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 	t.Helper()
 	f := transparencyFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
 	var err error
-	f.log, err = ledger.CreatePublicTransparencyLog(t.Context(), f.actor, app.CreatePublicTransparencyLogInput{Name: name, Endpoint: "https://log.example.test", PublicKey: "public-metadata"})
+	commands := transparencyFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: transparencyFixtureClock()}
+	log, err := commands.CreatePublicTransparencyLog(t.Context(), f.actor, e.PublicTransparencyLogInput{Name: name, Endpoint: "https://log.example.test", PublicKey: "public-metadata"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.log = app.PublicTransparencyLogLegacyRecord(log)
 	f.batch, err = ledger.CreateMerkleBatch(t.Context(), f.actor, app.CreateMerkleBatchInput{})
 	if err != nil {
 		t.Fatal(err)
@@ -64,10 +66,11 @@ func seedTransparencyFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.entry, err = ledger.PublishPublicTransparencyLogEntry(t.Context(), f.actor, app.PublishPublicTransparencyLogEntryInput{LogID: f.log.ID, CheckpointID: f.checkpoint.ID, ExternalID: "entry-" + name})
+	entry, err := commands.PublishPublicTransparencyLogEntry(t.Context(), f.actor, e.PublicTransparencyPublicationInput{LogID: f.log.ID, CheckpointID: f.checkpoint.ID, ExternalID: "entry-" + name})
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.entry = app.PublicTransparencyPublicationLegacyRecord(entry)
 	return f
 }
 func transparencyFixtureHuman(f transparencyFixtureScope) domain.Actor {
@@ -132,8 +135,9 @@ func TestTransparencyFixturesRollBackLogsPublicationProofAuditAndReplayAfterWrit
 			if err != nil {
 				t.Fatal(err)
 			}
+			server.bindTransparencyFixtureResources(fetcher, transparencyFixtureClock())
 			server.authn = &configuredAuthenticator{actor: transparencyFixtureHuman(owner)}
-			commands := &failingTransparencyFixture{transparencyFixtureCommands: transparencyFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingTransparencyFixture{transparencyFixtureCommands: transparencyFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, fetcher: fetcher, clock: transparencyFixtureClock()}}
 			server.publicTransparencyMetadata, server.publicTransparencyProofs, server.publicTransparencyFetch = commands, commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -180,6 +184,7 @@ func TestTransparencyFixturesPreserveCompleteDTOAuditAndCurrentReplayAuthorityWi
 	}
 	human := transparencyFixtureHuman(owner)
 	auth := &configuredAuthenticator{actor: human}
+	server.bindTransparencyFixtureResources(fetcher, transparencyFixtureClock())
 	server.authn = auth
 	for _, request := range transparencyFixtureRequests(owner) {
 		t.Run(request.name, func(t *testing.T) {
@@ -279,7 +284,7 @@ func TestTransparencyFixtureGuardsArePureAndCanceledFetchDoesNotCommit(t *testin
 	ledger, factory, fetcher := transparencyRegressionLedger()
 	owner := seedTransparencyFixtureScope(t, ledger, "Owner")
 	human := transparencyFixtureHuman(owner)
-	commands := transparencyFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	commands := transparencyFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, fetcher: fetcher, clock: transparencyFixtureClock()}
 	proof := e.PublicTransparencyProofInput{RootHash: owner.entry.EntryHash, TreeSize: 1}
 	before, err := factory.Snapshot()
 	if err != nil {
@@ -343,6 +348,7 @@ func TestTransparencyFixturesRejectUnusableProviderResultsWithoutCachingSuccess(
 			if err != nil {
 				t.Fatal(err)
 			}
+			server.bindTransparencyFixtureResources(fetcher, transparencyFixtureClock())
 			server.authn = &configuredAuthenticator{actor: transparencyFixtureHuman(owner)}
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -388,6 +394,7 @@ func TestTransparencyFixturesRecordWellFormedNonmatchingProofAsNotVerified(t *te
 			if err != nil {
 				t.Fatal(err)
 			}
+			server.bindTransparencyFixtureResources(fetcher, transparencyFixtureClock())
 			server.authn = &configuredAuthenticator{actor: human}
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -436,13 +443,19 @@ func TestBindLedgerPreservesExplicitTransparencyPorts(t *testing.T) {
 }
 
 func TestTransparencyFixtureMapperPreservesEveryAssessmentFieldWithoutAliasing(t *testing.T) {
-	ledger, _, fetcher := transparencyRegressionLedger()
+	ledger, factory, fetcher := transparencyRegressionLedger()
 	owner := seedTransparencyFixtureScope(t, ledger, "Owner")
 	fetcher.result = app.TransparencyProofResult{ExternalID: owner.entry.ExternalID, RootHash: owner.entry.EntryHash, TreeSize: 1}
-	v, err := ledger.FetchAndVerifyPublicTransparencyLogEntry(t.Context(), owner.actor, owner.entry.ID)
-	if err != nil || v.InclusionVerifiedAt == nil || len(v.VerificationChecks) != 3 || len(v.VerificationLimitations) != 3 {
+	commands := transparencyFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, fetcher: fetcher, clock: transparencyFixtureClock()}
+	assessment, err := commands.FetchAndVerifyPublicTransparencyLogEntry(t.Context(), owner.actor, owner.entry.ID)
+	if err != nil || assessment.InclusionVerifiedAt == nil || len(assessment.VerificationChecks) != 3 || len(assessment.VerificationLimitations) != 3 {
 		t.Fatal("mapper test lacks complete nested assessment", err)
 	}
+	saved, err := factory.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := saved.PublicTransparencyEntries[assessment.ID]
 	want, err := json.Marshal(v)
 	if err != nil {
 		t.Fatal(err)
@@ -460,9 +473,12 @@ func TestTransparencyFixtureMapperPreservesEveryAssessmentFieldWithoutAliasing(t
 		t.Fatal("assessment mapper aliases stored check, limitation or timestamp")
 	}
 	in := e.PublicTransparencyProofInput{RootHash: owner.entry.EntryHash, TreeSize: 2, InclusionProof: []string{owner.entry.EntryHash}}
-	copy := legacyPublicTransparencyProofInput(in)
+	copy, err := e.NormalizePublicTransparencyProofInput(owner.entry.ID, in)
+	if err != nil {
+		t.Fatal(err)
+	}
 	copy.InclusionProof[0] = "modified"
 	if !slices.Equal(in.InclusionProof, []string{owner.entry.EntryHash}) {
-		t.Fatal("legacy request conversion aliases proof nodes")
+		t.Fatal("native request normalization aliases proof nodes")
 	}
 }

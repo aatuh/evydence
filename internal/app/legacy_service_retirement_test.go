@@ -40,6 +40,14 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"AnomalyReportInput":    true, "GenerateAnomalyReport": true,
 		"AuthorizeGenerateAnomalyReport": true, "ensureFutureSubjectLocked": true,
 		"anomalyReportFromContext": true, "cloneLocalAnomalyReport": true,
+		"CreatePublicTransparencyLogInput": true, "PublishPublicTransparencyLogEntryInput": true, "VerifyPublicTransparencyLogEntryInput": true,
+		"CreatePublicTransparencyLog": true, "PublishPublicTransparencyLogEntry": true, "VerifyPublicTransparencyLogEntry": true,
+		"verifyPublicTransparencyEntryLocked": true, "verifyRFC6962StyleProof": true, "transparencyParentHash": true, "decodeSHA256Digest": true, "validSHA256Digest": true,
+		"publicTransparencyLogInput": true, "publicTransparencyPublicationInput": true,
+		"AuthorizeCreatePublicTransparencyLog": true, "AuthorizePublishPublicTransparencyLogEntry": true, "publicTransparencyPublicationSourceLocked": true,
+		"publicTransparencyProofInput": true, "PublicTransparencyVerificationCoreRecord": true,
+		"AuthorizeVerifyPublicTransparencyLogEntry": true, "publicTransparencyVerificationSourceLocked": true,
+		"AuthorizeFetchPublicTransparencyLogEntryProof": true, "publicTransparencyFetchSourceLocked": true, "FetchAndVerifyPublicTransparencyLogEntry": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

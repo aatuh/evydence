@@ -609,7 +609,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 
 func TestPublicTransparencyProofFetchRoute(t *testing.T) {
 	fetcher := &fakeTransparencyProofHTTP{}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Transparency: fetcher})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Transparency: fetcher, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -618,6 +618,7 @@ func TestPublicTransparencyProofFetchRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
+	server.bindTransparencyFixtureResources(fetcher, nil)
 	logBody := postJSON(t, server, secret, "/v1/public-transparency-logs", "fetch-log", map[string]any{"name": "public", "endpoint": "https://transparency.example.test", "public_key": "pub"}, http.StatusCreated)
 	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "fetch-batch", map[string]any{}, http.StatusCreated)
 	checkpointBody := postJSON(t, server, secret, "/v1/transparency-checkpoints", "fetch-checkpoint", map[string]any{"batch_id": dataField(t, batchBody, "id"), "provider": "internal", "external_id": "ts"}, http.StatusCreated)

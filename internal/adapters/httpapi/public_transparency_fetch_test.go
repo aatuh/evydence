@@ -98,7 +98,7 @@ func TestPublicTransparencyFetchHTTPStrictBodyPrivateErrorsAndCookiePolicy(t *te
 
 func TestPublicTransparencyFetchHTTPLocalReplayDoesNotRefetchOrKeepRevokedAuthority(t *testing.T) {
 	f := &fakeTransparencyProofHTTP{}
-	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Transparency: f})
+	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Transparency: f, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +107,8 @@ func TestPublicTransparencyFetchHTTPLocalReplayDoesNotRefetchOrKeepRevokedAuthor
 	if err != nil {
 		t.Fatal(err)
 	}
-	log, err := l.CreatePublicTransparencyLog(t.Context(), a, app.CreatePublicTransparencyLogInput{Name: "fixture", Endpoint: "https://log.example.test", PublicKey: "pub"})
+	commands := transparencyFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: l}, fetcher: f}
+	log, err := commands.CreatePublicTransparencyLog(t.Context(), a, e.PublicTransparencyLogInput{Name: "fixture", Endpoint: "https://log.example.test", PublicKey: "pub"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +120,7 @@ func TestPublicTransparencyFetchHTTPLocalReplayDoesNotRefetchOrKeepRevokedAuthor
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := l.PublishPublicTransparencyLogEntry(t.Context(), a, app.PublishPublicTransparencyLogEntryInput{LogID: log.ID, CheckpointID: cp.ID, ExternalID: "external"})
+	v, err := commands.PublishPublicTransparencyLogEntry(t.Context(), a, e.PublicTransparencyPublicationInput{LogID: log.ID, CheckpointID: cp.ID, ExternalID: "external"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,6 +132,7 @@ func TestPublicTransparencyFetchHTTPLocalReplayDoesNotRefetchOrKeepRevokedAuthor
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.bindTransparencyFixtureResources(f, nil)
 	path := "/v1/public-transparency-log-entries/" + v.ID + "/fetch-proof"
 	first := postRaw(t, s, secret, path, "replay", nil, 200)
 	f.err = errors.New("private provider unavailable")

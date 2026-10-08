@@ -126,7 +126,7 @@ func TestPublicTransparencyVerificationHTTPLocalReplayRequiresCurrentTenantAutho
 	if err != nil {
 		t.Fatal(err)
 	}
-	log, err := legacyFixtureLedger(base).CreatePublicTransparencyLog(t.Context(), a, app.CreatePublicTransparencyLogInput{Name: "fixture", Endpoint: "https://log.example.test", PublicKey: "pub"})
+	log, err := base.publicTransparencyMetadata.CreatePublicTransparencyLog(t.Context(), a, e.PublicTransparencyLogInput{Name: "fixture", Endpoint: "https://log.example.test", PublicKey: "pub"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestPublicTransparencyVerificationHTTPLocalReplayRequiresCurrentTenantAutho
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := legacyFixtureLedger(base).PublishPublicTransparencyLogEntry(t.Context(), a, app.PublishPublicTransparencyLogEntryInput{LogID: log.ID, CheckpointID: cp.ID, ExternalID: "external"})
+	v, err := base.publicTransparencyMetadata.PublishPublicTransparencyLogEntry(t.Context(), a, e.PublicTransparencyPublicationInput{LogID: log.ID, CheckpointID: cp.ID, ExternalID: "external"})
 	if err != nil {
 		t.Fatal(err)
 	}

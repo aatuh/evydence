@@ -1751,9 +1751,12 @@ the metadata/audit/replay commit. Publication reads one owned root chain; it
 does not select log endpoint/key metadata or Merkle leaf/signature arrays.
 SQL caps transfer of corrupt batch IDs and root text before core validation.
 Both HTTP handlers use focused commands only. PostgreSQL is required for local
-evaluation. Test-only memory adapters retain actual guards, pure canonical
-entry-hash rules and isolated replay writes, not SQL guarantees. These commands
-do not publish externally or assign inclusion assurance.
+evaluation. HTTP fixtures run the actual focused services on memory transactions,
+selecting only current owned identifiers and the root commitment. Repository-only
+checkpoint regressions reject stale-cache authority; creation retains the pure
+canonical entry hash, complete DTO and atomic audit/replay assertions. These are
+not SQL guarantees. These commands do not publish externally or assign inclusion
+assurance.
 See [public transparency metadata](api.md#public-transparency-metadata).
 
 Operator-supplied public-log proof verification now uses focused Experimental
@@ -1762,8 +1765,11 @@ the assessment row and current roots after the actor-tenant fence, then commits
 the local result, proof-bound audit and replay together. Old diagnostic arrays,
 log endpoints/keys and Merkle leaves are not selected. Same-state updates
 compare previous proof commitments as well as publication coordinates. The HTTP
-handler has no aggregate fallback. Test-only memory adapters retain real guards,
-proof/hash rules and detached assessments. No authenticated public-log root or
+handler has no aggregate fallback. Memory fixture reads omit historical diagnostics
+and unrelated metadata, and detach the selected assessment timestamp. The writer
+compares all prior assessment coordinates under one transaction lock, including
+same-terminal-state proof changes. Complete DTO, negative-proof and whole-state
+failure assertions remain intact. No authenticated public-log root or
 provider identity is implied. Remaining aggregate deletion is EVY-906 work; see
 [proof verification](api.md#public-transparency-proof-verification).
 
@@ -1774,9 +1780,17 @@ provider call and assessment/audit/replay commit. A frozen source is compared
 again before writing; provider diagnostics never become local authority.
 Replays perform current authorization but no network request. The transaction
 does not roll back remote observation, so a failed-commit retry may refetch.
-The HTTP handler has no aggregate fallback. Test-only memory adapters preserve
-actual guards, snapshot validation and isolated writes; fake provider calls are
-not undone by rollback and are not provider verification evidence. See
+The HTTP handler has no aggregate fallback. HTTP fixtures run the actual fetch
+service with explicitly supplied fake fetchers and fixed test clocks in existing
+test-only ports, not Server/Ledger fields or a global registry. Read-only guards
+cannot fetch, write, audit, use clocks or generate IDs. Fake provider calls are
+not undone by rollback and are not provider verification evidence. Twenty-three
+historical declarations are excluded from production and retained unchanged in
+the three `internal/app/legacy_public_transparency*_test.go` oracle files.
+Three obsolete production guard files are deleted; only detached persistence
+mappers remain in `internal/app/public_transparency_records.go`. Source guards
+prevent the retired surface from returning. Aggregate maps, locks, snapshots and
+other methods still require physical retirement in EVY-906. See
 [proof fetching](api.md#public-transparency-proof-fetching) for timeout,
 tenant-mutation latency, input and provider-trust limits.
 

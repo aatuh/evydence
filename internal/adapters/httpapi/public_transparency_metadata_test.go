@@ -103,7 +103,7 @@ func TestPublicTransparencyMetadataHTTPLocalReplayRequiresCurrentTenantGrant(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	log, err := legacyFixtureLedger(base).CreatePublicTransparencyLog(t.Context(), a, app.CreatePublicTransparencyLogInput{Name: "fixture", Endpoint: "https://log.example.test", PublicKey: "pub"})
+	log, err := base.publicTransparencyMetadata.CreatePublicTransparencyLog(t.Context(), a, e.PublicTransparencyLogInput{Name: "fixture", Endpoint: "https://log.example.test", PublicKey: "pub"})
 	if err != nil {
 		t.Fatal(err)
 	}

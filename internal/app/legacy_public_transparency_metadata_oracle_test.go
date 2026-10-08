@@ -5,23 +5,20 @@ import (
 
 	"github.com/aatuh/evydence/internal/domain"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
-	d "github.com/aatuh/evydence/internal/experimental/domain"
 )
+
+// Historical declarations retained unchanged for package-local regressions.
+// Native HTTP fixtures use transaction repositories, not these caches.
+// These oracles do not establish SQL durability or external public-log trust.
 
 func publicTransparencyLogInput(in CreatePublicTransparencyLogInput) experimentalapp.PublicTransparencyLogInput {
 	return experimentalapp.PublicTransparencyLogInput{Name: in.Name, Endpoint: in.Endpoint, PublicKey: in.PublicKey}
 }
+
 func publicTransparencyPublicationInput(in PublishPublicTransparencyLogEntryInput) experimentalapp.PublicTransparencyPublicationInput {
 	return experimentalapp.PublicTransparencyPublicationInput{LogID: in.LogID, CheckpointID: in.CheckpointID, ExternalID: in.ExternalID}
 }
-func PublicTransparencyLogLegacyRecord(v d.PublicTransparencyLog) domain.PublicTransparencyLog {
-	return domain.PublicTransparencyLog{ID: v.ID, TenantID: v.TenantID, Name: v.Name, Endpoint: v.Endpoint, PublicKey: v.PublicKey, State: v.State, SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
-}
 
-// Creation-only mapper deliberately carries no inclusion-verification fields.
-func PublicTransparencyPublicationLegacyRecord(v d.PublicTransparencyLogEntry) domain.PublicTransparencyLogEntry {
-	return domain.PublicTransparencyLogEntry{ID: v.ID, TenantID: v.TenantID, LogID: v.LogID, CheckpointID: v.CheckpointID, MerkleBatchID: v.MerkleBatchID, ExternalID: v.ExternalID, EntryHash: v.EntryHash, State: v.State, SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
-}
 func (l *Ledger) AuthorizeCreatePublicTransparencyLog(ctx context.Context, a domain.Actor, in CreatePublicTransparencyLogInput) error {
 	if err := experimentalapp.AuthorizePublicTransparencyMetadataActor(ctx, a); err != nil {
 		return fromExperimentalCommandError(err)
@@ -36,6 +33,7 @@ func (l *Ledger) AuthorizeCreatePublicTransparencyLog(ctx context.Context, a dom
 	}
 	return ctx.Err()
 }
+
 func (l *Ledger) AuthorizePublishPublicTransparencyLogEntry(ctx context.Context, a domain.Actor, in PublishPublicTransparencyLogEntryInput) error {
 	if err := experimentalapp.AuthorizePublicTransparencyMetadataActor(ctx, a); err != nil {
 		return fromExperimentalCommandError(err)
@@ -49,6 +47,7 @@ func (l *Ledger) AuthorizePublishPublicTransparencyLogEntry(ctx context.Context,
 	_, err = l.publicTransparencyPublicationSourceLocked(ctx, a.TenantID, v)
 	return err
 }
+
 func (l *Ledger) publicTransparencyPublicationSourceLocked(ctx context.Context, tenant string, in experimentalapp.PublicTransparencyPublicationInput) (experimentalapp.PublicTransparencyPublicationSource, error) {
 	if _, ok := l.tenants[tenant]; !ok {
 		return experimentalapp.PublicTransparencyPublicationSource{}, ErrNotFound
