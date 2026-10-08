@@ -1094,7 +1094,7 @@ func (r memoryEvidenceRepository) GetOpenAPIContract(ctx context.Context, tenant
 	if !ok || value.TenantID != tenantID {
 		return domain.OpenAPIContract{}, ErrNotFound
 	}
-	return cloneMemoryJSON(value)
+	return cloneMemoryOpenAPIContract(value), nil
 }
 
 func validateMemoryEvidenceScope(state MemoryUnitOfWorkSnapshot, tenantID, productID, projectID, releaseID, buildID, deploymentID string) error {
@@ -1328,10 +1328,7 @@ func (r memoryEvidenceRepository) InsertVulnerabilityScan(ctx context.Context, s
 }
 
 func (r memoryEvidenceRepository) InsertOpenAPIContract(ctx context.Context, contract domain.OpenAPIContract) error {
-	cloned, err := cloneMemoryJSON(contract)
-	if err != nil {
-		return err
-	}
+	cloned := cloneMemoryOpenAPIContract(contract)
 	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
 		if err := requireMemoryTenant(*state, cloned.TenantID); err != nil {
 			return err
@@ -4024,8 +4021,9 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	for id, scan := range snapshot.VulnerabilityScans {
 		cloned.VulnerabilityScans[id] = cloneMemoryVulnerabilityScan(scan)
 	}
-	if cloned.OpenAPIContracts, err = cloneMemoryMap(snapshot.OpenAPIContracts); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.OpenAPIContracts = make(map[string]domain.OpenAPIContract, len(snapshot.OpenAPIContracts))
+	for id, contract := range snapshot.OpenAPIContracts {
+		cloned.OpenAPIContracts[id] = cloneMemoryOpenAPIContract(contract)
 	}
 	if cloned.VEXDocuments, err = cloneMemoryMap(snapshot.VEXDocuments); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err

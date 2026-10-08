@@ -130,6 +130,29 @@ func TestUploadVulnerabilityScanPayloadPreservesCompletedEmptyArray(t *testing.T
 	}
 }
 
+func TestUploadOpenAPIContractPayloadPreservesCompletedEmptyOperations(t *testing.T) {
+	for _, workerOwned := range []bool{false, true} {
+		fixture := newEvidenceServiceFixture(t)
+		fixture.service.workerOwnedParsers = workerOwned
+		fixture.parser.contract = ParsedOpenAPIContract{ParserVersion: "openapi.v1", SourceSchema: "openapi-3.1.0", PathCount: 0}
+		contract, err := fixture.service.UploadOpenAPIContractPayload(t.Context(), fixture.actor, "prod_1", "rel_1", "1", testPayloadSource(`{"openapi":"3.1.0"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contract.Operations == nil || len(contract.Operations) != 0 {
+			t.Fatal("completed empty contract returned null operations")
+		}
+		stored := fixture.transactions.state.contracts[contract.ID]
+		if workerOwned {
+			if stored.Operations != nil || stored.PathCount != 0 {
+				t.Fatal("pending contract projection was represented as completed")
+			}
+		} else if stored.Operations == nil || len(stored.Operations) != 0 {
+			t.Fatal("completed empty contract persisted null operations")
+		}
+	}
+}
+
 func TestUploadVulnerabilityScanPayloadUsesDynamicHumanAuditActor(t *testing.T) {
 	fixture := newEvidenceServiceFixture(t)
 	fixture.actor = identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", SessionID: "ses_1", Scopes: []string{"*"}}

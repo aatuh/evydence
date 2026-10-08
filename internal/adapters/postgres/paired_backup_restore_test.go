@@ -16,6 +16,7 @@ import (
 
 	fsobject "github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
 
 func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *testing.T) {
@@ -210,7 +211,11 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if result, err := restored.VerifySubject(ctx, restoredActor, "release_bundle", bundle.ID); err != nil || result.Result != "passed" {
 		t.Fatalf("verify restored release bundle: result=%#v err=%v", result, err)
 	}
-	restoredSBOM, err := restored.GetSBOM(ctx, restoredActor, sbom.ID)
+	query, err := evidencequery.NewSBOMPoints(targetStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoredSBOM, err := query.GetSBOM(ctx, restoredActor, sbom.ID)
 	if err != nil || restoredSBOM.ComponentCount != sbom.ComponentCount {
 		t.Fatalf("restored SBOM=%#v err=%v", restoredSBOM, err)
 	}

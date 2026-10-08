@@ -130,6 +130,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"SecurityUpdateEvidenceReport": true,
 		"ReleaseReadinessReport":       true,
 		"GetReleaseBundle":             true,
+		"GetSBOM":                      true, "GetVulnerabilityScan": true, "GetOpenAPIContract": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

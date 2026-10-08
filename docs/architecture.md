@@ -189,6 +189,20 @@ issue and advisory metadata; read-only regressions cover both tenants, complete
 fixture pages, revoked grants and previews. The SBOM component fixture retains
 its former 500-item cap; runtime SQL pagination has separate beyond-cap tests.
 
+SBOM, vulnerability-scan and OpenAPI point fixtures now compose the actual
+Evidence queries with current typed repository rows, including their use by
+diff, collector and decision guards. Their three former Ledger getters are
+unchanged test-only oracles. Readers check source/parent coherence and detach
+document metadata; scan and contract projections model the native 32 MiB JSON
+limits. Failed transactions and cancellation return no partial point. Completed
+empty OpenAPI operation arrays remain distinct from unfinished projections
+through both ingestion paths and memory copies. The legacy diff service also
+reads configured repositories so replay snapshots cannot cause a false exact
+recheck conflict. Only the repository-free synchronous VEX characterization
+explicitly supplies immutable scan-receipt metadata; its native query and
+current source/parent guard assertions remain in force. This does not add an
+API runtime backend or establish SQL JSON, transfer/work or locking guarantees.
+
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require
 focused Evidence commands. Their eleven transport fallbacks, fifteen-method

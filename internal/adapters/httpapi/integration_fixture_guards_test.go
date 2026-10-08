@@ -56,11 +56,11 @@ func (f collectorFixtureGuard) ReadCollectorReleaseReference(ctx context.Context
 		result.ID, result.TenantID, result.Digest = value.ID, value.TenantID, value.SubjectDigest
 		return result, err
 	case "sbom":
-		value, err := ledger.GetSBOM(ctx, reader, id)
+		value, err := evidenceReadFixture(f).GetSBOM(ctx, reader, id)
 		result.ID, result.TenantID = value.ID, value.TenantID
 		return result, err
 	case "scan":
-		value, err := ledger.GetVulnerabilityScan(ctx, reader, id)
+		value, err := evidenceReadFixture(f).GetVulnerabilityScan(ctx, reader, id)
 		result.ID, result.TenantID = value.ID, value.TenantID
 		return result, err
 	default:

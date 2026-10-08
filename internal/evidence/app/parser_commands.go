@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -352,7 +353,7 @@ func (s *Service) UploadOpenAPIContractPayload(ctx context.Context, actor identi
 	contract := evidencedomain.OpenAPIContract{
 		ID: s.ids.NewID("oas"), TenantID: actor.TenantID, ProductID: productID, ReleaseID: releaseID,
 		Version: version, Hash: source.Digest, PathCount: parsed.PathCount,
-		Operations: cloneOpenAPIOperations(parsed.Operations), EvidenceID: prepared.item.ID, CreatedAt: now,
+		Operations: completedOpenAPIOperations(parsed.Operations), EvidenceID: prepared.item.ID, CreatedAt: now,
 	}
 	persisted, action := parserOwnedOpenAPIContract(contract, s.workerOwnedParsers && staged.Present() && staged.Reference() != "")
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
@@ -450,10 +451,20 @@ func cloneVulnerabilityScan(value evidencedomain.VulnerabilityScan) evidencedoma
 }
 
 func cloneOpenAPIOperations(values []evidencedomain.OpenAPIOperation) []evidencedomain.OpenAPIOperation {
-	result := append([]evidencedomain.OpenAPIOperation(nil), values...)
+	result := slices.Clone(values)
 	for index := range result {
 		result[index].RequiredRequestFields = append([]string(nil), result[index].RequiredRequestFields...)
 		result[index].ResponseStatuses = append([]string(nil), result[index].ResponseStatuses...)
+	}
+	return result
+}
+
+// Successful parsing may find no operations; null is reserved for an
+// unfinished worker-owned projection, not a completed empty document.
+func completedOpenAPIOperations(values []evidencedomain.OpenAPIOperation) []evidencedomain.OpenAPIOperation {
+	result := cloneOpenAPIOperations(values)
+	if result == nil {
+		result = []evidencedomain.OpenAPIOperation{}
 	}
 	return result
 }

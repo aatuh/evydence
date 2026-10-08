@@ -204,6 +204,18 @@ func (r ledgerEvidenceReader) GetOpenAPIContract(ctx context.Context, tenantID, 
 	if err := ctx.Err(); err != nil {
 		return evidencedomain.OpenAPIContract{}, err
 	}
+	if r.ledger.unitOfWork != nil {
+		var value domain.OpenAPIContract
+		err := r.ledger.ExecuteUnitOfWork(ctx, func(ctx context.Context, repositories Repositories) error {
+			var err error
+			value, err = repositories.Evidence.GetOpenAPIContract(ctx, tenantID, strings.TrimSpace(id))
+			return err
+		})
+		if err != nil {
+			return evidencedomain.OpenAPIContract{}, toEvidenceContextError(err)
+		}
+		return openAPIContractToEvidenceContext(value), nil
+	}
 	r.ledger.mu.Lock()
 	defer r.ledger.mu.Unlock()
 	value, ok := r.ledger.contracts[strings.TrimSpace(id)]

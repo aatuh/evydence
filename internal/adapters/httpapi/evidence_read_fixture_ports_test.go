@@ -74,8 +74,12 @@ func fixtureSBOM(value domain.SBOM) evidencedomain.SBOM {
 }
 
 func (f evidenceReadFixture) GetSBOM(ctx context.Context, actor domain.Actor, id string) (evidencedomain.SBOM, error) {
-	value, err := f.commandLedger(ctx).GetSBOM(ctx, actor, id)
-	return fixtureSBOM(value), err
+	query, err := evidencequery.NewSBOMPoints(f)
+	if err != nil {
+		return evidencedomain.SBOM{}, err
+	}
+	value, err := query.GetSBOM(ctx, actor, id)
+	return value, legacyParsedPointError(err)
 }
 
 func (f sbomComponentsFixture) ListPage(ctx context.Context, actor domain.Actor, filter evidencequery.SBOMComponentFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[evidencedomain.SBOMComponentRecord], error) {
@@ -109,8 +113,12 @@ func fixtureVulnerabilityScan(value domain.VulnerabilityScan) evidencedomain.Vul
 }
 
 func (f evidenceReadFixture) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, id string) (evidencedomain.VulnerabilityScan, error) {
-	value, err := f.commandLedger(ctx).GetVulnerabilityScan(ctx, actor, id)
-	return fixtureVulnerabilityScan(value), err
+	query, err := evidencequery.NewVulnerabilityScanPoints(f)
+	if err != nil {
+		return evidencedomain.VulnerabilityScan{}, err
+	}
+	value, err := query.GetVulnerabilityScan(ctx, actor, id)
+	return value, legacyParsedPointError(err)
 }
 
 func fixtureOpenAPIContract(value domain.OpenAPIContract) evidencedomain.OpenAPIContract {
@@ -122,8 +130,12 @@ func fixtureOpenAPIContract(value domain.OpenAPIContract) evidencedomain.OpenAPI
 }
 
 func (f evidenceReadFixture) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id string) (evidencedomain.OpenAPIContract, error) {
-	value, err := f.commandLedger(ctx).GetOpenAPIContract(ctx, actor, id)
-	return fixtureOpenAPIContract(value), err
+	query, err := evidencequery.NewOpenAPIContractPoints(f)
+	if err != nil {
+		return evidencedomain.OpenAPIContract{}, err
+	}
+	value, err := query.GetOpenAPIContract(ctx, actor, id)
+	return value, legacyParsedPointError(err)
 }
 
 func fixtureVEXDocument(value domain.VEXDocument) evidencedomain.VEXDocument {

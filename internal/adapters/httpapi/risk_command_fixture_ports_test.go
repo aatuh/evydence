@@ -11,6 +11,8 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -20,12 +22,13 @@ import (
 // They are not a runtime backend or a proof of PostgreSQL locking.
 type riskCommandFixture struct{ catalogFixtureCommands }
 
-// The synchronous VEX characterization fixture has no repository factory.
-// Its known scan ID is only a locator: every guard re-reads actual same-tenant
-// scan/source/parent records before applying current Risk authority.
+// The known scan ID is only a locator. The native query uses a current repository
+// reader, or an explicitly supplied immutable receipt in the synchronous
+// characterization. Actual source/parent authority is always rechecked.
 type vexDecisionPointFixture struct {
 	riskCommandFixture
-	scanID string
+	scanID     string
+	scanReader evidencequery.VulnerabilityScanPointReader
 }
 
 func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Context, actor domain.Actor, id string) error {
@@ -38,7 +41,18 @@ func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Cont
 	}
 	reader := domain.Actor{TenantID: actor.TenantID, KeyID: "fixture-owner-reader", Scopes: []string{"evidence:read", "release:read", "product:read"}}
 	ledger := f.commandLedger(ctx)
-	scan, err := ledger.GetVulnerabilityScan(ctx, reader, f.scanID)
+	var scan evidencedomain.VulnerabilityScan
+	var err error
+	if f.scanReader != nil {
+		query, buildErr := evidencequery.NewVulnerabilityScanPoints(f.scanReader)
+		if buildErr != nil {
+			return buildErr
+		}
+		scan, err = query.GetVulnerabilityScan(ctx, reader, f.scanID)
+		err = legacyParsedPointError(err)
+	} else {
+		scan, err = (evidenceReadFixture{f.catalogFixtureCommands}).GetVulnerabilityScan(ctx, reader, f.scanID)
+	}
 	if err != nil {
 		return err
 	}

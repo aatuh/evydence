@@ -37,8 +37,7 @@ func (f ingestionFixtureAuthority) diffSource(ctx context.Context, tenant, id, k
 }
 
 func (f ingestionDiffFixtureGuard) ReadSBOMDiffSubject(ctx context.Context, tenant, id string) (evidenceapp.SBOMDiffSubject, error) {
-	ledger := f.commandLedger(ctx)
-	value, err := ledger.GetSBOM(ctx, fixtureOwnerReader(tenant), id)
+	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetSBOM(ctx, fixtureOwnerReader(tenant), id)
 	if err != nil {
 		return evidenceapp.SBOMDiffSubject{}, err
 	}
@@ -55,11 +54,11 @@ func (f ingestionDiffFixtureGuard) ReadSBOMDiffSubject(ctx context.Context, tena
 	return evidenceapp.SBOMDiffSubject{ID: value.ID, TenantID: value.TenantID, EvidenceID: value.EvidenceID, Resources: refs}, nil
 }
 func (f ingestionDiffFixtureGuard) ReadSBOMDiffComponents(ctx context.Context, tenant, id string) ([]evidencedomain.SBOMComponent, error) {
-	value, err := f.commandLedger(ctx).GetSBOM(ctx, fixtureOwnerReader(tenant), id)
-	return fixtureSBOM(value).Components, err
+	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetSBOM(ctx, fixtureOwnerReader(tenant), id)
+	return value.Components, err
 }
 func (f ingestionDiffFixtureGuard) ReadContractDiffSubject(ctx context.Context, tenant, id string) (evidenceapp.ContractDiffSubject, error) {
-	value, err := f.commandLedger(ctx).GetOpenAPIContract(ctx, fixtureOwnerReader(tenant), id)
+	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetOpenAPIContract(ctx, fixtureOwnerReader(tenant), id)
 	if err != nil {
 		return evidenceapp.ContractDiffSubject{}, err
 	}
@@ -74,8 +73,7 @@ func (f ingestionDiffFixtureGuard) ReadContractDiffRelease(ctx context.Context, 
 	return evidenceapp.ContractDiffRelease{ID: refs.ReleaseID, TenantID: tenant, ProductID: refs.ProductID}, err
 }
 func (f ingestionDiffFixtureGuard) ReadContractDiffProjection(ctx context.Context, tenant, id string) (evidencedomain.OpenAPIContract, error) {
-	value, err := f.commandLedger(ctx).GetOpenAPIContract(ctx, fixtureOwnerReader(tenant), id)
-	return fixtureOpenAPIContract(value), err
+	return (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetOpenAPIContract(ctx, fixtureOwnerReader(tenant), id)
 }
 
 func (f ingestionDiffFixtureRunner) transaction() (ingestionDiffFixtureGuard, error) {

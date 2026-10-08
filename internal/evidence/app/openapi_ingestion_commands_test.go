@@ -100,6 +100,23 @@ func newOpenAPIIngestionFixture(t *testing.T) (*OpenAPIIngestionCommands, *evide
 	}
 	return c, f, OpenAPIIngestionInput{ProductID: " prod_1 ", ReleaseID: "rel_1", Version: " v1 "}
 }
+
+func TestOpenAPIIngestionCommandsPreserveCompletedEmptyOperations(t *testing.T) {
+	for _, workerOwned := range []bool{false, true} {
+		c, f, in := newOpenAPIIngestionFixture(t)
+		c.config.WorkerOwnedParsers = workerOwned
+		f.parser.contract.PathCount, f.parser.contract.Operations = 0, nil
+		f.parser.contract.Metadata = map[string]any{"path_count": 0}
+		value, err := c.UploadOpenAPIContractPayload(t.Context(), f.actor, in, testPayloadSource(`{}`))
+		if err != nil || value.Operations == nil || len(value.Operations) != 0 {
+			t.Fatal("successful empty contract lost its completed operation array", err)
+		}
+		stored := f.transactions.state.contracts[value.ID]
+		if (stored.Operations == nil) != workerOwned || len(stored.Operations) != 0 {
+			t.Fatal("stored contract collapsed pending and completed-empty operations")
+		}
+	}
+}
 func TestOpenAPIIngestionCommandsBindEvidenceContractAndJobs(t *testing.T) {
 	for _, object := range []bool{true, false} {
 		t.Run(map[bool]string{true: "worker-owned", false: "without-object"}[object], func(t *testing.T) {

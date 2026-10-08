@@ -120,7 +120,7 @@ func (c *OpenAPIIngestionCommands) UploadOpenAPIContractPayload(ctx context.Cont
 		if err != nil {
 			return err
 		}
-		contract = evidencedomain.OpenAPIContract{ID: c.config.IDs.NewID("oas"), TenantID: a.TenantID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Version: in.Version, Hash: source.Digest, PathCount: parsed.PathCount, Operations: cloneOpenAPIOperations(parsed.Operations), EvidenceID: prepared.item.ID, CreatedAt: now}
+		contract = evidencedomain.OpenAPIContract{ID: c.config.IDs.NewID("oas"), TenantID: a.TenantID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Version: in.Version, Hash: source.Digest, PathCount: parsed.PathCount, Operations: completedOpenAPIOperations(parsed.Operations), EvidenceID: prepared.item.ID, CreatedAt: now}
 		if !validDiffText(contract.ID, 1024, true) || !validDiffText(contract.EvidenceID, 1024, true) {
 			return ErrValidation
 		}

@@ -624,11 +624,7 @@ func cloneSBOM(value evidencedomain.SBOM) evidencedomain.SBOM {
 }
 
 func cloneOpenAPIContract(value evidencedomain.OpenAPIContract) evidencedomain.OpenAPIContract {
-	value.Operations = append([]evidencedomain.OpenAPIOperation(nil), value.Operations...)
-	for index := range value.Operations {
-		value.Operations[index].RequiredRequestFields = append([]string(nil), value.Operations[index].RequiredRequestFields...)
-		value.Operations[index].ResponseStatuses = append([]string(nil), value.Operations[index].ResponseStatuses...)
-	}
+	value.Operations = cloneOpenAPIOperations(value.Operations)
 	return value
 }
 

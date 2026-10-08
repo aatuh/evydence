@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/domain"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -1403,7 +1405,13 @@ func TestVEXHTTPValidation(t *testing.T) {
 	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "created asynchronously") || strings.Contains(importReport, "unavailable") || strings.Contains(importReport, "payload_ref") {
 		t.Fatalf("unsafe or incomplete VEX import report: %s", importReport)
 	}
-	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}, scanID: dataField(t, scanBody, "id")}
+	var scanReceipt struct {
+		Data domain.VulnerabilityScan `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(scanBody), &scanReceipt); err != nil || scanReceipt.Data.ID == "" {
+		t.Fatal("scan receipt cannot seed the synchronous characterization reader", err)
+	}
+	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}, scanID: scanReceipt.Data.ID, scanReader: immutableScanReceiptFixture{point: evidencequery.VulnerabilityScanPoint{Scan: fixtureVulnerabilityScan(scanReceipt.Data), ProductID: productID}}}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
 		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
 	}, http.StatusBadRequest)

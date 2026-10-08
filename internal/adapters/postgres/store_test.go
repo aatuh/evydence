@@ -16,6 +16,7 @@ import (
 	postgresrepositories "github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
 
 func TestResolveLoadMode(t *testing.T) {
@@ -1764,7 +1765,11 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if result, err := restored.VerifyBackupManifest(ctx, restoredActor, manifest.ID); err != nil {
 		t.Fatalf("verify backup manifest after restore: %v result=%#v", err, result)
 	}
-	restoredSBOM, err := restored.GetSBOM(ctx, restoredActor, sbom.ID)
+	query, err := evidencequery.NewSBOMPoints(targetStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoredSBOM, err := query.GetSBOM(ctx, restoredActor, sbom.ID)
 	if err != nil || restoredSBOM.ComponentCount != sbom.ComponentCount {
 		t.Fatalf("restored sbom = %#v err=%v", restoredSBOM, err)
 	}
