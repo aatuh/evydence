@@ -4,7 +4,6 @@ import (
 	"context"
 	"maps"
 	"slices"
-	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
@@ -83,22 +82,12 @@ func (f evidenceReadFixture) GetSBOM(ctx context.Context, actor domain.Actor, id
 }
 
 func (f sbomComponentsFixture) ListPage(ctx context.Context, actor domain.Actor, filter evidencequery.SBOMComponentFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[evidencedomain.SBOMComponentRecord], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[evidencedomain.SBOMComponentRecord]{}, err
-	}
-	// Retain the former test fixture's 500-item inventory cap. Native SQL pages
-	// filter before limiting and have separate live scope/pagination tests.
-	values, err := f.commandLedger(ctx).ListSBOMComponents(ctx, actor, app.ListSBOMComponentsInput{SBOMID: filter.SBOMID, ReleaseID: filter.ReleaseID, ArtifactID: filter.ArtifactID, Query: filter.Query, PURL: filter.PURL, Limit: 500})
+	query, err := evidencequery.NewSBOMComponents(f)
 	if err != nil {
 		return appquery.Result[evidencedomain.SBOMComponentRecord]{}, err
 	}
-	items := make([]evidencedomain.SBOMComponentRecord, 0, len(values))
-	for _, value := range values {
-		items = append(items, evidencedomain.SBOMComponentRecord{ID: value.ID, SBOMID: value.SBOMID, ReleaseID: value.ReleaseID, ArtifactID: value.ArtifactID, Format: value.Format, SpecVersion: value.SpecVersion, Component: evidencedomain.SBOMComponent(value.Component)})
-	}
-	return appquery.Page(items, request, after, func(value evidencedomain.SBOMComponentRecord, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, time.Time{}, sort)
-	})
+	result, err := query.ListPage(ctx, actor, filter, request, after)
+	return result, legacyParsedPointError(err)
 }
 
 func fixtureVulnerabilityScan(value domain.VulnerabilityScan) evidencedomain.VulnerabilityScan {

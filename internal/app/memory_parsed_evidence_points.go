@@ -55,45 +55,57 @@ func memoryParsedSource(s *MemoryUnitOfWorkSnapshot, tenant, id, kind string) (d
 	return e, refs, err
 }
 
+// Point and component readers share the current source/parent binding. The
+// paging view deliberately does not require point-projection completion.
+func memoryOwnedSBOM(s *MemoryUnitOfWorkSnapshot, tenant, id string) (domain.SBOM, string, error) {
+	b, ok := s.SBOMs[id]
+	if !ok || b.ID != id || b.TenantID != tenant {
+		return domain.SBOM{}, "", evidencequery.ErrNotFound
+	}
+	e, _, err := memoryParsedSource(s, tenant, b.EvidenceID, "sbom")
+	if err != nil {
+		return domain.SBOM{}, "", err
+	}
+	if e.ReleaseID != b.ReleaseID {
+		return domain.SBOM{}, "", evidencequery.ErrNotFound
+	}
+	artifactRefs := map[string]bool{}
+	for _, ref := range e.SubjectRefs {
+		if ref.Type == "artifact" && ref.ID != "" {
+			artifactRefs[ref.ID] = true
+		}
+	}
+	if b.ArtifactID == "" && len(artifactRefs) != 0 || b.ArtifactID != "" && (len(artifactRefs) != 1 || !artifactRefs[b.ArtifactID]) {
+		return domain.SBOM{}, "", evidencequery.ErrNotFound
+	}
+	if b.ArtifactID != "" {
+		a, ok := s.Artifacts[b.ArtifactID]
+		if !ok || a.ID != b.ArtifactID || a.TenantID != tenant {
+			return domain.SBOM{}, "", evidencequery.ErrNotFound
+		}
+	}
+	product := ""
+	if b.ReleaseID != "" {
+		refs, err := memoryOperationsCoordinates(s, tenant, application.ResourceReferences{ReleaseID: b.ReleaseID})
+		if err != nil {
+			return domain.SBOM{}, "", err
+		}
+		product = refs.ProductID
+	}
+	return b, product, nil
+}
+
 func (r memoryEvidenceRepository) GetSBOMPoint(ctx context.Context, tenant, id string) (evidencequery.SBOMPoint, error) {
 	var out evidencequery.SBOMPoint
 	err := r.parsedPointRead(ctx, tenant, id, func(s *MemoryUnitOfWorkSnapshot, id string) error {
-		b, ok := s.SBOMs[id]
-		if !ok || b.ID != id || b.TenantID != tenant {
-			return evidencequery.ErrNotFound
-		}
-		e, _, err := memoryParsedSource(s, tenant, b.EvidenceID, "sbom")
+		b, product, err := memoryOwnedSBOM(s, tenant, id)
 		if err != nil {
 			return err
-		}
-		if e.ReleaseID != b.ReleaseID {
-			return evidencequery.ErrNotFound
-		}
-		artifactRefs := map[string]bool{}
-		for _, ref := range e.SubjectRefs {
-			if ref.Type == "artifact" && ref.ID != "" {
-				artifactRefs[ref.ID] = true
-			}
-		}
-		if b.ArtifactID == "" && len(artifactRefs) != 0 || b.ArtifactID != "" && (len(artifactRefs) != 1 || !artifactRefs[b.ArtifactID]) {
-			return evidencequery.ErrNotFound
-		}
-		if b.ArtifactID != "" {
-			a, ok := s.Artifacts[b.ArtifactID]
-			if !ok || a.ID != b.ArtifactID || a.TenantID != tenant {
-				return evidencequery.ErrNotFound
-			}
-		}
-		if b.ReleaseID != "" {
-			refs, err := memoryOperationsCoordinates(s, tenant, application.ResourceReferences{ReleaseID: b.ReleaseID})
-			if err != nil {
-				return err
-			}
-			out.ProductID = refs.ProductID
 		}
 		if b.Components == nil && b.ComponentCount != 0 {
 			return evidencequery.ErrConflict
 		}
+		out.ProductID = product
 		out.SBOM = sbomToEvidenceContext(b)
 		return nil
 	})

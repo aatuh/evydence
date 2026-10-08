@@ -22,6 +22,13 @@ CI simulation uses an owned disposable PostgreSQL schema. See the
 [configuration migration note](docs/reference/configuration.md#retired-local-memory-profile-unreleased).
 Older published release binaries are not changed by this source update.
 
+SBOM component paging now excludes artifact evidence/build associations whose
+supplied release disagrees with the SBOM release, before applying page limits.
+This prevents inconsistent associations from producing projection conflicts;
+coherent current grants retain access. Public schemas, cursor binding and the
+500-record per-page limit are unchanged. Test fixtures now use focused queries
+and can traverse inventories larger than 500 components. EVY-906 remains open.
+
 The GitHub Actions upload CLI now omits `finished_at` when it is not supplied,
 matching the native API's existing non-nullable optional-field contract. Supplied
 timestamps retain their precision and offset; the API schema is unchanged.

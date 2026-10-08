@@ -104,6 +104,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"releaseSecurityApprovalSummaryLocked":       true,
 		"releaseSecurityExceptionSummaryLocked":      true,
 		"presentMissingStatus":                       true,
+		"sbomComponentMatches":                       true,
 	}
 	retired := map[string]bool{
 		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
@@ -131,6 +132,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ReleaseReadinessReport":       true,
 		"GetReleaseBundle":             true,
 		"GetSBOM":                      true, "GetVulnerabilityScan": true, "GetOpenAPIContract": true,
+		"ListSBOMComponents": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -154,8 +156,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}
 				switch value.Name.Name {
-				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput":
-					t.Errorf("%s retains retired Risk aggregate input %s", name, value.Name.Name)
+				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput":
+					t.Errorf("%s retains retired aggregate input %s", name, value.Name.Name)
 				}
 			case *ast.FuncDecl:
 				if retiredSummaryHelpers[value.Name.Name] {

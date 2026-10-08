@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
@@ -54,6 +55,16 @@ func (f evidenceReadFixture) GetSBOMPoint(ctx context.Context, tenant, id string
 			return evidencequery.SBOMPoint{}, app.ErrValidation
 		}
 		return reader.GetSBOMPoint(ctx, tenant, id)
+	})
+}
+
+func (f sbomComponentsFixture) PageSBOMComponents(ctx context.Context, request evidencequery.SBOMComponentPageRequest) (appquery.Result[evidencequery.SBOMComponentPoint], error) {
+	return parsedFixtureRead(ctx, f.catalogFixtureCommands, func(ctx context.Context, r app.Repositories) (appquery.Result[evidencequery.SBOMComponentPoint], error) {
+		reader, ok := r.Evidence.(evidencequery.SBOMComponentReader)
+		if !ok {
+			return appquery.Result[evidencequery.SBOMComponentPoint]{}, app.ErrValidation
+		}
+		return reader.PageSBOMComponents(ctx, request)
 	})
 }
 

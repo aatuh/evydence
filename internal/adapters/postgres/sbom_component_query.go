@@ -125,6 +125,7 @@ func (s *Store) PageSBOMComponents(ctx context.Context, request evidencequery.SB
 		          AND (e.product_id IS NULL OR e.project_id IS NULL OR e.product_id = ej.product_id)
 		          AND (e.product_id IS NULL OR e.release_id IS NULL OR e.product_id = er.product_id)
 		          AND (e.project_id IS NULL OR e.release_id IS NULL OR ej.product_id = er.product_id)
+		          AND (s.release_id IS NULL OR e.release_id IS NULL OR e.release_id = s.release_id)
 		          AND (e.product_id = ANY($3::text[]) AND (s.release_id IS NULL OR e.product_id = s.release_product_id)
 		               OR e.project_id = ANY($4::text[]) OR e.release_id = ANY($5::text[]))
 		        UNION ALL
@@ -134,6 +135,7 @@ func (s *Store) PageSBOMComponents(ctx context.Context, request evidencequery.SB
 		        JOIN releases AS r ON r.id = b.release_id AND r.tenant_id = b.tenant_id AND r.product_id = j.product_id
 		        WHERE NOT $2 AND s.artifact_id IS NOT NULL AND b.tenant_id = s.tenant_id
 		          AND b.outputs @> jsonb_build_array(jsonb_build_object('artifact_id', s.artifact_id, 'digest', s.artifact_digest))
+		          AND (s.release_id IS NULL OR b.release_id = s.release_id)
 		          AND (r.product_id = ANY($3::text[]) AND (s.release_id IS NULL OR r.product_id = s.release_product_id)
 		               OR b.project_id = ANY($4::text[]) OR b.release_id = ANY($5::text[]))
 		        LIMIT 1

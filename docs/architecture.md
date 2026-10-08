@@ -182,12 +182,11 @@ Evidence list/search and point reads, lifecycle pages, SBOM documents/components
 scan/contract points, VEX documents/reports and both VEX previews also require
 focused query ports. Their twelve fallback branches and sixteen obsolete broad-
 interface methods are deleted, including four unused creation/relationship
-methods. Native filters, cursor parsing/binding, query error mapping, lifecycle
+methods. Transport filters, cursor parsing/binding, query error mapping, lifecycle
 redaction, document DTOs and preview validation are unchanged. Test-only readers
 retain actual former ownership/grant policies and detach mutable document,
 issue and advisory metadata; read-only regressions cover both tenants, complete
-fixture pages, revoked grants and previews. The SBOM component fixture retains
-its former 500-item cap; runtime SQL pagination has separate beyond-cap tests.
+fixture pages, revoked grants and previews.
 
 SBOM, vulnerability-scan and OpenAPI point fixtures now compose the actual
 Evidence queries with current typed repository rows, including their use by
@@ -202,6 +201,19 @@ recheck conflict. Only the repository-free synchronous VEX characterization
 explicitly supplies immutable scan-receipt metadata; its native query and
 current source/parent guard assertions remain in force. This does not add an
 API runtime backend or establish SQL JSON, transfer/work or locking guarantees.
+
+SBOM component fixtures now compose the focused Evidence query on current typed
+repository rows, without the former 500-component inventory ceiling. The
+500-record per-page limit, lexical component IDs, filters and cursor binding
+remain unchanged. Current source/parent/artifact ownership and explicit evidence
+or digest-matching build associations determine visibility before keyset limits.
+Both the PostgreSQL and memory readers exclude associations whose supplied
+release disagrees with the SBOM release, preventing later projection conflicts.
+Read-only tests cover complete metadata, both cursor directions, beyond-cap
+continuation, revoked grants, masked roots, cancellation and failed commits.
+The old list method, input and matcher are unchanged test-only oracles. Memory
+tests model policy and bounded selection, not SQL JSON shapes, work/transfer
+bounds, locks or durability. Remaining aggregate retirement is still EVY-906.
 
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require
