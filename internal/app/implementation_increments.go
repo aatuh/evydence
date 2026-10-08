@@ -163,23 +163,6 @@ func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor,
 	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)
 }
 
-func (l *Ledger) GetReleaseCandidate(ctx context.Context, actor domain.Actor, id string) (domain.ReleaseCandidate, error) {
-	value, err := l.releaseCommands.GetReleaseCandidate(ctx, actor, id)
-	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)
-}
-
-func (l *Ledger) ListReleaseCandidates(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.ReleaseCandidate, error) {
-	values, err := l.releaseCommands.ListReleaseCandidates(ctx, actor, releaseID)
-	if err != nil {
-		return nil, fromReleaseContextError(err)
-	}
-	result := make([]domain.ReleaseCandidate, 0, len(values))
-	for _, value := range values {
-		result = append(result, releaseCandidateFromReleaseContext(value))
-	}
-	return result, nil
-}
-
 func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.Actor, id, state, reason string, expectedRevision int64) (domain.ReleaseCandidate, error) {
 	value, err := l.releaseCommands.UpdateReleaseCandidateState(ctx, actor, id, state, reason, expectedRevision)
 	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)

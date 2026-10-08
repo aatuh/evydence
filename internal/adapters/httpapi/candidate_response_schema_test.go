@@ -6,7 +6,7 @@ import (
 )
 
 func TestCandidateResponseSchemaDefinesReturnedRevisionAndFields(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	p := postJSON(t, server, secret, "/v1/products", "candidate-schema-product", map[string]any{"name": "Product", "slug": "product"}, 201)
 	r := postJSON(t, server, secret, "/v1/releases", "candidate-schema-release", map[string]any{"product_id": dataField(t, p, "id"), "version": "1"}, 201)
 	c := postJSON(t, server, secret, "/v1/release-candidates", "candidate-schema-create", map[string]any{"release_id": dataField(t, r, "id"), "name": "Candidate"}, 201)

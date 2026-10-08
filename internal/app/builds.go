@@ -354,11 +354,6 @@ func (l *Ledger) CreateBuildRun(ctx context.Context, actor domain.Actor, in Crea
 	return buildRunFromReleaseContext(value), fromReleaseContextError(err)
 }
 
-func (l *Ledger) GetBuildRun(ctx context.Context, actor domain.Actor, id string) (domain.BuildRun, error) {
-	value, err := l.releaseCommands.GetBuildRun(ctx, actor, id)
-	return buildRunFromReleaseContext(value), fromReleaseContextError(err)
-}
-
 // UploadBuildAttestation is retained as an HTTP compatibility facade.
 // Deprecated: use the focused release application service.
 func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor, buildID string, raw []byte) (domain.BuildAttestation, error) {

@@ -1467,16 +1467,21 @@ tenant-bound PostgreSQL queries. Their actor-scope and catalog-grant checks
 no longer read the Ledger's product, project, release, or build maps. The
 build query joins its project, release, and product in one statement before
 the service applies resource grants.
-HTTP product pages and product/project/release point fixtures now run those
-actual focused services against current transaction-owned readers, without an
-aggregate query fallback. The memory reader filters tenant and product grants
-and applies keyset selection before projecting selected public metadata;
-project/release points require a same-tenant parent product. Release lifecycle
-timestamps are detached, and selected malformed metadata or failed query
-commits cannot return a partial projection. These memory scans are test-model
-semantics, not PostgreSQL transfer/locking/durability evidence. The product-list
-and project-read Ledger facades now exist only as unchanged package-local test
-oracles. Product/release facades still serve historical synchronous ingestion
+HTTP product/candidate pages and product/project/release/build/candidate point
+fixtures now run those actual focused services against current transaction-owned
+readers, without an aggregate query fallback. The memory readers filter tenant
+and product/release grants and apply keyset selection before projecting metadata;
+project/release/candidate points require a same-tenant parent product; build
+points additionally require project/release agreement on that product. Build
+source identity and outputs have selected JSON byte checks; candidate reference
+arrays use the creation model's identifier/count budgets. Nested identity JSON
+uses exact-number decoding, but this is not a claim about the older whole-memory
+snapshot clone or PostgreSQL generic-number decoding. Mutable build/candidate
+metadata and release lifecycle timestamps are detached. Selected malformed
+metadata or failed query commits cannot return a partial projection. These memory scans are test-model
+semantics, not PostgreSQL transfer/locking/durability evidence. The product-list,
+project-read, build-read and candidate-read/list Ledger facades now exist only as
+unchanged package-local test oracles. Product/release facades still serve historical synchronous ingestion
 guards and require their migration before physical retirement. Other catalog
 fixture reads and the remaining aggregate are still EVY-906 work.
 The 32-caller HTTP idempotency fixture now uses native credential authentication

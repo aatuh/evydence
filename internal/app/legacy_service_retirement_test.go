@@ -111,6 +111,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ReadinessStatus": true, "ReadinessDiagnostics": true, "Metrics": true,
 		"InstanceAdminSnapshot": true, "OutboxOperatorDiagnostics": true, "ReplayTerminalOutboxJob": true,
 		"ListProducts": true, "GetProject": true,
+		"GetBuildRun": true, "GetReleaseCandidate": true, "ListReleaseCandidates": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

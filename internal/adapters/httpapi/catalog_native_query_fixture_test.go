@@ -16,6 +16,66 @@ type catalogNativeRepository interface {
 	ReadCatalogRelease(context.Context, string, string) (releasedomain.Release, error)
 	PageProducts(context.Context, releasequery.ProductPageRequest) (appquery.Result[releasedomain.Product], error)
 }
+
+func (f catalogNativeFixtureReader) readCandidate(ctx context.Context, run func(context.Context, releasequery.ReleaseCandidateReader) error) error {
+	if ctx == nil {
+		return releasequery.ErrValidation
+	}
+	return f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.ReleaseCatalog.(releasequery.ReleaseCandidateReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		return run(ctx, reader)
+	})
+}
+
+func (f catalogNativeFixtureReader) GetBuildPoint(ctx context.Context, tenant, id string) (releasequery.BuildPoint, error) {
+	if ctx == nil {
+		return releasequery.BuildPoint{}, releasequery.ErrValidation
+	}
+	var out releasequery.BuildPoint
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Builds.(releasequery.BuildPointReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.GetBuildPoint(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return releasequery.BuildPoint{}, err
+	}
+	return out, nil
+}
+
+func (f catalogNativeFixtureReader) GetReleaseCandidatePoint(ctx context.Context, tenant, id string) (releasequery.ReleaseCandidatePoint, error) {
+	var out releasequery.ReleaseCandidatePoint
+	err := f.readCandidate(ctx, func(ctx context.Context, r releasequery.ReleaseCandidateReader) error {
+		var err error
+		out, err = r.GetReleaseCandidatePoint(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return releasequery.ReleaseCandidatePoint{}, err
+	}
+	return out, nil
+}
+
+func (f catalogNativeFixtureReader) PageReleaseCandidates(ctx context.Context, req releasequery.ReleaseCandidatePageRequest) (appquery.Result[releasequery.ReleaseCandidatePoint], error) {
+	var out appquery.Result[releasequery.ReleaseCandidatePoint]
+	err := f.readCandidate(ctx, func(ctx context.Context, r releasequery.ReleaseCandidateReader) error {
+		var err error
+		out, err = r.PageReleaseCandidates(ctx, req)
+		return err
+	})
+	if err != nil {
+		return appquery.Result[releasequery.ReleaseCandidatePoint]{}, err
+	}
+	return out, nil
+}
+
 type catalogNativeFixtureReader struct{ catalogFixtureCommands }
 
 func catalogQueryTestServer(t *testing.T) (*Server, string) {
@@ -85,6 +145,8 @@ func (f catalogNativeFixtureReader) PageProducts(ctx context.Context, req releas
 }
 
 var (
-	_ releasequery.ProductReader      = catalogNativeFixtureReader{}
-	_ releasequery.CatalogPointReader = catalogNativeFixtureReader{}
+	_ releasequery.ProductReader          = catalogNativeFixtureReader{}
+	_ releasequery.CatalogPointReader     = catalogNativeFixtureReader{}
+	_ releasequery.BuildPointReader       = catalogNativeFixtureReader{}
+	_ releasequery.ReleaseCandidateReader = catalogNativeFixtureReader{}
 )

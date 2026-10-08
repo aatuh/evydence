@@ -10,8 +10,8 @@ import (
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
-// Product pages and product/project/release points run the actual focused
-// query services on transaction-owned test readers. Other catalog surfaces
+// Product/candidate pages and catalog/build/candidate points run the actual
+// focused query services on transaction-owned test readers. Other catalog surfaces
 // still retain their historical fixtures; none is a production query adapter.
 type catalogQueryFixture struct{ catalogFixtureCommands }
 
@@ -53,37 +53,27 @@ func (f catalogQueryFixture) GetArtifact(ctx context.Context, actor domain.Actor
 }
 
 func (f catalogQueryFixture) GetBuildRun(ctx context.Context, actor domain.Actor, id string) (releasedomain.BuildRun, error) {
-	value, err := f.commandLedger(ctx).GetBuildRun(ctx, actor, id)
-	return buildFixtureModel(value), err
+	query, err := releasequery.NewBuildPoints(catalogNativeFixtureReader(f), releasequery.NewCatalogAuthorizer())
+	if err != nil {
+		return releasedomain.BuildRun{}, err
+	}
+	return query.GetBuildRun(ctx, actor, id)
 }
 
 func (f catalogQueryFixture) GetReleaseCandidate(ctx context.Context, actor domain.Actor, id string) (releasedomain.ReleaseCandidate, error) {
-	value, err := f.commandLedger(ctx).GetReleaseCandidate(ctx, actor, id)
+	query, err := releasequery.NewReleaseCandidates(catalogNativeFixtureReader(f), releasequery.NewCatalogAuthorizer())
 	if err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	return candidateFixtureModel(value)
+	return query.GetReleaseCandidate(ctx, actor, id)
 }
 
 func (f catalogQueryFixture) ListPage(ctx context.Context, actor domain.Actor, releaseID string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[releasedomain.ReleaseCandidate], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[releasedomain.ReleaseCandidate]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListReleaseCandidates(ctx, actor, releaseID)
+	query, err := releasequery.NewReleaseCandidates(catalogNativeFixtureReader(f), releasequery.NewCatalogAuthorizer())
 	if err != nil {
 		return appquery.Result[releasedomain.ReleaseCandidate]{}, err
 	}
-	items := make([]releasedomain.ReleaseCandidate, 0, len(values))
-	for _, value := range values {
-		item, err := candidateFixtureModel(value)
-		if err != nil {
-			return appquery.Result[releasedomain.ReleaseCandidate]{}, err
-		}
-		items = append(items, item)
-	}
-	return appquery.Page(items, request, after, func(value releasedomain.ReleaseCandidate, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
-	})
+	return query.ListPage(ctx, actor, releaseID, request, after)
 }
 
 func (f catalogQueryFixture) Plan(ctx context.Context, actor domain.Actor, id string) (releasedomain.ReleaseEvidenceFlow, error) {

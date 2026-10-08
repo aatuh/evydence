@@ -1623,7 +1623,7 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 }
 
 func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "inc-prod", map[string]any{"name": "Increment Product", "slug": "increment-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	projectBody := postJSON(t, server, secret, "/v1/projects", "inc-project", map[string]any{"product_id": productID, "name": "api"}, http.StatusCreated)
