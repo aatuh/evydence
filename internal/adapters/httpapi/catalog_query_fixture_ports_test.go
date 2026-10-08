@@ -11,8 +11,8 @@ import (
 )
 
 // Product/candidate pages and catalog/build/candidate points run the actual
-// focused query services on transaction-owned test readers. Artifact points
-// remain historical; evidence-flow has its own focused fixture and clock.
+// focused query services on transaction-owned test readers. Evidence-flow
+// has its own focused fixture and clock.
 // None is a production query adapter.
 type catalogQueryFixture struct{ catalogFixtureCommands }
 
@@ -49,8 +49,11 @@ func (f catalogQueryFixture) GetRelease(ctx context.Context, actor domain.Actor,
 }
 
 func (f catalogQueryFixture) GetArtifact(ctx context.Context, actor domain.Actor, id string) (releasedomain.Artifact, error) {
-	value, err := f.commandLedger(ctx).GetArtifact(ctx, actor, id)
-	return artifactFixtureModel(value), err
+	query, err := releasequery.NewArtifactPoints(catalogNativeFixtureReader(f))
+	if err != nil {
+		return releasedomain.Artifact{}, err
+	}
+	return query.GetArtifact(ctx, actor, id)
 }
 
 func (f catalogQueryFixture) GetBuildRun(ctx context.Context, actor domain.Actor, id string) (releasedomain.BuildRun, error) {

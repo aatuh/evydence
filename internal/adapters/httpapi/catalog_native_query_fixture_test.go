@@ -17,6 +17,26 @@ type catalogNativeRepository interface {
 	PageProducts(context.Context, releasequery.ProductPageRequest) (appquery.Result[releasedomain.Product], error)
 }
 
+func (f catalogNativeFixtureReader) GetArtifactPoint(ctx context.Context, request releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error) {
+	if ctx == nil {
+		return releasequery.ArtifactPoint{}, releasequery.ErrValidation
+	}
+	var out releasequery.ArtifactPoint
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.ReleaseCatalog.(releasequery.ArtifactPointReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.GetArtifactPoint(ctx, request)
+		return err
+	})
+	if err != nil {
+		return releasequery.ArtifactPoint{}, err
+	}
+	return out, nil
+}
+
 func (f catalogNativeFixtureReader) readCandidate(ctx context.Context, run func(context.Context, releasequery.ReleaseCandidateReader) error) error {
 	if ctx == nil {
 		return releasequery.ErrValidation
@@ -148,5 +168,6 @@ var (
 	_ releasequery.ProductReader          = catalogNativeFixtureReader{}
 	_ releasequery.CatalogPointReader     = catalogNativeFixtureReader{}
 	_ releasequery.BuildPointReader       = catalogNativeFixtureReader{}
+	_ releasequery.ArtifactPointReader    = catalogNativeFixtureReader{}
 	_ releasequery.ReleaseCandidateReader = catalogNativeFixtureReader{}
 )

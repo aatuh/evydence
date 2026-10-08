@@ -1491,8 +1491,21 @@ and same-tenant attestation/build joins. Reads reserve no replay record; denied,
 cancelled or failed-commit reads return no plan and do not consult the plan clock.
 Its Ledger plan method is now an unchanged test-only oracle. The old aggregate
 count helper still serves the remaining release-security-summary facade;
-artifact fixture reads and other aggregate surfaces remain EVY-906 work. Memory
+other aggregate surfaces remain EVY-906 work. Memory
 count scans still do not establish SQL transfer/work bounds or durability.
+Artifact HTTP fixtures now also compose the actual focused query on current
+owned artifact points and association visibility. Repository-backed ingestion
+guards use the existing `ReadBuildArtifactGrant` identity/visibility port and
+`ReadBuildArtifact` identity/digest port in their already-bound transaction.
+Their selected guard projections omit descriptions and nested evidence/build
+metadata; the memory test backend still clones its whole transaction snapshot.
+Evidence grants use explicit, coherent owned parents; build grants additionally
+require a matching output digest. Selected metadata budgets, grant removal,
+foreign/dangling/cross-product associations, failed commits and read purity have
+regressions. No repository failure falls back to a cache. Historical synchronous
+ingestion fixtures still call the Ledger artifact facade, so its physical
+retirement remains open; this unit does not remove that production declaration.
+These memory models do not prove SQL transfer/work budgets or row locks.
 The 32-caller HTTP idempotency fixture now uses native credential authentication
 and records actual credential-use writes. Its memory transaction admission is
 serialized to avoid optimistic whole-snapshot conflicts; HTTP callers remain

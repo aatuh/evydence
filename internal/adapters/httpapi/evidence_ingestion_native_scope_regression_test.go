@@ -12,6 +12,7 @@ import (
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
 func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *testing.T) {
@@ -31,6 +32,10 @@ func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *
 	v := owner.release
 	v.ID, v.ProductID, v.Version = "repository-release", p.ID, strings.Repeat("private", 10000)
 	j := domain.Project{ID: "repository-project", TenantID: p.TenantID, ProductID: p.ID, Name: strings.Repeat("private", 10000), CreatedAt: at}
+	artifact := domain.Artifact{ID: "repository-artifact", TenantID: p.TenantID, Name: strings.Repeat("private", 10000), MediaType: "application/octet-stream", Size: 42, Digest: "sha256:" + strings.Repeat("a", 64), CreatedAt: at}
+	association := owner.evidence
+	association.ID, association.ProductID, association.ProjectID, association.ReleaseID = "repository-artifact-reference", p.ID, j.ID, v.ID
+	association.SubjectRefs = []domain.SubjectRef{{Type: "artifact", ID: artifact.ID, Digest: artifact.Digest}}
 	if err := ledger.ExecuteUnitOfWork(t.Context(), func(ctx context.Context, r app.Repositories) error {
 		if err := r.ReleaseCatalog.InsertProduct(ctx, p); err != nil {
 			return err
@@ -38,7 +43,13 @@ func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *
 		if err := r.ReleaseCatalog.InsertProject(ctx, j); err != nil {
 			return err
 		}
-		return r.ReleaseCatalog.InsertRelease(ctx, v)
+		if err := r.ReleaseCatalog.InsertRelease(ctx, v); err != nil {
+			return err
+		}
+		if err := r.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
+			return err
+		}
+		return r.Evidence.InsertEvidence(ctx, association)
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -54,10 +65,10 @@ func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *
 		run  func(context.Context, domain.Actor) error
 	}{
 		{"SBOM", func(ctx context.Context, a domain.Actor) error {
-			return commands.AuthorizeUploadSBOM(ctx, a, evidenceapp.SBOMIngestionInput{ReleaseID: v.ID, Format: "cyclonedx"})
+			return commands.AuthorizeUploadSBOM(ctx, a, evidenceapp.SBOMIngestionInput{ReleaseID: v.ID, ArtifactID: artifact.ID, Format: "cyclonedx"})
 		}},
 		{"VEX", func(ctx context.Context, a domain.Actor) error {
-			return commands.AuthorizeUploadVEX(ctx, a, evidenceapp.VEXIngestionInput{ReleaseID: v.ID, Format: "openvex"})
+			return commands.AuthorizeUploadVEX(ctx, a, evidenceapp.VEXIngestionInput{ReleaseID: v.ID, ArtifactID: artifact.ID, Format: "openvex"})
 		}},
 		{"OpenAPI", func(ctx context.Context, a domain.Actor) error {
 			return commands.AuthorizeUploadOpenAPIContract(ctx, a, evidenceapp.OpenAPIIngestionInput{ProductID: p.ID, ReleaseID: v.ID, Version: "1"})
@@ -66,7 +77,7 @@ func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *
 			return commands.AuthorizeUploadVulnerabilityScan(ctx, a, evidenceapp.VulnerabilityScanScope{ReleaseID: v.ID})
 		}},
 		{"security", func(ctx context.Context, a domain.Actor) error {
-			return commands.AuthorizeUploadSecurityScan(ctx, a, evidenceapp.UploadSecurityScanInput{ProductID: p.ID, ReleaseID: v.ID, Category: "sast", Scanner: "fixture", TargetRef: "source", Raw: []byte("{}")})
+			return commands.AuthorizeUploadSecurityScan(ctx, a, evidenceapp.UploadSecurityScanInput{ProductID: p.ID, ReleaseID: v.ID, ArtifactID: artifact.ID, Category: "sast", Scanner: "fixture", TargetRef: "source", Raw: []byte("{}")})
 		}},
 		{"manual", func(ctx context.Context, a domain.Actor) error {
 			return commands.AuthorizeUploadManualSecurityDocument(ctx, a, evidenceapp.UploadManualSecurityDocumentInput{ProductID: p.ID, ReleaseID: v.ID, DocumentType: "pen_test_report", Title: "Review", Sensitivity: "restricted", Raw: []byte("{}")})
@@ -97,6 +108,9 @@ func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *
 				t.Fatal("cancelled guard opened a transaction", err)
 			}
 		})
+	}
+	if value, err := (catalogQueryFixture{commands.catalogFixtureCommands}).GetArtifact(t.Context(), owner.actor, artifact.ID); !errors.Is(err, releasequery.ErrInvalidProjection) || !reflect.DeepEqual(value, (releasequery.ArtifactPoint{}).Artifact) {
+		t.Fatal("public point did not reject oversized selected metadata independently of guard identity", value, err)
 	}
 	after, err := factory.base.Snapshot()
 	if err != nil || !reflect.DeepEqual(before, after) {

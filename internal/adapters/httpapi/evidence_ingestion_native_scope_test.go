@@ -2,20 +2,71 @@ package httpapi
 
 import (
 	"context"
+	"strings"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
+	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
 // Explicit repository-backed guard configuration never falls back on a
-// failed/missing repository to catalog caches. Artifact/diff fixture reads and
-// historical parser writes still have separate retirement dependencies.
+// failed/missing repository to catalog caches. Artifact guards use identity-
+// only ports; diff fixture reads and historical parser writes still have
+// separate retirement dependencies.
 type repositoryIngestionFixtureAuthority struct {
 	ingestionFixtureAuthority
 	repositories *app.Repositories
+}
+
+type repositoryIngestionFixtureArtifactReader interface {
+	ReadBuildArtifact(context.Context, string, string) (releasedomain.Artifact, error)
+	ReadBuildArtifactGrant(context.Context, releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error)
+}
+
+func (f repositoryIngestionFixtureAuthority) readArtifact(ctx context.Context, run func(context.Context, repositoryIngestionFixtureArtifactReader) error) error {
+	if ctx == nil {
+		return app.ErrValidation
+	}
+	read := func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.ReleaseCatalog.(repositoryIngestionFixtureArtifactReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		return run(ctx, reader)
+	}
+	if f.repositories != nil {
+		return read(ctx, *f.repositories)
+	}
+	return f.commandLedger(ctx).ExecuteUnitOfWork(ctx, read)
+}
+
+func (f repositoryIngestionFixtureAuthority) GetArtifactPoint(ctx context.Context, request releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error) {
+	var out releasequery.ArtifactPoint
+	err := f.readArtifact(ctx, func(ctx context.Context, r repositoryIngestionFixtureArtifactReader) error {
+		var err error
+		out, err = r.ReadBuildArtifactGrant(ctx, request)
+		return err
+	})
+	if err != nil {
+		return releasequery.ArtifactPoint{}, err
+	}
+	return out, nil
+}
+
+func (f repositoryIngestionFixtureAuthority) ValidateArtifactReference(ctx context.Context, tenant, id, digest string) error {
+	return f.readArtifact(ctx, func(ctx context.Context, r repositoryIngestionFixtureArtifactReader) error {
+		v, err := r.ReadBuildArtifact(ctx, tenant, id)
+		if err != nil {
+			return err
+		}
+		if v.ID != id || v.TenantID != tenant || digest != "" && !strings.EqualFold(v.Digest, digest) {
+			return app.ErrNotFound
+		}
+		return nil
+	})
 }
 
 func (f repositoryIngestionFixtureAuthority) ResolveEvidenceCreationScope(ctx context.Context, tenant string, refs application.ResourceReferences) (application.ResourceReferences, error) {
