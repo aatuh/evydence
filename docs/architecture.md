@@ -1414,9 +1414,11 @@ Production terminal-job replay now uses a focused operations command. It
 checks explicit instance-admin authority before idempotency lookup, then
 requeues the locked job and appends its audit entry in the same PostgreSQL
 transaction as the safe replay response. The handler requires the self-owned
-native idempotent command; it has no aggregate replay fallback. Historical
-test-only fixtures retain real external operator calls and receipt/retry checks,
-but an external fixture adapter is not a SQL rollback or durability proof.
+native idempotent command; it has no aggregate replay fallback. HTTP fixtures
+now run the actual focused replay service with explicit external operator fakes
+and retain receipt/retry/current-authority checks. Those external fake effects
+cannot roll back with the fixture transaction; they are not SQL atomicity or
+durability evidence. Invalid operator feedback cannot become a success receipt.
 Production public readiness and instance-admin diagnostics now use a focused
 operations probe service, not Ledger state. The composition root requires
 PostgreSQL and migration probes, plus writer-lease and signing-configuration
@@ -1429,9 +1431,21 @@ The production metrics route uses a repeatable-read PostgreSQL projection for
 tenant resource, portal, and reconciliation counters. Global outbox counters
 are read in the same snapshot only for explicit instance administrators. The
 route keeps its existing JSON and Prometheus response shapes and requires the
-focused metrics query. Test-only adapters preserve former fixture reads,
-detached metadata and cancellation; they do not expose an API runtime profile.
-Remaining aggregate and legacy-handler deletion is still EVY-906 work.
+focused metrics query. HTTP readiness, metrics, instance-count and outbox
+fixtures now use the actual focused services, with explicit clocks, safe probes,
+and operator/reconciliation fakes retained across fixture rebinding. Count
+readers select current transaction-owned scalar projections rather than
+aggregate caches; tenant metrics cannot expose foreign rows or global outbox
+counts without explicit instance authority. The memory test backend scans its
+existing transaction maps, models only queued jobs and has no reconciliation
+receipt history. Its zero receipt counters and external fake reads do not prove
+bounded SQL transfer, a shared database snapshot, queue state or durability.
+Complete DTO/Prometheus, read-only, metadata-detachment, cancellation, current-
+repository and failure-after-projection tests retain the response/privacy
+contracts. The six aggregate operator command/query methods now compile only
+as unchanged package-local historical test oracles. The remaining aggregate
+implementation and global application mutex still require retirement in
+EVY-906; these fixtures do not expose another API runtime profile.
 EVY-905 also routes production product-list pages and product, project,
 release, and build point reads through focused release query services with
 tenant-bound PostgreSQL queries. Their actor-scope and catalog-grant checks

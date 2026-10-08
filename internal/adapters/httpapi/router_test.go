@@ -18,6 +18,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
@@ -1013,7 +1014,7 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 }
 
 func TestInstanceAdminHTTPRequiresExplicitScope(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -1047,11 +1048,12 @@ func (f *fakeOutboxAdminHTTP) OutboxDiagnostics(context.Context) (app.OutboxDiag
 }
 
 func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
+	at := time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)
 	operator := &fakeOutboxAdminHTTP{
-		replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: time.Now().UTC()},
-		diag:   app.OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: time.Now().UTC()},
+		replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: at},
+		diag:   app.OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: at},
 	}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", OutboxAdmin: operator})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -1064,6 +1066,7 @@ func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
+	server.bindOperatorFixtureResources(operatorFixtureResources{operator: operator, now: func() time.Time { return at }})
 	getJSON(t, server, tenantSecret, "/v1/admin/outbox", http.StatusForbidden)
 	diagnostics := getJSON(t, server, instanceSecret, "/v1/admin/outbox", http.StatusOK)
 	if !strings.Contains(diagnostics, `"pending_jobs":2`) || strings.Contains(diagnostics, "payload") || strings.Contains(diagnostics, "failure_detail") {
@@ -1074,8 +1077,27 @@ func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
 		t.Fatalf("outbox replay=%s operator=%#v", replay, operator)
 	}
 	metrics := getRawWithAccept(t, server, instanceSecret, "/v1/metrics", "text/plain", http.StatusOK)
-	if body := metrics.Body.String(); !strings.Contains(body, "evydence_outbox_terminal_jobs 3") || strings.Contains(body, "payload") || strings.Contains(body, "failure_detail") {
+	wantMetrics := map[string]any{
+		"resource_counts":                     map[string]int{"audit_chain_entries": 1, "artifact_signatures": 0, "cosign_verifications": 0, "evidence": 0, "merkle_batches": 0, "object_retention_policies": 0, "release_bundles": 0, "transparency_checkpoints": 0},
+		"customer_portal_failed_access_count": 0, "customer_portal_revoked_access_count": 0,
+		"object_reconciliation_runs": int64(0), "object_reconciliation_scanned_payloads": int64(0),
+		"object_reconciliation_missing_final_objects": int64(0), "object_reconciliation_missing_staged_objects": int64(0),
+		"object_reconciliation_digest_mismatches": int64(0), "object_reconciliation_provider_orphans": int64(0),
+		"object_reconciliation_quarantined_payloads": int64(0), "object_reconciliation_last_run_age_seconds": 0,
+		"outbox_pending_jobs": 2, "outbox_running_jobs": 1, "outbox_terminal_jobs": 3, "outbox_oldest_pending_age_seconds": 0,
+	}
+	// The focused runtime's known HELP text describes payload-count metrics.
+	// Exact response equality forbids any extra data/labels or failure details.
+	// Only the two documented scalar counter names may contain "payloads".
+	body := metrics.Body.String()
+	if !strings.Contains(body, "evydence_outbox_terminal_jobs 3") || body != prometheusMetrics(wantMetrics) || strings.Contains(body, "failure_detail") {
 		t.Fatalf("instance outbox metrics=%s", body)
+	}
+	for _, line := range strings.Split(body, "\n") {
+		knownScalar := strings.HasPrefix(line, "evydence_object_reconciliation_scanned_payloads ") || strings.HasPrefix(line, "evydence_object_reconciliation_quarantined_payloads ")
+		if !strings.HasPrefix(line, "#") && !knownScalar && strings.Contains(line, "payload") {
+			t.Fatalf("instance metric data leaked payload information: %s", line)
+		}
 	}
 }
 
@@ -1245,7 +1267,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 }
 
 func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "int-prod", map[string]any{"name": "Payments", "slug": "int-payments"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "int-rel", map[string]any{"product_id": productID, "version": "3.0.0"}, http.StatusCreated)
@@ -2164,14 +2186,15 @@ func TestSourceSnapshotAndSystemHTTPGaps(t *testing.T) {
 }
 
 func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", ReadinessChecks: []app.ReadinessCheck{{
+	checks := []operationsquery.ReadinessCheck{{
 		Name:          "postgres",
 		Timeout:       time.Second,
 		FailureDetail: "database connectivity is unavailable",
 		Check: func(context.Context) error {
 			return fmt.Errorf("postgres://user:super-secret@database.internal/evydence is unavailable")
 		},
-	}}})
+	}}
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, instanceSecret, err := ledger.BootstrapTenant(t.Context(), "Runtime", "operator", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatalf("bootstrap instance administrator: %v", err)
@@ -2187,6 +2210,7 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 	if err != nil {
 		t.Fatalf("create server: %v", err)
 	}
+	server.bindOperatorFixtureResources(operatorFixtureResources{checks: checks})
 
 	version := httptest.NewRecorder()
 	server.Handler().ServeHTTP(version, httptest.NewRequest(http.MethodGet, "/v1/version", nil))

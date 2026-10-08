@@ -35,18 +35,6 @@ type CreateCommercialCollectorInput struct {
 	AllowedScopes []string
 }
 
-func (l *Ledger) InstanceAdminSnapshot(ctx context.Context, actor domain.Actor) (domain.InstanceAdminSnapshot, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.InstanceAdminSnapshot{}, err
-	}
-	if err := require(actor, ScopeInstanceAdmin); err != nil {
-		return domain.InstanceAdminSnapshot{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return domain.InstanceAdminSnapshot{ReportType: "instance_admin_snapshot", TenantCount: len(l.tenants), ResourceCounts: map[string]int{"tenants": len(l.tenants), "users": len(l.users), "collectors": len(l.collectors), "evidence": len(l.evidence)}, Limitations: []string{"Instance admin diagnostics expose operational counts only and not raw evidence payloads or secrets."}, GeneratedAt: l.now()}, nil
-}
-
 func (l *Ledger) CreateLegalHold(ctx context.Context, actor domain.Actor, in CreateLegalHoldInput) (domain.LegalHold, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.LegalHold{}, err

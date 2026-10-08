@@ -11,15 +11,19 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
 func TestOperatorQueryFixturesPreserveResponsesIsolationAndReadOnlyState(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	operator := &fakeOutboxAdminHTTP{diag: app.OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)}}
+	resources := operatorFixtureResources{
+		now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }, operator: operator,
+		checks: []operationsquery.ReadinessCheck{{Name: "postgres", FailureDetail: "database connectivity is unavailable", Check: func(context.Context) error { return errors.New("private-probe-secret@database.internal") }}},
+	}
 	ledger := newLegacyLedgerFixture(app.Config{
-		APIKeyPepper: "fixture-pepper", UnitOfWork: factory, OutboxAdmin: operator,
-		Now:             func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) },
-		ReadinessChecks: []app.ReadinessCheck{{Name: "postgres", FailureDetail: "database connectivity is unavailable", Check: func(context.Context) error { return errors.New("private-probe-secret@database.internal") }}},
+		APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: resources.now,
 	})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
@@ -33,28 +37,30 @@ func TestOperatorQueryFixturesPreserveResponsesIsolationAndReadOnlyState(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	metrics, err := ledger.Metrics(t.Context(), instance)
-	if err != nil || metrics["resource_counts"].(map[string]int)["evidence"] != 1 {
-		t.Fatal("metrics fixture is not meaningfully tenant-scoped", metrics, err)
-	}
-	snapshot, err := ledger.InstanceAdminSnapshot(t.Context(), instance)
-	if err != nil || snapshot.ResourceCounts["evidence"] != 3 || snapshot.TenantCount != 2 {
-		t.Fatal("instance fixture lacks meaningful global counts", snapshot, err)
-	}
-	diagnostics, err := ledger.ReadinessDiagnostics(t.Context(), instance)
-	if err != nil {
-		t.Fatal(err)
-	}
-	public, err := ledger.ReadinessStatus(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	retry := app.DescribeProblem(app.ErrDependencyUnavailable)
-	public["retryable"], public["retry_class"], public["retry_after_seconds"] = retry.Retryable, retry.RetryClass, retry.RetryAfterSeconds
+	server.bindOperatorFixtureResources(resources)
 	before, err := factory.Snapshot()
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Independent complete DTO expectations include the focused runtime's
+	// explicit zero reconciliation counters, not the removed aggregate API.
+	metrics := map[string]any{
+		"tenant_id":                           instance.TenantID,
+		"resource_counts":                     map[string]int{"audit_chain_entries": len(before.AuditEntries[instance.TenantID]), "artifact_signatures": 0, "cosign_verifications": 0, "evidence": 1, "merkle_batches": 0, "object_retention_policies": 0, "release_bundles": 0, "transparency_checkpoints": 0},
+		"customer_portal_failed_access_count": 0, "customer_portal_revoked_access_count": 0,
+		"object_reconciliation_runs": int64(0), "object_reconciliation_scanned_payloads": int64(0),
+		"object_reconciliation_missing_final_objects": int64(0), "object_reconciliation_missing_staged_objects": int64(0),
+		"object_reconciliation_digest_mismatches": int64(0), "object_reconciliation_provider_orphans": int64(0),
+		"object_reconciliation_quarantined_payloads": int64(0), "object_reconciliation_last_run_age_seconds": 0,
+		"outbox_pending_jobs": 2, "outbox_running_jobs": 1, "outbox_terminal_jobs": 3, "outbox_oldest_pending_age_seconds": 0,
+	}
+	snapshot := domain.InstanceAdminSnapshot{ReportType: "instance_admin_snapshot", TenantCount: 2,
+		ResourceCounts: map[string]int{"tenants": 2, "users": 0, "collectors": 0, "evidence": 3},
+		Limitations:    []string{"Instance admin diagnostics expose operational counts only and not raw evidence payloads or secrets."}, GeneratedAt: resources.now()}
+	diagnostics := map[string]any{"status": "unavailable", "checks": []map[string]string{{"name": "ledger", "status": "ok"}, {"name": "postgres", "status": "unavailable", "detail": "database connectivity is unavailable"}}}
+	public := map[string]any{"status": "unavailable", "checks": []map[string]string{{"name": "ledger", "status": "ok"}, {"name": "postgres", "status": "unavailable"}}}
+	retry := app.DescribeProblem(app.ErrDependencyUnavailable)
+	public["retryable"], public["retry_class"], public["retry_after_seconds"] = retry.Retryable, retry.RetryClass, retry.RetryAfterSeconds
 	requests := []struct {
 		path string
 		code int
@@ -84,7 +90,7 @@ func TestOperatorQueryFixturesPreserveResponsesIsolationAndReadOnlyState(t *test
 	if plain.Header().Get("Content-Type") != "text/plain; version=0.0.4; charset=utf-8" || plain.Body.String() != prometheusMetrics(metrics) {
 		t.Fatal("complete Prometheus response changed", plain.Body.String())
 	}
-	base := catalogFixtureCommands{ledger: ledger}
+	base := operatorFixtureQueries{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, resources: resources}
 	projected, err := (instanceAdminFixture{base}).Snapshot(t.Context(), instance)
 	if err != nil {
 		t.Fatal(err)
@@ -177,6 +183,7 @@ func TestOperatorReplayFixtureRechecksAuthorityAndDoesNotRepeatOperatorEffect(t 
 	if err != nil {
 		t.Fatal(err)
 	}
+	server.bindOperatorFixtureResources(operatorFixtureResources{operator: operator, now: func() time.Time { return at }})
 	path := "/v1/admin/outbox/job_terminal/replay"
 	postRaw(t, server, "fixture-auth", path, "", []byte("{}"), 400)
 	postRaw(t, server, "fixture-auth", path, "oversized", []byte(strings.Repeat("x", int(app.SmallJSONRequestLimit)+1)), 400)
@@ -201,7 +208,7 @@ func TestOperatorReplayFixtureRechecksAuthorityAndDoesNotRepeatOperatorEffect(t 
 	postRaw(t, server, "fixture-auth", path, "new-key", []byte("{}"), 403)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, _, err := (outboxReplayFixture{catalogFixtureCommands{ledger: ledger}}).ReplayIdempotent(ctx, instance, http.MethodPost, path, "cancelled", []byte("{}"), operator.replay.JobID); !errors.Is(err, context.Canceled) {
+	if _, _, err := server.outboxReplayCommand.ReplayIdempotent(ctx, instance, http.MethodPost, path, "cancelled", []byte("{}"), operator.replay.JobID); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled replay reached the operator", err)
 	}
 	after, err := factory.Snapshot()
@@ -223,6 +230,7 @@ func TestOperatorFixtureBindingPreservesExplicitFocusedPorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	server.bindOperatorFixtureResources(operatorFixtureResources{checks: []operationsquery.ReadinessCheck{{Name: "explicit", Check: func(context.Context) error { return nil }}}})
 	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
 	if server.readinessQuery != readiness || server.metricsQuery != metrics || server.instanceAdminQuery != instance || server.outboxDiagnosticsQuery != diagnostics || server.outboxReplayCommand != replay {
 		t.Fatal("fixture binding replaced an explicitly configured focused port")
