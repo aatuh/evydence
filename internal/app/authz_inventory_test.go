@@ -23,7 +23,8 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"CreateBuildRun",
 			"UploadBuildAttestation",
 		},
-		"legacy_catalog_query_oracle_test.go": {"GetBuildRun", "GetReleaseCandidate", "ListReleaseCandidates"},
+		"legacy_catalog_query_oracle_test.go":         {"GetBuildRun", "GetReleaseCandidate", "ListReleaseCandidates"},
+		"legacy_vulnerability_posture_oracle_test.go": {"VulnerabilityPostureReport"},
 		"controls.go": {
 			"LinkControlEvidence",
 			"ListControlEvidence",
@@ -64,7 +65,6 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"IncidentReport",
 			"UploadSecurityScan",
 			"UploadManualSecurityDocument",
-			"VulnerabilityPostureReport",
 			"EvaluateCustomPolicy",
 		},
 		"implementation_increments.go": {

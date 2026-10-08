@@ -846,49 +846,6 @@ func (l *Ledger) RecordVulnerabilityWorkflow(ctx context.Context, actor domain.A
 	return record, nil
 }
 
-func (l *Ledger) VulnerabilityPostureReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityPostureReport, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.VulnerabilityPostureReport{}, err
-	}
-	if err := require(actor, ScopeSecurityRead); err != nil {
-		return domain.VulnerabilityPostureReport{}, err
-	}
-	releaseID = strings.TrimSpace(releaseID)
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if releaseID == "" {
-		if err := l.authorizeResourceLocked(actor, ScopeSecurityRead, resourceRefs{}); err != nil {
-			return domain.VulnerabilityPostureReport{}, err
-		}
-	}
-	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
-		return domain.VulnerabilityPostureReport{}, err
-	}
-	if releaseID != "" {
-		release, ok := l.releases[releaseID]
-		if !ok || release.TenantID != actor.TenantID {
-			return domain.VulnerabilityPostureReport{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeSecurityRead, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
-			return domain.VulnerabilityPostureReport{}, err
-		}
-	}
-	summary := map[string]int{}
-	openCritical := 0
-	for _, scan := range l.scans {
-		if scan.TenantID != actor.TenantID || (releaseID != "" && scan.ReleaseID != releaseID) {
-			continue
-		}
-		for _, finding := range scan.Findings {
-			summary[strings.ToLower(finding.Severity)]++
-			if strings.EqualFold(finding.Severity, "critical") && strings.EqualFold(finding.State, "open") {
-				openCritical++
-			}
-		}
-	}
-	return domain.VulnerabilityPostureReport{ReportType: "vulnerability_posture", TemplateVersion: "vulnerability-posture.v1.0.0", ReleaseID: releaseID, Summary: summary, OpenCritical: openCritical, Assumptions: []string{"Posture reflects scans uploaded to this tenant only."}, Limitations: []string{"Scanner coverage and vulnerability databases are not independently verified by Evydence."}, GeneratedAt: l.now()}, nil
-}
-
 func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in CreateContractDiffInput) (domain.ContractDiff, error) {
 	value, err := l.evidenceCommands.CreateContractDiff(ctx, actor, evidenceapp.CreateContractDiffInput{
 		BaseContractID: in.BaseContractID, TargetContractID: in.TargetContractID, ReleaseID: in.ReleaseID,

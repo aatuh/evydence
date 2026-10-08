@@ -1532,6 +1532,19 @@ regressions protect the contract. The release-summary facade and its five
 aggregate helpers now compile only as unchanged package-local test oracles.
 These fixtures do not establish PostgreSQL durability or complete Ledger
 retirement; aggregate state and other production declarations remain EVY-906 work.
+Vulnerability-posture HTTP fixtures likewise use the focused Package query with
+current transaction-owned scalar counts and an explicit clock retained across
+rebinding. Release reads require a current same-tenant product parent; tenant-wide
+reads retain their explicit security permission. Selected scans must reference
+owned evidence and a non-null typed findings array. Counts include all finding
+states; only explicitly open critical findings contribute to `open_critical`.
+The memory projection preserves the native 1 MiB summary budget conservatively
+with JSON escaping and separator accounting, without imposing the release
+summary's unrelated 32-group cap. Complete DTO, current-row, grant-removal,
+private-metadata exclusion, cancellation, failed-commit and boundary regressions
+protect read-only behavior. Its Ledger report now exists only as an unchanged
+package-local test oracle. Typed memory findings cannot model every malformed
+database JSON shape, and these scans do not prove SQL work bounds or durability.
 The 32-caller HTTP idempotency fixture now uses native credential authentication
 and records actual credential-use writes. Its memory transaction admission is
 serialized to avoid optimistic whole-snapshot conflicts; HTTP callers remain

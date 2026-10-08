@@ -91,9 +91,10 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "reader", Scopes: []string{"report:read", "security:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"report:read", "security:read"}}}}
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth
-	reader := riskReportFixture{catalogFixtureCommands{ledger: ledger}}
 	clock := &evidenceFlowFixtureClock{at: owner.release.CreatedAt}
 	server.bindReleaseSummaryFixtureClock(clock.Now)
+	server.bindVulnerabilityPostureFixtureClock(clock.Now)
+	reader := server.vulnerabilityPostureQuery.(riskReportFixture)
 	summaryReader := server.releaseSecuritySummaryQuery.(releaseSummaryNativeFixture)
 	wantSummary := expectedRiskReportFixtureSummary(owner)
 	wantSummary.ApprovalSummary = domain.ReleaseSecurityApprovalSummary{Total: 1, Approved: 1}
@@ -101,8 +102,9 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	if len(wantSummary.MissingRequiredDecisions) != 3 {
 		t.Fatal("summary lacks meaningful missing-decision data")
 	}
-	wantPosture, err := ledger.VulnerabilityPostureReport(t.Context(), human, owner.release.ID)
-	if err != nil || wantPosture.OpenCritical != 1 || wantPosture.Summary["high"] != 2 || wantPosture.Summary["critical"] != 1 {
+	wantPosture := domain.VulnerabilityPostureReport{ReportType: "vulnerability_posture", TemplateVersion: "vulnerability-posture.v1.0.0", ReleaseID: owner.release.ID, Summary: map[string]int{"high": 2, "critical": 1}, OpenCritical: 1, Assumptions: []string{"Posture reflects scans uploaded to this tenant only."}, Limitations: []string{"Scanner coverage and vulnerability databases are not independently verified by Evydence."}, GeneratedAt: owner.release.CreatedAt}
+	postureCounts, err := reader.Report(t.Context(), human, owner.release.ID)
+	if err != nil || postureCounts.OpenCritical != 1 || postureCounts.Summary["high"] != 2 || postureCounts.Summary["critical"] != 1 {
 		t.Fatal("fixture lacks expected owned posture counts", err)
 	}
 	before, err := factory.Snapshot()
@@ -166,8 +168,8 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	if err != nil || !reflect.DeepEqual(releaseSecuritySummaryFromQuery(againSummary), wantSummary) {
 		t.Fatal("summary fixture exposed stored aliases", err)
 	}
-	againPosture, err := ledger.VulnerabilityPostureReport(t.Context(), human, owner.release.ID)
-	if err != nil || !reflect.DeepEqual(againPosture, wantPosture) {
+	againPosture, err := reader.Report(t.Context(), human, owner.release.ID)
+	if err != nil || !reflect.DeepEqual(vulnerabilityPostureFromQuery(againPosture), wantPosture) {
 		t.Fatal("posture fixture exposed stored aliases", err)
 	}
 	cancelled, cancel := context.WithCancel(t.Context())
@@ -188,6 +190,11 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	wantSummary.GeneratedAt = clock.at.UTC()
 	if err != nil || !reflect.DeepEqual(releaseSecuritySummaryFromQuery(result), wantSummary) || clock.calls != calls+2 {
 		t.Fatal("rebind lost live explicit snapshot/evaluation clock or current rows", result, err)
+	}
+	wantPosture.GeneratedAt = clock.at
+	posture, err := server.vulnerabilityPostureQuery.Report(t.Context(), human, owner.release.ID)
+	if err != nil || !reflect.DeepEqual(vulnerabilityPostureFromQuery(posture), wantPosture) || clock.calls != calls+3 {
+		t.Fatal("posture rebind lost complete DTO or explicit clock", posture, err)
 	}
 	after, err := factory.Snapshot()
 	if err != nil || !reflect.DeepEqual(before, after) {
