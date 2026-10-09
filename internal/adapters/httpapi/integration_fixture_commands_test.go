@@ -34,7 +34,11 @@ func fixturePullRequestInput(in integrationapp.RecordPullRequestInput) app.Recor
 }
 
 func (f integrationFixtureCommands) AuthorizeSourceRepositoryCreation(ctx context.Context, a domain.Actor, in integrationapp.CreateSourceRepositoryInput) error {
-	return f.commandLedger(ctx).AuthorizeSourceRepositoryCreation(ctx, a, fixtureRepositoryInput(in))
+	c, err := f.nativeSourceRepositoryPreflight()
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeSourceRepositoryCreation(ctx, a, in)
 }
 func (f integrationFixtureCommands) AuthorizeSourceCommitRecording(ctx context.Context, a domain.Actor, in integrationapp.RecordSourceCommitInput) error {
 	return f.commandLedger(ctx).AuthorizeSourceCommitRecording(ctx, a, fixtureCommitInput(in))

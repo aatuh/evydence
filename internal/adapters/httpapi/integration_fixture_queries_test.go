@@ -86,20 +86,31 @@ func (f commercialCollectorPageFixture) PageCommercialCollectors(ctx context.Con
 	return out, nil
 }
 func (f sourceRepositoryPageFixture) ListPage(ctx context.Context, a domain.Actor, project string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[integrationdomain.SourceRepository], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[integrationdomain.SourceRepository]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListSourceRepositories(ctx, a, project)
+	q, err := integrationquery.NewSourceRepositories(f)
 	if err != nil {
 		return appquery.Result[integrationdomain.SourceRepository]{}, err
 	}
-	items := make([]integrationdomain.SourceRepository, 0, len(values))
-	for _, v := range values {
-		items = append(items, integrationdomain.SourceRepository(v))
+	v, err := q.ListPage(ctx, a, project, request, after)
+	return v, mapIntegrationQueryError(err)
+}
+func (f sourceRepositoryPageFixture) PageSourceRepositories(ctx context.Context, request integrationquery.SourceRepositoryPageRequest) (appquery.Result[integrationquery.SourceRepositoryPoint], error) {
+	var out appquery.Result[integrationquery.SourceRepositoryPoint]
+	if ctx == nil {
+		return out, integrationquery.ErrValidation
 	}
-	return appquery.Page(items, request, after, func(v integrationdomain.SourceRepository, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(v.ID, v.CreatedAt, sort)
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Source.(integrationquery.SourceRepositoryReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageSourceRepositories(ctx, request)
+		return err
 	})
+	if err != nil {
+		return appquery.Result[integrationquery.SourceRepositoryPoint]{}, err
+	}
+	return out, nil
 }
 func (f collectorHealthFixture) Report(ctx context.Context, a domain.Actor, id string) (integrationdomain.CollectorHealthReport, error) {
 	now := f.now

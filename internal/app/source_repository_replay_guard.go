@@ -61,14 +61,3 @@ func (l *Ledger) authorizeSourceRepositoryCreationLocked(a domain.Actor, in Crea
 	}
 	return "", nil
 }
-
-func (l *Ledger) AuthorizeSourceRepositoryCreation(ctx context.Context, a domain.Actor, in CreateRepositoryInput) error {
-	in, err := prepareLocalSourceRepositoryCreation(ctx, a, in)
-	if err != nil {
-		return err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	_, err = l.authorizeSourceRepositoryCreationLocked(a, in)
-	return err
-}

@@ -155,6 +155,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListCollectors":                      true,
 		"CreateCommercialCollectorDefinition": true,
 		"ListCommercialCollectorDefinitions":  true,
+		"ListSourceRepositories":              true,
+		"AuthorizeSourceRepositoryCreation":   true,
 		"ListSigningKeys":                     true,
 		"ListAuditLog":                        true,
 		"SigningCustodyReviewReport":          true,

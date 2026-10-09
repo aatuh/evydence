@@ -2179,7 +2179,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 }
 
 func TestSourceSnapshotAndSystemHTTPGaps(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "snapshot-product", map[string]any{"name": "Snapshot Product", "slug": "snapshot-product"}, http.StatusCreated)
 	projectBody := postJSON(t, server, secret, "/v1/projects", "snapshot-project", map[string]any{"product_id": dataField(t, productBody, "id"), "name": "api"}, http.StatusCreated)
 	projectID := dataField(t, projectBody, "id")

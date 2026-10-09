@@ -61,7 +61,7 @@ func TestSourceRepositoryCreationChecksCurrentGuardBeforeReplay(t *testing.T) {
 
 func TestSourceRepositoryCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		s, secret := testServer(t)
+		s, secret := operationsTestServer(t)
 		f := &sourceCreationHTTPFake{}
 		if native {
 			s.sourceRepositoryCommands = f

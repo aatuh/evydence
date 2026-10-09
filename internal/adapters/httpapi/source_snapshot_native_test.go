@@ -62,7 +62,7 @@ func TestSourceSnapshotMalformedInputStopsBeforeNativeGuard(t *testing.T) {
 func TestSourceSnapshotCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, provider := range []string{"github", "gitlab"} {
 		for _, native := range []bool{false, true} {
-			base, secret := testServer(t)
+			base, secret := operationsTestServer(t)
 			s := base
 			f := &sourceSnapshotHTTPFake{}
 			if native {

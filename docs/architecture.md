@@ -547,6 +547,26 @@ Complete DTO, 501-record traversal, tenant/grant, duplicate, cancellation and
 failed read/write commit regressions preserve existing replay and inventory
 assertions. This is not PostgreSQL JSON-shape, work/transfer, per-field byte-budget,
 lock or durability evidence; native SQL, API contracts and schemas are unchanged.
+Source repository inventory and creation authorization fixtures now use focused
+Integration services over current typed source readers. Inventory checks current
+tenant/project/product agreement and actor grants before selecting at most
+page-size+1 coordinates, retaining detached repositories only for tenant-wide
+actors, deterministic time/ID keysets and complete public metadata. Empty scoped
+grant coordinates cannot match a detached repository. Preflight reads only the
+requested project and an existing natural-key repository's current parent
+identities; metadata, clock/ID allocation, insertion and audit capabilities are
+panic guards. The former list and public authorization methods are unchanged
+test-only oracles guarded against production return. Current-parent, scoped
+reuse, grant revocation, 501-record ordering/ties, metadata byte bounds,
+malformed cursors, cancellation, missing repository and failed read-commit
+regressions preserve existing source snapshot/replay assertions.
+Historical authorization inventory assertions follow the unchanged test-only
+oracles. Source snapshot and cookie-origin/bearer precedence fixtures use real
+transaction repositories, retaining their original status and no-effect assertions.
+Typed memory does not prove native SQL shapes, work/transfer, locks or durability.
+Native SQL and API contracts are unchanged. Repository creation, its input/preparation/
+locked-authorization helpers and commit/branch/pull-request aggregate callers
+still require migration and retirement; this is not completion of that write chain.
 Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 
