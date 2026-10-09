@@ -149,6 +149,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListEvidenceLifecycleEvents":             true,
 		"GetEvidence":                             true,
 		"GetArtifactSignature":                    true,
+		"GetDeployment":                           true,
 		"CreateArtifactSignature":                 true,
 		"AuthorizeArtifactSignatureCreation":      true,
 		"VerifyCosignSignature":                   true,

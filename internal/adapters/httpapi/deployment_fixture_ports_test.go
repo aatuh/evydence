@@ -14,6 +14,7 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
 // Existing HTTP fixtures use real ownership guards and the isolated replay
@@ -35,8 +36,9 @@ func (f deploymentFixtureCommands) RecordDeployment(ctx context.Context, actor i
 	return operationsdomain.DeploymentEvent(value), err
 }
 
-// Fixture queries retain actual tenant/grant checks and shared cursor ordering.
-// Unlike these test-only readers, runtime pages are bounded SQL projections.
+// Fixture pages retain actual tenant/grant checks and shared cursor ordering.
+// Point reads compose the focused query over current typed repositories;
+// this model does not establish SQL transfer/work, locks or durability.
 type deploymentQueryFixture struct{ catalogFixtureCommands }
 
 func (f deploymentQueryFixture) ListEnvironmentsPage(ctx context.Context, actor domain.Actor, product string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[operationsdomain.DeploymentEnvironment], error) {
@@ -72,8 +74,35 @@ func (f deploymentQueryFixture) ListDeploymentsPage(ctx context.Context, actor d
 	})
 }
 func (f deploymentQueryFixture) GetDeployment(ctx context.Context, actor domain.Actor, id string) (operationsdomain.DeploymentEvent, error) {
-	value, err := f.commandLedger(ctx).GetDeployment(ctx, actor, id)
-	return operationsdomain.DeploymentEvent(value), err
+	query, err := operationsquery.NewDeploymentPoints(f)
+	if err != nil {
+		return operationsdomain.DeploymentEvent{}, err
+	}
+	value, err := query.GetDeployment(ctx, actor, id)
+	return value, mapDeploymentPointQueryError(err)
+}
+
+func (f deploymentQueryFixture) GetDeploymentPoint(ctx context.Context, tenant, id string) (operationsquery.DeploymentPoint, error) {
+	var out operationsquery.DeploymentPoint
+	if ctx == nil {
+		return out, operationsquery.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Deployments.(operationsquery.DeploymentPointReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.GetDeploymentPoint(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return operationsquery.DeploymentPoint{}, err
+	}
+	return out, nil
 }
 
 func (s *Server) bindDeploymentFixturePorts(ledger *app.Ledger) {
@@ -188,7 +217,7 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 				t.Fatal("failed deployment committed repository effects")
 			}
 			if event {
-				if _, err := ledger.GetDeployment(t.Context(), actor, commands.createdID); !errors.Is(err, app.ErrNotFound) {
+				if _, err := (deploymentQueryFixture{catalogFixtureCommands{ledger: ledger}}).GetDeployment(t.Context(), actor, commands.createdID); !errors.Is(err, app.ErrNotFound) {
 					t.Fatal("failed deployment was published to fixture reads", err)
 				}
 			} else {
@@ -202,7 +231,7 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 }
 
 func TestDeploymentQueryFixturesPreserveTenantOwnershipAndReadScope(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	query := deploymentQueryFixture{catalogFixtureCommands{ledger: ledger}}
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
 	var actors []domain.Actor

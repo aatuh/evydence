@@ -74,10 +74,10 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"ListDeploymentEnvironments",
 			"CreateDeploymentEnvironment",
 			"RecordDeployment",
-			"GetDeployment",
 			"ListDeployments",
 		},
-		"legacy_leaf_oracle_test.go": {"SearchEvidence"},
+		"legacy_deployment_point_oracle_test.go": {"GetDeployment"},
+		"legacy_leaf_oracle_test.go":             {"SearchEvidence"},
 	}
 	for file, funcs := range files {
 		bodyBytes, err := os.ReadFile(file)
