@@ -594,15 +594,19 @@ typed snapshots do not prove native fences, locks, transfer/work or durability.
 Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 
-Deployment point fixtures now compose `operations/query.DeploymentPoints` over
-the current typed deployment repository. The reader verifies tenant-owned
-deployment, environment, release and shared product identities without selecting
-parent descriptive metadata, and detaches artifact IDs and the finish timestamp.
-Human reads require a current tenant/product/release grant; project-only grants
-do not authorize deployments. Failed read commits return no data. The legacy
-`Ledger.GetDeployment` is an unchanged test-only oracle guarded against production
-return. Deployment lists and writes still require retirement. Public API and
-PostgreSQL SQL are unchanged; typed memory does not prove SQL work, locks or durability.
+Deployment point and page fixtures now compose `operations/query.DeploymentPoints`
+and `DeploymentLists` over the current typed deployment repository. Readers verify
+tenant-owned deployment, environment, release and shared product identities without
+selecting parent descriptive metadata, and detach artifact IDs and finish timestamps.
+Page readers apply current ownership, filters and grants before retaining at most
+page-size+1 coordinate candidates. Keysets preserve time/ID ordering and continue
+after cursor-record deletion; invalid selected lookahead yields no partial page.
+Human deployment reads require a tenant/product/release grant; environments require
+a tenant/product grant, and project-only grants authorize neither. Failed read
+commits return no data. The legacy getter and two list methods are unchanged
+test-only oracles guarded against production return. Deployment writes still
+require retirement. Public API and PostgreSQL SQL are unchanged; typed memory
+does not prove SQL work/transfer, byte budgets, locks or durability.
 
 Vulnerability-decision and exception pages, plus the customer-safe decision
 summary, now require focused Risk queries. Their three broad fallback branches

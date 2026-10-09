@@ -36,42 +36,71 @@ func (f deploymentFixtureCommands) RecordDeployment(ctx context.Context, actor i
 	return operationsdomain.DeploymentEvent(value), err
 }
 
-// Fixture pages retain actual tenant/grant checks and shared cursor ordering.
-// Point reads compose the focused query over current typed repositories;
+// Point and page reads compose the focused queries over current typed repositories;
 // this model does not establish SQL transfer/work, locks or durability.
 type deploymentQueryFixture struct{ catalogFixtureCommands }
 
 func (f deploymentQueryFixture) ListEnvironmentsPage(ctx context.Context, actor domain.Actor, product string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[operationsdomain.DeploymentEnvironment], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[operationsdomain.DeploymentEnvironment]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListDeploymentEnvironments(ctx, actor, product)
+	query, err := operationsquery.NewDeploymentLists(f)
 	if err != nil {
 		return appquery.Result[operationsdomain.DeploymentEnvironment]{}, err
 	}
-	items := make([]operationsdomain.DeploymentEnvironment, 0, len(values))
-	for _, value := range values {
-		items = append(items, operationsdomain.DeploymentEnvironment(value))
-	}
-	return appquery.Page(items, request, after, func(value operationsdomain.DeploymentEnvironment, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
-	})
+	value, err := query.ListEnvironmentsPage(ctx, actor, product, request, after)
+	return value, mapDeploymentPointQueryError(err)
 }
 func (f deploymentQueryFixture) ListDeploymentsPage(ctx context.Context, actor domain.Actor, release, environment string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[operationsdomain.DeploymentEvent], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[operationsdomain.DeploymentEvent]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListDeployments(ctx, actor, release, environment)
+	query, err := operationsquery.NewDeploymentLists(f)
 	if err != nil {
 		return appquery.Result[operationsdomain.DeploymentEvent]{}, err
 	}
-	items := make([]operationsdomain.DeploymentEvent, 0, len(values))
-	for _, value := range values {
-		items = append(items, operationsdomain.DeploymentEvent(value))
+	value, err := query.ListDeploymentsPage(ctx, actor, release, environment, request, after)
+	return value, mapDeploymentPointQueryError(err)
+}
+
+func (f deploymentQueryFixture) PageDeploymentEnvironments(ctx context.Context, request operationsquery.EnvironmentPageRequest) (appquery.Result[operationsdomain.DeploymentEnvironment], error) {
+	var out appquery.Result[operationsdomain.DeploymentEnvironment]
+	if ctx == nil {
+		return out, operationsquery.ErrValidation
 	}
-	return appquery.Page(items, request, after, func(value operationsdomain.DeploymentEvent, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Deployments.(operationsquery.DeploymentListReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageDeploymentEnvironments(ctx, request)
+		return err
 	})
+	if err != nil {
+		return appquery.Result[operationsdomain.DeploymentEnvironment]{}, err
+	}
+	return out, nil
+}
+
+func (f deploymentQueryFixture) PageDeployments(ctx context.Context, request operationsquery.DeploymentPageRequest) (appquery.Result[operationsquery.DeploymentPoint], error) {
+	var out appquery.Result[operationsquery.DeploymentPoint]
+	if ctx == nil {
+		return out, operationsquery.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Deployments.(operationsquery.DeploymentListReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageDeployments(ctx, request)
+		return err
+	})
+	if err != nil {
+		return appquery.Result[operationsquery.DeploymentPoint]{}, err
+	}
+	return out, nil
 }
 func (f deploymentQueryFixture) GetDeployment(ctx context.Context, actor domain.Actor, id string) (operationsdomain.DeploymentEvent, error) {
 	query, err := operationsquery.NewDeploymentPoints(f)
@@ -221,8 +250,8 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 					t.Fatal("failed deployment was published to fixture reads", err)
 				}
 			} else {
-				values, err := ledger.ListDeploymentEnvironments(t.Context(), actor, product.ID)
-				if err != nil || len(values) != 0 {
+				values, err := (deploymentQueryFixture{catalogFixtureCommands{ledger: ledger}}).ListEnvironmentsPage(t.Context(), actor, product.ID, appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}, nil)
+				if err != nil || len(values.Items) != 0 {
 					t.Fatal("failed environment was published to fixture reads", err)
 				}
 			}

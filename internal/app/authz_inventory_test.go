@@ -71,12 +71,11 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"implementation_increments.go": {
 			"CreateReleaseCandidate",
 			"UpdateReleaseCandidateState",
-			"ListDeploymentEnvironments",
 			"CreateDeploymentEnvironment",
 			"RecordDeployment",
-			"ListDeployments",
 		},
 		"legacy_deployment_point_oracle_test.go": {"GetDeployment"},
+		"legacy_deployment_lists_oracle_test.go": {"ListDeploymentEnvironments", "ListDeployments"},
 		"legacy_leaf_oracle_test.go":             {"SearchEvidence"},
 	}
 	for file, funcs := range files {
