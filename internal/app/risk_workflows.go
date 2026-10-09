@@ -10,27 +10,6 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
-type UploadSecurityScanInput struct {
-	ProductID  string
-	ReleaseID  string
-	ArtifactID string
-	Category   string
-	Format     string
-	Scanner    string
-	TargetRef  string
-	Raw        []byte
-}
-
-type UploadManualSecurityDocumentInput struct {
-	ProductID    string
-	ReleaseID    string
-	DocumentType string
-	Title        string
-	Sensitivity  string
-	Raw          []byte
-	MediaType    string
-}
-
 type CreateSBOMDiffInput struct {
 	BaseSBOMID   string
 	TargetSBOMID string
@@ -92,22 +71,6 @@ func parseCycloneDXVEX(raw []byte) (cycloneDXVEXDocument, error) {
 		doc.Vulnerabilities = append(doc.Vulnerabilities, vulnerability)
 	}
 	return doc, nil
-}
-
-func (l *Ledger) UploadSecurityScan(ctx context.Context, actor domain.Actor, in UploadSecurityScanInput) (domain.SecurityScan, error) {
-	value, err := l.evidenceCommands.UploadSecurityScan(ctx, actor, evidenceapp.UploadSecurityScanInput{
-		ProductID: in.ProductID, ReleaseID: in.ReleaseID, ArtifactID: in.ArtifactID, Category: in.Category,
-		Format: in.Format, Scanner: in.Scanner, TargetRef: in.TargetRef, Raw: append([]byte(nil), in.Raw...),
-	})
-	return securityScanFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.Actor, in UploadManualSecurityDocumentInput) (domain.ManualSecurityDocument, error) {
-	value, err := l.evidenceCommands.UploadManualSecurityDocument(ctx, actor, evidenceapp.UploadManualSecurityDocumentInput{
-		ProductID: in.ProductID, ReleaseID: in.ReleaseID, DocumentType: in.DocumentType, Title: in.Title,
-		Sensitivity: in.Sensitivity, Raw: append([]byte(nil), in.Raw...), MediaType: in.MediaType,
-	})
-	return manualSecurityDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in CreateSBOMDiffInput) (domain.SBOMDiff, error) {

@@ -60,7 +60,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"AuthorizeQuestionnairePackageCreate",
 			"authorizeQuestionnairePackageCreateLocked",
 		},
-		"risk_workflows.go": {
+		"legacy_security_document_oracle_test.go": {
 			"UploadSecurityScan",
 			"UploadManualSecurityDocument",
 		},

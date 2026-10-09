@@ -395,10 +395,29 @@ deleted. Native parsing, body limits, semantic-header fingerprints, current
 ownership/grant guards and atomic PostgreSQL writes remain in place. Test-only
 adapters run the actual native preflight algorithms and authorizers; effect,
 clock and ID capabilities panic if a replay guard reaches them. Fresh fixture
-writes use the real legacy parsers and isolated command clone, not those guard
-capabilities. Eleven failure-after-write and replay regressions check complete
+writes for the remaining parser families use the real legacy parsers and isolated
+command clone, not those guard capabilities. Eleven failure-after-write and replay regressions check complete
 repository state, including payload, audit, outbox and derived-record effects.
 They are not a substitute for the live PostgreSQL transaction tests.
+Security-scan and manual-document fixtures now compose the actual focused Evidence
+command over current repository scope/artifact readers, without Ledger ownership
+or document publication. They require `security:write`, not an unrelated
+`evidence:write` grant; preflight uses identity/grant reads and cannot hash, stage,
+insert, audit, enqueue, or allocate clocks/IDs. Explicit object-store/clock resources
+survive rebinding; injected command ports are preserved. Configured stores use the
+shared Ledger-independent staging boundary to verify digest, size, media type and
+canonical tenant keys before trust. Evidence, document, staged metadata, finalizer
+job and both caller-attributed audits share one UoW. Failed commits return zero
+results and leave only exact, unreferenced staged bytes, never a finalized object
+or committed repository effect. Scan summaries are detached; existing reduced
+format, strict unknown-field rejection and secret-scan flags remain unchanged.
+Raw finding/document bodies stay outside evidence metadata and public responses;
+failure-after-write HTTP tests retain failed-replay and full-state rollback checks.
+Explicitly absent storage retains native metadata-only fixture semantics: no
+payload reference, staged row or finalization job, and no hidden object-store
+recovery from Ledger. Both old upload facades and input DTOs are unchanged test-only
+oracles guarded against production return. API/SQL/schema are unchanged; these
+typed/filesystem tests do not prove native database fencing, locks or durability.
 
 VEX idempotency replay preserves a plain author email only in the closed,
 validated, versioned public document DTO. Unknown fields, credential-like author
@@ -1058,8 +1077,9 @@ scan parser or object staging. Evidence, document, payload metadata, finalizer,
 two audits, and safe replay completion share the active transaction, including
 pending parents in compound commands. Replay uses current grants without
 parsing, staging, or Ledger reloads. Central replay privacy continues to omit
-payload references; raw document bytes remain outside responses. Local-memory
-mode retains its explicit compatibility command and shares DTO conversion.
+payload references; raw document bytes remain outside responses. The API requires
+PostgreSQL, including local evaluation. The test-only fixture composition above
+uses explicit storage resources; it is not a supported local-memory API profile.
 See [security-document uploads](api.md#security-document-uploads) for bounds,
 reduced-format compatibility, and secret-scan flag limitations.
 

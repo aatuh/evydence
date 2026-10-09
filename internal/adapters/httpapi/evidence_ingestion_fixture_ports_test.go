@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"maps"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -20,6 +19,8 @@ import (
 type ingestionFixtureCommands struct {
 	catalogFixtureCommands
 	repositoryScope bool
+	objects         app.ObjectStore
+	clock           application.Clock
 }
 
 func (f ingestionFixtureCommands) authority() ingestionFixtureReadAuthority {
@@ -63,12 +64,7 @@ func (f ingestionFixtureCommands) scanGuard() (*evidenceapp.VulnerabilityScanIng
 	return evidenceapp.NewVulnerabilityScanIngestionCommands(evidenceapp.VulnerabilityScanIngestionCommandConfig{Authorizer: auth, Transactions: ingestionFixtureGuardRunner{f.authority(), false}, Parser: app.VulnerabilityScanPayloadParser{}, Objects: noEffects, Payloads: noEffects, Canonicalizer: noEffects, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
 }
 func (f ingestionFixtureCommands) securityGuard() (*evidenceapp.SecurityDocumentCommands, error) {
-	auth, err := f.authority().authorizer(true)
-	if err != nil {
-		return nil, err
-	}
-	noEffects := ingestionFixtureGuardEffects{}
-	return evidenceapp.NewSecurityDocumentCommands(evidenceapp.SecurityDocumentCommandConfig{Authorizer: auth, Transactions: ingestionFixtureGuardRunner{f.authority(), true}, Objects: noEffects, Canonicalizer: noEffects, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
+	return f.nativeSecurityDocuments(true)
 }
 
 func (f ingestionFixtureCommands) AuthorizeUploadSBOM(ctx context.Context, a domain.Actor, in evidenceapp.SBOMIngestionInput) error {
@@ -196,14 +192,20 @@ func (f ingestionFixtureCommands) UploadVulnerabilityScanPayload(ctx context.Con
 	return fixtureVulnerabilityScan(value), err
 }
 func (f ingestionFixtureCommands) UploadSecurityScan(ctx context.Context, a domain.Actor, in evidenceapp.UploadSecurityScanInput) (evidencedomain.SecurityScan, error) {
-	value, err := f.commandLedger(ctx).UploadSecurityScan(ctx, a, app.UploadSecurityScanInput(in))
-	model := evidencedomain.SecurityScan(value)
-	model.Summary = maps.Clone(value.Summary)
-	return model, err
+	c, err := f.nativeSecurityDocuments(false)
+	if err != nil {
+		return evidencedomain.SecurityScan{}, err
+	}
+	v, err := c.UploadSecurityScan(ctx, a, in)
+	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 func (f ingestionFixtureCommands) UploadManualSecurityDocument(ctx context.Context, a domain.Actor, in evidenceapp.UploadManualSecurityDocumentInput) (evidencedomain.ManualSecurityDocument, error) {
-	value, err := f.commandLedger(ctx).UploadManualSecurityDocument(ctx, a, app.UploadManualSecurityDocumentInput(in))
-	return evidencedomain.ManualSecurityDocument(value), err
+	c, err := f.nativeSecurityDocuments(false)
+	if err != nil {
+		return evidencedomain.ManualSecurityDocument{}, err
+	}
+	v, err := c.UploadManualSecurityDocument(ctx, a, in)
+	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 
 func (s *Server) bindIngestionFixturePorts(ledger *app.Ledger) {
