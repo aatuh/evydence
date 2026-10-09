@@ -124,13 +124,14 @@ type operationsFixtureRequest struct{ name, path, body string }
 func operationsFixtureRequests(f operationsFixtureScope) []operationsFixtureRequest {
 	private := ed25519.NewKeyFromSeed([]byte(strings.Repeat("k", 32)))
 	public := base64.RawStdEncoding.EncodeToString(private.Public().(ed25519.PublicKey))
+	at := f.product.CreatedAt.UTC()
 	return []operationsFixtureRequest{
 		{"incident", "/v1/incidents", fmt.Sprintf(`{"product_id":%q,"release_id":%q,"title":"New incident","severity":"critical"}`, f.product.ID, f.release.ID)},
 		{"timeline", "/v1/incidents/" + f.incident.ID + "/timeline", fmt.Sprintf(`{"event_type":"noted","summary":"Containment recorded","evidence_id":%q}`, f.evidence.ID)},
-		{"task", "/v1/remediation-tasks", fmt.Sprintf(`{"incident_id":%q,"release_id":%q,"evidence_id":%q,"title":"Patch","owner":"Security Team","due_at":"2026-10-08T16:00:00Z"}`, f.incident.ID, f.release.ID, f.evidence.ID)},
+		{"task", "/v1/remediation-tasks", fmt.Sprintf(`{"incident_id":%q,"release_id":%q,"evidence_id":%q,"title":"Patch","owner":"Security Team","due_at":%q}`, f.incident.ID, f.release.ID, f.evidence.ID, at.Add(24*time.Hour).Format(time.RFC3339Nano))},
 		{"receiver", "/v1/incidents/" + f.incident.ID + "/webhook-receivers", fmt.Sprintf(`{"name":"Pager","provider":"fixture","public_key":%q}`, public)},
 		{"hold", "/v1/legal-holds", fmt.Sprintf(`{"scope_type":"release","scope_id":%q,"reason":"Review","owner":"Legal Team"}`, f.release.ID)},
-		{"override", "/v1/retention-overrides", fmt.Sprintf(`{"scope_type":"evidence","scope_id":%q,"reason":"Review","owner":"Security Team","retention_until":"2026-10-09T16:00:00Z"}`, f.evidence.ID)},
+		{"override", "/v1/retention-overrides", fmt.Sprintf(`{"scope_type":"evidence","scope_id":%q,"reason":"Review","owner":"Security Team","retention_until":%q}`, f.evidence.ID, at.Add(48*time.Hour).Format(time.RFC3339Nano))},
 	}
 }
 
@@ -145,7 +146,7 @@ func TestOperationsFixturesRollBackEveryRecordAndAuditAfterWriteFailure(t *testi
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
-			commands := &failingOperationsFixture{operationsFixtureCommands: operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingOperationsFixture{operationsFixtureCommands: operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return owner.product.CreatedAt })}}
 			server.incidentCommands, server.incidentWebhookCommands, server.retentionMarkerCommands = commands, commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -183,6 +184,8 @@ func TestOperationsFixturesReplayRechecksHumanGrantsAndForeignCoordinatesWithout
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"incident:write", "admin"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"admin"}}, {ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"incident:write"}}}}
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth
+	commands := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return owner.product.CreatedAt })}
+	server.incidentCommands, server.incidentWebhookCommands, server.retentionMarkerCommands = commands, commands, commands
 	for _, request := range operationsFixtureRequests(owner) {
 		t.Run(request.name, func(t *testing.T) {
 			original := postRaw(t, server, "fixture-auth", request.path, request.name, []byte(request.body), 201)
