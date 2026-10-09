@@ -105,6 +105,11 @@ func (r memorySnapshotArtifactReader) GetArtifactPoint(ctx context.Context, req 
 }
 
 func memoryArtifactVisible(s *MemoryUnitOfWorkSnapshot, a domain.Artifact, products, projects, releases map[string]bool) bool {
+	_, visible := memoryArtifactAssociation(s, a, products, projects, releases)
+	return visible
+}
+
+func memoryArtifactAssociation(s *MemoryUnitOfWorkSnapshot, a domain.Artifact, products, projects, releases map[string]bool) (application.ResourceReferences, bool) {
 	for _, e := range s.Evidence {
 		if e.TenantID != a.TenantID || !products[e.ProductID] && !projects[e.ProjectID] && !releases[e.ReleaseID] {
 			continue
@@ -114,7 +119,7 @@ func memoryArtifactVisible(s *MemoryUnitOfWorkSnapshot, a domain.Artifact, produ
 		}
 		for _, ref := range e.SubjectRefs {
 			if ref.Type == "artifact" && ref.ID == a.ID {
-				return true
+				return application.ResourceReferences{ProductID: e.ProductID, ProjectID: e.ProjectID, ReleaseID: e.ReleaseID}, true
 			}
 		}
 	}
@@ -128,11 +133,11 @@ func memoryArtifactVisible(s *MemoryUnitOfWorkSnapshot, a domain.Artifact, produ
 		}
 		for _, output := range b.Outputs {
 			if output.ArtifactID == a.ID && output.Digest == a.Digest {
-				return true
+				return application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}, true
 			}
 		}
 	}
-	return false
+	return application.ResourceReferences{}, false
 }
 
 // Evidence associations grant through their explicit references, not derived

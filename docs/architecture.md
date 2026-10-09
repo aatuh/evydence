@@ -454,12 +454,24 @@ descriptions now require PostgreSQL without schema or response changes.
 Artifact-signature recording and signature point reads now require focused
 Verification ports; both direct aggregate handler fallbacks are deleted.
 Native authorization, input bounds, cookie protection, canonical-reference
-replay and current-digest query contracts are unchanged. Test-only adapters
-retain the former guards/point rules and isolated writes; actual filesystem
+replay and current-digest query contracts are unchanged. Test-only command adapters
+retain the former guards and isolated writes; actual filesystem
 staging regressions cover repository rollback, no-restaging replay/denials,
 human grants, tenant boundaries and complete public DTOs without raw bytes.
-The legacy command now attributes human audits correctly. Fixture reads are
-not proof of native SQL locks or current digest/source validation.
+The legacy command now attributes human audits correctly. Signature point
+fixtures now compose the actual focused query over current Release Catalog
+repositories, including the collector fixture's signature-reference lookup.
+One locked typed snapshot requires current same-tenant signature/artifact rows
+and matching declared digests. Scoped reads share the artifact-visibility
+association helper, preserving coherent explicit evidence parents or digest-bound
+build outputs without nested reads. Existing artifact visibility, complete public
+DTO, replay, grant-revocation and privacy assertions remain intact. Rebinding an
+empty aggregate still returns current metadata; failed read commits return no
+point. Payload-read traps, missing repositories, cancellation and explicit-port
+checks cover the boundary. The old Ledger getter is an unchanged package-local
+test oracle. Native SQL, public schemas and migrations are unchanged; typed
+snapshots do not prove SQL shapes, work/transfer, locks or durability. This lists
+recorded metadata and does not fetch payloads or verify signatures cryptographically.
 Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 
