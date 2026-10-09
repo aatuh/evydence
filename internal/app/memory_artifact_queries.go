@@ -29,6 +29,28 @@ func (r memoryReleaseCatalogRepository) readArtifactPoint(ctx context.Context, r
 	if req.ID == "" {
 		return releasequery.ArtifactPoint{}, releasequery.ErrNotFound
 	}
+	grants, err := memoryArtifactReadGrants(req)
+	if err != nil {
+		return releasequery.ArtifactPoint{}, err
+	}
+	var out releasequery.ArtifactPoint
+	err = r.catalogQueryRead(ctx, req.TenantID, req.ID, func(s *MemoryUnitOfWorkSnapshot) error {
+		var err error
+		out, err = memoryArtifactPointInSnapshot(s, req, grants, metadata)
+		return err
+	})
+	if err != nil {
+		return releasequery.ArtifactPoint{}, err
+	}
+	return out, nil
+}
+
+type memoryArtifactGrantSets struct{ products, projects, releases map[string]bool }
+
+func memoryArtifactReadGrants(req releasequery.ArtifactReadRequest) (memoryArtifactGrantSets, error) {
+	if req.TenantWide == (len(req.AllowedProductIDs)+len(req.AllowedProjectIDs)+len(req.AllowedReleaseIDs) != 0) {
+		return memoryArtifactGrantSets{}, releasequery.ErrValidation
+	}
 	products, projects, releases := make(map[string]bool), make(map[string]bool), make(map[string]bool)
 	for _, group := range []struct {
 		ids     []string
@@ -36,34 +58,50 @@ func (r memoryReleaseCatalogRepository) readArtifactPoint(ctx context.Context, r
 	}{{req.AllowedProductIDs, products}, {req.AllowedProjectIDs, projects}, {req.AllowedReleaseIDs, releases}} {
 		for _, id := range group.ids {
 			if !memoryMembershipQueryText(id, 1024) {
-				return releasequery.ArtifactPoint{}, releasequery.ErrValidation
+				return memoryArtifactGrantSets{}, releasequery.ErrValidation
 			}
 			group.allowed[id] = true
 		}
 	}
-	var out releasequery.ArtifactPoint
-	err := r.catalogQueryRead(ctx, req.TenantID, req.ID, func(s *MemoryUnitOfWorkSnapshot) error {
-		a, ok := s.Artifacts[req.ID]
-		if !ok || a.ID != req.ID || a.TenantID != req.TenantID {
-			return releasequery.ErrNotFound
+	return memoryArtifactGrantSets{products, projects, releases}, nil
+}
+
+func memoryArtifactPointInSnapshot(s *MemoryUnitOfWorkSnapshot, req releasequery.ArtifactReadRequest, grants memoryArtifactGrantSets, metadata bool) (releasequery.ArtifactPoint, error) {
+	a, ok := s.Artifacts[req.ID]
+	if !ok || a.ID != req.ID || a.TenantID != req.TenantID {
+		return releasequery.ArtifactPoint{}, releasequery.ErrNotFound
+	}
+	visible := req.TenantWide || memoryArtifactVisible(s, a, grants.products, grants.projects, grants.releases)
+	out := releasequery.ArtifactPoint{Artifact: releasedomain.Artifact{ID: a.ID, TenantID: a.TenantID, CreatedAt: a.CreatedAt}, Visible: visible}
+	if metadata {
+		if !memoryMembershipText(a.Name, 65536) || !memoryMembershipText(a.MediaType, 65536) || !memoryMembershipText(a.Digest, 71) || a.Size < 0 {
+			return releasequery.ArtifactPoint{}, releasequery.ErrInvalidProjection
 		}
-		visible := req.TenantWide
-		if !visible {
-			visible = memoryArtifactVisible(s, a, products, projects, releases)
-		}
-		out = releasequery.ArtifactPoint{Artifact: releasedomain.Artifact{ID: a.ID, TenantID: a.TenantID, CreatedAt: a.CreatedAt}, Visible: visible}
-		if metadata {
-			if !memoryMembershipText(a.Name, 65536) || !memoryMembershipText(a.MediaType, 65536) || !memoryMembershipText(a.Digest, 71) || a.Size < 0 {
-				return releasequery.ErrInvalidProjection
-			}
-			out.Artifact = artifactToReleaseContext(a)
-		}
-		return nil
-	})
+		out.Artifact = artifactToReleaseContext(a)
+	}
+	return out, nil
+}
+
+// Nested read-only authorization stays in the already-locked snapshot rather
+// than opening or re-entering its UnitOfWork. Private metadata is never selected.
+type memorySnapshotArtifactReader struct{ state *MemoryUnitOfWorkSnapshot }
+
+func (r memorySnapshotArtifactReader) GetArtifactPoint(ctx context.Context, req releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error) {
+	if ctx == nil || r.state == nil {
+		return releasequery.ArtifactPoint{}, releasequery.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return releasequery.ArtifactPoint{}, err
+	}
+	grants, err := memoryArtifactReadGrants(req)
 	if err != nil {
 		return releasequery.ArtifactPoint{}, err
 	}
-	return out, nil
+	req.ID = strings.TrimSpace(req.ID)
+	if !memoryMembershipQueryText(req.ID, 1024) || !memoryMembershipQueryText(req.TenantID, 1024) {
+		return releasequery.ArtifactPoint{}, releasequery.ErrValidation
+	}
+	return memoryArtifactPointInSnapshot(r.state, req, grants, false)
 }
 
 func memoryArtifactVisible(s *MemoryUnitOfWorkSnapshot, a domain.Artifact, products, projects, releases map[string]bool) bool {

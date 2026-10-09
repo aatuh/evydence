@@ -107,6 +107,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"sbomComponentMatches":                       true,
 		"actorHasTenantWideRead":                     true,
 		"evidencePageConflict":                       true,
+		"unambiguousVEXMatches":                      true,
 	}
 	retired := map[string]bool{
 		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
@@ -139,7 +140,11 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"GetEvidence":                 true,
 		"GetVEXDocument":              true,
 		"GetVEXImportReport":          true,
-		"ListEvidence":                true, "ListEvidencePage": true, "SearchEvidencePage": true,
+		"PreviewVEXImport":            true, "PreviewCycloneDXVEXImport": true,
+		"findMatchingFindingsLocked": true, "previewOpenVEXDecisionEffectsLocked": true,
+		"findCycloneDXVEXMatchingFindingsLocked": true, "previewCycloneDXVEXDecisionEffectsLocked": true,
+		"previewDecisionEffectsForMatchesLocked": true,
+		"ListEvidence":                           true, "ListEvidencePage": true, "SearchEvidencePage": true,
 		"refreshEvidencePageAuthorization": true, "evidencePageVisibility": true,
 		"validateEvidencePageProjection": true, "validatePagedParserNormalizations": true,
 	}
@@ -161,6 +166,9 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch value := node.(type) {
 			case *ast.TypeSpec:
+				if value.Name.Name == "matchedFinding" {
+					t.Errorf("%s retains retired aggregate matching projection", name)
+				}
 				if value.Name.Name == "sourceSnapshot" {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}

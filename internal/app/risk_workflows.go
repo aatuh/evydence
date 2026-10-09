@@ -634,71 +634,6 @@ func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, rel
 	value, err := l.evidenceCommands.UploadCycloneDXVEX(ctx, actor, releaseID, artifactID, raw)
 	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }
-func (l *Ledger) PreviewCycloneDXVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
-		return domain.VEXImportPreview{}, ErrValidation
-	}
-	doc, err := parseCycloneDXVEX(raw)
-	if err != nil || len(doc.Vulnerabilities) == 0 {
-		return domain.VEXImportPreview{}, ErrValidation
-	}
-	statusSummary, invalidStatements, validStatements := analyzeCycloneDXVEXStatements(doc)
-	if len(validStatements) == 0 {
-		return domain.VEXImportPreview{}, ErrValidation
-	}
-	releaseID = strings.TrimSpace(releaseID)
-	artifactID = strings.TrimSpace(artifactID)
-	if releaseID == "" {
-		return domain.VEXImportPreview{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", releaseID); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	if artifactID != "" {
-		artifact, ok := l.artifacts[artifactID]
-		if !ok || artifact.TenantID != actor.TenantID {
-			return domain.VEXImportPreview{}, ErrNotFound
-		}
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: releaseID}); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	created, superseded, warnings, mappingFailures := l.previewCycloneDXVEXDecisionEffectsLocked(actor.TenantID, releaseID, validStatements)
-	warnings = append(append([]string{}, doc.Warnings...), warnings...)
-	if len(invalidStatements) > 0 {
-		warnings = append(warnings, "One or more CycloneDX VEX vulnerabilities were skipped because required analysis fields were missing or unsupported.")
-	}
-	return domain.VEXImportPreview{
-		TenantID:                actor.TenantID,
-		ReleaseID:               releaseID,
-		ArtifactID:              artifactID,
-		Format:                  "cyclonedx",
-		ParserVersion:           ParserVersionCycloneDXVEXJSON,
-		Advisory:                true,
-		StatementCount:          len(doc.Vulnerabilities),
-		StatusSummary:           cloneIntMap(statusSummary),
-		DecisionsWouldCreate:    created,
-		DecisionsWouldSupersede: superseded,
-		Warnings:                warnings,
-		InvalidStatements:       invalidStatements,
-		MappingFailures:         mappingFailures,
-		Assumptions:             vexImportPreviewAssumptions(),
-		Limitations:             vexImportPreviewLimitations(),
-		SchemaVersion:           domain.VEXImportPreviewSchemaVersion,
-		GeneratedAt:             l.now(),
-	}, nil
-}
 
 type cycloneDXVEXStatement struct {
 	index         int
@@ -736,53 +671,6 @@ func cycloneDXVEXAffectedRefs(vuln cycloneDXVEXVulnerability) map[string]struct{
 		}
 	}
 	return out
-}
-
-func (l *Ledger) findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID string, statement cycloneDXVEXStatement) ([]matchedFinding, bool) {
-	out := []matchedFinding{}
-	for _, scan := range l.scans {
-		if scan.TenantID != tenantID || scan.ReleaseID != releaseID {
-			continue
-		}
-		for _, finding := range scan.Findings {
-			if finding.Vulnerability != statement.vulnerability.ID {
-				continue
-			}
-			if len(statement.affectedRefs) > 0 && finding.Component != "" {
-				if _, ok := statement.affectedRefs[finding.Component]; !ok {
-					continue
-				}
-			}
-			out = append(out, matchedFinding{scan: scan, finding: finding})
-		}
-	}
-	return unambiguousVEXMatches(out, statement.affectedRefs)
-}
-
-func (l *Ledger) previewCycloneDXVEXDecisionEffectsLocked(tenantID, releaseID string, statements []cycloneDXVEXStatement) (int, int, []string, []domain.VEXImportIssue) {
-	created, superseded := 0, 0
-	mappingFailures := []domain.VEXImportIssue{}
-	warnings := []string{}
-	createdForFinding := map[string]struct{}{}
-	duplicateWarningAdded := false
-	for _, statement := range statements {
-		matches, ambiguous := l.findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID, statement)
-		if ambiguous {
-			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "ambiguous_finding", "Multiple plausible findings matched this CycloneDX VEX vulnerability; no decision would be applied."))
-			continue
-		}
-		if len(matches) == 0 {
-			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "finding_not_found", "No matching vulnerability scan finding was found for this CycloneDX VEX vulnerability."))
-		}
-		added, replaced, duplicate := l.previewDecisionEffectsForMatchesLocked(tenantID, matches, createdForFinding)
-		created += added
-		superseded += replaced
-		if duplicate && !duplicateWarningAdded {
-			warnings = append(warnings, "Duplicate CycloneDX VEX vulnerabilities for an already mapped finding were ignored.")
-			duplicateWarningAdded = true
-		}
-	}
-	return created, superseded, warnings, mappingFailures
 }
 
 func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in CreateContractDiffInput) (domain.ContractDiff, error) {

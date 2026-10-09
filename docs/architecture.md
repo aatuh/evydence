@@ -272,6 +272,20 @@ bounds, locks or durability. Public contracts and PostgreSQL queries are
 unchanged; local compatibility completion and remaining aggregate state still
 require retirement in EVY-906.
 
+OpenVEX and CycloneDX advisory preview fixtures now use the focused Evidence
+query and the same read-only cross-context mapper as runtime composition.
+Current release/product/artifact authority is checked in one repository view
+before scan or finding selection. The memory reader models the 4,096 scan and
+finding limits and shared 8 MiB selected-coordinate budget; it reads only
+active-decision presence, not private decision text. Artifact grants share the
+existing association projection without re-entering the transaction lock or
+selecting artifact metadata. Both former preview facades and seven matching
+declarations are unchanged test-only oracles. Failed reads/commits return no
+partial advisory and publish no decisions, audit or outbox effects. Public
+contracts and SQL are unchanged; typed memory checks do not prove SQL JSON
+shapes, work/transfer bounds, locks or durability. Remaining aggregate state and
+compatibility completion still require retirement in EVY-906.
+
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require
 focused Evidence commands. Their eleven transport fallbacks, fifteen-method

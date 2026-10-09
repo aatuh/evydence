@@ -4,12 +4,14 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
+	"github.com/aatuh/evydence/internal/platform/vexpreview"
 )
 
 // Only legacy HTTP tests use these readers. Actual former ownership and scope
@@ -151,17 +153,12 @@ func fixtureVEXPreview(value domain.VEXImportPreview) evidencedomain.VEXImportPr
 }
 
 func (f evidenceReadFixture) PreviewVEXImport(ctx context.Context, actor domain.Actor, input evidencequery.VEXPreviewInput) (evidencedomain.VEXImportPreview, error) {
-	var value domain.VEXImportPreview
-	var err error
-	switch input.Format {
-	case "openvex":
-		value, err = f.commandLedger(ctx).PreviewVEXImport(ctx, actor, input.ReleaseID, input.ArtifactID, input.Payload)
-	case "cyclonedx":
-		value, err = f.commandLedger(ctx).PreviewCycloneDXVEXImport(ctx, actor, input.ReleaseID, input.ArtifactID, input.Payload)
-	default:
-		return evidencedomain.VEXImportPreview{}, evidencequery.ErrValidation
+	query, err := evidencequery.NewVEXPreviews(f, app.VEXPayloadParser{}, vexpreview.MapEffects, time.Now)
+	if err != nil {
+		return evidencedomain.VEXImportPreview{}, err
 	}
-	return fixtureVEXPreview(value), err
+	value, err := query.PreviewVEXImport(ctx, actor, input)
+	return value, legacyParsedPointError(err)
 }
 
 func (s *Server) bindEvidenceReadFixturePorts(ledger *app.Ledger) {
