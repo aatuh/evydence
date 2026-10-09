@@ -40,7 +40,7 @@ func TestParsedPointFixturePreservesCompletedEmptyContractFromUpload(t *testing.
 	if err != nil || value.Operations == nil || len(value.Operations) != 0 {
 		t.Fatal("native query discarded completed empty operations", err)
 	}
-	diffs := ingestionDiffFixture{catalogFixtureCommands{ledger: ledger}}
+	diffs := ingestionDiffFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	input := evidenceapp.CreateContractDiffInput{BaseContractID: owner.contract.ID, TargetContractID: contract.ID, ReleaseID: owner.release.ID}
 	if err := diffs.AuthorizeCreateContractDiff(t.Context(), owner.actor, input); err != nil {
 		t.Fatal("diff guard rejected the completed empty contract", err)

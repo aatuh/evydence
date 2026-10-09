@@ -123,7 +123,7 @@ func TestIngestionFixturesRollBackEveryDocumentPayloadAuditJobAndDiffEffect(t *t
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
 			base := catalogFixtureCommands{ledger: ledger}
-			commands := &failingIngestionFixture{ingestionFixtureCommands: ingestionFixtureCommands{catalogFixtureCommands: base, repositoryScope: true}, diffs: ingestionDiffFixture{base}}
+			commands := &failingIngestionFixture{ingestionFixtureCommands: ingestionFixtureCommands{catalogFixtureCommands: base, repositoryScope: true}, diffs: ingestionDiffFixture{catalogFixtureCommands: base}}
 			server.sbomIngestionCommands, server.vexIngestionCommands, server.scanIngestionCommands, server.openAPIIngestionCommands, server.securityDocumentCommands, server.sbomDiffCommands, server.contractDiffCommands = commands, commands, commands, commands, commands, commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {

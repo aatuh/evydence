@@ -14,7 +14,7 @@ import (
 
 // Explicit repository-backed guard configuration never falls back on a
 // failed/missing repository to catalog caches. Artifact guards use identity-
-// only ports; diff fixture reads and historical parser writes still have
+// only ports; historical parser writes still have
 // separate retirement dependencies.
 type repositoryIngestionFixtureAuthority struct {
 	ingestionFixtureAuthority

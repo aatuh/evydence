@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"slices"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -13,146 +12,223 @@ import (
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
-type ingestionDiffFixture struct{ catalogFixtureCommands }
-type ingestionDiffFixtureRunner struct{ ingestionFixtureAuthority }
-type ingestionDiffFixtureGuard struct {
-	ingestionFixtureGuardTransaction
+type ingestionDiffFixture struct {
+	catalogFixtureCommands
+	clock application.Clock
 }
 
-func (f ingestionFixtureAuthority) diffSource(ctx context.Context, tenant, id, kind, product, release string) (application.ResourceReferences, error) {
-	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetEvidence(ctx, fixtureOwnerReader(tenant), id)
-	if err != nil {
-		return application.ResourceReferences{}, err
-	}
-	if value.Type != kind || value.TenantID != tenant || value.ProductID != "" && product != "" && value.ProductID != product || value.ReleaseID != "" && release != "" && value.ReleaseID != release {
-		return application.ResourceReferences{}, app.ErrNotFound
-	}
-	if product == "" {
-		product = value.ProductID
-	}
-	if release == "" {
-		release = value.ReleaseID
-	}
-	return f.ResolveEvidenceCreationScope(ctx, tenant, application.ResourceReferences{ProductID: product, ProjectID: value.ProjectID, ReleaseID: release})
+// Actual focused diff services over current repository capabilities, not a
+// Ledger command facade. Read-only preflight cannot transfer parsed documents.
+type diffNativeFixture struct {
+	evidenceCreationNativeFixture
 }
 
-func (f ingestionDiffFixtureGuard) ReadSBOMDiffSubject(ctx context.Context, tenant, id string) (evidenceapp.SBOMDiffSubject, error) {
-	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetSBOM(ctx, fixtureOwnerReader(tenant), id)
+func (f diffNativeFixture) authorizer() (application.Authorizer, error) {
+	artifacts, err := releasequery.NewArtifactReadAuthorizer(f)
 	if err != nil {
-		return evidenceapp.SBOMDiffSubject{}, err
+		return nil, err
 	}
-	refs, err := f.diffSource(ctx, tenant, value.EvidenceID, "sbom", "", value.ReleaseID)
+	return evidencequery.NewDiffAuthorizer(artifacts)
+}
+func (f diffNativeFixture) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
+	auth, err := f.authorizer()
 	if err != nil {
-		return evidenceapp.SBOMDiffSubject{}, err
+		return err
 	}
-	if value.ArtifactID != "" {
-		if err := f.ValidateArtifactReference(ctx, tenant, value.ArtifactID, ""); err != nil {
-			return evidenceapp.SBOMDiffSubject{}, err
+	return auth.Authorize(ctx, a, r)
+}
+func (f diffNativeFixture) ExecuteSBOMDiff(ctx context.Context, run func(context.Context, evidenceapp.SBOMDiffTransaction) error) error {
+	if ctx == nil || run == nil {
+		return evidenceapp.ErrValidation
+	}
+	return fixtureIngestionError(f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		if _, ok := r.Evidence.(evidenceapp.SBOMDiffReader); !ok || r.Risk == nil || r.Audit == nil {
+			return app.ErrValidation
 		}
-		refs.ArtifactID = value.ArtifactID
+		if _, ok := r.ReleaseCatalog.(repositoryIngestionFixtureArtifactReader); !ok {
+			return app.ErrValidation
+		}
+		bound := f
+		bound.repositories = &r
+		return run(ctx, bound)
+	}))
+}
+func (f diffNativeFixture) ExecuteContractDiff(ctx context.Context, run func(context.Context, evidenceapp.ContractDiffTransaction) error) error {
+	if ctx == nil || run == nil {
+		return evidenceapp.ErrValidation
 	}
-	return evidenceapp.SBOMDiffSubject{ID: value.ID, TenantID: value.TenantID, EvidenceID: value.EvidenceID, Resources: refs}, nil
+	return fixtureIngestionError(f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		if _, ok := r.Evidence.(evidenceapp.ContractDiffReader); !ok || r.Risk == nil || r.Audit == nil {
+			return app.ErrValidation
+		}
+		bound := f
+		bound.repositories = &r
+		return run(ctx, bound)
+	}))
 }
-func (f ingestionDiffFixtureGuard) ReadSBOMDiffComponents(ctx context.Context, tenant, id string) ([]evidencedomain.SBOMComponent, error) {
-	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetSBOM(ctx, fixtureOwnerReader(tenant), id)
-	return value.Components, err
-}
-func (f ingestionDiffFixtureGuard) ReadContractDiffSubject(ctx context.Context, tenant, id string) (evidenceapp.ContractDiffSubject, error) {
-	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetOpenAPIContract(ctx, fixtureOwnerReader(tenant), id)
-	if err != nil {
-		return evidenceapp.ContractDiffSubject{}, err
-	}
-	refs, err := f.diffSource(ctx, tenant, value.EvidenceID, "openapi_contract", value.ProductID, value.ReleaseID)
-	if err != nil {
-		return evidenceapp.ContractDiffSubject{}, err
-	}
-	return evidenceapp.ContractDiffSubject{ID: value.ID, TenantID: value.TenantID, ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, EvidenceID: value.EvidenceID}, nil
-}
-func (f ingestionDiffFixtureGuard) ReadContractDiffRelease(ctx context.Context, tenant, id string) (evidenceapp.ContractDiffRelease, error) {
-	refs, err := f.ResolveEvidenceCreationScope(ctx, tenant, application.ResourceReferences{ReleaseID: id})
-	return evidenceapp.ContractDiffRelease{ID: refs.ReleaseID, TenantID: tenant, ProductID: refs.ProductID}, err
-}
-func (f ingestionDiffFixtureGuard) ReadContractDiffProjection(ctx context.Context, tenant, id string) (evidencedomain.OpenAPIContract, error) {
-	return (evidenceReadFixture{catalogFixtureCommands{ledger: f.commandLedger(ctx)}}).GetOpenAPIContract(ctx, fixtureOwnerReader(tenant), id)
-}
-
-func (f ingestionDiffFixtureRunner) transaction() (ingestionDiffFixtureGuard, error) {
-	artifacts, err := releasequery.NewArtifactReadAuthorizer(f.ingestionFixtureAuthority)
-	if err != nil {
-		return ingestionDiffFixtureGuard{}, err
-	}
-	auth, err := evidencequery.NewDiffAuthorizer(artifacts)
-	return ingestionDiffFixtureGuard{ingestionFixtureGuardTransaction{ingestionFixtureAuthority: f.ingestionFixtureAuthority, Authorizer: auth}}, err
-}
-func (f ingestionDiffFixtureRunner) ExecuteSBOMDiff(ctx context.Context, run func(context.Context, evidenceapp.SBOMDiffTransaction) error) error {
-	tx, err := f.transaction()
-	if err != nil {
+func (f diffNativeFixture) ReadSBOMDiffSubject(ctx context.Context, tenant, id string) (evidenceapp.SBOMDiffSubject, error) {
+	var out evidenceapp.SBOMDiffSubject
+	err := f.read(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Evidence.(evidenceapp.SBOMDiffReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadSBOMDiffSubject(ctx, tenant, id)
 		return err
-	}
-	return run(ctx, tx)
-}
-func (f ingestionDiffFixtureRunner) ExecuteContractDiff(ctx context.Context, run func(context.Context, evidenceapp.ContractDiffTransaction) error) error {
-	tx, err := f.transaction()
+	})
 	if err != nil {
-		return err
+		return evidenceapp.SBOMDiffSubject{}, fixtureIngestionError(err)
 	}
-	return run(ctx, tx)
+	return out, nil
+}
+func (f diffNativeFixture) ReadSBOMDiffComponents(ctx context.Context, tenant, id string) ([]evidencedomain.SBOMComponent, error) {
+	if f.readOnly {
+		panic("diff preflight read SBOM components")
+	}
+	var out []evidencedomain.SBOMComponent
+	err := f.read(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Evidence.(evidenceapp.SBOMDiffReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadSBOMDiffComponents(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return nil, fixtureIngestionError(err)
+	}
+	return out, nil
+}
+func (f diffNativeFixture) ReadContractDiffSubject(ctx context.Context, tenant, id string) (evidenceapp.ContractDiffSubject, error) {
+	var out evidenceapp.ContractDiffSubject
+	err := f.read(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Evidence.(evidenceapp.ContractDiffReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadContractDiffSubject(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return evidenceapp.ContractDiffSubject{}, fixtureIngestionError(err)
+	}
+	return out, nil
+}
+func (f diffNativeFixture) ReadContractDiffRelease(ctx context.Context, tenant, id string) (evidenceapp.ContractDiffRelease, error) {
+	var out evidenceapp.ContractDiffRelease
+	err := f.read(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Evidence.(evidenceapp.ContractDiffReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadContractDiffRelease(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return evidenceapp.ContractDiffRelease{}, fixtureIngestionError(err)
+	}
+	return out, nil
+}
+func (f diffNativeFixture) ReadContractDiffProjection(ctx context.Context, tenant, id string) (evidencedomain.OpenAPIContract, error) {
+	if f.readOnly {
+		panic("diff preflight read contract operations")
+	}
+	var out evidencedomain.OpenAPIContract
+	err := f.read(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Evidence.(evidenceapp.ContractDiffReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadContractDiffProjection(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return evidencedomain.OpenAPIContract{}, fixtureIngestionError(err)
+	}
+	return out, nil
+}
+func (f diffNativeFixture) InsertSBOMDiff(ctx context.Context, v evidencedomain.SBOMDiff) error {
+	if f.readOnly || f.repositories == nil {
+		panic("diff preflight/unbound SBOM insert")
+	}
+	return fixtureIngestionError(f.repositories.Risk.InsertSBOMDiff(ctx, domain.SBOMDiffFromContext(v)))
+}
+func (f diffNativeFixture) InsertContractDiff(ctx context.Context, v evidencedomain.ContractDiff) error {
+	if f.readOnly || f.repositories == nil {
+		panic("diff preflight/unbound contract insert")
+	}
+	return fixtureIngestionError(f.repositories.Risk.InsertContractDiff(ctx, domain.ContractDiffFromContext(v)))
+}
+func (f ingestionDiffFixture) ports(readOnly bool) (diffNativeFixture, application.Clock, application.IDGenerator) {
+	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
+	if !readOnly && f.clock != nil {
+		clock = f.clock
+	}
+	return diffNativeFixture{evidenceCreationNativeFixture{catalogFixtureCommands: f.catalogFixtureCommands, readOnly: readOnly}}, clock, ids
+}
+func (f ingestionDiffFixture) nativeSBOM(readOnly bool) (*evidenceapp.SBOMDiffCommands, error) {
+	ports, clock, ids := f.ports(readOnly)
+	auth, err := ports.authorizer()
+	if err != nil {
+		return nil, err
+	}
+	return evidenceapp.NewSBOMDiffCommands(evidenceapp.SBOMDiffCommandConfig{Authorizer: auth, Transactions: ports, Clock: clock, IDs: ids})
+}
+func (f ingestionDiffFixture) nativeContract(readOnly bool) (*evidenceapp.ContractDiffCommands, error) {
+	ports, clock, ids := f.ports(readOnly)
+	auth, err := ports.authorizer()
+	if err != nil {
+		return nil, err
+	}
+	return evidenceapp.NewContractDiffCommands(evidenceapp.ContractDiffCommandConfig{Authorizer: auth, Transactions: ports, Clock: clock, IDs: ids})
 }
 func (f ingestionDiffFixture) AuthorizeCreateSBOMDiff(ctx context.Context, a domain.Actor, in evidenceapp.CreateSBOMDiffInput) error {
-	runner := ingestionDiffFixtureRunner{ingestionFixtureAuthority(f)}
-	tx, err := runner.transaction()
+	c, err := f.nativeSBOM(true)
 	if err != nil {
 		return err
 	}
-	guard, err := evidenceapp.NewSBOMDiffCommands(evidenceapp.SBOMDiffCommandConfig{Authorizer: tx.Authorizer, Transactions: runner, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
-	if err != nil {
-		return err
-	}
-	return fixtureIngestionError(guard.AuthorizeCreateSBOMDiff(ctx, a, in))
+	return fixtureIngestionError(c.AuthorizeCreateSBOMDiff(ctx, a, in))
 }
 func (f ingestionDiffFixture) AuthorizeCreateContractDiff(ctx context.Context, a domain.Actor, in evidenceapp.CreateContractDiffInput) error {
-	runner := ingestionDiffFixtureRunner{ingestionFixtureAuthority(f)}
-	tx, err := runner.transaction()
+	c, err := f.nativeContract(true)
 	if err != nil {
 		return err
 	}
-	guard, err := evidenceapp.NewContractDiffCommands(evidenceapp.ContractDiffCommandConfig{Authorizer: tx.Authorizer, Transactions: runner, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
-	if err != nil {
-		return err
-	}
-	return fixtureIngestionError(guard.AuthorizeCreateContractDiff(ctx, a, in))
-}
-
-func fixtureSBOMDiff(value domain.SBOMDiff) evidencedomain.SBOMDiff {
-	components := func(values []domain.SBOMComponent) []evidencedomain.SBOMComponent {
-		out := make([]evidencedomain.SBOMComponent, 0, len(values))
-		for _, v := range values {
-			out = append(out, evidencedomain.SBOMComponent(v))
-		}
-		return out
-	}
-	changes := make([]evidencedomain.DependencyChange, 0, len(value.DependencyChanges))
-	for _, v := range value.DependencyChanges {
-		changes = append(changes, evidencedomain.DependencyChange{ID: v.ID, TenantID: v.TenantID, SBOMDiffID: v.SBOMDiffID, ChangeType: v.ChangeType, Component: evidencedomain.SBOMComponent(v.Component), SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt})
-	}
-	return evidencedomain.SBOMDiff{ID: value.ID, TenantID: value.TenantID, BaseSBOMID: value.BaseSBOMID, TargetSBOMID: value.TargetSBOMID, ReleaseID: value.ReleaseID, AddedComponents: components(value.AddedComponents), RemovedComponents: components(value.RemovedComponents), UnchangedCount: value.UnchangedCount, DependencyChanges: changes, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt}
+	return fixtureIngestionError(c.AuthorizeCreateContractDiff(ctx, a, in))
 }
 func (f ingestionDiffFixture) CreateSBOMDiff(ctx context.Context, a domain.Actor, in evidenceapp.CreateSBOMDiffInput) (evidencedomain.SBOMDiff, error) {
-	value, err := f.commandLedger(ctx).CreateSBOMDiff(ctx, a, app.CreateSBOMDiffInput(in))
-	return fixtureSBOMDiff(value), err
+	c, err := f.nativeSBOM(false)
+	if err != nil {
+		return evidencedomain.SBOMDiff{}, err
+	}
+	v, err := c.CreateSBOMDiff(ctx, a, in)
+	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 func (f ingestionDiffFixture) CreateContractDiff(ctx context.Context, a domain.Actor, in evidenceapp.CreateContractDiffInput) (evidencedomain.ContractDiff, error) {
-	value, err := f.commandLedger(ctx).CreateContractDiff(ctx, a, app.CreateContractDiffInput(in))
-	model := evidencedomain.ContractDiff(value)
-	model.BreakingChanges, model.NonBreakingChanges = slices.Clone(value.BreakingChanges), slices.Clone(value.NonBreakingChanges)
-	return model, err
+	c, err := f.nativeContract(false)
+	if err != nil {
+		return evidencedomain.ContractDiff{}, err
+	}
+	v, err := c.CreateContractDiff(ctx, a, in)
+	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 func (s *Server) bindDiffFixturePorts(ledger *app.Ledger) {
-	commands := ingestionDiffFixture{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.sbomDiffCommands.(ingestionDiffFixture); s.sbomDiffCommands == nil || fixture {
+	commands := ingestionDiffFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, ok := s.sbomDiffCommands.(ingestionDiffFixture); ok {
+		old.ledger = ledger
+		s.sbomDiffCommands = old
+	} else if s.sbomDiffCommands == nil {
 		s.sbomDiffCommands = commands
 	}
-	if _, fixture := s.contractDiffCommands.(ingestionDiffFixture); s.contractDiffCommands == nil || fixture {
+	if old, ok := s.contractDiffCommands.(ingestionDiffFixture); ok {
+		old.ledger = ledger
+		s.contractDiffCommands = old
+	} else if s.contractDiffCommands == nil {
 		s.contractDiffCommands = commands
 	}
 }

@@ -6,21 +6,8 @@ import (
 
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
-	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
-
-type CreateSBOMDiffInput struct {
-	BaseSBOMID   string
-	TargetSBOMID string
-	ReleaseID    string
-}
-
-type CreateContractDiffInput struct {
-	BaseContractID   string
-	TargetContractID string
-	ReleaseID        string
-}
 
 type cycloneDXVEXDocument struct {
 	BOMFormat       string                      `json:"bomFormat"`
@@ -73,13 +60,6 @@ func parseCycloneDXVEX(raw []byte) (cycloneDXVEXDocument, error) {
 	return doc, nil
 }
 
-func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in CreateSBOMDiffInput) (domain.SBOMDiff, error) {
-	value, err := l.evidenceCommands.CreateSBOMDiff(ctx, actor, evidenceapp.CreateSBOMDiffInput{
-		BaseSBOMID: in.BaseSBOMID, TargetSBOMID: in.TargetSBOMID, ReleaseID: in.ReleaseID,
-	})
-	return sbomDiffFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
 func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
 	value, err := l.evidenceCommands.UploadCycloneDXVEX(ctx, actor, releaseID, artifactID, raw)
 	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
@@ -121,13 +101,6 @@ func cycloneDXVEXAffectedRefs(vuln cycloneDXVEXVulnerability) map[string]struct{
 		}
 	}
 	return out
-}
-
-func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in CreateContractDiffInput) (domain.ContractDiff, error) {
-	value, err := l.evidenceCommands.CreateContractDiff(ctx, actor, evidenceapp.CreateContractDiffInput{
-		BaseContractID: in.BaseContractID, TargetContractID: in.TargetContractID, ReleaseID: in.ReleaseID,
-	})
-	return contractDiffFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func cyclonedxAnalysisStatus(state string) string {

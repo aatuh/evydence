@@ -177,7 +177,6 @@ type ingestionFixtureReadAuthority interface {
 	GetArtifactPoint(context.Context, releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error)
 	ValidateScope(context.Context, string, evidenceapp.EvidenceScope) error
 	ValidateArtifactReference(context.Context, string, string, string) error
-	diffSource(context.Context, string, string, string, string, string) (application.ResourceReferences, error)
 }
 
 type ingestionFixtureGuardTransaction struct {
@@ -206,14 +205,8 @@ func (f ingestionFixtureGuardRunner) transaction() (ingestionFixtureGuardTransac
 	return ingestionFixtureGuardTransaction{ingestionFixtureAuthority: f.ingestionFixtureAuthority, Authorizer: authorizer}, err
 }
 
-func (t ingestionFixtureGuardTransaction) commandLedger(ctx context.Context) *app.Ledger {
-	return t.ingestionFixtureAuthority.commandLedger(ctx)
-}
 func (t ingestionFixtureGuardTransaction) ResolveEvidenceCreationScope(ctx context.Context, tenant string, refs application.ResourceReferences) (application.ResourceReferences, error) {
 	return t.ingestionFixtureAuthority.ResolveEvidenceCreationScope(ctx, tenant, refs)
-}
-func (t ingestionFixtureGuardTransaction) diffSource(ctx context.Context, tenant, id, kind, product, release string) (application.ResourceReferences, error) {
-	return t.ingestionFixtureAuthority.diffSource(ctx, tenant, id, kind, product, release)
 }
 
 func (f ingestionFixtureGuardRunner) ExecuteSBOMIngestion(ctx context.Context, run func(context.Context, evidenceapp.SBOMIngestionTransaction) error) error {

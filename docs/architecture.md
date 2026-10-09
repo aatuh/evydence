@@ -272,10 +272,9 @@ unchanged test-only oracles. Readers check source/parent coherence and detach
 document metadata; scan and contract projections model the native 32 MiB JSON
 limits. Failed transactions and cancellation return no partial point. Completed
 empty OpenAPI operation arrays remain distinct from unfinished projections
-through both ingestion paths and memory copies. The legacy diff service also
-reads configured repositories so replay snapshots cannot cause a false exact
-recheck conflict. Standalone historical receipt tests validate immutable receipt
-identity and worker-record coherence, not current storage snapshots. The VEX
+through both ingestion paths and memory copies. Standalone historical receipt
+tests validate immutable receipt identity and worker-record coherence, not
+current storage snapshots. The VEX
 HTTP validation flow uses repository-backed readers and an explicit fixture
 worker, described below. This does not add an API runtime backend or establish
 SQL JSON, transfer/work or locking guarantees.
@@ -399,6 +398,20 @@ writes for the remaining parser families use the real legacy parsers and isolate
 command clone, not those guard capabilities. Eleven failure-after-write and replay regressions check complete
 repository state, including payload, audit, outbox and derived-record effects.
 They are not a substitute for the live PostgreSQL transaction tests.
+
+Both document-diff fixtures now run the actual focused Evidence services over
+current typed repository capabilities. Preflight reads only coherent source and
+parent identifiers; component/operation reads, inserts, audits and clock/ID
+allocation are trapped during replay authorization. Fresh writes use bounded,
+detached projections and atomically insert diffs, dependency changes and
+caller-attributed audits. Explicit clocks and injected ports survive rebinding;
+failed commits return zero results without effects. SBOM diffs cannot invent a
+source release, while contract diffs may target a third authorized release of the
+common product. The former Ledger diff methods and input DTOs are unchanged
+test-only oracles guarded against production return. Typed readers model native
+component/count and JSON byte budgets, not PostgreSQL JSON shapes, projection
+fences, share locks or durability. API/SQL/schema are unchanged.
+
 Security-scan and manual-document fixtures now compose the actual focused Evidence
 command over current repository scope/artifact readers, without Ledger ownership
 or document publication. They require `security:write`, not an unrelated
@@ -821,7 +834,7 @@ or write effects, cancellation, one-transaction reads and safe failed preflight.
 Operations, governance and identity repository helpers opt into this scope
 configuration. The memory capability reuses coherent point-coordinate reads;
 it is not PostgreSQL locking, durability or bounded-transfer evidence. Artifact
-and diff fixture reads, historical parser writes and unsupported synchronous
+fixture reads, historical parser writes and unsupported synchronous
 fixtures retain separate retirement dependencies. This removes guard coupling
 for configured fixtures, not the remaining production Ledger implementation.
 The broad Risk transport surface is gone, but direct context-to-Ledger calls
