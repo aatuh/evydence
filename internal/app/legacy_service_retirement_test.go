@@ -117,6 +117,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"signingCustodyReviewReportFromVerificationContext": true,
 		"prepareLocalSourceWrite":                           true, "localSourceInputError": true,
 		"prepareLocalSourceCommit": true, "prepareLocalSourceBranch": true, "prepareLocalPullRequest": true,
+		"prepareLocalSourceRepositoryCreation": true,
 	}
 	retired := map[string]bool{
 		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
@@ -144,22 +145,24 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ReleaseReadinessReport":       true,
 		"GetReleaseBundle":             true,
 		"GetSBOM":                      true, "GetVulnerabilityScan": true, "GetOpenAPIContract": true,
-		"ListSBOMComponents":                  true,
-		"ListEvidenceLifecycleEvents":         true,
-		"GetEvidence":                         true,
-		"GetArtifactSignature":                true,
-		"CreateArtifactSignature":             true,
-		"AuthorizeArtifactSignatureCreation":  true,
-		"VerifyCosignSignature":               true,
-		"RecordCollectorRelease":              true,
-		"CollectorHealthReport":               true,
-		"CreateCollector":                     true,
-		"ListCollectors":                      true,
-		"CreateCommercialCollectorDefinition": true,
-		"ListCommercialCollectorDefinitions":  true,
-		"ListSourceRepositories":              true,
-		"AuthorizeSourceRepositoryCreation":   true,
-		"RecordSourceCommit":                  true, "UpsertSourceBranch": true, "RecordPullRequest": true,
+		"ListSBOMComponents":                      true,
+		"ListEvidenceLifecycleEvents":             true,
+		"GetEvidence":                             true,
+		"GetArtifactSignature":                    true,
+		"CreateArtifactSignature":                 true,
+		"AuthorizeArtifactSignatureCreation":      true,
+		"VerifyCosignSignature":                   true,
+		"RecordCollectorRelease":                  true,
+		"CollectorHealthReport":                   true,
+		"CreateCollector":                         true,
+		"ListCollectors":                          true,
+		"CreateCommercialCollectorDefinition":     true,
+		"ListCommercialCollectorDefinitions":      true,
+		"ListSourceRepositories":                  true,
+		"AuthorizeSourceRepositoryCreation":       true,
+		"CreateSourceRepository":                  true,
+		"authorizeSourceRepositoryCreationLocked": true,
+		"RecordSourceCommit":                      true, "UpsertSourceBranch": true, "RecordPullRequest": true,
 		"AuthorizeSourceCommitRecording": true, "AuthorizeSourceBranchUpsert": true, "AuthorizePullRequestRecording": true,
 		"authorizeLocalSourceWriteLocked":    true,
 		"ListSigningKeys":                    true,
@@ -204,7 +207,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}
 				switch value.Name.Name {
-				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput", "AuditLogFilter", "CreateArtifactSignatureInput", "RecordCollectorReleaseInput", "VerifyCosignInput", "CreateCollectorInput", "CreateCommercialCollectorInput", "RecordCommitInput", "UpsertBranchInput", "RecordPullRequestInput":
+				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput", "AuditLogFilter", "CreateArtifactSignatureInput", "RecordCollectorReleaseInput", "VerifyCosignInput", "CreateCollectorInput", "CreateCommercialCollectorInput", "RecordCommitInput", "UpsertBranchInput", "RecordPullRequestInput", "CreateRepositoryInput":
 					t.Errorf("%s retains retired aggregate input %s", name, value.Name.Name)
 				}
 			case *ast.FuncDecl:

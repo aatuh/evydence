@@ -564,8 +564,19 @@ Historical authorization inventory assertions follow the unchanged test-only
 oracles. Source snapshot and cookie-origin/bearer precedence fixtures use real
 transaction repositories, retaining their original status and no-effect assertions.
 Typed memory does not prove native SQL shapes, work/transfer, locks or durability.
-Native SQL and API contracts are unchanged. Repository creation and its input,
-preparation and locked-authorization helpers still require migration/retirement.
+Native SQL and API contracts are unchanged. Repository creation fixtures also
+compose the actual focused Integration command now, with current requested and
+reused repository parent checks before metadata reads. Creation and human audit
+effects share the UoW; natural-key reuse returns the original full record without
+metadata amendment, additional audit or clock/ID allocation. Explicit time/IDs
+are preserved while preflight capabilities remain read-only. The legacy command,
+input DTO and local preparation/locked-authorization helpers are unchanged
+test-only oracles protected by source retirement checks. External repository
+seeds and downstream snapshot consumers use the focused command, not aggregate
+cache publication. Current-state, complete DTO, original-record reuse, wrong
+tenant/grant, failed-commit empty results and missing-repository regressions
+preserve the original assertions. Other aggregate contexts and state still
+require retirement; this is not whole-ticket closure or SQL durability proof.
 Commit, branch and pull-request fixtures now use their actual focused Integration
 commands and preflights with current repository/head readers, bounded selected
 commit/branch metadata and provider-only defaults. Each transaction exposes only

@@ -11,9 +11,14 @@ import (
 	integrationquery "github.com/aatuh/evydence/internal/integration/query"
 )
 
-type sourceRepositoryPreflightFixture struct{ catalogFixtureCommands }
+type sourceRepositoryPreflightFixture struct {
+	catalogFixtureCommands
+	readOnly bool
+}
 type sourceRepositoryPreflightTransaction struct {
-	reader integrationapp.SourceRepositoryCreationReader
+	reader   integrationapp.SourceRepositoryCreationReader
+	repos    app.Repositories
+	readOnly bool
 }
 
 func (f sourceRepositoryPreflightFixture) ExecuteSourceRepository(ctx context.Context, run func(context.Context, integrationapp.SourceRepositoryCreationTransaction) error) error {
@@ -22,10 +27,10 @@ func (f sourceRepositoryPreflightFixture) ExecuteSourceRepository(ctx context.Co
 	}
 	return collectorReleaseFixtureCoreError(f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
 		reader, ok := r.Source.(integrationapp.SourceRepositoryCreationReader)
-		if !ok {
+		if !ok || r.Audit == nil {
 			return app.ErrValidation
 		}
-		return run(ctx, sourceRepositoryPreflightTransaction{reader})
+		return run(ctx, sourceRepositoryPreflightTransaction{reader, r, f.readOnly})
 	}))
 }
 func (t sourceRepositoryPreflightTransaction) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
@@ -42,19 +47,33 @@ func (t sourceRepositoryPreflightTransaction) RepositoryIdentityByName(ctx conte
 	v, found, err := t.reader.RepositoryIdentityByName(ctx, tenant, provider, name)
 	return v, found, collectorReleaseFixtureCoreError(err)
 }
-func (sourceRepositoryPreflightTransaction) ReadSourceRepository(context.Context, string, string) (integrationdomain.SourceRepository, error) {
-	panic("repository preflight read descriptive metadata")
+func (t sourceRepositoryPreflightTransaction) ReadSourceRepository(ctx context.Context, tenant, id string) (integrationdomain.SourceRepository, error) {
+	if t.readOnly {
+		panic("repository preflight read descriptive metadata")
+	}
+	v, err := t.reader.ReadSourceRepository(ctx, tenant, id)
+	return v, collectorReleaseFixtureCoreError(err)
 }
-func (sourceRepositoryPreflightTransaction) InsertSourceRepository(context.Context, integrationdomain.SourceRepository) error {
-	panic("repository preflight inserted repository")
+func (t sourceRepositoryPreflightTransaction) InsertSourceRepository(ctx context.Context, v integrationdomain.SourceRepository) error {
+	if t.readOnly {
+		panic("repository preflight inserted repository")
+	}
+	return collectorReleaseFixtureCoreError(t.repos.Source.InsertSourceRepository(ctx, domain.SourceRepository(v)))
 }
-func (sourceRepositoryPreflightTransaction) AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error) {
-	panic("repository preflight appended audit")
+func (t sourceRepositoryPreflightTransaction) AppendAudit(ctx context.Context, e application.AuditEvent) (application.AuditReceipt, error) {
+	if t.readOnly {
+		panic("repository preflight appended audit")
+	}
+	v, err := (governanceFixtureTransaction{audit: t.repos.Audit}).AppendAudit(ctx, e)
+	return v, collectorReleaseFixtureCoreError(err)
 }
 
-func (f integrationFixtureCommands) nativeSourceRepositoryPreflight() (*integrationapp.SourceRepositoryCommands, error) {
-	clock, ids := questionnaireNativeFixtureClockIDs(true)
-	return integrationapp.NewSourceRepositoryCommands(integrationapp.SourceRepositoryCreationConfig{Transactions: sourceRepositoryPreflightFixture{f.catalogFixtureCommands}, Authorizer: integrationquery.NewSourceWriteAuthorizer(), Clock: clock, IDs: ids})
+func (f integrationFixtureCommands) nativeSourceRepository(readOnly bool) (*integrationapp.SourceRepositoryCommands, error) {
+	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
+	if !readOnly && f.clock != nil {
+		clock = f.clock
+	}
+	return integrationapp.NewSourceRepositoryCommands(integrationapp.SourceRepositoryCreationConfig{Transactions: sourceRepositoryPreflightFixture{f.catalogFixtureCommands, readOnly}, Authorizer: integrationquery.NewSourceWriteAuthorizer(), Clock: clock, IDs: ids})
 }
 
 var _ integrationapp.SourceRepositoryCreationTransaction = sourceRepositoryPreflightTransaction{}

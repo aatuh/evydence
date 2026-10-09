@@ -94,11 +94,12 @@ func seedIntegrationFixtureScope(t *testing.T, ledger *app.Ledger, name string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.repository, err = ledger.CreateSourceRepository(t.Context(), f.actor, app.CreateRepositoryInput{ProjectID: f.project.ID, Provider: "github", FullName: "fixture/" + name, DefaultBranch: "main"})
+	commands := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: collectorCreationFixtureCredentials{fixtureSessionCredentials("fixture-pepper")}, clock: application.ClockFunc(func() time.Time { return f.product.CreatedAt })}
+	repository, err := commands.CreateSourceRepository(t.Context(), f.actor, integrationapp.CreateSourceRepositoryInput{ProjectID: f.project.ID, Provider: "github", FullName: "fixture/" + name, DefaultBranch: "main"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	commands := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: collectorCreationFixtureCredentials{fixtureSessionCredentials("fixture-pepper")}, clock: application.ClockFunc(func() time.Time { return f.product.CreatedAt })}
+	f.repository = domain.SourceRepository(repository)
 	head, err := commands.RecordSourceCommit(t.Context(), f.actor, integrationapp.RecordSourceCommitInput{RepositoryID: f.repository.ID, SHA: strings.Repeat("a", 40), Message: " original message "})
 	if err != nil {
 		t.Fatal(err)

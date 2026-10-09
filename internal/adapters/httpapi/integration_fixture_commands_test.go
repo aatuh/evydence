@@ -20,12 +20,8 @@ type integrationFixtureCommands struct {
 	clock       application.Clock
 }
 
-func fixtureRepositoryInput(in integrationapp.CreateSourceRepositoryInput) app.CreateRepositoryInput {
-	return app.CreateRepositoryInput(in)
-}
-
 func (f integrationFixtureCommands) AuthorizeSourceRepositoryCreation(ctx context.Context, a domain.Actor, in integrationapp.CreateSourceRepositoryInput) error {
-	c, err := f.nativeSourceRepositoryPreflight()
+	c, err := f.nativeSourceRepository(true)
 	if err != nil {
 		return err
 	}
@@ -63,8 +59,12 @@ func (f integrationFixtureCommands) AuthorizeSourceSnapshot(ctx context.Context,
 }
 
 func (f integrationFixtureCommands) CreateSourceRepository(ctx context.Context, a domain.Actor, in integrationapp.CreateSourceRepositoryInput) (integrationdomain.SourceRepository, error) {
-	v, err := f.commandLedger(ctx).CreateSourceRepository(ctx, a, fixtureRepositoryInput(in))
-	return integrationdomain.SourceRepository(v), err
+	c, err := f.nativeSourceRepository(false)
+	if err != nil {
+		return integrationdomain.SourceRepository{}, err
+	}
+	v, err := c.CreateSourceRepository(ctx, a, in)
+	return v, collectorReleaseFixtureError(err)
 }
 func (f integrationFixtureCommands) RecordSourceCommit(ctx context.Context, a domain.Actor, in integrationapp.RecordSourceCommitInput) (integrationdomain.SourceCommit, error) {
 	c, err := f.nativeSourceCommit(false)

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
@@ -30,7 +29,7 @@ func TestIntegrationFixtureReadsKeepTenantScopeCompletePagesAndDetachedMetadata(
 	if _, err := fixtureIdentityAuthenticator(ledger, "fixture-pepper", clock).Authenticate(t.Context(), oneTime); err != nil {
 		t.Fatal(err)
 	}
-	repository, err := ledger.CreateSourceRepository(t.Context(), owner.actor, app.CreateRepositoryInput{ProjectID: owner.project.ID, Provider: "gitlab", FullName: "fixture/second"})
+	repository, err := commands.CreateSourceRepository(t.Context(), owner.actor, integrationapp.CreateSourceRepositoryInput{ProjectID: owner.project.ID, Provider: "gitlab", FullName: "fixture/second"})
 	if err != nil {
 		t.Fatal(err)
 	}
