@@ -402,6 +402,21 @@ DTO are unchanged package-local test oracles. This read does not verify the chai
 Native SQL, public schemas and migrations are unchanged; typed memory tests do
 not establish SQL JSON shapes, work/transfer, row locks or durability. Other
 aggregate Verification queries and state remain EVY-906 work.
+Custody-report fixtures now compose the focused query and shared recorded-custody
+assessment over current Integrity repositories, with an explicit clock rather
+than Ledger time. The typed memory reader enforces combined 4096-record and
+8 MiB public-DTO budgets without truncation, validates owned record identities,
+and detaches retention receipt arrays, time and boolean pointers. Private signing
+keys, payloads and foreign inventories are not selected. Failed read commits
+expose no report; missing repositories fail closed. Exact/overflow budgets,
+stale-receipt checks, limits and read-only state are characterized. The existing
+handler's explicit fixture now supplies real transaction repositories while
+keeping its original authority, redaction and port assertions. The Ledger report
+facade and mapper are unchanged package-local test oracles. This lists recorded
+profiles/receipts, not proof of external custody, WORM enforcement or compliance.
+Native SQL, schemas and migrations are unchanged; typed DTO byte limits do not
+prove PostgreSQL JSON shapes, transfer/work, locks or durability. Other aggregate
+verification commands, readers and state remain incomplete.
 Public signing-key fixtures now compose the same focused query as runtime over
 the current Signature repository. Tenant-wide authority is checked before the
 reader runs; there is no aggregate-clock or cached-key lookup. The typed memory

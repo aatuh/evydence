@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -40,7 +41,16 @@ func (f *custodyFixtureQuerySpy) Report(ctx context.Context, actor domain.Actor)
 }
 
 func TestSigningCustodyHandlerUsesDurableQueryWithoutFallbackAndSafeErrors(t *testing.T) {
-	server, secret := testServer(t)
+	// The explicit native fixture reader requires a real transaction repository.
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := newLegacyServerFixture(ledger)
+	if err != nil {
+		t.Fatal(err)
+	}
 	query := &custodyQueryFake{}
 	server.signingCustodyQuery = query
 	if _, exists := reflect.TypeFor[Server]().FieldByName("verification"); exists {

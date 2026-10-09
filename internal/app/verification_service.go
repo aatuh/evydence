@@ -290,16 +290,7 @@ func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.A
 	return objectRetentionPolicyFromVerificationContext(value), fromVerificationContextError(err)
 }
 
-func (l *Ledger) SigningCustodyReviewReport(ctx context.Context, actor domain.Actor) (domain.SigningCustodyReviewReport, error) {
-	value, err := l.verificationCommands.SigningCustodyReviewReport(ctx, actor)
-	return signingCustodyReviewReportFromVerificationContext(value), fromVerificationContextError(err)
-}
-
 func (l *Ledger) GenerateBackupManifest(ctx context.Context, actor domain.Actor) (domain.BackupManifest, error) {
 	value, err := l.verificationCommands.GenerateBackupManifest(ctx, actor)
 	return backupManifestFromVerificationContext(value), fromVerificationContextError(err)
-}
-
-func signingCustodyReviewReportFromVerificationContext(value verificationdomain.SigningCustodyReviewReport) domain.SigningCustodyReviewReport {
-	return domain.SigningCustodyReviewFromContextModel(value)
 }

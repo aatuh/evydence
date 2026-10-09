@@ -3,11 +3,13 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
@@ -154,20 +156,35 @@ func (f auditLogFixtureQuery) PageAuditLog(ctx context.Context, request verifica
 type custodyFixtureQuery struct{ catalogFixtureCommands }
 
 func (f custodyFixtureQuery) Report(ctx context.Context, actor domain.Actor) (verificationdomain.SigningCustodyReviewReport, error) {
-	value, err := f.commandLedger(ctx).SigningCustodyReviewReport(ctx, actor)
-	providers := make([]verificationdomain.SigningProvider, 0, len(value.SigningProviders))
-	for _, provider := range value.SigningProviders {
-		providers = append(providers, domain.SigningProviderToContextModel(provider))
+	query, err := verificationquery.NewSigningCustody(f, time.Now)
+	if err != nil {
+		return verificationdomain.SigningCustodyReviewReport{}, err
 	}
-	policies := make([]verificationdomain.ObjectRetentionPolicy, 0, len(value.ObjectRetentionPolicies))
-	for _, policy := range value.ObjectRetentionPolicies {
-		policies = append(policies, domain.ObjectRetentionPolicyToContextModel(policy))
+	report, err := query.Report(ctx, actor)
+	return report, mapSigningCustodyQueryError(err)
+}
+
+func (f custodyFixtureQuery) ReadSigningCustodySnapshot(ctx context.Context, tenant string) (verificationapp.SigningCustodySnapshot, error) {
+	var out verificationapp.SigningCustodySnapshot
+	if ctx == nil {
+		return out, verificationquery.ErrSigningCustodyValidation
 	}
-	checks := make([]verificationdomain.VerifyCheck, 0, len(value.Checks))
-	for _, check := range value.Checks {
-		checks = append(checks, verificationdomain.VerifyCheck(check))
+	if err := ctx.Err(); err != nil {
+		return out, err
 	}
-	return verificationdomain.SigningCustodyReviewReport{ReportType: value.ReportType, TenantID: value.TenantID, SigningProviders: providers, ObjectRetentionPolicies: policies, Checks: checks, Assumptions: value.Assumptions, Limitations: value.Limitations, GeneratedAt: value.GeneratedAt}, err
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Integrity.(verificationquery.SigningCustodyReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadSigningCustodySnapshot(ctx, tenant)
+		return err
+	})
+	if err != nil {
+		return verificationapp.SigningCustodySnapshot{}, err
+	}
+	return out, nil
 }
 
 func (s *Server) bindVerificationReadFixturePorts(ledger *app.Ledger) {
