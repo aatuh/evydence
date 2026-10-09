@@ -135,7 +135,7 @@ func TestOperationsFixturesRollBackEveryRecordAndAuditAfterWriteFailure(t *testi
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
-			commands := &failingOperationsFixture{operationsFixtureCommands: operationsFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingOperationsFixture{operationsFixtureCommands: operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.incidentCommands, server.incidentWebhookCommands, server.retentionMarkerCommands = commands, commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {

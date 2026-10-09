@@ -145,8 +145,21 @@ Failed read commits return no report or generated timestamp. Explicit clocks and
 injected ports survive rebinding. Complete independent DTO expectations, wrong
 tenant/grant, exact/excess capacity, alias, cancellation and safe-error regressions
 preserve existing HTTP assertions. Both legacy report methods are unchanged
-test-only oracles guarded against production return. Other incident/retention
-writes and aggregate state still require retirement; API/SQL/schema are unchanged.
+test-only oracles guarded against production return. Legal-hold and retention-
+override fixtures also compose the actual focused Operations commands now. Their
+tenant identity and selected root readers expose no incident, evidence-payload,
+provider or signing capability. Tenant-wide admin authorization precedes current
+tenant/product/project/release/evidence ownership checks; read-only preflight
+cannot insert markers, append audits or allocate clock/IDs. Fresh marker and human
+audit effects share one UoW, with explicit clocks preserved on rebind. Repeated
+requests append new markers without amending historical values. Expired extension
+dates remain valid for authorization-only historical replay, while fresh writes
+still require a future date. Failed commits return empty results and leave state
+unchanged. Both old commands, DTOs and cached scope helper are unchanged test-only
+oracles protected by retirement checks. External report seeds use focused writes
+and fixed clocks, preserving complete DTO and original status assertions. Incident
+writes and aggregate state still require retirement; API/SQL/schema are unchanged,
+and these typed tests do not prove native fences, locks or durability.
 
 Framework/control creation, starter-pack installation, evidence linking and
 their definition/catalog/link reads now require focused Risk ports. Eight

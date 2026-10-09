@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
@@ -12,7 +13,10 @@ import (
 
 // Guards use native focused readers. Fresh historical fixture commands retain
 // actual business validation and writes on the isolated command Ledger only.
-type operationsFixtureCommands struct{ catalogFixtureCommands }
+type operationsFixtureCommands struct {
+	catalogFixtureCommands
+	clock application.Clock
+}
 
 func operationsTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
@@ -60,27 +64,39 @@ func (f operationsFixtureCommands) HandleIncidentWebhook(ctx context.Context, in
 	return operationsdomain.IncidentWebhookEvent(v), operationsdomain.IncidentTimelineEvent(event), err
 }
 func (f operationsFixtureCommands) CreateLegalHold(ctx context.Context, a domain.Actor, in operationsapp.RetentionMarkerInput) (operationsdomain.LegalHold, error) {
-	v, err := f.commandLedger(ctx).CreateLegalHold(ctx, a, app.CreateLegalHoldInput(in))
-	model := operationsdomain.LegalHold(v)
-	if v.ReleasedAt != nil {
-		at := *v.ReleasedAt
-		model.ReleasedAt = &at
+	c, err := f.nativeRetention(false)
+	if err != nil {
+		return operationsdomain.LegalHold{}, err
 	}
-	return model, err
+	v, err := c.CreateLegalHold(ctx, a, in)
+	return v, mapDeploymentCommandError(err)
 }
 func (f operationsFixtureCommands) CreateRetentionOverride(ctx context.Context, a domain.Actor, in operationsapp.RetentionOverrideInput) (operationsdomain.RetentionOverride, error) {
-	v, err := f.commandLedger(ctx).CreateRetentionOverride(ctx, a, app.CreateRetentionOverrideInput{ScopeType: in.ScopeType, ScopeID: in.ScopeID, Reason: in.Reason, Owner: in.Owner, RetentionUntil: in.RetentionUntil})
-	return operationsdomain.RetentionOverride(v), err
+	c, err := f.nativeRetention(false)
+	if err != nil {
+		return operationsdomain.RetentionOverride{}, err
+	}
+	v, err := c.CreateRetentionOverride(ctx, a, in)
+	return v, mapDeploymentCommandError(err)
 }
 func (s *Server) bindOperationsFixtureCommands(ledger *app.Ledger) {
-	f := operationsFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.incidentCommands.(operationsFixtureCommands); s.incidentCommands == nil || fixture {
+	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.incidentCommands.(operationsFixtureCommands); fixture {
+		old.ledger = ledger
+		s.incidentCommands = old
+	} else if s.incidentCommands == nil {
 		s.incidentCommands = f
 	}
-	if _, fixture := s.incidentWebhookCommands.(operationsFixtureCommands); s.incidentWebhookCommands == nil || fixture {
+	if old, fixture := s.incidentWebhookCommands.(operationsFixtureCommands); fixture {
+		old.ledger = ledger
+		s.incidentWebhookCommands = old
+	} else if s.incidentWebhookCommands == nil {
 		s.incidentWebhookCommands = f
 	}
-	if _, fixture := s.retentionMarkerCommands.(operationsFixtureCommands); s.retentionMarkerCommands == nil || fixture {
+	if old, fixture := s.retentionMarkerCommands.(operationsFixtureCommands); fixture {
+		old.ledger = ledger
+		s.retentionMarkerCommands = old
+	} else if s.retentionMarkerCommands == nil {
 		s.retentionMarkerCommands = f
 	}
 }

@@ -9,13 +9,16 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 )
 
 func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadata(t *testing.T) {
 	ledger, factory := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
+	markers := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) })}
 	var ownTimeline domain.IncidentTimelineEvent
 	var ownTask domain.RemediationTask
 	var ownHold domain.LegalHold
@@ -30,16 +33,16 @@ func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadat
 		if err != nil {
 			t.Fatal(err)
 		}
-		hold, err := ledger.CreateLegalHold(t.Context(), scope.actor, app.CreateLegalHoldInput{ScopeType: "release", ScopeID: scope.release.ID, Reason: "Review", Owner: "Legal Team"})
+		hold, err := markers.CreateLegalHold(t.Context(), scope.actor, operationsapp.RetentionMarkerInput{ScopeType: "release", ScopeID: scope.release.ID, Reason: "Review", Owner: "Legal Team"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		override, err := ledger.CreateRetentionOverride(t.Context(), scope.actor, app.CreateRetentionOverrideInput{ScopeType: "evidence", ScopeID: scope.evidence.ID, Reason: "Review", Owner: "Security Team", RetentionUntil: due})
+		override, err := markers.CreateRetentionOverride(t.Context(), scope.actor, operationsapp.RetentionOverrideInput{RetentionMarkerInput: operationsapp.RetentionMarkerInput{ScopeType: "evidence", ScopeID: scope.evidence.ID, Reason: "Review", Owner: "Security Team"}, RetentionUntil: due})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if scope.actor.TenantID == owner.actor.TenantID {
-			ownTimeline, ownTask, ownHold, ownOverride = timeline, task, hold, override
+			ownTimeline, ownTask, ownHold, ownOverride = timeline, task, domain.LegalHold(hold), domain.RetentionOverride(override)
 		}
 	}
 	server, err := newLegacyServerFixture(ledger)

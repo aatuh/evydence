@@ -17,7 +17,6 @@ import (
 type operationsFixtureTransactions struct{ catalogFixtureCommands }
 type operationsFixtureGuard struct {
 	operationsapp.IncidentReader
-	operationsapp.RetentionMarkerScopeLocker
 }
 
 func (f operationsFixtureTransactions) execute(ctx context.Context, run func(context.Context, operationsFixtureGuard) error) error {
@@ -26,11 +25,7 @@ func (f operationsFixtureTransactions) execute(ctx context.Context, run func(con
 		if !ok {
 			return app.ErrValidation
 		}
-		retention, ok := repos.Governance.(operationsapp.RetentionMarkerScopeLocker)
-		if !ok {
-			return app.ErrValidation
-		}
-		return run(ctx, operationsFixtureGuard{IncidentReader: incidents, RetentionMarkerScopeLocker: retention})
+		return run(ctx, operationsFixtureGuard{IncidentReader: incidents})
 	})
 }
 func (f operationsFixtureTransactions) ExecuteIncident(ctx context.Context, run func(context.Context, operationsapp.IncidentTransaction) error) error {
@@ -39,13 +34,7 @@ func (f operationsFixtureTransactions) ExecuteIncident(ctx context.Context, run 
 func (f operationsFixtureTransactions) ExecuteIncidentWebhook(ctx context.Context, run func(context.Context, operationsapp.IncidentWebhookTransaction) error) error {
 	return f.execute(ctx, func(ctx context.Context, tx operationsFixtureGuard) error { return run(ctx, tx) })
 }
-func (f operationsFixtureTransactions) ExecuteRetentionMarker(ctx context.Context, run func(context.Context, operationsapp.RetentionMarkerTransaction) error) error {
-	return f.execute(ctx, func(ctx context.Context, tx operationsFixtureGuard) error { return run(ctx, tx) })
-}
 func (operationsFixtureGuard) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope == "admin" {
-		return operationsapp.NewRetentionMarkerAuthorizer().Authorize(ctx, a, r)
-	}
 	return operationsapp.NewIncidentWriteAuthorizer().Authorize(ctx, a, r)
 }
 func (operationsFixtureGuard) AppendAudit(context.Context, application.AuditEvent) (application.AuditReceipt, error) {
@@ -66,12 +55,6 @@ func (operationsFixtureGuard) InsertIncidentWebhookReceiver(context.Context, ope
 func (operationsFixtureGuard) InsertIncidentWebhookEvent(context.Context, operationsdomain.IncidentWebhookEvent, operationsdomain.IncidentTimelineEvent) error {
 	panic("operations guard inserted webhook")
 }
-func (operationsFixtureGuard) InsertLegalHold(context.Context, operationsdomain.LegalHold) error {
-	panic("operations guard inserted hold")
-}
-func (operationsFixtureGuard) InsertRetentionOverride(context.Context, operationsdomain.RetentionOverride) error {
-	panic("operations guard inserted override")
-}
 func (operationsFixtureGuard) ReadIncidentWebhookReceiver(context.Context, string, string) (operationsdomain.IncidentWebhookReceiver, error) {
 	panic("receiver creation guard read webhook private metadata")
 }
@@ -85,13 +68,10 @@ func operationsFixtureGuardClock() time.Time { panic("operations guard read cloc
 func operationsFixtureGuardID(string) string { panic("operations guard allocated ID") }
 
 func (f operationsFixtureCommands) incidentGuard() (*operationsapp.IncidentCommands, error) {
-	return operationsapp.NewIncidentCommands(operationsapp.IncidentCommandConfig{Transactions: operationsFixtureTransactions(f), Authorizer: operationsapp.NewIncidentWriteAuthorizer(), Clock: application.ClockFunc(operationsFixtureGuardClock), IDs: application.IDGeneratorFunc(operationsFixtureGuardID)})
+	return operationsapp.NewIncidentCommands(operationsapp.IncidentCommandConfig{Transactions: operationsFixtureTransactions{f.catalogFixtureCommands}, Authorizer: operationsapp.NewIncidentWriteAuthorizer(), Clock: application.ClockFunc(operationsFixtureGuardClock), IDs: application.IDGeneratorFunc(operationsFixtureGuardID)})
 }
 func (f operationsFixtureCommands) webhookGuard() (*operationsapp.IncidentWebhookCommands, error) {
-	return operationsapp.NewIncidentWebhookCommands(operationsapp.IncidentWebhookCommandConfig{Transactions: operationsFixtureTransactions(f), Routing: operationsFixtureGuard{}, Authorizer: operationsapp.NewIncidentWriteAuthorizer(), Clock: application.ClockFunc(operationsFixtureGuardClock), IDs: application.IDGeneratorFunc(operationsFixtureGuardID)})
-}
-func (f operationsFixtureCommands) retentionGuard() (*operationsapp.RetentionMarkerCommands, error) {
-	return operationsapp.NewRetentionMarkerCommands(operationsapp.RetentionMarkerConfig{Transactions: operationsFixtureTransactions(f), Authorizer: operationsapp.NewRetentionMarkerAuthorizer(), Clock: application.ClockFunc(operationsFixtureGuardClock), IDs: application.IDGeneratorFunc(operationsFixtureGuardID)})
+	return operationsapp.NewIncidentWebhookCommands(operationsapp.IncidentWebhookCommandConfig{Transactions: operationsFixtureTransactions{f.catalogFixtureCommands}, Routing: operationsFixtureGuard{}, Authorizer: operationsapp.NewIncidentWriteAuthorizer(), Clock: application.ClockFunc(operationsFixtureGuardClock), IDs: application.IDGeneratorFunc(operationsFixtureGuardID)})
 }
 func (f operationsFixtureCommands) AuthorizeCreateIncident(ctx context.Context, a domain.Actor, in operationsapp.CreateIncidentInput) error {
 	guard, err := f.incidentGuard()
@@ -122,9 +102,9 @@ func (f operationsFixtureCommands) AuthorizeCreateIncidentWebhookReceiver(ctx co
 	return guard.AuthorizeCreateIncidentWebhookReceiver(ctx, a, in)
 }
 func (f operationsFixtureCommands) AuthorizeRetentionMarker(ctx context.Context, a domain.Actor, kind, id string) error {
-	guard, err := f.retentionGuard()
+	guard, err := f.nativeRetention(true)
 	if err != nil {
 		return err
 	}
-	return guard.AuthorizeRetentionMarker(ctx, a, kind, id)
+	return mapDeploymentCommandError(guard.AuthorizeRetentionMarker(ctx, a, kind, id))
 }

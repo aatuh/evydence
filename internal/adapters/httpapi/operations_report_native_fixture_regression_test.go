@@ -11,6 +11,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -22,7 +23,7 @@ func TestOperationsReportNativeFixturesReadCurrentStateAndDiscardFailedCommit(t 
 	if _, err := ledger.RecordIncidentTimelineEvent(t.Context(), owner.actor, owner.incident.ID, app.RecordIncidentTimelineInput{EventType: "noted", Summary: "Recorded", EvidenceID: owner.evidence.ID}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ledger.CreateLegalHold(t.Context(), owner.actor, app.CreateLegalHoldInput{ScopeType: "release", ScopeID: owner.release.ID, Reason: "Review", Owner: "Reviewer"}); err != nil {
+	if _, err := (operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateLegalHold(t.Context(), owner.actor, operationsapp.RetentionMarkerInput{ScopeType: "release", ScopeID: owner.release.ID, Reason: "Review", Owner: "Reviewer"}); err != nil {
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
