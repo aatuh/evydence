@@ -187,6 +187,21 @@ credential read scope. The old template-install command now attributes human
 audits correctly; native PostgreSQL already used the actual principal.
 These fixture checks are not SQL locking evidence or completion of aggregate
 retirement. Runtime query limits and current-subject validation remain in SQL.
+Framework pages and control point fixtures now compose the actual focused Risk
+query over current typed repositories, not Ledger inventories. Tenant-wide read
+authority precedes storage; product-only and revoked grants cannot expose tenant
+definitions. Framework pages retain at most page-size+1 candidate sort coordinates,
+then select only current tenant rows, including time/ID ties and deleted-cursor
+continuation. Native framework metadata has no byte ceiling; this is not a claim
+of bounded metadata transfer. Control points require the current same-tenant
+framework, preserve complete definitions, enforce the native 1 MiB ceiling on
+each stored JSON list and detach all mutable lists. Failed read commits return no
+page or definition. Both old Ledger readers are unchanged test-only oracles,
+protected against production return; API/SQL/schema are unchanged. Typed tests
+cover 501-row traversal in all orders, foreign/missing parents, current grants,
+exact/overflow JSON limits, alias safety, cancellation and rollback, not SQL
+locks or durability. Control writes, link reads and aggregate state remain
+retirement work.
 
 Custom-policy creation/evaluation, vulnerability workflow annotation, release
 security summary and vulnerability posture handlers require focused Risk or

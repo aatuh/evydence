@@ -10,30 +10,64 @@ import (
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 )
 
-// These test-only readers preserve former tenant/grant rules and detach
-// mutable definition data. Runtime filtering/keyset limits remain in SQL.
+// Framework pages and control points compose the actual focused query over
+// current typed repositories. Link/catalog retirement remains separate work.
 type controlReadFixture struct{ catalogFixtureCommands }
 type controlEvidencePageFixture struct{ catalogFixtureCommands }
 
 func (f controlReadFixture) ListFrameworksPage(ctx context.Context, a domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[riskdomain.ControlFramework], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[riskdomain.ControlFramework]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListControlFrameworks(ctx, a)
+	query, err := riskquery.NewControls(f)
 	if err != nil {
 		return appquery.Result[riskdomain.ControlFramework]{}, err
 	}
-	items := make([]riskdomain.ControlFramework, 0, len(values))
-	for _, v := range values {
-		items = append(items, riskdomain.ControlFramework(v))
-	}
-	return appquery.Page(items, request, after, func(v riskdomain.ControlFramework, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(v.ID, v.CreatedAt, sort)
-	})
+	v, err := query.ListFrameworksPage(ctx, a, request, after)
+	return v, mapControlsQueryError(err)
 }
 func (f controlReadFixture) GetSecurityControl(ctx context.Context, a domain.Actor, id string) (riskdomain.SecurityControl, error) {
-	v, err := f.commandLedger(ctx).GetSecurityControl(ctx, a, id)
-	return fixtureSecurityControl(v), err
+	query, err := riskquery.NewControls(f)
+	if err != nil {
+		return riskdomain.SecurityControl{}, err
+	}
+	v, err := query.GetSecurityControl(ctx, a, id)
+	return v, mapControlsQueryError(err)
+}
+func (f controlReadFixture) PageFrameworks(ctx context.Context, req riskquery.FrameworkPageRequest) (appquery.Result[riskdomain.ControlFramework], error) {
+	var out appquery.Result[riskdomain.ControlFramework]
+	if ctx == nil {
+		return out, riskquery.ErrValidation
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Controls.(riskquery.ControlsReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageFrameworks(ctx, req)
+		return err
+	})
+	if err != nil {
+		return appquery.Result[riskdomain.ControlFramework]{}, err
+	}
+	return out, nil
+}
+func (f controlReadFixture) GetControl(ctx context.Context, tenant, id string) (riskdomain.SecurityControl, error) {
+	var out riskdomain.SecurityControl
+	if ctx == nil {
+		return out, riskquery.ErrValidation
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Controls.(riskquery.ControlsReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.GetControl(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return riskdomain.SecurityControl{}, err
+	}
+	return out, nil
 }
 func (f controlReadFixture) ListTemplatePacks(ctx context.Context, a domain.Actor) ([]riskdomain.ControlFrameworkTemplatePack, error) {
 	values, err := f.commandLedger(ctx).ListControlFrameworkTemplatePacks(ctx, a)

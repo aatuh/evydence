@@ -162,8 +162,8 @@ func TestControlFixtureReadsKeepOwnedCompletePagesAndDetachedDefinitions(t *test
 			}
 		}
 	}
-	again, err := ledger.GetSecurityControl(t.Context(), human, owner.control.ID)
-	if err != nil || !reflect.DeepEqual(again, owner.control) {
+	again, err := reader.GetSecurityControl(t.Context(), human, owner.control.ID)
+	if err != nil || !reflect.DeepEqual(securityControlFromQuery(again), owner.control) {
 		t.Fatal("control fixture exposed stored aliases", err)
 	}
 	againPacks, err := ledger.ListControlFrameworkTemplatePacks(t.Context(), human)

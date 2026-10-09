@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"testing"
 
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 )
 
 func TestControlCreationRejectsNonNullableJSONInLocalProfile(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	fw := postJSON(t, server, secret, "/v1/control-frameworks", "validation-framework", map[string]any{"name": "Framework", "version": "1"}, 201)
 	for i, field := range []string{"slug", "description"} {
 		postRaw(t, server, secret, "/v1/control-frameworks", fmt.Sprintf("null-local-framework-%d", i), []byte(`{"name":"Invalid","version":"1","`+field+`":null}`), 400)
@@ -32,8 +33,8 @@ func TestControlCreationRejectsNonNullableJSONInLocalProfile(t *testing.T) {
 	if err := json.Unmarshal([]byte(response), &parsed); err != nil || len(parsed.Data.EvidenceRequirements) != 1 || parsed.Data.EvidenceRequirements[0].Required || parsed.Data.EvidenceRequirements[0].Type != "build" {
 		t.Fatal("explicit false requirement rejected or changed", parsed, err)
 	}
-	frameworks, err := legacyFixtureLedger(server).ListControlFrameworks(t.Context(), domain.Actor{TenantID: parsed.Data.TenantID, KeyID: "test", Scopes: []string{"controls:read"}})
-	if err != nil || len(frameworks) != 1 {
+	frameworks, err := server.controlsQuery.ListFrameworksPage(t.Context(), domain.Actor{TenantID: parsed.Data.TenantID, KeyID: "test", Scopes: []string{"controls:read"}}, appquery.PageRequest{PageSize: 500, Sort: appquery.SortID, Direction: appquery.Ascending}, nil)
+	if err != nil || len(frameworks.Items) != 1 {
 		t.Fatal("invalid nullable framework wrote records", frameworks, err)
 	}
 }
