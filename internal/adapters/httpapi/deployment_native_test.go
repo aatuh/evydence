@@ -75,7 +75,7 @@ func TestDeploymentCreationCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *
 	for _, native := range []bool{false, true} {
 		for _, event := range []bool{false, true} {
 			t.Run(fmt.Sprintf("native=%t/event=%t", native, event), func(t *testing.T) {
-				base, secret := testServer(t)
+				base, secret := operationsTestServer(t)
 				p := postJSON(t, base, secret, "/v1/products", "parent", map[string]any{"name": "Parent", "slug": "parent"}, 201)
 				product := dataField(t, p, "id")
 				path, body := "/v1/environments", fmt.Sprintf(`{"product_id":%q,"name":"Production","kind":"production"}`, product)

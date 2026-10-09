@@ -12,18 +12,19 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 )
 
 func TestDeploymentNativeFixtureReadsCurrentRepositoryAndDiscardsFailedCommit(t *testing.T) {
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
-	env, err := ledger.CreateDeploymentEnvironment(t.Context(), owner.actor, app.CreateEnvironmentInput{ProductID: owner.product.ID, Name: "Production", Kind: "production"})
+	env, err := (deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateDeploymentEnvironment(t.Context(), owner.actor, operationsapp.CreateEnvironmentInput{ProductID: owner.product.ID, Name: "Production", Kind: "production"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	finished := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	want, err := ledger.RecordDeployment(t.Context(), owner.actor, app.RecordDeploymentInput{EnvironmentID: env.ID, ReleaseID: owner.release.ID, Status: "succeeded", StartedAt: finished.Add(-time.Hour), FinishedAt: &finished})
+	want, err := (deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).RecordDeployment(t.Context(), owner.actor, operationsapp.RecordDeploymentInput{EnvironmentID: env.ID, ReleaseID: owner.release.ID, Status: "succeeded", StartedAt: finished.Add(-time.Hour), FinishedAt: &finished})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,11 +107,11 @@ func TestDeploymentNativeFixtureRequiresRepositoriesAndPreservesExplicitPort(t *
 func TestDeploymentNativeFixtureListsUseCurrentGrantsAndDiscardFailedCommit(t *testing.T) {
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
-	env, err := ledger.CreateDeploymentEnvironment(t.Context(), owner.actor, app.CreateEnvironmentInput{ProductID: owner.product.ID, Name: "Production", Kind: "production"})
+	env, err := (deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateDeploymentEnvironment(t.Context(), owner.actor, operationsapp.CreateEnvironmentInput{ProductID: owner.product.ID, Name: "Production", Kind: "production"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := ledger.RecordDeployment(t.Context(), owner.actor, app.RecordDeploymentInput{EnvironmentID: env.ID, ReleaseID: owner.release.ID, Status: "succeeded"})
+	want, err := (deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).RecordDeployment(t.Context(), owner.actor, operationsapp.RecordDeploymentInput{EnvironmentID: env.ID, ReleaseID: owner.release.ID, Status: "succeeded"})
 	if err != nil {
 		t.Fatal(err)
 	}

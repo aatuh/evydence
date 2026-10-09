@@ -1705,6 +1705,7 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 	}
 	deploymentBody := postJSON(t, server, secret, "/v1/deployments", "inc-deploy", map[string]any{"environment_id": envID, "release_id": releaseID, "artifact_ids": []string{artifactID}, "status": "succeeded", "started_at": "2026-05-28T12:00:00Z"}, http.StatusCreated)
 	deploymentID := dataField(t, deploymentBody, "id")
+	server.evidenceCreationCommands = evidenceCreationNativeFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}
 	deploymentEvidence := postJSON(t, server, secret, "/v1/evidence", "inc-deployment-evidence", map[string]any{
 		"product_id": productID, "release_id": releaseID, "deployment_id": deploymentID,
 		"type": "deployment", "subtype": "observation", "title": "Deployment observation", "payload_hash": digest,

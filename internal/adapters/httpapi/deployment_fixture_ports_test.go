@@ -10,6 +10,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
@@ -19,21 +20,40 @@ import (
 
 // Existing HTTP fixtures use real ownership guards and the isolated replay
 // clone. These adapters cannot be built into a production runtime.
-type deploymentFixtureCommands struct{ catalogFixtureCommands }
+type deploymentFixtureCommands struct {
+	catalogFixtureCommands
+	clock application.Clock
+}
 
 func (f deploymentFixtureCommands) AuthorizeEnvironmentCreation(ctx context.Context, actor identitydomain.Actor, input operationsapp.CreateEnvironmentInput) error {
-	return f.commandLedger(ctx).AuthorizeEnvironmentCreation(ctx, actor, input)
+	c, err := f.nativeEnvironment(true)
+	if err != nil {
+		return err
+	}
+	return mapDeploymentCommandError(c.AuthorizeEnvironmentCreation(ctx, actor, input))
 }
 func (f deploymentFixtureCommands) AuthorizeDeploymentRecording(ctx context.Context, actor identitydomain.Actor, input operationsapp.RecordDeploymentInput) error {
-	return f.commandLedger(ctx).AuthorizeDeploymentRecording(ctx, actor, input)
+	c, err := f.nativeDeployment(true)
+	if err != nil {
+		return err
+	}
+	return mapDeploymentCommandError(c.AuthorizeDeploymentRecording(ctx, actor, input))
 }
 func (f deploymentFixtureCommands) CreateDeploymentEnvironment(ctx context.Context, actor identitydomain.Actor, input operationsapp.CreateEnvironmentInput) (operationsdomain.DeploymentEnvironment, error) {
-	value, err := f.commandLedger(ctx).CreateDeploymentEnvironment(ctx, actor, app.CreateEnvironmentInput{ProductID: input.ProductID, Name: input.Name, Kind: input.Kind})
-	return operationsdomain.DeploymentEnvironment(value), err
+	c, err := f.nativeEnvironment(false)
+	if err != nil {
+		return operationsdomain.DeploymentEnvironment{}, err
+	}
+	value, err := c.CreateDeploymentEnvironment(ctx, actor, input)
+	return value, mapDeploymentCommandError(err)
 }
 func (f deploymentFixtureCommands) RecordDeployment(ctx context.Context, actor identitydomain.Actor, input operationsapp.RecordDeploymentInput) (operationsdomain.DeploymentEvent, error) {
-	value, err := f.commandLedger(ctx).RecordDeployment(ctx, actor, app.RecordDeploymentInput{EnvironmentID: input.EnvironmentID, ReleaseID: input.ReleaseID, ArtifactIDs: input.ArtifactIDs, Status: input.Status, StartedAt: input.StartedAt, FinishedAt: input.FinishedAt, RollbackOf: input.RollbackOf})
-	return operationsdomain.DeploymentEvent(value), err
+	c, err := f.nativeDeployment(false)
+	if err != nil {
+		return operationsdomain.DeploymentEvent{}, err
+	}
+	value, err := c.RecordDeployment(ctx, actor, input)
+	return value, mapDeploymentCommandError(err)
 }
 
 // Point and page reads compose the focused queries over current typed repositories;
@@ -135,11 +155,17 @@ func (f deploymentQueryFixture) GetDeploymentPoint(ctx context.Context, tenant, 
 }
 
 func (s *Server) bindDeploymentFixturePorts(ledger *app.Ledger) {
-	commands := deploymentFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.deploymentEnvironmentCommands.(deploymentFixtureCommands); s.deploymentEnvironmentCommands == nil || fixture {
+	commands := deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.deploymentEnvironmentCommands.(deploymentFixtureCommands); fixture {
+		old.ledger = ledger
+		s.deploymentEnvironmentCommands = old
+	} else if s.deploymentEnvironmentCommands == nil {
 		s.deploymentEnvironmentCommands = commands
 	}
-	if _, fixture := s.deploymentCommands.(deploymentFixtureCommands); s.deploymentCommands == nil || fixture {
+	if old, fixture := s.deploymentCommands.(deploymentFixtureCommands); fixture {
+		old.ledger = ledger
+		s.deploymentCommands = old
+	} else if s.deploymentCommands == nil {
 		s.deploymentCommands = commands
 	}
 	query := deploymentQueryFixture{catalogFixtureCommands{ledger: ledger}}
@@ -206,7 +232,7 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 				if err != nil {
 					t.Fatal(err)
 				}
-				environment, err := ledger.CreateDeploymentEnvironment(t.Context(), actor, app.CreateEnvironmentInput{ProductID: product.ID, Name: "Production", Kind: "production"})
+				environment, err := (deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateDeploymentEnvironment(t.Context(), actor, operationsapp.CreateEnvironmentInput{ProductID: product.ID, Name: "Production", Kind: "production"})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -217,7 +243,7 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: actor}
-			commands := &failingDeploymentFixtureCommand{deploymentFixtureCommands: deploymentFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingDeploymentFixtureCommand{deploymentFixtureCommands: deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.deploymentEnvironmentCommands, server.deploymentCommands = commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -283,15 +309,15 @@ func TestDeploymentQueryFixturesPreserveTenantOwnershipAndReadScope(t *testing.T
 		if err != nil {
 			t.Fatal(err)
 		}
-		environment, err := ledger.CreateDeploymentEnvironment(t.Context(), actor, app.CreateEnvironmentInput{ProductID: product.ID, Name: "Production", Kind: "production"})
+		environment, err := (deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateDeploymentEnvironment(t.Context(), actor, operationsapp.CreateEnvironmentInput{ProductID: product.ID, Name: "Production", Kind: "production"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		event, err := ledger.RecordDeployment(t.Context(), actor, app.RecordDeploymentInput{EnvironmentID: environment.ID, ReleaseID: release.ID, Status: "succeeded"})
+		event, err := (deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).RecordDeployment(t.Context(), actor, operationsapp.RecordDeploymentInput{EnvironmentID: environment.ID, ReleaseID: release.ID, Status: "succeeded"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		actors, environments, events = append(actors, actor), append(environments, environment), append(events, event)
+		actors, environments, events = append(actors, actor), append(environments, domain.DeploymentEnvironment(environment)), append(events, domain.DeploymentEvent(event))
 	}
 	for i, actor := range actors {
 		envs, err := query.ListEnvironmentsPage(t.Context(), actor, environments[i].ProductID, page, nil)

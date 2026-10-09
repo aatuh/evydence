@@ -604,9 +604,29 @@ after cursor-record deletion; invalid selected lookahead yields no partial page.
 Human deployment reads require a tenant/product/release grant; environments require
 a tenant/product grant, and project-only grants authorize neither. Failed read
 commits return no data. The legacy getter and two list methods are unchanged
-test-only oracles guarded against production return. Deployment writes still
-require retirement. Public API and PostgreSQL SQL are unchanged; typed memory
-does not prove SQL work/transfer, byte budgets, locks or durability.
+test-only oracles guarded against production return. Environment creation and
+deployment recording fixtures also compose the focused Operations commands and
+actual preflights over current product/release/environment/artifact/rollback
+identity readers. Environment reuse returns the original bounded public record
+without metadata amendment, clock/ID allocation or an extra audit. Preflight
+cannot read named environment metadata, generate IDs/time, hash or write evidence,
+insert resources or append audits. Fresh deployment recording composes the existing
+Evidence-owned fixed-shape writer; deployment, evidence and their human-attributed
+audits share one UoW, with reproducible canonical fields and no extra worker job.
+Explicit clocks survive fixture rebinding; failed commits expose no results or
+partial state. The two historical commands, input DTOs, status helper/constants
+and complete local replay-guard file are unchanged test-only oracles protected by
+retirement checks. External seeds use focused commands without aggregate cache
+publication. The fixed-shape bridge still requires the durable cross-context
+transition described in ADR 0003; this migration does not implement that transition
+or complete EVY-906. Public API and PostgreSQL SQL are unchanged; typed memory does
+not prove native SQL work/transfer, fences, locks or durability.
+The source/deployment HTTP flow binds the flat generic Evidence creation service
+for a subsequent observation, resolving current deployment/product/release parents
+and artifact identities from repositories rather than restoring deployment caches.
+The original creation/status assertions remain. Other historical generic Evidence
+creation and relationship fixtures still require retirement; this is not a claim
+that all Evidence facades are gone.
 
 Vulnerability-decision and exception pages, plus the customer-safe decision
 summary, now require focused Risk queries. Their three broad fallback branches
