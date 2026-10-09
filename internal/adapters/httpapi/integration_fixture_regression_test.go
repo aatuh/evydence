@@ -98,15 +98,16 @@ func seedIntegrationFixtureScope(t *testing.T, ledger *app.Ledger, name string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.head, err = ledger.RecordSourceCommit(t.Context(), f.actor, app.RecordCommitInput{RepositoryID: f.repository.ID, SHA: strings.Repeat("a", 40), Message: " original message "})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = ledger.UpsertSourceBranch(t.Context(), f.actor, app.UpsertBranchInput{RepositoryID: f.repository.ID, Name: "main", HeadCommitID: f.head.ID, Protected: true, ProtectionHash: "original"})
-	if err != nil {
-		t.Fatal(err)
-	}
 	commands := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: collectorCreationFixtureCredentials{fixtureSessionCredentials("fixture-pepper")}, clock: application.ClockFunc(func() time.Time { return f.product.CreatedAt })}
+	head, err := commands.RecordSourceCommit(t.Context(), f.actor, integrationapp.RecordSourceCommitInput{RepositoryID: f.repository.ID, SHA: strings.Repeat("a", 40), Message: " original message "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.head = domain.SourceCommit(head)
+	_, err = commands.UpsertSourceBranch(t.Context(), f.actor, integrationapp.UpsertSourceBranchInput{RepositoryID: f.repository.ID, Name: "main", HeadCommitID: f.head.ID, Protected: true, ProtectionHash: "original"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	collector, _, _, err := commands.CreateCollector(t.Context(), f.actor, integrationapp.CreateCollectorInput{Name: name, Type: "generic_ci", Version: "1"})
 	if err != nil {
 		t.Fatal(err)

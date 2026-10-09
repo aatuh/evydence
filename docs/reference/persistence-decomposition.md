@@ -54,10 +54,6 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateDeploymentEnvironment` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `CreateSourceRepository` | `persistLocked` |
 | release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordDeployment` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordPullRequest` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `RecordSourceCommit` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
-| release extensions, source, and deployment | `internal/app/implementation_increments.go` | `UpsertSourceBranch` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncident` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncidentWebhookReceiver` | `persistLocked` |
 | risk and security workflows | `internal/app/risk_workflows.go` | `CreateRemediationTask` | `persistLocked` |

@@ -115,6 +115,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"customerDecisionSummary":                           true,
 		"supportingRefsToRiskContext":                       true,
 		"signingCustodyReviewReportFromVerificationContext": true,
+		"prepareLocalSourceWrite":                           true, "localSourceInputError": true,
+		"prepareLocalSourceCommit": true, "prepareLocalSourceBranch": true, "prepareLocalPullRequest": true,
 	}
 	retired := map[string]bool{
 		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
@@ -157,16 +159,19 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListCommercialCollectorDefinitions":  true,
 		"ListSourceRepositories":              true,
 		"AuthorizeSourceRepositoryCreation":   true,
-		"ListSigningKeys":                     true,
-		"ListAuditLog":                        true,
-		"SigningCustodyReviewReport":          true,
-		"GetVEXDocument":                      true,
-		"GetVEXImportReport":                  true,
-		"VulnerabilityDecisionSummaryReport":  true,
-		"ListVulnerabilityDecisions":          true,
-		"EvaluateRelease":                     true,
-		"CreateVulnerabilityDecision":         true,
-		"PreviewVEXImport":                    true, "PreviewCycloneDXVEXImport": true,
+		"RecordSourceCommit":                  true, "UpsertSourceBranch": true, "RecordPullRequest": true,
+		"AuthorizeSourceCommitRecording": true, "AuthorizeSourceBranchUpsert": true, "AuthorizePullRequestRecording": true,
+		"authorizeLocalSourceWriteLocked":    true,
+		"ListSigningKeys":                    true,
+		"ListAuditLog":                       true,
+		"SigningCustodyReviewReport":         true,
+		"GetVEXDocument":                     true,
+		"GetVEXImportReport":                 true,
+		"VulnerabilityDecisionSummaryReport": true,
+		"ListVulnerabilityDecisions":         true,
+		"EvaluateRelease":                    true,
+		"CreateVulnerabilityDecision":        true,
+		"PreviewVEXImport":                   true, "PreviewCycloneDXVEXImport": true,
 		"findMatchingFindingsLocked": true, "previewOpenVEXDecisionEffectsLocked": true,
 		"findCycloneDXVEXMatchingFindingsLocked": true, "previewCycloneDXVEXDecisionEffectsLocked": true,
 		"previewDecisionEffectsForMatchesLocked": true,
@@ -199,7 +204,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}
 				switch value.Name.Name {
-				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput", "AuditLogFilter", "CreateArtifactSignatureInput", "RecordCollectorReleaseInput", "VerifyCosignInput", "CreateCollectorInput", "CreateCommercialCollectorInput":
+				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput", "AuditLogFilter", "CreateArtifactSignatureInput", "RecordCollectorReleaseInput", "VerifyCosignInput", "CreateCollectorInput", "CreateCommercialCollectorInput", "RecordCommitInput", "UpsertBranchInput", "RecordPullRequestInput":
 					t.Errorf("%s retains retired aggregate input %s", name, value.Name.Name)
 				}
 			case *ast.FuncDecl:

@@ -564,9 +564,22 @@ Historical authorization inventory assertions follow the unchanged test-only
 oracles. Source snapshot and cookie-origin/bearer precedence fixtures use real
 transaction repositories, retaining their original status and no-effect assertions.
 Typed memory does not prove native SQL shapes, work/transfer, locks or durability.
-Native SQL and API contracts are unchanged. Repository creation, its input/preparation/
-locked-authorization helpers and commit/branch/pull-request aggregate callers
-still require migration and retirement; this is not completion of that write chain.
+Native SQL and API contracts are unchanged. Repository creation and its input,
+preparation and locked-authorization helpers still require migration/retirement.
+Commit, branch and pull-request fixtures now use their actual focused Integration
+commands and preflights with current repository/head readers, bounded selected
+commit/branch metadata and provider-only defaults. Each transaction exposes only
+its selected command's writes; preflight cannot read descriptive metadata, allocate
+clock/IDs or write audit/state. Message hashing retains exact input bytes, including
+NUL; commit reuse returns the original DTO and branch updates preserve identity.
+The three legacy commands, public replay guards, input DTOs and local preparation/
+authorization helpers are unchanged test-only oracles, protected by retirement
+checks. Historical authorization inventory assertions follow those oracles.
+Current state, foreign/cross-repository heads, revoked grants, exact public fields,
+atomic human audit, reuse, cancellation, missing repositories and failed-commit
+empty-result regressions preserve existing snapshot/replay/rollback assertions.
+No result is published into aggregate caches. API/SQL/schema contracts are unchanged;
+typed snapshots do not prove native fences, locks, transfer/work or durability.
 Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 

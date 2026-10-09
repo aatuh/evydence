@@ -23,15 +23,6 @@ type integrationFixtureCommands struct {
 func fixtureRepositoryInput(in integrationapp.CreateSourceRepositoryInput) app.CreateRepositoryInput {
 	return app.CreateRepositoryInput(in)
 }
-func fixtureCommitInput(in integrationapp.RecordSourceCommitInput) app.RecordCommitInput {
-	return app.RecordCommitInput(in)
-}
-func fixtureBranchInput(in integrationapp.UpsertSourceBranchInput) app.UpsertBranchInput {
-	return app.UpsertBranchInput{RepositoryID: in.RepositoryID, Name: in.Name, HeadCommitID: in.HeadCommitID, Protected: in.Protected, ProtectionHash: in.ProtectionHash}
-}
-func fixturePullRequestInput(in integrationapp.RecordPullRequestInput) app.RecordPullRequestInput {
-	return app.RecordPullRequestInput(in)
-}
 
 func (f integrationFixtureCommands) AuthorizeSourceRepositoryCreation(ctx context.Context, a domain.Actor, in integrationapp.CreateSourceRepositoryInput) error {
 	c, err := f.nativeSourceRepositoryPreflight()
@@ -41,13 +32,25 @@ func (f integrationFixtureCommands) AuthorizeSourceRepositoryCreation(ctx contex
 	return c.AuthorizeSourceRepositoryCreation(ctx, a, in)
 }
 func (f integrationFixtureCommands) AuthorizeSourceCommitRecording(ctx context.Context, a domain.Actor, in integrationapp.RecordSourceCommitInput) error {
-	return f.commandLedger(ctx).AuthorizeSourceCommitRecording(ctx, a, fixtureCommitInput(in))
+	c, err := f.nativeSourceCommit(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeSourceCommitRecording(ctx, a, in)
 }
 func (f integrationFixtureCommands) AuthorizeSourceBranchUpsert(ctx context.Context, a domain.Actor, in integrationapp.UpsertSourceBranchInput) error {
-	return f.commandLedger(ctx).AuthorizeSourceBranchUpsert(ctx, a, fixtureBranchInput(in))
+	c, err := f.nativeSourceBranch(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizeSourceBranchUpsert(ctx, a, in)
 }
 func (f integrationFixtureCommands) AuthorizePullRequestRecording(ctx context.Context, a domain.Actor, in integrationapp.RecordPullRequestInput) error {
-	return f.commandLedger(ctx).AuthorizePullRequestRecording(ctx, a, fixturePullRequestInput(in))
+	c, err := f.nativePullRequest(true)
+	if err != nil {
+		return err
+	}
+	return c.AuthorizePullRequestRecording(ctx, a, in)
 }
 func (f integrationFixtureCommands) AuthorizeSourceSnapshot(ctx context.Context, a domain.Actor, provider string, in integrationapp.SourceSnapshotInput) error {
 	if err := integrationapp.ValidateSourceSnapshotRequest(provider, in); err != nil {
@@ -64,16 +67,28 @@ func (f integrationFixtureCommands) CreateSourceRepository(ctx context.Context, 
 	return integrationdomain.SourceRepository(v), err
 }
 func (f integrationFixtureCommands) RecordSourceCommit(ctx context.Context, a domain.Actor, in integrationapp.RecordSourceCommitInput) (integrationdomain.SourceCommit, error) {
-	v, err := f.commandLedger(ctx).RecordSourceCommit(ctx, a, fixtureCommitInput(in))
-	return integrationdomain.SourceCommit(v), err
+	c, err := f.nativeSourceCommit(false)
+	if err != nil {
+		return integrationdomain.SourceCommit{}, err
+	}
+	v, err := c.RecordSourceCommit(ctx, a, in)
+	return v, collectorReleaseFixtureError(err)
 }
 func (f integrationFixtureCommands) UpsertSourceBranch(ctx context.Context, a domain.Actor, in integrationapp.UpsertSourceBranchInput) (integrationdomain.SourceBranch, error) {
-	v, err := f.commandLedger(ctx).UpsertSourceBranch(ctx, a, fixtureBranchInput(in))
-	return integrationdomain.SourceBranch(v), err
+	c, err := f.nativeSourceBranch(false)
+	if err != nil {
+		return integrationdomain.SourceBranch{}, err
+	}
+	v, err := c.UpsertSourceBranch(ctx, a, in)
+	return v, collectorReleaseFixtureError(err)
 }
 func (f integrationFixtureCommands) RecordPullRequest(ctx context.Context, a domain.Actor, in integrationapp.RecordPullRequestInput) (integrationdomain.PullRequest, error) {
-	v, err := f.commandLedger(ctx).RecordPullRequest(ctx, a, fixturePullRequestInput(in))
-	return integrationdomain.PullRequest(v), err
+	c, err := f.nativePullRequest(false)
+	if err != nil {
+		return integrationdomain.PullRequest{}, err
+	}
+	v, err := c.RecordPullRequest(ctx, a, in)
+	return v, collectorReleaseFixtureError(err)
 }
 
 // Compose the same real child writes as the former fixture upload; no payload

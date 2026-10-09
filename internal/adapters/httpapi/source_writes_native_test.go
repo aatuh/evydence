@@ -136,7 +136,7 @@ func TestSourceWritesNativeHandlersDoNotUseLedger(t *testing.T) {
 func TestSourceWritesCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, tc := range sourceNativeCases() {
 		for _, native := range []bool{false, true} {
-			base, secret := testServer(t)
+			base, secret := operationsTestServer(t)
 			s := base
 			if native {
 				o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
