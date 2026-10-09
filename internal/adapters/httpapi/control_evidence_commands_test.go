@@ -93,7 +93,7 @@ func TestControlEvidenceNativeHTTPRunsWithoutLedgerAndRejectsBadBodyBeforeGuard(
 
 func TestControlEvidenceCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		s, secret := testServer(t)
+		s, secret := operationsTestServer(t)
 		f := &controlEvidenceCommandFake{value: riskdomain.ControlEvidence{ID: "link", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion}}
 		if native {
 			s.controlEvidenceCommands = f

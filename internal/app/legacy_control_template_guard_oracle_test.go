@@ -10,7 +10,7 @@ import (
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
-// This guard is local-memory only. It never reads framework versions, clocks,
+// This unchanged test-only guard never reads framework versions, clocks,
 // IDs or worker projections. Native HTTP uses the focused transaction port.
 func (l *Ledger) AuthorizeControlTemplateInstallation(ctx context.Context, a domain.Actor, raw string) error {
 	if ctx == nil {

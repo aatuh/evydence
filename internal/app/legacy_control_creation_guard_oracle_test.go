@@ -11,8 +11,7 @@ import (
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
-// These guards are explicit local-memory compatibility only. Native HTTP binds
-// focused Risk transaction ports, never these maps or a Ledger projection.
+// Unchanged historical control guards; never production wiring.
 func (l *Ledger) AuthorizeControlFrameworkCreation(ctx context.Context, a domain.Actor, in CreateControlFrameworkInput) error {
 	if err := authorizeLocalControlAdmin(ctx, a); err != nil {
 		return err

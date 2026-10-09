@@ -179,14 +179,20 @@ Framework/control creation, starter-pack installation, evidence linking and
 their definition/catalog/link reads now require focused Risk ports. Eight
 handler fallbacks and three aggregate-only input converters are deleted.
 Native decoding, cookie-origin checks, current ownership/grants, replay and
-DTO/cursor contracts remain unchanged. Test-only bridges preserve the actual
-former guards and isolated historical writes, with full-state rollback/replay,
-complete-page tenant/grant filtering, cancellation and definition-detachment
-regressions. Static starter packs contain no tenant data and require only the
-credential read scope. The old template-install command now attributes human
-audits correctly; native PostgreSQL already used the actual principal.
-These fixture checks are not SQL locking evidence or completion of aggregate
-retirement. Runtime query limits and current-subject validation remain in SQL.
+DTO/cursor contracts remain unchanged. Test-only command adapters now compose
+the actual focused Risk services over current typed repositories. Existence-only
+creation/template reads expose no framework definitions; link commands verify
+current control/framework, subject and parser-source ownership. Artifact grants
+filter current evidence/build associations before selecting one, so an unrelated
+association cannot hide or confer a scoped grant. Preflight cannot read duplicate
+metadata, write records/audits, or allocate clocks/IDs. Fresh framework/control,
+template children and link/audit effects commit atomically; duplicate version/code
+keys conflict, while an exact link natural key returns the original record without
+a new timestamp/audit. Explicit clocks survive rebinding. Full-state failure/replay,
+human attribution, foreign-reference, revoked-grant, detached-definition and
+cancellation regressions preserve the existing HTTP assertions. Static starter
+packs contain no tenant data and require only the credential read scope. These
+typed checks are not SQL locking evidence or completion of aggregate retirement.
 Framework pages and control point fixtures now compose the actual focused Risk
 query over current typed repositories, not Ledger inventories. Tenant-wide read
 authority precedes storage; product-only and revoked grants cannot expose tenant
@@ -200,8 +206,23 @@ page or definition. Both old Ledger readers are unchanged test-only oracles,
 protected against production return; API/SQL/schema are unchanged. Typed tests
 cover 501-row traversal in all orders, foreign/missing parents, current grants,
 exact/overflow JSON limits, alias safety, cancellation and rollback, not SQL
-locks or durability. Control writes, link reads and aggregate state remain
-retirement work.
+locks or durability. Link-page fixtures also compose their actual focused query:
+current control/framework and subject/grant filtering precedes page-size+1 keyset
+selection, including multiply-associated artifacts. Existing historical page
+projections remain distinct from stricter fresh-command parser provenance checks.
+Native link pages have no metadata byte ceiling; duplicate command reads retain
+their bounded notes/identity fields. Five further Ledger commands/readers, four
+replay guards, three input DTOs and cached guard helpers are unchanged test-only
+oracles protected against production return. External fixture seeds use focused
+writes, with fixed clocks where report expectations need them. Aggregate maps,
+report helpers and remaining static catalog utilities still require retirement.
+The dependent HTML readiness fixture consumes the focused CRA snapshot through
+the existing HTML command service, not cached controls. Escaped report bytes and
+their exact-byte hash are persisted with a caller-attributed audit; a failure after
+the real report insert rolls back both effects and returns no generated result.
+The former HTML Ledger facade is also an unchanged test-only oracle. This follows
+native composition's committed read followed by a report/audit write transaction,
+not a claim of one combined read/write snapshot or database durability.
 
 Custom-policy creation/evaluation, vulnerability workflow annotation, release
 security summary and vulnerability posture handlers require focused Risk or

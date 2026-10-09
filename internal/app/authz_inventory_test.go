@@ -26,13 +26,13 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"legacy_catalog_query_oracle_test.go":         {"GetBuildRun", "GetReleaseCandidate", "ListReleaseCandidates"},
 		"legacy_vulnerability_posture_oracle_test.go": {"VulnerabilityPostureReport"},
 		"legacy_risk_workflow_oracle_test.go":         {"EvaluateCustomPolicy"},
-		"controls.go": {
+		"legacy_control_writes_oracle_test.go": {
 			"LinkControlEvidence",
 			"ListControlEvidence",
 		},
 		"legacy_security_update_report_oracle_test.go":     {"SecurityUpdateEvidenceReport"},
 		"legacy_control_reports_oracle_test.go":            {"ControlCoverageReport", "CRAReadinessReport", "CRAVulnerabilityHandlingReport"},
-		"control_evidence_replay_guard.go":                 {"AuthorizeControlEvidenceLink", "authorizeControlEvidenceLinkLocked"},
+		"legacy_control_evidence_guard_oracle_test.go":     {"AuthorizeControlEvidenceLink", "authorizeControlEvidenceLinkLocked"},
 		"legacy_source_repository_guard_oracle_test.go":    {"authorizeSourceRepositoryCreationLocked"},
 		"legacy_source_repository_creation_oracle_test.go": {"CreateSourceRepository"},
 		"legacy_source_repository_reads_oracle_test.go":    {"AuthorizeSourceRepositoryCreation", "ListSourceRepositories"},

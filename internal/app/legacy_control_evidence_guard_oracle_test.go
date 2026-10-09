@@ -7,7 +7,7 @@ import (
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
-// Local compatibility only: no projection refresh, duplicate-link lookup,
+// Test-only historical oracle: no projection refresh, duplicate-link lookup,
 // clock or audit write occurs here. Native HTTP binds the focused Risk guard.
 func (l *Ledger) AuthorizeControlEvidenceLink(ctx context.Context, a domain.Actor, id string, in LinkControlEvidenceInput) error {
 	id, in, err := prepareLocalControlEvidenceLink(ctx, a, id, in)

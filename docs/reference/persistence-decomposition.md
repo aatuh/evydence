@@ -45,10 +45,7 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| controls | `internal/app/controls.go` | `CreateControlFramework` | `persistLocked` |
-| controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
-| controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |
-| governance, packages, and package reports | `internal/app/governance_packages.go` | `InstallControlFrameworkTemplatePack` | `persistLocked` |
+| none | none | none | none |
 
 ## Next Decomposition Order
 

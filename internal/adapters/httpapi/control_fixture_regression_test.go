@@ -7,8 +7,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -53,15 +55,17 @@ type controlFixtureScope struct {
 func seedControlFixtureScope(t *testing.T, ledger *app.Ledger, name string) controlFixtureScope {
 	t.Helper()
 	f := controlFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
-	var err error
-	f.framework, err = ledger.CreateControlFramework(t.Context(), f.actor, app.CreateControlFrameworkInput{Name: name, Slug: strings.ToLower(name), Version: "1", Description: "Recorded framework"})
+	commands := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.product.CreatedAt })}
+	framework, err := commands.CreateControlFramework(t.Context(), f.actor, riskapp.CreateControlFrameworkInput{Name: name, Slug: strings.ToLower(name), Version: "1", Description: "Recorded framework"})
 	if err != nil {
 		t.Fatal("seed framework:", err)
 	}
-	f.control, err = ledger.CreateSecurityControl(t.Context(), f.actor, app.CreateSecurityControlInput{FrameworkID: f.framework.ID, Code: "REVIEW", Title: "Review", Objective: "Record reviewed evidence", EvidenceRequirements: []domain.ControlEvidenceRequirement{{Type: "build", FreshnessDays: 30, Required: false}}, Applicability: []string{"software"}, Limitations: []string{"Human review required"}})
+	f.framework = domain.ControlFramework(framework)
+	control, err := commands.CreateSecurityControl(t.Context(), f.actor, riskapp.CreateSecurityControlInput{FrameworkID: f.framework.ID, Code: "REVIEW", Title: "Review", Objective: "Record reviewed evidence", EvidenceRequirements: []riskdomain.ControlEvidenceRequirement{{Type: "build", FreshnessDays: 30, Required: false}}, Applicability: []string{"software"}, Limitations: []string{"Human review required"}})
 	if err != nil {
 		t.Fatal("seed control:", err)
 	}
+	f.control = securityControlFromQuery(control)
 	return f
 }
 
@@ -86,7 +90,7 @@ func TestControlFixturesRollBackFrameworkControlTemplateLinkAndAuditEffects(t *t
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
-			commands := &failingControlFixture{controlFixtureCommands: controlFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingControlFixture{controlFixtureCommands: controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.controlCommands, server.controlTemplateCommands, server.controlEvidenceCommands = commands, commands, commands
 			before, err := factory.Snapshot()
 			if err != nil {

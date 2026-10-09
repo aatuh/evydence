@@ -97,7 +97,7 @@ func TestControlCreationNativeHandlersDoNotUseLedger(t *testing.T) {
 
 func TestControlCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		s, secret := testServer(t)
+		s, secret := operationsTestServer(t)
 		fw := postJSON(t, s, secret, "/v1/control-frameworks", "seed", map[string]string{"name": "Seed", "version": "1"}, 201)
 		f := &controlCreationHTTPFake{}
 		if native {

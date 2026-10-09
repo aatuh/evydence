@@ -91,8 +91,11 @@ func (f packageFixtureCommands) SecurityReviewPackageReport(ctx context.Context,
 	return packagedomain.SecurityReviewPackageReport(value), err
 }
 func (f packageFixtureCommands) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, product, release string) (packagedomain.HTMLReportPackage, error) {
-	value, err := f.commandLedger(ctx).CRAReadinessHTMLPackage(ctx, actor, product, release)
-	return packagedomain.HTMLReportPackage(value), err
+	c, err := f.nativeHTML()
+	if err != nil {
+		return packagedomain.HTMLReportPackage{}, err
+	}
+	return c.CRAReadinessHTMLPackage(ctx, actor, product, release)
 }
 
 type packageReadinessFixtureQuery struct {

@@ -56,11 +56,6 @@ func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain
 	return customerSecurityPackageFromContext(value), fromPackageContextError(err)
 }
 
-func (l *Ledger) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
-	value, err := l.packageCommands.CRAReadinessHTMLPackage(ctx, actor, productID, releaseID)
-	return htmlReportPackageFromPackageContext(value), fromPackageContextError(err)
-}
-
 func (l *Ledger) CreateCustomReportTemplate(ctx context.Context, actor domain.Actor, in CreateReportTemplateInput) (domain.CustomReportTemplate, error) {
 	value, err := l.packageCommands.CreateCustomReportTemplate(ctx, actor, packageapp.CreateReportTemplateInput{
 		Name: in.Name, Version: in.Version, ReportType: in.ReportType,

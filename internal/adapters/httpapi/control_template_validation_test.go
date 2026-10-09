@@ -7,7 +7,7 @@ import (
 )
 
 func TestControlTemplateInstallBodyContractInLocalProfile(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	path := "/v1/control-framework-template-packs/evydence-cra-readiness/install"
 	response := postRaw(t, server, secret, path, "empty-template-body", nil, 201)
 	if dataField(t, response, "slug") != "evydence-cra-readiness" {

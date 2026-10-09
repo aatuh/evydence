@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 )
 
@@ -19,19 +19,20 @@ func TestControlFixtureReadsKeepOwnedCompletePagesAndDetachedDefinitions(t *test
 	ledger, factory := integrationRegressionLedger()
 	owner := seedControlFixtureScope(t, ledger, "Owner")
 	foreign := seedControlFixtureScope(t, ledger, "Foreign")
-	second, err := ledger.CreateControlFramework(t.Context(), owner.actor, app.CreateControlFrameworkInput{Name: "Second", Version: "2", Description: "Second recorded framework"})
+	commands := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	second, err := commands.CreateControlFramework(t.Context(), owner.actor, riskapp.CreateControlFrameworkInput{Name: "Second", Version: "2", Description: "Second recorded framework"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var ownerLinks []domain.ControlEvidence
 	for _, scope := range []controlFixtureScope{owner, foreign} {
 		for _, subject := range []struct{ kind, id string }{{"evidence", scope.evidence.ID}, {"release", scope.release.ID}} {
-			link, err := ledger.LinkControlEvidence(t.Context(), scope.actor, scope.control.ID, app.LinkControlEvidenceInput{EvidenceType: "build", SubjectType: subject.kind, SubjectID: subject.id, ProductID: scope.product.ID, ReleaseID: scope.release.ID, Confidence: "medium", Notes: "Recorded review"})
+			link, err := commands.LinkControlEvidence(t.Context(), scope.actor, scope.control.ID, riskapp.LinkControlEvidenceInput{EvidenceType: "build", SubjectType: subject.kind, SubjectID: subject.id, ProductID: scope.product.ID, ReleaseID: scope.release.ID, Confidence: "medium", Notes: "Recorded review"})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if scope.actor.TenantID == owner.actor.TenantID {
-				ownerLinks = append(ownerLinks, link)
+				ownerLinks = append(ownerLinks, domain.ControlEvidence(link))
 			}
 		}
 	}
@@ -54,7 +55,7 @@ func TestControlFixtureReadsKeepOwnedCompletePagesAndDetachedDefinitions(t *test
 		path string
 		want []any
 	}{
-		{"/v1/control-frameworks", []any{owner.framework, second}},
+		{"/v1/control-frameworks", []any{owner.framework, domain.ControlFramework(second)}},
 		{"/v1/control-evidence?control_id=" + owner.control.ID + "&product_id=" + owner.product.ID + "&release_id=" + owner.release.ID, []any{ownerLinks[0], ownerLinks[1]}},
 		{"/v1/control-framework-template-packs", controlFixturePackValues(packs)},
 	} {

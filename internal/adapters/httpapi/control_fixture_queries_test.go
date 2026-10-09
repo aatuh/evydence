@@ -85,20 +85,31 @@ func (f controlReadFixture) ListTemplatePacks(ctx context.Context, a domain.Acto
 	return items, nil
 }
 func (f controlEvidencePageFixture) ListPage(ctx context.Context, a domain.Actor, filter riskquery.ControlEvidenceFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[riskdomain.ControlEvidence], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[riskdomain.ControlEvidence]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListControlEvidence(ctx, a, filter.ControlID, filter.ProductID, filter.ReleaseID)
+	query, err := riskquery.NewControlEvidence(f)
 	if err != nil {
 		return appquery.Result[riskdomain.ControlEvidence]{}, err
 	}
-	items := make([]riskdomain.ControlEvidence, 0, len(values))
-	for _, v := range values {
-		items = append(items, riskdomain.ControlEvidence(v))
+	v, err := query.ListPage(ctx, a, filter, request, after)
+	return v, mapControlsQueryError(err)
+}
+func (f controlEvidencePageFixture) PageControlEvidence(ctx context.Context, req riskquery.ControlEvidencePageRequest) (appquery.Result[riskquery.ControlEvidencePoint], error) {
+	var out appquery.Result[riskquery.ControlEvidencePoint]
+	if ctx == nil {
+		return out, riskquery.ErrValidation
 	}
-	return appquery.Page(items, request, after, func(v riskdomain.ControlEvidence, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(v.ID, v.CreatedAt, sort)
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Controls.(riskquery.ControlEvidenceReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageControlEvidence(ctx, req)
+		return err
 	})
+	if err != nil {
+		return appquery.Result[riskquery.ControlEvidencePoint]{}, err
+	}
+	return out, nil
 }
 func (s *Server) bindControlFixtureQueries(ledger *app.Ledger) {
 	f := catalogFixtureCommands{ledger: ledger}
