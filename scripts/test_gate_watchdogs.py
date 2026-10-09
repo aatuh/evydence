@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Keep complete live test gates bounded without exhausting Go's 10m default."""
+"""Keep complete Go gates bounded and their build toolchain selections aligned."""
 import os
 import pathlib
+import re
 import subprocess
 import unittest
 
@@ -9,6 +10,23 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class GateWatchdogTests(unittest.TestCase):
+    def test_project_gates_and_container_use_the_exact_module_toolchain(self):
+        source = (ROOT / "go.mod").read_text(encoding="utf-8")
+        versions = re.findall(r"^go (\d+\.\d+\.\d+)$", source, re.MULTILINE)
+        self.assertEqual(len(versions), 1, "go.mod must select an exact patch release")
+        version = versions[0]
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertTrue(f"GOTOOLCHAIN ?= go{version}\n" in makefile,
+                        "Make gates must default to the module's exact patch toolchain")
+        dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertRegex(dockerfile.splitlines()[0],
+                         rf"^FROM golang:{re.escape(version)}-alpine3\.23@sha256:[a-f0-9]{{64}} AS build$")
+        for workflow in ("ci.yml", "container-image.yml", "release-artifacts.yml"):
+            with self.subTest(workflow=workflow):
+                self.assertTrue("go-version-file: go.mod" in
+                                (ROOT / ".github/workflows" / workflow).read_text(encoding="utf-8"),
+                                f"{workflow} must derive its toolchain from go.mod")
+
     def test_complete_package_runs_have_explicit_watchdogs(self):
         targets = {
             "Makefile": [

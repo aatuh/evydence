@@ -2,6 +2,20 @@
 
 This reference describes the project-owned release validation profile. It is evidence for engineering review only; it does not prove legal compliance, certification, complete vulnerability detection, or secure releases.
 
+## Build toolchain
+
+Source builds require Go 1.26.9 or a later patched toolchain. Project-owned Make
+targets default to `GOTOOLCHAIN=go1.26.9`, matching `go.mod`, CI's
+`go-version-file`, and the digest-pinned Alpine 3.23 Docker builder. An explicit
+`GOTOOLCHAIN` override is allowed; its owner must verify that version against the
+current vulnerability database. A newer minor version can still be unpatched.
+Go 1.26.9 addresses the October 8, 2026 standard-library security release;
+see the [official release history](https://go.dev/doc/devel/release).
+The source dependency graph also selects `golang.org/x/net` v0.60.0 for the
+corresponding HTTP/2 fixes in integration-adapter transports. `make vuln` scans
+the whole project; a scan of core packages alone does not cover those adapters.
+This changes source-build prerequisites, not existing published release assets.
+
 ## Live test package watchdogs
 
 Complete Go test, race, coverage and PostgreSQL integration gates use a

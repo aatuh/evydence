@@ -3,7 +3,7 @@
 [![CI](https://github.com/aatuh/evydence/actions/workflows/ci.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
-![Go Version](https://img.shields.io/badge/go-1.25+-00ADD8.svg)
+![Go Version](https://img.shields.io/badge/go-1.26.9+-00ADD8.svg)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-186%20precise%20operations-brightgreen.svg)
 ![Coverage Gate](https://img.shields.io/badge/production%20coverage-80%25+-brightgreen.svg)
 
