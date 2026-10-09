@@ -133,6 +133,20 @@ failure-after-insert recovery and read-only report/metadata-detachment tests
 are separate from live PostgreSQL lock, restart and concurrency evidence.
 The memory readers validate coherent incident parents and selected retention
 root ownership without consulting Ledger; they do not model SQL row locks.
+Incident and retention report fixtures now compose their actual focused queries
+over current typed repositories, not the historical Ledger report methods.
+Incident snapshots verify current incident/product/release ownership, cap the
+combined timeline/tasks at 4096, retain time/ID tie ordering and detach mutable
+timestamps. Retention selects only the tenant's requested marker rows and preserves
+deterministic creation-time/ID ordering; native retention currently has no row or
+byte ceiling, so this migration is not resource-bound proof. Incident reads retain
+tenant/product/release grants; retention requires tenant-wide admin authority.
+Failed read commits return no report or generated timestamp. Explicit clocks and
+injected ports survive rebinding. Complete independent DTO expectations, wrong
+tenant/grant, exact/excess capacity, alias, cancellation and safe-error regressions
+preserve existing HTTP assertions. Both legacy report methods are unchanged
+test-only oracles guarded against production return. Other incident/retention
+writes and aggregate state still require retirement; API/SQL/schema are unchanged.
 
 Framework/control creation, starter-pack installation, evidence linking and
 their definition/catalog/link reads now require focused Risk ports. Eight

@@ -2,64 +2,110 @@ package httpapi
 
 import (
 	"context"
-	"slices"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
+	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
-// Historical fixture readers keep actual ownership/grant checks and detach
-// mutable values. Runtime report readers remain bounded PostgreSQL projections.
-type incidentReportFixture struct{ catalogFixtureCommands }
-type retentionReportFixture struct{ catalogFixtureCommands }
+// Compose the actual focused report queries over current typed repositories.
+// Incident entries are capped; retention inventories retain the native unbounded
+// row behavior. Neither typed model establishes SQL work/locks or durability.
+type incidentReportFixture struct {
+	catalogFixtureCommands
+	now func() time.Time
+}
+type retentionReportFixture struct {
+	catalogFixtureCommands
+	now func() time.Time
+}
 
 func (f incidentReportFixture) Report(ctx context.Context, a domain.Actor, id string) (packagedomain.IncidentReport, error) {
-	v, err := f.commandLedger(ctx).IncidentReport(ctx, a, id)
-	timeline := make([]packagedomain.IncidentTimelineEventSnapshot, 0, len(v.Timeline))
-	for _, event := range v.Timeline {
-		timeline = append(timeline, packagedomain.IncidentTimelineEventSnapshot(event))
+	now := f.now
+	if now == nil {
+		now = func() time.Time { return time.Now().UTC() }
 	}
-	tasks := make([]packagedomain.RemediationTaskSnapshot, 0, len(v.Tasks))
-	for _, task := range v.Tasks {
-		model := packagedomain.RemediationTaskSnapshot(task)
-		if task.DueAt != nil {
-			at := *task.DueAt
-			model.DueAt = &at
-		}
-		tasks = append(tasks, model)
+	q, err := packagequery.NewIncidentReport(f, now)
+	if err != nil {
+		return packagedomain.IncidentReport{}, err
 	}
-	return packagedomain.IncidentReport{ReportType: v.ReportType, TemplateVersion: v.TemplateVersion, IncidentID: v.IncidentID, Result: v.Result, Timeline: timeline, Tasks: tasks, LinkedEvidence: slices.Clone(v.LinkedEvidence), Assumptions: slices.Clone(v.Assumptions), Limitations: slices.Clone(v.Limitations), GeneratedAt: v.GeneratedAt}, err
+	v, err := q.Report(ctx, a, id)
+	return v, mapIncidentReportQueryError(err)
 }
 func (f retentionReportFixture) Report(ctx context.Context, a domain.Actor, kind, id string) (operationsdomain.RetentionReport, error) {
-	if err := application.AuthorizeTenantWideScope(ctx, a, "admin"); err != nil {
+	now := f.now
+	if now == nil {
+		now = func() time.Time { return time.Now().UTC() }
+	}
+	q, err := operationsquery.NewRetentionReport(f, now)
+	if err != nil {
 		return operationsdomain.RetentionReport{}, err
 	}
-	v, err := f.commandLedger(ctx).RetentionReport(ctx, a, kind, id)
-	holds := make([]operationsdomain.LegalHold, 0, len(v.LegalHolds))
-	for _, value := range v.LegalHolds {
-		model := operationsdomain.LegalHold(value)
-		if value.ReleasedAt != nil {
-			at := *value.ReleasedAt
-			model.ReleasedAt = &at
+	v, err := q.Report(ctx, a, kind, id)
+	return v, mapInstanceAdminQueryError(err)
+}
+
+func (f incidentReportFixture) ReadIncidentReport(ctx context.Context, tenant, id string) (packagequery.IncidentReportSnapshot, error) {
+	var out packagequery.IncidentReportSnapshot
+	if ctx == nil {
+		return out, packagequery.ErrIncidentReportValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Risk.(packagequery.IncidentReportReader)
+		if !ok {
+			return app.ErrValidation
 		}
-		holds = append(holds, model)
+		var err error
+		out, err = reader.ReadIncidentReport(ctx, tenant, id)
+		return err
+	})
+	if err != nil {
+		return packagequery.IncidentReportSnapshot{}, err
 	}
-	overrides := make([]operationsdomain.RetentionOverride, 0, len(v.RetentionOverrides))
-	for _, value := range v.RetentionOverrides {
-		overrides = append(overrides, operationsdomain.RetentionOverride(value))
+	return out, nil
+}
+func (f retentionReportFixture) ReadRetentionRecords(ctx context.Context, tenant, kind, id string) (operationsquery.RetentionSnapshot, error) {
+	var out operationsquery.RetentionSnapshot
+	if ctx == nil {
+		return out, operationsquery.ErrValidation
 	}
-	return operationsdomain.RetentionReport{ReportType: v.ReportType, ScopeType: v.ScopeType, ScopeID: v.ScopeID, LegalHolds: holds, RetentionOverrides: overrides, Limitations: slices.Clone(v.Limitations), GeneratedAt: v.GeneratedAt}, err
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Governance.(operationsquery.RetentionReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadRetentionRecords(ctx, tenant, kind, id)
+		return err
+	})
+	if err != nil {
+		return operationsquery.RetentionSnapshot{}, err
+	}
+	return out, nil
 }
 func (s *Server) bindOperationsFixtureQueries(ledger *app.Ledger) {
 	f := catalogFixtureCommands{ledger: ledger}
-	if _, fixture := s.incidentReportQuery.(incidentReportFixture); s.incidentReportQuery == nil || fixture {
-		s.incidentReportQuery = incidentReportFixture{f}
+	if old, fixture := s.incidentReportQuery.(incidentReportFixture); fixture {
+		old.ledger = ledger
+		s.incidentReportQuery = old
+	} else if s.incidentReportQuery == nil {
+		s.incidentReportQuery = incidentReportFixture{catalogFixtureCommands: f}
 	}
-	if _, fixture := s.retentionQuery.(retentionReportFixture); s.retentionQuery == nil || fixture {
-		s.retentionQuery = retentionReportFixture{f}
+	if old, fixture := s.retentionQuery.(retentionReportFixture); fixture {
+		old.ledger = ledger
+		s.retentionQuery = old
+	} else if s.retentionQuery == nil {
+		s.retentionQuery = retentionReportFixture{catalogFixtureCommands: f}
 	}
 }
 

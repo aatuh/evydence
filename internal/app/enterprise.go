@@ -111,30 +111,6 @@ func (l *Ledger) CreateRetentionOverride(ctx context.Context, actor domain.Actor
 	return override, nil
 }
 
-func (l *Ledger) RetentionReport(ctx context.Context, actor domain.Actor, scopeType, scopeID string) (domain.RetentionReport, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.RetentionReport{}, err
-	}
-	if err := require(actor, ScopeAdmin); err != nil {
-		return domain.RetentionReport{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	holds := []domain.LegalHold{}
-	for _, hold := range l.legalHolds {
-		if hold.TenantID == actor.TenantID && (scopeType == "" || (hold.ScopeType == scopeType && hold.ScopeID == scopeID)) {
-			holds = append(holds, hold)
-		}
-	}
-	overrides := []domain.RetentionOverride{}
-	for _, override := range l.retentionOverrides {
-		if override.TenantID == actor.TenantID && (scopeType == "" || (override.ScopeType == scopeType && override.ScopeID == scopeID)) {
-			overrides = append(overrides, override)
-		}
-	}
-	return domain.RetentionReport{ReportType: "retention", ScopeType: scopeType, ScopeID: scopeID, LegalHolds: holds, RetentionOverrides: overrides, Limitations: []string{"Retention reports describe Evydence records and do not replace external storage lifecycle verification."}, GeneratedAt: l.now()}, nil
-}
-
 func (l *Ledger) ensureRoleSubjectLocked(tenantID, subjectType, subjectID string) error {
 	switch subjectType {
 	case "user":

@@ -64,7 +64,6 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"CreateIncident",
 			"RecordIncidentTimelineEvent",
 			"CreateRemediationTask",
-			"IncidentReport",
 			"UploadSecurityScan",
 			"UploadManualSecurityDocument",
 		},
@@ -72,10 +71,11 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"CreateReleaseCandidate",
 			"UpdateReleaseCandidateState",
 		},
-		"legacy_deployment_point_oracle_test.go": {"GetDeployment"},
-		"legacy_deployment_lists_oracle_test.go": {"ListDeploymentEnvironments", "ListDeployments"},
-		"legacy_deployment_write_oracle_test.go": {"CreateDeploymentEnvironment", "RecordDeployment"},
-		"legacy_leaf_oracle_test.go":             {"SearchEvidence"},
+		"legacy_deployment_point_oracle_test.go":   {"GetDeployment"},
+		"legacy_deployment_lists_oracle_test.go":   {"ListDeploymentEnvironments", "ListDeployments"},
+		"legacy_deployment_write_oracle_test.go":   {"CreateDeploymentEnvironment", "RecordDeployment"},
+		"legacy_operations_reports_oracle_test.go": {"IncidentReport"},
+		"legacy_leaf_oracle_test.go":               {"SearchEvidence"},
 	}
 	for file, funcs := range files {
 		bodyBytes, err := os.ReadFile(file)

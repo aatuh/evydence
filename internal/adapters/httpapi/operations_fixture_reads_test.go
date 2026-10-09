@@ -16,25 +16,42 @@ func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadat
 	ledger, factory := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
+	var ownTimeline domain.IncidentTimelineEvent
+	var ownTask domain.RemediationTask
+	var ownHold domain.LegalHold
+	var ownOverride domain.RetentionOverride
 	for _, scope := range []operationsFixtureScope{owner, foreign} {
-		if _, err := ledger.RecordIncidentTimelineEvent(t.Context(), scope.actor, scope.incident.ID, app.RecordIncidentTimelineInput{EventType: "noted", Summary: "Containment recorded", EvidenceID: scope.evidence.ID}); err != nil {
+		timeline, err := ledger.RecordIncidentTimelineEvent(t.Context(), scope.actor, scope.incident.ID, app.RecordIncidentTimelineInput{EventType: "noted", Summary: "Containment recorded", EvidenceID: scope.evidence.ID})
+		if err != nil {
 			t.Fatal(err)
 		}
 		due := time.Date(2026, 10, 8, 16, 0, 0, 0, time.UTC)
-		if _, err := ledger.CreateRemediationTask(t.Context(), scope.actor, app.CreateRemediationTaskInput{IncidentID: scope.incident.ID, ReleaseID: scope.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: scope.evidence.ID}); err != nil {
+		task, err := ledger.CreateRemediationTask(t.Context(), scope.actor, app.CreateRemediationTaskInput{IncidentID: scope.incident.ID, ReleaseID: scope.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: scope.evidence.ID})
+		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ledger.CreateLegalHold(t.Context(), scope.actor, app.CreateLegalHoldInput{ScopeType: "release", ScopeID: scope.release.ID, Reason: "Review", Owner: "Legal Team"}); err != nil {
+		hold, err := ledger.CreateLegalHold(t.Context(), scope.actor, app.CreateLegalHoldInput{ScopeType: "release", ScopeID: scope.release.ID, Reason: "Review", Owner: "Legal Team"})
+		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ledger.CreateRetentionOverride(t.Context(), scope.actor, app.CreateRetentionOverrideInput{ScopeType: "evidence", ScopeID: scope.evidence.ID, Reason: "Review", Owner: "Security Team", RetentionUntil: due}); err != nil {
+		override, err := ledger.CreateRetentionOverride(t.Context(), scope.actor, app.CreateRetentionOverrideInput{ScopeType: "evidence", ScopeID: scope.evidence.ID, Reason: "Review", Owner: "Security Team", RetentionUntil: due})
+		if err != nil {
 			t.Fatal(err)
+		}
+		if scope.actor.TenantID == owner.actor.TenantID {
+			ownTimeline, ownTask, ownHold, ownOverride = timeline, task, hold, override
 		}
 	}
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
 	}
+	at := time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)
+	now := func() time.Time { return at }
+	fixture := catalogFixtureCommands{ledger: ledger}
+	incidentQuery := incidentReportFixture{catalogFixtureCommands: fixture, now: now}
+	retentionQuery := retentionReportFixture{catalogFixtureCommands: fixture, now: now}
+	server.incidentReportQuery, server.retentionQuery = incidentQuery, retentionQuery
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"incident:read", "admin"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"admin"}}, {ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"incident:read"}}}}
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth
@@ -50,8 +67,8 @@ func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadat
 	if err := json.Unmarshal(response.Body.Bytes(), &incident); err != nil {
 		t.Fatal(err)
 	}
-	wantIncident, err := ledger.IncidentReport(t.Context(), human, owner.incident.ID)
-	if err != nil || !reflect.DeepEqual(incident.Data, wantIncident) || len(incident.Data.Timeline) != 1 || len(incident.Data.Tasks) != 1 || len(incident.Data.LinkedEvidence) != 2 {
+	wantIncident := domain.IncidentReport{ReportType: "incident_package", TemplateVersion: "incident-package.v1.0.0", IncidentID: owner.incident.ID, Result: "open", Timeline: []domain.IncidentTimelineEvent{ownTimeline}, Tasks: []domain.RemediationTask{ownTask}, LinkedEvidence: []string{owner.evidence.ID, owner.evidence.ID}, Assumptions: []string{"Incident evidence is limited to records stored in this Evydence tenant."}, Limitations: []string{"This report organizes incident evidence and does not prove root cause completeness or remediation sufficiency."}, GeneratedAt: at}
+	if !reflect.DeepEqual(incident.Data, wantIncident) || len(incident.Data.Timeline) != 1 || len(incident.Data.Tasks) != 1 || len(incident.Data.LinkedEvidence) != 2 {
 		t.Fatal("incident DTO lost owned timeline/tasks/evidence/assumptions", err)
 	}
 	retentionResponse := getRaw(t, server, "fixture-auth", "/v1/reports/retention", 200)
@@ -61,8 +78,8 @@ func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadat
 	if err := json.Unmarshal(retentionResponse.Body.Bytes(), &retention); err != nil {
 		t.Fatal(err)
 	}
-	wantRetention, err := ledger.RetentionReport(t.Context(), human, "", "")
-	if err != nil || !reflect.DeepEqual(retention.Data, wantRetention) || len(retention.Data.LegalHolds) != 1 || len(retention.Data.RetentionOverrides) != 1 {
+	wantRetention := domain.RetentionReport{ReportType: "retention", LegalHolds: []domain.LegalHold{ownHold}, RetentionOverrides: []domain.RetentionOverride{ownOverride}, Limitations: []string{"Retention reports describe Evydence records and do not replace external storage lifecycle verification."}, GeneratedAt: at}
+	if !reflect.DeepEqual(retention.Data, wantRetention) || len(retention.Data.LegalHolds) != 1 || len(retention.Data.RetentionOverrides) != 1 {
 		t.Fatal("retention DTO lost owned markers/limitations", err)
 	}
 	getRaw(t, server, "fixture-auth", "/v1/reports/incident-package?incident_id="+foreign.incident.ID, 404)
@@ -78,8 +95,7 @@ func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadat
 	getRaw(t, server, "fixture-auth", path, 403)
 	getRaw(t, server, "fixture-auth", "/v1/reports/retention", 403)
 	auth.actor = human
-	fixture := catalogFixtureCommands{ledger: ledger}
-	projected, err := (incidentReportFixture{fixture}).Report(t.Context(), human, owner.incident.ID)
+	projected, err := incidentQuery.Report(t.Context(), human, owner.incident.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,27 +103,27 @@ func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadat
 	projected.Timeline[0].Summary = "modified"
 	projected.LinkedEvidence[0] = "modified"
 	projected.Assumptions[0] = "modified"
-	projectedRetention, err := (retentionReportFixture{fixture}).Report(t.Context(), human, "", "")
+	projectedRetention, err := retentionQuery.Report(t.Context(), human, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	projectedRetention.LegalHolds[0].Owner = "modified"
 	projectedRetention.RetentionOverrides[0].Reason = "modified"
 	projectedRetention.Limitations[0] = "modified"
-	again, err := ledger.IncidentReport(t.Context(), human, owner.incident.ID)
-	if err != nil || !reflect.DeepEqual(wantIncident, again) {
+	again, err := incidentQuery.Report(t.Context(), human, owner.incident.ID)
+	if err != nil || !reflect.DeepEqual(wantIncident, incidentReportFromQuery(again)) {
 		t.Fatal("incident fixture exposed stored aliases", err)
 	}
-	againRetention, err := ledger.RetentionReport(t.Context(), human, "", "")
-	if err != nil || !reflect.DeepEqual(wantRetention, againRetention) {
+	againRetention, err := retentionQuery.Report(t.Context(), human, "", "")
+	if err != nil || !reflect.DeepEqual(wantRetention, retentionReportFromQuery(againRetention)) {
 		t.Fatal("retention fixture exposed stored aliases", err)
 	}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := (incidentReportFixture{fixture}).Report(cancelled, human, owner.incident.ID); !errors.Is(err, context.Canceled) {
+	if _, err := (incidentReportFixture{catalogFixtureCommands: fixture}).Report(cancelled, human, owner.incident.ID); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled incident report accepted", err)
 	}
-	if _, err := (retentionReportFixture{fixture}).Report(cancelled, human, "", ""); !errors.Is(err, context.Canceled) {
+	if _, err := (retentionReportFixture{catalogFixtureCommands: fixture}).Report(cancelled, human, "", ""); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled retention report accepted", err)
 	}
 	after, err := factory.Snapshot()
