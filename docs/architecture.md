@@ -197,12 +197,11 @@ limits. Failed transactions and cancellation return no partial point. Completed
 empty OpenAPI operation arrays remain distinct from unfinished projections
 through both ingestion paths and memory copies. The legacy diff service also
 reads configured repositories so replay snapshots cannot cause a false exact
-recheck conflict. Only the repository-free synchronous VEX characterization
-explicitly supplies immutable scan/source receipts; native queries validate
-receipt identity and worker-record coherence, and the current parent guard
-remains in force. Receipt fixtures are not current storage snapshots. This does
-not add an API runtime backend or establish SQL JSON, transfer/work or locking
-guarantees.
+recheck conflict. Standalone historical receipt tests validate immutable receipt
+identity and worker-record coherence, not current storage snapshots. The VEX
+HTTP validation flow uses repository-backed readers and an explicit fixture
+worker, described below. This does not add an API runtime backend or establish
+SQL JSON, transfer/work or locking guarantees.
 
 SBOM component fixtures now compose the focused Evidence query on current typed
 repository rows, without the former 500-component inventory ceiling. The
@@ -253,20 +252,25 @@ public contracts are unchanged. These memory checks do not prove SQL JSON
 shapes, transfer/work bounds, locks or durability; aggregate retirement remains
 unfinished in EVY-906.
 
-VEX document fixtures now compose the focused Evidence point query with current
-typed repositories. The former document getter is an unchanged test-only
-oracle. The memory reader checks current source/release/product/artifact
+VEX document/report fixtures compose the focused Evidence point query with
+current typed repositories. Both former getters are unchanged test-only
+oracles. The memory reader checks current source/release/product/artifact
 coherence, detaches metadata and models each selected 16 MiB JSON limit. Its
 report port rejects duplicate owned reports and preserves document linkage;
 completed legacy timestamp normalization affects only the returned copy.
 Repository rebinding, revoked grants, cancellation and failed commits are
-covered. Only the repository-free synchronous characterization supplies its
-actual immutable document upload receipt; the focused query checks identity,
-shape and grants, without claiming a current storage snapshot. Its existing
-completed-report assertions remain unchanged. The report facade and synchronous
-completion migration still require retirement. Public contracts and PostgreSQL
-queries are unchanged; memory checks do not prove SQL JSON shapes, work/transfer
-bounds, locks or durability, and EVY-906 remains incomplete.
+covered. The VEX HTTP validation fixture records the real normalized outbox
+request, then uses the same pure Risk mapper as production in an explicit test
+worker. Mapped decisions, supersessions, audit entries and report completion
+commit in one UoW; failed commits publish none, and completed replay preserves
+counts without duplicating effects. The conditional memory completion port
+preserves report identity/parser/schema fields and rechecks current parents,
+duplicates and JSON limits before writing. Original HTTP completion, decision-
+count and no-async-warning assertions remain unchanged. This test worker does
+not prove production dispatch, claim fences, SQL JSON shapes, work/transfer
+bounds, locks or durability. Public contracts and PostgreSQL queries are
+unchanged; local compatibility completion and remaining aggregate state still
+require retirement in EVY-906.
 
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require

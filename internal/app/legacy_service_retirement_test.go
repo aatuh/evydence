@@ -138,6 +138,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListEvidenceLifecycleEvents": true,
 		"GetEvidence":                 true,
 		"GetVEXDocument":              true,
+		"GetVEXImportReport":          true,
 		"ListEvidence":                true, "ListEvidencePage": true, "SearchEvidencePage": true,
 		"refreshEvidencePageAuthorization": true, "evidencePageVisibility": true,
 		"validateEvidencePageProjection": true, "validatePagedParserNormalizations": true,

@@ -18,7 +18,6 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
-	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -1337,7 +1336,7 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 }
 
 func TestVEXHTTPValidation(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret, factory := vexCompletionTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "vex-prod", map[string]any{"name": "VEX Product", "slug": "vex-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "vex-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -1410,9 +1409,12 @@ func TestVEXHTTPValidation(t *testing.T) {
 	if err := json.Unmarshal([]byte(vexBody), &vexReceipt); err != nil || vexReceipt.Data.ID != vexID {
 		t.Fatal("VEX upload did not return its actual document receipt", err)
 	}
-	server.vexPointQuery = immutableVEXDocumentReceiptFixture{
-		evidenceReadFixture: evidenceReadFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}},
-		point:               evidencequery.VEXDocumentPoint{Document: fixtureVEXDocument(vexReceipt.Data), ProductID: productID},
+	snapshot, err := factory.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := completeVEXFixtureJob(t.Context(), factory, snapshot, vexID); err != nil {
+		t.Fatal("VEX fixture worker did not complete the actual import", err)
 	}
 	getJSON(t, server, secret, "/v1/vex/"+vexID, http.StatusOK)
 	importReport := getJSON(t, server, secret, "/v1/vex/"+vexID+"/import-report", http.StatusOK)
@@ -1425,8 +1427,7 @@ func TestVEXHTTPValidation(t *testing.T) {
 	if err := json.Unmarshal([]byte(scanBody), &scanReceipt); err != nil || scanReceipt.Data.ID == "" {
 		t.Fatal("scan receipt cannot locate the characterization reader", err)
 	}
-	reader := immutableScanReceiptFixture{point: evidencequery.VulnerabilityScanPoint{Scan: fixtureVulnerabilityScan(scanReceipt.Data), ProductID: productID}}
-	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}, scanID: scanReceipt.Data.ID, scanReader: reader, evidenceReader: reader}
+	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}, scanID: scanReceipt.Data.ID}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
 		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
 	}, http.StatusBadRequest)

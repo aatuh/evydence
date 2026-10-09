@@ -138,8 +138,12 @@ func fixtureVEXReport(value domain.VEXImportReport) evidencedomain.VEXImportRepo
 }
 
 func (f evidenceReadFixture) GetVEXImportReport(ctx context.Context, actor domain.Actor, id string) (evidencedomain.VEXImportReport, error) {
-	value, err := f.commandLedger(ctx).GetVEXImportReport(ctx, actor, id)
-	return fixtureVEXReport(value), err
+	query, err := evidencequery.NewVEXPoints(f)
+	if err != nil {
+		return evidencedomain.VEXImportReport{}, err
+	}
+	value, err := query.GetVEXImportReport(ctx, actor, id)
+	return value, legacyParsedPointError(err)
 }
 
 func fixtureVEXPreview(value domain.VEXImportPreview) evidencedomain.VEXImportPreview {
