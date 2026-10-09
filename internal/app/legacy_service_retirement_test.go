@@ -189,6 +189,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"InstallControlFrameworkTemplatePack": true, "ListControlEvidence": true,
 		"CRAReadinessHTMLPackage": true,
 		"UploadSecurityScan":      true, "UploadManualSecurityDocument": true,
+		"UploadSBOM": true, "UploadSBOMPayload": true, "UploadSPDXSBOMPayload": true,
+		"UploadOpenAPIContract": true, "UploadOpenAPIContractPayload": true,
 		"CreateSBOMDiff": true, "CreateContractDiff": true,
 		"AuthorizeControlFrameworkCreation": true, "AuthorizeSecurityControlCreation": true,
 		"authorizeLocalControlCreationScope": true, "AuthorizeControlTemplateInstallation": true,

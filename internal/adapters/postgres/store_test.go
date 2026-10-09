@@ -16,6 +16,7 @@ import (
 	postgresrepositories "github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
 
@@ -1716,7 +1717,11 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	rawSBOM := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`)
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, rawSBOM)
+	ingestion, err := newSBOMIngestionFixture(sourceStore, sourceObjects)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sbom, err := ingestion.UploadSBOMPayload(ctx, actor, evidenceapp.SBOMIngestionInput{ReleaseID: release.ID, ArtifactID: artifact.ID, Format: "cyclonedx"}, evidenceapp.BytesPayloadSource(rawSBOM))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -394,10 +394,28 @@ deleted. Native parsing, body limits, semantic-header fingerprints, current
 ownership/grant guards and atomic PostgreSQL writes remain in place. Test-only
 adapters run the actual native preflight algorithms and authorizers; effect,
 clock and ID capabilities panic if a replay guard reaches them. Fresh fixture
-writes for the remaining parser families use the real legacy parsers and isolated
-command clone, not those guard capabilities. Eleven failure-after-write and replay regressions check complete
+writes for VEX and vulnerability-scan fixtures still use historical parser
+commands and the isolated command clone, not those guard capabilities. Eleven
+failure-after-write and replay regressions check complete
 repository state, including payload, audit, outbox and derived-record effects.
 They are not a substitute for the live PostgreSQL transaction tests.
+
+SBOM/SPDX and OpenAPI fixtures now compose focused ingestion services with the
+actual stateless parsers, current repository ownership/artifact readers and
+explicit streaming storage, clock and parser-policy resources. Preflight traps
+parsing, staging, hashing, writes, audits, outbox and clock/ID allocation. Fresh
+ingestion closes every opened source, validates exact declared bytes on parsing
+and staging, and atomically records evidence, documents, payload metadata,
+finalizer/parser jobs and both caller-attributed audits. Reopened-source mutation
+and untrusted staging metadata fail without repository effects; failed commits
+leave only unreferenced staging bytes. Explicit worker ownership retains complete
+response DTOs while storing pending projections; absent storage never recovers
+Ledger's store or pretends to defer parsing. Explicit resources and injected ports
+survive rebinding. Five former Ledger upload wrappers remain unchanged test-only
+oracles. Recovery test seeds also compose the focused SBOM service without Ledger
+publication, but require a fresh live PostgreSQL recovery run before closure.
+API/SQL/schema are unchanged; typed/filesystem checks do not prove native database
+locking, durability, SQL transfer bounds or worker completion.
 
 Both document-diff fixtures now run the actual focused Evidence services over
 current typed repository capabilities. Preflight reads only coherent source and

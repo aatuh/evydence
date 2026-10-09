@@ -74,7 +74,7 @@ func TestNativeDocumentMediaTypesRequireExplicitMetadataHeaders(t *testing.T) {
 }
 
 func TestNativeCycloneDXSBOMStreamsPastSmallJSONLimit(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "native-sbom-product", map[string]any{"name": "Native SBOM", "slug": "native-sbom"}, http.StatusCreated)
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "native-sbom-release", map[string]any{"product_id": dataField(t, productBody, "id"), "version": "1.0.0"}, http.StatusCreated)
 	body := strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1) + `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}`
@@ -91,7 +91,7 @@ func TestNativeCycloneDXSBOMStreamsPastSmallJSONLimit(t *testing.T) {
 }
 
 func TestNativeCycloneDXSBOMIdempotencyIncludesReleaseHeader(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "native-idempotency-product", map[string]any{"name": "Native idempotency", "slug": "native-idempotency"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	firstReleaseBody := postJSON(t, server, secret, "/v1/releases", "native-idempotency-release-a", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -116,7 +116,7 @@ func TestNativeCycloneDXSBOMIdempotencyIncludesReleaseHeader(t *testing.T) {
 }
 
 func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	actor, err := legacyFixtureLedger(server).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)

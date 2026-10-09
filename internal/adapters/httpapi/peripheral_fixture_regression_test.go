@@ -31,7 +31,7 @@ func seedPeripheralFixtureScope(t *testing.T, ledger *app.Ledger, name string) p
 	t.Helper()
 	f := peripheralFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
 	var err error
-	f.sbom, err = ledger.UploadSBOM(t.Context(), f.actor, f.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"collector","purl":"pkg:generic/collector@1"}]}`))
+	f.sbom, err = uploadSBOMFixture(t.Context(), ledger, f.actor, f.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"collector","purl":"pkg:generic/collector@1"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

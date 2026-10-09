@@ -23,11 +23,11 @@ func (c *diffFixtureClock) Now() time.Time { c.calls++; return c.at }
 func TestDiffNativeFixtureUsesCurrentSubjectsExplicitClockAndAtomicDetachedEffects(t *testing.T) {
 	ledger, base := integrationRegressionLedger()
 	owner := seedEvidenceReadFixtureScope(t, ledger, "Owner")
-	target, err := ledger.UploadSBOM(t.Context(), owner.actor, owner.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"one","purl":"pkg:generic/one@1"},{"type":"library","name":"next","purl":"pkg:generic/next@2"}]}`))
+	target, err := uploadSBOMFixture(t.Context(), ledger, owner.actor, owner.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"one","purl":"pkg:generic/one@1"},{"type":"library","name":"next","purl":"pkg:generic/next@2"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	contract, err := ledger.UploadOpenAPIContract(t.Context(), owner.actor, owner.product.ID, owner.release.ID, "2", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"2"},"paths":{}}`))
+	contract, err := uploadOpenAPIContractFixture(t.Context(), ledger, owner.actor, owner.product.ID, owner.release.ID, "2", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"2"},"paths":{}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,11 +178,11 @@ func TestDiffNativeFixtureValidatesRequestedReleaseWithoutInventingScope(t *test
 	ledger, base := integrationRegressionLedger()
 	owner := seedEvidenceReadFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceReadFixtureScope(t, ledger, "Foreign")
-	target, err := ledger.UploadSBOM(t.Context(), owner.actor, owner.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}`))
+	target, err := uploadSBOMFixture(t.Context(), ledger, owner.actor, owner.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	contract, err := ledger.UploadOpenAPIContract(t.Context(), owner.actor, owner.product.ID, owner.release.ID, "2", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"2"},"paths":{}}`))
+	contract, err := uploadOpenAPIContractFixture(t.Context(), ledger, owner.actor, owner.product.ID, owner.release.ID, "2", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"2"},"paths":{}}`))
 	if err != nil {
 		t.Fatal(err)
 	}

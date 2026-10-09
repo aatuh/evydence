@@ -30,7 +30,7 @@ func TestSBOMComponentFixtureTraversesMoreThanLegacyInventoryCap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := ledger.UploadSBOM(t.Context(), owner.actor, owner.release.ID, "", payload)
+	b, err := uploadSBOMFixture(t.Context(), ledger, owner.actor, owner.release.ID, "", payload)
 	if err != nil {
 		t.Fatal(err)
 	}

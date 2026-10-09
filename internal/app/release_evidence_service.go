@@ -79,26 +79,6 @@ func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targe
 	return evidenceFromContext(value), fromEvidenceContextError(err)
 }
 
-func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	value, err := l.evidenceCommands.UploadSBOM(ctx, actor, releaseID, artifactID, raw)
-	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-// UploadSBOMPayload accepts a repeatable pre-hashed payload source for
-// streaming HTTP ingestion. CycloneDX 1.6 schema validation and normalization
-// consume the same bounded bytes before evidence or object-store side effects.
-func (l *Ledger) UploadSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
-	value, err := l.evidenceCommands.UploadSBOMPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
-	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-// UploadSPDXSBOMPayload accepts an SPDX JSON source whose bytes are validated,
-// normalized, and staged as the same digest-bound payload.
-func (l *Ledger) UploadSPDXSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
-	value, err := l.evidenceCommands.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
-	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
 func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
 	value, err := l.evidenceCommands.UploadVulnerabilityScan(ctx, actor, raw)
 	return vulnerabilityScanFromEvidenceContext(value), fromEvidenceContextError(err)
@@ -109,18 +89,6 @@ func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor
 func (l *Ledger) UploadVulnerabilityScanPayload(ctx context.Context, actor domain.Actor, source PayloadSource) (domain.VulnerabilityScan, error) {
 	value, err := l.evidenceCommands.UploadVulnerabilityScanPayload(ctx, actor, payloadSourceToEvidenceContext(source))
 	return vulnerabilityScanFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, productID, releaseID, version string, raw []byte) (domain.OpenAPIContract, error) {
-	value, err := l.evidenceCommands.UploadOpenAPIContract(ctx, actor, productID, releaseID, version, raw)
-	return openAPIContractFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-// UploadOpenAPIContractPayload accepts a repeatable pre-hashed payload source
-// for streaming HTTP ingestion.
-func (l *Ledger) UploadOpenAPIContractPayload(ctx context.Context, actor domain.Actor, productID, releaseID, version string, source PayloadSource) (domain.OpenAPIContract, error) {
-	value, err := l.evidenceCommands.UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, payloadSourceToEvidenceContext(source))
-	return openAPIContractFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {

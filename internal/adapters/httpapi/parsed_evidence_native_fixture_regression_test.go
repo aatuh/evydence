@@ -18,7 +18,7 @@ import (
 func TestParsedPointFixturePreservesCompletedEmptyContractFromUpload(t *testing.T) {
 	ledger, factory := integrationRegressionLedger()
 	owner := seedEvidenceReadFixtureScope(t, ledger, "Owner")
-	contract, err := ledger.UploadOpenAPIContract(t.Context(), owner.actor, owner.product.ID, owner.release.ID, "empty", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"empty"},"paths":{}}`))
+	contract, err := uploadOpenAPIContractFixture(t.Context(), ledger, owner.actor, owner.product.ID, owner.release.ID, "empty", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"empty"},"paths":{}}`))
 	if err != nil || contract.Operations == nil || len(contract.Operations) != 0 {
 		t.Fatal("upload did not preserve completed empty operations", err)
 	}

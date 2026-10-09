@@ -36,7 +36,7 @@ func seedEvidenceReadFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope.sbom, err = ledger.UploadSBOM(t.Context(), scope.actor, scope.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"one","purl":"pkg:generic/one@1"},{"type":"library","name":"two","purl":"pkg:generic/two@1"}]}`))
+	scope.sbom, err = uploadSBOMFixture(t.Context(), ledger, scope.actor, scope.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"one","purl":"pkg:generic/one@1"},{"type":"library","name":"two","purl":"pkg:generic/two@1"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func seedEvidenceReadFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope.contract, err = ledger.UploadOpenAPIContract(t.Context(), scope.actor, scope.product.ID, scope.release.ID, "1", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"1"},"paths":{"/items":{"get":{"operationId":"listItems","responses":{"200":{"description":"ok"}}}}}}`))
+	scope.contract, err = uploadOpenAPIContractFixture(t.Context(), ledger, scope.actor, scope.product.ID, scope.release.ID, "1", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"1"},"paths":{"/items":{"get":{"operationId":"listItems","responses":{"200":{"description":"ok"}}}}}}`))
 	if err != nil {
 		t.Fatal(err)
 	}

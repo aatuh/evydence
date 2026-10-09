@@ -48,14 +48,6 @@ func (f lifecyclePageFixture) ListPage(ctx context.Context, actor domain.Actor, 
 	return result, legacyParsedPointError(err)
 }
 
-func fixtureSBOM(value domain.SBOM) evidencedomain.SBOM {
-	components := make([]evidencedomain.SBOMComponent, 0, len(value.Components))
-	for _, component := range value.Components {
-		components = append(components, evidencedomain.SBOMComponent(component))
-	}
-	return evidencedomain.SBOM{ID: value.ID, TenantID: value.TenantID, EvidenceID: value.EvidenceID, ReleaseID: value.ReleaseID, ArtifactID: value.ArtifactID, Format: value.Format, SpecVersion: value.SpecVersion, ComponentCount: value.ComponentCount, Components: components, CreatedAt: value.CreatedAt}
-}
-
 func (f evidenceReadFixture) GetSBOM(ctx context.Context, actor domain.Actor, id string) (evidencedomain.SBOM, error) {
 	query, err := evidencequery.NewSBOMPoints(f)
 	if err != nil {

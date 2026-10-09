@@ -14,13 +14,15 @@ import (
 )
 
 // Only test binaries use these command adapters. Native guards run the actual
-// algorithms and authorizers on current fixture parents. Fresh writes retain
-// the real legacy parser/stager and isolated replay transaction, not guard stubs.
+// algorithms and authorizers on current fixture parents. SBOM/SPDX, OpenAPI and
+// security documents use focused native services; VEX and scan fixture writes
+// still depend on historical parser commands and the isolated replay transaction.
 type ingestionFixtureCommands struct {
 	catalogFixtureCommands
-	repositoryScope bool
-	objects         app.ObjectStore
-	clock           application.Clock
+	repositoryScope    bool
+	objects            app.ObjectStore
+	clock              application.Clock
+	workerOwnedParsers bool
 }
 
 func (f ingestionFixtureCommands) authority() ingestionFixtureReadAuthority {
@@ -32,12 +34,7 @@ func (f ingestionFixtureCommands) authority() ingestionFixtureReadAuthority {
 }
 
 func (f ingestionFixtureCommands) sbomGuard() (*evidenceapp.SBOMIngestionCommands, error) {
-	auth, err := f.authority().authorizer(false)
-	if err != nil {
-		return nil, err
-	}
-	noEffects := ingestionFixtureGuardEffects{}
-	return evidenceapp.NewSBOMIngestionCommands(evidenceapp.SBOMIngestionCommandConfig{Authorizer: auth, Transactions: ingestionFixtureGuardRunner{f.authority(), false}, Parser: app.SBOMPayloadParser{}, Objects: noEffects, Payloads: noEffects, Canonicalizer: noEffects, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
+	return f.nativeSBOMIngestion(true)
 }
 func (f ingestionFixtureCommands) vexGuard() (*evidenceapp.VEXIngestionCommands, error) {
 	auth, err := f.authority().authorizer(false)
@@ -48,12 +45,7 @@ func (f ingestionFixtureCommands) vexGuard() (*evidenceapp.VEXIngestionCommands,
 	return evidenceapp.NewVEXIngestionCommands(evidenceapp.VEXIngestionCommandConfig{Authorizer: auth, Transactions: ingestionFixtureGuardRunner{f.authority(), false}, Parser: app.VEXPayloadParser{}, Objects: noEffects, Payloads: noEffects, Canonicalizer: noEffects, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
 }
 func (f ingestionFixtureCommands) openAPIGuard() (*evidenceapp.OpenAPIIngestionCommands, error) {
-	auth, err := f.authority().authorizer(false)
-	if err != nil {
-		return nil, err
-	}
-	noEffects := ingestionFixtureGuardEffects{}
-	return evidenceapp.NewOpenAPIIngestionCommands(evidenceapp.OpenAPIIngestionCommandConfig{Authorizer: auth, Transactions: ingestionFixtureGuardRunner{f.authority(), false}, Parser: app.OpenAPIContractPayloadParser{}, Objects: noEffects, Payloads: noEffects, Canonicalizer: noEffects, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
+	return f.nativeOpenAPIIngestion(true)
 }
 func (f ingestionFixtureCommands) scanGuard() (*evidenceapp.VulnerabilityScanIngestionCommands, error) {
 	auth, err := f.authority().authorizer(false)
@@ -122,17 +114,12 @@ func fixtureLegacySource(source evidenceapp.PayloadSource) app.PayloadSource {
 	return app.PayloadSource{Digest: source.Digest, Size: source.Size, Open: source.Open}
 }
 func (f ingestionFixtureCommands) UploadSBOMPayload(ctx context.Context, a domain.Actor, in evidenceapp.SBOMIngestionInput, source evidenceapp.PayloadSource) (evidencedomain.SBOM, error) {
-	var value domain.SBOM
-	var err error
-	switch in.Format {
-	case "cyclonedx":
-		value, err = f.commandLedger(ctx).UploadSBOMPayload(ctx, a, in.ReleaseID, in.ArtifactID, fixtureLegacySource(source))
-	case "spdx":
-		value, err = f.commandLedger(ctx).UploadSPDXSBOMPayload(ctx, a, in.ReleaseID, in.ArtifactID, fixtureLegacySource(source))
-	default:
-		return evidencedomain.SBOM{}, app.ErrValidation
+	c, err := f.nativeSBOMIngestion(false)
+	if err != nil {
+		return evidencedomain.SBOM{}, err
 	}
-	return fixtureSBOM(value), err
+	v, err := c.UploadSBOMPayload(ctx, a, in, source)
+	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 func readFixtureSource(ctx context.Context, source evidenceapp.PayloadSource) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
@@ -177,8 +164,12 @@ func (f ingestionFixtureCommands) UploadVEXPayload(ctx context.Context, a domain
 	return fixtureVEXDocument(value), err
 }
 func (f ingestionFixtureCommands) UploadOpenAPIContractPayload(ctx context.Context, a domain.Actor, in evidenceapp.OpenAPIIngestionInput, source evidenceapp.PayloadSource) (evidencedomain.OpenAPIContract, error) {
-	value, err := f.commandLedger(ctx).UploadOpenAPIContractPayload(ctx, a, in.ProductID, in.ReleaseID, in.Version, fixtureLegacySource(source))
-	return fixtureOpenAPIContract(value), err
+	c, err := f.nativeOpenAPIIngestion(false)
+	if err != nil {
+		return evidencedomain.OpenAPIContract{}, err
+	}
+	v, err := c.UploadOpenAPIContractPayload(ctx, a, in, source)
+	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 func (f ingestionFixtureCommands) UploadVulnerabilityScanPayload(ctx context.Context, a domain.Actor, in evidenceapp.VulnerabilityScanScope, source evidenceapp.PayloadSource) (evidencedomain.VulnerabilityScan, error) {
 	probed, err := f.ProbeVulnerabilityScanScope(ctx, a, source)

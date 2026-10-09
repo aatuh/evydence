@@ -72,11 +72,11 @@ type ingestionFixtureRequest struct{ name, path, body string }
 
 func ingestionFixtureRequests(t *testing.T, ledger *app.Ledger, scope evidenceReadFixtureScope) []ingestionFixtureRequest {
 	t.Helper()
-	target, err := ledger.UploadSBOM(t.Context(), scope.actor, scope.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"next","purl":"pkg:generic/next@2"}]}`))
+	target, err := uploadSBOMFixture(t.Context(), ledger, scope.actor, scope.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"next","purl":"pkg:generic/next@2"}]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	contract, err := ledger.UploadOpenAPIContract(t.Context(), scope.actor, scope.product.ID, scope.release.ID, "2", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"2"},"paths":{}}`))
+	contract, err := uploadOpenAPIContractFixture(t.Context(), ledger, scope.actor, scope.product.ID, scope.release.ID, "2", []byte(`{"openapi":"3.1.0","info":{"title":"API","version":"2"},"paths":{}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
