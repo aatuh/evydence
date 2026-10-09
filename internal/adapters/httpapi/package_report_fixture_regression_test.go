@@ -58,7 +58,7 @@ func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string
 	if _, err := (controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.release.CreatedAt })}).LinkControlEvidence(t.Context(), f.actor, f.control.ID, riskapp.LinkControlEvidenceInput{EvidenceType: "build", SubjectType: "evidence", SubjectID: f.evidence.ID, ProductID: f.product.ID, ReleaseID: f.release.ID, Confidence: "high", Notes: "Recorded link"}); err != nil {
 		t.Fatal("report control evidence:", err)
 	}
-	scan, err := ledger.UploadVulnerabilityScan(t.Context(), f.actor, []byte(fmt.Sprintf(`{"scanner":"grype","target_ref":"pkg:oci/report","release_id":%q,"findings":[{"vulnerability":"CVE-2026-0001","component":"api","severity":"high","state":"open"}]}`, f.release.ID)))
+	scan, err := uploadVulnerabilityScanFixture(t.Context(), ledger, f.actor, []byte(fmt.Sprintf(`{"scanner":"grype","target_ref":"pkg:oci/report","release_id":%q,"findings":[{"vulnerability":"CVE-2026-0001","component":"api","severity":"high","state":"open"}]}`, f.release.ID)))
 	if err != nil || len(scan.Findings) != 1 {
 		t.Fatal("report scan:", err)
 	}

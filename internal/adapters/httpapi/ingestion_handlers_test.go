@@ -45,7 +45,7 @@ func TestStreamRequestPayloadStreamsAndEnforcesExactLimit(t *testing.T) {
 }
 
 func TestVulnerabilityScanStreamsPastSmallJSONLimit(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "stream-product", map[string]any{"name": "Streaming", "slug": "streaming"}, http.StatusCreated)
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "stream-release", map[string]any{"product_id": dataField(t, productBody, "id"), "version": "1.0.0"}, http.StatusCreated)
 	body := strings.Repeat(" ", int(app.SmallJSONRequestLimit)+1) + `{"scanner":"stream","target_ref":"pkg:oci/stream","release_id":"` + dataField(t, releaseBody, "id") + `","findings":[]}`

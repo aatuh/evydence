@@ -191,6 +191,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"UploadSecurityScan":      true, "UploadManualSecurityDocument": true,
 		"UploadSBOM": true, "UploadSBOMPayload": true, "UploadSPDXSBOMPayload": true,
 		"UploadOpenAPIContract": true, "UploadOpenAPIContractPayload": true,
+		"UploadVulnerabilityScan": true, "UploadVulnerabilityScanPayload": true,
 		"CreateSBOMDiff": true, "CreateContractDiff": true,
 		"AuthorizeControlFrameworkCreation": true, "AuthorizeSecurityControlCreation": true,
 		"authorizeLocalControlCreationScope": true, "AuthorizeControlTemplateInstallation": true,

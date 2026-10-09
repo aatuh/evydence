@@ -15,7 +15,7 @@ import (
 
 // Only test binaries use these command adapters. Native guards run the actual
 // algorithms and authorizers on current fixture parents. SBOM/SPDX, OpenAPI and
-// security documents use focused native services; VEX and scan fixture writes
+// security documents and scanner writes use focused native services; VEX writes
 // still depend on historical parser commands and the isolated replay transaction.
 type ingestionFixtureCommands struct {
 	catalogFixtureCommands
@@ -48,12 +48,7 @@ func (f ingestionFixtureCommands) openAPIGuard() (*evidenceapp.OpenAPIIngestionC
 	return f.nativeOpenAPIIngestion(true)
 }
 func (f ingestionFixtureCommands) scanGuard() (*evidenceapp.VulnerabilityScanIngestionCommands, error) {
-	auth, err := f.authority().authorizer(false)
-	if err != nil {
-		return nil, err
-	}
-	noEffects := ingestionFixtureGuardEffects{}
-	return evidenceapp.NewVulnerabilityScanIngestionCommands(evidenceapp.VulnerabilityScanIngestionCommandConfig{Authorizer: auth, Transactions: ingestionFixtureGuardRunner{f.authority(), false}, Parser: app.VulnerabilityScanPayloadParser{}, Objects: noEffects, Payloads: noEffects, Canonicalizer: noEffects, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
+	return f.nativeScanIngestion(true)
 }
 func (f ingestionFixtureCommands) securityGuard() (*evidenceapp.SecurityDocumentCommands, error) {
 	return f.nativeSecurityDocuments(true)
@@ -172,15 +167,12 @@ func (f ingestionFixtureCommands) UploadOpenAPIContractPayload(ctx context.Conte
 	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 func (f ingestionFixtureCommands) UploadVulnerabilityScanPayload(ctx context.Context, a domain.Actor, in evidenceapp.VulnerabilityScanScope, source evidenceapp.PayloadSource) (evidencedomain.VulnerabilityScan, error) {
-	probed, err := f.ProbeVulnerabilityScanScope(ctx, a, source)
+	c, err := f.nativeScanIngestion(false)
 	if err != nil {
 		return evidencedomain.VulnerabilityScan{}, err
 	}
-	if probed.ReleaseID != in.ReleaseID {
-		return evidencedomain.VulnerabilityScan{}, app.ErrValidation
-	}
-	value, err := f.commandLedger(ctx).UploadVulnerabilityScanPayload(ctx, a, fixtureLegacySource(source))
-	return fixtureVulnerabilityScan(value), err
+	v, err := c.UploadVulnerabilityScanPayload(ctx, a, in, source)
+	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 func (f ingestionFixtureCommands) UploadSecurityScan(ctx context.Context, a domain.Actor, in evidenceapp.UploadSecurityScanInput) (evidencedomain.SecurityScan, error) {
 	c, err := f.nativeSecurityDocuments(false)

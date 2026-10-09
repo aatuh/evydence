@@ -35,7 +35,7 @@ func seedPeripheralFixtureScope(t *testing.T, ledger *app.Ledger, name string) p
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.scan, err = ledger.UploadVulnerabilityScan(t.Context(), f.actor, []byte(fmt.Sprintf(`{"scanner":"generic","target_ref":"pkg:generic/collector@1","release_id":%q,"findings":[{"vulnerability":"CVE-2026-1","component":"collector","severity":"high","state":"open"}]}`, f.release.ID)))
+	f.scan, err = uploadVulnerabilityScanFixture(t.Context(), ledger, f.actor, []byte(fmt.Sprintf(`{"scanner":"generic","target_ref":"pkg:generic/collector@1","release_id":%q,"findings":[{"vulnerability":"CVE-2026-1","component":"collector","severity":"high","state":"open"}]}`, f.release.ID)))
 	if err != nil {
 		t.Fatal(err)
 	}

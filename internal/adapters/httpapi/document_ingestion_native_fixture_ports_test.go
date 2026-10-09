@@ -75,6 +75,37 @@ func (f documentIngestionNativeFixture) ParseOpenAPIContract(ctx context.Context
 	}
 	return (app.OpenAPIContractPayloadParser{}).ParseOpenAPIContract(ctx, source)
 }
+
+func (f documentIngestionNativeFixture) ExecuteVulnerabilityScanIngestion(ctx context.Context, run func(context.Context, evidenceapp.VulnerabilityScanIngestionTransaction) error) error {
+	if ctx == nil || run == nil {
+		return evidenceapp.ErrValidation
+	}
+	return fixtureIngestionError(f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		if r.Evidence == nil || r.Audit == nil || r.Outbox == nil || r.Payloads == nil {
+			return app.ErrValidation
+		}
+		bound := f
+		bound.repositories = &r
+		return run(ctx, bound)
+	}))
+}
+func (f documentIngestionNativeFixture) InsertVulnerabilityScan(ctx context.Context, v evidencedomain.VulnerabilityScan) error {
+	if f.readOnly || f.repositories == nil {
+		panic("document preflight/unbound scan insert")
+	}
+	return fixtureIngestionError(f.repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScanFromContext(v)))
+}
+func (f documentIngestionNativeFixture) ProbeVulnerabilityScanScope(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.VulnerabilityScanScope, error) {
+	// This bounded coordinate-only parser is allowed during transport probing;
+	// full normalization remains behind current ownership and grant checks.
+	return (app.VulnerabilityScanPayloadParser{}).ProbeVulnerabilityScanScope(ctx, source)
+}
+func (f documentIngestionNativeFixture) ParseVulnerabilityScan(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedVulnerabilityScan, error) {
+	if f.readOnly {
+		panic("document preflight parsed scan findings")
+	}
+	return (app.VulnerabilityScanPayloadParser{}).ParseVulnerabilityScan(ctx, source)
+}
 func (f documentIngestionNativeFixture) StagePayloadSource(ctx context.Context, tenant, media string, source evidenceapp.PayloadSource) (evidenceapp.StagedPayload, error) {
 	if f.readOnly {
 		panic("document preflight staged source")
@@ -125,6 +156,26 @@ func (f ingestionFixtureCommands) nativeOpenAPIIngestion(readOnly bool) (*eviden
 	return evidenceapp.NewOpenAPIIngestionCommands(evidenceapp.OpenAPIIngestionCommandConfig{Authorizer: auth, Transactions: ports, Parser: ports, Objects: ports, Payloads: ports, Canonicalizer: ports, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: clock, IDs: ids, WorkerOwnedParsers: f.workerOwnedParsers})
 }
 
+func (f ingestionFixtureCommands) nativeScanIngestion(readOnly bool) (*evidenceapp.VulnerabilityScanIngestionCommands, error) {
+	ports, clock, ids := f.documentPorts(readOnly)
+	auth, err := ports.authorizer()
+	if err != nil {
+		return nil, err
+	}
+	return evidenceapp.NewVulnerabilityScanIngestionCommands(evidenceapp.VulnerabilityScanIngestionCommandConfig{Authorizer: auth, Transactions: ports, Parser: ports, Objects: ports, Payloads: ports, Canonicalizer: ports, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: clock, IDs: ids, WorkerOwnedParsers: f.workerOwnedParsers})
+}
+
+func uploadVulnerabilityScanFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
+	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	source := evidenceapp.BytesPayloadSource(raw)
+	in, err := f.ProbeVulnerabilityScanScope(ctx, a, source)
+	if err != nil {
+		return domain.VulnerabilityScan{}, mapEvidenceCreationCommandError(err)
+	}
+	v, err := f.UploadVulnerabilityScanPayload(ctx, a, in, source)
+	return domain.VulnerabilityScanFromContext(v), err
+}
+
 func uploadSBOMFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, release, artifact string, raw []byte) (domain.SBOM, error) {
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	v, err := f.UploadSBOMPayload(ctx, a, evidenceapp.SBOMIngestionInput{ReleaseID: release, ArtifactID: artifact, Format: "cyclonedx"}, evidenceapp.BytesPayloadSource(raw))
@@ -143,5 +194,9 @@ func (s *Server) bindDocumentIngestionFixtureResources(objects app.ObjectStore, 
 	if f, ok := s.openAPIIngestionCommands.(ingestionFixtureCommands); ok {
 		f.objects, f.clock, f.workerOwnedParsers = objects, clock, workerOwned
 		s.openAPIIngestionCommands = f
+	}
+	if f, ok := s.scanIngestionCommands.(ingestionFixtureCommands); ok {
+		f.objects, f.clock, f.workerOwnedParsers = objects, clock, workerOwned
+		s.scanIngestionCommands = f
 	}
 }

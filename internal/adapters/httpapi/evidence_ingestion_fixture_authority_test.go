@@ -212,9 +212,6 @@ func (t ingestionFixtureGuardTransaction) ResolveEvidenceCreationScope(ctx conte
 func (f ingestionFixtureGuardRunner) ExecuteVEXIngestion(ctx context.Context, run func(context.Context, evidenceapp.VEXIngestionTransaction) error) error {
 	return f.execute(ctx, func(ctx context.Context, tx ingestionFixtureGuardTransaction) error { return run(ctx, tx) })
 }
-func (f ingestionFixtureGuardRunner) ExecuteVulnerabilityScanIngestion(ctx context.Context, run func(context.Context, evidenceapp.VulnerabilityScanIngestionTransaction) error) error {
-	return f.execute(ctx, func(ctx context.Context, tx ingestionFixtureGuardTransaction) error { return run(ctx, tx) })
-}
 func (f ingestionFixtureGuardRunner) ExecuteSecurityDocument(ctx context.Context, run func(context.Context, evidenceapp.SecurityDocumentTransaction) error) error {
 	return f.execute(ctx, func(ctx context.Context, tx ingestionFixtureGuardTransaction) error { return run(ctx, tx) })
 }

@@ -25,6 +25,10 @@ func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) r
 	t.Helper()
 	f := seedRiskReportFixtureParentScope(t, ledger, name)
 	var err error
+	f.scan, err = uploadVulnerabilityScanFixture(t.Context(), ledger, f.actor, []byte(fmt.Sprintf(`{"scanner":"grype","target_ref":"pkg:oci/reports","release_id":%q,"findings":[{"vulnerability":"CVE-2026-0001","component":"reviewed","severity":"high","state":"open"},{"vulnerability":"CVE-2026-0002","component":"unreviewed","severity":"high","state":"open"},{"vulnerability":"CVE-2026-0003","component":"critical","severity":"critical","state":"open"}]}`, f.release.ID)))
+	if err != nil || len(f.scan.Findings) != 3 {
+		t.Fatal("seed report scan:", err)
+	}
 	f.head, err = createFixtureManualDecision(t.Context(), ledger, f.actor, f.scan.Findings[0].ID, riskapp.CreateVulnerabilityDecisionInput{Status: "affected", Justification: "Reviewed", ImpactStatement: "Under review", ActionStatement: "Patch planned", CustomerVisible: true, InternalNotes: "private triage " + name})
 	if err != nil {
 		t.Fatal("seed report decision:", err)
@@ -32,8 +36,8 @@ func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) r
 	return f
 }
 
-// Missing-repository characterization needs real cached parents and scans,
-// but must not bypass the native command's required transaction to seed writes.
+// Missing-repository characterization needs real cached parent coordinates,
+// not a scan write that would require the deliberately absent repositories.
 func seedRiskReportFixtureParentScope(t *testing.T, ledger *app.Ledger, name string) riskReportFixtureScope {
 	t.Helper()
 	f := riskReportFixtureScope{riskQueryFixtureScope: riskQueryFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}}
@@ -42,11 +46,6 @@ func seedRiskReportFixtureParentScope(t *testing.T, ledger *app.Ledger, name str
 	if err != nil {
 		t.Fatal(err)
 	}
-	scan, err := ledger.UploadVulnerabilityScan(t.Context(), f.actor, []byte(fmt.Sprintf(`{"scanner":"grype","target_ref":"pkg:oci/reports","release_id":%q,"findings":[{"vulnerability":"CVE-2026-0001","component":"reviewed","severity":"high","state":"open"},{"vulnerability":"CVE-2026-0002","component":"unreviewed","severity":"high","state":"open"},{"vulnerability":"CVE-2026-0003","component":"critical","severity":"critical","state":"open"}]}`, f.release.ID)))
-	if err != nil || len(scan.Findings) != 3 {
-		t.Fatal("seed report scan:", err)
-	}
-	f.scan = scan
 	return f
 }
 

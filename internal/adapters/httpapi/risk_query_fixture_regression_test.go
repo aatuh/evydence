@@ -31,7 +31,7 @@ func seedRiskQueryFixtureScope(t *testing.T, ledger *app.Ledger, name string) ri
 	if err != nil {
 		t.Fatal(err)
 	}
-	scan, err := ledger.UploadVulnerabilityScan(t.Context(), scope.actor, []byte(fmt.Sprintf(`{"scanner":"grype","target_ref":"pkg:oci/api","release_id":%q,"findings":[{"vulnerability":"CVE-2026-0001","component":"component-one","severity":"high","state":"open"},{"vulnerability":"CVE-2026-0002","component":"component-two","severity":"high","state":"open"}]}`, scope.release.ID)))
+	scan, err := uploadVulnerabilityScanFixture(t.Context(), ledger, scope.actor, []byte(fmt.Sprintf(`{"scanner":"grype","target_ref":"pkg:oci/api","release_id":%q,"findings":[{"vulnerability":"CVE-2026-0001","component":"component-one","severity":"high","state":"open"},{"vulnerability":"CVE-2026-0002","component":"component-two","severity":"high","state":"open"}]}`, scope.release.ID)))
 	if err != nil || len(scan.Findings) != 2 {
 		t.Fatal("fixture scan lacks owned findings", err)
 	}

@@ -40,7 +40,7 @@ func seedEvidenceReadFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope.scan, err = ledger.UploadVulnerabilityScan(t.Context(), scope.actor, []byte(fmt.Sprintf(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":%q,"findings":[{"vulnerability":"CVE-2026-1","component":"pkg:generic/one@1","severity":"high","state":"open"}]}`, scope.release.ID)))
+	scope.scan, err = uploadVulnerabilityScanFixture(t.Context(), ledger, scope.actor, []byte(fmt.Sprintf(`{"scanner":"generic","target_ref":"pkg:oci/api","release_id":%q,"findings":[{"vulnerability":"CVE-2026-1","component":"pkg:generic/one@1","severity":"high","state":"open"}]}`, scope.release.ID)))
 	if err != nil {
 		t.Fatal(err)
 	}

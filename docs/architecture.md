@@ -394,7 +394,7 @@ deleted. Native parsing, body limits, semantic-header fingerprints, current
 ownership/grant guards and atomic PostgreSQL writes remain in place. Test-only
 adapters run the actual native preflight algorithms and authorizers; effect,
 clock and ID capabilities panic if a replay guard reaches them. Fresh fixture
-writes for VEX and vulnerability-scan fixtures still use historical parser
+writes for VEX fixtures still use historical parser
 commands and the isolated command clone, not those guard capabilities. Eleven
 failure-after-write and replay regressions check complete
 repository state, including payload, audit, outbox and derived-record effects.
@@ -416,6 +416,19 @@ oracles. Recovery test seeds also compose the focused SBOM service without Ledge
 publication, but require a fresh live PostgreSQL recovery run before closure.
 API/SQL/schema are unchanged; typed/filesystem checks do not prove native database
 locking, durability, SQL transfer bounds or worker completion.
+
+Vulnerability-scan fixtures also compose the focused ingestion service over
+current release scope. The bounded, digest-checked coordinate probe is permitted
+before grants; full finding normalization, staging and effects stay behind current
+ownership and authorization. Replay preflight cannot normalize findings or invoke
+write, hash, staging, clock or ID capabilities. Fresh parsing must match the
+authorized release; normalized identities, severity sources, fix versions and
+parser provenance remain intact. Scan, evidence, payload metadata, both audits and
+finalizer/parser jobs commit together. Tests cover detached findings/summary,
+revoked/foreign grants, malformed streams, cancellation, explicit worker policy,
+no hidden storage recovery and safe HTTP rollback with failed-replay state. Two
+former Ledger upload wrappers are unchanged test-only oracles. VEX ingestion,
+other aggregate state and final live/race/production validation remain pending.
 
 Both document-diff fixtures now run the actual focused Evidence services over
 current typed repository capabilities. Preflight reads only coherent source and
