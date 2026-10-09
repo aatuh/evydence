@@ -339,7 +339,7 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 		}
 	}
 	for name, dependency := range map[string]any{
-		"report-template": server.reportTemplateCommands, "bundle-import": server.bundleImportCommand, "bundle-export": server.evidenceBundleCommands,
+		"bundle-export":  server.evidenceBundleCommands,
 		"release-bundle": server.releaseBundleCommands,
 		"html-report":    server.htmlReportCommands,
 	} {
@@ -350,6 +350,12 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	}
 	if f, ok := server.customerPackageCreationCommands.(customerPackageFixtureCommands); !ok || f.ledger != ledger {
 		t.Fatal("focused customer-package fixture was not rebound")
+	}
+	if f, ok := server.reportTemplateCommands.(reportTemplateFixtureCommands); !ok || f.ledger != ledger {
+		t.Fatal("focused report-template fixture was not rebound")
+	}
+	if f, ok := server.bundleImportCommand.(bundleImportFixtureCommands); !ok || f.ledger != ledger {
+		t.Fatal("focused bundle-import fixture was not rebound")
 	}
 	if f, ok := server.customerPackageAccessCommands.(customerAccessFixtureCommands); !ok || f.ledger != ledger {
 		t.Fatal("focused customer-package access fixture was not rebound")

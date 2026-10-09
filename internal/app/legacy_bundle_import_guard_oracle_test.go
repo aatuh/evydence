@@ -11,6 +11,7 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
+// Unchanged cache-based guard remains only as a characterization oracle.
 func (l *Ledger) AuthorizeBundleImport(ctx context.Context, a domain.Actor, b packagedomain.EvidenceBundle) error {
 	if err := packagequery.NewBundleImportAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBundleWrite, TenantWide: true}); err != nil {
 		return fromPackageContextError(err)

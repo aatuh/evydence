@@ -8,17 +8,17 @@ import (
 
 func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 	files := map[string][]string{
-		"evidence_bundle_replay_guard.go":        {"AuthorizeEvidenceBundleExport"},
-		"bundle_import_replay_guard.go":          {"AuthorizeBundleImport"},
-		"report_template_replay_guard.go":        {"AuthorizeReportTemplateCreation", "AuthorizeReportRendering"},
-		"evidence_creation_replay_guard.go":      {"AuthorizeEvidenceCreation"},
-		"legacy_deployment_guard_oracle_test.go": {"AuthorizeEnvironmentCreation", "AuthorizeDeploymentRecording"},
-		"state_transition_replay_guard.go":       {"AuthorizeReleaseTransition", "AuthorizeCandidateTransition", "authorizeStateTransition"},
-		"candidate_creation_replay_guard.go":     {"AuthorizeCandidateCreation"},
-		"artifact_image_replay_guard.go":         {"AuthorizeArtifactRegistration", "AuthorizeContainerImageRegistration"},
-		"catalog_creation_replay_guard.go":       {"AuthorizeProductCreation", "AuthorizeProjectCreation", "AuthorizeReleaseCreation", "authorizeCatalogCreation"},
-		"build_creation_replay_guard.go":         {"AuthorizeBuildCreation"},
-		"build_attestation_creation_guard.go":    {"AuthorizeBuildAttestationCreation"},
+		"evidence_bundle_replay_guard.go":             {"AuthorizeEvidenceBundleExport"},
+		"legacy_bundle_import_guard_oracle_test.go":   {"AuthorizeBundleImport"},
+		"legacy_report_template_guard_oracle_test.go": {"AuthorizeReportTemplateCreation", "AuthorizeReportRendering"},
+		"evidence_creation_replay_guard.go":           {"AuthorizeEvidenceCreation"},
+		"legacy_deployment_guard_oracle_test.go":      {"AuthorizeEnvironmentCreation", "AuthorizeDeploymentRecording"},
+		"state_transition_replay_guard.go":            {"AuthorizeReleaseTransition", "AuthorizeCandidateTransition", "authorizeStateTransition"},
+		"candidate_creation_replay_guard.go":          {"AuthorizeCandidateCreation"},
+		"artifact_image_replay_guard.go":              {"AuthorizeArtifactRegistration", "AuthorizeContainerImageRegistration"},
+		"catalog_creation_replay_guard.go":            {"AuthorizeProductCreation", "AuthorizeProjectCreation", "AuthorizeReleaseCreation", "authorizeCatalogCreation"},
+		"build_creation_replay_guard.go":              {"AuthorizeBuildCreation"},
+		"build_attestation_creation_guard.go":         {"AuthorizeBuildAttestationCreation"},
 		"builds.go": {
 			"CreateBuildRun",
 			"UploadBuildAttestation",

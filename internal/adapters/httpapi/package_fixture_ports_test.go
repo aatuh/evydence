@@ -16,25 +16,22 @@ import (
 type packageFixtureCommands struct{ catalogFixtureCommands }
 
 func (f packageFixtureCommands) AuthorizeReportTemplateCreation(ctx context.Context, actor domain.Actor, input packageapp.CreateReportTemplateInput) error {
-	return f.commandLedger(ctx).AuthorizeReportTemplateCreation(ctx, actor, input)
+	return (reportTemplateFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeReportTemplateCreation(ctx, actor, input)
 }
 func (f packageFixtureCommands) AuthorizeReportRendering(ctx context.Context, actor domain.Actor, input packageapp.RenderReportInput) error {
-	return f.commandLedger(ctx).AuthorizeReportRendering(ctx, actor, input)
+	return (reportTemplateFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeReportRendering(ctx, actor, input)
 }
 func (f packageFixtureCommands) CreateCustomReportTemplate(ctx context.Context, actor domain.Actor, input packageapp.CreateReportTemplateInput) (packagedomain.CustomReportTemplate, error) {
-	value, err := f.commandLedger(ctx).CreateCustomReportTemplate(ctx, actor, app.CreateReportTemplateInput{Name: input.Name, Version: input.Version, ReportType: input.ReportType, AllowedFields: input.AllowedFields, Template: input.Template})
-	return packagedomain.CustomReportTemplate(value), err
+	return (reportTemplateFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateCustomReportTemplate(ctx, actor, input)
 }
 func (f packageFixtureCommands) RenderCustomReport(ctx context.Context, actor domain.Actor, input packageapp.RenderReportInput) (packagedomain.RenderedCustomReport, error) {
-	value, err := f.commandLedger(ctx).RenderCustomReport(ctx, actor, app.RenderReportInput{TemplateID: input.TemplateID, SubjectType: input.SubjectType, SubjectID: input.SubjectID})
-	return packagedomain.RenderedCustomReport(value), err
+	return (reportTemplateFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).RenderCustomReport(ctx, actor, input)
 }
 func (f packageFixtureCommands) AuthorizeBundleImport(ctx context.Context, actor domain.Actor, bundle packagedomain.EvidenceBundle) error {
-	return f.commandLedger(ctx).AuthorizeBundleImport(ctx, actor, bundle)
+	return (bundleImportFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeBundleImport(ctx, actor, bundle)
 }
 func (f packageFixtureCommands) ImportEvidenceBundle(ctx context.Context, actor domain.Actor, bundle packagedomain.EvidenceBundle) (packagedomain.EvidenceBundleImport, error) {
-	value, err := f.commandLedger(ctx).ImportEvidenceBundle(ctx, actor, evidenceBundleFromCommands(bundle))
-	return packagedomain.EvidenceBundleImport(value), err
+	return (bundleImportFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).ImportEvidenceBundle(ctx, actor, bundle)
 }
 func (f packageFixtureCommands) AuthorizeEvidenceBundleExport(ctx context.Context, actor domain.Actor, release string, ids []string) error {
 	return f.commandLedger(ctx).AuthorizeEvidenceBundleExport(ctx, actor, release, ids)
@@ -122,11 +119,17 @@ func readinessFixtureReportModel(value domain.ReleaseReadinessReport) packagedom
 
 func (s *Server) bindPackageFixturePorts(ledger *app.Ledger) {
 	commands := packageFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.reportTemplateCommands.(packageFixtureCommands); s.reportTemplateCommands == nil || fixture {
-		s.reportTemplateCommands = commands
+	if old, fixture := s.reportTemplateCommands.(reportTemplateFixtureCommands); fixture {
+		old.ledger = ledger
+		s.reportTemplateCommands = old
+	} else if _, legacy := s.reportTemplateCommands.(packageFixtureCommands); s.reportTemplateCommands == nil || legacy {
+		s.reportTemplateCommands = reportTemplateFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
-	if _, fixture := s.bundleImportCommand.(packageFixtureCommands); s.bundleImportCommand == nil || fixture {
-		s.bundleImportCommand = commands
+	if old, fixture := s.bundleImportCommand.(bundleImportFixtureCommands); fixture {
+		old.ledger = ledger
+		s.bundleImportCommand = old
+	} else if _, legacy := s.bundleImportCommand.(packageFixtureCommands); s.bundleImportCommand == nil || legacy {
+		s.bundleImportCommand = bundleImportFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
 	if _, fixture := s.evidenceBundleCommands.(packageFixtureCommands); s.evidenceBundleCommands == nil || fixture {
 		s.evidenceBundleCommands = commands

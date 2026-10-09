@@ -53,7 +53,8 @@ func TestBundleImportStrictPreflightBeforeCurrentAuthority(t *testing.T) {
 func TestBundleImportCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) {
-			base, secret := testServer(t)
+			// The real command branch needs current transaction repositories.
+			base, secret := governanceTestServer(t)
 			f := &bundleImportHTTPFake{}
 			s := base
 			if native {

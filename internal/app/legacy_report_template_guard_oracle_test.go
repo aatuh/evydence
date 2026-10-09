@@ -10,6 +10,7 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
+// Unchanged cache-based guards remain only as characterization oracles.
 func (l *Ledger) AuthorizeReportTemplateCreation(ctx context.Context, a domain.Actor, in packageapp.CreateReportTemplateInput) error {
 	if err := packagequery.NewTemplateAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReportRead, TenantWide: true}); err != nil {
 		return fromPackageContextError(err)

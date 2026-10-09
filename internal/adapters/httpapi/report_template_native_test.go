@@ -39,7 +39,8 @@ func TestReportTemplateCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *test
 	for _, native := range []bool{false, true} {
 		for _, render := range []bool{false, true} {
 			t.Run(fmt.Sprintf("native=%t/render=%t", native, render), func(t *testing.T) {
-				base, secret := testServer(t)
+				// The real command branch needs current transaction repositories.
+				base, secret := governanceTestServer(t)
 				f := &reportTemplateHTTPFake{}
 				path, body := "/v1/report-templates", `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"]}`
 				if render {

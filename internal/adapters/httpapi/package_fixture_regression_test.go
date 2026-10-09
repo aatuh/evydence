@@ -141,7 +141,7 @@ func TestPackageFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T)
 			path, body := "/v1/report-templates", `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"]}`
 			switch action {
 			case "render":
-				template, err := ledger.CreateCustomReportTemplate(t.Context(), scope.actor, app.CreateReportTemplateInput{Name: "Definition", Version: "1", ReportType: "metadata", AllowedFields: []string{"subject_id"}})
+				template, err := (reportTemplateFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateCustomReportTemplate(t.Context(), scope.actor, packageapp.CreateReportTemplateInput{Name: "Definition", Version: "1", ReportType: "metadata", AllowedFields: []string{"subject_id"}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -187,7 +187,7 @@ func TestPackageFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T)
 				t.Fatal("failed package command committed repository effects")
 			}
 			if action == "template" {
-				err := ledger.AuthorizeReportRendering(t.Context(), scope.actor, packageapp.RenderReportInput{TemplateID: commands.createdID, SubjectType: "label", SubjectID: "public-label"})
+				err := commands.AuthorizeReportRendering(t.Context(), scope.actor, packageapp.RenderReportInput{TemplateID: commands.createdID, SubjectType: "label", SubjectID: "public-label"})
 				if !errors.Is(err, app.ErrNotFound) {
 					t.Fatal("failed template was published to fixture authorization", err)
 				}

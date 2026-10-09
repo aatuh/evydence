@@ -35,20 +35,6 @@ const (
 	customerDecisionExportVersion = "customer-vulnerability-decisions.v1.0.0"
 )
 
-type CreateReportTemplateInput struct {
-	Name          string
-	Version       string
-	ReportType    string
-	AllowedFields []string
-	Template      string
-}
-
-type RenderReportInput struct {
-	TemplateID  string
-	SubjectType string
-	SubjectID   string
-}
-
 type CreateDSSETrustRootInput struct {
 	Name                  string
 	KeyID                 string

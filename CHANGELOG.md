@@ -28,6 +28,13 @@ updates cannot overwrite frozen fields with a sanitized delivery view. The
 aggregate access/report/archive facades are retired from production source;
 routes and valid package contracts are unchanged. See [access compatibility](docs/reference/api-versioning.md#unreleased-customer-package-access-boundary).
 
+Retired Ledger custom-report template/rendering and bundle-import facades,
+cache-based replay guards and obsolete report input types from production
+source. HTTP fixtures now exercise focused commands over current repositories,
+preserving inert metadata reports, target-tenant import receipts and atomic
+audit/rollback behavior. Native API and persisted contracts are unchanged;
+remaining aggregate retirement is still EVY-906 work.
+
 Customer-visible vulnerability-decision summaries now fail closed above 4,096
 selected decisions or an 8 MiB selected text/encoded-container budget, before
 PostgreSQL transfers decision metadata. Oversized summaries return no partial
