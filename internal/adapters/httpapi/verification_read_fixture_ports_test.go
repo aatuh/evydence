@@ -6,6 +6,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
@@ -110,22 +111,44 @@ func (f signingKeyFixtureQuery) PageSigningKeys(ctx context.Context, request ver
 type auditLogFixtureQuery struct{ catalogFixtureCommands }
 
 func (f auditLogFixtureQuery) ListPage(ctx context.Context, actor domain.Actor, filter verificationquery.AuditFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[verificationdomain.AuditChainEntry], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[verificationdomain.AuditChainEntry]{}, err
-	}
-	// Retain the former local fixture's 500-entry inventory cap. The runtime
-	// query applies SQL tenant/filter/cursor predicates before its page limit.
-	values, err := f.commandLedger(ctx).ListAuditLog(ctx, actor, app.AuditLogFilter{SubjectType: filter.SubjectType, SubjectID: filter.SubjectID, Since: filter.Since, Limit: 500})
+	query, err := verificationquery.NewAuditLog(f)
 	if err != nil {
 		return appquery.Result[verificationdomain.AuditChainEntry]{}, err
 	}
-	items := make([]verificationdomain.AuditChainEntry, 0, len(values))
-	for _, value := range values {
-		items = append(items, verificationdomain.AuditChainEntry(value))
+	page, err := query.ListPage(ctx, actor, filter, request, after)
+	if errors.Is(err, verificationquery.ErrValidation) || errors.Is(err, appquery.ErrInvalidPage) || errors.Is(err, appquery.ErrInvalidCursor) {
+		err = app.ErrValidation
+	} else if errors.Is(err, verificationquery.ErrInvalidProjection) {
+		err = app.ErrConflict
+	} else if errors.Is(err, application.ErrForbidden) {
+		err = app.ErrForbidden
+	} else if errors.Is(err, application.ErrUnauthorized) {
+		err = app.ErrUnauthorized
 	}
-	return appquery.Page(items, request, after, func(value verificationdomain.AuditChainEntry, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.OccurredAt, sort)
+	return page, err
+}
+
+func (f auditLogFixtureQuery) PageAuditLog(ctx context.Context, request verificationquery.AuditPageRequest) (appquery.Result[verificationdomain.AuditChainEntry], error) {
+	var out appquery.Result[verificationdomain.AuditChainEntry]
+	if ctx == nil {
+		return out, verificationquery.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Audit.(verificationquery.AuditLogReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageAuditLog(ctx, request)
+		return err
 	})
+	if err != nil {
+		return appquery.Result[verificationdomain.AuditChainEntry]{}, err
+	}
+	return out, nil
 }
 
 type custodyFixtureQuery struct{ catalogFixtureCommands }

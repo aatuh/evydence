@@ -388,9 +388,20 @@ Native page parsing, cursor binding, public key DTOs, error mapping and failed-
 verification response semantics remain unchanged. Test-only readers retain
 actual tenant/admin policies, omit private key bytes and preserve lifecycle,
 assurance-profile and report metadata. Their pure query tests verify no writes;
-verification calls retain their existing result/audit behavior. The local audit
-fixture retains its former 500-entry inventory cap; runtime SQL pages filter
-before limiting.
+verification calls retain their existing result/audit behavior.
+Audit-log fixtures now compose the focused query over current Audit repositories,
+checking tenant-wide administration before reads and applying subject, inclusive
+since and keyset predicates before bounded candidate selection. The old fixture's
+500-entry inventory cap is gone: a 501-row current-repository regression reaches
+the final row without aggregate state or a clock. The typed memory adapter keeps
+at most `page size + 1` coordinates, detaches nested metadata through structured
+JSON and enforces the native 1 MiB encoded metadata ceiling on selected/lookahead
+records. Failed reads/commits return no partial page; existing tenant-grant and
+read-only assertions remain intact. The historical Ledger list method and filter
+DTO are unchanged package-local test oracles. This read does not verify the chain.
+Native SQL, public schemas and migrations are unchanged; typed memory tests do
+not establish SQL JSON shapes, work/transfer, row locks or durability. Other
+aggregate Verification queries and state remain EVY-906 work.
 Public signing-key fixtures now compose the same focused query as runtime over
 the current Signature repository. Tenant-wide authority is checked before the
 reader runs; there is no aggregate-clock or cached-key lookup. The typed memory
