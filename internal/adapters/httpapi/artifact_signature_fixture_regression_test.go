@@ -89,7 +89,7 @@ func TestArtifactSignatureFixtureRollsBackSignaturePayloadMetadataAuditJobAndRep
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
-			commands := &failingSignatureFixture{artifactSignatureFixture: artifactSignatureFixture{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingSignatureFixture{artifactSignatureFixture: artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, objects: objects}}
 			server.artifactSignatureCommands = commands
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -141,7 +141,7 @@ func TestArtifactSignatureFixtureReplayAndReadsKeepCurrentAuthorityAndPublicMeta
 	ledger, factory, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
 	foreign := seedSignatureFixtureScope(t, ledger, "Foreign")
-	foreignSignature, err := ledger.CreateArtifactSignature(t.Context(), foreign.actor, app.CreateArtifactSignatureInput{ArtifactID: foreign.artifact.ID, Algorithm: "cosign", Signature: "foreign-recorded-signature"})
+	foreignSignature, err := createFixtureArtifactSignature(t.Context(), ledger, objects, foreign.actor, verificationapp.CreateArtifactSignatureInput{ArtifactID: foreign.artifact.ID, Algorithm: "cosign", Signature: "foreign-recorded-signature"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,6 +150,7 @@ func TestArtifactSignatureFixtureReplayAndReadsKeepCurrentAuthorityAndPublicMeta
 		t.Fatal(err)
 	}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "reviewer", Scopes: []string{"evidence:read", "evidence:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"evidence:read", "evidence:write"}}}}
+	server.bindArtifactSignatureFixtureResources(objects)
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth
 	for _, payload := range []bool{false, true} {
@@ -214,7 +215,7 @@ func TestArtifactSignatureFixtureReplayAndReadsKeepCurrentAuthorityAndPublicMeta
 			t.Fatal("signature replay/read/denial restaged raw payload")
 		}
 	}
-	fixture := artifactSignatureFixture{catalogFixtureCommands{ledger: ledger}}
+	fixture := artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	before, err := factory.Snapshot()
 	if err != nil {
 		t.Fatal(err)

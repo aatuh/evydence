@@ -52,7 +52,7 @@ func (f collectorFixtureGuard) ReadCollectorReleaseReference(ctx context.Context
 		}
 		return result, integrationapp.ErrNotFound
 	case "signature":
-		value, err := artifactSignatureFixture(f).GetArtifactSignature(ctx, reader, id)
+		value, err := (artifactSignatureFixture{catalogFixtureCommands: f.catalogFixtureCommands}).GetArtifactSignature(ctx, reader, id)
 		result.ID, result.TenantID, result.Digest = value.ID, value.TenantID, value.SubjectDigest
 		return result, err
 	case "sbom":

@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"slices"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
@@ -15,14 +14,25 @@ import (
 // checks current fixture ownership/associations; writes use isolated replay
 // clones. Point reads compose the focused query over current typed repositories;
 // the memory model does not establish SQL transfer/work, locks or durability.
-type artifactSignatureFixture struct{ catalogFixtureCommands }
+type artifactSignatureFixture struct {
+	catalogFixtureCommands
+	objects app.PayloadObjectStore
+}
 
 func (f artifactSignatureFixture) AuthorizeArtifactSignatureCreation(ctx context.Context, a domain.Actor, in verificationapp.CreateArtifactSignatureInput) error {
-	return f.commandLedger(ctx).AuthorizeArtifactSignatureCreation(ctx, a, in)
+	c, err := f.nativeSignature(true)
+	if err != nil {
+		return err
+	}
+	return signatureCreationFixtureError(c.AuthorizeArtifactSignatureCreation(ctx, a, in))
 }
 func (f artifactSignatureFixture) CreateArtifactSignature(ctx context.Context, a domain.Actor, in verificationapp.CreateArtifactSignatureInput) (verificationdomain.ArtifactSignature, error) {
-	v, err := f.commandLedger(ctx).CreateArtifactSignature(ctx, a, app.CreateArtifactSignatureInput{ArtifactID: in.ArtifactID, Algorithm: in.Algorithm, KeyID: in.KeyID, Signature: in.Signature, RawPayload: slices.Clone(in.RawPayload), PayloadMediaType: in.PayloadMediaType})
-	return verificationdomain.ArtifactSignature(v), err
+	c, err := f.nativeSignature(false)
+	if err != nil {
+		return verificationdomain.ArtifactSignature{}, err
+	}
+	v, err := c.CreateArtifactSignature(ctx, a, in)
+	return v, signatureCreationFixtureError(err)
 }
 func (f artifactSignatureFixture) GetArtifactSignature(ctx context.Context, a domain.Actor, id string) (verificationdomain.ArtifactSignature, error) {
 	query, err := verificationquery.NewArtifactSignatures(f)
@@ -56,8 +66,11 @@ func (f artifactSignatureFixture) GetArtifactSignaturePoint(ctx context.Context,
 	return out, nil
 }
 func (s *Server) bindArtifactSignatureFixturePorts(ledger *app.Ledger) {
-	f := artifactSignatureFixture{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.artifactSignatureCommands.(artifactSignatureFixture); s.artifactSignatureCommands == nil || fixture {
+	f := artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.artifactSignatureCommands.(artifactSignatureFixture); fixture {
+		old.ledger = ledger
+		s.artifactSignatureCommands = old
+	} else if s.artifactSignatureCommands == nil {
 		s.artifactSignatureCommands = f
 	}
 	if _, fixture := s.artifactSignatureQuery.(artifactSignatureFixture); s.artifactSignatureQuery == nil || fixture {

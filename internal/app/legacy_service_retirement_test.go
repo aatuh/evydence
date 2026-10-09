@@ -144,6 +144,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListEvidenceLifecycleEvents":        true,
 		"GetEvidence":                        true,
 		"GetArtifactSignature":               true,
+		"CreateArtifactSignature":            true,
+		"AuthorizeArtifactSignatureCreation": true,
 		"ListSigningKeys":                    true,
 		"ListAuditLog":                       true,
 		"SigningCustodyReviewReport":         true,
@@ -186,7 +188,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}
 				switch value.Name.Name {
-				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput", "AuditLogFilter":
+				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput", "AuditLogFilter", "CreateArtifactSignatureInput":
 					t.Errorf("%s retains retired aggregate input %s", name, value.Name.Name)
 				}
 			case *ast.FuncDecl:

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
@@ -1648,6 +1649,11 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 
 func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 	server, secret := catalogQueryTestServer(t)
+	objects, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.bindArtifactSignatureFixtureResources(objects)
 	productBody := postJSON(t, server, secret, "/v1/products", "inc-prod", map[string]any{"name": "Increment Product", "slug": "increment-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	projectBody := postJSON(t, server, secret, "/v1/projects", "inc-project", map[string]any{"product_id": productID, "name": "api"}, http.StatusCreated)

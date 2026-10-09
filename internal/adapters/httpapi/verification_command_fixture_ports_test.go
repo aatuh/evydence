@@ -59,8 +59,12 @@ func fixtureCosignVerification(value domain.CosignVerification, err error) (veri
 }
 
 func (f verificationCommandFixture) VerifyCosign(ctx context.Context, actor domain.Actor, input verificationapp.VerifyCosignInput) (verificationdomain.CosignVerification, error) {
-	value, err := f.commandLedger(ctx).VerifyCosignSignature(ctx, actor, app.VerifyCosignInput{ArtifactSignatureID: input.ArtifactSignatureID, ExpectedIdentity: input.ExpectedIdentity, ExpectedIssuer: input.ExpectedIssuer, Mode: app.CosignVerificationMode(input.Mode), Offline: input.Offline})
-	return fixtureCosignVerification(value, err)
+	c, err := f.nativeCosign()
+	if err != nil {
+		return verificationdomain.CosignVerification{}, err
+	}
+	v, err := c.VerifyCosign(ctx, actor, input)
+	return v, mapVerificationCommandError(err)
 }
 
 func (f verificationCommandFixture) AuthorizeBackupGeneration(ctx context.Context, actor domain.Actor) error {

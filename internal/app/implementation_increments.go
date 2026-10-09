@@ -73,15 +73,6 @@ type RegisterContainerImageInput struct {
 	Platform   string
 }
 
-type CreateArtifactSignatureInput struct {
-	ArtifactID       string
-	Algorithm        string
-	KeyID            string
-	Signature        string
-	RawPayload       []byte
-	PayloadMediaType string
-}
-
 type CreateRepositoryInput struct {
 	ProjectID     string
 	Provider      string
@@ -161,82 +152,6 @@ func (l *Ledger) RegisterContainerImage(ctx context.Context, actor domain.Actor,
 		ArtifactID: in.ArtifactID, Repository: in.Repository, Tag: in.Tag, Digest: in.Digest, Platform: in.Platform,
 	})
 	return containerImageFromReleaseContext(value), fromReleaseContextError(err)
-}
-
-func (l *Ledger) CreateArtifactSignature(ctx context.Context, actor domain.Actor, in CreateArtifactSignatureInput) (domain.ArtifactSignature, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ArtifactSignature{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.ArtifactSignature{}, err
-	}
-	in.ArtifactID, in.Algorithm, in.Signature = strings.TrimSpace(in.ArtifactID), strings.TrimSpace(in.Algorithm), strings.TrimSpace(in.Signature)
-	if in.ArtifactID == "" || in.Algorithm == "" || in.Signature == "" {
-		return domain.ArtifactSignature{}, ErrValidation
-	}
-	l.mu.Lock()
-	artifact, ok := l.artifacts[in.ArtifactID]
-	if !ok || artifact.TenantID != actor.TenantID {
-		l.mu.Unlock()
-		return domain.ArtifactSignature{}, ErrNotFound
-	}
-	if err := l.authorizeArtifactSignatureCreationLocked(actor, artifact); err != nil {
-		l.mu.Unlock()
-		return domain.ArtifactSignature{}, err
-	}
-	l.mu.Unlock()
-	payloadHash, payloadRef := "", ""
-	var stagedPayload ObjectPayload
-	if len(in.RawPayload) > 0 {
-		payloadHash = hashBytes(in.RawPayload)
-		var err error
-		stagedPayload, err = l.stagePayload(ctx, actor.TenantID, nonEmpty(in.PayloadMediaType, "application/octet-stream"), payloadHash, in.RawPayload)
-		if err != nil {
-			return domain.ArtifactSignature{}, err
-		}
-		payloadRef = stagedPayload.Reference()
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	sig := domain.ArtifactSignature{
-		ID:                 newID("artsig"),
-		TenantID:           actor.TenantID,
-		ArtifactID:         artifact.ID,
-		SubjectDigest:      artifact.Digest,
-		Algorithm:          in.Algorithm,
-		KeyID:              strings.TrimSpace(in.KeyID),
-		Signature:          in.Signature,
-		PayloadRef:         payloadRef,
-		PayloadHash:        payloadHash,
-		VerificationStatus: "recorded",
-		SchemaVersion:      domain.ArtifactSignatureSchemaVersion,
-		CreatedAt:          l.now(),
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := l.persistStagedObjectPayload(ctx, repos, stagedPayload); err != nil {
-				return err
-			}
-			if err := repos.SupplyChain.InsertArtifactSignature(ctx, sig); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(sig.CreatedAt, actor.TenantID, "artifact_signature.created", "artifact_signature", sig.ID, actorType(actor), actorID(actor), artifact.Digest, ""))
-			return err
-		}); err != nil {
-			return domain.ArtifactSignature{}, err
-		}
-		l.artifactSigs[sig.ID] = sig
-		l.publishCommittedAuditEntryLocked(entry)
-		return sig, nil
-	}
-	l.artifactSigs[sig.ID] = sig
-	_, _ = l.appendChainLocked(actor.TenantID, "artifact_signature.created", "artifact_signature", sig.ID, actorType(actor), actorID(actor), artifact.Digest, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.ArtifactSignature{}, err
-	}
-	return sig, nil
 }
 
 func (l *Ledger) ListSourceRepositories(ctx context.Context, actor domain.Actor, projectID string) ([]domain.SourceRepository, error) {

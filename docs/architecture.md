@@ -472,6 +472,39 @@ checks cover the boundary. The old Ledger getter is an unchanged package-local
 test oracle. Native SQL, public schemas and migrations are unchanged; typed
 snapshots do not prove SQL shapes, work/transfer, locks or durability. This lists
 recorded metadata and does not fetch payloads or verify signatures cryptographically.
+Signature creation and replay preflight fixtures now compose the same focused
+command as runtime too. Current Supply Chain scope/digest readers and metadata-free
+artifact grants precede staging; preflight clocks, IDs, digest projections and
+all effects panic if invoked. One fixture UoW owns signature, staged metadata,
+human-principal audit and finalization-job effects through commit. Real filesystem
+staging remains explicit per fixture, survives rebinding without a registry, and
+preserves exact bytes. Failed commits return no signature and publish no repository
+effects; unreferenced staged files may remain for reconciliation, as before.
+The original filesystem rollback, replay/no-restaging, current-grant and raw-byte
+privacy assertions remain intact. Ordinary seed callers use the focused command.
+The aggregate create method, public guard and input DTO are unchanged test-only
+oracles. The locked association helper still has an evidence-create replay caller
+and remains production code until that dependency retires. Public API, native SQL
+and migrations are unchanged. Typed memory readers do not prove native fences,
+row locks or durability, and no runtime fallback or cryptographic trust claim is
+added. Other aggregate verification commands and state remain incomplete.
+Downstream fixture consumers also use current repositories rather than copying
+new signatures back into aggregate caches. Collector-release recording composes
+the focused command with current collector/signature/SBOM/scan references and
+release/audit effects in one UoW; credential creation and unrelated writes are
+panic guards on this release-only fixture. Collector health composes the focused
+query over one collector and latest/pinned public release projections, with time/ID
+tie ordering, detached limitations and omitted credential scopes. Cosign fixtures
+compose the focused command and actual offline inspector over bounded typed
+signature/artifact/image/payload lifecycle facts. Their ordinary configuration
+has no trust policy, so verification remains explicitly unavailable and emits
+the full-profile limited receipt, generic result and audit atomically; it does
+not invent cryptographic success or contact a provider. Rebinding and failed-commit
+tests cover these paths. Original end-to-end assertions remain intact, including
+an explicit filesystem payload binding for the source/deployment flow and real
+transaction repositories for cookie-origin/bearer precedence. Native SQL and
+public contracts are unchanged; memory snapshots are not native lock, JSON-shape,
+transfer/work or durability proof. Other aggregate declarations remain incomplete.
 Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 

@@ -80,7 +80,15 @@ func TestCosignHTTPStrictPolicyBeforeGuardForFixtureAndNativeCommands(t *testing
 
 func TestCosignHTTPCookieMutationAndBearerPrecedenceForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		s, secret := testServer(t)
+		ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+		_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := newLegacyServerFixture(ledger)
+		if err != nil {
+			t.Fatal(err)
+		}
 		f := &cosignVerificationHTTPFake{}
 		if native {
 			s.cosignVerification = f

@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
@@ -121,7 +122,7 @@ func TestIntegrationFixtureReadsKeepTenantScopeCompletePagesAndDetachedMetadata(
 			*seen = seen.AddDate(1, 0, 0)
 		}
 	}
-	report, err := (collectorHealthFixture{fixture}).Report(t.Context(), human, owner.collector.ID)
+	report, err := (collectorHealthFixture{catalogFixtureCommands: fixture, now: func() time.Time { return owner.collector.CreatedAt }}).Report(t.Context(), human, owner.collector.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +145,7 @@ func TestIntegrationFixtureReadsKeepTenantScopeCompletePagesAndDetachedMetadata(
 	if _, err := (sourceRepositoryPageFixture{fixture}).ListPage(cancelled, human, owner.project.ID, request, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled source read accepted", err)
 	}
-	if _, err := (collectorHealthFixture{fixture}).Report(cancelled, human, owner.collector.ID); !errors.Is(err, context.Canceled) {
+	if _, err := (collectorHealthFixture{catalogFixtureCommands: fixture}).Report(cancelled, human, owner.collector.ID); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled health read accepted", err)
 	}
 	after, err := factory.Snapshot()
