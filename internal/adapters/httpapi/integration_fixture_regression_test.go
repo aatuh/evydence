@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
@@ -105,11 +106,13 @@ func seedIntegrationFixtureScope(t *testing.T, ledger *app.Ledger, name string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.collector, _, _, err = ledger.CreateCollector(t.Context(), f.actor, app.CreateCollectorInput{Name: name, Type: "generic_ci", Version: "1"})
+	commands := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: collectorCreationFixtureCredentials{fixtureSessionCredentials("fixture-pepper")}, clock: application.ClockFunc(func() time.Time { return f.product.CreatedAt })}
+	collector, _, _, err := commands.CreateCollector(t.Context(), f.actor, integrationapp.CreateCollectorInput{Name: name, Type: "generic_ci", Version: "1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := (integrationFixtureCommands{catalogFixtureCommands{ledger: ledger}}).RecordCollectorRelease(t.Context(), f.actor, integrationapp.RecordCollectorReleaseInput{CollectorID: f.collector.ID, Version: "1", ArtifactDigest: "sha256:" + strings.Repeat("a", 64), Pinned: true})
+	f.collector = domain.CollectorFromContextModel(collector)
+	release, err := commands.RecordCollectorRelease(t.Context(), f.actor, integrationapp.RecordCollectorReleaseInput{CollectorID: f.collector.ID, Version: "1", ArtifactDigest: "sha256:" + strings.Repeat("a", 64), Pinned: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +152,7 @@ func TestIntegrationFixturesRollBackCredentialsPinsSourceChildrenAndAudit(t *tes
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: owner.actor}
-			commands := &failingIntegrationFixture{integrationFixtureCommands: integrationFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingIntegrationFixture{integrationFixtureCommands: integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.collectorCommands, server.sourceRepositoryCommands, server.sourceCommitCommands = commands, commands, commands
 			server.sourceBranchCommands, server.pullRequestCommands, server.sourceSnapshotCommands = commands, commands, commands
 			before, err := factory.Snapshot()

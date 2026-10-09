@@ -515,6 +515,23 @@ oracle before retirement, not a runtime compatibility reader. Current-repository
 preflight, tenant/grant rejection, atomic pin replacement and human audit,
 detached results and failed read/write commits have focused regressions. Other
 aggregate declarations remain incomplete.
+Collector creation and inventory fixtures now compose the focused Integration
+command and page query too. Creation uses explicit HMAC credentials and a clock,
+current tenant/name identity reads and atomic collector/key/human-audit writes;
+preflight cannot issue credentials, read uniqueness metadata or perform effects.
+Native credential authentication records the collector heartbeat in repositories,
+not aggregate caches. Per-instance resource binding preserves dependencies across
+rebinding and does not replace explicit command/authentication ports. Inventory
+keeps at most page-size+1 typed coordinates before copying public metadata, with
+the native encoded 1 MiB scope limit including lookahead, detached scopes/time,
+deterministic time/ID ordering and native keyset validation. The historical
+creation/list methods, input DTO and unused collector constants are unchanged
+test-only oracles. Current-state, full DTO, 501-record traversal, wrong-tenant/
+grant, credential rollback, failed commit and missing-repository regressions
+preserve the existing assertions. These fixtures are not another API runtime or
+proof of PostgreSQL JSON shapes, work/transfer, fences or durability; native SQL,
+API contracts and schemas are unchanged. Shared collector replay/type/scope
+helpers still have production callers and are not claimed retired.
 Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 

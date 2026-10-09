@@ -45,7 +45,6 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| build provenance | `internal/app/builds.go` | `CreateCollector` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateControlFramework` | `persistLocked` |
 | controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
 | controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |

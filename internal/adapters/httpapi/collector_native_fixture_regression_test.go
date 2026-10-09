@@ -20,7 +20,7 @@ func TestCollectorNativeFixturePreflightUsesCurrentRepositoryWithoutEffects(t *t
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
 	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector preflight used aggregate clock") }})
-	f := integrationFixtureCommands{catalogFixtureCommands{ledger: rebound}}
+	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	in := integrationapp.RecordCollectorReleaseInput{CollectorID: owner.collector.ID, Version: "2", ArtifactDigest: "sha256:" + strings.Repeat("b", 64), Pinned: true}
 	before, err := base.Snapshot()
 	if err != nil {
@@ -51,7 +51,7 @@ func TestCollectorNativeFixturePinsAndHumanAuditCommitTogether(t *testing.T) {
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
 	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector release used aggregate clock") }})
-	f := integrationFixtureCommands{catalogFixtureCommands{ledger: rebound}}
+	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"collector:admin", "collector:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"collector:admin", "collector:read"}}}}
 	in := integrationapp.RecordCollectorReleaseInput{CollectorID: owner.collector.ID, Version: "2", ArtifactDigest: "sha256:" + strings.Repeat("b", 64), Pinned: true}
 	before, err := base.Snapshot()

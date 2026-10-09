@@ -56,6 +56,8 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"CreateSSOProvider": true, "LinkSSOIdentity": true, "ExchangeSSOCredential": true,
 		"CreateOrganizationInput": true, "CreateUserInput": true, "CreateRoleBindingInput": true,
 		"CreateOrganization": true, "CreateUser": true, "DeactivateUser": true, "CreateRoleBinding": true,
+		"collectorTypeGitHubActions": true, "collectorTypeGitLabCI": true,
+		"collectorTypeGenericCI": true, "collectorTypeImportBundle": true, "collectorStatusActive": true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -149,6 +151,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"VerifyCosignSignature":              true,
 		"RecordCollectorRelease":             true,
 		"CollectorHealthReport":              true,
+		"CreateCollector":                    true,
+		"ListCollectors":                     true,
 		"ListSigningKeys":                    true,
 		"ListAuditLog":                       true,
 		"SigningCustodyReviewReport":         true,
@@ -191,7 +195,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}
 				switch value.Name.Name {
-				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput", "AuditLogFilter", "CreateArtifactSignatureInput", "RecordCollectorReleaseInput", "VerifyCosignInput":
+				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput", "AuditLogFilter", "CreateArtifactSignatureInput", "RecordCollectorReleaseInput", "VerifyCosignInput", "CreateCollectorInput":
 					t.Errorf("%s retains retired aggregate input %s", name, value.Name.Name)
 				}
 			case *ast.FuncDecl:

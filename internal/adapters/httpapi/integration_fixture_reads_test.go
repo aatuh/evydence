@@ -12,18 +12,22 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 )
 
 func TestIntegrationFixtureReadsKeepTenantScopeCompletePagesAndDetachedMetadata(t *testing.T) {
 	ledger, factory := integrationRegressionLedger()
 	owner := seedIntegrationFixtureScope(t, ledger, "Owner")
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
-	second, _, oneTime, err := ledger.CreateCollector(t.Context(), owner.actor, app.CreateCollectorInput{Name: "Second", Type: "generic_ci", Version: "2"})
+	clock := application.ClockFunc(func() time.Time { return owner.collector.CreatedAt })
+	commands := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: collectorCreationFixtureCredentials{fixtureSessionCredentials("fixture-pepper")}, clock: clock}
+	second, _, oneTime, err := commands.CreateCollector(t.Context(), owner.actor, integrationapp.CreateCollectorInput{Name: "Second", Type: "generic_ci", Version: "2"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ledger.Authenticate(t.Context(), oneTime); err != nil {
+	if _, err := fixtureIdentityAuthenticator(ledger, "fixture-pepper", clock).Authenticate(t.Context(), oneTime); err != nil {
 		t.Fatal(err)
 	}
 	repository, err := ledger.CreateSourceRepository(t.Context(), owner.actor, app.CreateRepositoryInput{ProjectID: owner.project.ID, Provider: "gitlab", FullName: "fixture/second"})
@@ -152,11 +156,11 @@ func TestIntegrationFixtureReadsKeepTenantScopeCompletePagesAndDetachedMetadata(
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("read or detached metadata mutation changed integration state", err)
 	}
-	again, err := ledger.ListCollectors(t.Context(), owner.actor)
+	again, err := (collectorPageFixture{fixture}).ListPage(t.Context(), owner.actor, request, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range again {
+	for _, value := range again.Items {
 		if value.AllowedScopes[0] == "modified" {
 			t.Fatal("collector scopes alias aggregate state")
 		}

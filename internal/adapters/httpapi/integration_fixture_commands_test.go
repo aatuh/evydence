@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
@@ -14,7 +15,11 @@ import (
 // Only historical HTTP fixtures use this bridge. Real former source guards and
 // writes operate on current owned records and the isolated replay clone. This
 // is not production wiring or a substitute for PostgreSQL ownership fences.
-type integrationFixtureCommands struct{ catalogFixtureCommands }
+type integrationFixtureCommands struct {
+	catalogFixtureCommands
+	credentials integrationapp.CollectorCredentials
+	clock       application.Clock
+}
 
 func fixtureRepositoryInput(in integrationapp.CreateSourceRepositoryInput) app.CreateRepositoryInput {
 	return app.CreateRepositoryInput(in)
@@ -96,12 +101,12 @@ func (f integrationFixtureCommands) RecordSourceSnapshot(ctx context.Context, a 
 }
 
 func (f integrationFixtureCommands) CreateCollector(ctx context.Context, a domain.Actor, in integrationapp.CreateCollectorInput) (integrationdomain.Collector, identitydomain.APIKey, string, error) {
-	v, key, secret, err := f.commandLedger(ctx).CreateCollector(ctx, a, app.CreateCollectorInput(in))
+	c, err := f.nativeCollectorCreation(false)
 	if err != nil {
 		return integrationdomain.Collector{}, identitydomain.APIKey{}, "", err
 	}
-	model, err := fixtureCollector(v)
-	return model, identitydomain.APIKey(key), secret, err
+	v, key, secret, err := c.CreateCollector(ctx, a, in)
+	return v, key, secret, collectorReleaseFixtureError(err)
 }
 func (f integrationFixtureCommands) RecordCollectorRelease(ctx context.Context, a domain.Actor, in integrationapp.RecordCollectorReleaseInput) (integrationdomain.CollectorRelease, error) {
 	c, err := f.nativeCollectorRelease(false)
@@ -119,8 +124,11 @@ func (f integrationFixtureCommands) CreateCommercialCollectorDefinition(ctx cont
 }
 
 func (s *Server) bindIntegrationFixtureCommands(ledger *app.Ledger) {
-	f := integrationFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.collectorCommands.(integrationFixtureCommands); s.collectorCommands == nil || fixture {
+	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.collectorCommands.(integrationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.collectorCommands = old
+	} else if s.collectorCommands == nil {
 		s.collectorCommands = f
 	}
 	if _, fixture := s.sourceRepositoryCommands.(integrationFixtureCommands); s.sourceRepositoryCommands == nil || fixture {

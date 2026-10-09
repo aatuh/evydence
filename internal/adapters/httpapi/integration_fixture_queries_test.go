@@ -32,24 +32,31 @@ func fixtureCollector(v domain.Collector) (integrationdomain.Collector, error) {
 	return integrationdomain.Collector{ID: v.ID, TenantID: v.TenantID, Name: v.Name, Type: v.Type, Version: v.Version, APIKeyID: v.APIKeyID, Status: status, AllowedScopes: slices.Clone(v.AllowedScopes), LastSeenAt: lastSeen, SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}, err
 }
 func (f collectorPageFixture) ListPage(ctx context.Context, a domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[integrationdomain.Collector], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[integrationdomain.Collector]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListCollectors(ctx, a)
+	q, err := integrationquery.NewCollectors(f)
 	if err != nil {
 		return appquery.Result[integrationdomain.Collector]{}, err
 	}
-	items := make([]integrationdomain.Collector, 0, len(values))
-	for _, v := range values {
-		model, err := fixtureCollector(v)
-		if err != nil {
-			return appquery.Result[integrationdomain.Collector]{}, err
-		}
-		items = append(items, model)
+	v, err := q.ListPage(ctx, a, request, after)
+	return v, mapIntegrationQueryError(err)
+}
+func (f collectorPageFixture) PageCollectors(ctx context.Context, request integrationquery.CollectorPageRequest) (appquery.Result[integrationdomain.Collector], error) {
+	var out appquery.Result[integrationdomain.Collector]
+	if ctx == nil {
+		return out, integrationquery.ErrValidation
 	}
-	return appquery.Page(items, request, after, func(v integrationdomain.Collector, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(v.ID, v.CreatedAt, sort)
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Builds.(integrationquery.CollectorReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageCollectors(ctx, request)
+		return err
 	})
+	if err != nil {
+		return appquery.Result[integrationdomain.Collector]{}, err
+	}
+	return out, nil
 }
 func (f commercialCollectorPageFixture) ListPage(ctx context.Context, a domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[integrationdomain.CommercialCollectorDefinition], error) {
 	if err := appquery.Validate(request, after); err != nil {

@@ -1485,6 +1485,7 @@ func TestExceptionHTTPFlowPreservesLifecycleAndScope(t *testing.T) {
 
 func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 	server, secret := operationsTestServer(t)
+	server.bindCollectorFixtureResources("test", nil)
 	productBody := postJSON(t, server, secret, "/v1/products", "prov-prod", map[string]any{"name": "Provenance Product", "slug": "provenance-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	projectBody := postJSON(t, server, secret, "/v1/projects", "prov-project", map[string]any{"product_id": productID, "name": "api"}, http.StatusCreated)

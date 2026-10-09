@@ -66,11 +66,11 @@ func (f collectorFixtureGuard) ExecuteCollector(ctx context.Context, run func(co
 	return run(ctx, f)
 }
 func (f integrationFixtureCommands) collectorGuard() (*integrationapp.CollectorCommands, error) {
-	guard := collectorFixtureGuard(f)
+	guard := collectorFixtureGuard{catalogFixtureCommands: f.catalogFixtureCommands}
 	return integrationapp.NewCollectorCommands(integrationapp.CollectorCommandConfig{Authorizer: integrationapp.NewCollectorWriteAuthorizer(), Transactions: guard, Credentials: guard, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
 }
 func (f integrationFixtureCommands) AuthorizeCreateCollector(ctx context.Context, a domain.Actor, in integrationapp.CreateCollectorInput) error {
-	guard, err := f.collectorGuard()
+	guard, err := f.nativeCollectorCreation(true)
 	if err != nil {
 		return err
 	}
