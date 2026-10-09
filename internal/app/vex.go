@@ -71,32 +71,6 @@ type openVEXProduct struct {
 	Subcomponents []openVEXProduct `json:"subcomponents,omitempty"`
 }
 
-func customerDecisionSummary(decision domain.VulnerabilityDecision) domain.VulnerabilityDecisionCustomerSummary {
-	return domain.VulnerabilityDecisionCustomerSummary{
-		ID:                decision.ID,
-		FindingID:         decision.FindingID,
-		ScanID:            decision.ScanID,
-		ReleaseID:         decision.ReleaseID,
-		Vulnerability:     decision.Vulnerability,
-		Component:         decision.Component,
-		SBOMID:            decision.SBOMID,
-		SBOMComponentPURL: decision.SBOMComponentPURL,
-		SBOMComponentName: decision.SBOMComponentName,
-		Status:            decision.Status,
-		Justification:     decision.Justification,
-		ImpactStatement:   decision.ImpactStatement,
-		ActionStatement:   decision.ActionStatement,
-		Source:            decision.Source,
-		EvidenceID:        decision.EvidenceID,
-		EvidenceIDs:       append([]string(nil), decision.EvidenceIDs...),
-		SupportingRefs:    cloneSubjectRefs(decision.SupportingRefs),
-		VEXDocumentID:     decision.VEXDocumentID,
-		ReviewedAt:        cloneTimePtr(decision.ReviewedAt),
-		ReviewDueAt:       cloneTimePtr(decision.ReviewDueAt),
-		CreatedAt:         decision.CreatedAt,
-	}
-}
-
 func (l *Ledger) activeDecisionCountForReleaseLocked(tenantID, releaseID string) int {
 	count := 0
 	for _, decision := range l.decisions {

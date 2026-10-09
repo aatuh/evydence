@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"slices"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
@@ -95,11 +97,27 @@ func decisionSummaryFixtureModel(value domain.VulnerabilityDecisionSummaryReport
 }
 
 func (f decisionSummaryQueryFixture) SummaryReport(ctx context.Context, actor domain.Actor, releaseID string) (riskdomain.VulnerabilityDecisionSummaryReport, error) {
-	value, err := f.commandLedger(ctx).VulnerabilityDecisionSummaryReport(ctx, actor, releaseID)
+	query, err := riskquery.NewVulnerabilityDecisionSummary(f, time.Now)
 	if err != nil {
 		return riskdomain.VulnerabilityDecisionSummaryReport{}, err
 	}
-	return decisionSummaryFixtureModel(value), nil
+	value, err := query.SummaryReport(ctx, actor, releaseID)
+	if errors.Is(err, riskquery.ErrNotFound) {
+		err = app.ErrNotFound
+	} else if errors.Is(err, riskquery.ErrValidation) {
+		err = app.ErrValidation
+	}
+	return value, legacyParsedPointError(err)
+}
+
+func (f decisionSummaryQueryFixture) ReadVulnerabilityDecisionSummary(ctx context.Context, request riskquery.DecisionSummaryRequest) (riskquery.DecisionSummarySnapshot, error) {
+	return parsedFixtureRead(ctx, f.catalogFixtureCommands, func(ctx context.Context, r app.Repositories) (riskquery.DecisionSummarySnapshot, error) {
+		reader, ok := r.Decisions.(riskquery.DecisionSummaryReader)
+		if !ok {
+			return riskquery.DecisionSummarySnapshot{}, app.ErrValidation
+		}
+		return reader.ReadVulnerabilityDecisionSummary(ctx, request)
+	})
 }
 
 func (s *Server) bindRiskQueryFixturePorts(ledger *app.Ledger) {

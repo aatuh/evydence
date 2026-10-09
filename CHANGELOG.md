@@ -22,6 +22,12 @@ CI simulation uses an owned disposable PostgreSQL schema. See the
 [configuration migration note](docs/reference/configuration.md#retired-local-memory-profile-unreleased).
 Older published release binaries are not changed by this source update.
 
+Customer-visible vulnerability-decision summaries now fail closed above 4,096
+selected decisions or an 8 MiB selected text/encoded-container budget, before
+PostgreSQL transfers decision metadata. Oversized summaries return no partial
+report. Current grants, active/customer-visible filtering and private-note
+omission are preserved; see [summary limits](docs/api.md#3-upload-sbom-and-vulnerability-evidence).
+
 SBOM component paging now excludes artifact evidence/build associations whose
 supplied release disagrees with the SBOM release, before applying page limits.
 This prevents inconsistent associations from producing projection conflicts;

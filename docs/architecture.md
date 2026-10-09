@@ -286,6 +286,17 @@ contracts and SQL are unchanged; typed memory checks do not prove SQL JSON
 shapes, work/transfer bounds, locks or durability. Remaining aggregate state and
 compatibility completion still require retirement in EVY-906.
 
+Customer-visible decision-summary fixtures now compose the focused Risk query
+with current typed Decision repositories. The old Ledger summary facade and
+three legacy summary mappers are unchanged package-local test oracles. Current
+release/product ownership and resource grants precede selection; hidden,
+superseded and foreign decisions and private notes are excluded. Native SQL
+preflights the bounded selection in the same repeatable-read snapshot before
+transferring metadata; see the [summary limits](api.md#3-upload-sbom-and-vulnerability-evidence).
+Fixture reads retain detached metadata and return no report after a failed
+commit. Typed memory checks model ownership and response budgets, not SQL
+shapes, locks or durability. Remaining aggregate state is still EVY-906 work.
+
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require
 focused Evidence commands. Their eleven transport fallbacks, fifteen-method

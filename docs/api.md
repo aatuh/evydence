@@ -716,8 +716,16 @@ tokens, and private review context. The response includes assumptions and
 limitations and is intended for package viewers and exports. `release_id` is
 required; blank, duplicate, and unknown query parameters are rejected. In
 PostgreSQL mode, one release-scoped read snapshot checks current `report:read`
-grants before selecting customer-visible decisions. Local-memory mode keeps
-the compatibility reader.
+grants before selecting customer-visible decisions. The summary accepts at most
+4,096 selected decisions and 8 MiB of combined selected text and encoded
+evidence-ID/supporting-reference containers. SQL measures at most 4,097
+eligible rows before transferring decision metadata; private notes, hidden,
+superseded, foreign-tenant and other-release rows do not enter the budget.
+Overflow fails closed with no partial report, rather than truncating it.
+Timestamp and boolean fields have fixed overhead bounded by the row limit.
+These are selection/transfer bounds, not a database execution-time guarantee.
+Local evaluation requires PostgreSQL; typed memory readers are test fixtures,
+not a supported API profile.
 
 ### 4. Readiness And Bundle Retrieval
 
