@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
@@ -81,6 +82,19 @@ func callFixtureSignedWebhook(t *testing.T, server *Server, receiver string, pri
 
 func seedOperationsFixtureScope(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
 	t.Helper()
+	f := seedOperationsFixtureReferences(t, ledger, name)
+	incident, err := (operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.product.CreatedAt })}).CreateIncident(t.Context(), f.actor, operationsapp.CreateIncidentInput{ProductID: f.product.ID, ReleaseID: f.release.ID, Title: "Initial incident", Severity: "high"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.incident = domain.IncidentFromContextModel(incident)
+	return f
+}
+
+// Missing-repository regressions need only cached references, not an incident
+// command that correctly requires its focused repository dependencies.
+func seedOperationsFixtureReferences(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
+	t.Helper()
 	var f operationsFixtureScope
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), name, "admin", []string{"*"})
 	if err != nil {
@@ -99,10 +113,6 @@ func seedOperationsFixtureScope(t *testing.T, ledger *app.Ledger, name string) o
 		t.Fatal(err)
 	}
 	f.evidence, err = ledger.CreateEvidence(t.Context(), f.actor, app.CreateEvidenceInput{ProductID: f.product.ID, ReleaseID: f.release.ID, Type: "security_review", Title: "Review", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.incident, err = ledger.CreateIncident(t.Context(), f.actor, app.CreateIncidentInput{ProductID: f.product.ID, ReleaseID: f.release.ID, Title: "Initial incident", Severity: "high"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,11 +226,22 @@ type failingWebhookFixtureUnit struct{ app.UnitOfWork }
 
 func (f failingWebhookFixtureUnit) Repositories() app.Repositories {
 	repos := f.UnitOfWork.Repositories()
-	repos.Risk = failingWebhookFixtureRecords{repos.Risk}
+	reader, ok := repos.Risk.(operationsapp.IncidentReader)
+	webhooks, hasWebhooks := repos.Risk.(operationsapp.IncidentWebhookReader)
+	routing, hasRouting := repos.Risk.(operationsapp.IncidentWebhookRouting)
+	if !ok || !hasWebhooks || !hasRouting {
+		panic("failure fixture lost focused webhook dependencies")
+	}
+	repos.Risk = failingWebhookFixtureRecords{RiskRepository: repos.Risk, IncidentReader: reader, IncidentWebhookReader: webhooks, IncidentWebhookRouting: routing}
 	return repos
 }
 
-type failingWebhookFixtureRecords struct{ app.RiskRepository }
+type failingWebhookFixtureRecords struct {
+	app.RiskRepository
+	operationsapp.IncidentReader
+	operationsapp.IncidentWebhookReader
+	operationsapp.IncidentWebhookRouting
+}
 
 func (f failingWebhookFixtureRecords) InsertIncidentWebhookEvent(ctx context.Context, v domain.IncidentWebhookEvent, e domain.IncidentTimelineEvent) error {
 	if err := f.RiskRepository.InsertIncidentWebhookEvent(ctx, v, e); err != nil {
@@ -236,7 +257,8 @@ func TestOperationsFixtureSignedWebhookRollbackRecoveryAndBusinessReplay(t *test
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return now }})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	private := ed25519.NewKeyFromSeed([]byte(strings.Repeat("w", 32)))
-	receiver, err := ledger.CreateIncidentWebhookReceiver(t.Context(), owner.actor, app.CreateIncidentWebhookReceiverInput{IncidentID: owner.incident.ID, Name: "Pager", Provider: "fixture", PublicKey: base64.RawStdEncoding.EncodeToString(private.Public().(ed25519.PublicKey))})
+	commands := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return now })}
+	receiver, err := commands.CreateIncidentWebhookReceiver(t.Context(), owner.actor, operationsapp.CreateIncidentWebhookReceiverInput{IncidentID: owner.incident.ID, Name: "Pager", Provider: "fixture", PublicKey: base64.RawStdEncoding.EncodeToString(private.Public().(ed25519.PublicKey))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,6 +266,7 @@ func TestOperationsFixtureSignedWebhookRollbackRecoveryAndBusinessReplay(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
+	server.incidentWebhookCommands = commands
 	before, err := memory.Snapshot()
 	if err != nil {
 		t.Fatal(err)

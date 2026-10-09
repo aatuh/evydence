@@ -49,11 +49,6 @@ These commands commit through focused repositories whenever `UnitOfWorkFactory` 
 | controls | `internal/app/controls.go` | `CreateSecurityControl` | `persistLocked` |
 | controls | `internal/app/controls.go` | `LinkControlEvidence` | `persistLocked` |
 | governance, packages, and package reports | `internal/app/governance_packages.go` | `InstallControlFrameworkTemplatePack` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncident` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `CreateIncidentWebhookReceiver` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `CreateRemediationTask` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `HandleIncidentWebhook` | `persistLocked` |
-| risk and security workflows | `internal/app/risk_workflows.go` | `RecordIncidentTimelineEvent` | `persistLocked` |
 
 ## Next Decomposition Order
 

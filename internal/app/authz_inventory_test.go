@@ -61,9 +61,6 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"authorizeQuestionnairePackageCreateLocked",
 		},
 		"risk_workflows.go": {
-			"CreateIncident",
-			"RecordIncidentTimelineEvent",
-			"CreateRemediationTask",
 			"UploadSecurityScan",
 			"UploadManualSecurityDocument",
 		},
@@ -75,6 +72,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"legacy_deployment_lists_oracle_test.go":   {"ListDeploymentEnvironments", "ListDeployments"},
 		"legacy_deployment_write_oracle_test.go":   {"CreateDeploymentEnvironment", "RecordDeployment"},
 		"legacy_operations_reports_oracle_test.go": {"IncidentReport"},
+		"legacy_incident_writes_oracle_test.go":    {"CreateIncident", "RecordIncidentTimelineEvent", "CreateRemediationTask"},
 		"legacy_leaf_oracle_test.go":               {"SearchEvidence"},
 	}
 	for file, funcs := range files {

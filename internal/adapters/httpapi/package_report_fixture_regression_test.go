@@ -14,6 +14,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -67,10 +68,11 @@ func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string
 	if err != nil {
 		t.Fatal("report fixed decision:", err)
 	}
-	f.task, err = ledger.CreateRemediationTask(t.Context(), f.actor, app.CreateRemediationTaskInput{IncidentID: f.incident.ID, ReleaseID: f.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: f.evidence.ID})
+	task, err := (operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.release.CreatedAt })}).CreateRemediationTask(t.Context(), f.actor, operationsapp.CreateRemediationTaskInput{IncidentID: f.incident.ID, ReleaseID: f.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: f.evidence.ID})
 	if err != nil {
 		t.Fatal("report remediation task:", err)
 	}
+	f.task = domain.RemediationTask(task)
 	f.bundle, err = ledger.CreateReleaseBundle(t.Context(), f.actor, f.release.ID)
 	if err != nil {
 		t.Fatal("report bundle:", err)

@@ -133,7 +133,7 @@ func TestArtifactNativeFixtureDiscardsPointAndGrantOnCommitFailure(t *testing.T)
 
 func TestArtifactNativeFixtureFailsClosedAndPreservesExplicitQuery(t *testing.T) {
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	owner := seedOperationsFixtureScope(t, ledger, "Owner")
+	owner := seedOperationsFixtureReferences(t, ledger, "Owner")
 	a, err := ledger.RegisterArtifact(t.Context(), owner.actor, "Cached artifact", "application/octet-stream", "sha256:"+strings.Repeat("a", 64), 42)
 	if err != nil {
 		t.Fatal(err)

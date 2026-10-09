@@ -20,7 +20,7 @@ func TestOperationsReportNativeFixturesReadCurrentStateAndDiscardFailedCommit(t 
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
-	if _, err := ledger.RecordIncidentTimelineEvent(t.Context(), owner.actor, owner.incident.ID, app.RecordIncidentTimelineInput{EventType: "noted", Summary: "Recorded", EvidenceID: owner.evidence.ID}); err != nil {
+	if _, err := (operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).RecordIncidentTimelineEvent(t.Context(), owner.actor, owner.incident.ID, operationsapp.RecordIncidentTimelineInput{EventType: "noted", Summary: "Recorded", EvidenceID: owner.evidence.ID}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := (operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateLegalHold(t.Context(), owner.actor, operationsapp.RetentionMarkerInput{ScopeType: "release", ScopeID: owner.release.ID, Reason: "Review", Owner: "Reviewer"}); err != nil {

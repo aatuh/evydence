@@ -153,7 +153,7 @@ func TestRepositoryIngestionScopeGuardDoesNotFallbackAfterCommitOrRepositoryFail
 	// These parents genuinely exist in legacy caches. Explicit native mode
 	// must still fail closed if its repository dependency is unavailable.
 	legacy := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	legacyOwner := seedOperationsFixtureScope(t, legacy, "Legacy")
+	legacyOwner := seedOperationsFixtureReferences(t, legacy, "Legacy")
 	commands = ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: legacy}, repositoryScope: true}
 	input.ReleaseID = legacyOwner.release.ID
 	if err := commands.AuthorizeUploadSBOM(t.Context(), legacyOwner.actor, input); !errors.Is(err, evidenceapp.ErrValidation) {

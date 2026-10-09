@@ -124,8 +124,8 @@ reports, legal holds, retention extensions and retention reports now require
 focused Operations/Package ports. Eight handler fallbacks across nine routes
 are deleted. Native current ownership/grants, signature-before-parsing,
 timestamp/replay protocols, cookie-origin checks and atomic writes are retained.
-Test-only adapters run actual native preflight algorithms on focused memory
-transaction readers; writes retain the isolated historical commands. No guard
+Test-only adapters run actual focused command and preflight algorithms on typed
+memory transaction readers. No guard
 may invoke effects, private webhook reads, clocks or IDs. The signed callback
 fixture retains its separate real business-replay unit of work, not HTTP
 idempotency. Six full-state write rollback/replay regressions, callback
@@ -157,9 +157,23 @@ dates remain valid for authorization-only historical replay, while fresh writes
 still require a future date. Failed commits return empty results and leave state
 unchanged. Both old commands, DTOs and cached scope helper are unchanged test-only
 oracles protected by retirement checks. External report seeds use focused writes
-and fixed clocks, preserving complete DTO and original status assertions. Incident
-writes and aggregate state still require retirement; API/SQL/schema are unchanged,
-and these typed tests do not prove native fences, locks or durability.
+and fixed clocks, preserving complete DTO and original status assertions.
+Incident, timeline, task, receiver and callback fixtures now use the actual focused
+Operations services without cached incident or receiver publication. Their five
+historical Ledger commands, DTOs and protocol wrappers are unchanged test-only
+oracles protected by retirement checks. Routing exposes only a bounded tenant
+locator; the transaction reads current receiver authority without descriptive
+metadata, then verifies the exact signed bytes before payload parsing or replay.
+Replay reads bounded receipt/timeline fields and rechecks current incident/evidence
+ownership. Task references are authorized independently; they are not restricted
+to one product when the caller has authority for each reference. Commands preserve
+explicit clocks, complete DTOs, detached due dates and atomic record/audit effects;
+failed commits return no result. Foreign references, revoked grants, signatures,
+malformed input, stale timestamps, conflicting replay and failure-after-insert
+recovery retain their negative assertions. Missing-repository tests seed only the
+cached references they require and still reject fallback behavior. Remaining
+aggregate state requires retirement; API/SQL/schema are unchanged, and these typed
+tests do not prove native fences, locks, restart or concurrent-delivery durability.
 
 Framework/control creation, starter-pack installation, evidence linking and
 their definition/catalog/link reads now require focused Risk ports. Eight

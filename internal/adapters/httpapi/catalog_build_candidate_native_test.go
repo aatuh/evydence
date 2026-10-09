@@ -169,7 +169,7 @@ func TestCatalogBuildCandidateNativeQueriesDiscardResultsOnCommitFailure(t *test
 
 func TestCatalogBuildCandidateNativeQueriesNeverFallBackToCachedLedgerRows(t *testing.T) {
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	owner := seedOperationsFixtureScope(t, ledger, "Owner")
+	owner := seedOperationsFixtureReferences(t, ledger, "Owner")
 	project, err := ledger.CreateProject(t.Context(), owner.actor, owner.product.ID, "Project")
 	if err != nil {
 		t.Fatal(err)

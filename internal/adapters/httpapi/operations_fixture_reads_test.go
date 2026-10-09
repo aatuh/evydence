@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
@@ -24,12 +23,12 @@ func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadat
 	var ownHold domain.LegalHold
 	var ownOverride domain.RetentionOverride
 	for _, scope := range []operationsFixtureScope{owner, foreign} {
-		timeline, err := ledger.RecordIncidentTimelineEvent(t.Context(), scope.actor, scope.incident.ID, app.RecordIncidentTimelineInput{EventType: "noted", Summary: "Containment recorded", EvidenceID: scope.evidence.ID})
+		timeline, err := markers.RecordIncidentTimelineEvent(t.Context(), scope.actor, scope.incident.ID, operationsapp.RecordIncidentTimelineInput{EventType: "noted", Summary: "Containment recorded", EvidenceID: scope.evidence.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
 		due := time.Date(2026, 10, 8, 16, 0, 0, 0, time.UTC)
-		task, err := ledger.CreateRemediationTask(t.Context(), scope.actor, app.CreateRemediationTaskInput{IncidentID: scope.incident.ID, ReleaseID: scope.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: scope.evidence.ID})
+		task, err := markers.CreateRemediationTask(t.Context(), scope.actor, operationsapp.CreateRemediationTaskInput{IncidentID: scope.incident.ID, ReleaseID: scope.release.ID, Title: "Patch", Owner: "Security Team", DueAt: &due, EvidenceID: scope.evidence.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +41,7 @@ func TestOperationsFixtureReportsKeepCurrentGrantsCompleteDTOsAndDetachedMetadat
 			t.Fatal(err)
 		}
 		if scope.actor.TenantID == owner.actor.TenantID {
-			ownTimeline, ownTask, ownHold, ownOverride = timeline, task, domain.LegalHold(hold), domain.RetentionOverride(override)
+			ownTimeline, ownTask, ownHold, ownOverride = domain.IncidentTimelineEvent(timeline), domain.RemediationTask(task), domain.LegalHold(hold), domain.RetentionOverride(override)
 		}
 	}
 	server, err := newLegacyServerFixture(ledger)
