@@ -458,6 +458,18 @@ Native input validation, current-authority guards, private-note omission,
 append-only decision history and atomic evaluation/audit/replay callbacks are
 unchanged. Test-only bridges use actual Risk authorizers and current owned
 coordinates, isolate writes, preserve exact replay and detach recorded checks.
+The built-in evaluation fixture now composes `PolicyEvaluationCommands`
+directly. One current UoW supplies the authority-only release reader, the shared
+bounded readiness facts at the command's evaluation time, evaluation insertion
+and audit append. Replay preflight does not select readiness facts. Failed
+commands/commits publish no evaluation or audit and return no partial result;
+exact HTTP replay and current-grant revocation assertions remain intact.
+The command does not use the aggregate clock or evaluator. The former Ledger
+evaluation facade is an unchanged package-local test oracle, and its obsolete
+production file is deleted. Typed memory readers do not prove PostgreSQL
+projection fences, share locks or durability; the existing SQL/runtime service
+is unchanged, and other direct Risk calls and Ledger state still require
+retirement under EVY-906.
 The existing synchronous VEX import/manual-link assertions remain intact;
 additional repository-fixture coverage exercises links to queued documents.
 Repository-backed ingestion fixtures now resolve product/project/release
@@ -636,8 +648,7 @@ readiness port does not replace or wrap them. Historical evaluation import is
 insert-or-compare, never an update of result or checks. The shared pure evaluator
 retains the existing 13 checks and policy-set version. See
 [built-in policy evaluation](api.md#built-in-policy-evaluation) for limits and
-compatibility; other production paths and startup Ledger retirement remain
-EVY-905 work.
+compatibility; remaining aggregate retirement is EVY-906 work.
 
 SBOM diff creation (`POST /v1/sbom-diffs`) uses a focused Evidence command with
 identifier-only parent resolution before bounded component reads. Both inputs,

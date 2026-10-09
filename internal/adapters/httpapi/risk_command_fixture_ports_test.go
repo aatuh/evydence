@@ -170,35 +170,11 @@ func (f riskCommandFixture) CreateVulnerabilityDecision(ctx context.Context, act
 }
 
 func (f riskCommandFixture) AuthorizeEvaluateRelease(ctx context.Context, actor domain.Actor, id string) error {
-	authorizer := riskapp.NewPolicyEvaluationAuthorizer()
-	if err := authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	command, err := f.policyEvaluation()
+	if err != nil {
 		return err
 	}
-	id = strings.TrimSpace(id)
-	if err := validateControlEvidencePathID(id); err != nil {
-		return err
-	}
-	// Use the actual tenant-bound point reads as the fixture's internal owner
-	// lookup, not the request actor's read grants: evaluating is verify:read.
-	// No result is exposed until the actual Risk write authorizer has checked
-	// the request actor's current grant against the resolved coordinates.
-	reader := domain.Actor{TenantID: actor.TenantID, KeyID: "fixture-owner-reader", Scopes: []string{"product:read", "release:read"}}
-	query := catalogQueryFixture(f)
-	release, err := query.GetRelease(ctx, reader, id)
-	if err != nil {
-		return mapCatalogPointQueryError(err)
-	}
-	if release.TenantID != actor.TenantID || release.ID != id || release.ProductID == "" {
-		return app.ErrNotFound
-	}
-	product, err := query.GetProduct(ctx, reader, release.ProductID)
-	if err != nil {
-		return mapCatalogPointQueryError(err)
-	}
-	if product.ID != release.ProductID || product.TenantID != actor.TenantID {
-		return app.ErrNotFound
-	}
-	return authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, Resources: application.ResourceReferences{ProductID: product.ID, ReleaseID: id}})
+	return policyEvaluationFixtureError(command.AuthorizeEvaluateRelease(ctx, actor, id))
 }
 
 func policyEvaluationFixtureModel(value domain.PolicyEvaluation) riskdomain.PolicyEvaluation {
@@ -210,8 +186,12 @@ func policyEvaluationFixtureModel(value domain.PolicyEvaluation) riskdomain.Poli
 }
 
 func (f riskCommandFixture) EvaluateRelease(ctx context.Context, actor domain.Actor, id string) (riskdomain.PolicyEvaluation, error) {
-	value, err := f.commandLedger(ctx).EvaluateRelease(ctx, actor, id)
-	return policyEvaluationFixtureModel(value), err
+	command, err := f.policyEvaluation()
+	if err != nil {
+		return riskdomain.PolicyEvaluation{}, err
+	}
+	value, err := command.EvaluateRelease(ctx, actor, id)
+	return value, policyEvaluationFixtureError(err)
 }
 
 func (s *Server) bindRiskCommandFixturePorts(ledger *app.Ledger) {

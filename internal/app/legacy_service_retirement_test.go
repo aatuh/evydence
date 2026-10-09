@@ -145,6 +145,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"GetVEXImportReport":                 true,
 		"VulnerabilityDecisionSummaryReport": true,
 		"ListVulnerabilityDecisions":         true,
+		"EvaluateRelease":                    true,
 		"PreviewVEXImport":                   true, "PreviewCycloneDXVEXImport": true,
 		"findMatchingFindingsLocked": true, "previewOpenVEXDecisionEffectsLocked": true,
 		"findCycloneDXVEXMatchingFindingsLocked": true, "previewCycloneDXVEXDecisionEffectsLocked": true,
