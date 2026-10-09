@@ -22,6 +22,12 @@ CI simulation uses an owned disposable PostgreSQL schema. See the
 [configuration migration note](docs/reference/configuration.md#retired-local-memory-profile-unreleased).
 Older published release binaries are not changed by this source update.
 
+Customer-package access now preserves exact frozen JSON numbers and applies
+the existing creation depth/collection limits to stored manifests. Counter
+updates cannot overwrite frozen fields with a sanitized delivery view. The
+aggregate access/report/archive facades are retired from production source;
+routes and valid package contracts are unchanged. See [access compatibility](docs/reference/api-versioning.md#unreleased-customer-package-access-boundary).
+
 Customer-visible vulnerability-decision summaries now fail closed above 4,096
 selected decisions or an 8 MiB selected text/encoded-container budget, before
 PostgreSQL transfers decision metadata. Oversized summaries return no partial

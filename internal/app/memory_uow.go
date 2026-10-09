@@ -2804,40 +2804,8 @@ func (r memoryPackageRepository) InsertEvidenceBundle(ctx context.Context, bundl
 	})
 }
 
-func (r memoryPackageRepository) GetCustomerSecurityPackageForUpdate(ctx context.Context, tenantID, id string) (domain.CustomerSecurityPackage, error) {
-	if ctx == nil {
-		return domain.CustomerSecurityPackage{}, ErrValidation
-	}
-	if err := ctx.Err(); err != nil {
-		return domain.CustomerSecurityPackage{}, err
-	}
-	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(id) == "" {
-		return domain.CustomerSecurityPackage{}, ErrValidation
-	}
-	var pkg domain.CustomerSecurityPackage
-	err := r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
-		value, ok := state.CustomerPackages[id]
-		if !ok || value.TenantID != tenantID {
-			return ErrNotFound
-		}
-		if !memoryResourceBelongsToTenant(value.ProductID, tenantID, state.Products) {
-			return ErrNotFound
-		}
-		if value.ReleaseID != "" {
-			release, ok := state.Releases[value.ReleaseID]
-			if !ok || release.TenantID != tenantID || release.ProductID != value.ProductID {
-				return ErrNotFound
-			}
-		}
-		var err error
-		pkg, err = cloneMemoryJSON(value)
-		return err
-	})
-	return pkg, err
-}
-
 func (r memoryPackageRepository) InsertCustomerSecurityPackage(ctx context.Context, pkg domain.CustomerSecurityPackage) error {
-	cloned, err := cloneMemoryJSON(pkg)
+	cloned, err := cloneMemoryCustomerPackage(pkg)
 	if err != nil {
 		return err
 	}
@@ -2861,27 +2829,6 @@ func (r memoryPackageRepository) InsertCustomerSecurityPackage(ctx context.Conte
 			return ErrNotFound
 		}
 		if _, exists := state.CustomerPackages[cloned.ID]; exists {
-			return ErrConflict
-		}
-		state.CustomerPackages[cloned.ID] = cloned
-		return nil
-	})
-}
-
-func (r memoryPackageRepository) UpdateCustomerSecurityPackageAccess(ctx context.Context, previous, current domain.CustomerSecurityPackage) error {
-	cloned, err := cloneMemoryJSON(current)
-	if err != nil {
-		return err
-	}
-	return r.uow.mutate(ctx, func(state *MemoryUnitOfWorkSnapshot) error {
-		if cloned.ID == "" || cloned.TenantID == "" || previous.ID != cloned.ID || previous.TenantID != cloned.TenantID || cloned.AccessCount != previous.AccessCount+1 {
-			return ErrValidation
-		}
-		stored, ok := state.CustomerPackages[cloned.ID]
-		if !ok || stored.TenantID != cloned.TenantID {
-			return ErrNotFound
-		}
-		if stored.AccessCount != previous.AccessCount || stored.ManifestHash != cloned.ManifestHash || stored.State != cloned.State || stored.ExpiresAt != cloned.ExpiresAt {
 			return ErrConflict
 		}
 		state.CustomerPackages[cloned.ID] = cloned
@@ -4128,8 +4075,13 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.EvidenceBundles, err = cloneMemoryMap(snapshot.EvidenceBundles); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
-	if cloned.CustomerPackages, err = cloneMemoryMap(snapshot.CustomerPackages); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.CustomerPackages = make(map[string]domain.CustomerSecurityPackage, len(snapshot.CustomerPackages))
+	for id, pkg := range snapshot.CustomerPackages {
+		copied, cloneErr := cloneMemoryCustomerPackage(pkg)
+		if cloneErr != nil {
+			return MemoryUnitOfWorkSnapshot{}, cloneErr
+		}
+		cloned.CustomerPackages[id] = copied
 	}
 	if cloned.BundleImports, err = cloneMemoryMap(snapshot.BundleImports); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err

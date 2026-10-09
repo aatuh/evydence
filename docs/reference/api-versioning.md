@@ -979,6 +979,23 @@ These authorization/input restrictions need release compatibility review and
 the exact project-owned breaking-change gate before ticket closure. No
 exception, external review, or production Ledger retirement is claimed here.
 
+## Unreleased Customer Package Access Boundary
+
+Customer-package JSON, security-review reports and ZIP downloads retain their
+route, scope, response and manifest-hash contracts. Access preserves exact
+JSON numbers instead of rounding frozen integers or decimals through `float64`.
+Only the access counter and its audit entry change; frozen package fields are
+not rewritten with the sanitized delivery view.
+
+Selected stored manifests must satisfy the existing creation limits: 8 MiB,
+32 JSON container levels, 4,096 keys per object and 4,096 items per array.
+Oversized, malformed or ambiguous projections fail closed with no partial
+package, counter increment or access audit. Valid creation outputs remain
+supported. Historical invalid projections are neither repaired nor rewritten
+automatically; these stricter stored-data checks need release compatibility
+review, not an assumed approved exception. Memory fixtures are test-only,
+not a supported API backend or proof of PostgreSQL transaction guarantees.
+
 ## Unreleased Questionnaire Package Boundary
 
 `POST /v1/questionnaire-packages` now binds focused Package commands in

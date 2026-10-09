@@ -1,6 +1,7 @@
 package repositories_test
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -47,6 +48,21 @@ func TestCustomerPackageLockedReadScopesAndBoundsManifest(t *testing.T) {
 	}
 	if _, err := repository.GetCustomerSecurityPackageForUpdate(ctx, "ten_foreign", "csp_package"); !errors.Is(err, app.ErrNotFound) {
 		t.Fatal(err)
+	}
+	exec(`UPDATE customer_security_packages SET manifest='{"exact":9007199254740993,"nested":{"decimal":123456789.123456789}}' WHERE id='csp_package'`)
+	exact, err := repository.GetCustomerSecurityPackageForUpdate(ctx, "ten_package", "csp_package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := exact.Manifest["exact"].(json.Number); !ok || n.String() != "9007199254740993" {
+		t.Fatal("database manifest integer rounded", exact.Manifest)
+	}
+	if n, ok := exact.Manifest["nested"].(map[string]any)["decimal"].(json.Number); !ok || n.String() != "123456789.123456789" {
+		t.Fatal("database manifest decimal rounded", exact.Manifest)
+	}
+	exec(`UPDATE customer_security_packages SET manifest=$1::jsonb WHERE id='csp_package'`, `{"nested":`+strings.Repeat("[", 33)+"null"+strings.Repeat("]", 33)+"}")
+	if result, err := repository.GetCustomerSecurityPackageForUpdate(ctx, "ten_package", "csp_package"); !errors.Is(err, app.ErrConflict) || result.ID != "" {
+		t.Fatal("deep stored manifest returned data", err)
 	}
 	exec(`UPDATE customer_security_packages SET manifest='[]' WHERE id='csp_package'`)
 	if _, err := repository.GetCustomerSecurityPackageForUpdate(ctx, "ten_package", "csp_package"); !errors.Is(err, app.ErrConflict) {

@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
+	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 )
 
 // GetCustomerSecurityPackageForUpdate resolves current tenant-owned parents
@@ -51,8 +53,21 @@ func (r packages) GetCustomerSecurityPackageForUpdate(ctx context.Context, tenan
 	if err != nil {
 		return empty, fmt.Errorf("read locked customer package: %w", err)
 	}
-	if oversized || len(manifest) == 0 || json.Unmarshal(manifest, &pkg.Manifest) != nil || pkg.Manifest == nil {
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
+	// Apply the creation contract before decoding a stored manifest. Keep exact
+	// JSON numbers: rounding through float64 would change frozen contents.
+	if oversized || len(manifest) == 0 || len(manifest) > packageapp.MaxCustomerPackageManifestBytes || jsonbounds.Validate(manifest, jsonbounds.Limits{MaxDepth: 32, MaxObjectKeys: 4096, MaxArrayItems: packageapp.MaxSecurityReviewEvidenceIDs, MaxStringBytes: packageapp.MaxCustomerPackageManifestBytes}) != nil {
 		return empty, app.ErrConflict
+	}
+	decoder := json.NewDecoder(bytes.NewReader(manifest))
+	decoder.UseNumber()
+	if decoder.Decode(&pkg.Manifest) != nil || pkg.Manifest == nil {
+		return empty, app.ErrConflict
+	}
+	if err := ctx.Err(); err != nil {
+		return empty, err
 	}
 	return pkg, nil
 }

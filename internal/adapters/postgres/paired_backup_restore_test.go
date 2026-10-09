@@ -16,6 +16,7 @@ import (
 
 	fsobject "github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -252,7 +253,15 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if restoredPackageHash != pkg.ManifestHash {
 		t.Fatalf("restored package manifest hash=%q want=%q", restoredPackageHash, pkg.ManifestHash)
 	}
-	packageAfter, err := restored.ExportCustomerSecurityPackageArchive(ctx, restoredActor, pkg.ID)
+	access, err := newCustomerPackageAccessFixture(targetStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accessedPackage, err := access.AccessCustomerSecurityPackage(ctx, restoredActor, pkg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packageAfter, err := app.RenderCustomerPackageArchive(domain.CustomerSecurityPackage(accessedPackage))
 	if err != nil || packageAfter.PackageID != pkg.ID || packageAfter.Hash == "" || packageAfter.Size != int64(len(packageAfter.Bytes)) {
 		t.Fatalf("restored customer package archive=%#v err=%v", packageAfter, err)
 	}

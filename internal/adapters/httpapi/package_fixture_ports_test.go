@@ -70,14 +70,6 @@ func (f packageFixtureCommands) AuthorizeCreateRedactionProfile(ctx context.Cont
 func (f packageFixtureCommands) CreateRedactionProfile(ctx context.Context, actor domain.Actor, input packageapp.CreateRedactionProfileInput) (packagedomain.RedactionProfile, error) {
 	return (redactionProfileFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateRedactionProfile(ctx, actor, input)
 }
-func (f packageFixtureCommands) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (packagedomain.CustomerSecurityPackage, error) {
-	value, err := f.commandLedger(ctx).AccessCustomerSecurityPackage(ctx, actor, id)
-	return packagedomain.CustomerSecurityPackage(value), err
-}
-func (f packageFixtureCommands) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, id string) (packagedomain.SecurityReviewPackageReport, error) {
-	value, err := f.commandLedger(ctx).SecurityReviewPackageReport(ctx, actor, id)
-	return packagedomain.SecurityReviewPackageReport(value), err
-}
 func (f packageFixtureCommands) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, product, release string) (packagedomain.HTMLReportPackage, error) {
 	c, err := f.nativeHTML()
 	if err != nil {
@@ -154,8 +146,11 @@ func (s *Server) bindPackageFixturePorts(ledger *app.Ledger) {
 	} else if _, legacy := s.redactionProfileCommands.(packageFixtureCommands); s.redactionProfileCommands == nil || legacy {
 		s.redactionProfileCommands = redactionProfileFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
-	if _, fixture := s.customerPackageAccessCommands.(packageFixtureCommands); s.customerPackageAccessCommands == nil || fixture {
-		s.customerPackageAccessCommands = commands
+	if old, ok := s.customerPackageAccessCommands.(customerAccessFixtureCommands); ok {
+		old.ledger = ledger
+		s.customerPackageAccessCommands = old
+	} else if s.customerPackageAccessCommands == nil {
+		s.customerPackageAccessCommands = customerAccessFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
 	if _, fixture := s.htmlReportCommands.(packageFixtureCommands); s.htmlReportCommands == nil || fixture {
 		s.htmlReportCommands = commands
@@ -173,7 +168,6 @@ var (
 	_ ReleaseBundleCommands           = packageFixtureCommands{}
 	_ CustomerPackageCreationCommands = packageFixtureCommands{}
 	_ RedactionProfileCommands        = packageFixtureCommands{}
-	_ CustomerPackageAccessCommands   = packageFixtureCommands{}
 	_ HTMLReportCommands              = packageFixtureCommands{}
 	_ ReleaseReadinessReportQuery     = packageReadinessFixtureQuery{}
 )

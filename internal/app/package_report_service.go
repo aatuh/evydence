@@ -35,11 +35,6 @@ func (l *Ledger) AuthorizeReleaseBundleCreation(ctx context.Context, a domain.Ac
 	return err
 }
 
-func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
-	value, err := l.packageCommands.AccessCustomerSecurityPackage(ctx, actor, id)
-	return customerSecurityPackageFromContext(value), fromPackageContextError(err)
-}
-
 func (l *Ledger) CreateCustomReportTemplate(ctx context.Context, actor domain.Actor, in CreateReportTemplateInput) (domain.CustomReportTemplate, error) {
 	value, err := l.packageCommands.CreateCustomReportTemplate(ctx, actor, packageapp.CreateReportTemplateInput{
 		Name: in.Name, Version: in.Version, ReportType: in.ReportType,
