@@ -5,6 +5,7 @@ package repositories
 import (
 	"context"
 	"crypto/ed25519"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -15,8 +16,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	integrationapp "github.com/aatuh/evydence/internal/integration/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 // New returns focused repositories bound to tx. The caller owns committing or
@@ -30,6 +35,7 @@ func New(tx pgx.Tx) app.Repositories {
 		Audit:          audit{tx: tx},
 		Idempotency:    idempotency{tx: tx},
 		Outbox:         outbox{tx: tx},
+		OutboxReplay:   outbox{tx: tx},
 		Payloads:       objectPayloads{tx: tx},
 		Controls:       controls{tx: tx},
 		Governance:     governance{tx: tx},
@@ -87,7 +93,10 @@ func (r identity) UpdateAPIKeyLastUsed(ctx context.Context, key domain.APIKey) e
 	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE api_keys
-		SET last_used_at = $5
+		SET last_used_at = CASE
+			WHEN last_used_at IS NULL OR last_used_at < $5 THEN $5
+			ELSE last_used_at
+		END
 		WHERE id = $1 AND tenant_id = $2 AND prefix = $3 AND hash = $4
 		  AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > $5)
 	`, key.ID, key.TenantID, key.Prefix, key.Hash, *key.LastUsedAt)
@@ -106,7 +115,10 @@ func (r identity) UpdateCollectorLastSeen(ctx context.Context, collector domain.
 	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE collectors
-		SET last_seen_at = $4
+		SET last_seen_at = CASE
+			WHEN last_seen_at IS NULL OR last_seen_at < $4 THEN $4
+			ELSE last_seen_at
+		END
 		WHERE id = $1 AND tenant_id = $2 AND api_key_id = $3
 	`, collector.ID, collector.TenantID, collector.APIKeyID, *collector.LastSeenAt)
 	if err != nil {
@@ -223,8 +235,9 @@ func (r identity) InsertSSOProvider(ctx context.Context, provider domain.SSOProv
 	return writeError("insert SSO provider", err)
 }
 
-func (r identity) UpdateSSOProviderTrustMaterial(ctx context.Context, provider domain.SSOProvider) error {
-	if provider.ID == "" || provider.TenantID == "" || provider.Type == "" || provider.TrustMaterialUpdatedAt == nil {
+func (r identity) CompareAndSwapSSOProviderTrustMaterial(ctx context.Context, expected, provider domain.SSOProvider) error {
+	if provider.ID == "" || provider.TenantID == "" || provider.Type == "" || provider.TrustMaterialUpdatedAt == nil ||
+		expected.ID != provider.ID || expected.TenantID != provider.TenantID || expected.Type != provider.Type || expected.Issuer != provider.Issuer || expected.ClientID != provider.ClientID || expected.Status != provider.Status {
 		return app.ErrValidation
 	}
 	jwks, err := json.Marshal(provider.JWKS)
@@ -235,11 +248,23 @@ func (r identity) UpdateSSOProviderTrustMaterial(ctx context.Context, provider d
 	if err != nil {
 		return fmt.Errorf("encode SSO provider certificates: %w", err)
 	}
+	expectedJWKS, err := json.Marshal(expected.JWKS)
+	if err != nil {
+		return fmt.Errorf("encode expected SSO provider JWKS: %w", err)
+	}
+	expectedCertificates, err := json.Marshal(expected.SAMLSigningCertificates)
+	if err != nil {
+		return fmt.Errorf("encode expected SSO provider certificates: %w", err)
+	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE sso_providers
 		SET jwks = $3, saml_signing_certificates = $4, trust_material_updated_at = $5
 		WHERE id = $1 AND tenant_id = $2 AND type = $6
-	`, provider.ID, provider.TenantID, jwks, certificates, *provider.TrustMaterialUpdatedAt, provider.Type)
+		  AND issuer = $7 AND client_id = $8 AND status = $9
+		  AND jwks = $10::jsonb
+		  AND saml_signing_certificates = $11::jsonb
+		  AND trust_material_updated_at IS NOT DISTINCT FROM $12
+	`, provider.ID, provider.TenantID, jwks, certificates, *provider.TrustMaterialUpdatedAt, provider.Type, expected.Issuer, expected.ClientID, expected.Status, expectedJWKS, expectedCertificates, expected.TrustMaterialUpdatedAt)
 	if err != nil {
 		return writeError("update SSO provider trust material", err)
 	}
@@ -267,6 +292,174 @@ func (r identity) InsertUserIdentityLink(ctx context.Context, link domain.UserId
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, link.ID, link.TenantID, link.UserID, link.ProviderID, link.Subject, link.Email, link.Verified, link.SchemaVersion, link.CreatedAt)
 	return writeError("insert user identity link", err)
+}
+
+func (r identity) ValidateSSOExchangeState(ctx context.Context, snapshot app.SSOExchangeSnapshot) error {
+	if err := app.ValidateSSOExchangeSnapshot(snapshot); err != nil {
+		return err
+	}
+	// Exchange later appends an audit under this same fence. Acquire it before
+	// table/parent locks, matching focused identity administration, or a link
+	// write holding the fence can wait on a table held by the exchange.
+	if err := coordination.LockWorkerProjection(ctx, r.tx, snapshot.Provider.TenantID); err != nil {
+		return writeError("lock SSO identity mutation", err)
+	}
+	// SHARE table locks make identity-link absence, user presence/state, and the
+	// user's role-binding set stable through commit. The bounded provider read
+	// holds its row lock below. Identity administration writes are infrequent,
+	// while the shared mutation fence determines same-tenant write ordering.
+	if _, err := r.tx.Exec(ctx, `LOCK TABLE user_identity_links IN SHARE MODE`); err != nil {
+		return writeError("lock SSO identity link range", err)
+	}
+	if snapshot.UserLoaded {
+		if _, err := r.tx.Exec(ctx, `LOCK TABLE human_users IN SHARE MODE`); err != nil {
+			return writeError("lock SSO user range", err)
+		}
+	}
+	if snapshot.UserGrantsLoaded {
+		if _, err := r.tx.Exec(ctx, `LOCK TABLE role_bindings IN SHARE MODE`); err != nil {
+			return writeError("lock SSO role grant range", err)
+		}
+	}
+
+	provider, err := readSSOExchangeProvider(ctx, r.tx, snapshot.Provider.TenantID, snapshot.Provider.ID)
+	if errors.Is(err, app.ErrNotFound) {
+		return app.ErrConflict
+	}
+	if err != nil {
+		return err
+	}
+	link, linkFound, err := readSSOExchangeLink(ctx, r.tx, snapshot.Provider.TenantID, snapshot.Provider.ID, snapshot.Subject)
+	if err != nil {
+		return err
+	}
+	if snapshot.IdentityLinkFound != linkFound {
+		return app.ErrConflict
+	}
+
+	var user domain.HumanUser
+	userFound := false
+	if snapshot.UserLoaded && linkFound {
+		user, userFound, err = readSSOExchangeUser(ctx, r.tx, snapshot.Provider.TenantID, link.UserID)
+		if err != nil {
+			return err
+		}
+	}
+
+	var bindings []domain.RoleBinding
+	if snapshot.UserGrantsLoaded && userFound {
+		bindings, err = readSSOExchangeRoleBindings(ctx, r.tx, snapshot.Provider.TenantID, user.ID)
+		if err != nil {
+			return err
+		}
+	}
+	return app.CompareSSOExchangeSnapshot(snapshot, provider, link, linkFound, user, userFound, bindings)
+}
+
+func readSSOExchangeProvider(ctx context.Context, tx pgx.Tx, tenantID, providerID string) (domain.SSOProvider, error) {
+	provider, err := (identity{tx: tx}).ReadOwnedSSOProvider(ctx, tenantID, providerID)
+	return domain.SSOProvider(provider), err
+}
+
+func readSSOExchangeLink(ctx context.Context, tx pgx.Tx, tenantID, providerID, subject string) (domain.UserIdentityLink, bool, error) {
+	// Lock before the bounded-size preflight, then transfer the complete row.
+	// The lock prevents a concurrent update from expanding metadata between
+	// the preflight and projection; excess is rejected, never truncated.
+	var oversized bool
+	err := tx.QueryRow(ctx, `SELECT octet_length(id)>1024 OR octet_length(tenant_id)>1024 OR octet_length(user_id)>1024 OR octet_length(provider_id)>1024 OR octet_length(subject)>65536 OR octet_length(email)>65536 OR octet_length(schema_version)>1024 FROM user_identity_links WHERE tenant_id=$1 AND provider_id=$2 AND subject=$3 FOR SHARE`, tenantID, providerID, subject).Scan(&oversized)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.UserIdentityLink{}, false, nil
+	}
+	if err != nil {
+		return domain.UserIdentityLink{}, false, writeError("bound SSO exchange identity link", err)
+	}
+	if oversized {
+		return domain.UserIdentityLink{}, false, app.ErrConflict
+	}
+	var link domain.UserIdentityLink
+	err = tx.QueryRow(ctx, `
+		SELECT id, tenant_id, user_id, provider_id, subject, email, verified,
+		       schema_version, created_at
+		FROM user_identity_links
+		WHERE tenant_id = $1 AND provider_id = $2 AND subject = $3
+	`, tenantID, providerID, subject).Scan(
+		&link.ID, &link.TenantID, &link.UserID, &link.ProviderID, &link.Subject,
+		&link.Email, &link.Verified, &link.SchemaVersion, &link.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.UserIdentityLink{}, false, nil
+	}
+	if err != nil {
+		return domain.UserIdentityLink{}, false, writeError("read SSO exchange identity link", err)
+	}
+	return link, true, nil
+}
+
+func readSSOExchangeUser(ctx context.Context, tx pgx.Tx, tenantID, userID string) (domain.HumanUser, bool, error) {
+	var oversized bool
+	err := tx.QueryRow(ctx, `SELECT octet_length(id)>1024 OR octet_length(tenant_id)>1024 OR coalesce(octet_length(organization_id),0)>1024 OR octet_length(email)>65536 OR octet_length(display_name)>65536 OR octet_length(status)>128 OR octet_length(schema_version)>1024 FROM human_users WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenantID, userID).Scan(&oversized)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.HumanUser{}, false, nil
+	}
+	if err != nil {
+		return domain.HumanUser{}, false, writeError("bound SSO exchange user", err)
+	}
+	if oversized {
+		return domain.HumanUser{}, false, app.ErrConflict
+	}
+	var user domain.HumanUser
+	var organizationID *string
+	err = tx.QueryRow(ctx, `
+		SELECT id, tenant_id, organization_id, email, display_name, status,
+		       deactivated_at, schema_version, created_at
+		FROM human_users
+		WHERE id = $1 AND tenant_id = $2
+	`, userID, tenantID).Scan(
+		&user.ID, &user.TenantID, &organizationID, &user.Email, &user.DisplayName,
+		&user.Status, &user.DeactivatedAt, &user.SchemaVersion, &user.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.HumanUser{}, false, nil
+	}
+	if err != nil {
+		return domain.HumanUser{}, false, writeError("read SSO exchange user", err)
+	}
+	if organizationID != nil {
+		user.OrganizationID = *organizationID
+	}
+	return user, true, nil
+}
+
+func readSSOExchangeRoleBindings(ctx context.Context, tx pgx.Tx, tenantID, userID string) ([]domain.RoleBinding, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT CASE WHEN octet_length(role)<=128 THEN role ELSE '' END,
+		       CASE WHEN coalesce(octet_length(resource_type),0)<=1024 THEN coalesce(resource_type,'') ELSE '' END,
+		       CASE WHEN coalesce(octet_length(resource_id),0)<=1024 THEN coalesce(resource_id,'') ELSE '' END,
+		       octet_length(role)>128 OR coalesce(octet_length(resource_type),0)>1024 OR coalesce(octet_length(resource_id),0)>1024
+		FROM role_bindings
+		WHERE tenant_id=$1 AND subject_type='user' AND subject_id=$2
+		ORDER BY id LIMIT 257
+	`, tenantID, userID)
+	if err != nil {
+		return nil, writeError("read SSO exchange role grants", err)
+	}
+	defer rows.Close()
+	bindings := make([]domain.RoleBinding, 0)
+	for rows.Next() {
+		binding := domain.RoleBinding{TenantID: tenantID, SubjectType: "user", SubjectID: userID}
+		var oversized bool
+		if err := rows.Scan(&binding.Role, &binding.ResourceType, &binding.ResourceID, &oversized); err != nil {
+			return nil, writeError("scan SSO exchange role grant", err)
+		}
+		if oversized || len(bindings) == 256 {
+			return nil, app.ErrConflict
+		}
+		bindings = append(bindings, binding)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, writeError("iterate SSO exchange role grants", err)
+	}
+	return bindings, nil
 }
 
 func (r identity) InsertProviderVerification(ctx context.Context, verification domain.ProviderVerification) error {
@@ -410,6 +603,213 @@ func (r identity) UpdateCustomerPortalAccess(ctx context.Context, previous, curr
 
 type releaseCatalog struct{ tx pgx.Tx }
 
+func (r releaseCatalog) ProductBySlug(ctx context.Context, tenantID, slug string) (domain.Product, bool, error) {
+	tenantID, slug = strings.TrimSpace(tenantID), strings.TrimSpace(slug)
+	if tenantID == "" || slug == "" {
+		return domain.Product{}, false, app.ErrValidation
+	}
+	var product domain.Product
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, name, slug, created_at
+		FROM products
+		WHERE tenant_id = $1 AND slug = $2
+		FOR SHARE
+	`, tenantID, slug).Scan(&product.ID, &product.TenantID, &product.Name, &product.Slug, &product.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Product{}, false, nil
+	}
+	if err != nil {
+		return domain.Product{}, false, writeError("load scoped product by slug", err)
+	}
+	return product, true, nil
+}
+
+func (r releaseCatalog) GetProduct(ctx context.Context, tenantID, id string) (domain.Product, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Product{}, app.ErrValidation
+	}
+	var product domain.Product
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, name, slug, created_at
+		FROM products
+		WHERE tenant_id = $1 AND id = $2
+		FOR SHARE
+	`, tenantID, id).Scan(&product.ID, &product.TenantID, &product.Name, &product.Slug, &product.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Product{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.Product{}, writeError("load scoped product", err)
+	}
+	return product, nil
+}
+
+func (r releaseCatalog) GetProject(ctx context.Context, tenantID, id string) (domain.Project, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Project{}, app.ErrValidation
+	}
+	var project domain.Project
+	err := r.tx.QueryRow(ctx, `
+		SELECT j.id, j.tenant_id, j.product_id, j.name, j.created_at
+		FROM projects AS j
+		JOIN products AS p ON p.id = j.product_id AND p.tenant_id = j.tenant_id
+		WHERE j.tenant_id = $1 AND j.id = $2
+		FOR SHARE OF j, p
+	`, tenantID, id).Scan(&project.ID, &project.TenantID, &project.ProductID, &project.Name, &project.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Project{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.Project{}, writeError("load scoped project", err)
+	}
+	return project, nil
+}
+
+func (r releaseCatalog) GetRelease(ctx context.Context, tenantID, id string) (domain.Release, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Release{}, app.ErrValidation
+	}
+	var release domain.Release
+	var frozenAt, approvedAt sql.NullTime
+	err := r.tx.QueryRow(ctx, `
+		SELECT r.id, r.tenant_id, r.product_id, r.version, r.state,
+		       r.frozen_at, r.approved_at, r.revision, r.created_at
+		FROM releases AS r
+		JOIN products AS p ON p.id = r.product_id AND p.tenant_id = r.tenant_id
+		WHERE r.tenant_id = $1 AND r.id = $2
+		FOR SHARE OF r, p
+	`, tenantID, id).Scan(
+		&release.ID, &release.TenantID, &release.ProductID, &release.Version, &release.State,
+		&frozenAt, &approvedAt, &release.Revision, &release.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Release{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.Release{}, writeError("load scoped release", err)
+	}
+	if frozenAt.Valid {
+		release.FrozenAt = &frozenAt.Time
+	}
+	if approvedAt.Valid {
+		release.ApprovedAt = &approvedAt.Time
+	}
+	return release, nil
+}
+
+func (r releaseCatalog) GetReleaseForUpdate(ctx context.Context, tenantID, id string) (domain.Release, error) {
+	tenantID, id = strings.TrimSpace(tenantID), strings.TrimSpace(id)
+	if tenantID == "" || id == "" {
+		return domain.Release{}, app.ErrValidation
+	}
+	var release domain.Release
+	var frozenAt, approvedAt sql.NullTime
+	err := r.tx.QueryRow(ctx, `
+		SELECT r.id, r.tenant_id, r.product_id, r.version, r.state,
+		       r.frozen_at, r.approved_at, r.revision, r.created_at
+		FROM releases AS r
+		JOIN products AS p ON p.id = r.product_id AND p.tenant_id = r.tenant_id
+		WHERE r.tenant_id = $1 AND r.id = $2
+		FOR UPDATE OF r
+	`, tenantID, id).Scan(
+		&release.ID, &release.TenantID, &release.ProductID, &release.Version, &release.State,
+		&frozenAt, &approvedAt, &release.Revision, &release.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Release{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.Release{}, writeError("lock scoped release", err)
+	}
+	if frozenAt.Valid {
+		release.FrozenAt = &frozenAt.Time
+	}
+	if approvedAt.Valid {
+		release.ApprovedAt = &approvedAt.Time
+	}
+	return release, nil
+}
+
+func (r releaseCatalog) ReleaseByVersion(ctx context.Context, tenantID, productID, version string) (domain.Release, bool, error) {
+	tenantID, productID, version = strings.TrimSpace(tenantID), strings.TrimSpace(productID), strings.TrimSpace(version)
+	if tenantID == "" || productID == "" || version == "" {
+		return domain.Release{}, false, app.ErrValidation
+	}
+	var release domain.Release
+	var frozenAt, approvedAt sql.NullTime
+	err := r.tx.QueryRow(ctx, `
+		SELECT r.id, r.tenant_id, r.product_id, r.version, r.state,
+		       r.frozen_at, r.approved_at, r.revision, r.created_at
+		FROM releases AS r
+		JOIN products AS p ON p.id = r.product_id AND p.tenant_id = r.tenant_id
+		WHERE r.tenant_id = $1 AND r.product_id = $2 AND r.version = $3
+		FOR SHARE OF r
+	`, tenantID, productID, version).Scan(
+		&release.ID, &release.TenantID, &release.ProductID, &release.Version, &release.State,
+		&frozenAt, &approvedAt, &release.Revision, &release.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Release{}, false, nil
+	}
+	if err != nil {
+		return domain.Release{}, false, writeError("load scoped release by version", err)
+	}
+	if frozenAt.Valid {
+		release.FrozenAt = &frozenAt.Time
+	}
+	if approvedAt.Valid {
+		release.ApprovedAt = &approvedAt.Time
+	}
+	return release, true, nil
+}
+
+func (r releaseCatalog) GetArtifact(ctx context.Context, tenantID, artifactID string) (domain.Artifact, error) {
+	var artifact domain.Artifact
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, name, media_type, size, digest, created_at
+		FROM artifacts
+		WHERE id = $1 AND tenant_id = $2
+		FOR SHARE
+	`, strings.TrimSpace(artifactID), strings.TrimSpace(tenantID)).Scan(
+		&artifact.ID, &artifact.TenantID, &artifact.Name, &artifact.MediaType,
+		&artifact.Size, &artifact.Digest, &artifact.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Artifact{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.Artifact{}, writeError("load scoped artifact", err)
+	}
+	return artifact, nil
+}
+
+func (r releaseCatalog) ArtifactByDigest(ctx context.Context, tenantID, digest string) (domain.Artifact, bool, error) {
+	tenantID, digest = strings.TrimSpace(tenantID), strings.TrimSpace(digest)
+	if tenantID == "" || digest == "" {
+		return domain.Artifact{}, false, app.ErrValidation
+	}
+	var artifact domain.Artifact
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, name, media_type, size, digest, created_at
+		FROM artifacts
+		WHERE tenant_id = $1 AND digest = $2
+		FOR SHARE
+	`, tenantID, digest).Scan(
+		&artifact.ID, &artifact.TenantID, &artifact.Name, &artifact.MediaType,
+		&artifact.Size, &artifact.Digest, &artifact.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Artifact{}, false, nil
+	}
+	if err != nil {
+		return domain.Artifact{}, false, writeError("load scoped artifact by digest", err)
+	}
+	return artifact, true, nil
+}
+
 func (r releaseCatalog) InsertProduct(ctx context.Context, product domain.Product) error {
 	if product.ID == "" || product.TenantID == "" || product.Name == "" || product.Slug == "" || product.CreatedAt.IsZero() {
 		return app.ErrValidation
@@ -463,6 +863,12 @@ func (r releaseCatalog) InsertRelease(ctx context.Context, release domain.Releas
 		WHERE product.id = $3 AND product.tenant_id = $2
 	`, release.ID, release.TenantID, release.ProductID, release.Version, release.State, release.FrozenAt, release.ApprovedAt, release.Revision, release.CreatedAt)
 	if err != nil {
+		// The version participates in a btree uniqueness index. Even bounded
+		// text can exceed its encoded tuple limit when not compressible.
+		var databaseError *pgconn.PgError
+		if errors.As(err, &databaseError) && databaseError.Code == "54000" {
+			return app.ErrValidation
+		}
 		return writeError("insert release", err)
 	}
 	if result.RowsAffected() != 1 {
@@ -499,11 +905,18 @@ func (r releaseCatalog) InsertArtifact(ctx context.Context, artifact domain.Arti
 	if err := requireTenant(ctx, r.tx, artifact.TenantID); err != nil {
 		return err
 	}
-	_, err := r.tx.Exec(ctx, `
+	result, err := r.tx.Exec(ctx, `
 		INSERT INTO artifacts (id, tenant_id, name, media_type, size, digest, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT DO NOTHING
 	`, artifact.ID, artifact.TenantID, artifact.Name, artifact.MediaType, artifact.Size, artifact.Digest, artifact.CreatedAt)
-	return writeError("insert artifact", err)
+	if err != nil {
+		return writeError("insert artifact", err)
+	}
+	if result.RowsAffected() != 1 {
+		return app.ErrConflict
+	}
+	return nil
 }
 
 func (r releaseCatalog) InsertReleaseCandidate(ctx context.Context, candidate domain.ReleaseCandidate) error {
@@ -578,20 +991,234 @@ func (r releaseCatalog) releaseCandidateRevisionConflict(ctx context.Context, ca
 
 type evidence struct{ tx pgx.Tx }
 
+func (r evidence) GetEvidence(ctx context.Context, tenantID, id string) (domain.EvidenceItem, error) {
+	if tenantID == "" || id == "" {
+		return domain.EvidenceItem{}, app.ErrValidation
+	}
+	var item domain.EvidenceItem
+	var productID, projectID, releaseID, buildID, deploymentID, subtype, collectorID, uploadedBy, payloadRef, payloadMediaType, supersedes, supersededBy, chainEntryID *string
+	var payloadSize *int64
+	var sourceIdentity, subjectRefs, relatedRefs, signatureRefs, tags, metadata, warnings, limitations []byte
+	// Evidence transaction reads feed link, supersession, and lifecycle writes.
+	// Hold the row so its authorization scope cannot change after revalidation.
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, product_id, project_id, release_id, build_id, deployment_id,
+		       type, subtype, title, source_system, source_identity, collector_id,
+		       uploaded_by, observed_at, evidence_version, schema_version, payload_ref,
+		       payload_hash, payload_media_type, payload_size, canonical_hash,
+		       canonicalization, subject_refs, related_evidence_refs, supersedes,
+		       superseded_by, trust_level, verification_status, signature_refs,
+		       chain_entry_id, tags, metadata, warnings, limitations, created_at
+		FROM evidence_items
+		WHERE id = $1 AND tenant_id = $2
+		FOR UPDATE
+	`, id, tenantID).Scan(
+		&item.ID, &item.TenantID, &productID, &projectID, &releaseID, &buildID, &deploymentID,
+		&item.Type, &subtype, &item.Title, &item.SourceSystem, &sourceIdentity, &collectorID,
+		&uploadedBy, &item.ObservedAt, &item.EvidenceVersion, &item.SchemaVersion, &payloadRef,
+		&item.PayloadHash, &payloadMediaType, &payloadSize, &item.CanonicalHash,
+		&item.Canonicalization, &subjectRefs, &relatedRefs, &supersedes,
+		&supersededBy, &item.TrustLevel, &item.VerificationStatus, &signatureRefs,
+		&chainEntryID, &tags, &metadata, &warnings, &limitations, &item.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.EvidenceItem{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.EvidenceItem{}, writeError("read evidence", err)
+	}
+	item.ProductID = stringValue(productID)
+	item.ProjectID = stringValue(projectID)
+	item.ReleaseID = stringValue(releaseID)
+	item.BuildID = stringValue(buildID)
+	item.DeploymentID = stringValue(deploymentID)
+	item.Subtype = stringValue(subtype)
+	item.CollectorID = stringValue(collectorID)
+	item.UploadedBy = stringValue(uploadedBy)
+	item.PayloadRef = stringValue(payloadRef)
+	item.PayloadMediaType = stringValue(payloadMediaType)
+	if payloadSize != nil {
+		item.PayloadSize = *payloadSize
+	}
+	item.Supersedes = stringValue(supersedes)
+	item.SupersededBy = stringValue(supersededBy)
+	item.ChainEntryID = stringValue(chainEntryID)
+	for _, value := range []struct {
+		name   string
+		raw    []byte
+		target any
+	}{
+		{name: "source identity", raw: sourceIdentity, target: &item.SourceIdentity},
+		{name: "subject references", raw: subjectRefs, target: &item.SubjectRefs},
+		{name: "related references", raw: relatedRefs, target: &item.RelatedEvidenceRefs},
+		{name: "signature references", raw: signatureRefs, target: &item.SignatureRefs},
+		{name: "tags", raw: tags, target: &item.Tags},
+		{name: "metadata", raw: metadata, target: &item.Metadata},
+		{name: "warnings", raw: warnings, target: &item.Warnings},
+		{name: "limitations", raw: limitations, target: &item.Limitations},
+	} {
+		if err := decodeRepositoryJSON(value.raw, value.target); err != nil {
+			return domain.EvidenceItem{}, fmt.Errorf("decode evidence %s: %w", value.name, err)
+		}
+	}
+	return item, nil
+}
+
+func (r evidence) GetSBOM(ctx context.Context, tenantID, id string) (domain.SBOM, error) {
+	if tenantID == "" || id == "" {
+		return domain.SBOM{}, app.ErrValidation
+	}
+	var value domain.SBOM
+	var releaseID, artifactID *string
+	var components []byte
+	// Diff commands only read these projections. A shared lock keeps the parsed
+	// input stable while still allowing other readers to proceed.
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, evidence_id, release_id, artifact_id, format,
+		       spec_version, component_count, components, created_at
+		FROM sboms
+		WHERE id = $1 AND tenant_id = $2
+		FOR SHARE
+	`, id, tenantID).Scan(
+		&value.ID, &value.TenantID, &value.EvidenceID, &releaseID, &artifactID,
+		&value.Format, &value.SpecVersion, &value.ComponentCount, &components, &value.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.SBOM{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.SBOM{}, writeError("read SBOM", err)
+	}
+	value.ReleaseID = stringValue(releaseID)
+	value.ArtifactID = stringValue(artifactID)
+	if err := decodeRepositoryJSON(components, &value.Components); err != nil {
+		return domain.SBOM{}, fmt.Errorf("decode SBOM components: %w", err)
+	}
+	return value, nil
+}
+
+func (r evidence) GetOpenAPIContract(ctx context.Context, tenantID, id string) (domain.OpenAPIContract, error) {
+	if tenantID == "" || id == "" {
+		return domain.OpenAPIContract{}, app.ErrValidation
+	}
+	var value domain.OpenAPIContract
+	var releaseID *string
+	var operations []byte
+	err := r.tx.QueryRow(ctx, `
+		SELECT id, tenant_id, product_id, release_id, version, hash, path_count,
+		       operations, evidence_id, created_at
+		FROM openapi_contracts
+		WHERE id = $1 AND tenant_id = $2
+		FOR SHARE
+	`, id, tenantID).Scan(
+		&value.ID, &value.TenantID, &value.ProductID, &releaseID, &value.Version,
+		&value.Hash, &value.PathCount, &operations, &value.EvidenceID, &value.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.OpenAPIContract{}, app.ErrNotFound
+	}
+	if err != nil {
+		return domain.OpenAPIContract{}, writeError("read OpenAPI contract", err)
+	}
+	value.ReleaseID = stringValue(releaseID)
+	if err := decodeRepositoryJSON(operations, &value.Operations); err != nil {
+		return domain.OpenAPIContract{}, fmt.Errorf("decode OpenAPI operations: %w", err)
+	}
+	return value, nil
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func decodeRepositoryJSON(raw []byte, target any) error {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	return json.Unmarshal(raw, target)
+}
+
+func (r evidence) ValidateEvidenceScope(ctx context.Context, tenantID, productID, projectID, releaseID, buildID, deploymentID string) error {
+	if tenantID == "" {
+		return app.ErrValidation
+	}
+	if err := requireTenant(ctx, r.tx, tenantID); err != nil {
+		return err
+	}
+	if err := requireOptionalProduct(ctx, r.tx, tenantID, productID); err != nil {
+		return err
+	}
+	if projectID != "" {
+		if err := requireRow(ctx, r.tx, `
+			SELECT 1 FROM projects
+			WHERE id = $1 AND tenant_id = $2 AND ($3 = '' OR product_id = $3)
+			FOR SHARE
+		`, projectID, tenantID, productID); err != nil {
+			return err
+		}
+	}
+	if releaseID != "" {
+		if err := requireRow(ctx, r.tx, `
+			SELECT 1 FROM releases
+			WHERE id = $1 AND tenant_id = $2 AND ($3 = '' OR product_id = $3)
+			FOR SHARE
+		`, releaseID, tenantID, productID); err != nil {
+			return err
+		}
+	}
+	if projectID != "" && releaseID != "" {
+		if err := requireRow(ctx, r.tx, `
+			SELECT 1
+			FROM projects p
+			JOIN releases r ON r.tenant_id = p.tenant_id AND r.product_id = p.product_id
+			WHERE p.id = $1 AND r.id = $2 AND p.tenant_id = $3
+			FOR SHARE OF p, r
+		`, projectID, releaseID, tenantID); err != nil {
+			return err
+		}
+	}
+	if buildID != "" {
+		if err := requireRow(ctx, r.tx, `
+			SELECT 1
+			FROM build_runs b
+			JOIN projects p ON p.id = b.project_id AND p.tenant_id = b.tenant_id
+			JOIN releases r ON r.id = b.release_id AND r.tenant_id = b.tenant_id AND r.product_id = p.product_id
+			WHERE b.id = $1 AND b.tenant_id = $2
+			  AND ($3 = '' OR p.product_id = $3)
+			  AND ($4 = '' OR b.project_id = $4)
+			  AND ($5 = '' OR b.release_id = $5)
+			FOR SHARE OF b, p, r
+		`, buildID, tenantID, productID, projectID, releaseID); err != nil {
+			return err
+		}
+	}
+	if deploymentID != "" {
+		if err := requireRow(ctx, r.tx, `
+			SELECT 1
+			FROM deployment_events d
+			JOIN deployment_environments e ON e.id = d.environment_id AND e.tenant_id = d.tenant_id
+			JOIN releases r ON r.id = d.release_id AND r.tenant_id = d.tenant_id AND r.product_id = e.product_id
+			WHERE d.id = $1 AND d.tenant_id = $2
+			  AND ($3 = '' OR e.product_id = $3)
+			  AND ($4 = '' OR e.product_id = (SELECT product_id FROM projects WHERE id = $4 AND tenant_id = d.tenant_id))
+			  AND ($5 = '' OR d.release_id = $5)
+			  AND ($6 = '' OR d.release_id = (SELECT release_id FROM build_runs WHERE id = $6 AND tenant_id = d.tenant_id))
+			FOR SHARE OF d, e, r
+		`, deploymentID, tenantID, productID, projectID, releaseID, buildID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r evidence) InsertEvidence(ctx context.Context, item domain.EvidenceItem) error {
 	if item.ID == "" || item.TenantID == "" || item.Type == "" || item.Title == "" || item.SourceSystem == "" || item.PayloadHash == "" || item.CanonicalHash == "" || item.Canonicalization == "" || item.TrustLevel == "" || item.VerificationStatus == "" || item.ObservedAt.IsZero() || item.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
-	if err := requireTenant(ctx, r.tx, item.TenantID); err != nil {
-		return err
-	}
-	if err := requireOptionalProduct(ctx, r.tx, item.TenantID, item.ProductID); err != nil {
-		return err
-	}
-	if err := requireOptionalProject(ctx, r.tx, item.TenantID, item.ProjectID); err != nil {
-		return err
-	}
-	if err := requireOptionalRelease(ctx, r.tx, item.TenantID, item.ReleaseID); err != nil {
+	if err := r.validateInsertScope(ctx, item); err != nil {
 		return err
 	}
 	sourceIdentity, err := json.Marshal(item.SourceIdentity)
@@ -655,30 +1282,62 @@ func (r evidence) InsertEvidence(ctx context.Context, item domain.EvidenceItem) 
 	return writeError("insert evidence", err)
 }
 
-func (r evidence) UpdateEvidenceLinks(ctx context.Context, item domain.EvidenceItem) error {
-	if item.ID == "" || item.TenantID == "" {
+func (r evidence) validateInsertScope(ctx context.Context, item domain.EvidenceItem) error {
+	deploymentID := item.DeploymentID
+	if deploymentID != "" && item.Type == "deployment" && item.Subtype == "event" {
+		var ownerTenantID string
+		err := r.tx.QueryRow(ctx, `SELECT tenant_id FROM deployment_events WHERE id = $1`, deploymentID).Scan(&ownerTenantID)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// Deployment evidence is inserted immediately before its deployment
+			// event in the same transaction. Validate the remaining coordinates
+			// now; InsertDeploymentEvent validates the pending back-reference.
+			deploymentID = ""
+		case err != nil:
+			return writeError("read evidence deployment scope", err)
+		case ownerTenantID != item.TenantID:
+			return app.ErrNotFound
+		}
+	}
+	return r.ValidateEvidenceScope(ctx, item.TenantID, item.ProductID, item.ProjectID, item.ReleaseID, item.BuildID, deploymentID)
+}
+
+func (r evidence) CompareAndSwapEvidenceLinks(ctx context.Context, expected, replacement domain.EvidenceItem) error {
+	if expected.ID == "" || expected.TenantID == "" || expected.ID != replacement.ID || expected.TenantID != replacement.TenantID || expected.ProjectID != replacement.ProjectID || expected.BuildID != replacement.BuildID || expected.DeploymentID != replacement.DeploymentID {
 		return app.ErrValidation
 	}
-	if err := requireOptionalProduct(ctx, r.tx, item.TenantID, item.ProductID); err != nil {
+	if err := r.ValidateEvidenceScope(ctx, replacement.TenantID, replacement.ProductID, replacement.ProjectID, replacement.ReleaseID, replacement.BuildID, replacement.DeploymentID); err != nil {
 		return err
 	}
-	if err := requireOptionalRelease(ctx, r.tx, item.TenantID, item.ReleaseID); err != nil {
-		return err
-	}
-	relatedRefs, err := json.Marshal(item.RelatedEvidenceRefs)
+	relatedRefs, err := json.Marshal(replacement.RelatedEvidenceRefs)
 	if err != nil {
 		return fmt.Errorf("encode evidence related references: %w", err)
+	}
+	expectedRelatedRefs, err := json.Marshal(expected.RelatedEvidenceRefs)
+	if err != nil {
+		return fmt.Errorf("encode expected evidence related references: %w", err)
 	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE evidence_items
 		SET product_id = $3, release_id = $4, related_evidence_refs = $5
 		WHERE id = $1 AND tenant_id = $2
-	`, item.ID, item.TenantID, nullableString(item.ProductID), nullableString(item.ReleaseID), relatedRefs)
+		  AND product_id IS NOT DISTINCT FROM NULLIF($6, '')
+		  AND project_id IS NOT DISTINCT FROM NULLIF($7, '')
+		  AND release_id IS NOT DISTINCT FROM NULLIF($8, '')
+		  AND build_id IS NOT DISTINCT FROM NULLIF($9, '')
+		  AND deployment_id IS NOT DISTINCT FROM NULLIF($10, '')
+		  AND COALESCE(NULLIF(related_evidence_refs, 'null'::jsonb), '[]'::jsonb) =
+		      COALESCE(NULLIF($11::jsonb, 'null'::jsonb), '[]'::jsonb)
+	`, replacement.ID, replacement.TenantID, nullableString(replacement.ProductID), nullableString(replacement.ReleaseID), relatedRefs,
+		expected.ProductID, expected.ProjectID, expected.ReleaseID, expected.BuildID, expected.DeploymentID, expectedRelatedRefs)
 	if err != nil {
 		return writeError("update evidence links", err)
 	}
 	if result.RowsAffected() != 1 {
-		return app.ErrNotFound
+		if err := requireOwnedEvidence(ctx, r.tx, replacement.TenantID, replacement.ID); err != nil {
+			return err
+		}
+		return app.ErrConflict
 	}
 	return nil
 }
@@ -719,6 +1378,14 @@ func (r evidence) AppendLifecycle(ctx context.Context, event domain.EvidenceLife
 	if err := requireOwnedEvidence(ctx, r.tx, event.TenantID, event.EvidenceID); err != nil {
 		return err
 	}
+	// Authoritative canonical origins coordinate with readers of the evidence
+	// row, including the initially empty origin set. Ordinary details are not
+	// hash inputs and do not need this stronger lock.
+	if _, origin := event.Details[evidencedomain.LegacyCanonicalOriginDetailKey]; origin && event.SchemaVersion == evidencedomain.EvidenceRelationshipLifecycleSchemaVersion {
+		if err := requireRow(ctx, r.tx, `SELECT 1 FROM evidence_items WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, event.TenantID, event.EvidenceID); err != nil {
+			return err
+		}
+	}
 	details, err := json.Marshal(event.Details)
 	if err != nil {
 		return fmt.Errorf("encode evidence lifecycle details: %w", err)
@@ -758,7 +1425,9 @@ func (r evidence) InsertSBOM(ctx context.Context, sbom domain.SBOM) error {
 }
 
 func (r evidence) InsertVulnerabilityScan(ctx context.Context, scan domain.VulnerabilityScan) error {
-	if scan.ID == "" || scan.TenantID == "" || scan.EvidenceID == "" || scan.Scanner == "" || scan.TargetRef == "" || scan.CreatedAt.IsZero() {
+	parsedProjection := scan.Scanner != "" && scan.TargetRef != ""
+	acceptedProjection := scan.Scanner == "" && scan.Adapter == "" && scan.AdapterVersion == "" && scan.SourceSchema == "" && scan.TargetRef == "" && scan.Summary == nil && scan.Findings == nil
+	if scan.ID == "" || scan.TenantID == "" || scan.EvidenceID == "" || (!parsedProjection && !acceptedProjection) || scan.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
 	if err := requireOwnedEvidence(ctx, r.tx, scan.TenantID, scan.EvidenceID); err != nil {
@@ -776,9 +1445,9 @@ func (r evidence) InsertVulnerabilityScan(ctx context.Context, scan domain.Vulne
 		return fmt.Errorf("encode vulnerability scan findings: %w", err)
 	}
 	_, err = r.tx.Exec(ctx, `
-		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, release_id, scanner, target_ref, summary, findings, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.TargetRef, summary, findings, scan.CreatedAt)
+		INSERT INTO vulnerability_scans (id, tenant_id, evidence_id, release_id, scanner, adapter, adapter_version, source_schema, target_ref, summary, findings, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`, scan.ID, scan.TenantID, scan.EvidenceID, nullableString(scan.ReleaseID), scan.Scanner, scan.Adapter, scan.AdapterVersion, scan.SourceSchema, scan.TargetRef, summary, findings, scan.CreatedAt)
 	return writeError("insert vulnerability scan", err)
 }
 
@@ -919,26 +1588,6 @@ func (r decisions) InsertVulnerabilityDecision(ctx context.Context, decision dom
 	return writeError("insert vulnerability decision", err)
 }
 
-func (r decisions) SupersedeAndInsert(ctx context.Context, decision domain.VulnerabilityDecision, superseded []domain.VulnerabilityDecision) error {
-	for _, prior := range superseded {
-		if prior.ID == "" || prior.TenantID != decision.TenantID || prior.SupersededBy != decision.ID {
-			return app.ErrValidation
-		}
-		result, err := r.tx.Exec(ctx, `
-			UPDATE vulnerability_decisions
-			SET superseded_by = $3
-			WHERE id = $1 AND tenant_id = $2 AND superseded_by IS NULL
-		`, prior.ID, prior.TenantID, decision.ID)
-		if err != nil {
-			return writeError("supersede vulnerability decision", err)
-		}
-		if result.RowsAffected() != 1 {
-			return app.ErrConflict
-		}
-	}
-	return r.InsertVulnerabilityDecision(ctx, decision)
-}
-
 func (r decisions) InsertException(ctx context.Context, exception domain.Exception) error {
 	if exception.ID == "" || exception.TenantID == "" || exception.ReleaseID == "" || exception.Reason == "" || exception.Owner == "" || !exception.ExpiresAt.After(exception.CreatedAt) || exception.CreatedAt.IsZero() || exception.Approved || exception.ApprovedBy != "" || exception.ApprovedAt != nil {
 		return app.ErrValidation
@@ -993,6 +1642,9 @@ func (r audit) Append(ctx context.Context, entry domain.AuditChainEntry) (domain
 	}
 	if err := requireTenant(ctx, r.tx, entry.TenantID); err != nil {
 		return domain.AuditChainEntry{}, err
+	}
+	if err := coordination.LockWorkerProjection(ctx, r.tx, entry.TenantID); err != nil {
+		return domain.AuditChainEntry{}, writeError("lock tenant projection mutation", err)
 	}
 	// Legacy state reconciliation uses the same per-tenant transaction lock.
 	// Keep it while moving sequence allocation to the durable row below so a
@@ -1088,6 +1740,48 @@ func (r objectPayloads) RecordStagedObjectPayload(ctx context.Context, payload a
 }
 
 type outbox struct{ tx pgx.Tx }
+
+func (r outbox) ReplayTerminalJob(ctx context.Context, id, actorID string) (app.OutboxReplay, error) {
+	id = strings.TrimSpace(id)
+	actorID = strings.TrimSpace(actorID)
+	if ctx == nil || id == "" || actorID == "" {
+		return app.OutboxReplay{}, app.ErrValidation
+	}
+	var tenantID string
+	err := r.tx.QueryRow(ctx, `SELECT tenant_id FROM outbox_jobs WHERE id = $1 AND status = 'dead_letter' FOR UPDATE`, id).Scan(&tenantID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.OutboxReplay{}, app.ErrNotFound
+	}
+	if err != nil {
+		return app.OutboxReplay{}, fmt.Errorf("load terminal outbox job: %w", err)
+	}
+	var replayedAt time.Time
+	if err := r.tx.QueryRow(ctx, `
+		UPDATE outbox_jobs
+		SET status = 'queued', attempts = 0, run_after = now(), locked_at = NULL, lease_token = NULL,
+			failure_class = NULL, failure_code = NULL, last_error = NULL, terminal_at = NULL, updated_at = now()
+		WHERE id = $1 AND status = 'dead_letter'
+		RETURNING updated_at
+	`, id).Scan(&replayedAt); err != nil {
+		return app.OutboxReplay{}, fmt.Errorf("requeue terminal outbox job: %w", err)
+	}
+	if _, err := r.tx.Exec(ctx, `INSERT INTO outbox_job_attempts (job_id, attempt, outcome, failure_code) VALUES ($1, 0, 'replayed', 'operator_replay')`, id); err != nil {
+		return app.OutboxReplay{}, fmt.Errorf("record outbox replay: %w", err)
+	}
+	if _, err := audit(r).Append(ctx, domain.AuditChainEntry{
+		ID:          fmt.Sprintf("ace_outbox_replay_%s_%d", id, replayedAt.UnixNano()),
+		TenantID:    tenantID,
+		EntryType:   "outbox_job.replayed",
+		SubjectType: "outbox_job",
+		SubjectID:   id,
+		ActorType:   "api_key",
+		ActorID:     actorID,
+		OccurredAt:  replayedAt,
+	}); err != nil {
+		return app.OutboxReplay{}, fmt.Errorf("audit outbox replay: %w", err)
+	}
+	return app.OutboxReplay{JobID: id, Status: "queued", ReplayedAt: replayedAt.UTC()}, nil
+}
 
 func (r outbox) Enqueue(ctx context.Context, job app.OutboxJob) error {
 	if job.ID == "" || job.TenantID == "" || job.Kind == "" || job.SubjectType == "" || (job.SubjectID == "" && (job.Kind != "verify_subject" || job.SubjectType != "audit_chain")) || job.CreatedAt.IsZero() {
@@ -1326,8 +2020,8 @@ func (r governance) InsertRetentionOverride(ctx context.Context, override domain
 	return writeError("insert retention override", err)
 }
 
-func (r governance) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
-	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion == "" || root.CreatedAt.IsZero() {
+func (r integrity) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETrustRoot) error {
+	if root.ID == "" || root.TenantID == "" || root.Name == "" || root.KeyID == "" || root.Algorithm != "Ed25519" || root.Status != "active" || root.SchemaVersion != domain.DSSETrustRootSchemaVersion || len(root.AllowedPredicateTypes) == 0 || len(root.ExpectedBuilderIDs) == 0 || len(root.RequiredClaims) == 0 || root.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
 	publicKey, err := base64.StdEncoding.DecodeString(root.PublicKey)
@@ -1337,7 +2031,19 @@ func (r governance) InsertDSSETrustRoot(ctx context.Context, root domain.DSSETru
 	if err := requireTenant(ctx, r.tx, root.TenantID); err != nil {
 		return err
 	}
-	_, err = r.tx.Exec(ctx, `INSERT INTO dsse_trust_roots (id, tenant_id, name, key_id, algorithm, public_key, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, root.Status, root.SchemaVersion, root.CreatedAt)
+	predicateTypes, err := json.Marshal(root.AllowedPredicateTypes)
+	if err != nil {
+		return writeError("encode DSSE predicate policy", err)
+	}
+	builderIDs, err := json.Marshal(root.ExpectedBuilderIDs)
+	if err != nil {
+		return writeError("encode DSSE builder policy", err)
+	}
+	requiredClaims, err := json.Marshal(root.RequiredClaims)
+	if err != nil {
+		return writeError("encode DSSE required claims", err)
+	}
+	_, err = r.tx.Exec(ctx, `INSERT INTO dsse_trust_roots (id, tenant_id, name, key_id, algorithm, public_key, allowed_predicate_types, expected_builder_ids, required_claims, status, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, root.ID, root.TenantID, root.Name, root.KeyID, root.Algorithm, root.PublicKey, predicateTypes, builderIDs, requiredClaims, root.Status, root.SchemaVersion, root.CreatedAt)
 	return writeError("insert DSSE trust root", err)
 }
 
@@ -1520,6 +2226,10 @@ func (r builds) InsertBuildAttestation(ctx context.Context, attestation domain.B
 
 type packages struct{ tx pgx.Tx }
 
+func (r packages) InsertRedactionProfile(ctx context.Context, profile domain.RedactionProfile) error {
+	return governance(r).InsertRedactionProfile(ctx, profile)
+}
+
 type risk struct{ tx pgx.Tx }
 
 type source struct{ tx pgx.Tx }
@@ -1560,7 +2270,11 @@ func (r deployments) InsertDeploymentEvent(ctx context.Context, deployment domai
 	if err := requireRow(ctx, r.tx, `SELECT 1 FROM releases WHERE id = $1 AND tenant_id = $2 AND product_id = $3`, deployment.ReleaseID, deployment.TenantID, productID); err != nil {
 		return err
 	}
-	if err := requireRow(ctx, r.tx, `SELECT 1 FROM evidence_items WHERE id = $1 AND tenant_id = $2 AND deployment_id = $3`, deployment.EvidenceID, deployment.TenantID, deployment.ID); err != nil {
+	if err := requireRow(ctx, r.tx, `
+		SELECT 1 FROM evidence_items
+		WHERE id = $1 AND tenant_id = $2 AND deployment_id = $3
+		  AND product_id = $4 AND release_id = $5
+	`, deployment.EvidenceID, deployment.TenantID, deployment.ID, productID, deployment.ReleaseID); err != nil {
 		return err
 	}
 	for _, artifactID := range deployment.ArtifactIDs {
@@ -1573,7 +2287,7 @@ func (r deployments) InsertDeploymentEvent(ctx context.Context, deployment domai
 			return err
 		}
 	}
-	_, err := r.tx.Exec(ctx, `INSERT INTO deployment_events (id, tenant_id, environment_id, release_id, artifact_ids, status, started_at, finished_at, rollback_of, evidence_id, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, deployment.ID, deployment.TenantID, deployment.EnvironmentID, deployment.ReleaseID, deployment.ArtifactIDs, deployment.Status, deployment.StartedAt, deployment.FinishedAt, nullableString(deployment.RollbackOf), deployment.EvidenceID, deployment.SchemaVersion, deployment.CreatedAt)
+	_, err := r.tx.Exec(ctx, `INSERT INTO deployment_events (id, tenant_id, environment_id, release_id, artifact_ids, status, started_at, finished_at, rollback_of, evidence_id, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, deployment.ID, deployment.TenantID, deployment.EnvironmentID, deployment.ReleaseID, textArray(deployment.ArtifactIDs), deployment.Status, deployment.StartedAt, deployment.FinishedAt, nullableString(deployment.RollbackOf), deployment.EvidenceID, deployment.SchemaVersion, deployment.CreatedAt)
 	return writeError("insert deployment event", err)
 }
 
@@ -1693,6 +2407,12 @@ func (r supplyChain) InsertContainerImage(ctx context.Context, image domain.Cont
 		INSERT INTO container_images (id, tenant_id, artifact_id, repository, tag, digest, platform, schema_version, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, image.ID, image.TenantID, nullableString(image.ArtifactID), image.Repository, nullableString(image.Tag), image.Digest, nullableString(image.Platform), image.SchemaVersion, image.CreatedAt)
+	// The natural identity includes repository in a btree uniqueness index.
+	// Bounded but poorly compressible input can exceed the encoded tuple limit.
+	var databaseError *pgconn.PgError
+	if errors.As(err, &databaseError) && databaseError.Code == "54000" {
+		return app.ErrValidation
+	}
 	return writeError("insert container image", err)
 }
 
@@ -2180,13 +2900,19 @@ func (r signatures) InsertSigningKey(ctx context.Context, key domain.SigningKey)
 	if err := requireTenant(ctx, r.tx, key.TenantID); err != nil {
 		return err
 	}
+	validFrom := key.ValidFrom
+	if validFrom.IsZero() {
+		validFrom = key.CreatedAt
+	}
 	_, err := r.tx.Exec(ctx, `
 		INSERT INTO signing_keys (
 			id, tenant_id, kid, algorithm, status, public_key,
-			encrypted_private_key, created_at, revoked_at
+			public_key_fingerprint, version, provider, valid_from, valid_until,
+			encrypted_private_key, created_at, revoked_at, revocation_reason,
+			revocation_semantics, historical_validity_policy, compromised_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, nullableBytes(key.Private), key.CreatedAt, key.RevokedAt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, GREATEST($8, 1), COALESCE(NULLIF($9, ''), 'local_ed25519'), $10, $11, $12, $13, $14, $15, $16, COALESCE(NULLIF($17, ''), 'preserve'), $18)
+	`, key.ID, key.TenantID, key.KID, key.Algorithm, key.Status, key.PublicKey, key.PublicKeyFingerprint, key.Version, key.Provider, validFrom, key.ValidUntil, nullableBytes(key.Private), key.CreatedAt, key.RevokedAt, key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, key.CompromisedAt)
 	return writeError("insert signing key", err)
 }
 
@@ -2196,9 +2922,12 @@ func (r signatures) UpdateSigningKey(ctx context.Context, key domain.SigningKey,
 	}
 	result, err := r.tx.Exec(ctx, `
 		UPDATE signing_keys
-		SET status = $3, revoked_at = $4
-		WHERE id = $1 AND tenant_id = $2 AND status = $5
-	`, key.ID, key.TenantID, key.Status, key.RevokedAt, expectedStatus)
+		SET status = $3, revoked_at = $4, valid_until = $5,
+			revocation_reason = $6, revocation_semantics = $7,
+			historical_validity_policy = COALESCE(NULLIF($8, ''), 'preserve'),
+			compromised_at = $9
+		WHERE id = $1 AND tenant_id = $2 AND status = $10
+	`, key.ID, key.TenantID, key.Status, key.RevokedAt, key.ValidUntil, key.RevocationReason, key.RevocationSemantics, key.HistoricalValidityPolicy, key.CompromisedAt, expectedStatus)
 	if err != nil {
 		return writeError("update signing key", err)
 	}
@@ -2261,13 +2990,15 @@ func (r integrity) InsertCosignVerification(ctx context.Context, verification do
 		INSERT INTO cosign_verifications (
 			id, tenant_id, artifact_id, container_image_id, artifact_signature_id,
 			subject_digest, rekor_uuid, rekor_log_index, certificate_identity,
-			certificate_issuer, result, checks, assurance_profile, limitations,
+			certificate_issuer, verifier_library_version, trust_root_version, verification_mode,
+			result, checks, assurance_profile, limitations,
 			schema_version, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 	`, verification.ID, verification.TenantID, verification.ArtifactID, nullableString(verification.ContainerImageID), verification.ArtifactSignatureID,
 		verification.SubjectDigest, nullableString(verification.RekorUUID), nullableString(verification.RekorLogIndex), nullableString(verification.CertificateIdentity),
-		nullableString(verification.CertificateIssuer), verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, verification.CreatedAt)
+		nullableString(verification.CertificateIssuer), verification.VerifierLibraryVersion, verification.TrustRootVersion, verification.VerificationMode,
+		verification.Result, checks, profile, textArray(verification.Limitations), verification.SchemaVersion, verification.CreatedAt)
 	return writeError("insert Cosign verification", err)
 }
 
@@ -2552,17 +3283,8 @@ func validateQuestionnaireTemplate(template domain.QuestionnaireTemplate) error 
 }
 
 func validCollectorScopes(scopes []string) bool {
-	if len(scopes) == 0 {
-		return false
-	}
-	for _, scope := range scopes {
-		switch strings.TrimSpace(scope) {
-		case app.ScopeBuildWrite, app.ScopeBuildRead, app.ScopeEvidenceWrite, app.ScopeEvidenceRead, app.ScopeSourceWrite, app.ScopeSourceRead, app.ScopeBundleWrite, app.ScopeBundleRead:
-		default:
-			return false
-		}
-	}
-	return true
+	_, err := integrationapp.NormalizeCollectorScopes(scopes)
+	return err == nil
 }
 
 func (r verification) InsertPolicyEvaluation(ctx context.Context, evaluation domain.PolicyEvaluation) error {
@@ -2881,7 +3603,7 @@ func (r futureExtensions) InsertSigningOperation(ctx context.Context, signature 
 	if err != nil {
 		return writeError("insert provider signature receipt", err)
 	}
-	_, err = r.tx.Exec(ctx, `INSERT INTO signing_operations (id, tenant_id, provider_id, subject_type, subject_id, payload_hash, signature_ref, result, checks, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.SignatureRef, operation.Result, checks, operation.SchemaVersion, operation.CreatedAt)
+	_, err = r.tx.Exec(ctx, `INSERT INTO signing_operations (id, tenant_id, provider_id, subject_type, subject_id, payload_hash, canonical_payload_hash, request_id, provider_request_id, signature_ref, result, checks, schema_version, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, operation.ID, operation.TenantID, operation.ProviderID, operation.SubjectType, operation.SubjectID, operation.PayloadHash, operation.CanonicalPayloadHash, operation.RequestID, nullableString(operation.ProviderRequestID), operation.SignatureRef, operation.Result, checks, operation.SchemaVersion, operation.CreatedAt)
 	return writeError("insert signing operation", err)
 }
 
@@ -3149,12 +3871,7 @@ func validSigningProviderType(value string) bool {
 }
 
 func validPolicyEvidenceType(value string) bool {
-	switch value {
-	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception", "sast", "dast", "secret_scan", "license_scan", "api_security", "deployment", "threat_model", "security_review", "pen_test_report":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidPolicyEvidenceType(value)
 }
 
 func validContractDiffResult(value string) bool {
@@ -3167,12 +3884,7 @@ func validContractDiffResult(value string) bool {
 }
 
 func validVulnerabilityWorkflowAction(value string) bool {
-	switch value {
-	case "scanner_metadata", "sla_set", "scanner_disagreement", "superseded", "reopened":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidVulnerabilityWorkflowAction(value)
 }
 
 func validRiskSeverity(value string) bool {

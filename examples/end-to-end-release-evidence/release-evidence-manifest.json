@@ -26,6 +26,7 @@
           "specVersion": "1.6",
           "components": [
             {
+              "type": "library",
               "name": "openssl",
               "purl": "pkg:apk/openssl@3.1.0"
             }

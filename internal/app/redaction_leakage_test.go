@@ -11,7 +11,7 @@ import (
 
 func TestCustomerPackageRedactionLeakageMatrix(t *testing.T) {
 	objects := newTestObjectStore()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: objects})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: objects})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 
@@ -25,7 +25,7 @@ func TestCustomerPackageRedactionLeakageMatrix(t *testing.T) {
 	tenantSecret := "TENANT-SECRET-EVY-101"
 	privateMaterialCanary := "PRIVATE-SIGNING-MATERIAL-EVY-101"
 
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{

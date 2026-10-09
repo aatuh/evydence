@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -68,6 +69,48 @@ REQUIRED_HELPERS = (
 )
 
 
+@dataclass(frozen=True)
+class RequestFieldContract:
+    operation_id: str
+    schema_name: str
+    go_type: str
+    typescript_type: str
+    handler_file: pathlib.Path
+    handler_name: str
+    decoder_name: str = ""
+
+
+REQUEST_FIELD_CONTRACTS = (
+    RequestFieldContract(
+        "createRelease",
+        "CreateReleaseRequest",
+        "CreateReleaseRequest",
+        "CreateReleaseRequest",
+        ROOT / "internal/adapters/httpapi/catalog_creation_commands.go",
+        "createRelease",
+        "decodeReleaseCreation",
+    ),
+    RequestFieldContract(
+        "registerArtifact",
+        "RegisterArtifactRequest",
+        "RegisterArtifactRequest",
+        "RegisterArtifactRequest",
+        ROOT / "internal/adapters/httpapi/artifact_image_registration.go",
+        "registerArtifact",
+        "decodeArtifactRegistration",
+    ),
+    RequestFieldContract(
+        "createBuild",
+        "CreateBuildRequest",
+        "CreateBuildRequest",
+        "CreateBuildRequest",
+        ROOT / "internal/adapters/httpapi/build_commands.go",
+        "createBuild",
+        "decodeBuildCreation",
+    ),
+)
+
+
 def fail(message: str) -> None:
     print(f"sdk-check: {message}", file=sys.stderr)
     raise SystemExit(2)
@@ -106,8 +149,96 @@ def require_text(source: str, token: str, label: str) -> None:
         fail(f"{label} missing {token!r}")
 
 
+def properties_and_required(spec: dict, schema_name: str) -> tuple[set[str], set[str]]:
+    try:
+        schema = spec["components"]["schemas"][schema_name]
+        properties = set(schema["properties"])
+    except KeyError as exc:
+        fail(f"missing schema contract for {schema_name}: {exc}")
+    required = schema.get("required", [])
+    if not isinstance(required, list) or not all(isinstance(field, str) for field in required):
+        fail(f"schema {schema_name} has invalid required fields")
+    return properties, set(required)
+
+
+def go_request_fields(source: str, type_name: str) -> tuple[set[str], set[str]]:
+    match = re.search(rf"(?ms)^type {re.escape(type_name)} struct \{{(?P<body>.*?)^\}}", source)
+    if not match:
+        fail(f"Go SDK missing request type {type_name}")
+    fields: set[str] = set()
+    required: set[str] = set()
+    for json_name, options in re.findall(r'`json:"([^,"]+)([^\"]*)"`', match.group("body")):
+        fields.add(json_name)
+        if ",omitempty" not in options:
+            required.add(json_name)
+    return fields, required
+
+
+def typescript_request_fields(source: str, type_name: str) -> tuple[set[str], set[str]]:
+    match = re.search(rf"(?ms)^export type {re.escape(type_name)} = \{{(?P<body>.*?)^\}};", source)
+    if not match:
+        fail(f"TypeScript SDK missing request type {type_name}")
+    fields: set[str] = set()
+    required: set[str] = set()
+    for name, optional in re.findall(r"(?m)^\s{2}([a-z][a-z0-9_]*)\s*(\?)?:", match.group("body")):
+        fields.add(name)
+        if optional != "?":
+            required.add(name)
+    return fields, required
+
+
+def go_function_source(source: str, name: str, server_method: bool = False) -> str:
+    receiver = "(s *Server) " if server_method else ""
+    marker = f"func {receiver}{name}("
+    start = source.find(marker)
+    if start == -1:
+        fail(f"Go function missing {name}")
+    end = source.find("\nfunc ", start + len(marker))
+    return source[start:] if end == -1 else source[start:end]
+
+
+def handler_request_fields(source: str, handler_name: str, decoder_name: str = "") -> set[str]:
+    handler = go_function_source(source, handler_name, server_method=True)
+    request_source = handler
+    if decoder_name:
+        if not re.search(rf"\b{re.escape(decoder_name)}\s*\(", handler):
+            fail(f"handler {handler_name} does not call request decoder {decoder_name}")
+        request_source = go_function_source(source, decoder_name)
+    match = re.search(r"(?ms)var req struct \{(?P<body>.*?)^\t\}", request_source)
+    if not match:
+        fail(f"handler {handler_name} missing tagged request struct")
+    return set(re.findall(r'`json:"([^,"]+)', match.group("body")))
+
+
+def validate_request_field_contracts(spec: dict, go_client: str, typescript_client: str) -> list[str]:
+    failures: list[str] = []
+    for contract in REQUEST_FIELD_CONTRACTS:
+        schema_fields, schema_required = properties_and_required(spec, contract.schema_name)
+        go_fields, go_required = go_request_fields(go_client, contract.go_type)
+        typescript_fields, typescript_required = typescript_request_fields(typescript_client, contract.typescript_type)
+        handler_source = contract.handler_file.read_text(encoding="utf-8")
+        if contract.decoder_name:
+            handler_fields = handler_request_fields(handler_source, contract.handler_name, contract.decoder_name)
+        else:
+            handler_fields = handler_request_fields(handler_source, contract.handler_name)
+        for label, fields in (("Go SDK", go_fields), ("TypeScript SDK", typescript_fields), ("handler", handler_fields)):
+            if fields != schema_fields:
+                failures.append(
+                    f"{contract.operation_id} {label} fields {sorted(fields)} do not match "
+                    f"{contract.schema_name} fields {sorted(schema_fields)}"
+                )
+        for label, required in (("Go SDK", go_required), ("TypeScript SDK", typescript_required)):
+            if required != schema_required:
+                failures.append(
+                    f"{contract.operation_id} {label} required fields {sorted(required)} do not match "
+                    f"{contract.schema_name} required fields {sorted(schema_required)}"
+                )
+    return failures
+
+
 def main() -> None:
     spec = load_openapi()
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "generate_error_catalog.py")], check=True)
     catalog_path = ROOT / "sdk" / "openapi-route-catalog.json"
     if not catalog_path.exists():
         fail("missing sdk/openapi-route-catalog.json")
@@ -138,12 +269,38 @@ def main() -> None:
     go_client = (ROOT / "sdk/go/evydence/client.go").read_text(encoding="utf-8")
     typescript_client = (ROOT / "sdk/typescript/client.ts").read_text(encoding="utf-8")
     python_client = (ROOT / "sdk/python/evydence_client.py").read_text(encoding="utf-8")
+    go_error_codes = (ROOT / "sdk/go/evydence/error_codes.go").read_text(encoding="utf-8")
+    typescript_error_codes = (ROOT / "sdk/typescript/error_codes.ts").read_text(encoding="utf-8")
+    python_error_codes = (ROOT / "sdk/python/error_codes.py").read_text(encoding="utf-8")
+    error_catalog = json.loads((ROOT / "sdk/error-codes.json").read_text(encoding="utf-8"))
     quickstarts = (ROOT / "docs/sdk/quickstarts.md").read_text(encoding="utf-8")
+
+    for failure in validate_request_field_contracts(spec, go_client, typescript_client):
+        fail(failure)
 
     for helper in REQUIRED_HELPERS:
         require_text(go_client, f"func (c Client) {helper.go_name}", "Go SDK")
         require_text(typescript_client, f"async {helper.typescript_name}", "TypeScript SDK")
         require_text(python_client, f"def {helper.python_name}", "Python SDK")
+
+    require_text(go_client, "type PageMeta struct", "Go SDK pagination type")
+    require_text(go_client, "type PageEnvelope[T any] struct", "Go SDK pagination envelope")
+    require_text(typescript_client, "export type PageMeta", "TypeScript SDK pagination type")
+    require_text(typescript_client, "export type PageEnvelope<T>", "TypeScript SDK pagination envelope")
+    require_text(python_client, "class PageMeta", "Python SDK pagination type")
+    require_text(python_client, "class PageEnvelope", "Python SDK pagination envelope")
+
+    require_text(go_client, "type ProblemError struct", "Go SDK typed problem error")
+    require_text(typescript_client, "class EvydenceProblemError", "TypeScript SDK typed problem error")
+    require_text(python_client, "class EvydenceProblemError", "Python SDK typed problem error")
+    require_text(go_error_codes, "type ErrorCode string", "Go SDK error code type")
+    require_text(typescript_error_codes, "export type ErrorCode", "TypeScript SDK error code type")
+    require_text(python_error_codes, "class ErrorCode", "Python SDK error code type")
+    for code in error_catalog.get("errors", []):
+        if not isinstance(code, dict) or not isinstance(code.get("code"), str):
+            fail("sdk/error-codes.json has invalid error code entry")
+        for source, label in ((go_error_codes, "Go SDK error catalog"), (typescript_error_codes, "TypeScript SDK error catalog"), (python_error_codes, "Python SDK error catalog")):
+            require_text(source, code["code"], label)
 
     require_text(go_client, "strings.HasPrefix(path, \"/v1/\")", "Go SDK path validation")
     require_text(typescript_client, "path.startsWith(\"/v1/\")", "TypeScript SDK path validation")
@@ -162,7 +319,8 @@ def main() -> None:
         require_text(quickstarts, token, "SDK quickstarts")
 
     print(
-        f"sdk-check: validated {len(REQUIRED_HELPERS)} SDK helpers and "
+        f"sdk-check: validated {len(REQUIRED_HELPERS)} SDK helpers, {len(REQUEST_FIELD_CONTRACTS)} "
+        f"field-level request contracts, {len(error_catalog.get('errors', []))} generated error codes, and "
         f"{catalog.get('route_count')} generated route catalog entries against openapi.yaml"
     )
 

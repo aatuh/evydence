@@ -1,8 +1,9 @@
 GO ?= go
-GOTOOLCHAIN ?= local
+GOTOOLCHAIN ?= go1.26.9
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
+.PHONY: architecture-check
 GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
@@ -15,7 +16,7 @@ BUILD_DIRTY ?= $(shell if test -n "$$(git status --porcelain --untracked-files=a
 BUILD_GO_VERSION ?= $(shell $(GO) env GOVERSION)
 BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
-.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check openapi-check openapi-precision-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
+.PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check test-strategy-check domain-context-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check security-regression-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fault-injection-check integration-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -42,20 +43,26 @@ gosec: ## Run gosec when installed
 	@gosec -exclude-dir=.refs ./...
 
 test: ## Run unit tests
-	@$(GO) test ./...
+	@$(GO) test ./... -timeout=30m
 
 fuzz-smoke: ## Run Go fuzz target seed corpora without a fuzzing campaign
 	@$(GO) test ./internal/app -run '^Fuzz'
 
 test-race: ## Run race tests
-	@$(GO) test ./... -race -count=1
+	@$(GO) test ./... -race -count=1 -timeout=30m
 
 coverage: ## Run tests with coverage
-	@$(GO) test ./... -coverprofile=coverage.out
+	@$(GO) test ./... -coverpkg=./... -coverprofile=coverage.out -timeout=30m
 	@$(GO) tool cover -func=coverage.out
 
 coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_TEST_DATABASE_URL
 	@scripts/coverage_check.sh
+
+test-strategy-check: ## Validate critical behavior test evidence and coverage provenance policy
+	@python3 scripts/test_gate_watchdogs.py
+	@python3 scripts/test_coverage_check.py
+	@python3 scripts/test_critical_behavior_matrix.py
+	@python3 scripts/critical_behavior_matrix.py --check
 
 openapi.yaml: ## Generate committed OpenAPI source
 	@$(GO) run ./cmd/openapi > openapi.yaml
@@ -66,13 +73,24 @@ openapi-check: openapi.yaml ## Validate OpenAPI generation and route contract te
 	@cmp -s openapi.yaml /tmp/evydence-openapi.yaml
 	@scripts/render_openapi_docs.py --check
 
+openapi-breaking-check: ## Enforce release-artifact OpenAPI compatibility and exact exceptions
+	@python3 scripts/openapi_breaking_check_test.py
+	@scripts/openapi_breaking_check.sh
+
 openapi-precision-check: ## Enforce current OpenAPI precision floor and broad-route ceiling
 	@python3 scripts/openapi_precision_check.py
+
+api-inventory-check: ## Validate the generated public API stability inventory
+	@python3 scripts/api_inventory.py --check
+
+parser-corpus-check: ## Verify parser corpus provenance, hashes, and normalized summaries
+	@python3 scripts/parser_corpus_check.py
 
 rendered-openapi-check: ## Validate generated static OpenAPI docs
 	@scripts/render_openapi_docs.py --check
 
 meta-check: ## Validate root legal, governance, support, and release-evidence metadata
+	@test -f AGENTS.md
 	@test -f LICENSE
 	@test -f COMMERCIAL.md
 	@test -f GOVERNANCE.md
@@ -101,6 +119,10 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@test -x scripts/release_candidate_validate.sh
 	@test -x scripts/release_asset_smoke_check.sh
 	@test -x scripts/release_evidence_metadata.py
+	@grep -F 'means incomplete; `[x]` means complete only after' AGENTS.md >/dev/null
+	@grep -F 'Use Conventional Commits and include the ticket ID' AGENTS.md >/dev/null
+	@grep -F 'Work one backlog ticket at a time.' AGENTS.md >/dev/null
+	@grep -F 'Update `.EVYDENCE_CODEX_BACKLOG.md` only after' AGENTS.md >/dev/null
 	@grep -F 'GNU AFFERO GENERAL PUBLIC LICENSE' LICENSE >/dev/null
 	@grep -F 'AGPL-3.0-only' COMMERCIAL.md >/dev/null
 	@grep -F 'Commercial license exceptions' COMMERCIAL.md >/dev/null
@@ -171,7 +193,10 @@ backlog-check: ## Validate tracked execution backlog metadata
 quality-scorecard-check: ## Validate evidence-backed quality scorecard
 	@python3 scripts/quality_scorecard.py --check
 
-docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check rendered-openapi-check ## Validate canonical docs exist and avoid forbidden product claims
+error-catalog-check: ## Validate generated error-code docs and SDK types
+	@python3 scripts/generate_error_catalog.py
+
+docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
@@ -195,8 +220,12 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@test -f docs/reference/configuration.md
 	@test -f docs/reference/capability-map.md
 	@test -f docs/reference/api-contract-matrix.md
+	@test -f docs/reference/api-inventory.md
 	@test -f docs/reference/product-boundary.md
 	@test -f docs/reference/openapi.md
+	@test -f docs/reference/api-versioning.md
+	@test -f docs/reference/openapi-baseline.json
+	@test -f .github/openapi-breaking-exceptions.json
 	@test -f docs/openapi/index.html
 	@test -f site/marketing/public/api/index.html
 	@test -f docs/reference/vulnerability-decisions.md
@@ -537,6 +566,8 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@test -f deploy/observability/prometheus-rules.yaml
 	@test -f deploy/observability/grafana-dashboard.json
 	@grep -F 'postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229' compose.production-like.yml >/dev/null
+	@grep -F 'shm_size: 256m' docker-compose.yml >/dev/null
+	@grep -F 'shm_size: 256m' compose.production-like.yml >/dev/null
 	@grep -F 'minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e' compose.production-like.yml >/dev/null
 	@grep -F 'minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727' compose.production-like.yml >/dev/null
 	@! grep -E 'image:[[:space:]]+[^$$]*:latest' compose.production-like.yml >/dev/null
@@ -560,11 +591,12 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@grep -F 'entrypoint: ["evydence-migrate"]' compose.production-like.yml >/dev/null
 	@grep -F 'entrypoint: ["evydence-worker"]' compose.production-like.yml >/dev/null
 
-sdk-check: ## Validate SDK helper and generated route-catalog coverage against OpenAPI
+sdk-check: error-catalog-check ## Validate SDK helper and generated route-catalog coverage against OpenAPI
 	@test -f sdk/go/evydence/client.go
 	@test -f sdk/typescript/client.ts
 	@test -f sdk/python/evydence_client.py
 	@test -f sdk/openapi-route-catalog.json
+	@python3 scripts/test_sdk_check.py
 	@python3 scripts/sdk_check.py
 
 demo-check: ## Validate checked end-to-end evidence demo fixtures
@@ -604,7 +636,8 @@ demo-check: ## Validate checked end-to-end evidence demo fixtures
 customer-cve-review-demo-check: ## Validate deterministic customer CVE review demo
 	@examples/customer-cve-review-demo/run-demo.sh >/dev/null
 
-local-ci-simulation-check: ## Run local one-command CI evidence simulation without external services
+local-ci-simulation-check: ## Run isolated PostgreSQL CI evidence simulation; requires EVYDENCE_TEST_DATABASE_URL
+	@python3 -m unittest scripts/test_local_ci_simulation.py
 	@scripts/local_ci_simulation_check.sh
 
 reviewer-package-workflow-check: ## Validate offline reviewer package verification, extraction, and report inspection
@@ -633,7 +666,14 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@test -f docs/assets/reviewer-journey.svg
 	@grep -F 'Load bundled demo' site/package-viewer/index.html >/dev/null
 	@grep -F 'textContent' site/package-viewer/index.html >/dev/null
-	@! grep -F 'innerHTML' site/package-viewer/index.html >/dev/null
+	@grep -F 'http-equiv="Content-Security-Policy"' site/package-viewer/index.html >/dev/null
+	@grep -F "default-src 'none';" site/package-viewer/index.html >/dev/null
+	@grep -F "connect-src 'none'" site/package-viewer/index.html >/dev/null
+	@grep -F 'nonce="evydence-package-viewer-v1"' site/package-viewer/index.html >/dev/null
+	@! grep -F "script-src 'unsafe-inline'" site/package-viewer/index.html >/dev/null
+	@grep -F 'maxPackageFileBytes' site/package-viewer/index.html >/dev/null
+	@grep -F 'validatePackageJSON(parsed)' site/package-viewer/index.html >/dev/null
+	@! grep -E '(innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function)' site/package-viewer/index.html >/dev/null
 	@grep -F 'Release Summary' site/package-viewer/index.html >/dev/null
 	@grep -F 'Reviewer Dossier' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
 	@grep -F 'read-only package scope' site/package-viewer/index.html docs/how-to/view-packages.md >/dev/null
@@ -664,6 +704,15 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Gaps' docs/assets/reviewer-journey.svg >/dev/null
 	@grep -F 'Limitations' docs/assets/reviewer-journey.svg >/dev/null
 
+security-regression-check: ## Run mandatory leakage, parser-limit, archive, authz, SSRF, and package-viewer regressions
+	@$(GO) test ./internal/platform/redaction ./internal/platform/jsonbounds -count=1
+	@$(GO) test ./internal/app -run '^(TestCustomerPackageRedactionLeakageMatrix|TestSampleCustomerPackageFixtureHasNoRedactionLeakage|TestCustomerPackageArchiveRejectsSensitiveManifestFields|TestCustomerPackageArchiveRejectsOversizedGeneratedReport|TestCustomReportTemplatesAreDataOnlyAndBounded|TestEvidenceLifecycleAuditDetailsRemoveSensitiveCanaries|TestGeneratedReportsRejectOversizedOutput|TestIdempotencyReplayRemovesAllCentralSensitiveFields|TestResourceScopedAuthorizationCoverageInventory)$$' -count=1
+	@$(GO) test ./internal/app/parsers/... -count=1
+	@$(GO) test ./internal/adapters/httpapi -run '^(TestDecodeJSONRejectsStructuralResourceBombs|TestReleaseRiskDecisionHTTPFlow|TestCrossTenantEvidenceReadDenied|TestUnknownJSONFieldReturnsProblem)$$' -count=1
+	@$(GO) test ./cmd/evydence -run '^(TestCustomerPackageJSONBoundsRejectStructuralBombs|TestVerifyCustomerPackageRejectsUnsafeArchiveShape)$$' -count=1
+	@$(GO) test ./internal/platform/httpclient -count=1
+	@$(MAKE) package-viewer-check
+
 release-asset-smoke-check: ## Verify local release asset checksums, signature, package verification, and failure cases
 	@scripts/release_asset_smoke_check.sh
 
@@ -674,12 +723,29 @@ marketing-site-production-check: ## Build and validate the marketing site for ev
 	@PUBLIC_SITE_URL=https://evydence.app PUBLIC_SITE_BASE=/ PUBLIC_GA_MEASUREMENT_ID=G-XC2ESEHQ3W npm --prefix site/marketing run check
 
 restore-rehearsal-check: ## Run repository-owned backup/restore rehearsal tests
-	@$(GO) test ./internal/app -run TestBackupRestoreRehearsalPreservesLedgerAndObjectPayloads -count=1
-	@$(GO) test ./internal/adapters/postgres -run TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects -count=1
+	@sh scripts/restore_rehearsal.sh
+
+fault-injection-check: ## Run test-only transactional failure and recovery checks
+	@scripts/fault_injection_check.sh
+
+integration-check: ## Run guarded live PostgreSQL and MinIO adapter checks
+	@scripts/integration_check.sh
+
+domain-context-check: ## Validate bounded-context model ownership and compatibility
+	@python3 scripts/test_domain_context_check.py
+	@python3 scripts/domain_context_check.py
+
+architecture-check: ## Enforce inward imports and flag large source/interface surfaces
+	@$(GO) test ./internal/architecturecheck ./cmd/architecture-inspect
+	@GO='$(GO)' python3 scripts/test_architecture_check.py
+	@GO='$(GO)' python3 scripts/architecture_check.py
 
 fast-check: ## Run non-mutating fast validation
 	@$(MAKE) test
 	@$(MAKE) fuzz-smoke
+	@$(MAKE) test-strategy-check
+	@$(MAKE) domain-context-check
+	@$(MAKE) architecture-check
 	@$(MAKE) openapi-check
 	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check
@@ -691,6 +757,9 @@ fast-check: ## Run non-mutating fast validation
 finalize: ## Thorough validity check
 	@$(MAKE) fmt
 	@$(MAKE) test
+	@$(MAKE) test-strategy-check
+	@$(MAKE) domain-context-check
+	@$(MAKE) architecture-check
 	@$(MAKE) openapi-check
 	@$(MAKE) openapi-precision-check
 	@$(MAKE) docs-check
@@ -706,6 +775,7 @@ release-acceptance: ## Run deterministic release metadata acceptance checks
 release-check: ## Release validation with security, race, and configured live integration gates
 	@$(MAKE) finalize
 	@$(MAKE) release-acceptance
+	@$(MAKE) security-regression-check
 	@$(MAKE) lint
 	@$(MAKE) gosec
 	@$(MAKE) vuln
@@ -770,7 +840,7 @@ live-postgres-check: ## Verify PostgreSQL connectivity and migrations when EVYDE
 	@if [ -z "$$EVYDENCE_TEST_DATABASE_URL" ]; then echo "EVYDENCE_TEST_DATABASE_URL not set; skipping live postgres check"; exit 0; else EVYDENCE_DATABASE_URL="$$EVYDENCE_TEST_DATABASE_URL" $(GO) run ./cmd/evydence-migrate; fi
 
 postgres-integration-test: ## Run Postgres-backed integration tests when EVYDENCE_TEST_DATABASE_URL is set
-	@if [ -z "$$EVYDENCE_TEST_DATABASE_URL" ]; then echo "EVYDENCE_TEST_DATABASE_URL not set; skipping postgres integration tests"; exit 0; else $(GO) test ./internal/adapters/postgres ./internal/app -count=1; fi
+	@if [ -z "$$EVYDENCE_TEST_DATABASE_URL" ]; then echo "EVYDENCE_TEST_DATABASE_URL not set; skipping postgres integration tests"; exit 0; else $(GO) test ./internal/adapters/postgres ./internal/app -count=1 -timeout=30m; fi
 
 clean: ## Clean local test artifacts
 	@rm -f coverage.out

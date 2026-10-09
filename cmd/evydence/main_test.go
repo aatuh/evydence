@@ -24,6 +24,23 @@ func TestCleanOperatorPathRejectsNUL(t *testing.T) {
 	}
 }
 
+func TestCustomerPackageJSONBoundsRejectStructuralBombs(t *testing.T) {
+	items := make([]string, 1025)
+	for index := range items {
+		items[index] = "1"
+	}
+	for name, body := range map[string]string{
+		"depth": strings.Repeat(`{"nested":`, 33) + `"value"` + strings.Repeat(`}`, 33),
+		"array": `{"items":[` + strings.Join(items, ",") + `]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := rejectDuplicateCustomerPackageJSONKeys([]byte(body)); err == nil {
+				t.Fatalf("customer package JSON accepted %s resource bomb", name)
+			}
+		})
+	}
+}
+
 func TestReleaseManifestSignAndVerify(t *testing.T) {
 	dir := t.TempDir()
 	artifactPath := dir + "/evydence-api"
@@ -445,6 +462,61 @@ func TestVerifyCustomerPackageRejectsUnsafeArchiveShape(t *testing.T) {
 	if err := verifyCustomerPackage([]string{"--archive", undeclaredDecisionPath}); err == nil || !strings.Contains(err.Error(), "undeclared vulnerability decision export") {
 		t.Fatalf("undeclared decision export err=%v", err)
 	}
+
+	symlinkArchivePath := writeCustomCustomerPackageArchive(t, dir+"/package-symlink.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+		{name: "README.txt", body: []byte("manifest.json"), mode: os.ModeSymlink | 0o777},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", symlinkArchivePath}); err == nil || !strings.Contains(err.Error(), "unsafe archive entry") {
+		t.Fatalf("symlink archive err=%v", err)
+	}
+
+	bombArchivePath := writeCustomCustomerPackageArchive(t, dir+"/package-compression-bomb.zip", []archiveEntry{
+		{name: "manifest.json", body: body},
+		{name: "package.json", body: mustMarshalJSON(t, map[string]any{"id": "csp_1", "manifest_hash": hash})},
+		{name: "verification.json", body: mustMarshalJSON(t, map[string]any{"package_id": "csp_1", "manifest_hash": hash})},
+		{name: "README.txt", body: []byte(strings.Repeat("a", 4096))},
+	})
+	if err := verifyCustomerPackage([]string{"--archive", bombArchivePath}); err == nil || !strings.Contains(err.Error(), "compression ratio") {
+		t.Fatalf("compression-bomb archive err=%v", err)
+	}
+}
+
+func TestVerifyReleaseArtifactFilesRejectsUnsafeManifestEntries(t *testing.T) {
+	dir := t.TempDir()
+	artifactPath := dir + "/artifact"
+	if err := os.WriteFile(artifactPath, []byte("artifact"), 0o600); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+	digest, err := hashFile(artifactPath)
+	if err != nil {
+		t.Fatalf("hash artifact: %v", err)
+	}
+	manifestPath := dir + "/manifest.json"
+	writeManifest := func(artifacts []map[string]any) {
+		t.Helper()
+		body := mustMarshalJSON(t, map[string]any{"schema_version": "evydence-release-artifacts.v1.0.0", "generated_at": "2026-05-28T12:00:00Z", "artifacts": artifacts})
+		if err := os.WriteFile(manifestPath, body, 0o600); err != nil {
+			t.Fatalf("write manifest: %v", err)
+		}
+	}
+	writeManifest([]map[string]any{{"path": "../outside", "digest": digest, "size": int64(8)}})
+	if err := verifyReleaseArtifactFiles(manifestPath, nil); err == nil || !strings.Contains(err.Error(), "unsafe or duplicate") {
+		t.Fatalf("traversal manifest err=%v", err)
+	}
+	writeManifest([]map[string]any{{"path": "artifact", "digest": digest, "size": int64(8)}, {"path": "artifact", "digest": digest, "size": int64(8)}})
+	if err := verifyReleaseArtifactFiles(manifestPath, nil); err == nil || !strings.Contains(err.Error(), "unsafe or duplicate") {
+		t.Fatalf("duplicate artifact manifest err=%v", err)
+	}
+	if err := os.Symlink(artifactPath, dir+"/linked-artifact"); err != nil {
+		t.Fatalf("make symlink: %v", err)
+	}
+	writeManifest([]map[string]any{{"path": "linked-artifact", "digest": digest, "size": int64(8)}})
+	if err := verifyReleaseArtifactFiles(manifestPath, nil); err == nil || !strings.Contains(err.Error(), "regular file") {
+		t.Fatalf("symlink artifact manifest err=%v", err)
+	}
 }
 
 func TestVerifyCustomerPackageRejectsDuplicateJSONKeys(t *testing.T) {
@@ -680,10 +752,52 @@ func TestGitHubActionsUploadBuildPostsBuildAndAttestationSafely(t *testing.T) {
 	}
 }
 
+func TestGitHubActionsUploadBuildOmitsMissingFinishedAtAndPreservesProvidedPrecision(t *testing.T) {
+	t.Setenv("GITHUB_RUN_ID", "1001")
+	t.Setenv("GITHUB_RUN_ATTEMPT", "1")
+	t.Setenv("GITHUB_SHA", strings.Repeat("a", 40))
+	t.Setenv("GITHUB_REPOSITORY", "example/repo")
+	t.Setenv("GITHUB_WORKFLOW_REF", "example/repo/.github/workflows/build.yml@refs/heads/main")
+	t.Setenv("EVYDENCE_BUILD_FINISHED_AT", "")
+	for _, finished := range []string{"", "2026-05-27T12:34:56.123456789+02:00"} {
+		t.Run(finished, func(t *testing.T) {
+			payloads := make(chan map[string]json.RawMessage, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var payload map[string]json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Error(err)
+				}
+				payloads <- payload
+				_, _ = w.Write([]byte(`{"data":{"id":"build_1"}}`))
+			}))
+			defer server.Close()
+			args := []string{"--url", server.URL, "--api-key", "test-key", "--project-id", "project", "--release-id", "release", "--started-at", "2026-05-27T06:00:00Z"}
+			if finished != "" {
+				args = append(args, "--finished-at", finished)
+			}
+			if err := uploadGitHubActionsBuild(t.Context(), server.Client(), args); err != nil {
+				t.Fatal(err)
+			}
+			payload := <-payloads
+			value, present := payload["finished_at"]
+			if finished == "" {
+				if present {
+					t.Fatalf("missing finish time must be omitted, got %s", value)
+				}
+			} else {
+				var got string
+				if !present || json.Unmarshal(value, &got) != nil || got != finished {
+					t.Fatalf("finish-time precision or offset changed: %s", value)
+				}
+			}
+		})
+	}
+}
+
 func TestReleaseUploadEvidenceDryRunValidatesFilesAndPrintsNextSteps(t *testing.T) {
 	dir := t.TempDir()
 	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))
-	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:github/acme/api@abc"}]}`))
+	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:github/acme/api@abc"}]}`))
 	scanPath := writeTestFile(t, dir+"/scan.json", []byte(`{"findings":[]}`))
 	vexPath := writeTestFile(t, dir+"/vex.json", []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-27T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-2026-0001"},"products":[{"@id":"pkg:github/acme/api@abc"}],"status":"not_affected","justification":"component_not_present","impact_statement":"not shipped","action_statement":"none"}]}`))
 	t.Setenv("EVYDENCE_API_KEY", "evy_secret_should_not_print")
@@ -718,7 +832,7 @@ func TestReleaseUploadEvidenceDryRunValidatesFilesAndPrintsNextSteps(t *testing.
 func TestReleaseUploadEvidenceCreatesMissingResourcesAndUploads(t *testing.T) {
 	dir := t.TempDir()
 	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))
-	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:github/acme/api@abc"}]}`))
+	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:github/acme/api@abc"}]}`))
 	scanPath := writeTestFile(t, dir+"/scan.json", []byte(`{"scanner":"generic","findings":[]}`))
 	vexPath := writeTestFile(t, dir+"/vex.json", []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex","author":"security@example.test","timestamp":"2026-05-27T12:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-2026-0001"},"products":[{"@id":"pkg:github/acme/api@abc"}],"status":"fixed","justification":"fixed","impact_statement":"patched","action_statement":"upgrade"}]}`))
 	seen := []string{}
@@ -1145,6 +1259,7 @@ func writeTestCustomerPackageArchive(t *testing.T, path string, manifest []byte,
 type archiveEntry struct {
 	name string
 	body []byte
+	mode os.FileMode
 }
 
 func writeCustomCustomerPackageArchive(t *testing.T, path string, entries []archiveEntry) string {
@@ -1155,7 +1270,11 @@ func writeCustomCustomerPackageArchive(t *testing.T, path string, entries []arch
 	}
 	zw := zip.NewWriter(file)
 	for _, entry := range entries {
-		writer, err := zw.Create(entry.name)
+		header := &zip.FileHeader{Name: entry.name, Method: zip.Deflate}
+		if entry.mode != 0 {
+			header.SetMode(entry.mode)
+		}
+		writer, err := zw.CreateHeader(header)
 		if err != nil {
 			t.Fatalf("create archive entry: %v", err)
 		}

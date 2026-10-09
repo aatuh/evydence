@@ -7,7 +7,7 @@ import (
 )
 
 func TestCollectorReleaseHealthAndImportBundleCollector(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, _, artifact := setupReleaseRiskFixture(t, ledger)
 	collector, _, _, err := ledger.CreateCollector(ctx, actor, CreateCollectorInput{

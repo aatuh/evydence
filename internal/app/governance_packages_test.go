@@ -14,11 +14,13 @@ import (
 	"testing"
 	"time"
 
+	securedsse "github.com/secure-systems-lab/go-securesystemslib/dsse"
+
 	"github.com/aatuh/evydence/internal/domain"
 )
 
 func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	item, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{ProductID: release.ProductID, ReleaseID: release.ID, Type: "security_review", Title: "Review", PayloadHash: sampleDigest("review")})
@@ -118,7 +120,7 @@ func TestWaiverApprovalAndCustomerPackageFlow(t *testing.T) {
 }
 
 func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.CreateOrganization(ctx, actor, CreateOrganizationInput{Name: "Example Org", Slug: "example-org"}); err != nil {
@@ -173,7 +175,7 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 	if err != nil {
 		t.Fatalf("foreign OpenAPI contract: %v", err)
 	}
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"}]}`)); err != nil {
 		t.Fatalf("sbom: %v", err)
 	}
 	scan := uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, "CVE-2026-0700", "pkg:apk/openssl@3.1.0")
@@ -289,7 +291,7 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 			t.Fatalf("manifest missing %q: %s", want, text)
 		}
 	}
-	for _, forbidden := range []string{"private manual triage note", openAPIRawCanary, foreignContract.ID, "foreign-only", "payload_ref", "object://", "api_key_secret", "evy_", "private_key", "session_hash"} {
+	for _, forbidden := range []string{"private manual triage note", "security@example.test", openAPIRawCanary, foreignContract.ID, "foreign-only", "payload_ref", "object://", "api_key_secret", "evy_", "private_key", "session_hash"} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("manifest leaked %q: %s", forbidden, text)
 		}
@@ -303,7 +305,7 @@ func TestCustomerPackageV2ManifestSchemaAndSensitiveFieldExclusion(t *testing.T)
 }
 
 func TestRedactionProfilePresetsAreExplicitAndSafe(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
@@ -376,7 +378,7 @@ func TestRedactionProfilePresetsAreExplicitAndSafe(t *testing.T) {
 }
 
 func TestCustomerPackageGapsRespectRedactionProfile(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	customerSafe, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Preset: "customer_safe"})
@@ -443,7 +445,7 @@ func mapValues(values map[string]string) []string {
 }
 
 func TestTemplatesReportsEvidenceBundleAndCRAHTML(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	if _, err := ledger.CreateEvidence(ctx, actor, CreateEvidenceInput{ProductID: release.ProductID, ReleaseID: release.ID, Type: "sbom", Title: "SBOM", PayloadHash: sampleDigest("sbom")}); err != nil {
@@ -499,7 +501,7 @@ func TestTemplatesReportsEvidenceBundleAndCRAHTML(t *testing.T) {
 
 func TestDSSETrustRootVerification(t *testing.T) {
 	objectStore := newTestObjectStore()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: objectStore})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, ObjectStore: objectStore})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
@@ -514,12 +516,12 @@ func TestDSSETrustRootVerification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keygen: %v", err)
 	}
-	statement := map[string]any{"_type": "https://in-toto.io/Statement/v1", "predicateType": "https://slsa.dev/provenance/v1", "subject": []map[string]any{{"name": "api.tar.gz", "digest": map[string]string{"sha256": artifact.Digest[len("sha256:"):]}}}, "predicate": map[string]any{"builder": map[string]string{"id": "builder"}, "buildType": "test", "materials": []any{}}}
+	statement := map[string]any{"_type": "https://in-toto.io/Statement/v1", "predicateType": "https://slsa.dev/provenance/v1", "subject": []map[string]any{{"name": "api.tar.gz", "digest": map[string]string{"sha256": artifact.Digest[len("sha256:"):]}}}, "predicate": map[string]any{"buildDefinition": map[string]any{"buildType": "test", "externalParameters": map[string]string{"mode": "test"}}, "runDetails": map[string]any{"builder": map[string]string{"id": "builder"}}}}
 	payload, err := json.Marshal(statement)
 	if err != nil {
 		t.Fatalf("marshal statement: %v", err)
 	}
-	sig := ed25519.Sign(priv, payload)
+	sig := ed25519.Sign(priv, securedsse.PAE("application/vnd.in-toto+json", payload))
 	envelope, err := json.Marshal(map[string]any{"payloadType": "application/vnd.in-toto+json", "payload": base64.StdEncoding.EncodeToString(payload), "signatures": []map[string]string{{"keyid": "root-1", "sig": base64.StdEncoding.EncodeToString(sig)}}})
 	if err != nil {
 		t.Fatalf("marshal envelope: %v", err)
@@ -528,7 +530,7 @@ func TestDSSETrustRootVerification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("attestation: %v", err)
 	}
-	if _, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "root", KeyID: "root-1", Algorithm: "Ed25519", PublicKey: base64.StdEncoding.EncodeToString(pub)}); err != nil {
+	if _, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "root", KeyID: "root-1", Algorithm: "Ed25519", PublicKey: base64.StdEncoding.EncodeToString(pub), AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"builder"}, RequiredClaims: []string{"builder_id", "build_type", "external_parameters"}}); err != nil {
 		t.Fatalf("trust root: %v", err)
 	}
 	vr, err := ledger.VerifyDSSEAttestationSignature(ctx, actor, att.ID)
@@ -537,6 +539,10 @@ func TestDSSETrustRootVerification(t *testing.T) {
 	}
 	if vr.Result != "passed" {
 		t.Fatalf("verification result = %s", vr.Result)
+	}
+	restricted := domain.Actor{TenantID: actor.TenantID, UserID: "usr_restricted", Scopes: []string{ScopeVerifyRead}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_other", Scopes: []string{ScopeVerifyRead}}}}
+	if _, err := ledger.VerifyDSSEAttestationSignature(ctx, restricted, att.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("restricted verification err = %v, want forbidden", err)
 	}
 }
 

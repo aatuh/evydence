@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/aatuh/evydence/internal/app"
 )
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
@@ -12,14 +14,21 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
-	status, err := s.ledger.ReadinessStatus(r.Context())
+	status, err := s.readinessQuery.Public(r.Context())
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
 	code := http.StatusOK
 	if status["status"] != "ok" {
+		retry := app.DescribeProblem(app.ErrDependencyUnavailable)
 		code = http.StatusServiceUnavailable
+		status["retryable"] = retry.Retryable
+		status["retry_class"] = retry.RetryClass
+		if retry.RetryAfterSeconds > 0 {
+			status["retry_after_seconds"] = retry.RetryAfterSeconds
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", retry.RetryAfterSeconds))
+		}
 	}
 	writeData(w, code, status)
 }
@@ -29,9 +38,9 @@ func (s *Server) readinessDiagnostics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	diagnostics, err := s.ledger.ReadinessDiagnostics(r.Context(), actor)
+	diagnostics, err := s.readinessQuery.Operator(r.Context(), actor)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
 	writeData(w, http.StatusOK, diagnostics)
@@ -42,9 +51,9 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	metrics, err := s.ledger.Metrics(r.Context(), actor)
+	metrics, err := s.metricsQuery.Snapshot(r.Context(), actor)
 	if err != nil {
-		writeProblem(w, r, err)
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
 	if strings.Contains(r.Header.Get("Accept"), "text/plain") {

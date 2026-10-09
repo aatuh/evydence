@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type Config struct {
 
 type kmsSigner interface {
 	Sign(context.Context, *kms.SignInput, ...func(*kms.Options)) (*kms.SignOutput, error)
+	Verify(context.Context, *kms.VerifyInput, ...func(*kms.Options)) (*kms.VerifyOutput, error)
 }
 
 type Executor struct {
@@ -77,7 +79,13 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 	if strings.TrimSpace(request.TenantID) == "" || strings.TrimSpace(request.SubjectType) == "" || strings.TrimSpace(request.SubjectID) == "" {
 		return app.SigningResult{}, app.ErrValidation
 	}
-	digest, err := parseSHA256Digest(request.PayloadHash)
+	if providerType := strings.TrimSpace(request.ProviderType); providerType != "" && providerType != "aws_kms" {
+		return app.SigningResult{}, app.ErrValidation
+	}
+	if strings.TrimSpace(request.KeyRef) != e.keyID {
+		return app.SigningResult{}, app.ErrValidation
+	}
+	digest, err := parseSHA256Digest(request.CanonicalPayloadHash)
 	if err != nil {
 		return app.SigningResult{}, err
 	}
@@ -94,10 +102,23 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 		SigningAlgorithm: e.algorithm,
 	})
 	if err != nil {
-		return app.SigningResult{}, errors.New("execute AWS KMS signing request")
+		return app.SigningResult{}, fmt.Errorf("%w: execute AWS KMS signing request", app.ErrRetryableSigning)
 	}
 	if len(output.Signature) == 0 || len(output.Signature) > 32768 {
 		return app.SigningResult{}, app.ErrValidation
+	}
+	verified, err := e.client.Verify(callCtx, &kms.VerifyInput{
+		KeyId:            &e.keyID,
+		Message:          digest,
+		MessageType:      types.MessageTypeDigest,
+		Signature:        output.Signature,
+		SigningAlgorithm: e.algorithm,
+	})
+	if err != nil || verified == nil || !verified.SignatureValid || (verified.SigningAlgorithm != "" && verified.SigningAlgorithm != e.algorithm) {
+		if err != nil {
+			return app.SigningResult{}, fmt.Errorf("%w: verify AWS KMS signing response", app.ErrRetryableSigning)
+		}
+		return app.SigningResult{}, app.ErrVerificationFailed
 	}
 	keyID := e.keyID
 	if output.KeyId != nil && strings.TrimSpace(*output.KeyId) != "" {
@@ -107,12 +128,20 @@ func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.Si
 	if algorithm == "" {
 		algorithm = e.algorithm
 	}
+	if algorithm != e.algorithm {
+		return app.SigningResult{}, app.ErrVerificationFailed
+	}
 	return app.SigningResult{
-		Signature: base64.StdEncoding.EncodeToString(output.Signature),
-		KeyID:     keyID,
-		Algorithm: "aws-kms:" + string(algorithm),
+		Signature:            base64.StdEncoding.EncodeToString(output.Signature),
+		KeyID:                keyID,
+		Algorithm:            "aws-kms:" + string(algorithm),
+		ProviderID:           request.ProviderID,
+		ProviderType:         "aws_kms",
+		KeyRef:               request.KeyRef,
+		CanonicalPayloadHash: request.CanonicalPayloadHash,
+		RequestID:            request.RequestID,
 		Checks: []domain.VerifyCheck{
-			{Name: "aws_kms_signature_returned", Result: "passed", Detail: "AWS KMS returned a signature over the submitted SHA-256 digest."},
+			{Name: "aws_kms_signature_verified", Result: "passed", Detail: "AWS KMS Verify confirmed the signature over the submitted SHA-256 canonical-request digest."},
 		},
 	}, nil
 }

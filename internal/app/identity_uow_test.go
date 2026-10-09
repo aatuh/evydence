@@ -18,6 +18,54 @@ func (failingIdentityRepository) InsertAPIKey(context.Context, domain.APIKey) er
 	return errInjectedRepositoryFailure
 }
 
+func TestBootstrapTenantCompatibilityBridgeCommitsIdentityAndSigningAtomically(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: memory})
+
+	tenant, key, secret, err := ledger.BootstrapTenant(ctx, " Tenant ", " admin ", nil)
+	if err != nil {
+		t.Fatalf("bootstrap tenant: %v", err)
+	}
+	if tenant.Name != "Tenant" || key.Name != "admin" || key.Hash != "" || secret == "" || len(key.Scopes) != 1 || key.Scopes[0] != "*" {
+		t.Fatalf("tenant=%#v key=%#v secret present=%t", tenant, key, secret != "")
+	}
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	storedKey, keyCommitted := snapshot.APIKeys[key.ID]
+	if _, tenantCommitted := snapshot.Tenants[tenant.ID]; !tenantCommitted || !keyCommitted || storedKey.Hash == "" || len(snapshot.SigningKeys) != 1 || len(snapshot.AuditEntries[tenant.ID]) != 1 {
+		t.Fatalf("bootstrap transaction was incomplete: %#v", snapshot)
+	}
+	if len(ledger.tenants) != 1 || len(ledger.apiKeys) != 1 || len(ledger.signingKeys) != 1 || len(ledger.chain[tenant.ID]) != 1 {
+		t.Fatalf("bootstrap was not published after commit: tenants=%#v keys=%#v signing=%#v audit=%#v", ledger.tenants, ledger.apiKeys, ledger.signingKeys, ledger.chain)
+	}
+
+	failingMemory := NewMemoryUnitOfWorkFactory()
+	failingLedger := newLegacyLedgerFixture(Config{
+		APIKeyPepper: "test-pepper", Now: fixedNow,
+		UnitOfWork: repositoryFailingUnitOfWorkFactory{inner: failingMemory, decorate: func(repositories Repositories) Repositories {
+			repositories.Signatures = failingNewSigningKeyRepository{SignatureRepository: repositories.Signatures}
+			return repositories
+		}},
+	})
+	failedTenant, failedKey, failedSecret, err := failingLedger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
+	if !errors.Is(err, errInjectedRepositoryFailure) || failedTenant.ID != "" || failedKey.ID != "" || failedSecret != "" {
+		t.Fatalf("failed bootstrap tenant=%#v key=%#v secret=%q err=%v", failedTenant, failedKey, failedSecret, err)
+	}
+	failedSnapshot, err := failingMemory.Snapshot()
+	if err != nil {
+		t.Fatalf("failed snapshot: %v", err)
+	}
+	if len(failedSnapshot.Tenants) != 0 || len(failedSnapshot.APIKeys) != 0 || len(failedSnapshot.SigningKeys) != 0 || len(failedSnapshot.AuditEntries) != 0 {
+		t.Fatalf("failed bootstrap committed partial state: %#v", failedSnapshot)
+	}
+	if len(failingLedger.tenants) != 0 || len(failingLedger.apiKeys) != 0 || len(failingLedger.signingKeys) != 0 || len(failingLedger.chain) != 0 {
+		t.Fatalf("failed bootstrap published partial state: tenants=%#v keys=%#v signing=%#v audit=%#v", failingLedger.tenants, failingLedger.apiKeys, failingLedger.signingKeys, failingLedger.chain)
+	}
+}
+
 func TestCredentialExchangeCommitsVerificationAndSessionTogether(t *testing.T) {
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
@@ -115,6 +163,51 @@ func TestCredentialExchangeCommitsVerificationAndSessionTogether(t *testing.T) {
 	}
 }
 
+func TestMemoryIdentityActivityTimestampsAreMonotonic(t *testing.T) {
+	ctx := context.Background()
+	memory := NewMemoryUnitOfWorkFactory()
+	base := fixedNow()
+	tenant := domain.Tenant{ID: "ten_activity_monotonic", Name: "Activity monotonic", CreatedAt: base}
+	key := domain.APIKey{
+		ID: "key_activity_monotonic", TenantID: tenant.ID, Name: "Activity key", Prefix: "evy_activity",
+		Hash: "activity-hash", CreatedAt: base,
+	}
+	collector := domain.Collector{
+		ID: "col_activity_monotonic", TenantID: tenant.ID, Name: "Activity collector", APIKeyID: key.ID,
+	}
+	memory.mu.Lock()
+	memory.state.Tenants[tenant.ID] = tenant
+	memory.state.APIKeys[key.ID] = key
+	memory.state.Collectors[collector.ID] = collector
+	memory.mu.Unlock()
+
+	newer := base.Add(2 * time.Minute)
+	older := base.Add(time.Minute)
+	for _, observed := range []time.Time{newer, older} {
+		key.LastUsedAt = &observed
+		collector.LastSeenAt = &observed
+		if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repositories Repositories) error {
+			if err := repositories.Identity.UpdateAPIKeyLastUsed(ctx, key); err != nil {
+				return err
+			}
+			return repositories.Identity.UpdateCollectorLastSeen(ctx, collector)
+		}); err != nil {
+			t.Fatalf("record activity at %s: %v", observed, err)
+		}
+	}
+
+	snapshot, err := memory.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := snapshot.APIKeys[key.ID].LastUsedAt; got == nil || !got.Equal(newer) {
+		t.Fatalf("API key last used=%v, want %s", got, newer)
+	}
+	if got := snapshot.Collectors[collector.ID].LastSeenAt; got == nil || !got.Equal(newer) {
+		t.Fatalf("collector last seen=%v, want %s", got, newer)
+	}
+}
+
 func (failingIdentityRepository) InsertOrganization(context.Context, domain.Organization) error {
 	return errInjectedRepositoryFailure
 }
@@ -206,7 +299,8 @@ func TestIdentityWritesCommitCredentialSecretsBeforePublication(t *testing.T) {
 	if snapshot.APIKeys[key.ID].Hash == "" || snapshot.SSOSessions[session.ID].Hash == "" || len(snapshot.AuditEntries[actor.TenantID]) != 8 {
 		t.Fatalf("identity credentials/audit were not committed together: %#v", snapshot)
 	}
-	ledger.customerPackages["pkg_identity_uow"] = domain.CustomerSecurityPackage{ID: "pkg_identity_uow", TenantID: actor.TenantID, Title: "Identity UOW package", State: "published", ManifestHash: "sha256:identity-uow-package", ExpiresAt: fixedNow().Add(time.Hour), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: fixedNow()}
+	ledger.products["portal_product"] = domain.Product{ID: "portal_product", TenantID: actor.TenantID, Name: "Portal product"}
+	ledger.customerPackages["pkg_identity_uow"] = domain.CustomerSecurityPackage{ID: "pkg_identity_uow", TenantID: actor.TenantID, ProductID: "portal_product", Title: "Identity UOW package", State: "published", ManifestHash: "sha256:identity-uow-package", ExpiresAt: fixedNow().Add(time.Hour), SchemaVersion: domain.CustomerPackageSchemaVersion, CreatedAt: fixedNow()}
 	portalAccess, portalSecret, err := ledger.CreateCustomerPortalAccess(ctx, actor, CreateCustomerPortalAccessInput{PackageID: "pkg_identity_uow", CustomerName: "Example", ExpiresAt: fixedNow().Add(time.Hour)})
 	if err != nil {
 		t.Fatalf("create portal access: %v", err)
@@ -345,6 +439,7 @@ func TestMemoryIdentityRepositoryEnforcesCredentialStateTransitions(t *testing.T
 	lastUsedAt := now.Add(time.Minute)
 	key.LastUsedAt = &lastUsedAt
 	collector.LastSeenAt = &lastUsedAt
+	expectedProvider := provider
 	provider.TrustMaterialUpdatedAt = &lastUsedAt
 	updatedPortalAccess := portalAccess
 	updatedPortalAccess.AccessCount = 1
@@ -356,7 +451,7 @@ func TestMemoryIdentityRepositoryEnforcesCredentialStateTransitions(t *testing.T
 		if err := repos.Identity.UpdateCollectorLastSeen(ctx, collector); err != nil {
 			return err
 		}
-		if err := repos.Identity.UpdateSSOProviderTrustMaterial(ctx, provider); err != nil {
+		if err := repos.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, expectedProvider, provider); err != nil {
 			return err
 		}
 		if err := repos.Identity.InsertRoleBinding(ctx, domain.RoleBinding{ID: "rbac_memory_identity", TenantID: tenant.ID, SubjectType: "user", SubjectID: user.ID, Role: "security_engineer", ResourceType: "tenant", ResourceID: tenant.ID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: now}); err != nil {
@@ -371,6 +466,15 @@ func TestMemoryIdentityRepositoryEnforcesCredentialStateTransitions(t *testing.T
 		return repos.Identity.UpdateCustomerPortalAccess(ctx, portalAccess, updatedPortalAccess)
 	}); err != nil {
 		t.Fatalf("update memory identity state: %v", err)
+	}
+	staleReplacement := provider
+	staleAt := lastUsedAt.Add(time.Minute)
+	staleReplacement.JWKS = map[string]any{"keys": []any{map[string]any{"kid": "stale-overwrite"}}}
+	staleReplacement.TrustMaterialUpdatedAt = &staleAt
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repos Repositories) error {
+		return repos.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, expectedProvider, staleReplacement)
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("stale SSO trust material update err=%v, want conflict", err)
 	}
 	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repos Repositories) error {
 		return repos.Identity.ValidateActiveSSOSession(ctx, session, now)

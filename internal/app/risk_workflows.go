@@ -6,12 +6,15 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
-	"io"
 	"sort"
 	"strings"
 	"time"
 
+	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	operationsapp "github.com/aatuh/evydence/internal/operations/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 type CreateIncidentInput struct {
@@ -80,44 +83,63 @@ type CreateSBOMDiffInput struct {
 	ReleaseID    string
 }
 
-type RecordVulnerabilityWorkflowInput struct {
-	FindingID string
-	Action    string
-	Reason    string
-}
-
 type CreateContractDiffInput struct {
 	BaseContractID   string
 	TargetContractID string
 	ReleaseID        string
 }
 
-type CreateCustomPolicyInput struct {
-	Name        string
-	Version     string
-	Description string
-	Rules       []domain.PolicyRule
-}
-
-const incidentWebhookTimestampTolerance = 5 * time.Minute
+const incidentWebhookTimestampTolerance = operationsapp.IncidentWebhookTimestampTolerance
 
 type cycloneDXVEXDocument struct {
 	BOMFormat       string                      `json:"bomFormat"`
 	SpecVersion     string                      `json:"specVersion"`
 	Vulnerabilities []cycloneDXVEXVulnerability `json:"vulnerabilities"`
+	Warnings        []string                    `json:"-"`
 }
 
 type cycloneDXVEXVulnerability struct {
-	ID      string `json:"id"`
-	Affects []struct {
-		Ref string `json:"ref"`
-	} `json:"affects,omitempty"`
-	Analysis struct {
-		State         string   `json:"state"`
-		Justification string   `json:"justification"`
-		Detail        string   `json:"detail"`
-		Response      []string `json:"response"`
-	} `json:"analysis"`
+	ID       string               `json:"id"`
+	Affects  []cycloneDXVEXAffect `json:"affects,omitempty"`
+	Analysis cycloneDXVEXAnalysis `json:"analysis"`
+}
+
+type cycloneDXVEXAffect struct {
+	Ref string `json:"ref"`
+}
+
+type cycloneDXVEXAnalysis struct {
+	State, Justification, Detail string
+	Response                     []string
+}
+
+func parseCycloneDXVEX(raw []byte) (cycloneDXVEXDocument, error) {
+	parsed, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(EvidenceDocumentLimit))
+	if err != nil {
+		return cycloneDXVEXDocument{}, ErrValidation
+	}
+	doc := cycloneDXVEXDocument{BOMFormat: "CycloneDX", SpecVersion: parsed.Version, Warnings: parsed.Warnings}
+	for _, statement := range parsed.Statements {
+		vulnerability := cycloneDXVEXVulnerability{ID: statement.Vulnerability, Analysis: cycloneDXVEXAnalysis{Justification: statement.Justification, Detail: statement.ImpactStatement}}
+		switch statement.Status {
+		case decisionStatusFixed:
+			vulnerability.Analysis.State = "resolved"
+		case decisionStatusNotAffected:
+			vulnerability.Analysis.State = "not_affected"
+		case decisionStatusAffected:
+			vulnerability.Analysis.State = "exploitable"
+		case decisionStatusUnderInvestigation:
+			vulnerability.Analysis.State = "in_triage"
+		}
+		if statement.ActionStatement != "" {
+			vulnerability.Analysis.Response = strings.Split(statement.ActionStatement, ",")
+		}
+		for _, product := range statement.Products {
+			vulnerability.Affects = append(vulnerability.Affects, cycloneDXVEXAffect{Ref: product})
+		}
+		doc.Vulnerabilities = append(doc.Vulnerabilities, vulnerability)
+	}
+	return doc, nil
 }
 
 func (l *Ledger) CreateIncident(ctx context.Context, actor domain.Actor, in CreateIncidentInput) (domain.Incident, error) {
@@ -433,33 +455,23 @@ func (l *Ledger) HandleIncidentWebhook(ctx context.Context, in HandleIncidentWeb
 }
 
 func incidentWebhookSignedPayload(timestamp time.Time, eventID string, body []byte) []byte {
-	prefix := timestamp.UTC().Format(time.RFC3339) + "\n" + strings.TrimSpace(eventID) + "\n"
-	return append([]byte(prefix), body...)
+	return operationsapp.IncidentWebhookSignedPayload(timestamp, eventID, body)
 }
 
 func decodeWebhookPublicKey(value string) ([]byte, error) {
-	key, err := decodeBase64Value(strings.TrimSpace(value))
-	if err != nil || len(key) != ed25519.PublicKeySize {
+	key, err := operationsapp.DecodeIncidentWebhookPublicKey(value)
+	if err != nil {
 		return nil, ErrValidation
 	}
 	return key, nil
 }
 
 func decodeWebhookSignature(value string) ([]byte, error) {
-	value = strings.TrimSpace(value)
-	value = strings.TrimPrefix(value, "ed25519=")
-	signature, err := decodeBase64Value(value)
-	if err != nil || len(signature) != ed25519.SignatureSize {
+	signature, err := operationsapp.DecodeIncidentWebhookSignature(value)
+	if err != nil {
 		return nil, ErrUnauthorized
 	}
 	return signature, nil
-}
-
-func decodeBase64Value(value string) ([]byte, error) {
-	if decoded, err := base64.RawStdEncoding.DecodeString(value); err == nil {
-		return decoded, nil
-	}
-	return base64.StdEncoding.DecodeString(value)
 }
 
 func (l *Ledger) CreateRemediationTask(ctx context.Context, actor domain.Actor, in CreateRemediationTaskInput) (domain.RemediationTask, error) {
@@ -540,8 +552,7 @@ func (l *Ledger) CreateRemediationTask(ctx context.Context, actor domain.Actor, 
 	return task, nil
 }
 
-func (s packageReportService) IncidentReport(ctx context.Context, actor domain.Actor, incidentID string) (domain.IncidentReport, error) {
-	l := s.ledger
+func (l *Ledger) IncidentReport(ctx context.Context, actor domain.Actor, incidentID string) (domain.IncidentReport, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.IncidentReport{}, err
 	}
@@ -597,573 +608,31 @@ func (s packageReportService) IncidentReport(ctx context.Context, actor domain.A
 }
 
 func (l *Ledger) UploadSecurityScan(ctx context.Context, actor domain.Actor, in UploadSecurityScanInput) (domain.SecurityScan, error) {
-	return l.uploadSecurityScan(ctx, actor, in)
-}
-
-func (l *Ledger) UploadAPISecurityScan(ctx context.Context, actor domain.Actor, in UploadSecurityScanInput) (domain.SecurityScan, error) {
-	in.Category = "api_security"
-	return l.uploadSecurityScan(ctx, actor, in)
-}
-
-func (l *Ledger) uploadSecurityScan(ctx context.Context, actor domain.Actor, in UploadSecurityScanInput) (domain.SecurityScan, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.SecurityScan{}, err
-	}
-	if err := require(actor, ScopeSecurityWrite); err != nil {
-		return domain.SecurityScan{}, err
-	}
-	in.Category, in.Format = strings.TrimSpace(in.Category), strings.TrimSpace(in.Format)
-	in.Scanner, in.TargetRef = strings.TrimSpace(in.Scanner), strings.TrimSpace(in.TargetRef)
-	if !ValidPayloadSize(int64(len(in.Raw)), EvidenceDocumentLimit) || !validSecurityScanCategory(in.Category) || in.Scanner == "" || in.TargetRef == "" {
-		return domain.SecurityScan{}, ErrValidation
-	}
-	parsed, err := parseSecurityScan(in.Format, in.Raw)
-	if err != nil {
-		return domain.SecurityScan{}, err
-	}
-	if in.Format == "" {
-		in.Format = parsed.Format
-	}
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, strings.TrimSpace(in.ProductID), "", strings.TrimSpace(in.ReleaseID)); err != nil {
-		l.mu.Unlock()
-		return domain.SecurityScan{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: strings.TrimSpace(in.ProductID), ReleaseID: strings.TrimSpace(in.ReleaseID)}); err != nil {
-		l.mu.Unlock()
-		return domain.SecurityScan{}, err
-	}
-	l.mu.Unlock()
-	payloadHash := hashBytes(in.Raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/json", payloadHash, in.Raw)
-	if err != nil {
-		return domain.SecurityScan{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
-		ProductID:        in.ProductID,
-		ReleaseID:        in.ReleaseID,
-		Type:             in.Category,
-		Subtype:          in.Format,
-		Title:            in.Category + " scan",
-		SourceSystem:     in.Scanner,
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/json",
-		PayloadSize:      int64(len(in.Raw)),
-		StagedPayload:    stagedPayload,
-		SubjectRefs:      subjectForArtifact(in.ArtifactID),
-		Metadata:         map[string]any{"scanner": in.Scanner, "target_ref": in.TargetRef, "finding_count": parsed.FindingCount},
-		Limitations:      []string{"Scanner output is recorded as technical evidence; Evydence does not treat scanner findings as authoritative."},
+	value, err := l.evidenceCommands.UploadSecurityScan(ctx, actor, evidenceapp.UploadSecurityScanInput{
+		ProductID: in.ProductID, ReleaseID: in.ReleaseID, ArtifactID: in.ArtifactID, Category: in.Category,
+		Format: in.Format, Scanner: in.Scanner, TargetRef: in.TargetRef, Raw: append([]byte(nil), in.Raw...),
 	})
-	if err != nil {
-		return domain.SecurityScan{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
-		return domain.SecurityScan{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
-		return domain.SecurityScan{}, err
-	}
-	if in.ArtifactID != "" {
-		artifact, ok := l.artifacts[strings.TrimSpace(in.ArtifactID)]
-		if !ok || artifact.TenantID != actor.TenantID {
-			return domain.SecurityScan{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID, ArtifactID: artifact.ID}); err != nil {
-			return domain.SecurityScan{}, err
-		}
-	}
-	scan := domain.SecurityScan{
-		ID:            newID("secscan"),
-		TenantID:      actor.TenantID,
-		ProductID:     strings.TrimSpace(in.ProductID),
-		ReleaseID:     strings.TrimSpace(in.ReleaseID),
-		ArtifactID:    strings.TrimSpace(in.ArtifactID),
-		Category:      in.Category,
-		Format:        in.Format,
-		Scanner:       in.Scanner,
-		TargetRef:     in.TargetRef,
-		EvidenceID:    item.ID,
-		PayloadRef:    payloadRef,
-		PayloadHash:   payloadHash,
-		FindingCount:  parsed.FindingCount,
-		Summary:       parsed.Summary,
-		Redacted:      in.Category == "secret_scan",
-		Quarantined:   in.Category == "secret_scan" && parsed.FindingCount > 0,
-		SchemaVersion: domain.SecurityScanSchemaVersion,
-		CreatedAt:     l.now(),
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Risk.InsertSecurityScan(ctx, scan); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(scan.CreatedAt, actor.TenantID, "security_scan.uploaded", "security_scan", scan.ID, actorType(actor), actorID(actor), payloadHash, ""))
-			return err
-		}); err != nil {
-			return domain.SecurityScan{}, err
-		}
-		l.securityScans[scan.ID] = scan
-		l.publishCommittedAuditEntryLocked(entry)
-		return scan, nil
-	}
-	l.securityScans[scan.ID] = scan
-	_, _ = l.appendChainLocked(actor.TenantID, "security_scan.uploaded", "security_scan", scan.ID, actorType(actor), actorID(actor), payloadHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.SecurityScan{}, err
-	}
-	return scan, nil
+	return securityScanFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.Actor, in UploadManualSecurityDocumentInput) (domain.ManualSecurityDocument, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ManualSecurityDocument{}, err
-	}
-	if err := require(actor, ScopeSecurityWrite); err != nil {
-		return domain.ManualSecurityDocument{}, err
-	}
-	in.DocumentType, in.Title, in.Sensitivity = strings.TrimSpace(in.DocumentType), strings.TrimSpace(in.Title), strings.TrimSpace(in.Sensitivity)
-	if !ValidPayloadSize(int64(len(in.Raw)), EvidenceDocumentLimit) || !validManualDocType(in.DocumentType) || in.Title == "" || !validSensitivity(in.Sensitivity) {
-		return domain.ManualSecurityDocument{}, ErrValidation
-	}
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, strings.TrimSpace(in.ProductID), "", strings.TrimSpace(in.ReleaseID)); err != nil {
-		l.mu.Unlock()
-		return domain.ManualSecurityDocument{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: strings.TrimSpace(in.ProductID), ReleaseID: strings.TrimSpace(in.ReleaseID)}); err != nil {
-		l.mu.Unlock()
-		return domain.ManualSecurityDocument{}, err
-	}
-	l.mu.Unlock()
-	payloadHash := hashBytes(in.Raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, nonEmpty(in.MediaType, "application/octet-stream"), payloadHash, in.Raw)
-	if err != nil {
-		return domain.ManualSecurityDocument{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
-		ProductID:        in.ProductID,
-		ReleaseID:        in.ReleaseID,
-		Type:             in.DocumentType,
-		Subtype:          "manual",
-		Title:            in.Title,
-		SourceSystem:     "manual",
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: nonEmpty(in.MediaType, "application/octet-stream"),
-		PayloadSize:      int64(len(in.Raw)),
-		StagedPayload:    stagedPayload,
-		Metadata:         map[string]any{"sensitivity": in.Sensitivity},
-		Limitations:      []string{"Manual security evidence is lower default trust and requires human review."},
+	value, err := l.evidenceCommands.UploadManualSecurityDocument(ctx, actor, evidenceapp.UploadManualSecurityDocumentInput{
+		ProductID: in.ProductID, ReleaseID: in.ReleaseID, DocumentType: in.DocumentType, Title: in.Title,
+		Sensitivity: in.Sensitivity, Raw: append([]byte(nil), in.Raw...), MediaType: in.MediaType,
 	})
-	if err != nil {
-		return domain.ManualSecurityDocument{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
-		return domain.ManualSecurityDocument{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
-		return domain.ManualSecurityDocument{}, err
-	}
-	doc := domain.ManualSecurityDocument{
-		ID:            newID("msd"),
-		TenantID:      actor.TenantID,
-		ProductID:     strings.TrimSpace(in.ProductID),
-		ReleaseID:     strings.TrimSpace(in.ReleaseID),
-		DocumentType:  in.DocumentType,
-		Title:         in.Title,
-		Sensitivity:   in.Sensitivity,
-		EvidenceID:    item.ID,
-		PayloadRef:    payloadRef,
-		PayloadHash:   payloadHash,
-		SchemaVersion: domain.ManualSecurityDocSchemaVersion,
-		CreatedAt:     l.now(),
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Risk.InsertManualSecurityDocument(ctx, doc); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(doc.CreatedAt, actor.TenantID, "manual_security_document.uploaded", "manual_security_document", doc.ID, actorType(actor), actorID(actor), payloadHash, ""))
-			return err
-		}); err != nil {
-			return domain.ManualSecurityDocument{}, err
-		}
-		l.manualDocs[doc.ID] = doc
-		l.publishCommittedAuditEntryLocked(entry)
-		return doc, nil
-	}
-	l.manualDocs[doc.ID] = doc
-	_, _ = l.appendChainLocked(actor.TenantID, "manual_security_document.uploaded", "manual_security_document", doc.ID, actorType(actor), actorID(actor), payloadHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.ManualSecurityDocument{}, err
-	}
-	return doc, nil
-}
-
-func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.SBOM{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.SBOM{}, err
-	}
-	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
-		return domain.SBOM{}, ErrValidation
-	}
-	var doc struct {
-		SPDXVersion string `json:"spdxVersion"`
-		Packages    []struct {
-			Name         string `json:"name"`
-			VersionInfo  string `json:"versionInfo"`
-			ExternalRefs []struct {
-				ReferenceType    string `json:"referenceType"`
-				ReferenceLocator string `json:"referenceLocator"`
-			} `json:"externalRefs"`
-		} `json:"packages"`
-	}
-	if err := strictDecode(raw, &doc); err != nil || !strings.HasPrefix(doc.SPDXVersion, "SPDX-") {
-		return domain.SBOM{}, ErrValidation
-	}
-	components := []domain.SBOMComponent{}
-	for _, pkg := range doc.Packages {
-		if strings.TrimSpace(pkg.Name) == "" {
-			return domain.SBOM{}, ErrValidation
-		}
-		purl := ""
-		for _, ref := range pkg.ExternalRefs {
-			if strings.EqualFold(ref.ReferenceType, "purl") {
-				purl = ref.ReferenceLocator
-				break
-			}
-		}
-		components = append(components, domain.SBOMComponent{Name: pkg.Name, Version: pkg.VersionInfo, PURL: purl})
-	}
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", strings.TrimSpace(releaseID)); err != nil {
-		l.mu.Unlock()
-		return domain.SBOM{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: strings.TrimSpace(releaseID)}); err != nil {
-		l.mu.Unlock()
-		return domain.SBOM{}, err
-	}
-	l.mu.Unlock()
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/spdx+json", payloadHash, raw)
-	if err != nil {
-		return domain.SBOM{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
-		ReleaseID:        releaseID,
-		Type:             "sbom",
-		Subtype:          "spdx",
-		Title:            "SPDX SBOM",
-		SourceSystem:     "api",
-		ObservedAt:       l.now(),
-		PayloadRef:       payloadRef,
-		PayloadHash:      payloadHash,
-		PayloadMediaType: "application/spdx+json",
-		PayloadSize:      int64(len(raw)),
-		StagedPayload:    stagedPayload,
-		SubjectRefs:      subjectForArtifact(artifactID),
-		Metadata:         map[string]any{"sbom_format": "spdx", "sbom_spec_version": doc.SPDXVersion, "component_count": len(components), "parser_version": "spdx-json.v1"},
-		Limitations:      []string{"SBOM ingestion validates document shape but does not prove SBOM completeness."},
-	})
-	if err != nil {
-		return domain.SBOM{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	sbom := domain.SBOM{ID: newID("sbom"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "spdx", SpecVersion: doc.SPDXVersion, ComponentCount: len(components), Components: components, CreatedAt: l.now()}
-	l.sboms[sbom.ID] = sbom
-	_, _ = l.appendChainLocked(actor.TenantID, "sbom.parsed", "sbom", sbom.ID, "api_key", actor.KeyID, payloadHash, "")
-	if err := l.persistReleaseLedgerStateLocked(ctx); err != nil {
-		return domain.SBOM{}, err
-	}
-	return sbom, nil
+	return manualSecurityDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in CreateSBOMDiffInput) (domain.SBOMDiff, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.SBOMDiff{}, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return domain.SBOMDiff{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	base, bok := l.sboms[strings.TrimSpace(in.BaseSBOMID)]
-	target, tok := l.sboms[strings.TrimSpace(in.TargetSBOMID)]
-	if !bok || !tok || base.TenantID != actor.TenantID || target.TenantID != actor.TenantID {
-		return domain.SBOMDiff{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: base.ReleaseID, ArtifactID: base.ArtifactID}); err != nil {
-		return domain.SBOMDiff{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: target.ReleaseID, ArtifactID: target.ArtifactID}); err != nil {
-		return domain.SBOMDiff{}, err
-	}
-	added, removed, unchanged := diffComponents(base.Components, target.Components)
-	diff := domain.SBOMDiff{
-		ID:                newID("sdiff"),
-		TenantID:          actor.TenantID,
-		BaseSBOMID:        base.ID,
-		TargetSBOMID:      target.ID,
-		ReleaseID:         strings.TrimSpace(in.ReleaseID),
-		AddedComponents:   added,
-		RemovedComponents: removed,
-		UnchangedCount:    unchanged,
-		SchemaVersion:     domain.SBOMDiffSchemaVersion,
-		CreatedAt:         l.now(),
-	}
-	for _, component := range added {
-		change := domain.DependencyChange{ID: newID("depchg"), TenantID: actor.TenantID, SBOMDiffID: diff.ID, ChangeType: "added", Component: component, SchemaVersion: domain.DependencyChangeSchemaVersion, CreatedAt: l.now()}
-		diff.DependencyChanges = append(diff.DependencyChanges, change)
-	}
-	for _, component := range removed {
-		change := domain.DependencyChange{ID: newID("depchg"), TenantID: actor.TenantID, SBOMDiffID: diff.ID, ChangeType: "removed", Component: component, SchemaVersion: domain.DependencyChangeSchemaVersion, CreatedAt: l.now()}
-		diff.DependencyChanges = append(diff.DependencyChanges, change)
-	}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Risk.InsertSBOMDiff(ctx, diff); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(diff.CreatedAt, actor.TenantID, "sbom.diffed", "sbom_diff", diff.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.SBOMDiff{}, err
-		}
-		l.sbomDiffs[diff.ID] = diff
-		for _, change := range diff.DependencyChanges {
-			l.depChanges[change.ID] = change
-		}
-		l.publishCommittedAuditEntryLocked(entry)
-		return diff, nil
-	}
-	for _, change := range diff.DependencyChanges {
-		l.depChanges[change.ID] = change
-	}
-	l.sbomDiffs[diff.ID] = diff
-	_, _ = l.appendChainLocked(actor.TenantID, "sbom.diffed", "sbom_diff", diff.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.SBOMDiff{}, err
-	}
-	return diff, nil
+	value, err := l.evidenceCommands.CreateSBOMDiff(ctx, actor, evidenceapp.CreateSBOMDiffInput{
+		BaseSBOMID: in.BaseSBOMID, TargetSBOMID: in.TargetSBOMID, ReleaseID: in.ReleaseID,
+	})
+	return sbomDiffFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	if err := require(actor, ScopeEvidenceWrite); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
-		return domain.VEXDocument{}, ErrValidation
-	}
-	var doc cycloneDXVEXDocument
-	if err := strictDecode(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
-		return domain.VEXDocument{}, ErrValidation
-	}
-	statusSummary, invalidStatements, validStatements := analyzeCycloneDXVEXStatements(doc)
-	if len(validStatements) == 0 {
-		return domain.VEXDocument{}, ErrValidation
-	}
-	releaseID = strings.TrimSpace(releaseID)
-	artifactID = strings.TrimSpace(artifactID)
-	l.mu.Lock()
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", releaseID); err != nil {
-		l.mu.Unlock()
-		return domain.VEXDocument{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceWrite, resourceRefs{ReleaseID: releaseID}); err != nil {
-		l.mu.Unlock()
-		return domain.VEXDocument{}, err
-	}
-	l.mu.Unlock()
-	payloadHash := hashBytes(raw)
-	stagedPayload, err := l.stagePayload(ctx, actor.TenantID, "application/vnd.cyclonedx+json", payloadHash, raw)
-	if err != nil {
-		return domain.VEXDocument{}, err
-	}
-	payloadRef := stagedPayload.Reference()
-	item, err := l.CreateEvidence(ctx, actor, CreateEvidenceInput{
-		ReleaseID: releaseID, Type: "vex", Subtype: "cyclonedx", Title: "CycloneDX VEX", SourceSystem: "api", ObservedAt: l.now(),
-		PayloadRef: payloadRef, PayloadHash: payloadHash, PayloadMediaType: "application/vnd.cyclonedx+json", PayloadSize: int64(len(raw)), StagedPayload: stagedPayload,
-		SubjectRefs: subjectForArtifact(artifactID), Metadata: map[string]any{"format": "cyclonedx", "spec_version": doc.SpecVersion},
-	})
-	if err != nil {
-		return domain.VEXDocument{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	vex := domain.VEXDocument{ID: newID("vex"), TenantID: actor.TenantID, EvidenceID: item.ID, ReleaseID: releaseID, ArtifactID: artifactID, Format: "cyclonedx", Author: "cyclonedx", Version: doc.SpecVersion, StatementCount: len(doc.Vulnerabilities), StatusSummary: statusSummary, SchemaVersion: domain.VEXDocumentSchemaVersion, CreatedAt: l.now()}
-	persistedVEX := vex
-	chainAction := "vex.parsed"
-	if l.workerOwnedParsers {
-		persistedVEX.Author = ""
-		persistedVEX.StatementCount = 0
-		persistedVEX.StatusSummary = nil
-		chainAction = "vex.accepted"
-	}
-	l.vexDocuments[vex.ID] = persistedVEX
-	createdDecisions := 0
-	supersededDecisions := 0
-	mappingFailures := []domain.VEXImportIssue{}
-	warnings := []string{}
-	createdForFinding := map[string]struct{}{}
-	duplicateWarningAdded := false
-	for _, statement := range validStatements {
-		matches := l.findCycloneDXVEXMatchingFindingsLocked(actor.TenantID, releaseID, statement)
-		if len(matches) == 0 {
-			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "finding_not_found", "No matching vulnerability scan finding was found for this CycloneDX VEX vulnerability."))
-		}
-		if l.workerOwnedParsers {
-			continue
-		}
-		for _, matched := range matches {
-			if _, seen := createdForFinding[matched.finding.ID]; seen {
-				if !duplicateWarningAdded {
-					warnings = append(warnings, "Duplicate CycloneDX VEX vulnerabilities for an already mapped finding were ignored.")
-					duplicateWarningAdded = true
-				}
-				continue
-			}
-			createdForFinding[matched.finding.ID] = struct{}{}
-			decision := l.createDecisionLocked(actor.TenantID, matched.scan, matched.finding, CreateVulnerabilityDecisionInput{
-				Status:          statement.status,
-				Justification:   nonEmpty(statement.vulnerability.Analysis.Justification, "cyclonedx_vex"),
-				ImpactStatement: strings.TrimSpace(statement.vulnerability.Analysis.Detail),
-				ActionStatement: strings.Join(statement.vulnerability.Analysis.Response, ","),
-				CustomerVisible: strings.TrimSpace(statement.vulnerability.Analysis.Detail) != "",
-			}, "cyclonedx_vex", actor.KeyID, item.ID, vex.ID)
-			l.decisions[decision.ID] = decision
-			if decision.Supersedes != "" {
-				supersededDecisions++
-			}
-			l.appendDecisionLifecycleAuditLocked(actor.TenantID, decision, matched.finding.ID, "api_key", actor.KeyID, payloadHash)
-			createdDecisions++
-		}
-	}
-	if len(invalidStatements) > 0 {
-		warnings = append(warnings, "One or more CycloneDX VEX vulnerabilities were skipped because required analysis fields were missing or unsupported.")
-	}
-	if l.workerOwnedParsers {
-		warnings = append(warnings, "Worker-owned parser side effects are enabled; CycloneDX VEX decisions are created asynchronously after payload replay.")
-	}
-	report := domain.VEXImportReport{
-		ID:                  newID("vexrep"),
-		TenantID:            actor.TenantID,
-		VEXDocumentID:       vex.ID,
-		EvidenceID:          item.ID,
-		ReleaseID:           releaseID,
-		ArtifactID:          artifactID,
-		ParserVersion:       ParserVersionCycloneDXVEXJSON,
-		Status:              ternary(l.workerOwnedParsers, "accepted", "parsed"),
-		StatementCount:      len(doc.Vulnerabilities),
-		DecisionsCreated:    createdDecisions,
-		DecisionsSuperseded: supersededDecisions,
-		UnsupportedFields:   []string{},
-		Warnings:            warnings,
-		InvalidStatements:   invalidStatements,
-		MappingFailures:     mappingFailures,
-		SchemaVersion:       domain.VEXImportReportSchemaVersion,
-		CreatedAt:           l.now(),
-		UpdatedAt:           l.now(),
-	}
-	l.vexImportReports[report.ID] = report
-	_, _ = l.appendChainLocked(actor.TenantID, chainAction, "vex_document", vex.ID, "api_key", actor.KeyID, payloadHash, "")
-	jobPayload := addPayloadLifecycle(map[string]any{"payload_ref": payloadRef, "payload_hash": payloadHash, "parser_version": ParserVersionCycloneDXVEXJSON, "decisions_created": createdDecisions, "import_report_id": report.ID}, stagedPayload)
-	if l.workerOwnedParsers {
-		jobPayload["worker_create_decisions"] = true
-		jobPayload["actor_type"] = "api_key"
-		jobPayload["actor_id"] = actor.KeyID
-		jobPayload["evidence_id"] = item.ID
-	}
-	job := l.newOutboxJob(actor.TenantID, "parse_vex", "vex_document", vex.ID, jobPayload)
-	if err := l.persistReleaseLedgerWithOutboxLocked(ctx, job); err != nil {
-		return domain.VEXDocument{}, err
-	}
-	return vex, nil
-}
-
-func (l *Ledger) PreviewCycloneDXVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	if !ValidPayloadSize(int64(len(raw)), EvidenceDocumentLimit) {
-		return domain.VEXImportPreview{}, ErrValidation
-	}
-	var doc cycloneDXVEXDocument
-	if err := strictDecode(raw, &doc); err != nil || !strings.EqualFold(strings.TrimSpace(doc.BOMFormat), "cyclonedx") || len(doc.Vulnerabilities) == 0 {
-		return domain.VEXImportPreview{}, ErrValidation
-	}
-	statusSummary, invalidStatements, validStatements := analyzeCycloneDXVEXStatements(doc)
-	if len(validStatements) == 0 {
-		return domain.VEXImportPreview{}, ErrValidation
-	}
-	releaseID = strings.TrimSpace(releaseID)
-	artifactID = strings.TrimSpace(artifactID)
-	if releaseID == "" {
-		return domain.VEXImportPreview{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureScopeLocked(actor.TenantID, "", "", releaseID); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	if artifactID != "" {
-		artifact, ok := l.artifacts[artifactID]
-		if !ok || artifact.TenantID != actor.TenantID {
-			return domain.VEXImportPreview{}, ErrNotFound
-		}
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ReleaseID: releaseID}); err != nil {
-		return domain.VEXImportPreview{}, err
-	}
-	created, superseded, warnings, mappingFailures := l.previewCycloneDXVEXDecisionEffectsLocked(actor.TenantID, releaseID, validStatements)
-	if len(invalidStatements) > 0 {
-		warnings = append(warnings, "One or more CycloneDX VEX vulnerabilities were skipped because required analysis fields were missing or unsupported.")
-	}
-	return domain.VEXImportPreview{
-		TenantID:                actor.TenantID,
-		ReleaseID:               releaseID,
-		ArtifactID:              artifactID,
-		Format:                  "cyclonedx",
-		ParserVersion:           ParserVersionCycloneDXVEXJSON,
-		Advisory:                true,
-		StatementCount:          len(doc.Vulnerabilities),
-		StatusSummary:           cloneIntMap(statusSummary),
-		DecisionsWouldCreate:    created,
-		DecisionsWouldSupersede: superseded,
-		Warnings:                warnings,
-		InvalidStatements:       invalidStatements,
-		MappingFailures:         mappingFailures,
-		Assumptions:             vexImportPreviewAssumptions(),
-		Limitations:             vexImportPreviewLimitations(),
-		SchemaVersion:           domain.VEXImportPreviewSchemaVersion,
-		GeneratedAt:             l.now(),
-	}, nil
+	value, err := l.evidenceCommands.UploadCycloneDXVEX(ctx, actor, releaseID, artifactID, raw)
+	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 type cycloneDXVEXStatement struct {
@@ -1204,472 +673,11 @@ func cycloneDXVEXAffectedRefs(vuln cycloneDXVEXVulnerability) map[string]struct{
 	return out
 }
 
-func (l *Ledger) findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID string, statement cycloneDXVEXStatement) []matchedFinding {
-	out := []matchedFinding{}
-	for _, scan := range l.scans {
-		if scan.TenantID != tenantID || scan.ReleaseID != releaseID {
-			continue
-		}
-		for _, finding := range scan.Findings {
-			if finding.Vulnerability != statement.vulnerability.ID {
-				continue
-			}
-			if len(statement.affectedRefs) > 0 && finding.Component != "" {
-				if _, ok := statement.affectedRefs[finding.Component]; !ok {
-					continue
-				}
-			}
-			out = append(out, matchedFinding{scan: scan, finding: finding})
-		}
-	}
-	return out
-}
-
-func (l *Ledger) previewCycloneDXVEXDecisionEffectsLocked(tenantID, releaseID string, statements []cycloneDXVEXStatement) (int, int, []string, []domain.VEXImportIssue) {
-	created, superseded := 0, 0
-	mappingFailures := []domain.VEXImportIssue{}
-	warnings := []string{}
-	createdForFinding := map[string]struct{}{}
-	duplicateWarningAdded := false
-	for _, statement := range statements {
-		matches := l.findCycloneDXVEXMatchingFindingsLocked(tenantID, releaseID, statement)
-		if len(matches) == 0 {
-			mappingFailures = append(mappingFailures, vexImportIssue(statement.index, "finding_not_found", "No matching vulnerability scan finding was found for this CycloneDX VEX vulnerability."))
-		}
-		added, replaced, duplicate := l.previewDecisionEffectsForMatchesLocked(tenantID, matches, createdForFinding)
-		created += added
-		superseded += replaced
-		if duplicate && !duplicateWarningAdded {
-			warnings = append(warnings, "Duplicate CycloneDX VEX vulnerabilities for an already mapped finding were ignored.")
-			duplicateWarningAdded = true
-		}
-	}
-	return created, superseded, warnings, mappingFailures
-}
-
-func (l *Ledger) RecordVulnerabilityWorkflow(ctx context.Context, actor domain.Actor, in RecordVulnerabilityWorkflowInput) (domain.VulnerabilityWorkflowRecord, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.VulnerabilityWorkflowRecord{}, err
-	}
-	if err := require(actor, ScopeSecurityWrite); err != nil {
-		return domain.VulnerabilityWorkflowRecord{}, err
-	}
-	in.FindingID, in.Action, in.Reason = strings.TrimSpace(in.FindingID), strings.TrimSpace(in.Action), strings.TrimSpace(in.Reason)
-	if in.FindingID == "" || !validVulnWorkflowAction(in.Action) || in.Reason == "" {
-		return domain.VulnerabilityWorkflowRecord{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	scan, _, ok := l.findFindingLocked(actor.TenantID, in.FindingID)
-	if !ok {
-		return domain.VulnerabilityWorkflowRecord{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeSecurityWrite, resourceRefs{ReleaseID: scan.ReleaseID}); err != nil {
-		return domain.VulnerabilityWorkflowRecord{}, err
-	}
-	record := domain.VulnerabilityWorkflowRecord{ID: newID("vw"), TenantID: actor.TenantID, FindingID: in.FindingID, ReleaseID: scan.ReleaseID, Action: in.Action, Reason: in.Reason, ActorID: actorID(actor), SchemaVersion: "vulnerability-workflow.v1.0.0", CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Risk.InsertVulnerabilityWorkflow(ctx, record); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(record.CreatedAt, actor.TenantID, "vulnerability_workflow."+record.Action, "vulnerability_finding", record.FindingID, actorType(actor), actorID(actor), "", ""))
-			return err
-		}); err != nil {
-			return domain.VulnerabilityWorkflowRecord{}, err
-		}
-		l.vulnWorkflow[record.ID] = record
-		l.publishCommittedAuditEntryLocked(entry)
-		return record, nil
-	}
-	l.vulnWorkflow[record.ID] = record
-	_, _ = l.appendChainLocked(actor.TenantID, "vulnerability_workflow."+record.Action, "vulnerability_finding", in.FindingID, actorType(actor), actorID(actor), "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.VulnerabilityWorkflowRecord{}, err
-	}
-	return record, nil
-}
-
-func (s packageReportService) VulnerabilityPostureReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityPostureReport, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.VulnerabilityPostureReport{}, err
-	}
-	if err := require(actor, ScopeSecurityRead); err != nil {
-		return domain.VulnerabilityPostureReport{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if strings.TrimSpace(releaseID) != "" {
-		release, ok := l.releases[strings.TrimSpace(releaseID)]
-		if !ok || release.TenantID != actor.TenantID {
-			return domain.VulnerabilityPostureReport{}, ErrNotFound
-		}
-		if err := l.authorizeResourceLocked(actor, ScopeSecurityRead, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
-			return domain.VulnerabilityPostureReport{}, err
-		}
-	}
-	summary := map[string]int{}
-	openCritical := 0
-	for _, scan := range l.scans {
-		if scan.TenantID != actor.TenantID || (releaseID != "" && scan.ReleaseID != releaseID) {
-			continue
-		}
-		for _, finding := range scan.Findings {
-			summary[strings.ToLower(finding.Severity)]++
-			if strings.EqualFold(finding.Severity, "critical") && strings.EqualFold(finding.State, "open") {
-				openCritical++
-			}
-		}
-	}
-	return domain.VulnerabilityPostureReport{ReportType: "vulnerability_posture", TemplateVersion: "vulnerability-posture.v1.0.0", ReleaseID: releaseID, Summary: summary, OpenCritical: openCritical, Assumptions: []string{"Posture reflects scans uploaded to this tenant only."}, Limitations: []string{"Scanner coverage and vulnerability databases are not independently verified by Evydence."}, GeneratedAt: l.now()}, nil
-}
-
 func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in CreateContractDiffInput) (domain.ContractDiff, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ContractDiff{}, err
-	}
-	if err := require(actor, ScopeEvidenceRead); err != nil {
-		return domain.ContractDiff{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	base, bok := l.contracts[strings.TrimSpace(in.BaseContractID)]
-	target, tok := l.contracts[strings.TrimSpace(in.TargetContractID)]
-	if !bok || !tok || base.TenantID != actor.TenantID || target.TenantID != actor.TenantID || base.ProductID != target.ProductID {
-		return domain.ContractDiff{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ProductID: base.ProductID, ReleaseID: base.ReleaseID}); err != nil {
-		return domain.ContractDiff{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeEvidenceRead, resourceRefs{ProductID: target.ProductID, ReleaseID: target.ReleaseID}); err != nil {
-		return domain.ContractDiff{}, err
-	}
-	result := "unchanged"
-	breaking, nonBreaking := []string{}, []string{}
-	if base.Hash != target.Hash {
-		result = "changed"
-		breaking, nonBreaking = diffOpenAPIOperations(base, target)
-		if len(base.Operations) == 0 || len(target.Operations) == 0 {
-			breaking, nonBreaking = []string{}, []string{}
-			if target.PathCount < base.PathCount {
-				breaking = append(breaking, "target contract has fewer paths than base contract")
-			}
-			if target.PathCount > base.PathCount {
-				nonBreaking = append(nonBreaking, "target contract has additional paths")
-			}
-		}
-		if len(breaking) > 0 {
-			result = "breaking"
-		}
-	}
-	diff := domain.ContractDiff{ID: newID("cdiff"), TenantID: actor.TenantID, BaseContractID: base.ID, TargetContractID: target.ID, ProductID: base.ProductID, ReleaseID: strings.TrimSpace(in.ReleaseID), Result: result, BreakingChanges: breaking, NonBreakingChanges: nonBreaking, SchemaVersion: domain.ContractDiffSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Risk.InsertContractDiff(ctx, diff); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(diff.CreatedAt, actor.TenantID, "openapi_contract.diffed", "contract_diff", diff.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.ContractDiff{}, err
-		}
-		l.contractDiffs[diff.ID] = diff
-		l.publishCommittedAuditEntryLocked(entry)
-		return diff, nil
-	}
-	l.contractDiffs[diff.ID] = diff
-	_, _ = l.appendChainLocked(actor.TenantID, "openapi_contract.diffed", "contract_diff", diff.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.ContractDiff{}, err
-	}
-	return diff, nil
-}
-
-func diffOpenAPIOperations(base, target domain.OpenAPIContract) ([]string, []string) {
-	baseOps := indexOpenAPIOperations(base.Operations)
-	targetOps := indexOpenAPIOperations(target.Operations)
-	breaking, nonBreaking := []string{}, []string{}
-	for key, baseOp := range baseOps {
-		targetOp, ok := targetOps[key]
-		label := openAPIOperationLabel(baseOp)
-		if !ok {
-			breaking = append(breaking, "operation removed: "+label)
-			continue
-		}
-		if !baseOp.RequestBodyRequired && targetOp.RequestBodyRequired {
-			breaking = append(breaking, "request body became required: "+label)
-		}
-		addedRequired := missingStrings(baseOp.RequiredRequestFields, targetOp.RequiredRequestFields)
-		if len(addedRequired) > 0 {
-			breaking = append(breaking, "required request fields added for "+label+": "+strings.Join(addedRequired, ","))
-		}
-		removedStatuses := missingStrings(targetOp.ResponseStatuses, baseOp.ResponseStatuses)
-		if len(removedStatuses) > 0 {
-			breaking = append(breaking, "response statuses removed for "+label+": "+strings.Join(removedStatuses, ","))
-		}
-		addedStatuses := missingStrings(baseOp.ResponseStatuses, targetOp.ResponseStatuses)
-		if len(addedStatuses) > 0 {
-			nonBreaking = append(nonBreaking, "response statuses added for "+label+": "+strings.Join(addedStatuses, ","))
-		}
-		if !baseOp.Deprecated && targetOp.Deprecated {
-			nonBreaking = append(nonBreaking, "operation deprecated: "+label)
-		}
-	}
-	for key, targetOp := range targetOps {
-		if _, ok := baseOps[key]; !ok {
-			nonBreaking = append(nonBreaking, "operation added: "+openAPIOperationLabel(targetOp))
-		}
-	}
-	sort.Strings(breaking)
-	sort.Strings(nonBreaking)
-	return breaking, nonBreaking
-}
-
-func indexOpenAPIOperations(ops []domain.OpenAPIOperation) map[string]domain.OpenAPIOperation {
-	out := make(map[string]domain.OpenAPIOperation, len(ops))
-	for _, op := range ops {
-		if strings.TrimSpace(op.Path) == "" || strings.TrimSpace(op.Method) == "" {
-			continue
-		}
-		op.Method = strings.ToUpper(strings.TrimSpace(op.Method))
-		op.Path = strings.TrimSpace(op.Path)
-		out[op.Method+" "+op.Path] = op
-	}
-	return out
-}
-
-func openAPIOperationLabel(op domain.OpenAPIOperation) string {
-	return strings.ToUpper(strings.TrimSpace(op.Method)) + " " + strings.TrimSpace(op.Path)
-}
-
-func missingStrings(have, want []string) []string {
-	present := map[string]struct{}{}
-	for _, value := range have {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			present[value] = struct{}{}
-		}
-	}
-	missing := []string{}
-	for _, value := range want {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := present[value]; !ok {
-			missing = append(missing, value)
-		}
-	}
-	sort.Strings(missing)
-	return missing
-}
-
-func (l *Ledger) CreateCustomPolicy(ctx context.Context, actor domain.Actor, in CreateCustomPolicyInput) (domain.CustomPolicy, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.CustomPolicy{}, err
-	}
-	if err := require(actor, ScopePolicyWrite); err != nil {
-		return domain.CustomPolicy{}, err
-	}
-	in.Name, in.Version = strings.TrimSpace(in.Name), strings.TrimSpace(in.Version)
-	if in.Name == "" || in.Version == "" || len(in.Rules) == 0 {
-		return domain.CustomPolicy{}, ErrValidation
-	}
-	for _, rule := range in.Rules {
-		if strings.TrimSpace(rule.Name) == "" || strings.TrimSpace(rule.Severity) == "" {
-			return domain.CustomPolicy{}, ErrValidation
-		}
-		if rule.EvidenceType != "" && !validPolicyEvidenceType(rule.EvidenceType) {
-			return domain.CustomPolicy{}, ErrValidation
-		}
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, existing := range l.customPolicies {
-		if existing.TenantID == actor.TenantID && existing.Name == in.Name && existing.Version == in.Version {
-			return domain.CustomPolicy{}, ErrConflict
-		}
-	}
-	policy := domain.CustomPolicy{ID: newID("cpol"), TenantID: actor.TenantID, Name: in.Name, Version: in.Version, Description: strings.TrimSpace(in.Description), Rules: append([]domain.PolicyRule(nil), in.Rules...), SchemaVersion: domain.CustomPolicySchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Risk.InsertCustomPolicy(ctx, policy); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(policy.CreatedAt, actor.TenantID, "custom_policy.created", "custom_policy", policy.ID, "api_key", actor.KeyID, "", ""))
-			return err
-		}); err != nil {
-			return domain.CustomPolicy{}, err
-		}
-		l.customPolicies[policy.ID] = policy
-		l.publishCommittedAuditEntryLocked(entry)
-		return policy, nil
-	}
-	l.customPolicies[policy.ID] = policy
-	_, _ = l.appendChainLocked(actor.TenantID, "custom_policy.created", "custom_policy", policy.ID, "api_key", actor.KeyID, "", "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.CustomPolicy{}, err
-	}
-	return policy, nil
-}
-
-func (l *Ledger) EvaluateCustomPolicy(ctx context.Context, actor domain.Actor, policyID, releaseID string) (domain.CustomPolicyEvaluation, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.CustomPolicyEvaluation{}, err
-	}
-	if err := require(actor, ScopePolicyRead); err != nil {
-		return domain.CustomPolicyEvaluation{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	policy, ok := l.customPolicies[strings.TrimSpace(policyID)]
-	release, rok := l.releases[strings.TrimSpace(releaseID)]
-	if !ok || !rok || policy.TenantID != actor.TenantID || release.TenantID != actor.TenantID {
-		return domain.CustomPolicyEvaluation{}, ErrNotFound
-	}
-	if err := l.authorizeResourceLocked(actor, ScopePolicyRead, resourceRefs{ProductID: release.ProductID, ReleaseID: release.ID}); err != nil {
-		return domain.CustomPolicyEvaluation{}, err
-	}
-	checks := []domain.PolicyCheck{}
-	result := "passed"
-	for _, rule := range policy.Rules {
-		check := l.evaluatePolicyRuleLocked(actor.TenantID, release.ID, rule)
-		checks = append(checks, check)
-		if check.Result == "failed" {
-			result = "failed"
-		}
-	}
-	inputHash, err := canonicalAnyHash(map[string]any{"policy": policy, "release_id": release.ID, "checks": checks})
-	if err != nil {
-		return domain.CustomPolicyEvaluation{}, err
-	}
-	eval := domain.CustomPolicyEvaluation{ID: newID("cpe"), TenantID: actor.TenantID, PolicyID: policy.ID, ReleaseID: release.ID, Result: result, Checks: checks, InputHash: inputHash, SchemaVersion: domain.CustomPolicyEvalSchemaVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Risk.InsertCustomPolicyEvaluation(ctx, eval); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(eval.CreatedAt, actor.TenantID, "custom_policy.evaluated", "custom_policy_evaluation", eval.ID, "api_key", actor.KeyID, inputHash, ""))
-			return err
-		}); err != nil {
-			return domain.CustomPolicyEvaluation{}, err
-		}
-		l.customPolicyEvals[eval.ID] = eval
-		l.publishCommittedAuditEntryLocked(entry)
-		return eval, nil
-	}
-	l.customPolicyEvals[eval.ID] = eval
-	_, _ = l.appendChainLocked(actor.TenantID, "custom_policy.evaluated", "custom_policy_evaluation", eval.ID, "api_key", actor.KeyID, inputHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.CustomPolicyEvaluation{}, err
-	}
-	return eval, nil
-}
-
-type parsedSecurityScan struct {
-	Format       string
-	FindingCount int
-	Summary      map[string]int
-}
-
-func parseSecurityScan(format string, raw []byte) (parsedSecurityScan, error) {
-	if strings.TrimSpace(format) == "" {
-		format = "generic"
-	}
-	if format == "sarif" {
-		var doc struct {
-			Version string `json:"version"`
-			Runs    []struct {
-				Results []struct {
-					Level string `json:"level"`
-				} `json:"results"`
-			} `json:"runs"`
-		}
-		if err := strictDecode(raw, &doc); err != nil || doc.Version == "" {
-			return parsedSecurityScan{}, ErrValidation
-		}
-		summary := map[string]int{}
-		total := 0
-		for _, run := range doc.Runs {
-			for _, result := range run.Results {
-				total++
-				summary[nonEmpty(strings.ToLower(result.Level), "warning")]++
-			}
-		}
-		return parsedSecurityScan{Format: "sarif", FindingCount: total, Summary: summary}, nil
-	}
-	var doc struct {
-		Findings []struct {
-			Severity string `json:"severity"`
-		} `json:"findings"`
-	}
-	if err := strictDecode(raw, &doc); err != nil {
-		return parsedSecurityScan{}, ErrValidation
-	}
-	summary := map[string]int{}
-	for _, finding := range doc.Findings {
-		summary[nonEmpty(strings.ToLower(finding.Severity), "unknown")]++
-	}
-	return parsedSecurityScan{Format: strings.TrimSpace(format), FindingCount: len(doc.Findings), Summary: summary}, nil
-}
-
-func strictDecode(raw []byte, out any) error {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(out); err != nil {
-		return err
-	}
-	if err := dec.Decode(&struct{}{}); err != io.EOF {
-		return ErrValidation
-	}
-	return nil
-}
-
-func diffComponents(base, target []domain.SBOMComponent) ([]domain.SBOMComponent, []domain.SBOMComponent, int) {
-	baseSet, targetSet := map[string]domain.SBOMComponent{}, map[string]domain.SBOMComponent{}
-	for _, component := range base {
-		baseSet[componentKey(component)] = component
-	}
-	for _, component := range target {
-		targetSet[componentKey(component)] = component
-	}
-	added, removed := []domain.SBOMComponent{}, []domain.SBOMComponent{}
-	unchanged := 0
-	for key, component := range targetSet {
-		if _, ok := baseSet[key]; ok {
-			unchanged++
-			continue
-		}
-		added = append(added, component)
-	}
-	for key, component := range baseSet {
-		if _, ok := targetSet[key]; !ok {
-			removed = append(removed, component)
-		}
-	}
-	sortComponents(added)
-	sortComponents(removed)
-	return added, removed, unchanged
-}
-
-func sortComponents(values []domain.SBOMComponent) {
-	sort.Slice(values, func(i, j int) bool { return componentKey(values[i]) < componentKey(values[j]) })
-}
-
-func componentKey(component domain.SBOMComponent) string {
-	if component.PURL != "" {
-		return component.PURL
-	}
-	return component.Name + "@" + component.Version
+	value, err := l.evidenceCommands.CreateContractDiff(ctx, actor, evidenceapp.CreateContractDiffInput{
+		BaseContractID: in.BaseContractID, TargetContractID: in.TargetContractID, ReleaseID: in.ReleaseID,
+	})
+	return contractDiffFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func cyclonedxAnalysisStatus(state string) string {
@@ -1683,21 +691,6 @@ func cyclonedxAnalysisStatus(state string) string {
 	default:
 		return ""
 	}
-}
-
-func (l *Ledger) evaluatePolicyRuleLocked(tenantID, releaseID string, rule domain.PolicyRule) domain.PolicyCheck {
-	if rule.EvidenceType == "" {
-		return domain.PolicyCheck{Name: rule.Name, Result: "passed", Severity: rule.Severity, Explanation: "metadata-only custom policy rule recorded"}
-	}
-	for _, item := range l.evidence {
-		if item.TenantID == tenantID && item.ReleaseID == releaseID && item.Type == rule.EvidenceType {
-			return domain.PolicyCheck{Name: rule.Name, Result: "passed", Severity: rule.Severity, Explanation: rule.EvidenceType + " evidence exists"}
-		}
-	}
-	if rule.Required {
-		return domain.PolicyCheck{Name: rule.Name, Result: "failed", Severity: rule.Severity, Missing: []string{rule.EvidenceType}, Explanation: rule.EvidenceType + " evidence is missing"}
-	}
-	return domain.PolicyCheck{Name: rule.Name, Result: "passed", Severity: rule.Severity, Explanation: "optional evidence not present"}
 }
 
 func validSeverity(severity string) bool {
@@ -1737,21 +730,11 @@ func validSensitivity(value string) bool {
 }
 
 func validVulnWorkflowAction(action string) bool {
-	switch action {
-	case "scanner_metadata", "sla_set", "scanner_disagreement", "superseded", "reopened":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidVulnerabilityWorkflowAction(action)
 }
 
 func validPolicyEvidenceType(typ string) bool {
-	switch typ {
-	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception", "sast", "dast", "secret_scan", "license_scan", "api_security", "deployment", "threat_model", "security_review", "pen_test_report":
-		return true
-	default:
-		return false
-	}
+	return riskdomain.ValidPolicyEvidenceType(typ)
 }
 
 func validContractDiffResult(result string) bool {

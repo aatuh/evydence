@@ -4,172 +4,133 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
 
-type releaseEvidenceService struct {
-	ledger *Ledger
-}
-
-func (l *Ledger) releaseEvidenceService() releaseEvidenceService {
-	return releaseEvidenceService{ledger: l}
-}
-
 func (l *Ledger) CreateProduct(ctx context.Context, actor domain.Actor, name, slug string) (domain.Product, error) {
-	return l.releaseEvidenceService().CreateProduct(ctx, actor, name, slug)
-}
-
-func (l *Ledger) ListProducts(ctx context.Context, actor domain.Actor) ([]domain.Product, error) {
-	return l.releaseEvidenceService().ListProducts(ctx, actor)
+	value, err := l.releaseCommands.CreateProduct(ctx, actor, releaseapp.CreateProductInput{Name: name, Slug: slug})
+	return productFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) GetProduct(ctx context.Context, actor domain.Actor, id string) (domain.Product, error) {
-	return l.releaseEvidenceService().GetProduct(ctx, actor, id)
+	value, err := l.releaseCommands.GetProduct(ctx, actor, id)
+	return productFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) CreateProject(ctx context.Context, actor domain.Actor, productID, name string) (domain.Project, error) {
-	return l.releaseEvidenceService().CreateProject(ctx, actor, productID, name)
-}
-
-func (l *Ledger) GetProject(ctx context.Context, actor domain.Actor, id string) (domain.Project, error) {
-	return l.releaseEvidenceService().GetProject(ctx, actor, id)
+	value, err := l.releaseCommands.CreateProject(ctx, actor, releaseapp.CreateProjectInput{ProductID: productID, Name: name})
+	return projectFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) CreateRelease(ctx context.Context, actor domain.Actor, productID, version string) (domain.Release, error) {
-	return l.releaseEvidenceService().CreateRelease(ctx, actor, productID, version)
+	value, err := l.releaseCommands.CreateRelease(ctx, actor, releaseapp.CreateReleaseInput{ProductID: productID, Version: version})
+	return domain.ReleaseFromContextModel(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) GetRelease(ctx context.Context, actor domain.Actor, releaseID string) (domain.Release, error) {
-	return l.releaseEvidenceService().GetRelease(ctx, actor, releaseID)
+	value, err := l.releaseCommands.GetRelease(ctx, actor, releaseID)
+	return domain.ReleaseFromContextModel(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) FreezeRelease(ctx context.Context, actor domain.Actor, releaseID string, expectedRevision int64) (domain.Release, error) {
-	return l.releaseEvidenceService().FreezeRelease(ctx, actor, releaseID, expectedRevision)
+	value, err := l.releaseCommands.FreezeRelease(ctx, actor, releaseID, expectedRevision)
+	return domain.ReleaseFromContextModel(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) ApproveRelease(ctx context.Context, actor domain.Actor, releaseID string, expectedRevision int64) (domain.Release, error) {
-	return l.releaseEvidenceService().ApproveRelease(ctx, actor, releaseID, expectedRevision)
+	value, err := l.releaseCommands.ApproveRelease(ctx, actor, releaseID, expectedRevision)
+	return domain.ReleaseFromContextModel(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) RegisterArtifact(ctx context.Context, actor domain.Actor, name, mediaType, digest string, size int64) (domain.Artifact, error) {
-	return l.releaseEvidenceService().RegisterArtifact(ctx, actor, name, mediaType, digest, size)
+	value, err := l.releaseCommands.RegisterArtifact(ctx, actor, releaseapp.RegisterArtifactInput{Name: name, MediaType: mediaType, Digest: digest, Size: size})
+	return artifactFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) GetArtifact(ctx context.Context, actor domain.Actor, id string) (domain.Artifact, error) {
-	return l.releaseEvidenceService().GetArtifact(ctx, actor, id)
+	value, err := l.releaseCommands.GetArtifact(ctx, actor, id)
+	return artifactFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in CreateEvidenceInput) (domain.EvidenceItem, error) {
-	return l.releaseEvidenceService().CreateEvidence(ctx, actor, in)
-}
-
-func (l *Ledger) GetEvidence(ctx context.Context, actor domain.Actor, id string) (domain.EvidenceItem, error) {
-	return l.releaseEvidenceService().GetEvidence(ctx, actor, id)
-}
-
-func (l *Ledger) ListEvidence(ctx context.Context, actor domain.Actor, releaseID, typ string) ([]domain.EvidenceItem, error) {
-	return l.releaseEvidenceService().ListEvidence(ctx, actor, releaseID, typ)
+	subjects := make([]evidencedomain.SubjectRef, 0, len(in.SubjectRefs))
+	for _, subject := range in.SubjectRefs {
+		subjects = append(subjects, evidencedomain.SubjectRef{Type: subject.Type, ID: subject.ID, Digest: subject.Digest})
+	}
+	value, err := l.evidenceCommands.CreateEvidence(ctx, actor, evidenceapp.CreateEvidenceInput{
+		ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, BuildID: in.BuildID, DeploymentID: in.DeploymentID,
+		Type: in.Type, Subtype: in.Subtype, Title: in.Title, SourceSystem: in.SourceSystem, SourceIdentity: cloneMap(in.SourceIdentity),
+		CollectorID: in.CollectorID, ObservedAt: in.ObservedAt, PayloadRef: in.PayloadRef, PayloadHash: in.PayloadHash,
+		PayloadMediaType: in.PayloadMediaType, PayloadSize: in.PayloadSize, StagedPayload: objectPayloadToEvidenceContext(in.StagedPayload),
+		SubjectRefs: subjects, Metadata: cloneMap(in.Metadata), Tags: append([]string(nil), in.Tags...), Limitations: append([]string(nil), in.Limitations...),
+	})
+	return evidenceFromContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, replacementID, reason string) (domain.EvidenceItem, error) {
-	return l.releaseEvidenceService().SupersedeEvidence(ctx, actor, id, replacementID, reason)
+	value, err := l.evidenceCommands.SupersedeEvidence(ctx, actor, id, replacementID, reason)
+	return evidenceFromContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targetType, targetID string) (domain.EvidenceItem, error) {
-	return l.releaseEvidenceService().LinkEvidence(ctx, actor, id, targetType, targetID)
+	value, err := l.evidenceCommands.LinkEvidence(ctx, actor, id, targetType, targetID)
+	return evidenceFromContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) UploadSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	return l.releaseEvidenceService().UploadSBOM(ctx, actor, releaseID, artifactID, raw)
+	value, err := l.evidenceCommands.UploadSBOM(ctx, actor, releaseID, artifactID, raw)
+	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 // UploadSBOMPayload accepts a repeatable pre-hashed payload source for
-// streaming HTTP ingestion.
+// streaming HTTP ingestion. CycloneDX 1.6 schema validation and normalization
+// consume the same bounded bytes before evidence or object-store side effects.
 func (l *Ledger) UploadSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
-	return l.releaseEvidenceService().UploadSBOMPayload(ctx, actor, releaseID, artifactID, source)
+	value, err := l.evidenceCommands.UploadSBOMPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
+	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
+}
+
+// UploadSPDXSBOMPayload accepts an SPDX JSON source whose bytes are validated,
+// normalized, and staged as the same digest-bound payload.
+func (l *Ledger) UploadSPDXSBOMPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.SBOM, error) {
+	value, err := l.evidenceCommands.UploadSPDXSBOMPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
+	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) UploadVulnerabilityScan(ctx context.Context, actor domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
-	return l.releaseEvidenceService().UploadVulnerabilityScan(ctx, actor, raw)
+	value, err := l.evidenceCommands.UploadVulnerabilityScan(ctx, actor, raw)
+	return vulnerabilityScanFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 // UploadVulnerabilityScanPayload accepts a repeatable pre-hashed payload
 // source for streaming HTTP ingestion.
 func (l *Ledger) UploadVulnerabilityScanPayload(ctx context.Context, actor domain.Actor, source PayloadSource) (domain.VulnerabilityScan, error) {
-	return l.releaseEvidenceService().UploadVulnerabilityScanPayload(ctx, actor, source)
+	value, err := l.evidenceCommands.UploadVulnerabilityScanPayload(ctx, actor, payloadSourceToEvidenceContext(source))
+	return vulnerabilityScanFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) UploadOpenAPIContract(ctx context.Context, actor domain.Actor, productID, releaseID, version string, raw []byte) (domain.OpenAPIContract, error) {
-	return l.releaseEvidenceService().UploadOpenAPIContract(ctx, actor, productID, releaseID, version, raw)
+	value, err := l.evidenceCommands.UploadOpenAPIContract(ctx, actor, productID, releaseID, version, raw)
+	return openAPIContractFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 // UploadOpenAPIContractPayload accepts a repeatable pre-hashed payload source
 // for streaming HTTP ingestion.
 func (l *Ledger) UploadOpenAPIContractPayload(ctx context.Context, actor domain.Actor, productID, releaseID, version string, source PayloadSource) (domain.OpenAPIContract, error) {
-	return l.releaseEvidenceService().UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, source)
-}
-
-func (l *Ledger) GetSBOM(ctx context.Context, actor domain.Actor, id string) (domain.SBOM, error) {
-	return l.releaseEvidenceService().GetSBOM(ctx, actor, id)
-}
-
-func (l *Ledger) ListSBOMComponents(ctx context.Context, actor domain.Actor, in ListSBOMComponentsInput) ([]domain.SBOMComponentRecord, error) {
-	return l.releaseEvidenceService().ListSBOMComponents(ctx, actor, in)
-}
-
-func (l *Ledger) GetVulnerabilityScan(ctx context.Context, actor domain.Actor, id string) (domain.VulnerabilityScan, error) {
-	return l.releaseEvidenceService().GetVulnerabilityScan(ctx, actor, id)
-}
-
-func (l *Ledger) GetOpenAPIContract(ctx context.Context, actor domain.Actor, id string) (domain.OpenAPIContract, error) {
-	return l.releaseEvidenceService().GetOpenAPIContract(ctx, actor, id)
+	value, err := l.evidenceCommands.UploadOpenAPIContractPayload(ctx, actor, productID, releaseID, version, payloadSourceToEvidenceContext(source))
+	return openAPIContractFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
-	return l.releaseEvidenceService().UploadVEX(ctx, actor, releaseID, artifactID, raw)
+	value, err := l.evidenceCommands.UploadVEX(ctx, actor, releaseID, artifactID, raw)
+	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 // UploadVEXPayload accepts a repeatable pre-hashed payload source for
 // streaming HTTP ingestion.
 func (l *Ledger) UploadVEXPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.VEXDocument, error) {
-	return l.releaseEvidenceService().UploadVEXPayload(ctx, actor, releaseID, artifactID, source)
-}
-
-func (l *Ledger) PreviewVEXImport(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXImportPreview, error) {
-	return l.releaseEvidenceService().PreviewVEXImport(ctx, actor, releaseID, artifactID, raw)
-}
-
-func (l *Ledger) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (domain.VEXDocument, error) {
-	return l.releaseEvidenceService().GetVEXDocument(ctx, actor, id)
-}
-
-func (l *Ledger) GetVEXImportReport(ctx context.Context, actor domain.Actor, vexID string) (domain.VEXImportReport, error) {
-	return l.releaseEvidenceService().GetVEXImportReport(ctx, actor, vexID)
-}
-
-func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, findingID string, in CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
-	return l.releaseEvidenceService().CreateVulnerabilityDecision(ctx, actor, findingID, in)
-}
-
-func (l *Ledger) ListVulnerabilityDecisions(ctx context.Context, actor domain.Actor, in ListVulnerabilityDecisionsInput) ([]domain.VulnerabilityDecision, error) {
-	return l.releaseEvidenceService().ListVulnerabilityDecisions(ctx, actor, in)
-}
-
-func (l *Ledger) VulnerabilityDecisionSummaryReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityDecisionSummaryReport, error) {
-	return l.releaseEvidenceService().VulnerabilityDecisionSummaryReport(ctx, actor, releaseID)
-}
-
-func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
-	return l.releaseEvidenceService().CreateException(ctx, actor, in)
-}
-
-func (l *Ledger) ListExceptions(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.Exception, error) {
-	return l.releaseEvidenceService().ListExceptions(ctx, actor, releaseID)
-}
-
-func (l *Ledger) ApproveException(ctx context.Context, actor domain.Actor, id string) (domain.Exception, error) {
-	return l.releaseEvidenceService().ApproveException(ctx, actor, id)
-}
-
-func (l *Ledger) ReleaseReadinessReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseReadinessReport, error) {
-	return l.releaseEvidenceService().ReleaseReadinessReport(ctx, actor, releaseID)
+	value, err := l.evidenceCommands.UploadVEXPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
+	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }

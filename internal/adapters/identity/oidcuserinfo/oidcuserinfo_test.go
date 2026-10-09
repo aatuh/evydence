@@ -75,6 +75,32 @@ func TestValidateProviderIdentityRequiresHTTPSExceptLocalhostOverride(t *testing
 	}
 }
 
+func TestValidateProviderIdentityRejectsCrossOriginUserInfoBeforeSendingBearerToken(t *testing.T) {
+	targetHit := false
+	target := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		targetHit = true
+	}))
+	defer target.Close()
+	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"userinfo_endpoint": target.URL + "/userinfo"})
+	}))
+	defer issuer.Close()
+
+	validator := New(Config{AllowInsecureForLocalhost: true})
+	_, err := validator.ValidateProviderIdentity(t.Context(), app.ProviderIdentityValidationRequest{
+		ProviderType: "oidc",
+		Issuer:       issuer.URL,
+		Subject:      "sub-1",
+		AccessToken:  "secret-token",
+	})
+	if err == nil {
+		t.Fatal("expected cross-origin UserInfo endpoint rejection")
+	}
+	if targetHit {
+		t.Fatal("bearer-capable request reached the cross-origin endpoint")
+	}
+}
+
 func TestValidateProviderIdentityHidesBearerTokenFromErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "token secret-token rejected", http.StatusUnauthorized)

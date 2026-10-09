@@ -151,8 +151,9 @@ systems. Use the local simulation before copying the workflow:
 make local-ci-simulation-check
 ```
 
-That check exercises the same Evydence CLI path with local fixtures and a
-loopback API. Live provider validation remains a separate deployment or release
+That check requires `EVYDENCE_TEST_DATABASE_URL` and `psql`, and exercises the
+same Evydence CLI path with local fixtures, an owned disposable PostgreSQL
+schema, and a loopback API. Live provider validation remains a separate deployment or release
 readiness task because it needs real provider accounts, secrets, and repository
 settings.
 

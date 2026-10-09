@@ -12,7 +12,7 @@ import (
 )
 
 func TestReadinessRunsBoundedRequiredChecksWithoutLeakingProbeErrors(t *testing.T) {
-	ledger := NewLedger(Config{ReadinessChecks: []ReadinessCheck{
+	ledger := newLegacyLedgerFixture(Config{ReadinessChecks: []ReadinessCheck{
 		{
 			Name:          "postgres",
 			Timeout:       10 * time.Millisecond,

@@ -65,9 +65,10 @@ vulnerability coverage, or a secure-release guarantee.
   under tenant-prefixed paths.
 - Polling `cmd/evydence-worker` process that claims persisted outbox jobs with
   PostgreSQL row locking and records retry or terminal status.
-- Optional worker-owned parser side effects through
-  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, including VEX-derived
-  vulnerability decisions created idempotently by the `parse_vex` worker.
+- Optional worker-owned normalized projections for non-VEX parsers through
+  `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`. VEX-derived vulnerability
+  decisions are always post-commit worker effects for replayable payloads and
+  are created idempotently by `parse_vex`.
 
 ## Tooling, Deployment, And Examples
 

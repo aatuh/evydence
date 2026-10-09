@@ -33,6 +33,49 @@ before changing binaries, images, Helm values, or migrations.
 6. Verify `/v1/ready`, a release-readiness report, an audit-chain verification,
    a release bundle verification, and a representative package/export.
 
+## Current Prerelease API Contract Correction
+
+The current unreleased prerelease contract removes request fields that the
+server never persisted: `project_id` from `POST /v1/releases`, and `release_id`
+and `subject_ref` from `POST /v1/artifacts`. Artifact registration now requires
+`media_type`. Before upgrading a client, remove those fields, provide a media
+type, and use the release-scoped evidence, build, or release-candidate routes
+to make associations. No database migration or historical-evidence rewrite is
+required because the removed fields never had durable storage.
+
+The same correction applies to `POST /v1/builds`: replace obsolete
+`completed_at` with `finished_at`, replace `github` with `provider_metadata`,
+and use the documented top-level CI identity fields (`repository`,
+`workflow_ref`, `run_id`, `run_attempt`, `job_id`, `actor`, `ref`, and
+`oidc_subject`) when applicable.
+
+## Parser Upgrade and Replay
+
+Parser upgrades do not rewrite historical evidence. Before changing a parser
+version, run `make parser-corpus-check` and retain its output with the upgrade
+record. The corpus manifest pins fixture hashes, source/provenance records,
+redistribution rights, limits, and expected normalized summaries; a mismatch
+requires an intentional golden update and a `CHANGELOG.md` entry.
+
+To create a new, auditable interpretation of one immutable payload, use the
+worker command with a tenant scope and explicit confirmation:
+
+```sh
+evydence-worker parser-replay \
+  --tenant ten_example \
+  --evidence ev_example \
+  --parser-version spdx-json.v2.0.0 \
+  --actor operator_change_ticket \
+  --apply
+```
+
+The command verifies the stored payload’s tenant and digest before parsing. It
+appends a `parser_normalization` evidence item and audit-chain entry linked to
+the source evidence. Repeating the identical replay is idempotent. It does not
+edit the source evidence, its parser metadata, or raw payload. If a deployment
+must roll back, keep both derived versions and restore the matching binary only
+for future interpretations; do not delete historical derived records.
+
 ## Rollback Or Forward Fix
 
 Evydence migrations are treated as forward-moving release evidence. Prefer a

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 const (
@@ -62,10 +63,7 @@ type CRAReadinessReportInput struct {
 }
 
 func (l *Ledger) CreateControlFramework(ctx context.Context, actor domain.Actor, in CreateControlFrameworkInput) (domain.ControlFramework, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.ControlFramework{}, err
-	}
-	if err := require(actor, ScopeControlsAdmin); err != nil {
+	if err := l.AuthorizeControlFrameworkCreation(ctx, actor, in); err != nil {
 		return domain.ControlFramework{}, err
 	}
 	name := strings.TrimSpace(in.Name)
@@ -128,6 +126,9 @@ func (l *Ledger) ListControlFrameworks(ctx context.Context, actor domain.Actor) 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeControlsRead, resourceRefs{}); err != nil {
+		return nil, err
+	}
 	out := []domain.ControlFramework{}
 	for _, framework := range l.frameworks {
 		if framework.TenantID == actor.TenantID {
@@ -144,10 +145,7 @@ func (l *Ledger) ListControlFrameworks(ctx context.Context, actor domain.Actor) 
 }
 
 func (l *Ledger) CreateSecurityControl(ctx context.Context, actor domain.Actor, in CreateSecurityControlInput) (domain.SecurityControl, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.SecurityControl{}, err
-	}
-	if err := require(actor, ScopeControlsAdmin); err != nil {
+	if err := l.AuthorizeSecurityControlCreation(ctx, actor, in); err != nil {
 		return domain.SecurityControl{}, err
 	}
 	in.FrameworkID = strings.TrimSpace(in.FrameworkID)
@@ -218,6 +216,9 @@ func (l *Ledger) GetSecurityControl(ctx context.Context, actor domain.Actor, id 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.authorizeResourceLocked(actor, ScopeControlsRead, resourceRefs{}); err != nil {
+		return domain.SecurityControl{}, err
+	}
 	control, ok := l.controls[strings.TrimSpace(id)]
 	if !ok || control.TenantID != actor.TenantID {
 		return domain.SecurityControl{}, ErrNotFound
@@ -226,38 +227,19 @@ func (l *Ledger) GetSecurityControl(ctx context.Context, actor domain.Actor, id 
 }
 
 func (l *Ledger) LinkControlEvidence(ctx context.Context, actor domain.Actor, controlID string, in LinkControlEvidenceInput) (domain.ControlEvidence, error) {
-	if err := ctx.Err(); err != nil {
+	controlID, in, err := prepareLocalControlEvidenceLink(ctx, actor, controlID, in)
+	if err != nil {
 		return domain.ControlEvidence{}, err
-	}
-	if err := require(actor, ScopeControlsWrite); err != nil {
-		return domain.ControlEvidence{}, err
-	}
-	controlID = strings.TrimSpace(controlID)
-	in.EvidenceType = strings.TrimSpace(in.EvidenceType)
-	in.SubjectType = strings.TrimSpace(in.SubjectType)
-	in.SubjectID = strings.TrimSpace(in.SubjectID)
-	in.ProductID = strings.TrimSpace(in.ProductID)
-	in.ReleaseID = strings.TrimSpace(in.ReleaseID)
-	in.Confidence = strings.TrimSpace(in.Confidence)
-	if controlID == "" || !supportedControlEvidenceType(in.EvidenceType) || in.SubjectType == "" || in.SubjectID == "" || !validControlConfidence(in.Confidence) {
-		return domain.ControlEvidence{}, ErrValidation
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	control, ok := l.controls[controlID]
-	if !ok || control.TenantID != actor.TenantID {
-		return domain.ControlEvidence{}, ErrNotFound
-	}
-	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
+	if err := l.refreshWorkerProjectionLocked(ctx, actor.TenantID); err != nil {
 		return domain.ControlEvidence{}, err
 	}
-	refs := l.refsForControlEvidenceSubjectLocked(in.SubjectType, in.SubjectID, in.ProductID, in.ReleaseID)
-	if err := l.authorizeResourceLocked(actor, ScopeControlsWrite, refs); err != nil {
+	if err := l.authorizeControlEvidenceLinkLocked(actor, controlID, in); err != nil {
 		return domain.ControlEvidence{}, err
 	}
-	if !l.controlSubjectExistsLocked(actor.TenantID, in.SubjectType, in.SubjectID, in.ProductID, in.ReleaseID) {
-		return domain.ControlEvidence{}, ErrNotFound
-	}
+	control := l.controls[controlID]
 	for _, existing := range l.controlLinks {
 		if existing.TenantID == actor.TenantID && existing.ControlID == control.ID && existing.EvidenceType == in.EvidenceType && existing.SubjectType == in.SubjectType && existing.SubjectID == in.SubjectID && existing.ProductID == in.ProductID && existing.ReleaseID == in.ReleaseID {
 			return existing, nil
@@ -324,6 +306,23 @@ func (l *Ledger) ListControlEvidence(ctx context.Context, actor domain.Actor, co
 		if releaseID != "" && link.ReleaseID != releaseID {
 			continue
 		}
+		control, ok := l.controls[link.ControlID]
+		if !ok || control.TenantID != actor.TenantID {
+			continue
+		}
+		framework, ok := l.frameworks[control.FrameworkID]
+		if !ok || framework.TenantID != actor.TenantID {
+			continue
+		}
+		if err := l.ensureScopeLocked(actor.TenantID, link.ProductID, "", link.ReleaseID); err != nil {
+			continue
+		}
+		if link.ProductID != "" && link.ReleaseID != "" && l.releases[link.ReleaseID].ProductID != link.ProductID {
+			continue
+		}
+		if !l.controlSubjectExistsLocked(actor.TenantID, link.SubjectType, link.SubjectID, link.ProductID, link.ReleaseID) {
+			continue
+		}
 		if !l.resourceAllowedLocked(actor, ScopeControlsRead, l.refsForControlEvidenceSubjectLocked(link.SubjectType, link.SubjectID, link.ProductID, link.ReleaseID)) {
 			continue
 		}
@@ -333,55 +332,20 @@ func (l *Ledger) ListControlEvidence(ctx context.Context, actor domain.Actor, co
 	return out, nil
 }
 
-func (s packageReportService) ControlCoverageReport(ctx context.Context, actor domain.Actor, in ControlCoverageReportInput) (domain.ControlCoverageReport, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.ControlCoverageReport{}, err
-	}
-	if err := require(actor, ScopeReportRead); err != nil {
-		return domain.ControlCoverageReport{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	report, err := l.controlCoverageReportLocked(actor.TenantID, in)
-	if err != nil {
-		return domain.ControlCoverageReport{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: report.ProductID, ReleaseID: report.ReleaseID}); err != nil {
-		return domain.ControlCoverageReport{}, err
-	}
-	return report, nil
-}
-
-func (s packageReportService) CRAReadinessReport(ctx context.Context, actor domain.Actor, in CRAReadinessReportInput) (domain.CRAReadinessReport, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.CRAReadinessReport{}, err
-	}
-	if err := require(actor, ScopeReportRead); err != nil {
-		return domain.CRAReadinessReport{}, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if strings.TrimSpace(in.ProductID) == "" {
-		return domain.CRAReadinessReport{}, ErrValidation
-	}
-	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, "", in.ReleaseID); err != nil {
-		return domain.CRAReadinessReport{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: in.ProductID, ReleaseID: in.ReleaseID}); err != nil {
-		return domain.CRAReadinessReport{}, err
-	}
-	frameworkID := l.firstFrameworkIDLocked(actor.TenantID)
-	coverage, err := l.controlCoverageReportLocked(actor.TenantID, ControlCoverageReportInput{FrameworkID: frameworkID, ProductID: in.ProductID, ReleaseID: in.ReleaseID})
+// craReadinessReportLocked produces one report from a single committed
+// compatibility read view. The caller owns the read-model lock and performs
+// authorization before returning the result to an actor.
+func (l *Ledger) craReadinessReportLocked(tenantID, productID, releaseID string) (domain.CRAReadinessReport, error) {
+	frameworkID := l.firstFrameworkIDLocked(tenantID)
+	coverage, err := l.controlCoverageReportLocked(tenantID, ControlCoverageReportInput{FrameworkID: frameworkID, ProductID: productID, ReleaseID: releaseID})
 	if err != nil {
 		return domain.CRAReadinessReport{}, err
 	}
 	return domain.CRAReadinessReport{
 		ReportType:         "cra_readiness",
 		TemplateVersion:    domain.CRAReadinessTemplateVersion,
-		ProductID:          in.ProductID,
-		ReleaseID:          in.ReleaseID,
+		ProductID:          productID,
+		ReleaseID:          releaseID,
 		Result:             coverage.Result,
 		Controls:           coverage.Controls,
 		MissingEvidence:    coverage.MissingEvidence,
@@ -389,175 +353,6 @@ func (s packageReportService) CRAReadinessReport(ctx context.Context, actor doma
 		Assumptions:        []string{"This report organizes technical evidence for CRA readiness review and is not a legal compliance conclusion."},
 		Limitations:        []string{"Readiness is based only on evidence, mappings, exceptions, and release records in this Evydence instance.", "Evidence presence does not prove SBOM completeness, scanner authority, secure release status, or legal sufficiency."},
 		GeneratedAt:        l.now(),
-	}, nil
-}
-
-func (s packageReportService) CRAVulnerabilityHandlingReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.CRAVulnerabilityHandlingReport, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.CRAVulnerabilityHandlingReport{}, err
-	}
-	if err := require(actor, ScopeReportRead); err != nil {
-		return domain.CRAVulnerabilityHandlingReport{}, err
-	}
-	productID, releaseID = strings.TrimSpace(productID), strings.TrimSpace(releaseID)
-	if productID == "" || releaseID == "" {
-		return domain.CRAVulnerabilityHandlingReport{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureScopeLocked(actor.TenantID, productID, "", releaseID); err != nil {
-		return domain.CRAVulnerabilityHandlingReport{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: productID, ReleaseID: releaseID}); err != nil {
-		return domain.CRAVulnerabilityHandlingReport{}, err
-	}
-	summary := map[string]int{
-		"findings_total":            0,
-		"open_critical_total":       0,
-		"decisions_total":           0,
-		"approved_exceptions_total": 0,
-	}
-	evidenceIDs := []string{}
-	for _, scan := range l.scans {
-		if scan.TenantID != actor.TenantID || scan.ReleaseID != releaseID {
-			continue
-		}
-		evidenceIDs = append(evidenceIDs, scan.EvidenceID)
-		summary["findings_total"] += len(scan.Findings)
-		for _, finding := range scan.Findings {
-			if strings.EqualFold(finding.Severity, "critical") && strings.EqualFold(finding.State, "open") {
-				summary["open_critical_total"]++
-			}
-		}
-	}
-	decisions := []domain.VulnerabilityDecisionCustomerSummary{}
-	for _, decision := range l.decisions {
-		if decision.TenantID != actor.TenantID || decision.ReleaseID != releaseID || decision.SupersededBy != "" {
-			continue
-		}
-		decisions = append(decisions, customerDecisionSummary(decision))
-		evidenceIDs = append(evidenceIDs, decisionEvidenceIDs(decision.EvidenceID, decision.EvidenceIDs)...)
-		if decision.VEXDocumentID != "" {
-			if vex, ok := l.vexDocuments[decision.VEXDocumentID]; ok && vex.TenantID == actor.TenantID {
-				evidenceIDs = append(evidenceIDs, vex.EvidenceID)
-			}
-		}
-	}
-	sort.Slice(decisions, func(i, j int) bool { return decisions[i].ID < decisions[j].ID })
-	summary["decisions_total"] = len(decisions)
-	exceptions := []domain.Exception{}
-	now := l.now()
-	for _, exception := range l.exceptions {
-		if exception.TenantID == actor.TenantID && exception.ReleaseID == releaseID && exception.Approved && exception.ExpiresAt.After(now) {
-			exceptions = append(exceptions, exception)
-		}
-	}
-	sort.Slice(exceptions, func(i, j int) bool { return exceptions[i].ID < exceptions[j].ID })
-	summary["approved_exceptions_total"] = len(exceptions)
-	evidenceIDs = sortedUniqueNonEmptyStrings(evidenceIDs)
-	summary["evidence_total"] = len(evidenceIDs)
-	return domain.CRAVulnerabilityHandlingReport{
-		ReportType:         "cra_vulnerability_handling",
-		TemplateVersion:    "cra-vulnerability-handling.v1.0.0",
-		ProductID:          productID,
-		ReleaseID:          releaseID,
-		Summary:            summary,
-		Decisions:          decisions,
-		AcceptedExceptions: exceptions,
-		EvidenceIDs:        evidenceIDs,
-		Assumptions:        []string{"This report summarizes vulnerability handling records for CRA readiness review using evidence stored in this tenant."},
-		Limitations:        []string{"Report contents do not prove legal compliance, certification, complete vulnerability detection, scanner authority, or release security status."},
-		GeneratedAt:        l.now(),
-	}, nil
-}
-
-func (s packageReportService) SecurityUpdateEvidenceReport(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.SecurityUpdateEvidenceReport, error) {
-	l := s.ledger
-	if err := ctx.Err(); err != nil {
-		return domain.SecurityUpdateEvidenceReport{}, err
-	}
-	if err := require(actor, ScopeReportRead); err != nil {
-		return domain.SecurityUpdateEvidenceReport{}, err
-	}
-	productID, releaseID = strings.TrimSpace(productID), strings.TrimSpace(releaseID)
-	if productID == "" || releaseID == "" {
-		return domain.SecurityUpdateEvidenceReport{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.ensureScopeLocked(actor.TenantID, productID, "", releaseID); err != nil {
-		return domain.SecurityUpdateEvidenceReport{}, err
-	}
-	if err := l.authorizeResourceLocked(actor, ScopeReportRead, resourceRefs{ProductID: productID, ReleaseID: releaseID}); err != nil {
-		return domain.SecurityUpdateEvidenceReport{}, err
-	}
-	evidenceIDs := []string{}
-	for _, scan := range l.scans {
-		if scan.TenantID == actor.TenantID && scan.ReleaseID == releaseID {
-			evidenceIDs = append(evidenceIDs, scan.EvidenceID)
-		}
-	}
-	fixedDecisions := []domain.VulnerabilityDecisionCustomerSummary{}
-	for _, decision := range l.decisions {
-		if decision.TenantID != actor.TenantID || decision.ReleaseID != releaseID || decision.SupersededBy != "" || decision.Status != decisionStatusFixed {
-			continue
-		}
-		fixedDecisions = append(fixedDecisions, customerDecisionSummary(decision))
-		evidenceIDs = append(evidenceIDs, decisionEvidenceIDs(decision.EvidenceID, decision.EvidenceIDs)...)
-		if decision.VEXDocumentID != "" {
-			if vex, ok := l.vexDocuments[decision.VEXDocumentID]; ok && vex.TenantID == actor.TenantID {
-				evidenceIDs = append(evidenceIDs, vex.EvidenceID)
-			}
-		}
-	}
-	sort.Slice(fixedDecisions, func(i, j int) bool { return fixedDecisions[i].ID < fixedDecisions[j].ID })
-	incidents := []domain.Incident{}
-	for _, incident := range l.incidents {
-		if incident.TenantID == actor.TenantID && incident.ProductID == productID && incident.ReleaseID == releaseID {
-			incidents = append(incidents, incident)
-		}
-	}
-	sort.Slice(incidents, func(i, j int) bool { return incidents[i].ID < incidents[j].ID })
-	tasks := []domain.RemediationTask{}
-	for _, task := range l.tasks {
-		if task.TenantID != actor.TenantID {
-			continue
-		}
-		if task.ReleaseID == releaseID {
-			tasks = append(tasks, task)
-			evidenceIDs = append(evidenceIDs, task.EvidenceID)
-			continue
-		}
-		if task.IncidentID != "" {
-			if incident, ok := l.incidents[task.IncidentID]; ok && incident.TenantID == actor.TenantID && incident.ReleaseID == releaseID {
-				tasks = append(tasks, task)
-				evidenceIDs = append(evidenceIDs, task.EvidenceID)
-			}
-		}
-	}
-	sort.Slice(tasks, func(i, j int) bool { return tasks[i].ID < tasks[j].ID })
-	evidenceIDs = sortedUniqueNonEmptyStrings(evidenceIDs)
-	summary := map[string]int{
-		"fixed_decisions_total":    len(fixedDecisions),
-		"incidents_total":          len(incidents),
-		"remediation_tasks_total":  len(tasks),
-		"linked_evidence_total":    len(evidenceIDs),
-		"security_update_subjects": len(fixedDecisions) + len(incidents) + len(tasks),
-	}
-	return domain.SecurityUpdateEvidenceReport{
-		ReportType:       "security_update_evidence",
-		TemplateVersion:  "security-update-evidence.v1.0.0",
-		ProductID:        productID,
-		ReleaseID:        releaseID,
-		Summary:          summary,
-		FixedDecisions:   fixedDecisions,
-		Incidents:        incidents,
-		RemediationTasks: tasks,
-		EvidenceIDs:      evidenceIDs,
-		Assumptions:      []string{"This report summarizes recorded release evidence that may support security update review."},
-		Limitations:      []string{"Security update evidence is scoped to records in this Evydence tenant and does not prove legal sufficiency, customer notification completeness, or release security status."},
-		GeneratedAt:      l.now(),
 	}, nil
 }
 
@@ -725,6 +520,8 @@ func (l *Ledger) controlSubjectExistsLocked(tenantID, subjectType, subjectID, pr
 func (l *Ledger) refsForControlEvidenceSubjectLocked(subjectType, subjectID, productID, releaseID string) resourceRefs {
 	refs := resourceRefs{ProductID: strings.TrimSpace(productID), ReleaseID: strings.TrimSpace(releaseID)}
 	switch strings.TrimSpace(subjectType) {
+	case "product":
+		refs.ProductID = nonEmpty(refs.ProductID, strings.TrimSpace(subjectID))
 	case "evidence", "evidence_item":
 		if item, ok := l.evidence[strings.TrimSpace(subjectID)]; ok {
 			refs.ProductID = nonEmpty(refs.ProductID, item.ProductID)
@@ -871,38 +668,19 @@ func (l *Ledger) acceptedControlExceptionsLocked(tenantID, releaseID string) []d
 }
 
 func normalizeControlRequirements(in []domain.ControlEvidenceRequirement) ([]domain.ControlEvidenceRequirement, error) {
-	out := make([]domain.ControlEvidenceRequirement, 0, len(in))
-	seen := map[string]struct{}{}
+	owned := make([]riskdomain.ControlEvidenceRequirement, 0, len(in))
 	for _, req := range in {
-		req.Type = strings.TrimSpace(req.Type)
-		if !supportedControlEvidenceType(req.Type) || req.FreshnessDays < 0 || req.FreshnessDays > 3650 {
-			return nil, ErrValidation
-		}
-		if _, ok := seen[req.Type]; ok {
-			return nil, ErrValidation
-		}
-		seen[req.Type] = struct{}{}
-		out = append(out, req)
+		owned = append(owned, riskdomain.ControlEvidenceRequirement{Type: req.Type, FreshnessDays: req.FreshnessDays, Required: req.Required})
+	}
+	normalized, err := riskdomain.NormalizeControlRequirements(owned)
+	if err != nil {
+		return nil, ErrValidation
+	}
+	out := make([]domain.ControlEvidenceRequirement, 0, len(normalized))
+	for _, req := range normalized {
+		out = append(out, domain.ControlEvidenceRequirement{Type: req.Type, FreshnessDays: req.FreshnessDays, Required: req.Required})
 	}
 	return out, nil
-}
-
-func supportedControlEvidenceType(value string) bool {
-	switch strings.TrimSpace(value) {
-	case "sbom", "vulnerability_scan", "vex", "vulnerability_decision", "artifact", "build", "build_attestation", "openapi_contract", "release_bundle", "exception":
-		return true
-	default:
-		return false
-	}
-}
-
-func validControlConfidence(value string) bool {
-	switch strings.TrimSpace(value) {
-	case confidenceHigh, confidenceMedium, confidenceLow, confidenceUnsupported:
-		return true
-	default:
-		return false
-	}
 }
 
 func aggregateConfidence(links []domain.ControlEvidence) string {
@@ -924,21 +702,7 @@ func scopeMatches(resourceValue, requestedValue string) bool {
 }
 
 func slugify(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	var b strings.Builder
-	lastDash := false
-	for _, r := range value {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
-			b.WriteRune(r)
-			lastDash = false
-			continue
-		}
-		if !lastDash {
-			b.WriteByte('-')
-			lastDash = true
-		}
-	}
-	return strings.Trim(b.String(), "-")
+	return riskdomain.ControlFrameworkSlug(value)
 }
 
 func cleanStrings(in []string) []string {

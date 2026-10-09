@@ -1,0 +1,606 @@
+package wiring
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
+	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/app"
+)
+
+func TestBuildAPIReadServicesRejectsIncompleteRuntimeWithoutLeakingSecrets(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		runtime *Runtime
+	}{
+		{"nil runtime", nil},
+		{"postgres without store", &Runtime{Process: API, Profile: PostgreSQL}},
+		{"memory with store", &Runtime{Process: API, Profile: retiredMemoryProfile, Postgres: &postgres.Store{}}},
+		{"unknown profile", &Runtime{Process: API, Profile: Profile("other")}},
+		{"worker runtime", &Runtime{Process: Worker, Profile: PostgreSQL, Postgres: &postgres.Store{}}},
+		{"production memory", &Runtime{Process: API, Profile: retiredMemoryProfile, Production: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := BuildAPIReadServices(test.runtime, "private-pepper", nil)
+			if err == nil || strings.Contains(err.Error(), "private-pepper") {
+				t.Fatalf("unsafe runtime error=%v", err)
+			}
+		})
+	}
+}
+
+func TestBuildAPIReadServicesRejectsUnopenedDatabaseWithoutPackageFallback(t *testing.T) {
+	checks := []app.ReadinessCheck{{Name: "postgres", Check: func(context.Context) error { return nil }}, {Name: "migrations", Check: func(context.Context) error { return nil }}}
+	opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: &postgres.Store{}}, "private-pepper", checks)
+	if err == nil || strings.Contains(err.Error(), "private-pepper") || opts.CustomerPackageCreationCommands != nil || opts.DurableCommandExecutor != nil {
+		t.Fatal("unopened database silently installed incomplete/fallback commands", err)
+	}
+}
+
+func TestBuildAPIReadServicesComposesDurableQueriesOnlyForPostgres(t *testing.T) {
+	memory, err := BuildAPIReadServices(&Runtime{Process: API, Profile: retiredMemoryProfile}, "", nil)
+	if err == nil || !strings.Contains(err.Error(), "retired") || memory.ReadinessQuery != nil || memory.MetricsQuery != nil || memory.RetentionQuery != nil || memory.IncidentReportQuery != nil || memory.SecurityUpdateEvidenceQuery != nil || memory.CRAVulnerabilityQuery != nil || memory.MissingEvidenceQuery != nil || memory.ReleaseSecuritySummaryQuery != nil || memory.ControlCoverageQuery != nil || memory.Authenticator != nil || memory.InstanceAdminQuery != nil || memory.OutboxDiagnosticsQuery != nil || memory.OutboxReplayCommand != nil || memory.ProductQuery != nil || memory.ArtifactPointQuery != nil || memory.EvidenceFlowQuery != nil || memory.OpenAPIContractPointQuery != nil || memory.SBOMPointQuery != nil || memory.VulnerabilityScanPointQuery != nil || memory.VEXPointQuery != nil || memory.SBOMComponentsQuery != nil || memory.ReleaseBundleQuery != nil || memory.ControlEvidenceQuery != nil || memory.ControlTemplateQuery != nil || memory.ExceptionsQuery != nil || memory.VulnerabilityDecisionQuery != nil || memory.VulnerabilityDecisionSummaryQuery != nil || memory.MarketplaceCollectorQuery != nil || memory.CollectorHealthQuery != nil || memory.VulnerabilityPostureQuery != nil {
+		t.Fatalf("local memory dependencies=%#v error=%v", memory, err)
+	}
+	if memory.APIKeyCommands != nil {
+		t.Fatal("local memory bound durable API key issuance")
+	}
+	if memory.MembershipCommands != nil {
+		t.Fatal("local memory bound durable membership commands")
+	}
+	if memory.RoleBindingCommands != nil {
+		t.Fatal("local memory bound durable role assignment")
+	}
+	if memory.SSOProviderCommands != nil {
+		t.Fatal("local memory bound durable provider registration")
+	}
+	if memory.SSOIdentityLinkCommands != nil {
+		t.Fatal("local memory bound durable identity linking")
+	}
+	if memory.SSOSessionCommands != nil {
+		t.Fatal("local memory bound durable session issuance")
+	}
+	if memory.SSOSessionRevocationCommands != nil {
+		t.Fatal("local memory bound durable session revocation")
+	}
+	if memory.SSOExchangeCommands != nil {
+		t.Fatal("local memory bound durable credential exchange")
+	}
+	if memory.ProviderVerificationCommands != nil {
+		t.Fatal("local memory bound durable provider verification")
+	}
+	if memory.EvidenceSummaryCommands != nil {
+		t.Fatal("local memory bound durable evidence summaries")
+	}
+	if memory.GraphSnapshotCommands != nil {
+		t.Fatal("local memory bound durable graph snapshots")
+	}
+	if memory.PDFReportCommands != nil {
+		t.Fatal("local memory bound durable PDF creation")
+	}
+	if memory.AnomalyReportCommands != nil {
+		t.Fatal("local memory bound durable anomaly creation")
+	}
+	if memory.SigningOperationCommands != nil {
+		t.Fatal("local memory bound durable signing operations")
+	}
+	if memory.SaaSProfileCommands != nil {
+		t.Fatal("local memory bound durable SaaS profiles")
+	}
+	if memory.MarketplaceCollectorCommands != nil {
+		t.Fatal("local memory bound durable marketplace collectors")
+	}
+	if memory.PublicTransparencyMetadataCommands != nil {
+		t.Fatal("local memory bound durable public transparency metadata")
+	}
+	if memory.QuestionnaireDraftCommands != nil {
+		t.Fatal("local memory bound durable questionnaire drafts")
+	}
+	if memory.QuestionnairePackageCommands != nil {
+		t.Fatal("local memory bound durable questionnaire packages")
+	}
+	if memory.PortalAccessCommands != nil || memory.PortalTokenCommands != nil {
+		t.Fatal("local memory bound durable portal lifecycle")
+	}
+	if memory.QuestionnaireTemplateCommands != nil {
+		t.Fatal("local memory bound durable questionnaire templates")
+	}
+	if memory.AnswerLibraryCommands != nil {
+		t.Fatal("local memory bound durable answer library")
+	}
+	if memory.IncidentCommands != nil {
+		t.Fatal("local memory bound durable incidents")
+	}
+	if memory.IncidentWebhookCommands != nil {
+		t.Fatal("local memory bound durable webhooks")
+	}
+	if memory.CollectorCommands != nil {
+		t.Fatal("local memory bound durable collectors")
+	}
+	if memory.SecurityDocumentCommands != nil {
+		t.Fatal("local memory bound durable security documents")
+	}
+	if memory.VEXPreviewQuery != nil {
+		t.Fatal("local-memory profile bound durable VEX previews")
+	}
+	if memory.ControlCommands != nil {
+		t.Fatal("local memory bound durable control creation")
+	}
+	if memory.ControlTemplateCommands != nil {
+		t.Fatal("local memory bound durable control template installation")
+	}
+	if memory.ControlEvidenceCommands != nil {
+		t.Fatal("local memory bound durable control evidence linking")
+	}
+	if memory.VulnerabilityDecisionCommands != nil || memory.DurableCommandExecutor != nil {
+		t.Fatal("local memory bound durable decision/idempotency commands")
+	}
+	if memory.ApprovalCommands != nil {
+		t.Fatal("local memory bound durable approval commands")
+	}
+	if memory.WaiverCommands != nil {
+		t.Fatal("local memory bound durable waiver commands")
+	}
+	if memory.ExceptionCommands != nil {
+		t.Fatal("local memory bound durable exception commands")
+	}
+	if memory.VulnerabilityWorkflowCommands != nil {
+		t.Fatal("local memory bound durable workflow commands")
+	}
+	if memory.CustomPolicyCommands != nil {
+		t.Fatal("local memory bound durable custom policy commands")
+	}
+	if memory.PolicyEvaluationCommands != nil {
+		t.Fatal("local memory bound durable policy evaluation commands")
+	}
+	if memory.SBOMDiffCommands != nil {
+		t.Fatal("local memory bound durable SBOM diff commands")
+	}
+	if memory.ContractDiffCommands != nil {
+		t.Fatal("local memory bound durable contract diff commands")
+	}
+	if memory.ReleaseReadinessReportQuery != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable readiness reports")
+	}
+	if memory.CustomerPackageAccessCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable package access")
+	}
+	if memory.CustomerPackageCreationCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable package creation")
+	}
+	if memory.HTMLReportCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable HTML reports")
+	}
+	if memory.ReportTemplateCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable template commands")
+	}
+	if memory.BundleImportCommand != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable bundle imports")
+	}
+	if memory.ReleaseBundleCommands != nil {
+		t.Fatal("local-memory profile bound durable bundle commands")
+	}
+	if memory.EvidenceBundleCommands != nil {
+		t.Fatal("local memory silently received durable export")
+	}
+	if memory.SigningKeyCommands != nil {
+		t.Fatal("local memory bound durable signing-key commands")
+	}
+	if memory.ReleaseBundleVerification != nil {
+		t.Fatal("local memory bound durable bundle verification")
+	}
+	if memory.EvidenceVerification != nil {
+		t.Fatal("local memory bound durable evidence verification")
+	}
+	if memory.DSSEVerification != nil {
+		t.Fatal("local memory bound durable DSSE verification")
+	}
+	if memory.CosignVerification != nil {
+		t.Fatal("local memory bound durable Cosign verification")
+	}
+	if memory.ArtifactSignatureVerification != nil {
+		t.Fatal("local memory bound durable signature metadata verification")
+	}
+	if memory.MerkleVerification != nil {
+		t.Fatal("local memory bound durable Merkle verification")
+	}
+	if memory.AuditChainVerification != nil {
+		t.Fatal("local memory bound durable audit chain verification")
+	}
+	if memory.MerkleCheckpointVerification != nil {
+		t.Fatal("local memory must retain its explicit checkpoint path")
+	}
+	if memory.ReleaseManifestCheckpoint != nil {
+		t.Fatal("local memory must retain its explicit manifest checkpoint path")
+	}
+	if memory.BackupVerification != nil {
+		t.Fatal("local memory must retain its explicit backup verification path")
+	}
+	if memory.SubjectVerification != nil {
+		t.Fatal("local memory must retain its explicit generic verification path")
+	}
+	if memory.TransparencyCheckpointCommands != nil {
+		t.Fatal("local memory must retain its explicit checkpoint creation path")
+	}
+	if memory.MerkleCreationCommands != nil {
+		t.Fatal("local memory bound durable Merkle creation")
+	}
+	if memory.BackupGenerationCommands != nil {
+		t.Fatal("local memory bound durable backup generation")
+	}
+	if memory.ArtifactSignatureCommands != nil {
+		t.Fatal("local memory bound durable artifact signature creation")
+	}
+	if memory.BuildAttestationCommands != nil {
+		t.Fatal("local memory must keep explicit attestation compatibility binding")
+	}
+	if memory.BuildCommands != nil {
+		t.Fatal("local memory must keep explicit build creation compatibility binding")
+	}
+	if memory.ContainerImageCommands != nil {
+		t.Fatal("local memory must keep explicit container image compatibility binding")
+	}
+	if memory.ArtifactCommands != nil {
+		t.Fatal("local memory must keep explicit artifact compatibility binding")
+	}
+	if memory.ProjectCommands != nil {
+		t.Fatal("local memory must keep explicit project compatibility binding")
+	}
+	if memory.ProductCommands != nil {
+		t.Fatal("local memory must keep explicit product creation compatibility binding")
+	}
+	if memory.CandidateStateCommands != nil {
+		t.Fatal("local memory must keep explicit candidate transition compatibility binding")
+	}
+	if memory.CandidateCommands != nil {
+		t.Fatal("local memory must keep explicit candidate creation compatibility binding")
+	}
+	if memory.ReleaseCreationCommands != nil {
+		t.Fatal("local memory must keep explicit release creation compatibility binding")
+	}
+	if memory.ReleaseStateCommands != nil {
+		t.Fatal("local memory must keep explicit release transition compatibility binding")
+	}
+	if memory.EvidenceCreationCommands != nil {
+		t.Fatal("local memory must keep explicit evidence compatibility binding")
+	}
+	if memory.OpenAPIIngestionCommands != nil {
+		t.Fatal("local memory must keep explicit OpenAPI ingestion compatibility binding")
+	}
+	if memory.ScanIngestionCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable scan ingestion")
+	}
+	if memory.VEXIngestionCommands != nil {
+		t.Fatal("local-memory profile unexpectedly bound durable VEX ingestion")
+	}
+	if memory.SBOMIngestionCommands != nil {
+		t.Fatal("local memory must keep explicit SBOM ingestion compatibility binding")
+	}
+	if memory.DeploymentEnvironmentCommands != nil {
+		t.Fatal("local memory bound durable environment creation")
+	}
+	if memory.DeploymentCommands != nil {
+		t.Fatal("local memory bound durable deployment recording")
+	}
+	if memory.SourceRepositoryCommands != nil {
+		t.Fatal("local memory bound durable source repository creation")
+	}
+	if memory.SourceCommitCommands != nil {
+		t.Fatal("local memory bound durable source commit recording")
+	}
+	if memory.SourceBranchCommands != nil {
+		t.Fatal("local memory bound durable source branch upserts")
+	}
+	if memory.PullRequestCommands != nil {
+		t.Fatal("local memory bound durable pull request recording")
+	}
+	if memory.SourceSnapshotCommands != nil {
+		t.Fatal("local memory bound durable source snapshot recording")
+	}
+	if memory.SigningCustodyQuery != nil {
+		t.Fatal("local memory bound durable custody query")
+	}
+	if memory.RetentionCommands != nil {
+		t.Fatal("local memory unexpectedly binds durable retention commands")
+	}
+	if memory.TrustConfigurationCommands != nil {
+		t.Fatal("local memory binds durable trust commands")
+	}
+}
+
+func TestBuildAPIReadServicesComposesPostgresCommandsAndQueries(t *testing.T) {
+	// Native snapshot readers require an initialized pool. Keep every existing
+	// composition assertion, now against a migrated database rather than a
+	// zero-value Store that cannot execute any of the bound queries.
+	store, _ := openHTMLReportWiringStore(t)
+	checks := []app.ReadinessCheck{
+		{Name: "postgres", Check: func(context.Context) error { return nil }},
+		{Name: "migrations", Check: func(context.Context) error { return nil }},
+		{Name: "writer_lease", Check: func(context.Context) error { return nil }},
+		{Name: "signing_config", Check: func(context.Context) error { return nil }},
+	}
+	objects, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Objects: objects, Production: true}, "non-default-pepper", checks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.ReleaseReadinessReportQuery == nil {
+		t.Fatal("PostgreSQL profile omitted readiness reports")
+	}
+	if options.CustomerPackageAccessCommands == nil {
+		t.Fatal("PostgreSQL profile omitted package access")
+	}
+	if options.CustomerPackageCreationCommands == nil {
+		t.Fatal("PostgreSQL profile omitted native package creation")
+	}
+	if options.HTMLReportCommands == nil {
+		t.Fatal("PostgreSQL profile omitted HTML reports")
+	}
+	if options.ReportTemplateCommands == nil {
+		t.Fatal("PostgreSQL profile omitted report template commands")
+	}
+	if options.EvidenceSummaryCommands == nil {
+		t.Fatal("PostgreSQL summaries still use Ledger")
+	}
+	if options.GraphSnapshotCommands == nil {
+		t.Fatal("PostgreSQL graphs still use Ledger")
+	}
+	if options.PDFReportCommands == nil {
+		t.Fatal("PostgreSQL PDF creation is Ledger-backed")
+	}
+	if options.AnomalyReportCommands == nil {
+		t.Fatal("PostgreSQL anomaly creation is Ledger-backed")
+	}
+	if options.QuestionnaireDraftCommands == nil {
+		t.Fatal("PostgreSQL drafts still use Ledger")
+	}
+	if options.QuestionnairePackageCommands == nil {
+		t.Fatal("PostgreSQL questionnaire packages still use Ledger")
+	}
+	if options.PortalAccessCommands == nil || options.PortalTokenCommands == nil {
+		t.Fatal("PostgreSQL portal lifecycle still uses Ledger")
+	}
+	if options.QuestionnaireTemplateCommands == nil {
+		t.Fatal("PostgreSQL templates still use Ledger")
+	}
+	if options.AnswerLibraryCommands == nil {
+		t.Fatal("PostgreSQL answer writes still use Ledger")
+	}
+	if options.BundleImportCommand == nil {
+		t.Fatal("PostgreSQL profile omitted bundle imports")
+	}
+	if options.ReleaseBundleCommands == nil {
+		t.Fatal("PostgreSQL profile omitted release bundle commands")
+	}
+	if options.EvidenceBundleCommands == nil {
+		t.Fatal("PostgreSQL export still uses Ledger")
+	}
+	if options.SigningKeyCommands == nil {
+		t.Fatal("PostgreSQL signing-key lifecycle still uses Ledger")
+	}
+	if options.SigningOperationCommands == nil {
+		t.Fatal("PostgreSQL signing operations still use Ledger")
+	}
+	if options.SaaSProfileCommands == nil {
+		t.Fatal("PostgreSQL SaaS profiles still use Ledger")
+	}
+	if options.MarketplaceCollectorCommands == nil {
+		t.Fatal("PostgreSQL marketplace collectors still use Ledger")
+	}
+	if options.PublicTransparencyMetadataCommands == nil {
+		t.Fatal("PostgreSQL public transparency metadata still uses Ledger")
+	}
+	if options.ReleaseBundleVerification == nil {
+		t.Fatal("PostgreSQL bundle verification still uses Ledger")
+	}
+	if options.EvidenceVerification == nil {
+		t.Fatal("PostgreSQL evidence verification still uses Ledger")
+	}
+	if options.DSSEVerification == nil {
+		t.Fatal("PostgreSQL DSSE verification still uses Ledger")
+	}
+	if options.CosignVerification == nil {
+		t.Fatal("PostgreSQL Cosign verification still uses Ledger")
+	}
+	if options.ArtifactSignatureVerification == nil {
+		t.Fatal("PostgreSQL signature metadata verification still uses Ledger")
+	}
+	if options.MerkleVerification == nil {
+		t.Fatal("PostgreSQL Merkle verification still uses Ledger")
+	}
+	if options.AuditChainVerification == nil {
+		t.Fatal("PostgreSQL audit chain verification still uses Ledger")
+	}
+	if options.MerkleCheckpointVerification == nil {
+		t.Fatal("PostgreSQL checkpoint verification must be focused")
+	}
+	if options.ReleaseManifestCheckpoint == nil {
+		t.Fatal("PostgreSQL manifest checkpoint verification must be focused")
+	}
+	if options.BackupVerification == nil {
+		t.Fatal("PostgreSQL backup verification must be focused")
+	}
+	if options.SubjectVerification == nil {
+		t.Fatal("PostgreSQL generic verification must not fall back to Ledger")
+	}
+	if options.TransparencyCheckpointCommands == nil {
+		t.Fatal("PostgreSQL checkpoint creation must not use Ledger")
+	}
+	if options.MerkleCreationCommands == nil {
+		t.Fatal("PostgreSQL Merkle creation still uses Ledger")
+	}
+	if options.BackupGenerationCommands == nil {
+		t.Fatal("PostgreSQL backup generation still uses Ledger")
+	}
+	if options.ArtifactSignatureCommands == nil {
+		t.Fatal("PostgreSQL artifact signature creation still uses Ledger")
+	}
+	if options.BuildAttestationCommands == nil {
+		t.Fatal("PostgreSQL attestation upload still uses Ledger")
+	}
+	if options.BuildCommands == nil {
+		t.Fatal("PostgreSQL build creation still uses Ledger")
+	}
+	if options.ContainerImageCommands == nil {
+		t.Fatal("PostgreSQL container image registration still uses Ledger")
+	}
+	if options.ArtifactCommands == nil {
+		t.Fatal("PostgreSQL artifact registration still uses Ledger")
+	}
+	if options.ProjectCommands == nil {
+		t.Fatal("PostgreSQL project creation still uses Ledger")
+	}
+	if options.ProductCommands == nil {
+		t.Fatal("PostgreSQL product creation still uses Ledger")
+	}
+	if options.CandidateStateCommands == nil {
+		t.Fatal("PostgreSQL candidate transitions still use Ledger")
+	}
+	if options.CandidateCommands == nil {
+		t.Fatal("PostgreSQL candidate creation still uses Ledger")
+	}
+	if options.ReleaseCreationCommands == nil {
+		t.Fatal("PostgreSQL release creation still uses Ledger")
+	}
+	if options.ReleaseStateCommands == nil {
+		t.Fatal("PostgreSQL release transitions still use Ledger")
+	}
+	if options.EvidenceCreationCommands == nil {
+		t.Fatal("PostgreSQL evidence creation still uses Ledger")
+	}
+	if options.OpenAPIIngestionCommands == nil {
+		t.Fatal("PostgreSQL OpenAPI ingestion still uses Ledger")
+	}
+	if options.ScanIngestionCommands == nil {
+		t.Fatal("PostgreSQL profile did not bind focused scan ingestion")
+	}
+	if options.VEXIngestionCommands == nil {
+		t.Fatal("PostgreSQL VEX ingestion still depends on Ledger")
+	}
+	if options.VEXPreviewQuery == nil {
+		t.Fatal("PostgreSQL profile omitted focused VEX previews")
+	}
+	if options.SecurityDocumentCommands == nil {
+		t.Fatal("PostgreSQL security documents remain Ledger-backed")
+	}
+	if options.IncidentCommands == nil {
+		t.Fatal("postgres omitted focused incidents")
+	}
+	if options.IncidentWebhookCommands == nil {
+		t.Fatal("postgres omitted focused webhooks")
+	}
+	if options.CollectorCommands == nil {
+		t.Fatal("postgres omitted focused collectors")
+	}
+	if options.APIKeyCommands == nil {
+		t.Fatal("PostgreSQL API key issuance remains Ledger-backed")
+	}
+	if options.MembershipCommands == nil {
+		t.Fatal("PostgreSQL membership still uses Ledger")
+	}
+	if options.RoleBindingCommands == nil {
+		t.Fatal("PostgreSQL role assignment still uses Ledger")
+	}
+	if options.SSOProviderCommands == nil {
+		t.Fatal("PostgreSQL provider registration still uses Ledger")
+	}
+	if options.SSOExchangeCommands == nil {
+		t.Fatal("PostgreSQL credential exchange still uses Ledger")
+	}
+	if options.ProviderVerificationCommands == nil {
+		t.Fatal("PostgreSQL provider verification still uses Ledger")
+	}
+	if options.SBOMIngestionCommands == nil {
+		t.Fatal("PostgreSQL SBOM ingestion still uses Ledger")
+	}
+	if options.DeploymentEnvironmentCommands == nil {
+		t.Fatal("PostgreSQL environment creation still uses Ledger")
+	}
+	if options.DeploymentCommands == nil {
+		t.Fatal("PostgreSQL deployment recording still uses Ledger")
+	}
+	if options.SourceRepositoryCommands == nil {
+		t.Fatal("PostgreSQL source repository creation still uses Ledger")
+	}
+	if options.SourceCommitCommands == nil {
+		t.Fatal("PostgreSQL source commit recording still uses Ledger")
+	}
+	if options.SourceBranchCommands == nil {
+		t.Fatal("PostgreSQL source branch upserts still use Ledger")
+	}
+	if options.PullRequestCommands == nil {
+		t.Fatal("PostgreSQL pull request recording still uses Ledger")
+	}
+	if options.SourceSnapshotCommands == nil {
+		t.Fatal("PostgreSQL source snapshots still use Ledger")
+	}
+	if options.SigningCustodyQuery == nil {
+		t.Fatal("PostgreSQL custody report still uses Ledger")
+	}
+	if options.RetentionCommands == nil {
+		t.Fatal("PostgreSQL does not bind durable retention commands")
+	}
+	if options.ControlCommands == nil {
+		t.Fatal("PostgreSQL control creation still uses Ledger")
+	}
+	if options.ControlTemplateCommands == nil {
+		t.Fatal("PostgreSQL control template installation still uses Ledger")
+	}
+	if options.ControlEvidenceCommands == nil {
+		t.Fatal("PostgreSQL control evidence linking still uses Ledger")
+	}
+	if options.VulnerabilityDecisionCommands == nil || options.DurableCommandExecutor == nil {
+		t.Fatal("PostgreSQL decision commands still use Ledger/idempotency")
+	}
+	if options.ApprovalCommands == nil {
+		t.Fatal("PostgreSQL approval creation still uses Ledger")
+	}
+	if options.WaiverCommands == nil {
+		t.Fatal("PostgreSQL waiver commands still use Ledger")
+	}
+	if options.ExceptionCommands == nil {
+		t.Fatal("PostgreSQL exception commands still use Ledger")
+	}
+	if options.VulnerabilityWorkflowCommands == nil {
+		t.Fatal("PostgreSQL workflow recording still uses Ledger")
+	}
+	if options.CustomPolicyCommands == nil {
+		t.Fatal("PostgreSQL custom policy commands still use Ledger")
+	}
+	if options.PolicyEvaluationCommands == nil {
+		t.Fatal("PostgreSQL policy evaluation commands still use Ledger")
+	}
+	if options.SBOMDiffCommands == nil {
+		t.Fatal("PostgreSQL SBOM diff commands still use Ledger")
+	}
+	if options.ContractDiffCommands == nil {
+		t.Fatal("PostgreSQL contract diff commands still use Ledger")
+	}
+	if options.TrustConfigurationCommands == nil {
+		t.Fatal("PostgreSQL lacks durable trust commands")
+	}
+	if options.ReadinessQuery == nil || options.MetricsQuery == nil || options.RetentionQuery == nil || options.IncidentReportQuery == nil || options.SecurityUpdateEvidenceQuery == nil || options.CRAVulnerabilityQuery == nil || options.MissingEvidenceQuery == nil || options.ReleaseSecuritySummaryQuery == nil || options.ControlCoverageQuery == nil || options.Authenticator == nil || options.InstanceAdminQuery == nil || options.OutboxDiagnosticsQuery == nil || options.OutboxReplayCommand == nil || options.ProductQuery == nil || options.CatalogPointQuery == nil || options.EvidenceFlowQuery == nil ||
+		options.BuildPointQuery == nil || options.ArtifactPointQuery == nil || options.ReleaseCandidateQuery == nil || options.DeploymentPointQuery == nil ||
+		options.DeploymentListQuery == nil || options.EvidencePointQuery == nil || options.OpenAPIContractPointQuery == nil || options.SBOMPointQuery == nil || options.VulnerabilityScanPointQuery == nil || options.VEXPointQuery == nil || options.SBOMComponentsQuery == nil || options.SourceRepositoryQuery == nil ||
+		options.CollectorQuery == nil || options.CollectorHealthQuery == nil || options.CommercialCollectorQuery == nil || options.MarketplaceCollectorQuery == nil || options.VulnerabilityPostureQuery == nil || options.ControlsQuery == nil || options.ControlTemplateQuery == nil || options.ExceptionsQuery == nil || options.VulnerabilityDecisionQuery == nil || options.VulnerabilityDecisionSummaryQuery == nil || options.ControlEvidenceQuery == nil || options.ArtifactSignatureQuery == nil ||
+		options.ReleaseBundleQuery == nil || options.AnswerLibraryQuery == nil || options.AuditLogQuery == nil ||
+		options.SigningKeyQuery == nil ||
+		options.PortalAccessQuery == nil || options.APIKeyQuery == nil || options.RoleBindingQuery == nil {
+		t.Fatalf("incomplete durable dependencies=%#v", options)
+	}
+	if _, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Objects: objects, Production: true}, "", checks); err == nil {
+		t.Fatal("production accepted a missing credential pepper")
+	}
+	if _, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store, Objects: objects, Production: true}, "non-default-pepper", nil); err == nil {
+		t.Fatal("production accepted missing dependency probes")
+	}
+	status, err := options.ReadinessQuery.Public(t.Context())
+	if err != nil || status["status"] != "ok" {
+		t.Fatalf("composed readiness=%#v err=%v", status, err)
+	}
+}

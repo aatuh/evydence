@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "release_tag": "v0.1.0-rc.7",
+  "channel": "prerelease",
+  "release_url": "https://github.com/aatuh/evydence/releases/tag/v0.1.0-rc.7",
+  "release_target_commit": "2f759100e723554e4e68e3ada712c923e391a17a",
+  "artifact": "dist/v0.1.0-rc.7/openapi.yaml",
+  "artifact_sha256": "4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364",
+  "published_asset_digest": "sha256:4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364"
+}

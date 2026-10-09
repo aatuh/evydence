@@ -1,0 +1,222 @@
+                }
+              ]
+            },
+            "purchaseOrder": {
+              "type": "string",
+              "title": "Purchase Order",
+              "description": "The purchase order identifier the purchaser sent to a supplier or vendor to authorize a purchase"
+            },
+            "licenseTypes": {
+              "type": "array",
+              "title": "License Type",
+              "description": "The type of license(s) that was granted to the licensee.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "academic",
+                  "appliance",
+                  "client-access",
+                  "concurrent-user",
+                  "core-points",
+                  "custom-metric",
+                  "device",
+                  "evaluation",
+                  "named-user",
+                  "node-locked",
+                  "oem",
+                  "perpetual",
+                  "processor-points",
+                  "subscription",
+                  "user",
+                  "other"
+                ],
+                "meta:enum": {
+                  "academic": "A license that grants use of software solely for the purpose of education or research.",
+                  "appliance": "A license covering use of software embedded in a specific piece of hardware.",
+                  "client-access": "A Client Access License (CAL) allows client computers to access services provided by server software.",
+                  "concurrent-user": "A Concurrent User license (aka floating license) limits the number of licenses for a software application and licenses are shared among a larger number of users.",
+                  "core-points": "A license where the core of a computer's processor is assigned a specific number of points.",
+                  "custom-metric": "A license for which consumption is measured by non-standard metrics.",
+                  "device": "A license that covers a defined number of installations on computers and other types of devices.",
+                  "evaluation": "A license that grants permission to install and use software for trial purposes.",
+                  "named-user": "A license that grants access to the software to one or more pre-defined users.",
+                  "node-locked": "A license that grants access to the software on one or more pre-defined computers or devices.",
+                  "oem": "An Original Equipment Manufacturer license that is delivered with hardware, cannot be transferred to other hardware, and is valid for the life of the hardware.",
+                  "perpetual": "A license where the software is sold on a one-time basis and the licensee can use a copy of the software indefinitely.",
+                  "processor-points": "A license where each installation consumes points per processor.",
+                  "subscription": "A license where the licensee pays a fee to use the software or service.",
+                  "user": "A license that grants access to the software or service by a specified number of users.",
+                  "other": "Another license type."
+                }
+              }
+            },
+            "lastRenewal": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Last Renewal",
+              "description": "The timestamp indicating when the license was last renewed. For new purchases, this is often the purchase or acquisition date. For non-perpetual licenses or subscriptions, this is the timestamp of when the license was last renewed."
+            },
+            "expiration": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Expiration",
+              "description": "The timestamp indicating when the current license expires (if applicable)."
+            }
+          }
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {"$ref": "#/definitions/property"}
+        }
+      }
+    },
+    "licenseAcknowledgementEnumeration": {
+      "title": "License Acknowledgement",
+      "description": "Declared licenses and concluded licenses represent two different stages in the licensing process within software development. Declared licenses refer to the initial intention of the software authors regarding the licensing terms under which their code is released. On the other hand, concluded licenses are the result of a comprehensive analysis of the project's codebase to identify and confirm the actual licenses of the components used, which may differ from the initially declared licenses. While declared licenses provide an upfront indication of the licensing intentions, concluded licenses offer a more thorough understanding of the actual licensing within a project, facilitating proper compliance and risk management. Observed licenses are defined in `@.evidence.licenses`. Observed licenses form the evidence necessary to substantiate a concluded license.",
+      "type": "string",
+      "enum": [
+        "declared",
+        "concluded"
+      ],
+      "meta:enum": {
+        "declared": "Declared licenses represent the initial intentions of authors regarding the licensing terms of their code.",
+        "concluded": "Concluded licenses are verified and confirmed."
+      }
+    },
+    "licenseChoice": {
+      "title": "License Choice",
+      "description": "EITHER (list of SPDX licenses and/or named licenses) OR (tuple of one SPDX License Expression)",
+      "type": "array",
+      "oneOf": [
+        {
+          "title": "Multiple licenses",
+          "description": "A list of SPDX licenses and/or named licenses.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "title": "License",
+            "required": ["license"],
+            "additionalProperties": false,
+            "properties": {
+              "license": {"$ref": "#/definitions/license"}
+            }
+          }
+        },
+        {
+          "title": "SPDX License Expression",
+          "description": "A tuple of exactly one SPDX License Expression.",
+          "type": "array",
+          "additionalItems": false,
+          "minItems": 1,
+          "maxItems": 1,
+          "items": [{
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["expression"],
+            "properties": {
+              "expression": {
+                "type": "string",
+                "title": "SPDX License Expression",
+                "description": "A valid SPDX license expression.\nRefer to https://spdx.org/specifications for syntax requirements",
+                "examples": [
+                  "Apache-2.0 AND (MIT OR GPL-2.0-only)",
+                  "GPL-3.0-only WITH Classpath-exception-2.0"
+                ]
+              },
+              "acknowledgement": {
+                "$ref": "#/definitions/licenseAcknowledgementEnumeration"
+              },
+              "bom-ref": {
+                "$ref": "#/definitions/refType",
+                "title": "BOM Reference",
+                "description": "An optional identifier which can be used to reference the license elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+              }
+            }
+          }]
+        }
+      ]
+    },
+    "commit": {
+      "type": "object",
+      "title": "Commit",
+      "description": "Specifies an individual commit",
+      "additionalProperties": false,
+      "properties": {
+        "uid": {
+          "type": "string",
+          "title": "UID",
+          "description": "A unique identifier of the commit. This may be version control specific. For example, Subversion uses revision numbers whereas git uses commit hashes."
+        },
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "description": "The URL to the commit. This URL will typically point to a commit in a version control system.",
+          "format": "iri-reference"
+        },
+        "author": {
+          "title": "Author",
+          "description": "The author who created the changes in the commit",
+          "$ref": "#/definitions/identifiableAction"
+        },
+        "committer": {
+          "title": "Committer",
+          "description": "The person who committed or pushed the commit",
+          "$ref": "#/definitions/identifiableAction"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "The text description of the contents of the commit"
+        }
+      }
+    },
+    "patch": {
+      "type": "object",
+      "title": "Patch",
+      "description": "Specifies an individual patch",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "unofficial",
+            "monkey",
+            "backport",
+            "cherry-pick"
+          ],
+          "meta:enum": {
+            "unofficial": "A patch which is not developed by the creators or maintainers of the software being patched. Refer to [https://en.wikipedia.org/wiki/Unofficial_patch](https://en.wikipedia.org/wiki/Unofficial_patch).",
+            "monkey": "A patch which dynamically modifies runtime behavior. Refer to [https://en.wikipedia.org/wiki/Monkey_patch](https://en.wikipedia.org/wiki/Monkey_patch).",
+            "backport": "A patch which takes code from a newer version of the software and applies it to older versions of the same software. Refer to [https://en.wikipedia.org/wiki/Backporting](https://en.wikipedia.org/wiki/Backporting).",
+            "cherry-pick": "A patch created by selectively applying commits from other versions or branches of the same software."
+          },
+          "title": "Patch Type",
+          "description": "Specifies the purpose for the patch including the resolution of defects, security issues, or new behavior or functionality."
+        },
+        "diff": {
+          "title": "Diff",
+          "description": "The patch file (or diff) that shows changes. Refer to [https://en.wikipedia.org/wiki/Diff](https://en.wikipedia.org/wiki/Diff)",
+          "$ref": "#/definitions/diff"
+        },
+        "resolves": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/issue"},
+          "title": "Resolves",
+          "description": "A collection of issues the patch resolves"
+        }
+      }
+    },
+    "diff": {
+      "type": "object",
+      "title": "Diff",
+      "description": "The patch file (or diff) that shows changes. Refer to https://en.wikipedia.org/wiki/Diff",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Diff text",
+          "description": "Specifies the optional text of the diff",

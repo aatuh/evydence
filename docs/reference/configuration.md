@@ -8,7 +8,7 @@ This is the canonical reference for current environment files and runtime variab
 |------|---------|---------|---------------------|
 | `.env.example` | `docker-compose.yml` | Local PostgreSQL and MinIO container credentials. | No |
 | `.api.env.example` | API, worker, migration command | Local API runtime settings, durable database URL, object storage mode, bootstrap tenant, and local secret printing. | No |
-| `.test.env.example` | Make targets for live PostgreSQL tests | `EVYDENCE_TEST_DATABASE_URL` and test-only API key pepper. | No |
+| `.test.env.example` | Make targets for live PostgreSQL and MinIO tests | `EVYDENCE_TEST_DATABASE_URL`, loopback MinIO test credentials, and test-only API key pepper. | No |
 | `.production.env.example` | Operators translating config into deployment secrets | Production-mode variable checklist with empty secret fields, external object storage, single-writer API settings, rate limiting, signing profiles, and telemetry/diagnostic notes. | No |
 
 Copy examples to local untracked files when needed:
@@ -33,7 +33,8 @@ process, or equivalent deployment control.
 | `ENV` | Production only | unset locally | Set `ENV=production` to enable production-safety checks. |
 | `EVYDENCE_ADDR` | No | `:8080` | API bind address. |
 | `EVYDENCE_API_KEY_PEPPER` | Production yes | `change-me-long-random-pepper` | HMAC pepper for API key, session, and portal-token hashes. Use a long random value. |
-| `EVYDENCE_DATABASE_URL` | Production yes | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | Enables PostgreSQL durable state, projections, migrations, and persisted outbox jobs. If unset, the API uses in-process state. |
+| `EVYDENCE_RUNTIME_PROFILE` | API and worker yes | `postgres` | The only supported runtime profile, including local evaluation. Retired `local_memory` input fails before opening resources and explains the PostgreSQL migration. |
+| `EVYDENCE_DATABASE_URL` | API and worker yes | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | PostgreSQL durable state, projections, migrations, and persisted outbox jobs. Connection settings alone do not select the runtime profile. |
 | `EVYDENCE_POSTGRES_LOAD_MODE` | No | `snapshot_preferred` locally, `relational_only` when `ENV=production` | PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-only startup reads, refuses snapshot fallback modes, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks. |
 | `EVYDENCE_API_WRITER_MODE` | No | `single` | API writer concurrency mode. Production supports only `single` or `single-writer` until multi-writer concurrency controls are implemented. |
 | `EVYDENCE_API_WRITER_REPLICAS` | No | unset, chart sets `1` | Optional self-declared API writer replica count used by startup safety checks. Production rejects values other than `1`. |
@@ -45,38 +46,52 @@ process, or equivalent deployment control.
 | `EVYDENCE_S3_SECRET_ACCESS_KEY` | S3/MinIO object store | local example value | Store outside source control and logs. |
 | `EVYDENCE_S3_REGION` | No | empty | Optional S3 region. |
 | `EVYDENCE_S3_USE_SSL` | No | `false` locally, `true` in chart values | Use TLS for remote object storage. |
-| `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` | No | `0` disabled | Optional in-process per-client request limit using the TCP remote address. Use reverse-proxy or ingress rate limiting for production edge controls. |
-| `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS` | No | `false` | Optional hardening mode for parser-backed uploads. When set to `true`, the API stores accepted records and the outbox worker populates parser-derived fields from tenant-prefixed raw payloads after digest verification, including VEX-derived vulnerability decisions. |
+| `EVYDENCE_HTTP_READ_HEADER_TIMEOUT_SECONDS` | No | `5` | Maximum time to receive HTTP request headers. Values must be whole seconds from 1 through 60. |
+| `EVYDENCE_HTTP_READ_TIMEOUT_SECONDS` | No | `30` | Maximum total request-read time. Values must be whole seconds from 1 through 900. |
+| `EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS` | No | `60` | Maximum response-write time. Values must be whole seconds from 1 through 900. |
+| `EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS` | No | `120` | Idle keep-alive timeout. Values must be whole seconds from 1 through 3600. |
+| `EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS` | No | `30` | Graceful shutdown deadline after `SIGINT` or `SIGTERM`. Values must be whole seconds from 1 through 300. |
+| `EVYDENCE_HTTP_MAX_HEADER_BYTES` | No | `16384` | Listener header-size cap in bytes. Values must be 1024 through 1048576. |
+| `EVYDENCE_HTTP_MAX_URL_BYTES` | No | `8192` | Raw request-target cap in bytes, including its query string. Values must be 1024 through 65536. |
+| `EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS` | No | `256` | Process-wide simultaneous request cap. Saturation returns a retryable `429` Problem Details response. |
+| `EVYDENCE_HTTP_MAX_CONCURRENT_UPLOADS` | No | `8` | Simultaneous native SBOM, VEX, scan, and OpenAPI-document upload cap. Saturation returns a retryable `429` Problem Details response. |
+| `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` | No | `120` | In-process per-client request limit. Set `0` only for controlled local evaluation; retain a reverse-proxy or ingress limit as the primary edge control. |
+| `EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE` | No | `30` | Per-tenant, per-route limit for document ingestion, bundle/import/export, report/package generation, diffs, and policy evaluation. Set `0` only for controlled local evaluation. |
+| `EVYDENCE_RATE_LIMIT_BUCKET_CAPACITY` | No | `10000` | Maximum tracked client/tenant-route buckets per in-process limiter. Values must be 1 through 1000000; least-recent buckets are evicted when full. |
+| `EVYDENCE_TRUSTED_PROXY_CIDRS` | No | unset | Comma-separated proxy source CIDRs. Evydence uses `X-Forwarded-For` only when the direct TCP peer is in this list; otherwise it rate-limits the direct remote address. |
+| `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS` | No | `false` | Optional hardening mode for non-VEX parser-backed uploads. When set to `true`, the API stores accepted records and the outbox worker populates parser-derived fields from tenant-prefixed raw payloads after digest verification. VEX documents are normalized during upload and their decisions are always created post-commit by the worker from a versioned normalized request; a stored raw payload adds independent replay verification. |
 | `EVYDENCE_SKIP_MIGRATIONS` | No | unset | Set to `true` only when migrations are applied by a separate release process. API and worker startup still verify that no committed migrations are pending and fail closed if the database is behind. |
 | `EVYDENCE_MIGRATIONS_DIR` | No | `migrations` | Migration directory for API startup and `cmd/evydence-migrate`. |
-| `EVYDENCE_BOOTSTRAP_TENANT` | No | `Local Tenant` | Tenant name used when bootstrapping an empty store. |
+| `EVYDENCE_BOOTSTRAP_TENANT` | No | `Local Tenant` | Tenant name used when bootstrapping an empty store; raw value must be valid UTF-8 without NUL bytes, at most 65,536 bytes, and nonblank after trimming. |
 | `EVYDENCE_BOOTSTRAP_DISABLED` | No | unset | Set to `true` to prevent startup bootstrap on an empty store. |
 | `EVYDENCE_PRINT_BOOTSTRAP_SECRET` | Local only | `true` in `.api.env.example` | Prints the one-time bootstrap secret. Rejected when `ENV=production`. |
 | `EVYDENCE_WORKER_POLL_INTERVAL` | No | `1s` | Worker outbox polling interval. |
 | `EVYDENCE_WORKER_BATCH_SIZE` | No | `10` | Maximum outbox jobs claimed per polling cycle. |
 | `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
+| `EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64` | Optional Cosign verification | unset | Base64-encoded operator-managed Sigstore trusted-root JSON, bounded to 1 MiB after decoding. Do not put private keys here. |
+| `EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64` | Optional key-based Cosign verification | unset | Base64-encoded operator-managed PEM public key, bounded to 1 MiB after decoding. It can be configured with or instead of the trusted root. |
+| `EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION` | When either Sigstore trust variable is set | unset | Non-secret operator version label recorded in the verification receipt. Missing, malformed, or oversized trust configuration prevents startup. |
 | `EVYDENCE_OIDC_USERINFO_TIMEOUT_SECONDS` | No | `10` | Timeout for optional live OIDC UserInfo validation when `POST /v1/provider-verifications` includes `access_token`. |
-| `EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows HTTP OIDC issuer/UserInfo endpoints only for localhost tests. Do not use for production. |
+| `EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback OIDC issuer/UserInfo endpoint only outside production. `ENV=production` rejects this setting when `true`. Discovery and UserInfo must remain the same origin, so a bearer token is never sent to a discovered different origin. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL` | No | unset | Optional HTTPS operator-controlled provider validation gateway. When set, provider verification uses this gateway instead of direct OIDC UserInfo calls. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the provider validation gateway. Store outside source control and logs. |
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for provider validation gateway requests. |
-| `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost gateway for tests. Do not use for production. |
+| `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback gateway only outside production. `ENV=production` rejects this setting when `true`. |
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms`, `gcp-kms`, and `azure-key-vault` can use built-in provider executors. `pkcs11-hsm` remains an HTTPS signing-gateway profile. |
-| `EVYDENCE_SIGNING_EXECUTOR_URL` | `external` and `pkcs11-hsm` production modes | unset | HTTPS signing gateway used by `POST /v1/signing-operations` when `external_signature` is omitted. The API sends subject metadata and `payload_hash`, not raw payload bytes. |
+| `EVYDENCE_SIGNING_EXECUTOR_URL` | `external` and `pkcs11-hsm` production modes | unset | HTTPS signing gateway used by `POST /v1/signing-operations`. The API sends a canonical request that binds subject metadata and `payload_hash`, never raw payload bytes. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
+| `EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64` | Signing gateway | unset | Required base64-encoded Ed25519 public key. Evydence verifies the gateway signature over the canonical signing-request hash before persisting a receipt. This is public trust material, never a private key. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
-| `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows `http://localhost` or loopback signing gateway endpoints for local development and tests. Do not use for production. |
+| `EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback signing gateway only outside production. `ENV=production` rejects this setting when `true`. |
 | `EVYDENCE_AWS_KMS_KEY_ID` | AWS KMS mode | unset | AWS KMS asymmetric signing key id, alias, or ARN. Store IAM credentials outside Evydence config and logs. |
 | `EVYDENCE_AWS_REGION` / `AWS_REGION` | AWS KMS mode | unset | Region used by the AWS KMS executor. `EVYDENCE_AWS_REGION` takes precedence. |
 | `EVYDENCE_AWS_KMS_ENDPOINT` | No | unset | Optional AWS KMS-compatible endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_AWS_KMS_SIGNING_ALGORITHM` | No | `ECDSA_SHA_256` | Supported values are `ECDSA_SHA_256`, `RSASSA_PSS_SHA_256`, and `RSASSA_PKCS1_V1_5_SHA_256` because Evydence signs stored SHA-256 payload hashes. |
 | `EVYDENCE_AWS_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for AWS KMS signing requests. |
-| `EVYDENCE_GCP_KMS_ACCESS_TOKEN` | GCP KMS mode | unset | Bearer token used by the direct GCP Cloud KMS executor. Store outside source control and logs. If unset, `gcp-kms` requires `EVYDENCE_SIGNING_EXECUTOR_URL`. |
 | `EVYDENCE_GCP_KMS_KEY_NAME` | GCP KMS mode | unset | Default GCP Cloud KMS key version resource name. A signing provider `key_ref` can override it. |
 | `EVYDENCE_GCP_KMS_ENDPOINT` | No | `https://cloudkms.googleapis.com` | Optional GCP KMS endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_GCP_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for GCP KMS signing requests. |
 | `EVYDENCE_AZURE_KEY_VAULT_URL` | Azure Key Vault mode | unset | HTTPS Key Vault URL used by the direct Azure Key Vault executor. |
-| `EVYDENCE_AZURE_KEY_VAULT_ACCESS_TOKEN` | Azure Key Vault mode | unset | Bearer token used by the direct Azure Key Vault executor. Store outside source control and logs. If unset, `azure-key-vault` requires `EVYDENCE_SIGNING_EXECUTOR_URL`. |
 | `EVYDENCE_AZURE_KEY_VAULT_KEY_NAME` | Azure Key Vault mode | unset | Default Key Vault key name. A signing provider `key_ref` URL can override it. |
 | `EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION` | Azure Key Vault mode | unset | Default Key Vault key version. A signing provider `key_ref` URL can override it. |
 | `EVYDENCE_AZURE_KEY_VAULT_ALGORITHM` | No | `ES256` | Azure Key Vault signing algorithm used for the SHA-256 digest. |
@@ -85,8 +100,83 @@ process, or equivalent deployment control.
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL` | No | unset | Optional HTTPS operator-controlled gateway for transparency inclusion proof fetch/verification material. When unset, Evydence fetches from the configured public log endpoint. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN` | Gateway | unset | Optional bearer token for the transparency proof gateway. Store outside source control and logs. |
 | `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TIMEOUT_SECONDS` | No | `10` | Timeout for transparency proof gateway requests. |
-| `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local only | `false` | Allows an HTTP localhost transparency proof gateway for tests. Do not use for production. |
-| `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, and `make release-check`. |
+| `EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback transparency gateway only outside production. `ENV=production` rejects this setting when `true`. |
+| `EVYDENCE_TEST_DATABASE_URL` | Live tests | `.test.env.example` value | Used by `make live-postgres-check`, `make postgres-integration-test`, `make fault-injection-check`, `make integration-check`, and `make release-check`. `make integration-check` rejects `ENV=production` and a value equal to `EVYDENCE_DATABASE_URL`. |
+| `EVYDENCE_TEST_S3_ENDPOINT` | Live MinIO tests | `127.0.0.1:9000` | Required by `make integration-check` and therefore `make production-check`. The integration gate permits only a loopback MinIO endpoint and rejects a value equal to `EVYDENCE_S3_ENDPOINT`. |
+| `EVYDENCE_TEST_S3_ACCESS_KEY_ID` | Live MinIO tests | `.test.env.example` value | Test-only credential for the disposable MinIO service. Never point it at a production or shared object-store account. |
+| `EVYDENCE_TEST_S3_SECRET_ACCESS_KEY` | Live MinIO tests | `.test.env.example` value | Test-only secret for the disposable MinIO service. The integration summary redacts credentials. Never commit a real value. |
+| `EVYDENCE_TEST_S3_USE_SSL` | Live MinIO tests | `false` | Boolean transport setting for the loopback test service. |
+
+## First-Tenant Bootstrap
+
+With `EVYDENCE_RUNTIME_PROFILE=postgres`, API startup composes focused Identity
+and Verification bootstrap commands without loading the Ledger aggregate. A
+single startup transaction locks the `tenants` table in
+`SHARE ROW EXCLUSIVE` mode and checks existence with `SELECT EXISTS`; it does
+not select tenant names, credential inventories, or signing keys. If any tenant
+exists, bootstrap returns no identity or secret and creates nothing. The table
+lock covers an empty installation and conflicts with ordinary tenant inserts,
+so concurrent first-start attempts cannot each create an administrator. The
+API bounds this transaction, including lock wait, to 30 seconds or the earlier
+shutdown deadline. The lock can briefly delay unrelated tenant mutations; this
+does not change the supported single-API-writer deployment profile.
+
+On an empty installation, tenant, initial wildcard API-key hash, the
+`tenant.created` system audit entry, and the initial local Ed25519 signing key
+commit together. Write, cancellation, and commit failures return no bootstrap
+identity or secret. The initial signing key retains the existing local storage
+format; its creation is not external signing-provider custody or a new
+encryption-at-rest guarantee. Generated transient private-key byte buffers are
+cleared after use. Go credential strings are not guaranteed to be erased from
+process memory.
+
+Set `EVYDENCE_BOOTSTRAP_DISABLED=true` to bypass startup bootstrap. Local and
+production runtime bootstrap both use the database transaction. Bootstrap names are bounded
+at 65,536 raw bytes; scopes at 1024 entries of at most 128 bytes each. Text must
+be valid UTF-8 without NUL bytes. These checks reject malformed operator inputs
+before credential generation.
+
+Neither bootstrap path logs secrets or stored hashes. Only the explicit,
+non-production `EVYDENCE_PRINT_BOOTSTRAP_SECRET=true` option writes the existing
+`tenant_id`, `api_key`, and `secret` JSON response. Durable bootstrap emits that
+response immediately after commit, before later native server startup work;
+restarts never reissue it. Output failure is reported with a safe error but
+cannot undo an already committed bootstrap. Retain the one-time local output
+securely; otherwise operator credential provisioning/recovery is required.
+The PostgreSQL API binds `NewNativeServerWithOptionsContext`, which requires
+the complete command/query/authentication surface, streamed and historical
+durable replay capabilities, and a stable pagination secret of at least 16
+bytes. Missing or typed-nil dependencies fail startup instead of enabling a
+local fallback. API startup no longer constructs or accepts Ledger and does not
+use `app.Config`. Legacy library/test utilities still await physical deletion
+under EVY-906; they are not runtime backend options.
+Ledger-accepting HTTP constructors and their aggregate replay binders are no
+longer compiled into production transport. The remaining local HTTP setup is
+explicitly test-only; legacy handler and aggregate deletion remain unfinished.
+API routes and response schemas are unchanged. This is an API composition
+boundary, not proof that EVY-905's full validation gates are complete. The worker
+daemon uses a closed native processor as described in the
+[worker outbox contract](worker-outbox.md); local-memory mode is not a worker
+profile.
+
+## Retired Local-Memory Profile (Unreleased)
+
+Current source no longer runs the non-durable `local_memory` API. This is an
+unreleased runtime-configuration change, not a claim that older published
+release binaries changed. Configure `EVYDENCE_RUNTIME_PROFILE=postgres` and
+`EVYDENCE_DATABASE_URL`; `.api.env.example` already supplies that shape.
+Start the local database with `docker compose up -d postgres` or provide your
+own PostgreSQL service, then follow [Install and operate](../how-to/install-and-operate.md).
+
+Previously in-process metadata has no automatic migration because it was lost
+on exit. Existing filesystem payload bytes are not deleted or automatically
+imported by this change. Do not treat orphaned payload files as trusted evidence.
+Fast unit tests can continue using in-memory fakes. The local CI simulation now
+requires `EVYDENCE_TEST_DATABASE_URL` and creates and removes only its own fresh
+schema; it does not reset the supplied database.
+Supply a `postgres://` or `postgresql://` URI without an `options` query
+parameter: the simulation owns its connection search path and rejects startup
+options that could override schema isolation before issuing database commands.
 
 ## Request-Body Limits
 
@@ -110,20 +200,73 @@ can return its RFC 9457 problem response; a higher proxy limit does not weaken
 the application limit. Keep any proxy configuration derived from this table
 and review it when `payload_limits.go` changes.
 
+## HTTP Ingress Limits And Proxy Trust
+
+The API listener applies bounded header, request-target, request-read,
+response-write, idle, and graceful-shutdown limits from the variables above.
+The process rejects an invalid bound or proxy CIDR during startup rather than
+silently falling back to an unbounded setting.
+
+Evydence does not accept compressed or multipart request bodies. Only an absent
+or `identity` `Content-Encoding` is accepted, so the ingress limit and the
+route parser count the same bytes. Multipart is rejected because no public
+route accepts multipart parts; native documents use their documented raw media
+types and metadata headers. The ingress ceiling is the 20 MiB native-document
+limit in `internal/app/payload_limits.go`; individual routes keep their tighter
+small-JSON or report-template limits.
+
+Set `EVYDENCE_TRUSTED_PROXY_CIDRS` only for addresses controlled by the
+deployment. A trusted proxy must append and sanitize `X-Forwarded-For` before
+forwarding requests. Evydence walks the rightmost trusted proxy hops to the
+first untrusted address, and ignores `X-Forwarded-For` entirely when the direct
+peer is not trusted. It does not treat `Forwarded` or `X-Real-IP` as a client
+identity source. This process-local limiter remains a safety boundary, not a
+substitute for TLS termination, edge DDoS controls, or a shared distributed
+rate limiter when multiple API processes are introduced.
+
 ## Production Rejection Checks
 
 When `ENV=production`, the API refuses to start unless:
 
+- `EVYDENCE_RUNTIME_PROFILE=postgres` is set.
 - `EVYDENCE_DATABASE_URL` is set.
 - `EVYDENCE_API_KEY_PEPPER` is non-empty and not the local default.
 - `EVYDENCE_SIGNING_KEY_MODE` is `external`, `aws-kms`, `gcp-kms`,
   `azure-key-vault`, or `pkcs11-hsm`. `external` and `pkcs11-hsm` require
-  `EVYDENCE_SIGNING_EXECUTOR_URL`; `gcp-kms` and `azure-key-vault` require
-  either their direct provider credentials or `EVYDENCE_SIGNING_EXECUTOR_URL`.
+  `EVYDENCE_SIGNING_EXECUTOR_URL`; `gcp-kms` uses Google Application Default
+  Credentials and `azure-key-vault` uses Azure DefaultAzureCredential.
 - `EVYDENCE_PRINT_BOOTSTRAP_SECRET` is not `true`.
 - `EVYDENCE_POSTGRES_LOAD_MODE`, when set, is `relational_only`.
 - `EVYDENCE_API_WRITER_MODE`, when set, is `single` or `single-writer`.
 - `EVYDENCE_API_WRITER_REPLICAS`, when set, is `1`.
+- Any `EVYDENCE_*_ALLOW_INSECURE_LOCALHOST` outbound-provider override is not
+  `true`. This includes OIDC discovery/UserInfo, provider-validation,
+  signing-executor, and transparency gateway/fetch settings.
+
+## Outbound Provider Destination Policy
+
+The OIDC discovery/UserInfo, provider-validation gateway, signing gateway, and
+transparency HTTP adapters use one outbound policy. By default they require an
+HTTPS destination whose resolved address is public; loopback, private,
+link-local (including metadata-service), multicast, unspecified, carrier-grade
+NAT, and documentation/reserved IPv4 addresses are rejected. The client
+resolves and validates each dial target and dials that checked address, so a
+later DNS answer cannot silently redirect the connection.
+
+Ambient `HTTP_PROXY`/`HTTPS_PROXY` configuration is not used for these adapter
+calls. Redirects are denied rather than followed, so a gateway bearer token
+cannot cross an origin. Gateway profiles allow only their configured endpoint
+host. OIDC discovery and UserInfo are pinned to the configured issuer origin;
+a discovered different-host or different-scheme endpoint fails closed. Each
+adapter has a finite timeout and response-body budget.
+
+The `*_ALLOW_INSECURE_LOCALHOST` variables are narrowly for local development
+and test loopback endpoints. They do not allow arbitrary private hosts, are
+rejected when `ENV=production`, and are not a production proxy or egress-policy
+mechanism. Operators who require a corporate proxy or a private provider cannot
+use this direct-adapter profile unchanged; they need a separately reviewed
+deployment/code change with explicit egress and IAM controls. This runtime
+deliberately does not silently inherit an ambient proxy.
 
 ## Build Identity
 
@@ -174,22 +317,39 @@ the configured bucket and sample object only: operators still need to review
 bucket creation mode, IAM policy, lifecycle rules, backups, and any
 deployment-specific WORM requirements.
 
+## Sigstore/Cosign Offline Verification
+
+The Cosign route is enabled only when operator configuration supplies a
+versioned Sigstore trusted root or public key. It verifies self-contained,
+stored bundles offline and requires an embedded Rekor inclusion proof. The
+configuration is read only at process startup; it does not fetch trust roots or
+Rekor material over the network. A request that requires online verification
+does not fall back to this profile. Verification receipts record the configured
+version and library version, never trust-root bytes, certificates, bundle bytes,
+or private keys.
+
+For keyless bundles, callers must supply exact expected identity and issuer
+values. For key bundles, callers select `mode: "key"` and the configured public
+key supplies the trust boundary. Operators remain responsible for trust-root
+rotation, revocation policy, and deciding whether the offline profile fits
+their deployment requirements.
+
 ## Signing Executors
 
-When `EVYDENCE_SIGNING_EXECUTOR_URL` is set, signing operations can omit
-`external_signature`. Evydence sends a JSON request containing tenant id,
-provider id/type, key reference, subject type/id, and `payload_hash`. The
-gateway returns a signature, optional provider key id, and optional algorithm.
-Evydence records the signature receipt and verification checks; it does not
-store production private key material or send raw evidence payload bytes.
+Signing operations always use a configured executor; the public API rejects
+caller-supplied signatures. Evydence sends a canonical JSON request containing
+tenant id, provider id/type, key reference, subject type/id, `payload_hash`,
+request id, nonce, and canonical-request hash. The gateway returns a signature
+and safe provider receipt identifiers. Evydence does not store production
+private key material or send raw evidence payload bytes.
 
-`EVYDENCE_SIGNING_KEY_MODE=gcp-kms` and `azure-key-vault` can use direct
-provider executors when their access-token and key configuration variables are
-set. If direct credentials are absent, they fall back to requiring the HTTPS
-signing gateway. `pkcs11-hsm` always uses the HTTPS signing gateway because
-native HSM modules and slots are deployment-specific. Operators remain
-responsible for provider credentials, IAM, key lifecycle, gateway operation
-where used, and custody review.
+`EVYDENCE_SIGNING_KEY_MODE=gcp-kms` uses the Google Application Default
+Credentials chain and `azure-key-vault` uses Azure DefaultAzureCredential. If
+direct credentials are unavailable, use the HTTPS signing gateway.
+`pkcs11-hsm` always uses the HTTPS signing gateway because native HSM modules
+and slots are deployment-specific. Operators remain responsible for provider
+credentials, IAM, key lifecycle, gateway operation where used, and custody
+review.
 
 Tenant signing-provider records also accept `native_pkcs11_hsm` for deployments
 that operate local PKCS#11 modules or slots outside Evydence. The provider
@@ -198,24 +358,36 @@ passwords, or secrets. This profile records custody evidence for review through
 `GET /v1/reports/custody-review`; it does not load native HSM modules or prove
 hardware custody by itself.
 
-When `EVYDENCE_SIGNING_KEY_MODE=aws-kms`, Evydence uses the AWS KMS `Sign`
-operation against `EVYDENCE_AWS_KMS_KEY_ID`. The executor signs the decoded
-SHA-256 digest with KMS `MessageType=DIGEST`; it does not send raw evidence
-payload bytes to AWS KMS. Operators remain responsible for AWS IAM policy,
-key lifecycle, CloudTrail review, regional availability, and external review
-of whether the selected key custody profile satisfies their deployment needs.
+When `EVYDENCE_SIGNING_KEY_MODE=aws-kms`, Evydence uses AWS KMS `Sign` and
+`Verify` against `EVYDENCE_AWS_KMS_KEY_ID`. The executor signs and verifies
+the decoded SHA-256 canonical-request digest with KMS `MessageType=DIGEST`; it
+does not send raw evidence payload bytes to AWS KMS. Operators remain
+responsible for AWS IAM policy, key lifecycle, CloudTrail review, regional
+availability, and external review of whether the selected key custody profile
+satisfies their deployment needs.
 
-When `EVYDENCE_SIGNING_KEY_MODE=gcp-kms`, Evydence can call GCP Cloud KMS
-`asymmetricSign` with a configured bearer token and key-version resource name.
-The executor sends a SHA-256 digest, not raw evidence payload bytes. Operators
-remain responsible for GCP IAM, token issuance, audit logs, key lifecycle, and
-regional availability.
+When `EVYDENCE_SIGNING_KEY_MODE=gcp-kms`, Evydence calls GCP Cloud KMS
+`asymmetricSign` with an Application Default Credentials access token and a
+key-version resource name. It fetches the provider public key and verifies the
+returned signature over the SHA-256 canonical-request digest. The executor
+does not send raw evidence payload bytes. Operators remain responsible for GCP
+IAM, audit logs, key lifecycle, and regional availability.
 
-When `EVYDENCE_SIGNING_KEY_MODE=azure-key-vault`, Evydence can call Azure Key
-Vault `sign` with a configured bearer token, key name, key version, and
-algorithm. The executor sends a SHA-256 digest encoded for Key Vault, not raw
-evidence payload bytes. Operators remain responsible for Azure identity, Key
-Vault access policy/RBAC, audit logs, key lifecycle, and regional availability.
+When `EVYDENCE_SIGNING_KEY_MODE=azure-key-vault`, Evydence calls Azure Key
+Vault `sign` using DefaultAzureCredential, a key name/version, and `ES256`. It
+fetches the provider public key and verifies the returned signature over the
+SHA-256 canonical-request digest. The executor does not send raw evidence
+payload bytes. Operators remain responsible for Azure identity, Key Vault
+access policy/RBAC, audit logs, key lifecycle, and regional availability.
+
+If a signing provider is temporarily unavailable, Evydence returns a retryable
+service-unavailable response and releases the request's idempotency reservation
+without persisting a signing operation or signature. Retrying the same
+idempotency key can then create at most one persisted signing receipt after a
+successful provider response. Providers that do not expose a request-level
+idempotency primitive can still produce an unobserved external signature after
+a network timeout; use the HTTPS gateway where provider-side deduplication is
+required.
 
 ## Provider Validation Gateway
 

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/httpclient"
 )
 
 const (
@@ -28,7 +28,8 @@ type Config struct {
 }
 
 type Client struct {
-	httpClient                *http.Client
+	baseClient                *http.Client
+	timeout                   time.Duration
 	allowInsecureForLocalhost bool
 }
 
@@ -42,20 +43,11 @@ func New(cfg Config) *Client {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	httpClient := cfg.Client
-	if httpClient == nil {
-		httpClient = &http.Client{
-			Timeout: timeout,
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
-	}
-	return &Client{httpClient: httpClient, allowInsecureForLocalhost: cfg.AllowInsecureForLocalhost}
+	return &Client{baseClient: cfg.Client, timeout: timeout, allowInsecureForLocalhost: cfg.AllowInsecureForLocalhost}
 }
 
 func (c *Client) FetchOIDCTrustMaterial(ctx context.Context, req app.OIDCDiscoveryRequest) (app.OIDCDiscoveryResult, error) {
-	if c == nil || c.httpClient == nil {
+	if c == nil {
 		return app.OIDCDiscoveryResult{}, app.ErrValidation
 	}
 	issuer := strings.TrimRight(strings.TrimSpace(req.Issuer), "/")
@@ -63,13 +55,23 @@ func (c *Client) FetchOIDCTrustMaterial(ctx context.Context, req app.OIDCDiscove
 	if err != nil {
 		return app.OIDCDiscoveryResult{}, err
 	}
+	httpClient, err := httpclient.New(httpclient.Config{
+		Timeout:                   c.timeout,
+		MaxResponseBytes:          maxDiscoveryBodySize,
+		AllowedHosts:              []string{issuerURL.Hostname()},
+		AllowInsecureForLocalhost: c.allowInsecureForLocalhost,
+		Client:                    c.baseClient,
+	})
+	if err != nil {
+		return app.OIDCDiscoveryResult{}, app.ErrValidation
+	}
 	discoveryURL := *issuerURL
 	discoveryURL.Path = strings.TrimRight(discoveryURL.Path, "/") + "/.well-known/openid-configuration"
 	discoveryURL.RawQuery = ""
 	discoveryURL.Fragment = ""
 
 	var doc discoveryDocument
-	if err := c.getJSON(ctx, discoveryURL.String(), maxDiscoveryBodySize, &doc); err != nil {
+	if err := c.getJSON(ctx, httpClient, discoveryURL.String(), maxDiscoveryBodySize, &doc); err != nil {
 		return app.OIDCDiscoveryResult{}, err
 	}
 	doc.Issuer = strings.TrimRight(strings.TrimSpace(doc.Issuer), "/")
@@ -81,8 +83,11 @@ func (c *Client) FetchOIDCTrustMaterial(ctx context.Context, req app.OIDCDiscove
 	if err != nil {
 		return app.OIDCDiscoveryResult{}, err
 	}
+	if !sameOrigin(issuerURL, jwksURL) {
+		return app.OIDCDiscoveryResult{}, app.ErrVerificationFailed
+	}
 	var jwks map[string]any
-	if err := c.getJSON(ctx, jwksURL.String(), maxJWKSBodySize, &jwks); err != nil {
+	if err := c.getJSON(ctx, httpClient, jwksURL.String(), maxJWKSBodySize, &jwks); err != nil {
 		return app.OIDCDiscoveryResult{}, err
 	}
 	return app.OIDCDiscoveryResult{
@@ -96,13 +101,13 @@ func (c *Client) FetchOIDCTrustMaterial(ctx context.Context, req app.OIDCDiscove
 	}, nil
 }
 
-func (c *Client) getJSON(ctx context.Context, endpoint string, maxBytes int64, out any) error {
+func (c *Client) getJSON(ctx context.Context, client *http.Client, endpoint string, maxBytes int64, out any) error {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return app.ErrValidation
 	}
 	httpReq.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return errors.New("fetch oidc metadata")
 	}
@@ -139,6 +144,9 @@ func localhostHost(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return strings.HasPrefix(host, "127.") || host == "::1"
+}
+
+func sameOrigin(left, right *url.URL) bool {
+	return left != nil && right != nil && strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Host, right.Host)
 }

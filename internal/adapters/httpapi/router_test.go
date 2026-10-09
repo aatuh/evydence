@@ -17,14 +17,17 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
-	server, err := NewServer(ledger)
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
-		t.Fatalf("NewServer: %v", err)
+		t.Fatalf("newLegacyServerFixture: %v", err)
 	}
 	if err := server.ValidateRoutes(); err != nil {
 		t.Fatalf("ValidateRoutes: %v", err)
@@ -35,6 +38,133 @@ func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
 	}
 	if !bytes.Contains(doc, []byte(`"openapi"`)) || !bytes.Contains(doc, []byte(`BearerAuth`)) {
 		t.Fatalf("OpenAPI document missing expected fields: %s", doc)
+	}
+}
+
+func TestListProductsUsesBoundedTenantBoundCursorPagination(t *testing.T) {
+	server, secret := catalogQueryTestServer(t)
+	for _, product := range []struct {
+		name string
+		slug string
+	}{
+		{name: "Alpha", slug: "alpha"},
+		{name: "Bravo", slug: "bravo"},
+		{name: "Charlie", slug: "charlie"},
+	} {
+		postJSON(t, server, secret, "/v1/products", "pagination-"+product.slug, map[string]any{"name": product.name, "slug": product.slug}, http.StatusCreated)
+	}
+	first := getRaw(t, server, secret, "/v1/products?page_size=2&sort=created_at&direction=asc", http.StatusOK)
+	var firstPage struct {
+		Data []map[string]any `json:"data"`
+		Meta struct {
+			PageSize   int    `json:"page_size"`
+			Sort       string `json:"sort"`
+			Direction  string `json:"direction"`
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &firstPage); err != nil {
+		t.Fatalf("decode first page: %v body=%s", err, first.Body.String())
+	}
+	if len(firstPage.Data) != 2 || firstPage.Meta.PageSize != 2 || firstPage.Meta.Sort != "created_at" || firstPage.Meta.Direction != "asc" || firstPage.Meta.NextCursor == "" {
+		t.Fatalf("first page = %#v, want two records and continuation metadata", firstPage)
+	}
+	second := getRaw(t, server, secret, "/v1/products?page_size=2&sort=created_at&direction=asc&cursor="+url.QueryEscape(firstPage.Meta.NextCursor), http.StatusOK)
+	var secondPage struct {
+		Data []map[string]any `json:"data"`
+		Meta struct {
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(second.Body.Bytes(), &secondPage); err != nil {
+		t.Fatalf("decode second page: %v body=%s", err, second.Body.String())
+	}
+	if len(secondPage.Data) != 1 || secondPage.Meta.NextCursor != "" {
+		t.Fatalf("second page = %#v, want the remaining record without continuation", secondPage)
+	}
+	invalid := getRaw(t, server, secret, "/v1/products?page_size=501", http.StatusBadRequest)
+	if !strings.Contains(invalid.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("invalid page size response = %s", invalid.Body.String())
+	}
+	tampered := getRaw(t, server, secret, "/v1/products?page_size=2&cursor="+url.QueryEscape(firstPage.Meta.NextCursor+"x"), http.StatusBadRequest)
+	if !strings.Contains(tampered.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("tampered cursor response = %s", tampered.Body.String())
+	}
+}
+
+func TestEvidenceSearchCursorPagesDoNotTruncateMatchingRecords(t *testing.T) {
+	server, secret := operationsTestServer(t)
+	digest := "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+	for _, key := range []string{"search-page-a", "search-page-b", "search-page-c"} {
+		postJSON(t, server, secret, "/v1/evidence", key, map[string]any{"type": "build", "title": key, "payload_hash": digest}, http.StatusCreated)
+	}
+	first := getRaw(t, server, secret, "/v1/evidence/search?type=build&page_size=2", http.StatusOK)
+	var firstPage struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+		Meta struct {
+			NextCursor string `json:"next_cursor"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &firstPage); err != nil {
+		t.Fatalf("decode search first page: %v", err)
+	}
+	if len(firstPage.Data) != 2 || firstPage.Meta.NextCursor == "" {
+		t.Fatalf("search first page=%#v, want two records and a cursor", firstPage)
+	}
+	second := getRaw(t, server, secret, "/v1/evidence/search?type=build&page_size=2&cursor="+url.QueryEscape(firstPage.Meta.NextCursor), http.StatusOK)
+	var secondPage struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(second.Body.Bytes(), &secondPage); err != nil {
+		t.Fatalf("decode search second page: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, item := range append(firstPage.Data, secondPage.Data...) {
+		if item.ID == "" || seen[item.ID] {
+			t.Fatalf("search pages contain invalid or duplicate id %q", item.ID)
+		}
+		seen[item.ID] = true
+	}
+	if len(seen) != 3 {
+		t.Fatalf("search cursor pages returned %d distinct records, want 3", len(seen))
+	}
+	getRaw(t, server, secret, "/v1/evidence/search?source=one&source_system=one", http.StatusBadRequest)
+}
+
+func TestResourceReadsUsePrivateConditionalETags(t *testing.T) {
+	server, secret := catalogQueryTestServer(t)
+	product := postJSON(t, server, secret, "/v1/products", "etag-product", map[string]any{"name": "ETag product", "slug": "etag-product"}, http.StatusCreated)
+	productID := dataField(t, product, "id")
+	first := getRaw(t, server, secret, "/v1/products/"+productID, http.StatusOK)
+	etag := first.Header().Get("ETag")
+	if etag == "" || !strings.Contains(first.Header().Get("Cache-Control"), "private") || !strings.Contains(first.Header().Get("Vary"), "Authorization") {
+		t.Fatalf("immutable resource cache headers = %#v, want private ETag response", first.Header())
+	}
+	conditional := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/products/"+productID, nil)
+	request.Header.Set("Authorization", "Bearer "+secret)
+	request.Header.Set("If-None-Match", etag)
+	server.Handler().ServeHTTP(conditional, request)
+	if conditional.Code != http.StatusNotModified || conditional.Body.Len() != 0 || conditional.Header().Get("ETag") != etag {
+		t.Fatalf("conditional immutable response status=%d headers=%#v body=%q", conditional.Code, conditional.Header(), conditional.Body.String())
+	}
+	release := postJSON(t, server, secret, "/v1/releases", "etag-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
+	releaseID := dataField(t, release, "id")
+	mutable := getRaw(t, server, secret, "/v1/releases/"+releaseID, http.StatusOK)
+	if mutable.Header().Get("ETag") != `"1"` {
+		t.Fatalf("mutable resource ETag = %q, want revision ETag", mutable.Header().Get("ETag"))
+	}
+	invalid := httptest.NewRecorder()
+	invalidRequest := httptest.NewRequest(http.MethodGet, "/v1/products/"+productID, nil)
+	invalidRequest.Header.Set("Authorization", "Bearer "+secret)
+	invalidRequest.Header.Set("If-None-Match", "not-a-tag")
+	server.Handler().ServeHTTP(invalid, invalidRequest)
+	if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("invalid If-None-Match response status=%d body=%s", invalid.Code, invalid.Body.String())
 	}
 }
 
@@ -116,8 +246,16 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	schemas := asStringAnyMap(t, asStringAnyMap(t, doc["components"])["schemas"])
 	problem := asStringAnyMap(t, schemas["Problem"])
 	problemProps := asStringAnyMap(t, problem["properties"])
-	if _, ok := problemProps["request_id"]; !ok {
-		t.Fatalf("Problem schema missing request_id: %#v", problemProps)
+	for _, field := range []string{"code", "request_id", "retryable", "retry_class", "violations"} {
+		if _, ok := problemProps[field]; !ok {
+			t.Fatalf("Problem schema missing %q: %#v", field, problemProps)
+		}
+	}
+	errorCodes := fmt.Sprintf("%v", asStringAnyMap(t, schemas["ErrorCode"])["enum"])
+	for _, definition := range app.ErrorCatalog() {
+		if !strings.Contains(errorCodes, string(definition.Code)) {
+			t.Fatalf("ErrorCode schema missing catalog code %q: %s", definition.Code, errorCodes)
+		}
 	}
 	versionProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VersionInfo"])["properties"])
 	for _, field := range []string{"version", "commit", "build_time", "dirty", "go_version", "release_manifest_digest"} {
@@ -138,6 +276,9 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	decisionProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VulnerabilityDecision"])["properties"])
 	if _, ok := decisionProps["sbom_component_purl"]; !ok {
 		t.Fatalf("decision schema missing sbom_component_purl: %#v", decisionProps)
+	}
+	if _, ok := decisionProps["internal_notes"]; ok {
+		t.Fatalf("decision response schema exposes tenant-internal notes: %#v", decisionProps)
 	}
 	if _, ok := decisionProps["supporting_refs"]; !ok {
 		t.Fatalf("decision schema missing supporting_refs: %#v", decisionProps)
@@ -229,7 +370,7 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestExampleContains(t, uploadSBOM, "cyclonedx-release-sbom", "pkg:apk/openssl")
 	assertResponseRef(t, uploadSBOM, "201", "#/components/schemas/SBOMEnvelope")
 	uploadVulnerabilityScan := operationMap(t, paths, "/v1/vulnerability-scans", "post")
-	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanRequest")
+	assertRequestRef(t, uploadVulnerabilityScan, "#/components/schemas/UploadVulnerabilityScanBody")
 	assertRequestExampleContains(t, uploadVulnerabilityScan, "generic-critical-finding", "CVE-2026-0099")
 	assertResponseRef(t, uploadVulnerabilityScan, "201", "#/components/schemas/VulnerabilityScanEnvelope")
 	listVulnerabilityDecisions := operationMap(t, paths, "/v1/vulnerability-decisions", "get")
@@ -260,16 +401,18 @@ func TestOpenAPICriticalRoutesHavePreciseContracts(t *testing.T) {
 	assertRequestRef(t, verifyCosign, "#/components/schemas/VerifyCosignSignatureRequest")
 	assertResponseRef(t, verifyCosign, "200", "#/components/schemas/CosignVerificationEnvelope")
 	assertProblemResponseRef(t, verifyCosign, "422")
-	if deprecated, _ := verifyCosign["deprecated"].(bool); !deprecated {
-		t.Fatalf("cosign metadata assessment operation must be deprecated: %#v", verifyCosign)
+	if deprecated, _ := verifyCosign["deprecated"].(bool); deprecated {
+		t.Fatalf("real Cosign verification operation must not remain deprecated: %#v", verifyCosign)
 	}
 	cosignRequestProps := asStringAnyMap(t, asStringAnyMap(t, schemas["VerifyCosignSignatureRequest"])["properties"])
-	if _, ok := cosignRequestProps["require_full_verification"]; !ok {
-		t.Fatalf("cosign request must let callers request full verification: %#v", cosignRequestProps)
+	for _, field := range []string{"expected_identity", "expected_issuer", "mode", "offline"} {
+		if _, ok := cosignRequestProps[field]; !ok {
+			t.Fatalf("cosign policy request missing %s: %#v", field, cosignRequestProps)
+		}
 	}
 	cosignResult := asStringAnyMap(t, asStringAnyMap(t, schemas["CosignVerification"])["properties"])["result"]
-	if strings.Contains(fmt.Sprintf("%v", cosignResult), "passed") || !strings.Contains(fmt.Sprintf("%v", cosignResult), "limited") {
-		t.Fatalf("cosign result schema must expose limited, not passed: %#v", cosignResult)
+	if !strings.Contains(fmt.Sprintf("%v", cosignResult), "passed") {
+		t.Fatalf("cosign result schema must expose passed when full verification succeeds: %#v", cosignResult)
 	}
 	searchEvidence := operationMap(t, paths, "/v1/evidence/search", "get")
 	assertQueryParams(t, searchEvidence, "product_id", "project_id", "release_id", "type", "source", "tag", "cursor", "limit")
@@ -367,15 +510,16 @@ func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
 		Issuer: "https://idp.example.test",
 		JWKS:   map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-route", "x": base64.RawURLEncoding.EncodeToString(pub)}}},
 	}}
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", OIDC: discovery})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", OIDC: discovery, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
+	server.bindSSOProviderFixtureResources(discovery, nil)
 	body := postJSON(t, server, secret, "/v1/sso/providers", "sso-discovery-provider", map[string]any{"name": "OIDC", "type": "oidc", "issuer": "https://idp.example.test", "client_id": "client"}, http.StatusCreated)
 	providerID := dataField(t, body, "id")
 	refreshed := postJSON(t, server, secret, "/v1/sso/providers/"+providerID+"/discover-oidc", "sso-discovery-refresh", map[string]any{}, http.StatusOK)
@@ -392,7 +536,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keygen: %v", err)
 	}
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -402,22 +546,24 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 		t.Fatalf("auth: %v", err)
 	}
 	jwks := map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-login", "x": base64.RawURLEncoding.EncodeToString(pub)}}}
-	provider, err := ledger.CreateSSOProvider(t.Context(), admin, app.CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}, JWKS: jwks})
+	providerCommands := ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	provider, err := providerCommands.CreateSSOProvider(t.Context(), admin, identityapp.CreateSSOProviderInput{Name: "OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}, JWKS: jwks})
 	if err != nil {
 		t.Fatalf("provider: %v", err)
 	}
-	org, err := ledger.CreateOrganization(t.Context(), admin, app.CreateOrganizationInput{Name: "Example", Slug: "example"})
+	memberCommands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	org, err := memberCommands.CreateOrganization(t.Context(), admin, identityapp.CreateOrganizationInput{Name: "Example", Slug: "example"})
 	if err != nil {
 		t.Fatalf("org: %v", err)
 	}
-	user, err := ledger.CreateUser(t.Context(), admin, app.CreateUserInput{OrganizationID: org.ID, Email: "user@example.test", DisplayName: "User"})
+	user, err := memberCommands.CreateUser(t.Context(), admin, identityapp.CreateUserInput{OrganizationID: org.ID, Email: "user@example.test", DisplayName: "User"})
 	if err != nil {
 		t.Fatalf("user: %v", err)
 	}
-	if _, err := ledger.LinkSSOIdentity(t.Context(), admin, app.LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
+	if _, err := providerCommands.LinkSSOIdentity(t.Context(), admin, identityapp.LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "sub-1", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("link: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -441,8 +587,21 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 		t.Fatalf("exchange response leaked id token: %s", rec.Body.String())
 	}
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/v1/sso/logout", strings.NewReader(`{}`))
+	req = httptest.NewRequest(http.MethodPost, "https://example.com/v1/sso/logout", strings.NewReader(`{}`))
 	req.AddCookie(cookie)
+	req.Header.Set("Origin", "https://attacker.example")
+	req.Header.Set("Idempotency-Key", "unsafe-cookie-session")
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || rec.Header().Get("Set-Cookie") != "" {
+		t.Fatal("cross-origin logout revoked session or changed cookie", rec.Code)
+	}
+	if _, err := server.authn.Authenticate(t.Context(), cookie.Value); err != nil {
+		t.Fatal("rejected cross-origin logout changed session", err)
+	}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "https://example.com/v1/sso/logout", strings.NewReader(`{}`))
+	req.AddCookie(cookie)
+	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Idempotency-Key", "logout-cookie-session")
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -456,15 +615,16 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 
 func TestPublicTransparencyProofFetchRoute(t *testing.T) {
 	fetcher := &fakeTransparencyProofHTTP{}
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", Transparency: fetcher})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Transparency: fetcher, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
+	server.bindTransparencyFixtureResources(fetcher, nil)
 	logBody := postJSON(t, server, secret, "/v1/public-transparency-logs", "fetch-log", map[string]any{"name": "public", "endpoint": "https://transparency.example.test", "public_key": "pub"}, http.StatusCreated)
 	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "fetch-batch", map[string]any{}, http.StatusCreated)
 	checkpointBody := postJSON(t, server, secret, "/v1/transparency-checkpoints", "fetch-checkpoint", map[string]any{"batch_id": dataField(t, batchBody, "id"), "provider": "internal", "external_id": "ts"}, http.StatusCreated)
@@ -564,7 +724,7 @@ func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
 }
 
 func TestIdempotencyReplayOmitsOneTimeAPIKeySecret(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := apiKeyTestServer(t)
 	payload := map[string]any{"name": "automation", "scopes": []string{"evidence:read"}}
 	first := postJSON(t, server, secret, "/v1/api-keys", "one-time-api-key", payload, http.StatusCreated)
 	oneTimeSecret := nestedDataField(t, first, "secret")
@@ -582,7 +742,7 @@ func TestIdempotencyReplayOmitsOneTimeAPIKeySecret(t *testing.T) {
 }
 
 func TestProductProjectArtifactReadEndpoints(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "ci-read-product", map[string]any{"name": "Payments", "slug": "ci-read-payments"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	projectBody := postJSON(t, server, secret, "/v1/projects", "ci-read-project", map[string]any{"product_id": productID, "name": "API"}, http.StatusCreated)
@@ -610,11 +770,61 @@ func TestProductProjectArtifactReadEndpoints(t *testing.T) {
 	getJSON(t, server, secret, "/v1/artifacts/art_missing", http.StatusNotFound)
 }
 
+func TestReleaseAndArtifactRejectUnsupportedRelationshipFields(t *testing.T) {
+	server, secret := testServer(t)
+	productBody := postJSON(t, server, secret, "/v1/products", "contract-fields-product", map[string]any{"name": "Contract API", "slug": "contract-api"}, http.StatusCreated)
+	productID := dataField(t, productBody, "id")
+
+	for _, tc := range []struct {
+		name    string
+		path    string
+		idem    string
+		payload map[string]any
+	}{
+		{
+			name:    "release project id",
+			path:    "/v1/releases",
+			idem:    "contract-fields-release-project",
+			payload: map[string]any{"product_id": productID, "project_id": "proj_ignored", "version": "1.0.0"},
+		},
+		{
+			name:    "artifact release id",
+			path:    "/v1/artifacts",
+			idem:    "contract-fields-artifact-release",
+			payload: map[string]any{"release_id": "rel_ignored", "name": "api.tgz", "media_type": "application/gzip", "digest": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"},
+		},
+		{
+			name:    "artifact subject ref",
+			path:    "/v1/artifacts",
+			idem:    "contract-fields-artifact-subject",
+			payload: map[string]any{"subject_ref": "release:ignored", "name": "api.tgz", "media_type": "application/gzip", "digest": "sha256:3e23e8160039594a33894f6564e1b1348bbdbb4f9a5f5f6e8a1c7a8c4f6f1f5a"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := postJSON(t, server, secret, tc.path, tc.idem, tc.payload, http.StatusBadRequest)
+			if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+				t.Fatalf("unsupported field response = %s", body)
+			}
+		})
+	}
+}
+
+func TestRegisterArtifactRequiresMediaType(t *testing.T) {
+	server, secret := testServer(t)
+	body := postJSON(t, server, secret, "/v1/artifacts", "contract-fields-artifact-media-type", map[string]any{
+		"name":   "api.tgz",
+		"digest": "sha256:2e7d2c03a9507ae265ecf5b5356885a53393a2029d241394997265a1a25aefc6",
+	}, http.StatusBadRequest)
+	if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("missing media_type response = %s", body)
+	}
+}
+
 func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
-	server, err := NewServerWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
 	if err != nil {
-		t.Fatalf("NewServerWithOptions: %v", err)
+		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
 	handler := server.Handler()
 	for i := 0; i < 2; i++ {
@@ -639,6 +849,19 @@ func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
 	}
 	if rec.Header().Get("Retry-After") == "" || rec.Header().Get(requestIDHeader) == "" {
 		t.Fatalf("missing retry/request headers: %#v", rec.Header())
+	}
+	var problem struct {
+		Code              string `json:"code"`
+		RequestID         string `json:"request_id"`
+		Retryable         bool   `json:"retryable"`
+		RetryClass        string `json:"retry_class"`
+		RetryAfterSeconds int    `json:"retry_after_seconds"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode rate limit problem: %v", err)
+	}
+	if problem.Code != "RATE_LIMITED" || !problem.Retryable || problem.RetryClass != "rate_limited" || problem.RetryAfterSeconds != 60 || problem.RequestID == "" {
+		t.Fatalf("rate limit problem metadata = %#v", problem)
 	}
 }
 
@@ -736,10 +959,35 @@ func TestUnknownJSONFieldReturnsProblem(t *testing.T) {
 	if rec.Header().Get("X-Request-ID") != "req-test-validation" || !strings.Contains(rec.Body.String(), `"request_id":"req-test-validation"`) {
 		t.Fatalf("request id missing from problem/header: header=%q body=%s", rec.Header().Get("X-Request-ID"), rec.Body.String())
 	}
+	var problem struct {
+		Code       string `json:"code"`
+		Violations []struct {
+			Field   string `json:"field"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"violations"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode validation problem: %v", err)
+	}
+	if problem.Code != "VALIDATION_FAILED" || len(problem.Violations) != 1 || problem.Violations[0].Field != "/extra" || problem.Violations[0].Code != "unknown_field" || problem.Violations[0].Message != "" {
+		t.Fatalf("safe field violation missing: %#v", problem)
+	}
+}
+
+func TestCosignVerificationRejectsLegacyMetadataFields(t *testing.T) {
+	server, secret := testServer(t)
+	body := postJSON(t, server, secret, "/v1/artifact-signatures/sig_missing/verify-cosign", "legacy-cosign-metadata", map[string]any{
+		"rekor_uuid":         "legacy-record",
+		"certificate_issuer": "https://issuer.example.invalid",
+	}, http.StatusBadRequest)
+	if !strings.Contains(body, `"code":"VALIDATION_FAILED"`) {
+		t.Fatalf("legacy metadata request must fail validation: %s", body)
+	}
 }
 
 func TestCrossTenantEvidenceReadDenied(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secretA, err := ledger.BootstrapTenant(t.Context(), "Tenant A", "admin-a", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap A: %v", err)
@@ -748,7 +996,7 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap B: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -756,6 +1004,10 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 		"type": "build", "title": "Build", "payload_hash": "sha256:44575cf5b2853284ce5d55751bc9e87d165bd64d5ef12c55fa291e9d40afae86",
 	}, http.StatusCreated)
 	id := dataField(t, body, "id")
+	owned := getJSON(t, server, secretA, "/v1/evidence/"+id, http.StatusOK)
+	if dataField(t, owned, "id") != id {
+		t.Fatal("owned evidence was not persisted for the cross-tenant check")
+	}
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/evidence/"+id, nil)
@@ -767,7 +1019,7 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 }
 
 func TestInstanceAdminHTTPRequiresExplicitScope(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -776,7 +1028,7 @@ func TestInstanceAdminHTTPRequiresExplicitScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap instance: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -801,11 +1053,12 @@ func (f *fakeOutboxAdminHTTP) OutboxDiagnostics(context.Context) (app.OutboxDiag
 }
 
 func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
+	at := time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)
 	operator := &fakeOutboxAdminHTTP{
-		replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: time.Now().UTC()},
-		diag:   app.OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: time.Now().UTC()},
+		replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: at},
+		diag:   app.OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: at},
 	}
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", OutboxAdmin: operator})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -814,10 +1067,11 @@ func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap instance: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
+	server.bindOperatorFixtureResources(operatorFixtureResources{operator: operator, now: func() time.Time { return at }})
 	getJSON(t, server, tenantSecret, "/v1/admin/outbox", http.StatusForbidden)
 	diagnostics := getJSON(t, server, instanceSecret, "/v1/admin/outbox", http.StatusOK)
 	if !strings.Contains(diagnostics, `"pending_jobs":2`) || strings.Contains(diagnostics, "payload") || strings.Contains(diagnostics, "failure_detail") {
@@ -828,8 +1082,27 @@ func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
 		t.Fatalf("outbox replay=%s operator=%#v", replay, operator)
 	}
 	metrics := getRawWithAccept(t, server, instanceSecret, "/v1/metrics", "text/plain", http.StatusOK)
-	if body := metrics.Body.String(); !strings.Contains(body, "evydence_outbox_terminal_jobs 3") || strings.Contains(body, "payload") || strings.Contains(body, "failure_detail") {
+	wantMetrics := map[string]any{
+		"resource_counts":                     map[string]int{"audit_chain_entries": 1, "artifact_signatures": 0, "cosign_verifications": 0, "evidence": 0, "merkle_batches": 0, "object_retention_policies": 0, "release_bundles": 0, "transparency_checkpoints": 0},
+		"customer_portal_failed_access_count": 0, "customer_portal_revoked_access_count": 0,
+		"object_reconciliation_runs": int64(0), "object_reconciliation_scanned_payloads": int64(0),
+		"object_reconciliation_missing_final_objects": int64(0), "object_reconciliation_missing_staged_objects": int64(0),
+		"object_reconciliation_digest_mismatches": int64(0), "object_reconciliation_provider_orphans": int64(0),
+		"object_reconciliation_quarantined_payloads": int64(0), "object_reconciliation_last_run_age_seconds": 0,
+		"outbox_pending_jobs": 2, "outbox_running_jobs": 1, "outbox_terminal_jobs": 3, "outbox_oldest_pending_age_seconds": 0,
+	}
+	// The focused runtime's known HELP text describes payload-count metrics.
+	// Exact response equality forbids any extra data/labels or failure details.
+	// Only the two documented scalar counter names may contain "payloads".
+	body := metrics.Body.String()
+	if !strings.Contains(body, "evydence_outbox_terminal_jobs 3") || body != prometheusMetrics(wantMetrics) || strings.Contains(body, "failure_detail") {
 		t.Fatalf("instance outbox metrics=%s", body)
+	}
+	for _, line := range strings.Split(body, "\n") {
+		knownScalar := strings.HasPrefix(line, "evydence_object_reconciliation_scanned_payloads ") || strings.HasPrefix(line, "evydence_object_reconciliation_quarantined_payloads ")
+		if !strings.HasPrefix(line, "#") && !knownScalar && strings.Contains(line, "payload") {
+			t.Fatalf("instance metric data leaked payload information: %s", line)
+		}
 	}
 }
 
@@ -858,7 +1131,7 @@ func TestReleaseBundleVerifyFlow(t *testing.T) {
 }
 
 func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "flow-prod", map[string]any{"name": "Flow Product", "slug": "flow-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "flow-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -871,7 +1144,7 @@ func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "api", "purl": "pkg:github/acme/api@abc"}},
+			"components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:github/acme/api@abc"}},
 		},
 	}, http.StatusCreated)
 	postJSON(t, server, secret, "/v1/vulnerability-scans", "flow-scan", map[string]any{"scanner": "generic", "target_ref": "pkg:github/acme/api@abc", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
@@ -889,7 +1162,8 @@ func TestReleaseEvidenceFlowStartHTTPFlow(t *testing.T) {
 }
 
 func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := riskCommandTestServer(t)
+	server.bindAPIKeyFixtureResources("test", nil)
 	productBody := postJSON(t, server, secret, "/v1/products", "security-summary-prod", map[string]any{"name": "Summary Product", "slug": "summary-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "security-summary-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -901,7 +1175,7 @@ func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
+			"components": []map[string]any{{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
 		},
 	}, http.StatusCreated)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "security-summary-scan", map[string]any{
@@ -932,7 +1206,7 @@ func TestReleaseSecuritySummaryHTTPFlow(t *testing.T) {
 }
 
 func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := riskCommandTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "risk-prod", map[string]any{"name": "Payments", "slug": "risk-payments"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "risk-rel", map[string]any{"product_id": productID, "version": "2.0.0"}, http.StatusCreated)
@@ -944,7 +1218,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
+			"components": []map[string]any{{"type": "library", "name": "openssl", "purl": "pkg:apk/openssl@3.1.0"}},
 		},
 	}, http.StatusCreated)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "risk-scan", map[string]any{
@@ -967,8 +1241,11 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision-bad", map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "customer_visible": true}, http.StatusBadRequest)
 	decisionPayload := map[string]any{"status": "not_affected", "justification": "vulnerable code is not present", "impact_statement": "The vulnerable code path is not present in this release.", "customer_visible": true, "internal_notes": "private note", "evidence_ids": []string{evidenceID}, "reviewed_at": "2026-05-27T12:00:00Z", "review_due_at": "2026-08-25T12:00:00Z"}
 	decisionBody := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
-	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, `"internal_notes":"private note"`) || !strings.Contains(decisionBody, evidenceID) || !strings.Contains(decisionBody, `"review_due_at":"2026-08-25T12:00:00Z"`) || !strings.Contains(decisionBody, `"sbom_component_purl":"pkg:apk/openssl@3.1.0"`) {
-		t.Fatalf("decision response missing customer visibility/internal note fields: %s", decisionBody)
+	if !strings.Contains(decisionBody, `"customer_visible":true`) || !strings.Contains(decisionBody, evidenceID) || !strings.Contains(decisionBody, `"review_due_at":"2026-08-25T12:00:00Z"`) || !strings.Contains(decisionBody, `"sbom_component_purl":"pkg:apk/openssl@3.1.0"`) {
+		t.Fatalf("decision response missing safe fields: %s", decisionBody)
+	}
+	if strings.Contains(decisionBody, "private note") || strings.Contains(decisionBody, `"internal_notes"`) {
+		t.Fatalf("decision response leaked internal notes: %s", decisionBody)
 	}
 	replayed := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "risk-decision", decisionPayload, http.StatusCreated)
 	if replayed != decisionBody {
@@ -976,7 +1253,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 	}
 	historyPath := "/v1/vulnerability-decisions?release_id=" + releaseID + "&product_id=" + productID + "&vulnerability=CVE-2026-0099&component=" + url.QueryEscape("pkg:apk/openssl@3.1.0") + "&status=not_affected&active=true"
 	history := getJSON(t, server, secret, historyPath, http.StatusOK)
-	if !strings.Contains(history, `"vulnerability":"CVE-2026-0099"`) || !strings.Contains(history, `"customer_visible":true`) {
+	if !strings.Contains(history, `"vulnerability":"CVE-2026-0099"`) || !strings.Contains(history, `"customer_visible":true`) || strings.Contains(history, "private note") || strings.Contains(history, `"internal_notes"`) {
 		t.Fatalf("decision history response missing decision fields: %s", history)
 	}
 	getJSON(t, server, secret, "/v1/vulnerability-decisions?active=maybe", http.StatusBadRequest)
@@ -995,7 +1272,7 @@ func TestReleaseRiskDecisionHTTPFlow(t *testing.T) {
 }
 
 func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "int-prod", map[string]any{"name": "Payments", "slug": "int-payments"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "int-rel", map[string]any{"product_id": productID, "version": "3.0.0"}, http.StatusCreated)
@@ -1006,13 +1283,9 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 	postJSON(t, server, secret, "/v1/container-images", "int-image", map[string]any{"artifact_id": artifactID, "repository": "registry.example.com/payments", "tag": "3.0.0", "digest": artifactDigest}, http.StatusCreated)
 	sigBody := postJSON(t, server, secret, "/v1/artifact-signatures", "int-sig", map[string]any{"artifact_id": artifactID, "algorithm": "cosign", "signature": "MEUCIQ"}, http.StatusCreated)
 	sigID := dataField(t, sigBody, "id")
-	cosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign", map[string]any{"rekor_uuid": "uuid", "rekor_log_index": "1"}, http.StatusOK)
-	if !strings.Contains(cosign, `"result":"limited"`) || !strings.Contains(cosign, `"digest_binding_assessed"`) {
-		t.Fatalf("cosign response: %s", cosign)
-	}
-	fullCosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign-full", map[string]any{"require_full_verification": true}, http.StatusUnprocessableEntity)
-	if !strings.Contains(fullCosign, `"code":"COSIGN_FULL_VERIFICATION_UNAVAILABLE"`) {
-		t.Fatalf("full cosign verification problem: %s", fullCosign)
+	cosign := postJSON(t, server, secret, "/v1/artifact-signatures/"+sigID+"/verify-cosign", "int-cosign", map[string]any{"mode": "keyless", "offline": true, "expected_identity": "repo:owner/name", "expected_issuer": "https://token.actions.githubusercontent.com"}, http.StatusUnprocessableEntity)
+	if !strings.Contains(cosign, `"code":"COSIGN_FULL_VERIFICATION_UNAVAILABLE"`) {
+		t.Fatalf("unconfigured Cosign verification problem: %s", cosign)
 	}
 	postJSON(t, server, secret, "/v1/signing-providers", "int-provider", map[string]any{"name": "dev", "type": "local_encrypted_dev", "key_ref": "file://dev.keys", "encrypted": true}, http.StatusCreated)
 	batchBody := postJSON(t, server, secret, "/v1/merkle-batches", "int-batch", map[string]any{}, http.StatusCreated)
@@ -1062,8 +1335,8 @@ func TestIntegrityRuntimeHTTPFlow(t *testing.T) {
 	}
 }
 
-func TestVEXAndExceptionHTTPValidation(t *testing.T) {
-	server, secret := testServer(t)
+func TestVEXHTTPValidation(t *testing.T) {
+	server, secret, factory := vexCompletionTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "vex-prod", map[string]any{"name": "VEX Product", "slug": "vex-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "vex-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -1130,11 +1403,31 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 		},
 	}, http.StatusCreated)
 	vexID := dataField(t, vexBody, "id")
+	var vexReceipt struct {
+		Data domain.VEXDocument `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(vexBody), &vexReceipt); err != nil || vexReceipt.Data.ID != vexID {
+		t.Fatal("VEX upload did not return its actual document receipt", err)
+	}
+	snapshot, err := factory.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := completeVEXFixtureJob(t.Context(), factory, snapshot, vexID); err != nil {
+		t.Fatal("VEX fixture worker did not complete the actual import", err)
+	}
 	getJSON(t, server, secret, "/v1/vex/"+vexID, http.StatusOK)
 	importReport := getJSON(t, server, secret, "/v1/vex/"+vexID+"/import-report", http.StatusOK)
-	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "payload_ref") {
+	if !strings.Contains(importReport, `"status":"parsed"`) || !strings.Contains(importReport, `"decisions_created":1`) || strings.Contains(importReport, "created asynchronously") || strings.Contains(importReport, "unavailable") || strings.Contains(importReport, "payload_ref") {
 		t.Fatalf("unsafe or incomplete VEX import report: %s", importReport)
 	}
+	var scanReceipt struct {
+		Data domain.VulnerabilityScan `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(scanBody), &scanReceipt); err != nil || scanReceipt.Data.ID == "" {
+		t.Fatal("scan receipt cannot locate the characterization reader", err)
+	}
+	server.vulnerabilityDecisionCommands = vexDecisionPointFixture{riskCommandFixture: riskCommandFixture{catalogFixtureCommands{ledger: legacyFixtureLedger(server)}}, scanID: scanReceipt.Data.ID}
 	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
 		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
 	}, http.StatusBadRequest)
@@ -1149,7 +1442,40 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 		t.Fatalf("manual linked VEX decision response unsafe or incomplete: %s", manualDecision)
 	}
 	postJSON(t, server, secret, "/v1/vex", "vex-bad", map[string]any{"release_id": releaseID, "payload": map[string]any{"author": "a", "timestamp": "2026-05-27T12:00:00Z", "statements": []any{}, "extra": true}}, http.StatusBadRequest)
+}
 
+func TestManualDecisionHTTPLinksVEXWithinItsOwnedRelease(t *testing.T) {
+	server, secret := riskCommandTestServer(t)
+	productID := dataField(t, postJSON(t, server, secret, "/v1/products", "manual-vex-product", map[string]any{"name": "Manual VEX Product", "slug": "manual-vex-product"}, http.StatusCreated), "id")
+	releaseID := dataField(t, postJSON(t, server, secret, "/v1/releases", "manual-vex-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated), "id")
+	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "manual-vex-scan", map[string]any{
+		"scanner": "grype", "target_ref": "pkg:oci/payments-api", "release_id": releaseID,
+		"findings": []map[string]any{{"vulnerability": "CVE-2026-0100", "component": "pkg:apk/openssl@3.1.0", "severity": "critical", "state": "open"}},
+	}, http.StatusCreated)
+	findingID := firstFindingID(t, scanBody)
+	vexBody := postJSON(t, server, secret, "/v1/vex", "manual-vex-upload", map[string]any{
+		"release_id": releaseID,
+		"payload": map[string]any{
+			"@context": "https://openvex.dev/ns/v0.2.0", "@id": "https://example.test/vex/manual", "author": "security@example.test", "timestamp": "2026-05-27T12:00:00Z", "version": 1,
+			"statements": []map[string]any{{"vulnerability": map[string]any{"name": "CVE-2026-0100"}, "products": []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}}, "status": "fixed", "justification": "fixed in release candidate", "impact_statement": "patched before release", "action_statement": "ship fixed artifact"}},
+		},
+	}, http.StatusCreated)
+	vexID := dataField(t, vexBody, "id")
+	postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link-bad", map[string]any{
+		"status": "not_affected", "justification": "manual review", "customer_visible": true, "vex_document_id": vexID,
+	}, http.StatusBadRequest)
+	manualDecision := postJSON(t, server, secret, "/v1/vulnerability-findings/"+findingID+"/decisions", "manual-vex-link", map[string]any{
+		"status": "not_affected", "justification": "manual review linked to stored VEX", "impact_statement": "This release is not affected based on a manual review linked to the stored VEX document.", "customer_visible": true, "vex_document_id": vexID,
+	}, http.StatusCreated)
+	if !strings.Contains(manualDecision, `"vex_document_id":"`+vexID+`"`) || strings.Contains(manualDecision, "payload_ref") {
+		t.Fatalf("manual linked VEX decision response unsafe or incomplete: %s", manualDecision)
+	}
+}
+
+func TestExceptionHTTPFlowPreservesLifecycleAndScope(t *testing.T) {
+	server, secret := governanceTestServer(t)
+	productID := dataField(t, postJSON(t, server, secret, "/v1/products", "exception-product", map[string]any{"name": "Exception Product", "slug": "exception-product"}, http.StatusCreated), "id")
+	releaseID := dataField(t, postJSON(t, server, secret, "/v1/releases", "exception-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated), "id")
 	exceptionBody := postJSON(t, server, secret, "/v1/exceptions", "exception-create", map[string]any{"release_id": releaseID, "reason": "temporary acceptance", "owner": "security", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}, http.StatusCreated)
 	exceptionID := dataField(t, exceptionBody, "id")
 	postJSON(t, server, secret, "/v1/exceptions/"+exceptionID+"/approve", "exception-approve", map[string]any{}, http.StatusOK)
@@ -1157,7 +1483,7 @@ func TestVEXAndExceptionHTTPValidation(t *testing.T) {
 }
 
 func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "prov-prod", map[string]any{"name": "Provenance Product", "slug": "provenance-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	projectBody := postJSON(t, server, secret, "/v1/projects", "prov-project", map[string]any{"product_id": productID, "name": "api"}, http.StatusCreated)
@@ -1189,6 +1515,13 @@ func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 	}
 	buildBody := postJSON(t, server, collectorSecret, "/v1/builds", "prov-build", buildPayload, http.StatusCreated)
 	buildID := dataField(t, buildBody, "id")
+	buildEvidence := postJSON(t, server, secret, "/v1/evidence", "prov-build-evidence", map[string]any{
+		"product_id": productID, "project_id": projectID, "release_id": releaseID, "build_id": buildID,
+		"type": "build", "subtype": "log", "title": "Build log", "payload_hash": artifactDigest,
+	}, http.StatusCreated)
+	if got := dataField(t, buildEvidence, "build_id"); got != buildID {
+		t.Fatalf("created evidence build_id = %q, want %q", got, buildID)
+	}
 	replayed := postJSON(t, server, collectorSecret, "/v1/builds", "prov-build", buildPayload, http.StatusCreated)
 	if replayed != buildBody {
 		t.Fatalf("build idempotency replay changed response\nfirst=%s\nsecond=%s", buildBody, replayed)
@@ -1205,7 +1538,7 @@ func TestCollectorBuildAttestationHTTPFlow(t *testing.T) {
 }
 
 func TestCollectorSupplyChainHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	collectorBody := postJSON(t, server, secret, "/v1/collectors", "supply-collector", map[string]any{"name": "import-bundle", "type": "import_bundle", "version": "0.1.0", "scopes": []string{"bundle:write", "evidence:write"}}, http.StatusCreated)
 	collector, ok := dataMap(t, collectorBody)["collector"].(map[string]any)
 	if !ok {
@@ -1229,7 +1562,7 @@ func TestCollectorSupplyChainHTTPFlow(t *testing.T) {
 }
 
 func TestControlsAndReportsHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "ctrl-prod", map[string]any{"name": "Controls Product", "slug": "controls-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "ctrl-rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -1241,7 +1574,7 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 		"artifact_id": artifactID,
 		"payload": map[string]any{
 			"bomFormat": "CycloneDX", "specVersion": "1.6",
-			"components": []map[string]any{{"name": "api", "purl": "pkg:oci/payments-api"}},
+			"components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:oci/payments-api"}},
 		},
 	}, http.StatusCreated)
 	sbomID := dataField(t, sbomBody, "id")
@@ -1314,7 +1647,7 @@ func TestControlsAndReportsHTTPFlow(t *testing.T) {
 }
 
 func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := catalogQueryTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "inc-prod", map[string]any{"name": "Increment Product", "slug": "increment-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	projectBody := postJSON(t, server, secret, "/v1/projects", "inc-project", map[string]any{"product_id": productID, "name": "api"}, http.StatusCreated)
@@ -1365,12 +1698,20 @@ func TestEvidenceLifecycleSourceDeploymentHTTPFlow(t *testing.T) {
 	}
 	deploymentBody := postJSON(t, server, secret, "/v1/deployments", "inc-deploy", map[string]any{"environment_id": envID, "release_id": releaseID, "artifact_ids": []string{artifactID}, "status": "succeeded", "started_at": "2026-05-28T12:00:00Z"}, http.StatusCreated)
 	deploymentID := dataField(t, deploymentBody, "id")
+	deploymentEvidence := postJSON(t, server, secret, "/v1/evidence", "inc-deployment-evidence", map[string]any{
+		"product_id": productID, "release_id": releaseID, "deployment_id": deploymentID,
+		"type": "deployment", "subtype": "observation", "title": "Deployment observation", "payload_hash": digest,
+	}, http.StatusCreated)
+	if got := dataField(t, deploymentEvidence, "deployment_id"); got != deploymentID {
+		t.Fatalf("created evidence deployment_id = %q, want %q", got, deploymentID)
+	}
 	getJSON(t, server, secret, "/v1/deployments/"+deploymentID, http.StatusOK)
 	getJSON(t, server, secret, "/v1/deployments?release_id="+releaseID+"&environment_id="+envID, http.StatusOK)
 }
 
 func TestRiskWorkflowHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
+	server.bindAPIKeyFixtureResources("test", nil)
 	productBody := postJSON(t, server, secret, "/v1/products", "risk2-prod", map[string]any{"name": "Risk Product", "slug": "risk-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "risk2-release", map[string]any{"product_id": productID, "version": "4.0.0"}, http.StatusCreated)
@@ -1412,7 +1753,9 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 
 	baseSBOM := postJSON(t, server, secret, "/v1/sboms/spdx", "risk2-spdx-base", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"spdxVersion": "SPDX-2.3", "packages": []map[string]any{{"name": "openssl", "versionInfo": "3.1.0"}}}}, http.StatusCreated)
 	targetSBOM := postJSON(t, server, secret, "/v1/sboms/spdx", "risk2-spdx-target", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"spdxVersion": "SPDX-2.3", "packages": []map[string]any{{"name": "openssl", "versionInfo": "3.1.0"}, {"name": "curl", "versionInfo": "8.0.0"}}}}, http.StatusCreated)
-	diffBody := postJSON(t, server, secret, "/v1/sbom-diffs", "risk2-sbom-diff", map[string]any{"base_sbom_id": dataField(t, baseSBOM, "id"), "target_sbom_id": dataField(t, targetSBOM, "id"), "release_id": releaseID}, http.StatusCreated)
+	readKey := postJSON(t, server, secret, "/v1/api-keys", "risk2-read-key", map[string]any{"name": "Risk evidence reader", "scopes": []string{app.ScopeEvidenceRead}}, http.StatusCreated)
+	readSecret := nestedDataField(t, readKey, "secret")
+	diffBody := postJSON(t, server, readSecret, "/v1/sbom-diffs", "risk2-sbom-diff", map[string]any{"base_sbom_id": dataField(t, baseSBOM, "id"), "target_sbom_id": dataField(t, targetSBOM, "id"), "release_id": releaseID}, http.StatusCreated)
 	if !strings.Contains(diffBody, `"added_components"`) {
 		t.Fatalf("sbom diff missing added components: %s", diffBody)
 	}
@@ -1429,7 +1772,7 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 
 	baseContract := postJSON(t, server, secret, "/v1/openapi-contracts", "risk2-oas-base", map[string]any{"product_id": productID, "release_id": releaseID, "version": "1", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "1"}, "paths": map[string]any{"/v1/a": map[string]any{"get": map[string]any{"responses": map[string]any{"200": map[string]any{"description": "ok"}}}}}}}, http.StatusCreated)
 	targetContract := postJSON(t, server, secret, "/v1/openapi-contracts", "risk2-oas-target", map[string]any{"product_id": productID, "release_id": releaseID, "version": "2", "spec": map[string]any{"openapi": "3.1.0", "info": map[string]any{"title": "API", "version": "2"}, "paths": map[string]any{}}}, http.StatusCreated)
-	contractDiff := postJSON(t, server, secret, "/v1/openapi-diffs", "risk2-oas-diff", map[string]any{"base_contract_id": dataField(t, baseContract, "id"), "target_contract_id": dataField(t, targetContract, "id"), "release_id": releaseID}, http.StatusCreated)
+	contractDiff := postJSON(t, server, readSecret, "/v1/openapi-diffs", "risk2-oas-diff", map[string]any{"base_contract_id": dataField(t, baseContract, "id"), "target_contract_id": dataField(t, targetContract, "id"), "release_id": releaseID}, http.StatusCreated)
 	if !strings.Contains(contractDiff, `"result":"breaking"`) {
 		t.Fatalf("contract diff should be breaking: %s", contractDiff)
 	}
@@ -1442,7 +1785,7 @@ func TestRiskWorkflowHTTPFlow(t *testing.T) {
 }
 
 func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "gov-prod", map[string]any{"name": "Gov Product", "slug": "gov-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "gov-release", map[string]any{"product_id": productID, "version": "5.0.0"}, http.StatusCreated)
@@ -1489,10 +1832,11 @@ func TestGovernancePackageAndBundleHTTPFlow(t *testing.T) {
 	bundle := dataMap(t, bundleBody)
 	postJSON(t, server, secret, "/v1/evidence-bundles/import", "gov-bundle-import", bundle, http.StatusCreated)
 	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-bad-root", map[string]any{"name": "bad", "key_id": "root", "algorithm": "Ed25519", "public_key": "bad"}, http.StatusBadRequest)
+	postJSON(t, server, secret, "/v1/dsse-trust-roots", "gov-root-missing-policy", map[string]any{"name": "missing policy", "key_id": "root-2", "algorithm": "Ed25519", "public_key": base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))}, http.StatusBadRequest)
 }
 
 func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	orgBody := postJSON(t, server, secret, "/v1/organizations", "ent-org", map[string]any{"name": "Example", "slug": "example"}, http.StatusCreated)
 	orgID := dataField(t, orgBody, "id")
 	userBody := postJSON(t, server, secret, "/v1/users", "ent-user", map[string]any{"organization_id": orgID, "email": "Admin@Example.test", "display_name": "Admin"}, http.StatusCreated)
@@ -1577,7 +1921,7 @@ func TestEnterprisePortalRetentionAndCommercialCollectorHTTPFlow(t *testing.T) {
 }
 
 func TestCustomerPortalPackageViewHTMLSafety(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := operationsTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "portal-view-product", map[string]any{"name": "Portal Product", "slug": "portal-product"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "portal-view-release", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -1686,12 +2030,12 @@ func TestCustomerPortalPackageFormValidation(t *testing.T) {
 }
 
 func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*", app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -1739,7 +2083,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 		t.Fatalf("anomaly missing limitations: %s", anomaly)
 	}
 
-	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
+	sbomBody := postJSON(t, server, secret, "/v1/sboms", "future-sbom", map[string]any{"release_id": releaseID, "artifact_id": artifactID, "payload": map[string]any{"bomFormat": "CycloneDX", "specVersion": "1.6", "components": []map[string]any{{"type": "library", "name": "api", "purl": "pkg:oci/api"}}}}, http.StatusCreated)
 	sbomID := dataField(t, sbomBody, "id")
 	getJSON(t, server, secret, "/v1/sboms/"+sbomID, http.StatusOK)
 	scanBody := postJSON(t, server, secret, "/v1/vulnerability-scans", "future-vuln-scan", map[string]any{"scanner": "grype", "target_ref": "pkg:oci/api", "release_id": releaseID, "findings": []map[string]any{}}, http.StatusCreated)
@@ -1768,10 +2112,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 
 	providerBody := postJSON(t, server, secret, "/v1/signing-providers", "future-provider", map[string]any{"name": "kms", "type": "aws_kms", "key_ref": "arn:aws:kms:example", "encrypted": true}, http.StatusCreated)
 	providerID := dataField(t, providerBody, "id")
-	op := postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusCreated)
-	if !strings.Contains(op, `"result":"passed"`) {
-		t.Fatalf("signing operation did not pass: %s", op)
-	}
+	postJSON(t, server, secret, "/v1/signing-operations", "future-sign-op", map[string]any{"provider_id": providerID, "subject_type": "release", "subject_id": releaseID, "payload_hash": digest, "external_signature": "sig"}, http.StatusBadRequest)
 	saas := postJSON(t, server, secret, "/v1/saas/profiles", "future-saas", map[string]any{"name": "hosted", "region": "eu", "admin_tenant_id": dataField(t, productBody, "tenant_id"), "isolation_model": "shared-control-plane"}, http.StatusCreated)
 	if !strings.Contains(saas, `"config_hash"`) {
 		t.Fatalf("saas profile missing hash: %s", saas)
@@ -1869,19 +2210,20 @@ func TestSourceSnapshotAndSystemHTTPGaps(t *testing.T) {
 }
 
 func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testing.T) {
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test", ReadinessChecks: []app.ReadinessCheck{{
+	checks := []operationsquery.ReadinessCheck{{
 		Name:          "postgres",
 		Timeout:       time.Second,
 		FailureDetail: "database connectivity is unavailable",
 		Check: func(context.Context) error {
 			return fmt.Errorf("postgres://user:super-secret@database.internal/evydence is unavailable")
 		},
-	}}})
+	}}
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, instanceSecret, err := ledger.BootstrapTenant(t.Context(), "Runtime", "operator", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatalf("bootstrap instance administrator: %v", err)
 	}
-	server, err := NewServerWithOptions(ledger, ServerOptions{BuildIdentity: runtimeinfo.Identity{
+	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{BuildIdentity: runtimeinfo.Identity{
 		Version:               "v1.2.3",
 		Commit:                "0123456789abcdef",
 		BuildTime:             "2026-07-24T12:00:00Z",
@@ -1892,6 +2234,7 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 	if err != nil {
 		t.Fatalf("create server: %v", err)
 	}
+	server.bindOperatorFixtureResources(operatorFixtureResources{checks: checks})
 
 	version := httptest.NewRecorder()
 	server.Handler().ServeHTTP(version, httptest.NewRequest(http.MethodGet, "/v1/version", nil))
@@ -1914,6 +2257,9 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 	server.Handler().ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/v1/ready", nil))
 	if ready.Code != http.StatusServiceUnavailable || !strings.Contains(ready.Body.String(), `"status":"unavailable"`) {
 		t.Fatalf("readiness status=%d body=%s", ready.Code, ready.Body.String())
+	}
+	if ready.Header().Get("Retry-After") != "5" || !strings.Contains(ready.Body.String(), `"retry_class":"dependency_unavailable"`) || !strings.Contains(ready.Body.String(), `"retryable":true`) {
+		t.Fatalf("readiness retry metadata missing: headers=%#v body=%s", ready.Header(), ready.Body.String())
 	}
 	for _, forbidden := range []string{"super-secret", "database.internal", "database connectivity"} {
 		if strings.Contains(ready.Body.String(), forbidden) {
@@ -1955,12 +2301,12 @@ func TestReleaseTransitionsRequireIfMatchAndReportCurrentRevision(t *testing.T) 
 
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
-	ledger := app.NewLedger(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
 	}
-	server, err := NewServer(ledger)
+	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -2415,9 +2761,11 @@ func dsseHTTP(t *testing.T, digest string) []byte {
 			"digest": map[string]string{"sha256": strings.TrimPrefix(digest, "sha256:")},
 		}},
 		"predicate": map[string]any{
-			"builder":   map[string]string{"id": "https://github.com/actions/runner"},
-			"buildType": "https://github.com/actions/workflow",
-			"materials": []map[string]any{{"uri": "git+https://github.com/aatuh/evydence"}},
+			"buildDefinition": map[string]any{
+				"buildType":          "https://github.com/actions/workflow",
+				"externalParameters": map[string]string{"mode": "release"},
+			},
+			"runDetails": map[string]any{"builder": map[string]string{"id": "https://github.com/actions/runner"}},
 		},
 	}
 	statementBody, err := json.Marshal(statement)

@@ -52,7 +52,7 @@ func TestStoreConcurrentIdempotencyAcrossLedgerInstances(t *testing.T) {
 		t.Fatalf("apply migrations: %v", err)
 	}
 
-	owner, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
+	owner, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
 	if err != nil {
 		t.Fatalf("create owner ledger: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestStoreConcurrentIdempotencyAcrossLedgerInstances(t *testing.T) {
 	const callers = 16
 	ledgers := make([]*app.Ledger, 0, callers)
 	for i := 0; i < callers; i++ {
-		ledger, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
+		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
 		if err != nil {
 			t.Fatalf("create ledger instance %d: %v", i, err)
 		}

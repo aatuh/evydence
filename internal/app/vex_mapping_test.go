@@ -25,20 +25,19 @@ func TestOpenVEXStatusMappingFixtures(t *testing.T) {
 
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+			ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 			ctx := context.Background()
 			actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 			vulnerability := fmt.Sprintf("CVE-2026-%04d", index+100)
 			component := fmt.Sprintf("pkg:apk/component-%d@1.0.0", index)
 			uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, vulnerability, component)
 
-			vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
+			preview, err := ledger.PreviewVEXImport(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
 				openVEXStatementFixture(vulnerability, []map[string]any{{"@id": component}}, tt.status, tt.justification),
 			}))
 			if err != nil {
-				t.Fatalf("upload vex: %v", err)
+				t.Fatalf("preview vex: %v", err)
 			}
-
 			active := true
 			decisions, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{
 				ReleaseID:     release.ID,
@@ -48,26 +47,18 @@ func TestOpenVEXStatusMappingFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("list decisions: %v", err)
 			}
-			if len(decisions) != 1 {
-				t.Fatalf("decisions = %#v, want one", decisions)
+			if len(decisions) != 0 {
+				t.Fatalf("preview mutated decisions: %#v", decisions)
 			}
-			decision := decisions[0]
-			if decision.Status != tt.status || decision.Source != "vex" || decision.VEXDocumentID != vex.ID || decision.Justification != tt.justification || !decision.CustomerVisible {
-				t.Fatalf("decision = %#v", decision)
-			}
-			report, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
-			if err != nil {
-				t.Fatalf("import report: %v", err)
-			}
-			if report.StatementCount != 1 || report.DecisionsCreated != 1 || len(report.MappingFailures) != 0 {
-				t.Fatalf("import report = %#v", report)
+			if preview.StatementCount != 1 || preview.DecisionsWouldCreate != 1 || preview.DecisionsWouldSupersede != 0 || preview.StatusSummary[tt.status] != 1 || len(preview.MappingFailures) != 0 {
+				t.Fatalf("preview = %#v", preview)
 			}
 		})
 	}
 }
 
 func TestOpenVEXMappingMultipleProductsAndReleaseScope(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, releaseA, artifact := setupReleaseRiskFixture(t, ledger)
 	releaseB, err := ledger.CreateRelease(ctx, actor, releaseA.ProductID, "2.0.0")
@@ -80,14 +71,14 @@ func TestOpenVEXMappingMultipleProductsAndReleaseScope(t *testing.T) {
 	uploadVEXMappingScan(t, ctx, ledger, actor, releaseA.ID, vulnerability, componentA)
 	uploadVEXMappingScan(t, ctx, ledger, actor, releaseB.ID, vulnerability, componentB)
 
-	vex, err := ledger.UploadVEX(ctx, actor, releaseA.ID, artifact.ID, openVEXFixture(t, []map[string]any{
+	preview, err := ledger.PreviewVEXImport(ctx, actor, releaseA.ID, artifact.ID, openVEXFixture(t, []map[string]any{
 		openVEXStatementFixture(vulnerability, []map[string]any{
 			{"@id": "pkg:oci/aggregate", "subcomponents": []map[string]any{{"@id": componentA}}},
 			{"@id": componentB},
 		}, decisionStatusFixed, "fixed_in_release"),
 	}))
 	if err != nil {
-		t.Fatalf("upload vex: %v", err)
+		t.Fatalf("preview vex: %v", err)
 	}
 
 	active := true
@@ -99,23 +90,19 @@ func TestOpenVEXMappingMultipleProductsAndReleaseScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list release B decisions: %v", err)
 	}
-	if len(releaseADecisions) != 1 || releaseADecisions[0].Component != componentA {
-		t.Fatalf("release A decisions = %#v", releaseADecisions)
+	if len(releaseADecisions) != 0 {
+		t.Fatalf("preview mutated release A decisions: %#v", releaseADecisions)
 	}
 	if len(releaseBDecisions) != 0 {
 		t.Fatalf("VEX uploaded for release A created release B decisions: %#v", releaseBDecisions)
 	}
-	report, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
-	if err != nil {
-		t.Fatalf("import report: %v", err)
-	}
-	if report.DecisionsCreated != 1 || len(report.MappingFailures) != 0 {
-		t.Fatalf("import report = %#v", report)
+	if preview.DecisionsWouldCreate != 1 || preview.DecisionsWouldSupersede != 0 || len(preview.MappingFailures) != 0 {
+		t.Fatalf("preview = %#v", preview)
 	}
 }
 
 func TestOpenVEXDuplicateStatementIsIdempotentWithinImport(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	vulnerability := "CVE-2026-0300"
@@ -123,17 +110,17 @@ func TestOpenVEXDuplicateStatementIsIdempotentWithinImport(t *testing.T) {
 	uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, vulnerability, component)
 	statement := openVEXStatementFixture(vulnerability, []map[string]any{{"@id": component}}, decisionStatusFixed, "fixed_in_release")
 
-	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{statement, statement}))
+	preview, err := ledger.PreviewVEXImport(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{statement, statement}))
 	if err != nil {
-		t.Fatalf("upload vex: %v", err)
+		t.Fatalf("preview vex: %v", err)
 	}
 	active := true
 	decisions, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{ReleaseID: release.ID, Vulnerability: vulnerability, Active: &active})
 	if err != nil {
 		t.Fatalf("list active decisions: %v", err)
 	}
-	if len(decisions) != 1 {
-		t.Fatalf("active decisions = %#v, want one", decisions)
+	if len(decisions) != 0 {
+		t.Fatalf("preview mutated active decisions: %#v", decisions)
 	}
 	inactive := false
 	superseded, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{ReleaseID: release.ID, Vulnerability: vulnerability, Active: &inactive})
@@ -143,17 +130,66 @@ func TestOpenVEXDuplicateStatementIsIdempotentWithinImport(t *testing.T) {
 	if len(superseded) != 0 {
 		t.Fatalf("duplicate statement should not create superseded duplicate versions: %#v", superseded)
 	}
-	report, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
-	if err != nil {
-		t.Fatalf("import report: %v", err)
+	if preview.DecisionsWouldCreate != 1 || preview.DecisionsWouldSupersede != 0 || !stringSliceContains(preview.Warnings, "Duplicate VEX statements") {
+		t.Fatalf("preview = %#v", preview)
 	}
-	if report.DecisionsCreated != 1 || report.DecisionsSuperseded != 0 || !stringSliceContains(report.Warnings, "Duplicate VEX statements") {
-		t.Fatalf("import report = %#v", report)
+}
+
+func TestOpenVEXAmbiguousFindingIsReportedWithoutDecision(t *testing.T) {
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ctx := context.Background()
+	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
+	const vulnerability = "CVE-2026-0350"
+	const component = "pkg:apk/openssl@3.1.0"
+	uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, vulnerability, component)
+	uploadVEXMappingScan(t, ctx, ledger, actor, release.ID, vulnerability, component)
+
+	preview, err := ledger.PreviewVEXImport(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
+		openVEXStatementFixture(vulnerability, []map[string]any{{"@id": component}}, decisionStatusFixed, "fixed_in_release"),
+	}))
+	if err != nil {
+		t.Fatalf("preview vex: %v", err)
+	}
+	if len(preview.MappingFailures) != 1 || preview.MappingFailures[0].Code != "ambiguous_finding" || preview.DecisionsWouldCreate != 0 {
+		t.Fatalf("preview=%#v", preview)
+	}
+	active := true
+	decisions, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{ReleaseID: release.ID, Vulnerability: vulnerability, Active: &active})
+	if err != nil || len(decisions) != 0 {
+		t.Fatalf("decisions=%#v err=%v", decisions, err)
+	}
+}
+
+func TestUnambiguousVEXMatchesPolicy(t *testing.T) {
+	match := func(component string) matchedFinding {
+		return matchedFinding{finding: domain.VulnerabilityFinding{Component: component}}
+	}
+	if matches, ambiguous := unambiguousVEXMatches(nil, nil); ambiguous || len(matches) != 0 {
+		t.Fatalf("empty matches=%#v ambiguous=%v", matches, ambiguous)
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:a"), match("pkg:b")}, nil); !ambiguous {
+		t.Fatal("unscoped multi-match must be ambiguous")
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:a"), match("pkg:b")}, map[string]struct{}{"pkg:a": {}}); !ambiguous {
+		t.Fatal("more matches than product refs must be ambiguous")
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match(""), match("pkg:a")}, map[string]struct{}{"pkg:a": {}, "pkg:b": {}}); !ambiguous {
+		t.Fatal("empty component must be ambiguous")
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:c"), match("pkg:a")}, map[string]struct{}{"pkg:a": {}, "pkg:b": {}}); !ambiguous {
+		t.Fatal("unlisted component must be ambiguous")
+	}
+	if _, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:a"), match("pkg:a")}, map[string]struct{}{"pkg:a": {}, "pkg:b": {}}); !ambiguous {
+		t.Fatal("duplicate component must be ambiguous")
+	}
+	matches, ambiguous := unambiguousVEXMatches([]matchedFinding{match("pkg:a"), match("pkg:b")}, map[string]struct{}{"pkg:a": {}, "pkg:b": {}})
+	if ambiguous || len(matches) != 2 {
+		t.Fatalf("explicit unique matches=%#v ambiguous=%v", matches, ambiguous)
 	}
 }
 
 func TestOpenVEXMappingSupersedesExistingDecisionFixture(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	vulnerability := "CVE-2026-0400"
@@ -167,11 +203,11 @@ func TestOpenVEXMappingSupersedesExistingDecisionFixture(t *testing.T) {
 		t.Fatalf("manual decision: %v", err)
 	}
 
-	vex, err := ledger.UploadVEX(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
+	preview, err := ledger.PreviewVEXImport(ctx, actor, release.ID, artifact.ID, openVEXFixture(t, []map[string]any{
 		openVEXStatementFixture(vulnerability, []map[string]any{{"@id": component}}, decisionStatusFixed, "fixed_in_release"),
 	}))
 	if err != nil {
-		t.Fatalf("upload vex: %v", err)
+		t.Fatalf("preview vex: %v", err)
 	}
 	active := true
 	activeDecisions, err := ledger.ListVulnerabilityDecisions(ctx, actor, ListVulnerabilityDecisionsInput{ReleaseID: release.ID, Vulnerability: vulnerability, Active: &active})
@@ -183,26 +219,21 @@ func TestOpenVEXMappingSupersedesExistingDecisionFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list superseded decisions: %v", err)
 	}
-	if len(activeDecisions) != 1 || activeDecisions[0].Status != decisionStatusFixed || len(superseded) != 1 || superseded[0].Status != decisionStatusUnderInvestigation {
+	if len(activeDecisions) != 1 || activeDecisions[0].Status != decisionStatusUnderInvestigation || len(superseded) != 0 {
 		t.Fatalf("active=%#v superseded=%#v", activeDecisions, superseded)
 	}
-	report, err := ledger.GetVEXImportReport(ctx, actor, vex.ID)
-	if err != nil {
-		t.Fatalf("import report: %v", err)
-	}
-	if report.DecisionsCreated != 1 || report.DecisionsSuperseded != 1 {
-		t.Fatalf("import report = %#v", report)
+	if preview.DecisionsWouldCreate != 1 || preview.DecisionsWouldSupersede != 1 {
+		t.Fatalf("preview = %#v", preview)
 	}
 }
 
 func TestOpenVEXValidationFixturesReturnUsefulSafeErrors(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	tests := []struct {
 		name       string
 		payload    []byte
-		wantDetail string
 		notContain string
 	}{
 		{
@@ -210,7 +241,6 @@ func TestOpenVEXValidationFixturesReturnUsefulSafeErrors(t *testing.T) {
 			payload: openVEXFixture(t, []map[string]any{
 				openVEXStatementFixture("CVE-2026-0500", []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}}, "secret-token-status", "triage"),
 			}),
-			wantDetail: "openvex statement 1 has an unsupported status",
 			notContain: "secret-token-status",
 		},
 		{
@@ -218,19 +248,16 @@ func TestOpenVEXValidationFixturesReturnUsefulSafeErrors(t *testing.T) {
 			payload: openVEXFixture(t, []map[string]any{
 				openVEXStatementFixture("CVE-2026-0501", []map[string]any{{"@id": ""}}, decisionStatusFixed, "fixed"),
 			}),
-			wantDetail: "openvex statement 1 product 1 is missing an @id",
 		},
 		{
-			name:       "malformed document",
-			payload:    []byte(`{"author":"security@example.test"`),
-			wantDetail: "openvex JSON is malformed or contains unsupported fields",
+			name:    "malformed document",
+			payload: []byte(`{"author":"security@example.test"`),
 		},
 		{
 			name: "missing vulnerability",
 			payload: openVEXFixture(t, []map[string]any{
 				openVEXStatementFixture("", []map[string]any{{"@id": "pkg:apk/openssl@3.1.0"}}, decisionStatusFixed, "fixed"),
 			}),
-			wantDetail: "openvex statement 1 is missing a vulnerability name",
 		},
 	}
 
@@ -240,8 +267,8 @@ func TestOpenVEXValidationFixturesReturnUsefulSafeErrors(t *testing.T) {
 			if !errors.Is(err, ErrValidation) {
 				t.Fatalf("err = %v, want validation", err)
 			}
-			if !strings.Contains(err.Error(), tt.wantDetail) {
-				t.Fatalf("err = %q, want detail %q", err, tt.wantDetail)
+			if err.Error() != ErrValidation.Error() {
+				t.Fatalf("err = %q, want stable generic validation detail", err)
 			}
 			if tt.notContain != "" && strings.Contains(err.Error(), tt.notContain) {
 				t.Fatalf("error leaked raw invalid value %q: %v", tt.notContain, err)

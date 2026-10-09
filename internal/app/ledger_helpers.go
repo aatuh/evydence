@@ -5,13 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
 func require(actor domain.Actor, scope string) error {
@@ -31,11 +32,8 @@ func require(actor domain.Actor, scope string) error {
 }
 
 func requireGrantableScopes(actor domain.Actor, scopes []string) error {
-	for _, scope := range scopes {
-		scope = strings.TrimSpace(scope)
-		if requiresExplicitScope(scope) && !actorHasExactScope(actor, scope) {
-			return ErrForbidden
-		}
+	if err := identityapp.AuthorizeAPIKeyScopes(actor, scopes); err != nil {
+		return ErrForbidden
 	}
 	return nil
 }
@@ -45,35 +43,41 @@ func requiresExplicitScope(scope string) bool {
 }
 
 func actorHasExactScope(actor domain.Actor, scope string) bool {
-	for _, got := range actor.Scopes {
-		if got == scope {
+	return actor.HasExplicitScope(scope)
+}
+
+func canonicalHash(item domain.EvidenceItem) (string, error) {
+	fields := evidencedomain.CanonicalEvidenceFields(domain.EvidenceToContextModel(item))
+	return canonicalAnyHash(domain.EvidenceFromContextModel(fields))
+}
+
+func withEvidenceCanonicalOriginRefs(item domain.EvidenceItem) domain.EvidenceItem {
+	for _, ref := range []domain.SubjectRef{
+		{Type: "product", ID: item.ProductID},
+		{Type: "project", ID: item.ProjectID},
+		{Type: "release", ID: item.ReleaseID},
+		{Type: "build", ID: item.BuildID},
+		{Type: "deployment", ID: item.DeploymentID},
+	} {
+		if ref.ID == "" || hasEvidenceSubjectRef(item.SubjectRefs, ref.Type, ref.ID) {
+			continue
+		}
+		item.SubjectRefs = append(item.SubjectRefs, ref)
+	}
+	return item
+}
+
+func hasEvidenceSubjectRef(refs []domain.SubjectRef, subjectType, subjectID string) bool {
+	for _, ref := range refs {
+		if ref.Type == subjectType && ref.ID == subjectID {
 			return true
 		}
 	}
 	return false
 }
 
-func canonicalHash(item domain.EvidenceItem) (string, error) {
-	item.CanonicalHash = ""
-	item.ChainEntryID = ""
-	item.SignatureRefs = nil
-	return canonicalAnyHash(item)
-}
-
 func canonicalAnyHash(v any) (string, error) {
-	body, err := json.Marshal(v)
-	if err != nil {
-		return "", err
-	}
-	var normalized any
-	if err := json.Unmarshal(body, &normalized); err != nil {
-		return "", err
-	}
-	body, err = json.Marshal(normalized)
-	if err != nil {
-		return "", err
-	}
-	return hashBytes(body), nil
+	return application.NormalizedJSONHash(v)
 }
 
 func hashBytes(body []byte) string {
@@ -92,11 +96,7 @@ func validDigest(value string) bool {
 }
 
 func newID(prefix string) string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
-	return prefix + "_" + hex.EncodeToString(b[:])
+	return application.NewID(prefix)
 }
 
 func randomToken(n int) string {
@@ -112,6 +112,13 @@ func secretPrefix(secret string) string {
 		return secret
 	}
 	return secret[:12]
+}
+
+func signingKeyProvider(key domain.SigningKey) string {
+	if key.Provider == "" {
+		return domain.SigningKeyDefaultProvider
+	}
+	return key.Provider
 }
 
 func sortedStrings(in []string) []string {
@@ -142,48 +149,12 @@ func nonEmpty(value, fallback string) string {
 	return value
 }
 
-func subjectForArtifact(artifactID string) []domain.SubjectRef {
-	if strings.TrimSpace(artifactID) == "" {
-		return nil
-	}
-	return []domain.SubjectRef{{Type: "artifact", ID: artifactID}}
-}
-
 func IsValidation(err error) bool {
 	return errors.Is(err, ErrValidation)
 }
 
-func ProblemCode(err error) string {
-	switch {
-	case errors.Is(err, ErrUnauthorized):
-		return "UNAUTHORIZED"
-	case errors.Is(err, ErrForbidden):
-		return "FORBIDDEN"
-	case errors.Is(err, ErrNotFound):
-		return "NOT_FOUND"
-	case CurrentVersionConflict(err):
-		return "VERSION_CONFLICT"
-	case errors.Is(err, ErrConflict):
-		return "CONFLICT"
-	case errors.Is(err, ErrImmutable):
-		return "EVIDENCE_IMMUTABLE"
-	case errors.Is(err, ErrIdempotencyConflict):
-		return "IDEMPOTENCY_KEY_REUSED"
-	case errors.Is(err, ErrIdempotencyInProgress):
-		return "IDEMPOTENCY_IN_PROGRESS"
-	case errors.Is(err, ErrIdempotencyFailed):
-		return "IDEMPOTENCY_REQUEST_FAILED"
-	case errors.Is(err, ErrFullVerificationUnavailable):
-		return "COSIGN_FULL_VERIFICATION_UNAVAILABLE"
-	case errors.Is(err, ErrVerificationFailed):
-		return "VERIFICATION_FAILED"
-	case errors.Is(err, ErrRateLimited):
-		return "RATE_LIMITED"
-	case errors.Is(err, ErrValidation):
-		return "VALIDATION_FAILED"
-	default:
-		return "INTERNAL_ERROR"
-	}
+func ProblemCode(err error) ErrorCode {
+	return DescribeProblem(err).Code
 }
 
 func CurrentVersionConflict(err error) bool {
@@ -192,31 +163,9 @@ func CurrentVersionConflict(err error) bool {
 }
 
 func StatusCode(err error) int {
-	switch {
-	case errors.Is(err, ErrUnauthorized):
-		return 401
-	case errors.Is(err, ErrForbidden):
-		return 403
-	case errors.Is(err, ErrNotFound):
-		return 404
-	case errors.Is(err, ErrConflict), errors.Is(err, ErrImmutable), errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrIdempotencyInProgress), errors.Is(err, ErrIdempotencyFailed):
-		return 409
-	case errors.Is(err, ErrValidation):
-		return 400
-	case errors.Is(err, ErrFullVerificationUnavailable), errors.Is(err, ErrVerificationFailed):
-		return 422
-	case errors.Is(err, ErrRateLimited):
-		return 429
-	default:
-		return 500
-	}
+	return DescribeProblem(err).Status
 }
 
 func SafeErrorDetail(err error) string {
-	switch StatusCode(err) {
-	case 500:
-		return "internal server error"
-	default:
-		return fmt.Sprintf("%s", err)
-	}
+	return DescribeProblem(err).Detail
 }

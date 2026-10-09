@@ -9,8 +9,13 @@ if [ -z "${EVYDENCE_TEST_DATABASE_URL:-}" ]; then
   exit 2
 fi
 
+# Independent packages share one live database. Serialize their test binaries
+# without changing concurrency inside tests, race detection or fixture deadlines.
+export GOFLAGS="${GOFLAGS:+$GOFLAGS }-p=1"
+
 printf '%s\n' "Running Evydence production readiness checks"
 
+make integration-check
 make release-check
 make coverage-check
 make migration-compatibility-check

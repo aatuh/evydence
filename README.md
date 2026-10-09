@@ -3,7 +3,7 @@
 [![CI](https://github.com/aatuh/evydence/actions/workflows/ci.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
-![Go Version](https://img.shields.io/badge/go-1.25+-00ADD8.svg)
+![Go Version](https://img.shields.io/badge/go-1.26.9+-00ADD8.svg)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-186%20precise%20operations-brightgreen.svg)
 ![Coverage Gate](https://img.shields.io/badge/production%20coverage-80%25+-brightgreen.svg)
 
@@ -125,6 +125,11 @@ For the first CI wiring example, start with the
 [GitHub Actions quickstart release evidence workflow](docs/github-actions/quickstart-release-evidence.yml),
 then move to the scanner-oriented workflow once your runner has pinned scanner
 versions.
+Before wiring external generators or scanners, review the
+[evidence format compatibility matrix](docs/reference/evidence-format-compatibility.md).
+It distinguishes the currently tested reduced JSON contracts from versions or
+fields that a parser might accept incidentally; scanner producer names do not
+imply native Grype, Trivy, or other scanner-format support.
 For concrete JSON outputs to inspect without running a full stack, open the
 sample readiness report,
 [customer-package manifest](examples/end-to-end-release-evidence/sample-customer-package-manifest.json),
@@ -217,12 +222,13 @@ security.
 ## Local API
 
 ```sh
+docker compose up -d postgres
 cp .api.env.example .api.env
 set -a; . ./.api.env; set +a
 EVYDENCE_PRINT_BOOTSTRAP_SECRET=true go run ./cmd/evydence-api
 ```
 
-The API listens on `EVYDENCE_ADDR`, defaulting to `:8080`. Local bootstrap output includes a one-time admin API key secret. Leave `EVYDENCE_DATABASE_URL` unset for in-process local demos, or set it to use PostgreSQL-backed durable state.
+The API listens on `EVYDENCE_ADDR`, defaulting to `:8080`. Local bootstrap output includes a one-time admin API key secret on an empty database; restarts do not reissue it. Current source requires `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`, including local evaluation. The former `local_memory` API profile is retired; see the [configuration migration note](docs/reference/configuration.md#retired-local-memory-profile-unreleased). Unit tests can still use focused in-memory fakes.
 
 Use the secret as:
 
@@ -261,4 +267,4 @@ make postgres-integration-test
 
 `make finalize` runs the project-owned formatting, unit, OpenAPI, docs, deployment, and SDK gates. `make release-check` extends that with lint, gosec, govulncheck, race tests, and live PostgreSQL gates when `EVYDENCE_TEST_DATABASE_URL` is configured. `make coverage` is the no-database local coverage view; `make coverage-check` is the production coverage gate and requires `EVYDENCE_TEST_DATABASE_URL` so PostgreSQL-backed coverage is included.
 
-`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required release-candidate evidence, but it does not by itself close the remaining service decomposition, PKCS#11/native HSM custody, direct provider-specific management API/group synchronization, broader object-lock enforcement beyond configured bucket/sample-object checks, HA, and exit-review work. Production API and worker processes default to relational-only PostgreSQL loads and skip compatibility snapshot writes; the compatibility snapshot remains for migration, recovery, and local workflows. Critical runtime mutations for tenants, credential hashes, idempotency, audit-chain entries, release bundles, signatures, verification results, vulnerability decisions, and outbox jobs use focused PostgreSQL write paths when available. Release-ledger and evidence-core mutations for products, projects, releases, artifacts, evidence items, evidence lifecycle events, SBOMs, vulnerability scans, OpenAPI contracts, VEX documents, audit-chain entries, and parser outbox jobs also use focused PostgreSQL write paths when available. Remaining aggregate persistence calls use PostgreSQL relational synchronization without writing the compatibility snapshot when that store is configured. Current self-hosted production guidance still uses a single API writer replica; production API startup rejects unsupported writer modes and declared replica counts above one, then enforces that stance with a PostgreSQL advisory writer lease. Worker replicas may scale through PostgreSQL outbox row locking.
+`make production-check` is stricter: it requires `EVYDENCE_TEST_DATABASE_URL` plus an isolated loopback MinIO service configured through `EVYDENCE_TEST_S3_*`, enforces the configured coverage threshold, and runs a release artifact signing smoke test. Passing the gate is required release-candidate evidence, but it does not by itself close the remaining service decomposition, PKCS#11/native HSM custody, direct provider-specific management API/group synchronization, broader object-lock enforcement beyond configured bucket/sample-object checks, HA, and exit-review work. Production API and worker processes default to relational-only PostgreSQL loads and skip compatibility snapshot writes; the compatibility snapshot remains for migration, recovery, and local workflows. Critical runtime mutations for tenants, credential hashes, idempotency, audit-chain entries, release bundles, signatures, verification results, vulnerability decisions, and outbox jobs use focused PostgreSQL write paths when available. Release-ledger and evidence-core mutations for products, projects, releases, artifacts, evidence items, evidence lifecycle events, SBOMs, vulnerability scans, OpenAPI contracts, VEX documents, audit-chain entries, and parser outbox jobs also use focused PostgreSQL write paths when available. Remaining aggregate persistence calls use PostgreSQL relational synchronization without writing the compatibility snapshot when that store is configured. Current self-hosted production guidance still uses a single API writer replica; production API startup rejects unsupported writer modes and declared replica counts above one, then enforces that stance with a PostgreSQL advisory writer lease. Worker replicas may scale through PostgreSQL outbox row locking.

@@ -19,6 +19,18 @@ make openapi-check
 `make openapi-check` regenerates the contract, compares it with the committed file, and runs route contract tests for the HTTP adapter.
 It also checks that the rendered static API docs in [`docs/openapi/index.html`](../openapi/index.html) and `site/marketing/public/api/index.html` match the committed contract.
 
+Check public compatibility against the checked-in release artifact baseline:
+
+```sh
+OASDIFF_BIN=/path/to/oasdiff make openapi-breaking-check
+```
+
+CI supplies the pinned, checksum-verified `oasdiff` binary. The baseline,
+exception constraints, stable-line rule, and deprecation lifecycle are defined
+in [API Versioning And Deprecation](api-versioning.md). Do not replace the
+baseline with a branch or a network URL: it must remain tied to a verified
+release asset.
+
 Check precision regression:
 
 ```sh
@@ -29,6 +41,21 @@ make openapi-precision-check
 registered public routes and fails if any operation falls back to a broad
 request or response shape. It also fails when a public operation is missing a
 valid `x-evydence-stability` classification.
+
+Check the generated stability inventory:
+
+```sh
+make api-inventory-check
+```
+
+This validates the generated [public API inventory](api-inventory.md): every
+operation must have one operation ID, a stability classification, a bounded
+context owner, an auth/scopes contract, documented success and Problem Details
+error responses, and precise schemas. Regenerate it with:
+
+```sh
+python3 scripts/api_inventory.py --write
+```
 
 Render the human-readable static API docs after changing route metadata:
 
@@ -88,7 +115,7 @@ GET /v1/openapi.json
 - `openapi.yaml` is generated in a compact JSON-compatible representation.
 - `docs/openapi/index.html` is generated from `openapi.yaml` for human review.
 - Registered public routes have endpoint-specific request and response schemas.
-- New routes must update operation metadata, component schemas, `openapi.yaml`, the generated [API contract matrix](api-contract-matrix.md), the [product boundary](product-boundary.md), and the rendered [OpenAPI docs](../openapi/index.html).
+- New routes must update operation metadata, component schemas, `openapi.yaml`, the generated [API contract matrix](api-contract-matrix.md), [public API inventory](api-inventory.md), the [product boundary](product-boundary.md), and the rendered [OpenAPI docs](../openapi/index.html).
 - Do not hand-edit `openapi.yaml`; update route metadata or the generator, then run `make openapi-check`.
 
 Route registration and OpenAPI generation use the same HTTP adapter registry so tests can catch missing routes or stale operation metadata.

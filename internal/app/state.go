@@ -378,24 +378,6 @@ func (l *Ledger) releaseLedgerMutationLocked() (ReleaseLedgerMutation, error) {
 	return releaseLedgerMutationFromState(state), nil
 }
 
-func ReleaseLedgerMutationFromState(state PersistedState) ReleaseLedgerMutation {
-	return releaseLedgerMutationFromState(state)
-}
-
-func (l *Ledger) persistReleaseLedgerWithOutboxLocked(ctx context.Context, job OutboxJob) error {
-	mutation, err := l.releaseLedgerMutationLocked()
-	if err != nil {
-		return err
-	}
-	mutation.OutboxJobs = append(mutation.OutboxJobs, job)
-	if _, ok := l.store.(ReleaseLedgerMutationStore); !ok {
-		if err := l.enqueueJob(ctx, job); err != nil {
-			return err
-		}
-	}
-	return l.persistReleaseLedgerLocked(ctx, mutation)
-}
-
 func (l *Ledger) persistCriticalStateLocked(ctx context.Context) error {
 	mutation, err := l.criticalMutationLocked()
 	if err != nil {
@@ -446,6 +428,9 @@ func releaseLedgerMutationFromState(state PersistedState) ReleaseLedgerMutation 
 	}
 	for _, report := range state.VEXImportReports {
 		mutation.VEXImportReports = append(mutation.VEXImportReports, report)
+	}
+	for _, attestation := range state.BuildAttestations {
+		mutation.BuildAttestations = append(mutation.BuildAttestations, attestation)
 	}
 	for _, decision := range state.Decisions {
 		mutation.VulnerabilityDecisions = append(mutation.VulnerabilityDecisions, decision)
@@ -516,10 +501,6 @@ func criticalMutationFromState(state PersistedState) CriticalMutation {
 		mutation.AuditChainEntries = append(mutation.AuditChainEntries, entries...)
 	}
 	return mutation
-}
-
-func (l *Ledger) enqueue(ctx context.Context, tenantID, kind, subjectType, subjectID string, payload map[string]any) error {
-	return l.enqueueJob(ctx, l.newOutboxJob(tenantID, kind, subjectType, subjectID, payload))
 }
 
 func (l *Ledger) newOutboxJob(tenantID, kind, subjectType, subjectID string, payload map[string]any) OutboxJob {

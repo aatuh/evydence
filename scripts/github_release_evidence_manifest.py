@@ -106,7 +106,8 @@ def main() -> None:
             "scanner": "grype",
             "target_ref": args.target_ref,
             "release_id": args.release_id,
-            "findings": grype_findings(load_json(args.grype_json)),
+            "source_schema": "grype-json.v1",
+            "payload": load_json(args.grype_json),
         }
         payload_path = base / "scan-grype-upload.json"
         write_json(payload_path, payload)
@@ -117,7 +118,8 @@ def main() -> None:
             "scanner": "trivy",
             "target_ref": args.target_ref,
             "release_id": args.release_id,
-            "findings": trivy_findings(load_json(args.trivy_json)),
+            "source_schema": "trivy-json.v1",
+            "payload": load_json(args.trivy_json),
         }
         payload_path = base / "scan-trivy-upload.json"
         write_json(payload_path, payload)

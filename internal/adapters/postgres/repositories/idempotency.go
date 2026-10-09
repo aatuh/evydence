@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -223,7 +224,9 @@ func scanIdempotencyRecord(row pgx.Row) (app.IdempotencyRecord, error) {
 	}
 	record.State = app.IdempotencyState(state)
 	if string(response) != "null" && len(response) > 0 {
-		if err := json.Unmarshal(response, &record.Response); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(response))
+		decoder.UseNumber()
+		if err := decoder.Decode(&record.Response); err != nil {
 			return app.IdempotencyRecord{}, fmt.Errorf("decode idempotency response: %w", err)
 		}
 	}
