@@ -482,8 +482,20 @@ sentinel rather than silently dropping it.
 All six support kinds and five supported approval-subject shapes retain current
 same-product/release parent checks. These typed models do not prove native SQL
 JSON shapes, work/transfer, fences, locks or durability and do not install a
-runtime backend. The manual append/supersession adapter, command migration and
-Ledger write-facade retirement are still required before EVY-906 can close.
+runtime backend. Manual-decision fixtures now also compose the same focused
+command and replay preflight as runtime wiring. One fixture UoW checks current
+source/reference bindings and expected active heads before insertion, then owns
+new decision, supersession projection and audit effects through commit. The
+typed snapshot stores projected DTOs: only derived `superseded_by` changes on
+prior views; all historical core fields remain intact. It does not model SQL
+supersession relationship rows. Zero and 128 heads are accepted, overflow and
+stale/colliding expectations fail without mutation, and failed commits expose
+no partial result. Ordinary fixture seeding uses this command too; exact HTTP
+replay, grant revocation, private-note omission and original VEX/manual-link
+assertions remain intact. The Ledger write facade, input DTO and mapper are
+unchanged package-local test oracles. Public contracts, SQL and migrations are
+unchanged; remaining aggregate state and other declarations still require
+retirement before EVY-906 can close.
 The existing synchronous VEX import/manual-link assertions remain intact;
 additional repository-fixture coverage exercises links to queued documents.
 Repository-backed ingestion fixtures now resolve product/project/release

@@ -16,6 +16,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 type packageReportFixtureScope struct {
@@ -62,7 +63,7 @@ func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string
 	}
 	f.scan = scan
 	due, reviewed := f.release.CreatedAt.Add(24*time.Hour), f.release.CreatedAt
-	f.decision, err = ledger.CreateVulnerabilityDecision(t.Context(), f.actor, scan.Findings[0].ID, app.CreateVulnerabilityDecisionInput{Status: "fixed", Justification: "Reviewed", ImpactStatement: "Patched", ActionStatement: "Ship patch", InternalNotes: "private-triage-" + name, EvidenceIDs: []string{f.evidence.ID}, SupportingRefs: []domain.SubjectRef{{Type: "incident", ID: f.incident.ID}}, ReviewedAt: &reviewed, ReviewDueAt: &due})
+	f.decision, err = createFixtureManualDecision(t.Context(), ledger, f.actor, scan.Findings[0].ID, riskapp.CreateVulnerabilityDecisionInput{Status: "fixed", Justification: "Reviewed", ImpactStatement: "Patched", ActionStatement: "Ship patch", InternalNotes: "private-triage-" + name, EvidenceIDs: []string{f.evidence.ID}, SupportingRefs: []riskdomain.SupportingReference{{Type: "incident", ID: f.incident.ID}}, ReviewedAt: &reviewed, ReviewDueAt: &due})
 	if err != nil {
 		t.Fatal("report fixed decision:", err)
 	}

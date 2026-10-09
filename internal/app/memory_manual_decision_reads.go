@@ -18,47 +18,7 @@ var _ riskapp.VulnerabilityDecisionReader = memoryDecisionRepository{}
 func (r memoryDecisionRepository) ReadDecisionFinding(ctx context.Context, tenant, id string) (riskapp.FindingReference, error) {
 	var out riskapp.FindingReference
 	err := memoryGovernanceRead(ctx, r.uow, tenant, id, func(s *MemoryUnitOfWorkSnapshot) error {
-		count := 0
-		for key, scan := range s.VulnerabilityScans {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if key != scan.ID || scan.TenantID != tenant {
-				continue
-			}
-			for _, f := range scan.Findings {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-				if f.ID != id {
-					continue
-				}
-				owner, err := memoryDecisionParsedOwner(s, tenant, scan.EvidenceID, "vulnerability_scan", scan.ReleaseID, "")
-				if err != nil || owner.ReleaseID == "" {
-					if errors.Is(err, ErrValidation) {
-						return err
-					}
-					continue
-				}
-				for _, text := range []string{scan.ID, owner.ProductID, owner.ReleaseID, s.Evidence[scan.EvidenceID].ProjectID, f.Vulnerability, f.Component} {
-					if !memoryGovernanceText(text, 1024) {
-						return ErrValidation
-					}
-				}
-				if strings.TrimSpace(f.Vulnerability) == "" || !memoryGovernanceText(f.Severity, 128) || !memoryGovernanceText(f.State, 128) {
-					return ErrValidation
-				}
-				count++
-				if count > 1 {
-					return ErrConflict
-				}
-				out = riskapp.FindingReference{ID: id, TenantID: tenant, ScanID: scan.ID, ProductID: owner.ProductID, ProjectID: s.Evidence[scan.EvidenceID].ProjectID, ReleaseID: owner.ReleaseID, Vulnerability: f.Vulnerability, Component: f.Component, Severity: f.Severity, State: f.State}
-			}
-		}
-		if count == 0 {
-			return ErrNotFound
-		}
-		return memoryDecisionSBOMContext(ctx, s, &out)
+		return readMemoryDecisionFinding(ctx, s, tenant, id, &out)
 	})
 	if err != nil {
 		return riskapp.FindingReference{}, err
@@ -185,48 +145,96 @@ func (r memoryDecisionRepository) ReadActiveDecisionHeads(ctx context.Context, t
 	}
 	var out []riskapp.ActiveDecisionHead
 	err := memoryGovernanceRead(ctx, r.uow, tenant, finding, func(s *MemoryUnitOfWorkSnapshot) error {
-		ids := make([]string, 0, limit)
-		for id, v := range s.Decisions {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if v.TenantID != tenant || v.FindingID != finding || v.SupersededBy != "" {
-				continue
-			}
-			position := sort.SearchStrings(ids, id)
-			if position >= limit {
-				continue
-			}
-			if len(ids) < limit {
-				ids = append(ids, "")
-			}
-			copy(ids[position+1:], ids[position:])
-			ids[position] = id
-		}
-		out = make([]riskapp.ActiveDecisionHead, 0, len(ids))
-		for _, id := range ids {
-			v := s.Decisions[id]
-			if v.ID != id {
-				return ErrConflict
-			}
-			for _, text := range []string{v.ID, v.ScanID, v.ReleaseID} {
-				if !memoryGovernanceText(text, 1024) {
-					return ErrValidation
-				}
-			}
-			if !memoryGovernanceText(v.Status, 128) {
-				return ErrValidation
-			}
-			status, err := riskdomain.ParseDecisionStatus(v.Status)
-			if err != nil {
-				return ErrConflict
-			}
-			out = append(out, riskapp.ActiveDecisionHead{ID: id, TenantID: tenant, FindingID: finding, ScanID: v.ScanID, ReleaseID: v.ReleaseID, Status: status})
-		}
-		return ctx.Err()
+		return readMemoryActiveDecisionHeads(ctx, s, tenant, finding, limit, &out)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func readMemoryDecisionFinding(ctx context.Context, s *MemoryUnitOfWorkSnapshot, tenant, id string, out *riskapp.FindingReference) error {
+	count := 0
+	for key, scan := range s.VulnerabilityScans {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if key != scan.ID || scan.TenantID != tenant {
+			continue
+		}
+		for _, f := range scan.Findings {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if f.ID != id {
+				continue
+			}
+			owner, err := memoryDecisionParsedOwner(s, tenant, scan.EvidenceID, "vulnerability_scan", scan.ReleaseID, "")
+			if err != nil || owner.ReleaseID == "" {
+				if errors.Is(err, ErrValidation) {
+					return err
+				}
+				continue
+			}
+			for _, text := range []string{scan.ID, owner.ProductID, owner.ReleaseID, s.Evidence[scan.EvidenceID].ProjectID, f.Vulnerability, f.Component} {
+				if !memoryGovernanceText(text, 1024) {
+					return ErrValidation
+				}
+			}
+			if strings.TrimSpace(f.Vulnerability) == "" || !memoryGovernanceText(f.Severity, 128) || !memoryGovernanceText(f.State, 128) {
+				return ErrValidation
+			}
+			count++
+			if count > 1 {
+				return ErrConflict
+			}
+			*out = riskapp.FindingReference{ID: id, TenantID: tenant, ScanID: scan.ID, ProductID: owner.ProductID, ProjectID: s.Evidence[scan.EvidenceID].ProjectID, ReleaseID: owner.ReleaseID, Vulnerability: f.Vulnerability, Component: f.Component, Severity: f.Severity, State: f.State}
+		}
+	}
+	if count == 0 {
+		return ErrNotFound
+	}
+	return memoryDecisionSBOMContext(ctx, s, out)
+}
+
+func readMemoryActiveDecisionHeads(ctx context.Context, s *MemoryUnitOfWorkSnapshot, tenant, finding string, limit int, out *[]riskapp.ActiveDecisionHead) error {
+	ids := make([]string, 0, limit)
+	for id, v := range s.Decisions {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if v.TenantID != tenant || v.FindingID != finding || v.SupersededBy != "" {
+			continue
+		}
+		position := sort.SearchStrings(ids, id)
+		if position >= limit {
+			continue
+		}
+		if len(ids) < limit {
+			ids = append(ids, "")
+		}
+		copy(ids[position+1:], ids[position:])
+		ids[position] = id
+	}
+	*out = make([]riskapp.ActiveDecisionHead, 0, len(ids))
+	for _, id := range ids {
+		v := s.Decisions[id]
+		if v.ID != id {
+			return ErrConflict
+		}
+		for _, text := range []string{v.ID, v.ScanID, v.ReleaseID} {
+			if !memoryGovernanceText(text, 1024) {
+				return ErrValidation
+			}
+		}
+		if !memoryGovernanceText(v.Status, 128) {
+			return ErrValidation
+		}
+		status, err := riskdomain.ParseDecisionStatus(v.Status)
+		if err != nil {
+			return ErrConflict
+		}
+		*out = append(*out, riskapp.ActiveDecisionHead{ID: id, TenantID: tenant, FindingID: finding, ScanID: v.ScanID, ReleaseID: v.ReleaseID, Status: status})
+	}
+	return ctx.Err()
 }

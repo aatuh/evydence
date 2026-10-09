@@ -20,20 +20,6 @@ const (
 	decisionStatusUnderInvestigation = "under_investigation"
 )
 
-type CreateVulnerabilityDecisionInput struct {
-	Status          string
-	Justification   string
-	ImpactStatement string
-	ActionStatement string
-	CustomerVisible bool
-	InternalNotes   string
-	EvidenceIDs     []string
-	SupportingRefs  []domain.SubjectRef
-	VEXDocumentID   string
-	ReviewedAt      *time.Time
-	ReviewDueAt     *time.Time
-}
-
 type openVEXDocument struct {
 	Context    any                `json:"@context"`
 	ID         string             `json:"@id"`

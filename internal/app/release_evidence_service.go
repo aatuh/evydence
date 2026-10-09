@@ -7,8 +7,6 @@ import (
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
-	riskapp "github.com/aatuh/evydence/internal/risk/app"
-	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
 func (l *Ledger) CreateProduct(ctx context.Context, actor domain.Actor, name, slug string) (domain.Product, error) {
@@ -135,22 +133,4 @@ func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, a
 func (l *Ledger) UploadVEXPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.VEXDocument, error) {
 	value, err := l.evidenceCommands.UploadVEXPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
 	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, findingID string, in CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
-	value, err := l.riskCommands.CreateVulnerabilityDecision(ctx, actor, findingID, riskapp.CreateVulnerabilityDecisionInput{
-		Status: in.Status, Justification: in.Justification, ImpactStatement: in.ImpactStatement,
-		ActionStatement: in.ActionStatement, CustomerVisible: in.CustomerVisible, InternalNotes: in.InternalNotes,
-		EvidenceIDs: append([]string(nil), in.EvidenceIDs...), SupportingRefs: supportingRefsToRiskContext(in.SupportingRefs),
-		VEXDocumentID: in.VEXDocumentID, ReviewedAt: cloneTimePtr(in.ReviewedAt), ReviewDueAt: cloneTimePtr(in.ReviewDueAt),
-	})
-	return domain.VulnerabilityDecisionFromContextModel(value), fromRiskContextError(err)
-}
-
-func supportingRefsToRiskContext(values []domain.SubjectRef) []riskdomain.SupportingReference {
-	result := make([]riskdomain.SupportingReference, 0, len(values))
-	for _, value := range values {
-		result = append(result, riskdomain.SupportingReference{Type: value.Type, ID: value.ID, Digest: value.Digest})
-	}
-	return result
 }

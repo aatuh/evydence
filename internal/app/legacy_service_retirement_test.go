@@ -111,6 +111,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"riskDecisionSummaryToLegacy":                true,
 		"riskSupportingRefsToLegacy":                 true,
 		"customerDecisionSummary":                    true,
+		"supportingRefsToRiskContext":                true,
 	}
 	retired := map[string]bool{
 		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
@@ -146,6 +147,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"VulnerabilityDecisionSummaryReport": true,
 		"ListVulnerabilityDecisions":         true,
 		"EvaluateRelease":                    true,
+		"CreateVulnerabilityDecision":        true,
 		"PreviewVEXImport":                   true, "PreviewCycloneDXVEXImport": true,
 		"findMatchingFindingsLocked": true, "previewOpenVEXDecisionEffectsLocked": true,
 		"findCycloneDXVEXMatchingFindingsLocked": true, "previewCycloneDXVEXDecisionEffectsLocked": true,
@@ -179,7 +181,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}
 				switch value.Name.Name {
-				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput":
+				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput", "CreateVulnerabilityDecisionInput":
 					t.Errorf("%s retains retired aggregate input %s", name, value.Name.Name)
 				}
 			case *ast.FuncDecl:

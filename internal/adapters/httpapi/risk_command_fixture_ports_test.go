@@ -132,41 +132,20 @@ func (e riskFixtureReplayExecutor) WithBody(ctx context.Context, actor domain.Ac
 }
 
 func (f riskCommandFixture) AuthorizeVulnerabilityDecision(ctx context.Context, actor domain.Actor, id string) error {
-	authorizer := riskapp.NewVulnerabilityDecisionWriteAuthorizer()
-	if err := authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	command, err := f.manualDecision()
+	if err != nil {
 		return err
 	}
-	if err := validateControlEvidencePathID(id); err != nil {
-		return err
-	}
-	return f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
-		reader, ok := repos.Decisions.(riskapp.VulnerabilityDecisionReader)
-		if !ok {
-			return app.ErrValidation
-		}
-		// The focused manual-decision projection rechecks current typed source,
-		// parents and ambiguity without reading decision history or private notes.
-		owner, err := reader.ReadDecisionFinding(ctx, actor.TenantID, id)
-		if err != nil {
-			return err
-		}
-		if owner.TenantID != actor.TenantID || owner.ID != id || owner.ScanID == "" || owner.ProductID == "" || owner.ReleaseID == "" {
-			return app.ErrNotFound
-		}
-		return authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopeEvidenceWrite, Resources: application.ResourceReferences{ProductID: owner.ProductID, ProjectID: owner.ProjectID, ReleaseID: owner.ReleaseID}})
-	})
+	return policyEvaluationFixtureError(command.AuthorizeVulnerabilityDecision(ctx, actor, id))
 }
 
 func (f riskCommandFixture) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, id string, input riskapp.CreateVulnerabilityDecisionInput) (riskdomain.VulnerabilityDecision, error) {
-	refs := make([]domain.SubjectRef, 0, len(input.SupportingRefs))
-	for _, ref := range input.SupportingRefs {
-		refs = append(refs, domain.SubjectRef{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})
-	}
-	value, err := f.commandLedger(ctx).CreateVulnerabilityDecision(ctx, actor, id, app.CreateVulnerabilityDecisionInput{Status: input.Status, Justification: input.Justification, ImpactStatement: input.ImpactStatement, ActionStatement: input.ActionStatement, CustomerVisible: input.CustomerVisible, InternalNotes: input.InternalNotes, EvidenceIDs: slices.Clone(input.EvidenceIDs), SupportingRefs: refs, VEXDocumentID: input.VEXDocumentID, ReviewedAt: copyDecisionSummaryTime(input.ReviewedAt), ReviewDueAt: copyDecisionSummaryTime(input.ReviewDueAt)})
+	command, err := f.manualDecision()
 	if err != nil {
 		return riskdomain.VulnerabilityDecision{}, err
 	}
-	return domain.VulnerabilityDecisionToContextModel(value)
+	value, err := command.CreateVulnerabilityDecision(ctx, actor, id, input)
+	return value, policyEvaluationFixtureError(err)
 }
 
 func (f riskCommandFixture) AuthorizeEvaluateRelease(ctx context.Context, actor domain.Actor, id string) error {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
 type riskReportFixtureScope struct {
@@ -21,6 +22,19 @@ type riskReportFixtureScope struct {
 }
 
 func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) riskReportFixtureScope {
+	t.Helper()
+	f := seedRiskReportFixtureParentScope(t, ledger, name)
+	var err error
+	f.head, err = createFixtureManualDecision(t.Context(), ledger, f.actor, f.scan.Findings[0].ID, riskapp.CreateVulnerabilityDecisionInput{Status: "affected", Justification: "Reviewed", ImpactStatement: "Under review", ActionStatement: "Patch planned", CustomerVisible: true, InternalNotes: "private triage " + name})
+	if err != nil {
+		t.Fatal("seed report decision:", err)
+	}
+	return f
+}
+
+// Missing-repository characterization needs real cached parents and scans,
+// but must not bypass the native command's required transaction to seed writes.
+func seedRiskReportFixtureParentScope(t *testing.T, ledger *app.Ledger, name string) riskReportFixtureScope {
 	t.Helper()
 	f := riskReportFixtureScope{riskQueryFixtureScope: riskQueryFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}}
 	var err error
@@ -33,10 +47,6 @@ func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) r
 		t.Fatal("seed report scan:", err)
 	}
 	f.scan = scan
-	f.head, err = ledger.CreateVulnerabilityDecision(t.Context(), f.actor, scan.Findings[0].ID, app.CreateVulnerabilityDecisionInput{Status: "affected", Justification: "Reviewed", ImpactStatement: "Under review", ActionStatement: "Patch planned", CustomerVisible: true, InternalNotes: "private triage " + name})
-	if err != nil {
-		t.Fatal("seed report decision:", err)
-	}
 	return f
 }
 

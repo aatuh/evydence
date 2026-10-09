@@ -40,7 +40,7 @@ func seedRiskQueryFixtureScope(t *testing.T, ledger *app.Ledger, name string) ri
 		status string
 		public bool
 	}{{0, "under_investigation", true}, {0, "affected", true}, {1, "under_investigation", false}} {
-		value, err := ledger.CreateVulnerabilityDecision(t.Context(), scope.actor, scan.Findings[tc.index].ID, app.CreateVulnerabilityDecisionInput{Status: tc.status, Justification: "reviewed", ImpactStatement: "impact under review", ActionStatement: "patch planned", CustomerVisible: tc.public, InternalNotes: "private triage " + name})
+		value, err := createFixtureManualDecision(t.Context(), ledger, scope.actor, scan.Findings[tc.index].ID, riskapp.CreateVulnerabilityDecisionInput{Status: tc.status, Justification: "reviewed", ImpactStatement: "impact under review", ActionStatement: "patch planned", CustomerVisible: tc.public, InternalNotes: "private triage " + name})
 		if err != nil {
 			t.Fatalf("seed %s decision %s: %v", name, tc.status, err)
 		}
