@@ -19,7 +19,7 @@ type ListVulnerabilityDecisionsInput struct {
 }
 
 func (l *Ledger) ListVulnerabilityDecisions(ctx context.Context, actor domain.Actor, in ListVulnerabilityDecisionsInput) ([]domain.VulnerabilityDecision, error) {
-	values, err := l.riskCommands.ListVulnerabilityDecisions(ctx, actor, riskapp.ListVulnerabilityDecisionsInput{
+	values, err := l.legacyRiskCommands().ListVulnerabilityDecisions(ctx, actor, riskapp.ListVulnerabilityDecisionsInput{
 		ProductID: in.ProductID, ReleaseID: in.ReleaseID, Vulnerability: in.Vulnerability,
 		Component: in.Component, Status: in.Status, Active: in.Active,
 	})

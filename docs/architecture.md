@@ -496,6 +496,16 @@ assertions remain intact. The Ledger write facade, input DTO and mapper are
 unchanged package-local test oracles. Public contracts, SQL and migrations are
 unchanged; remaining aggregate state and other declarations still require
 retirement before EVY-906 can close.
+The aggregate Risk service field and constructor wiring are now removed too.
+Historical Risk readers, mutable transactions, projection refresh, inventory
+lookups and conversion helpers compile only in package-local test oracles.
+Those oracles construct stateless orchestration explicitly on demand, retaining
+the existing tenant checks, clock/ID dependencies and rollback assertions without
+a global registry or production fallback. The legacy readiness snapshot helper
+still has two callers in the remaining Package compatibility adapter; it and
+shared error translation remain production code until those callers retire.
+Focused runtime commands and bounded PostgreSQL queries are unchanged by this
+physical deletion. Other aggregate services, maps and locks remain incomplete.
 The existing synchronous VEX import/manual-link assertions remain intact;
 additional repository-fixture coverage exercises links to queued documents.
 Repository-backed ingestion fixtures now resolve product/project/release

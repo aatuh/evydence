@@ -39,7 +39,7 @@ type CreateExceptionInput struct {
 }
 
 func (l *Ledger) CreateWaiver(ctx context.Context, actor domain.Actor, input CreateWaiverInput) (domain.Waiver, error) {
-	value, err := l.riskCommands.CreateWaiver(ctx, actor, riskapp.CreateWaiverInput{
+	value, err := l.legacyRiskCommands().CreateWaiver(ctx, actor, riskapp.CreateWaiverInput{
 		ScopeType: input.ScopeType, ScopeID: input.ScopeID, ControlID: input.ControlID, PolicyID: input.PolicyID,
 		Owner: input.Owner, Risk: input.Risk, Reason: input.Reason, ExpiresAt: input.ExpiresAt, Supersedes: input.Supersedes,
 	})
@@ -47,12 +47,12 @@ func (l *Ledger) CreateWaiver(ctx context.Context, actor domain.Actor, input Cre
 }
 
 func (l *Ledger) ApproveWaiver(ctx context.Context, actor domain.Actor, id string) (domain.Waiver, error) {
-	value, err := l.riskCommands.ApproveWaiver(ctx, actor, id)
+	value, err := l.legacyRiskCommands().ApproveWaiver(ctx, actor, id)
 	return waiverFromRiskContext(value), fromRiskContextError(err)
 }
 
 func (l *Ledger) CreateApprovalRecord(ctx context.Context, actor domain.Actor, input CreateApprovalInput) (domain.ApprovalRecord, error) {
-	value, err := l.riskCommands.CreateApprovalRecord(ctx, actor, riskapp.CreateApprovalInput{
+	value, err := l.legacyRiskCommands().CreateApprovalRecord(ctx, actor, riskapp.CreateApprovalInput{
 		SubjectType: input.SubjectType, SubjectID: input.SubjectID, Decision: input.Decision,
 		Reason: input.Reason, EvidenceID: input.EvidenceID,
 	})
@@ -60,7 +60,7 @@ func (l *Ledger) CreateApprovalRecord(ctx context.Context, actor domain.Actor, i
 }
 
 func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in CreateExceptionInput) (domain.Exception, error) {
-	value, err := l.riskCommands.CreateException(ctx, actor, riskapp.CreateExceptionInput{
+	value, err := l.legacyRiskCommands().CreateException(ctx, actor, riskapp.CreateExceptionInput{
 		ReleaseID: in.ReleaseID, FindingID: in.FindingID, ControlID: in.ControlID,
 		Reason: in.Reason, Owner: in.Owner, ExpiresAt: in.ExpiresAt,
 	})
@@ -68,6 +68,6 @@ func (l *Ledger) CreateException(ctx context.Context, actor domain.Actor, in Cre
 }
 
 func (l *Ledger) ApproveException(ctx context.Context, actor domain.Actor, id string) (domain.Exception, error) {
-	value, err := l.riskCommands.ApproveException(ctx, actor, id)
+	value, err := l.legacyRiskCommands().ApproveException(ctx, actor, id)
 	return exceptionFromRiskContext(value), fromRiskContextError(err)
 }

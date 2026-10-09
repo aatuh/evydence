@@ -9,7 +9,7 @@ import (
 // Unchanged historical methods are package-local test oracles only.
 
 func (l *Ledger) ListExceptions(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.Exception, error) {
-	values, err := l.riskCommands.ListExceptions(ctx, actor, releaseID)
+	values, err := l.legacyRiskCommands().ListExceptions(ctx, actor, releaseID)
 	if err != nil {
 		return nil, fromRiskContextError(err)
 	}

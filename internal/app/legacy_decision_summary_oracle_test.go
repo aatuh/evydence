@@ -10,7 +10,7 @@ import (
 // Historical package-local characterization only. Production and HTTP queries
 // use the focused, current-repository summary path rather than these facades.
 func (l *Ledger) VulnerabilityDecisionSummaryReport(ctx context.Context, actor domain.Actor, releaseID string) (domain.VulnerabilityDecisionSummaryReport, error) {
-	value, err := l.riskCommands.VulnerabilityDecisionSummaryReport(ctx, actor, releaseID)
+	value, err := l.legacyRiskCommands().VulnerabilityDecisionSummaryReport(ctx, actor, releaseID)
 	if err != nil {
 		return domain.VulnerabilityDecisionSummaryReport{}, fromRiskContextError(err)
 	}

@@ -12,7 +12,7 @@ import (
 // Historical package-local characterization only. Current HTTP and production
 // writes compose the focused manual command and checked repository append.
 func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.Actor, findingID string, in CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
-	value, err := l.riskCommands.CreateVulnerabilityDecision(ctx, actor, findingID, riskapp.CreateVulnerabilityDecisionInput{
+	value, err := l.legacyRiskCommands().CreateVulnerabilityDecision(ctx, actor, findingID, riskapp.CreateVulnerabilityDecisionInput{
 		Status: in.Status, Justification: in.Justification, ImpactStatement: in.ImpactStatement,
 		ActionStatement: in.ActionStatement, CustomerVisible: in.CustomerVisible, InternalNotes: in.InternalNotes,
 		EvidenceIDs: append([]string(nil), in.EvidenceIDs...), SupportingRefs: supportingRefsToRiskContext(in.SupportingRefs),

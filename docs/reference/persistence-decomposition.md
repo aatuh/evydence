@@ -26,7 +26,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | package and reporting | `internal/app/package_context_adapter.go` | `commitCompatibility` | `persistCriticalLocked` |
 | tenant bootstrap | `internal/app/tenant_bootstrap_service.go` | `commitTenantBootstrapCompatibility` | `persistCriticalStateLocked` |
 | verification and signing | `internal/app/verification_context_adapter.go` | `commitCompatibility` | `persistCriticalLocked` |
-| vulnerability decisions and governance | `internal/app/risk_context_adapter.go` | `commitCompatibility` | `persistCriticalLocked` |
 
 ## Focused Release And Evidence Mutations
 
