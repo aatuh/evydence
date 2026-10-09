@@ -126,8 +126,8 @@ func TestIntegrationFixtureReadsKeepTenantScopeCompletePagesAndDetachedMetadata(
 	if err != nil {
 		t.Fatal(err)
 	}
-	original, err := ledger.CollectorHealthReport(t.Context(), human, owner.collector.ID)
-	if err != nil || !reflect.DeepEqual(collectorHealthFromQuery(report), original) {
+	original := expectedSeedCollectorHealth(owner)
+	if !reflect.DeepEqual(collectorHealthFromQuery(report), original) {
 		t.Fatal("health mapper lost public fields", err)
 	}
 	report.LatestRelease.Limitations[0] = "modified"
@@ -163,5 +163,30 @@ func TestIntegrationFixtureReadsKeepTenantScopeCompletePagesAndDetachedMetadata(
 		if value.ID == second.ID && (value.LastSeenAt == nil || value.LastSeenAt.Year() != 2026) {
 			t.Fatal("collector heartbeat timestamp aliased")
 		}
+	}
+}
+
+// Independently enumerate the public report contract for the single pinned,
+// evidence-incomplete release created by seedIntegrationFixtureScope. Do not
+// compute the expectation with the query service or a production Ledger oracle.
+func expectedSeedCollectorHealth(owner integrationFixtureScope) domain.CollectorHealthReport {
+	release := owner.release
+	release.Limitations = append([]string(nil), release.Limitations...)
+	return domain.CollectorHealthReport{
+		ReportType: "collector_health", CollectorID: owner.collector.ID,
+		CollectorStatus: "active", Version: "1", PinnedReleaseID: release.ID,
+		SupplyChainStatus: "needs_evidence",
+		Checks: []domain.VerifyCheck{
+			{Name: "collector_status", Result: "passed", Detail: "active"},
+			{Name: "collector_release", Result: "passed", Detail: "1"},
+			{Name: "collector_signature", Result: "failed"},
+			{Name: "collector_sbom", Result: "failed"},
+			{Name: "collector_scan", Result: "failed"},
+			{Name: "collector_version_pinned", Result: "passed", Detail: "1"},
+		},
+		LatestRelease: &release,
+		Assumptions:   []string{"Collector health is based on metadata and evidence recorded in this tenant."},
+		Limitations:   []string{"This report does not prove collector runtime integrity or absence of vulnerabilities."},
+		GeneratedAt:   owner.collector.CreatedAt,
 	}
 }

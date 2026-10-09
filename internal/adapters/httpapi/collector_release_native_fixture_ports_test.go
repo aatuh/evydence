@@ -16,10 +16,14 @@ type collectorReleaseFixtureReader interface {
 	LockCollectorWrites(context.Context, string) error
 	ReadCollectorReleaseReference(context.Context, string, string, string) (integrationapp.CollectorReference, error)
 }
-type collectorReleaseFixtureTransactions struct{ catalogFixtureCommands }
+type collectorReleaseFixtureTransactions struct {
+	catalogFixtureCommands
+	readOnly bool
+}
 type collectorReleaseFixtureTransaction struct {
 	collectorReleaseFixtureReader
-	repos app.Repositories
+	repos    app.Repositories
+	readOnly bool
 }
 
 func (f collectorReleaseFixtureTransactions) ExecuteCollector(ctx context.Context, run func(context.Context, integrationapp.CollectorTransaction) error) error {
@@ -31,7 +35,7 @@ func (f collectorReleaseFixtureTransactions) ExecuteCollector(ctx context.Contex
 		if !ok || r.Audit == nil {
 			return app.ErrValidation
 		}
-		return run(ctx, collectorReleaseFixtureTransaction{reader, r})
+		return run(ctx, collectorReleaseFixtureTransaction{reader, r, f.readOnly})
 	}))
 }
 func (t collectorReleaseFixtureTransaction) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
@@ -53,9 +57,15 @@ func (t collectorReleaseFixtureTransaction) InsertCommercialCollectorDefinition(
 	panic("release command inserted commercial collector")
 }
 func (t collectorReleaseFixtureTransaction) InsertCollectorRelease(ctx context.Context, v integrationdomain.CollectorRelease) error {
+	if t.readOnly {
+		panic("collector-release preflight inserted release")
+	}
 	return collectorReleaseFixtureCoreError(t.repos.Builds.InsertCollectorRelease(ctx, domain.CollectorRelease(v)))
 }
 func (t collectorReleaseFixtureTransaction) AppendAudit(ctx context.Context, e application.AuditEvent) (application.AuditReceipt, error) {
+	if t.readOnly {
+		panic("collector-release preflight appended audit")
+	}
 	v, err := (governanceFixtureTransaction{audit: t.repos.Audit}).AppendAudit(ctx, e)
 	return v, collectorReleaseFixtureCoreError(err)
 }
@@ -91,9 +101,9 @@ func collectorReleaseFixtureError(err error) error {
 		return err
 	}
 }
-func (f integrationFixtureCommands) nativeCollectorRelease() (*integrationapp.CollectorCommands, error) {
-	clock, ids := questionnaireNativeFixtureClockIDs(false)
-	return integrationapp.NewCollectorCommands(integrationapp.CollectorCommandConfig{Transactions: collectorReleaseFixtureTransactions(f), Credentials: collectorReleaseNoCredentials{}, Authorizer: integrationapp.NewCollectorWriteAuthorizer(), Clock: clock, IDs: ids})
+func (f integrationFixtureCommands) nativeCollectorRelease(readOnly bool) (*integrationapp.CollectorCommands, error) {
+	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
+	return integrationapp.NewCollectorCommands(integrationapp.CollectorCommandConfig{Transactions: collectorReleaseFixtureTransactions{catalogFixtureCommands: f.catalogFixtureCommands, readOnly: readOnly}, Credentials: collectorReleaseNoCredentials{}, Authorizer: integrationapp.NewCollectorWriteAuthorizer(), Clock: clock, IDs: ids})
 }
 
 var _ integrationapp.CollectorTransaction = collectorReleaseFixtureTransaction{}

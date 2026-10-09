@@ -12,7 +12,7 @@ import (
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
 
-// Run the actual native collector preflight, using owned fixture lookups only.
+// Run the actual native creation preflights, with no release lookup capability.
 // LockCollectorWrites checks the bootstrapped fixture tenant, not SQL locking.
 // No credential, clock, ID, uniqueness-write or audit capability may run here.
 type collectorFixtureGuard struct{ catalogFixtureCommands }
@@ -35,37 +35,8 @@ func (f collectorFixtureGuard) LockCollectorWrites(ctx context.Context, tenant s
 	}
 	return err
 }
-func (f collectorFixtureGuard) ReadCollectorReleaseReference(ctx context.Context, tenant, kind, id string) (integrationapp.CollectorReference, error) {
-	reader := domain.Actor{TenantID: tenant, KeyID: "fixture-owner-reader", Scopes: []string{"*"}}
-	ledger := f.commandLedger(ctx)
-	result := integrationapp.CollectorReference{ID: id, TenantID: tenant, Type: kind}
-	switch kind {
-	case "collector":
-		values, err := ledger.ListCollectors(ctx, reader)
-		if err != nil {
-			return result, err
-		}
-		for _, value := range values {
-			if value.ID == id && value.TenantID == tenant {
-				return result, nil
-			}
-		}
-		return result, integrationapp.ErrNotFound
-	case "signature":
-		value, err := (artifactSignatureFixture{catalogFixtureCommands: f.catalogFixtureCommands}).GetArtifactSignature(ctx, reader, id)
-		result.ID, result.TenantID, result.Digest = value.ID, value.TenantID, value.SubjectDigest
-		return result, err
-	case "sbom":
-		value, err := evidenceReadFixture(f).GetSBOM(ctx, reader, id)
-		result.ID, result.TenantID = value.ID, value.TenantID
-		return result, err
-	case "scan":
-		value, err := evidenceReadFixture(f).GetVulnerabilityScan(ctx, reader, id)
-		result.ID, result.TenantID = value.ID, value.TenantID
-		return result, err
-	default:
-		return result, integrationapp.ErrValidation
-	}
+func (collectorFixtureGuard) ReadCollectorReleaseReference(context.Context, string, string, string) (integrationapp.CollectorReference, error) {
+	panic("collector creation preflight read release references")
 }
 func (collectorFixtureGuard) CollectorNameExists(context.Context, string, string) (bool, error) {
 	panic("collector replay guard queried creation uniqueness")
@@ -106,7 +77,7 @@ func (f integrationFixtureCommands) AuthorizeCreateCollector(ctx context.Context
 	return guard.AuthorizeCreateCollector(ctx, a, in)
 }
 func (f integrationFixtureCommands) AuthorizeRecordCollectorRelease(ctx context.Context, a domain.Actor, in integrationapp.RecordCollectorReleaseInput) error {
-	guard, err := f.collectorGuard()
+	guard, err := f.nativeCollectorRelease(true)
 	if err != nil {
 		return err
 	}

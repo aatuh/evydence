@@ -224,13 +224,6 @@ func (l *Ledger) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, in
 func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domain.Actor, attestationID string) (domain.VerificationResult, error) {
 	return l.VerifySubject(ctx, actor, "build_attestation", attestationID)
 }
-func (l *Ledger) VerifyCosignSignature(ctx context.Context, actor domain.Actor, in VerifyCosignInput) (domain.CosignVerification, error) {
-	value, err := l.verificationCommands.VerifyCosign(ctx, actor, verificationapp.VerifyCosignInput{
-		ArtifactSignatureID: in.ArtifactSignatureID, ExpectedIdentity: in.ExpectedIdentity, ExpectedIssuer: in.ExpectedIssuer,
-		Mode: verificationapp.CosignVerificationMode(in.Mode), Offline: in.Offline,
-	})
-	return cosignVerificationFromVerificationContext(value), fromVerificationContextError(err)
-}
 func (l *Ledger) CreateMerkleBatch(ctx context.Context, actor domain.Actor, in CreateMerkleBatchInput) (domain.MerkleBatch, error) {
 	value, err := l.verificationCommands.CreateMerkleBatch(ctx, actor, verificationapp.CreateMerkleBatchInput{FromSequence: in.FromSequence, ToSequence: in.ToSequence})
 	return merkleBatchFromVerificationContext(value), fromVerificationContextError(err)

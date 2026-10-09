@@ -9,14 +9,6 @@ import (
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
-type VerifyCosignInput struct {
-	ArtifactSignatureID string
-	ExpectedIdentity    string
-	ExpectedIssuer      string
-	Mode                CosignVerificationMode
-	Offline             bool
-}
-
 type CreateSigningProviderInput struct {
 	Name      string
 	Type      string

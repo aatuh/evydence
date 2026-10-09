@@ -71,6 +71,7 @@ type integrationFixtureScope struct {
 	repository domain.SourceRepository
 	head       domain.SourceCommit
 	collector  domain.Collector
+	release    domain.CollectorRelease
 }
 
 func seedIntegrationFixtureScope(t *testing.T, ledger *app.Ledger, name string) integrationFixtureScope {
@@ -108,10 +109,11 @@ func seedIntegrationFixtureScope(t *testing.T, ledger *app.Ledger, name string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = ledger.RecordCollectorRelease(t.Context(), f.actor, app.RecordCollectorReleaseInput{CollectorID: f.collector.ID, Version: "1", ArtifactDigest: "sha256:" + strings.Repeat("a", 64), Pinned: true})
+	release, err := (integrationFixtureCommands{catalogFixtureCommands{ledger: ledger}}).RecordCollectorRelease(t.Context(), f.actor, integrationapp.RecordCollectorReleaseInput{CollectorID: f.collector.ID, Version: "1", ArtifactDigest: "sha256:" + strings.Repeat("a", 64), Pinned: true})
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.release = domain.CollectorRelease(release)
 	return f
 }
 

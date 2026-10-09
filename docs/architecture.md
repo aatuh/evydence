@@ -492,8 +492,10 @@ Downstream fixture consumers also use current repositories rather than copying
 new signatures back into aggregate caches. Collector-release recording composes
 the focused command with current collector/signature/SBOM/scan references and
 release/audit effects in one UoW; credential creation and unrelated writes are
-panic guards on this release-only fixture. Collector health composes the focused
-query over one collector and latest/pinned public release projections, with time/ID
+panic guards on this release-only fixture. Its replay preflight now uses the same
+current repository references rather than aggregate collector inventories, with
+panic guards on clock/ID use, release insertion and audit effects. Collector health
+composes the focused query over one collector and latest/pinned public release projections, with time/ID
 tie ordering, detached limitations and omitted credential scopes. Cosign fixtures
 compose the focused command and actual offline inspector over bounded typed
 signature/artifact/image/payload lifecycle facts. Their ordinary configuration
@@ -504,7 +506,15 @@ tests cover these paths. Original end-to-end assertions remain intact, including
 an explicit filesystem payload binding for the source/deployment flow and real
 transaction repositories for cookie-origin/bearer precedence. Native SQL and
 public contracts are unchanged; memory snapshots are not native lock, JSON-shape,
-transfer/work or durability proof. Other aggregate declarations remain incomplete.
+transfer/work or durability proof. The historical collector-release command,
+collector-health report, Cosign command and their two input DTOs are now unchanged
+test-only oracles, protected by source retirement checks. HTTP setup records
+collector releases through the actual focused command. Its health-report field
+comparison uses an independently enumerated expectation checked against the old
+oracle before retirement, not a runtime compatibility reader. Current-repository
+preflight, tenant/grant rejection, atomic pin replacement and human audit,
+detached results and failed read/write commits have focused regressions. Other
+aggregate declarations remain incomplete.
 Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 

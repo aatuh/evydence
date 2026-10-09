@@ -104,7 +104,7 @@ func (f integrationFixtureCommands) CreateCollector(ctx context.Context, a domai
 	return model, identitydomain.APIKey(key), secret, err
 }
 func (f integrationFixtureCommands) RecordCollectorRelease(ctx context.Context, a domain.Actor, in integrationapp.RecordCollectorReleaseInput) (integrationdomain.CollectorRelease, error) {
-	c, err := f.nativeCollectorRelease()
+	c, err := f.nativeCollectorRelease(false)
 	if err != nil {
 		return integrationdomain.CollectorRelease{}, err
 	}
