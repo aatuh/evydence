@@ -106,6 +106,38 @@ func (f documentIngestionNativeFixture) ParseVulnerabilityScan(ctx context.Conte
 	}
 	return (app.VulnerabilityScanPayloadParser{}).ParseVulnerabilityScan(ctx, source)
 }
+
+func (f documentIngestionNativeFixture) ExecuteVEXIngestion(ctx context.Context, run func(context.Context, evidenceapp.VEXIngestionTransaction) error) error {
+	if ctx == nil || run == nil {
+		return evidenceapp.ErrValidation
+	}
+	return fixtureIngestionError(f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		if r.Evidence == nil || r.Audit == nil || r.Outbox == nil || r.Payloads == nil {
+			return app.ErrValidation
+		}
+		bound := f
+		bound.repositories = &r
+		return run(ctx, bound)
+	}))
+}
+func (f documentIngestionNativeFixture) InsertVEXDocument(ctx context.Context, v evidencedomain.VEXDocument) error {
+	if f.readOnly || f.repositories == nil {
+		panic("document preflight/unbound VEX insert")
+	}
+	return fixtureIngestionError(f.repositories.Evidence.InsertVEXDocument(ctx, domain.VEXDocumentFromContext(v)))
+}
+func (f documentIngestionNativeFixture) InsertVEXImportReport(ctx context.Context, v evidencedomain.VEXImportReport) error {
+	if f.readOnly || f.repositories == nil {
+		panic("document preflight/unbound VEX report insert")
+	}
+	return fixtureIngestionError(f.repositories.Evidence.InsertVEXImportReport(ctx, domain.VEXImportReportFromContext(v)))
+}
+func (f documentIngestionNativeFixture) ParseVEX(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedVEX, error) {
+	if f.readOnly {
+		panic("document preflight parsed VEX")
+	}
+	return (app.VEXPayloadParser{}).ParseVEX(ctx, format, source)
+}
 func (f documentIngestionNativeFixture) StagePayloadSource(ctx context.Context, tenant, media string, source evidenceapp.PayloadSource) (evidenceapp.StagedPayload, error) {
 	if f.readOnly {
 		panic("document preflight staged source")
@@ -165,6 +197,21 @@ func (f ingestionFixtureCommands) nativeScanIngestion(readOnly bool) (*evidencea
 	return evidenceapp.NewVulnerabilityScanIngestionCommands(evidenceapp.VulnerabilityScanIngestionCommandConfig{Authorizer: auth, Transactions: ports, Parser: ports, Objects: ports, Payloads: ports, Canonicalizer: ports, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: clock, IDs: ids, WorkerOwnedParsers: f.workerOwnedParsers})
 }
 
+func (f ingestionFixtureCommands) nativeVEXIngestion(readOnly bool) (*evidenceapp.VEXIngestionCommands, error) {
+	ports, clock, ids := f.documentPorts(readOnly)
+	auth, err := ports.authorizer()
+	if err != nil {
+		return nil, err
+	}
+	return evidenceapp.NewVEXIngestionCommands(evidenceapp.VEXIngestionCommandConfig{Authorizer: auth, Transactions: ports, Parser: ports, Objects: ports, Payloads: ports, Canonicalizer: ports, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: clock, IDs: ids})
+}
+
+func uploadVEXFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, release, artifact string, raw []byte) (domain.VEXDocument, error) {
+	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	v, err := f.UploadVEXPayload(ctx, a, evidenceapp.VEXIngestionInput{ReleaseID: release, ArtifactID: artifact, Format: "openvex"}, evidenceapp.BytesPayloadSource(raw))
+	return domain.VEXDocumentFromContext(v), err
+}
+
 func uploadVulnerabilityScanFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	source := evidenceapp.BytesPayloadSource(raw)
@@ -198,5 +245,9 @@ func (s *Server) bindDocumentIngestionFixtureResources(objects app.ObjectStore, 
 	if f, ok := s.scanIngestionCommands.(ingestionFixtureCommands); ok {
 		f.objects, f.clock, f.workerOwnedParsers = objects, clock, workerOwned
 		s.scanIngestionCommands = f
+	}
+	if f, ok := s.vexIngestionCommands.(ingestionFixtureCommands); ok {
+		f.objects, f.clock = objects, clock
+		s.vexIngestionCommands = f
 	}
 }

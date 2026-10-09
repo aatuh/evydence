@@ -78,15 +78,3 @@ func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targe
 	value, err := l.evidenceCommands.LinkEvidence(ctx, actor, id, targetType, targetID)
 	return evidenceFromContext(value), fromEvidenceContextError(err)
 }
-
-func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
-	value, err := l.evidenceCommands.UploadVEX(ctx, actor, releaseID, artifactID, raw)
-	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
-}
-
-// UploadVEXPayload accepts a repeatable pre-hashed payload source for
-// streaming HTTP ingestion.
-func (l *Ledger) UploadVEXPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.VEXDocument, error) {
-	value, err := l.evidenceCommands.UploadVEXPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
-	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
-}

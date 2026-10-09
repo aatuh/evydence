@@ -103,10 +103,6 @@ func (f evidenceReadFixture) GetOpenAPIContract(ctx context.Context, actor domai
 	return value, legacyParsedPointError(err)
 }
 
-func fixtureVEXDocument(value domain.VEXDocument) evidencedomain.VEXDocument {
-	return evidencedomain.VEXDocument{ID: value.ID, TenantID: value.TenantID, EvidenceID: value.EvidenceID, ReleaseID: value.ReleaseID, ArtifactID: value.ArtifactID, Format: value.Format, Author: value.Author, Version: value.Version, StatementCount: value.StatementCount, StatusSummary: maps.Clone(value.StatusSummary), SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt}
-}
-
 func (f evidenceReadFixture) GetVEXDocument(ctx context.Context, actor domain.Actor, id string) (evidencedomain.VEXDocument, error) {
 	query, err := evidencequery.NewVEXPoints(f)
 	if err != nil {

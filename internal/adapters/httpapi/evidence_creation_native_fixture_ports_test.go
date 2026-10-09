@@ -56,7 +56,7 @@ func (f evidenceCreationNativeFixture) ValidateScope(ctx context.Context, tenant
 	return err
 }
 func (f evidenceCreationNativeFixture) artifactAuthority() repositoryIngestionFixtureAuthority {
-	return repositoryIngestionFixtureAuthority{ingestionFixtureAuthority: ingestionFixtureAuthority{f.catalogFixtureCommands}, repositories: f.repositories}
+	return repositoryIngestionFixtureAuthority{catalogFixtureCommands: f.catalogFixtureCommands, repositories: f.repositories}
 }
 func (f evidenceCreationNativeFixture) GetArtifactPoint(ctx context.Context, r releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error) {
 	return f.artifactAuthority().GetArtifactPoint(ctx, r)

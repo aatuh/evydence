@@ -53,7 +53,7 @@ func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *
 	}); err != nil {
 		t.Fatal(err)
 	}
-	commands := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, repositoryScope: true}
+	commands := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"evidence:write", "security:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: p.ID, Scopes: []string{"*"}}}}
 	before, err := factory.base.Snapshot()
 	if err != nil {
@@ -122,7 +122,7 @@ func TestRepositoryIngestionScopeGuardDoesNotFallbackAfterCommitOrRepositoryFail
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
-	commands := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, repositoryScope: true}
+	commands := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	input := evidenceapp.SBOMIngestionInput{ReleaseID: owner.release.ID, Format: "cyclonedx"}
 	before, err := factory.base.Snapshot()
 	if err != nil {
@@ -141,7 +141,6 @@ func TestRepositoryIngestionScopeGuardDoesNotFallbackAfterCommitOrRepositoryFail
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.bindRepositoryIngestionFixtureScope()
 	body := postRaw(t, server, "fixture", "/v1/sboms", "failed-guard", []byte(`{"release_id":"`+owner.release.ID+`","payload":{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}}`), 500)
 	if strings.Contains(body, "private-query") || strings.Contains(body, `"data"`) || strings.Contains(body, `"payload"`) {
 		t.Fatal("failed guard exposed internal error or partial document", body)
@@ -150,11 +149,11 @@ func TestRepositoryIngestionScopeGuardDoesNotFallbackAfterCommitOrRepositoryFail
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("failed HTTP preflight reserved replay or wrote document effects", err)
 	}
-	// These parents genuinely exist in legacy caches. Explicit native mode
+	// These parents genuinely exist in legacy caches. Every ingestion guard
 	// must still fail closed if its repository dependency is unavailable.
 	legacy := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
 	legacyOwner := seedOperationsFixtureReferences(t, legacy, "Legacy")
-	commands = ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: legacy}, repositoryScope: true}
+	commands = ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: legacy}}
 	input.ReleaseID = legacyOwner.release.ID
 	if err := commands.AuthorizeUploadSBOM(t.Context(), legacyOwner.actor, input); !errors.Is(err, evidenceapp.ErrValidation) {
 		t.Fatal("native guard silently accepted a legacy repository fallback", err)
@@ -162,18 +161,45 @@ func TestRepositoryIngestionScopeGuardDoesNotFallbackAfterCommitOrRepositoryFail
 }
 
 func TestRepositoryIngestionScopeBindingSurvivesRebindingAndPreservesExplicitPorts(t *testing.T) {
-	first := newLegacyLedgerFixture(app.Config{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	first := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	oldOwner := seedOperationsFixtureReferences(t, first, "First")
 	server, err := newLegacyServerFixture(first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.bindRepositoryIngestionFixtureScope()
-	second := newLegacyLedgerFixture(app.Config{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	owner := seedOperationsFixtureReferences(t, second, "Second")
 	server.bindLegacyLedgerFixture(second)
 	for _, port := range []any{server.sbomIngestionCommands, server.vexIngestionCommands, server.openAPIIngestionCommands, server.scanIngestionCommands, server.securityDocumentCommands} {
 		f, ok := port.(ingestionFixtureCommands)
-		if !ok || !f.repositoryScope || f.ledger != second {
-			t.Fatal("rebind discarded explicit repository scope or retained old root")
+		if !ok || f.ledger != second {
+			t.Fatal("rebind retained old repository root")
+		}
+	}
+	// Check actual current ownership after rebinding, not a now-retired backend
+	// flag. Every focused family accepts the new root and rejects the old one.
+	for _, guard := range []func(operationsFixtureScope) error{
+		func(o operationsFixtureScope) error {
+			return server.sbomIngestionCommands.AuthorizeUploadSBOM(t.Context(), o.actor, evidenceapp.SBOMIngestionInput{ReleaseID: o.release.ID, Format: "cyclonedx"})
+		},
+		func(o operationsFixtureScope) error {
+			return server.vexIngestionCommands.AuthorizeUploadVEX(t.Context(), o.actor, evidenceapp.VEXIngestionInput{ReleaseID: o.release.ID, Format: "openvex"})
+		},
+		func(o operationsFixtureScope) error {
+			return server.openAPIIngestionCommands.AuthorizeUploadOpenAPIContract(t.Context(), o.actor, evidenceapp.OpenAPIIngestionInput{ProductID: o.product.ID, ReleaseID: o.release.ID, Version: "1"})
+		},
+		func(o operationsFixtureScope) error {
+			return server.scanIngestionCommands.AuthorizeUploadVulnerabilityScan(t.Context(), o.actor, evidenceapp.VulnerabilityScanScope{ReleaseID: o.release.ID})
+		},
+		func(o operationsFixtureScope) error {
+			return server.securityDocumentCommands.AuthorizeUploadManualSecurityDocument(t.Context(), o.actor, evidenceapp.UploadManualSecurityDocumentInput{ProductID: o.product.ID, ReleaseID: o.release.ID, DocumentType: "threat_model", Title: "Review", Sensitivity: "restricted", Raw: []byte("{}")})
+		},
+	} {
+		if err := guard(owner); err != nil {
+			t.Fatal("rebound guard did not read current repositories", err)
+		}
+		if err := guard(oldOwner); !errors.Is(err, evidenceapp.ErrNotFound) {
+			t.Fatal("rebound guard retained old root authority", err)
 		}
 	}
 	sbom := &struct{ SBOMIngestionCommands }{}
@@ -184,7 +210,6 @@ func TestRepositoryIngestionScopeBindingSurvivesRebindingAndPreservesExplicitPor
 	}{}
 	security := &struct{ SecurityDocumentCommands }{}
 	server.sbomIngestionCommands, server.vexIngestionCommands, server.openAPIIngestionCommands, server.scanIngestionCommands, server.securityDocumentCommands = sbom, vex, openapi, scan, security
-	server.bindRepositoryIngestionFixtureScope()
 	server.bindLegacyLedgerFixture(first)
 	if server.sbomIngestionCommands != sbom || server.vexIngestionCommands != vex || server.openAPIIngestionCommands != openapi || server.scanIngestionCommands != scan || server.securityDocumentCommands != security {
 		t.Fatal("fixture wiring replaced explicitly injected command ports")

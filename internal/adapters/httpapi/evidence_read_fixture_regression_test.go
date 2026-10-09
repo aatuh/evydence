@@ -49,7 +49,7 @@ func seedEvidenceReadFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 		t.Fatal(err)
 	}
 	scope.payload = []byte(`{"@context":"https://openvex.dev/ns/v0.2.0","@id":"https://example.test/vex/fixture","author":"security@example.test","timestamp":"2026-10-07T15:00:00Z","version":1,"statements":[{"vulnerability":{"name":"CVE-2026-1"},"products":[{"@id":"pkg:generic/one@1"}],"status":"affected","justification":"reviewed","impact_statement":"impact","action_statement":"patch planned"}]}`)
-	scope.vex, err = ledger.UploadVEX(t.Context(), scope.actor, scope.release.ID, "", scope.payload)
+	scope.vex, err = uploadVEXFixture(t.Context(), ledger, scope.actor, scope.release.ID, "", scope.payload)
 	if err != nil {
 		t.Fatal(err)
 	}

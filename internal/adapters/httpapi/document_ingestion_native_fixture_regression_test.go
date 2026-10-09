@@ -275,7 +275,7 @@ func TestDocumentIngestionNativeFixtureKeepsExplicitParserPolicyAndNoStorageSema
 					t.Fatal(err)
 				}
 				clock := &diffFixtureClock{at: time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC)}
-				f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: clock, workerOwnedParsers: true, repositoryScope: true}
+				f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: clock, workerOwnedParsers: true}
 				if storage {
 					f.objects = objects
 				}
@@ -284,7 +284,7 @@ func TestDocumentIngestionNativeFixtureKeepsExplicitParserPolicyAndNoStorageSema
 				s.bindIngestionFixturePorts(rebound)
 				for _, port := range []any{s.sbomIngestionCommands, s.openAPIIngestionCommands} {
 					bound, ok := port.(ingestionFixtureCommands)
-					if !ok || bound.ledger != rebound || bound.objects != f.objects || bound.clock != clock || !bound.workerOwnedParsers || !bound.repositoryScope {
+					if !ok || bound.ledger != rebound || bound.objects != f.objects || bound.clock != clock || !bound.workerOwnedParsers {
 						t.Fatal("rebind discarded explicit parser/resources")
 					}
 				}

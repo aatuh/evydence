@@ -73,7 +73,7 @@ func TestArtifactNativeFixtureUsesRepositoryOnlyPointCurrentAssociationsAndGrant
 	}
 	// Native reference guards select only identity/digest and use the same
 	// case-insensitive digest check as the actual Evidence creation adapter.
-	guard := repositoryIngestionFixtureAuthority{ingestionFixtureAuthority: ingestionFixtureAuthority{catalogFixtureCommands{ledger: ledger}}}
+	guard := repositoryIngestionFixtureAuthority{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	for _, digest := range []string{"", a.Digest, strings.ToUpper(a.Digest)} {
 		if err := guard.ValidateArtifactReference(t.Context(), a.TenantID, a.ID, digest); err != nil {
 			t.Fatal("owned digest reference failed", err)
@@ -118,7 +118,7 @@ func TestArtifactNativeFixtureDiscardsPointAndGrantOnCommitFailure(t *testing.T)
 	if v, err := server.artifactPointQuery.GetArtifact(t.Context(), owner.actor, a.ID); err == nil || v != (releasedomain.Artifact{}) {
 		t.Fatal("failed point returned data", v, err)
 	}
-	guard := repositoryIngestionFixtureAuthority{ingestionFixtureAuthority: ingestionFixtureAuthority{catalogFixtureCommands{ledger: ledger}}}
+	guard := repositoryIngestionFixtureAuthority{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if v, err := guard.GetArtifactPoint(t.Context(), releasequery.ArtifactReadRequest{TenantID: a.TenantID, ID: a.ID, TenantWide: true}); err == nil || v != (releasequery.ArtifactPoint{}) {
 		t.Fatal("failed grant commit returned identity/visibility", v, err)
 	}
@@ -145,7 +145,7 @@ func TestArtifactNativeFixtureFailsClosedAndPreservesExplicitQuery(t *testing.T)
 	if v, err := server.artifactPointQuery.GetArtifact(t.Context(), owner.actor, a.ID); !errors.Is(err, app.ErrValidation) || v != (releasedomain.Artifact{}) {
 		t.Fatal("missing query repository fell back to cache", v, err)
 	}
-	guard := repositoryIngestionFixtureAuthority{ingestionFixtureAuthority: ingestionFixtureAuthority{catalogFixtureCommands{ledger: ledger}}}
+	guard := repositoryIngestionFixtureAuthority{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if v, err := guard.GetArtifactPoint(t.Context(), releasequery.ArtifactReadRequest{TenantID: a.TenantID, ID: a.ID, TenantWide: true}); !errors.Is(err, app.ErrValidation) || v != (releasequery.ArtifactPoint{}) {
 		t.Fatal("missing grant repository fell back to cache", v, err)
 	}

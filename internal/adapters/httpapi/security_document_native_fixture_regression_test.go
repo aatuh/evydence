@@ -136,7 +136,7 @@ func TestSecurityDocumentNativeFixtureRejectsUntrustedStagingAndKeepsExplicitRes
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
-	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, objects: objects, clock: clock, repositoryScope: true}
+	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, objects: objects, clock: clock}
 	in := evidenceapp.UploadManualSecurityDocumentInput{ProductID: owner.product.ID, DocumentType: "threat_model", Title: "Review", Sensitivity: "confidential", MediaType: "application/json", Raw: []byte(`{"private_note":"review"}`)}
 	before, err := base.Snapshot()
 	if err != nil {
@@ -155,7 +155,7 @@ func TestSecurityDocumentNativeFixtureRejectsUntrustedStagingAndKeepsExplicitRes
 	s := &Server{securityDocumentCommands: f}
 	s.bindIngestionFixturePorts(rebound)
 	bound, ok := s.securityDocumentCommands.(ingestionFixtureCommands)
-	if !ok || bound.objects != objects || bound.clock != clock || !bound.repositoryScope || bound.ledger != rebound {
+	if !ok || bound.objects != objects || bound.clock != clock || bound.ledger != rebound {
 		t.Fatal("rebind discarded explicit security resources/configuration")
 	}
 	if v, err := bound.UploadManualSecurityDocument(t.Context(), owner.actor, in); err != nil || v.CreatedAt != clock.at || v.PayloadRef == "" {

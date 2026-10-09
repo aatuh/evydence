@@ -393,9 +393,9 @@ broad interface, Server binding and aggregate streamed-upload wrapper are
 deleted. Native parsing, body limits, semantic-header fingerprints, current
 ownership/grant guards and atomic PostgreSQL writes remain in place. Test-only
 adapters run the actual native preflight algorithms and authorizers; effect,
-clock and ID capabilities panic if a replay guard reaches them. Fresh fixture
-writes for VEX fixtures still use historical parser
-commands and the isolated command clone, not those guard capabilities. Eleven
+clock and ID capabilities panic if a replay guard reaches them. Every ingestion
+fixture now runs focused native command services over current repositories, not
+historical Ledger parser writes or cache-backed guard modes. Eleven
 failure-after-write and replay regressions check complete
 repository state, including payload, audit, outbox and derived-record effects.
 They are not a substitute for the live PostgreSQL transaction tests.
@@ -427,8 +427,26 @@ parser provenance remain intact. Scan, evidence, payload metadata, both audits a
 finalizer/parser jobs commit together. Tests cover detached findings/summary,
 revoked/foreign grants, malformed streams, cancellation, explicit worker policy,
 no hidden storage recovery and safe HTTP rollback with failed-replay state. Two
-former Ledger upload wrappers are unchanged test-only oracles. VEX ingestion,
-other aggregate state and final live/race/production validation remain pending.
+former Ledger upload wrappers are unchanged test-only oracles. Other aggregate
+state and final live/race/production validation remain pending.
+
+OpenVEX and CycloneDX VEX fixtures now use the focused acceptance command, real
+stateless parser and shared streaming stage boundary. Evidence, VEX document,
+accepted import report, both caller-attributed audits and finalizer/parser jobs
+share one transaction; no synchronous decisions are fabricated. Independent
+expected DTOs and exact versioned worker requests cover normalized statement
+indexes, products, report/source identities and human attribution. Explicit
+no-storage fixtures keep an accepted report and normalized request without a
+payload reference or hidden store recovery. Failed commits return zero documents
+and leave only unreferenced staging bytes; failed HTTP writes preserve failed
+replay state while rolling back every document/report/evidence effect. Three old
+upload facades and nine unused CycloneDX preview declarations are unchanged
+test-only oracles. Cached guard classes, effect stubs, the source-buffering shim
+and backend switch are removed; focused preflight traps and repository-only
+regressions remain. Rebinding is checked through actual current ownership across
+all five command families, not a configuration flag. These fixture checks do not
+prove native SQL fencing, durable dispatch or worker completion; the explicit
+completion fixture separately exercises real typed decision/report writes.
 
 Both document-diff fixtures now run the actual focused Evidence services over
 current typed repository capabilities. Preflight reads only coherent source and
@@ -858,16 +876,16 @@ ownership through the actual focused Evidence scope capability, rather than
 catalog DTO/cache reads. Validation and the current grant check share one
 fixture transaction; the reader selects only coherent owned IDs, including
 current tenant existence, and ignores unrelated descriptive/lifecycle fields.
-Explicit repository configuration survives rebinding and does not fall back
+Repository authority survives rebinding and does not fall back
 to legacy caches after missing-dependency or commit failure. Six native guard
 regressions cover repository-only parents, removed/foreign grants, no clock/ID
 or write effects, cancellation, one-transaction reads and safe failed preflight.
-Operations, governance and identity repository helpers opt into this scope
-configuration. The memory capability reuses coherent point-coordinate reads;
-it is not PostgreSQL locking, durability or bounded-transfer evidence. Artifact
-fixture reads, historical parser writes and unsupported synchronous
-fixtures retain separate retirement dependencies. This removes guard coupling
-for configured fixtures, not the remaining production Ledger implementation.
+All ingestion, Operations, governance and identity fixtures use current scope
+capabilities without a cache-backed backend switch. The memory capability reuses
+coherent point-coordinate reads; it is not PostgreSQL locking, durability or
+bounded-transfer evidence. Other aggregate state and unsupported synchronous
+fixtures retain separate retirement dependencies. This removes fixture guard
+coupling, not the remaining production Ledger implementation.
 The broad Risk transport surface is gone, but direct context-to-Ledger calls
 and aggregate state still require retirement before EVY-906 can close.
 

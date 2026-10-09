@@ -196,7 +196,7 @@ func TestScanIngestionNativeFixtureKeepsExplicitWorkerPolicyAndNoStorageOnRebind
 				t.Fatal(err)
 			}
 			clock := &diffFixtureClock{at: time.Date(2026, 10, 9, 16, 0, 0, 0, time.UTC)}
-			f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: clock, workerOwnedParsers: true, repositoryScope: true}
+			f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: clock, workerOwnedParsers: true}
 			if storage {
 				f.objects = objects
 			}
@@ -204,7 +204,7 @@ func TestScanIngestionNativeFixtureKeepsExplicitWorkerPolicyAndNoStorageOnRebind
 			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound scan used aggregate clock") }})
 			s.bindIngestionFixturePorts(rebound)
 			bound, ok := s.scanIngestionCommands.(ingestionFixtureCommands)
-			if !ok || bound.ledger != rebound || bound.objects != f.objects || bound.clock != clock || !bound.workerOwnedParsers || !bound.repositoryScope {
+			if !ok || bound.ledger != rebound || bound.objects != f.objects || bound.clock != clock || !bound.workerOwnedParsers {
 				t.Fatal("scan rebind lost explicit resources/policy")
 			}
 			before, err := base.Snapshot()

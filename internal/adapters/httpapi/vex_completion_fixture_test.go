@@ -32,7 +32,6 @@ func vexCompletionTestServer(t *testing.T) (*Server, string, *app.MemoryUnitOfWo
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.bindRepositoryIngestionFixtureScope()
 	return server, secret, factory
 }
 

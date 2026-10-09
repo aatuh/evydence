@@ -2,9 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"io"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -14,35 +11,20 @@ import (
 )
 
 // Only test binaries use these command adapters. Native guards run the actual
-// algorithms and authorizers on current fixture parents. SBOM/SPDX, OpenAPI and
-// security documents and scanner writes use focused native services; VEX writes
-// still depend on historical parser commands and the isolated replay transaction.
+// algorithms and authorizers on current repository parents. Every parser and
+// document family now uses focused native services and explicit resources.
 type ingestionFixtureCommands struct {
 	catalogFixtureCommands
-	repositoryScope    bool
 	objects            app.ObjectStore
 	clock              application.Clock
 	workerOwnedParsers bool
-}
-
-func (f ingestionFixtureCommands) authority() ingestionFixtureReadAuthority {
-	legacy := ingestionFixtureAuthority{f.catalogFixtureCommands}
-	if f.repositoryScope {
-		return repositoryIngestionFixtureAuthority{ingestionFixtureAuthority: legacy}
-	}
-	return legacy
 }
 
 func (f ingestionFixtureCommands) sbomGuard() (*evidenceapp.SBOMIngestionCommands, error) {
 	return f.nativeSBOMIngestion(true)
 }
 func (f ingestionFixtureCommands) vexGuard() (*evidenceapp.VEXIngestionCommands, error) {
-	auth, err := f.authority().authorizer(false)
-	if err != nil {
-		return nil, err
-	}
-	noEffects := ingestionFixtureGuardEffects{}
-	return evidenceapp.NewVEXIngestionCommands(evidenceapp.VEXIngestionCommandConfig{Authorizer: auth, Transactions: ingestionFixtureGuardRunner{f.authority(), false}, Parser: app.VEXPayloadParser{}, Objects: noEffects, Payloads: noEffects, Canonicalizer: noEffects, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: application.ClockFunc(ingestionFixtureGuardClock), IDs: application.IDGeneratorFunc(ingestionFixtureGuardID)})
+	return f.nativeVEXIngestion(true)
 }
 func (f ingestionFixtureCommands) openAPIGuard() (*evidenceapp.OpenAPIIngestionCommands, error) {
 	return f.nativeOpenAPIIngestion(true)
@@ -116,47 +98,13 @@ func (f ingestionFixtureCommands) UploadSBOMPayload(ctx context.Context, a domai
 	v, err := c.UploadSBOMPayload(ctx, a, in, source)
 	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
-func readFixtureSource(ctx context.Context, source evidenceapp.PayloadSource) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if source.Open == nil || !app.ValidPayloadSize(source.Size, app.EvidenceDocumentLimit) {
-		return nil, app.ErrValidation
-	}
-	reader, err := source.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-	raw, err := io.ReadAll(io.LimitReader(reader, app.EvidenceDocumentLimit+1))
-	if err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	digest := sha256.Sum256(raw)
-	if int64(len(raw)) != source.Size || "sha256:"+hex.EncodeToString(digest[:]) != source.Digest {
-		return nil, app.ErrValidation
-	}
-	return raw, nil
-}
 func (f ingestionFixtureCommands) UploadVEXPayload(ctx context.Context, a domain.Actor, in evidenceapp.VEXIngestionInput, source evidenceapp.PayloadSource) (evidencedomain.VEXDocument, error) {
-	var value domain.VEXDocument
-	var err error
-	switch in.Format {
-	case "openvex":
-		value, err = f.commandLedger(ctx).UploadVEXPayload(ctx, a, in.ReleaseID, in.ArtifactID, fixtureLegacySource(source))
-	case "cyclonedx":
-		raw, readErr := readFixtureSource(ctx, source)
-		if readErr != nil {
-			return evidencedomain.VEXDocument{}, readErr
-		}
-		value, err = f.commandLedger(ctx).UploadCycloneDXVEX(ctx, a, in.ReleaseID, in.ArtifactID, raw)
-	default:
-		return evidencedomain.VEXDocument{}, app.ErrValidation
+	c, err := f.nativeVEXIngestion(false)
+	if err != nil {
+		return evidencedomain.VEXDocument{}, err
 	}
-	return fixtureVEXDocument(value), err
+	v, err := c.UploadVEXPayload(ctx, a, in, source)
+	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 func (f ingestionFixtureCommands) UploadOpenAPIContractPayload(ctx context.Context, a domain.Actor, in evidenceapp.OpenAPIIngestionInput, source evidenceapp.PayloadSource) (evidencedomain.OpenAPIContract, error) {
 	c, err := f.nativeOpenAPIIngestion(false)
