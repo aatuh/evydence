@@ -34,15 +34,6 @@ type CreateVulnerabilityDecisionInput struct {
 	ReviewDueAt     *time.Time
 }
 
-type ListVulnerabilityDecisionsInput struct {
-	ProductID     string
-	ReleaseID     string
-	Vulnerability string
-	Component     string
-	Status        string
-	Active        *bool
-}
-
 type openVEXDocument struct {
 	Context    any                `json:"@context"`
 	ID         string             `json:"@id"`

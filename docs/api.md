@@ -632,7 +632,7 @@ and one durable transaction without reloading Ledger state. See the
 [decision lifecycle reference](reference/vulnerability-decisions.md#canonical-lifecycle)
 for input bounds, append-only storage, and local-memory compatibility limits.
 
-Decision history:
+#### Decision History
 
 ```http
 GET /v1/vulnerability-decisions?release_id=rel_...&vulnerability=CVE-2026-0099&active=true
@@ -641,10 +641,20 @@ GET /v1/vulnerability-decisions?release_id=rel_...&vulnerability=CVE-2026-0099&a
 The history endpoint supports `product_id`, `release_id`, `vulnerability`,
 `component`, `status`, and `active` filters. It returns append-only decision
 records, including timestamps and supersession fields. It is tenant-scoped and
-requires `evidence:read`. In PostgreSQL mode, current product/release grants and
-filters are applied before bounded keyset pagination. The response excludes
-tenant-internal `internal_notes`; local-memory mode retains the compatibility
-reader.
+requires `evidence:read`. The response excludes tenant-internal `internal_notes`.
+Local evaluation requires PostgreSQL; memory readers are test fixtures, not
+another supported API profile.
+
+Decision-history pages retain the 500-record per-page ceiling and current
+tenant/product/release grant filtering. PostgreSQL preflights at most
+`page_size + 1` matching, grant-visible keyset rows against an 8 MiB combined
+selected-text and encoded-container budget before transferring decision
+metadata. The lookahead row enters this budget; private notes and rows outside
+the selected window do not. Explicit product/release filters are authorized
+before metadata selection. Overflow returns no partial items or continuation,
+rather than truncating metadata. This limits selection and transfer, not
+database execution time. Current scopes and metadata checks run on every page;
+cursor possession does not grant access.
 
 VEX import parser report:
 

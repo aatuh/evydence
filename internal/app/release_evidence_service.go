@@ -147,21 +147,6 @@ func (l *Ledger) CreateVulnerabilityDecision(ctx context.Context, actor domain.A
 	return domain.VulnerabilityDecisionFromContextModel(value), fromRiskContextError(err)
 }
 
-func (l *Ledger) ListVulnerabilityDecisions(ctx context.Context, actor domain.Actor, in ListVulnerabilityDecisionsInput) ([]domain.VulnerabilityDecision, error) {
-	values, err := l.riskCommands.ListVulnerabilityDecisions(ctx, actor, riskapp.ListVulnerabilityDecisionsInput{
-		ProductID: in.ProductID, ReleaseID: in.ReleaseID, Vulnerability: in.Vulnerability,
-		Component: in.Component, Status: in.Status, Active: in.Active,
-	})
-	if err != nil {
-		return nil, fromRiskContextError(err)
-	}
-	result := make([]domain.VulnerabilityDecision, 0, len(values))
-	for _, value := range values {
-		result = append(result, domain.VulnerabilityDecisionFromContextModel(value))
-	}
-	return result, nil
-}
-
 func supportingRefsToRiskContext(values []domain.SubjectRef) []riskdomain.SupportingReference {
 	result := make([]riskdomain.SupportingReference, 0, len(values))
 	for _, value := range values {

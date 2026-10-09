@@ -43,7 +43,7 @@ func (r memoryDecisionRepository) ReadVulnerabilityDecisionSummary(ctx context.C
 			}
 			// Omit notes before measuring, copying or mapping selected metadata.
 			value.InternalNotes = ""
-			if !memoryDecisionSummaryBudget(value, refs.ProductID, &remaining) {
+			if !memoryDecisionProjectionBudget(value, refs.ProductID, &remaining) {
 				return riskquery.ErrInvalidProjection
 			}
 			model, err := domain.VulnerabilityDecisionToContextModel(value)
@@ -72,7 +72,7 @@ func (r memoryDecisionRepository) ReadVulnerabilityDecisionSummary(ctx context.C
 	return out, nil
 }
 
-func memoryDecisionSummaryBudget(d domain.VulnerabilityDecision, product string, remaining *int) bool {
+func memoryDecisionProjectionBudget(d domain.VulnerabilityDecision, product string, remaining *int) bool {
 	for _, value := range []string{d.ID, d.TenantID, d.FindingID, d.ScanID, d.ReleaseID, product, d.Vulnerability, d.Component, d.SBOMID, d.SBOMComponentPURL, d.SBOMComponentName, d.Status, d.Justification, d.ImpactStatement, d.ActionStatement, d.Source, d.EvidenceID, d.VEXDocumentID, d.Supersedes, d.SupersededBy, d.ApprovedBy, d.SchemaVersion} {
 		if !memoryGovernanceText(value, *remaining) {
 			return false

@@ -28,6 +28,14 @@ PostgreSQL transfers decision metadata. Oversized summaries return no partial
 report. Current grants, active/customer-visible filtering and private-note
 omission are preserved; see [summary limits](docs/api.md#3-upload-sbom-and-vulnerability-evidence).
 
+Vulnerability-decision history pages now preflight the selected page plus
+lookahead against an 8 MiB text/encoded-container budget before PostgreSQL
+transfers metadata. Oversized windows fail without partial items or cursors.
+Explicit parent-filter authority is checked before metadata selection; cursor
+formats, response schemas, current grant filtering and the 500-record per-page
+limit are unchanged. Remaining Ledger retirement is still EVY-906 work; see
+[history page limits](docs/api.md#decision-history).
+
 SBOM component paging now excludes artifact evidence/build associations whose
 supplied release disagrees with the SBOM release, before applying page limits.
 This prevents inconsistent associations from producing projection conflicts;

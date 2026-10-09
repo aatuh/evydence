@@ -144,6 +144,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"GetVEXDocument":                     true,
 		"GetVEXImportReport":                 true,
 		"VulnerabilityDecisionSummaryReport": true,
+		"ListVulnerabilityDecisions":         true,
 		"PreviewVEXImport":                   true, "PreviewCycloneDXVEXImport": true,
 		"findMatchingFindingsLocked": true, "previewOpenVEXDecisionEffectsLocked": true,
 		"findCycloneDXVEXMatchingFindingsLocked": true, "previewCycloneDXVEXDecisionEffectsLocked": true,
@@ -177,7 +178,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					t.Errorf("%s retains retired aggregate source snapshot schema", name)
 				}
 				switch value.Name.Name {
-				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput":
+				case "CreateCustomPolicyInput", "RecordVulnerabilityWorkflowInput", "CreateWaiverInput", "CreateExceptionInput", "CreateApprovalInput", "ListSBOMComponentsInput", "ListVulnerabilityDecisionsInput":
 					t.Errorf("%s retains retired aggregate input %s", name, value.Name.Name)
 				}
 			case *ast.FuncDecl:

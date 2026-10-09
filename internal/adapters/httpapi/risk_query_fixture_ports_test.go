@@ -29,23 +29,21 @@ func decisionQueryFixtureModel(value domain.VulnerabilityDecision) (riskdomain.V
 }
 
 func (f decisionQueryFixture) ListPage(ctx context.Context, actor domain.Actor, filter riskquery.DecisionFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[riskdomain.VulnerabilityDecision], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[riskdomain.VulnerabilityDecision]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListVulnerabilityDecisions(ctx, actor, app.ListVulnerabilityDecisionsInput{ProductID: filter.ProductID, ReleaseID: filter.ReleaseID, Vulnerability: filter.Vulnerability, Component: filter.Component, Status: filter.Status, Active: filter.Active})
+	query, err := riskquery.NewVulnerabilityDecisions(f)
 	if err != nil {
 		return appquery.Result[riskdomain.VulnerabilityDecision]{}, err
 	}
-	items := make([]riskdomain.VulnerabilityDecision, 0, len(values))
-	for _, value := range values {
-		item, err := decisionQueryFixtureModel(value)
-		if err != nil {
-			return appquery.Result[riskdomain.VulnerabilityDecision]{}, err
+	value, err := query.ListPage(ctx, actor, filter, request, after)
+	return value, legacyDecisionQueryError(err)
+}
+
+func (f decisionQueryFixture) PageVulnerabilityDecisions(ctx context.Context, request riskquery.DecisionPageRequest) (riskquery.DecisionPage, error) {
+	return parsedFixtureRead(ctx, f.catalogFixtureCommands, func(ctx context.Context, r app.Repositories) (riskquery.DecisionPage, error) {
+		reader, ok := r.Decisions.(riskquery.VulnerabilityDecisionReader)
+		if !ok {
+			return riskquery.DecisionPage{}, app.ErrValidation
 		}
-		items = append(items, item)
-	}
-	return appquery.Page(items, request, after, func(value riskdomain.VulnerabilityDecision, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
+		return reader.PageVulnerabilityDecisions(ctx, request)
 	})
 }
 
@@ -102,12 +100,16 @@ func (f decisionSummaryQueryFixture) SummaryReport(ctx context.Context, actor do
 		return riskdomain.VulnerabilityDecisionSummaryReport{}, err
 	}
 	value, err := query.SummaryReport(ctx, actor, releaseID)
+	return value, legacyDecisionQueryError(err)
+}
+
+func legacyDecisionQueryError(err error) error {
 	if errors.Is(err, riskquery.ErrNotFound) {
 		err = app.ErrNotFound
 	} else if errors.Is(err, riskquery.ErrValidation) {
 		err = app.ErrValidation
 	}
-	return value, legacyParsedPointError(err)
+	return legacyParsedPointError(err)
 }
 
 func (f decisionSummaryQueryFixture) ReadVulnerabilityDecisionSummary(ctx context.Context, request riskquery.DecisionSummaryRequest) (riskquery.DecisionSummarySnapshot, error) {

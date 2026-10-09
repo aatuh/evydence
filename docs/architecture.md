@@ -297,6 +297,19 @@ Fixture reads retain detached metadata and return no report after a failed
 commit. Typed memory checks model ownership and response budgets, not SQL
 shapes, locks or durability. Remaining aggregate state is still EVY-906 work.
 
+Decision-history fixtures also compose the focused Risk page query over current
+Decision repositories. The aggregate inventory method and its input DTO are
+unchanged package-local test oracles. The typed reader retains at most
+`PageSize + 1` candidate coordinates, then copies only selected note-free
+metadata, including lookahead validation. Current parents, exact filters and
+grants precede selection; both sort orders and directions preserve keysets and
+inventories above 500 decisions. Native SQL shares the summary's note-free
+measurement projection and preflights each page window before transfer; see
+[history page limits](api.md#decision-history). Failed
+reads/commits disclose neither items nor continuation. Memory fixtures are not
+SQL shape, work/transfer, locking or durability proof; Ledger retirement remains
+unfinished under EVY-906.
+
 SBOM/SPDX, OpenVEX/CycloneDX VEX, vulnerability-scan, OpenAPI, security-scan,
 API-security and manual-document uploads, plus both document diffs, now require
 focused Evidence commands. Their eleven transport fallbacks, fifteen-method
