@@ -391,6 +391,20 @@ assurance-profile and report metadata. Their pure query tests verify no writes;
 verification calls retain their existing result/audit behavior. The local audit
 fixture retains its former 500-entry inventory cap; runtime SQL pages filter
 before limiting.
+Public signing-key fixtures now compose the same focused query as runtime over
+the current Signature repository. Tenant-wide authority is checked before the
+reader runs; there is no aggregate-clock or cached-key lookup. The typed memory
+adapter retains only `page size + 1` candidate coordinates, then projects public
+lifecycle metadata with detached timestamp pointers. It never copies private
+key bytes. Native ID/time cursor validation and four sort/direction combinations
+are covered, including 501-key traversal and corrupt lookahead rejection without
+partial output. Failed fixture read commits return no page; missing repositories
+fail closed and explicit query ports survive rebinding. Existing command
+regressions compare public inventories by traversing actual native pages, with
+their original assertions intact. The old Ledger list method is an unchanged
+package-local test oracle. PostgreSQL queries, schemas and migrations are
+unchanged; the memory model does not prove SQL transfer/work bounds, encrypted
+storage, locking or durability. Other aggregate verification paths remain.
 
 Signing-key rotation/revocation and signing-provider/DSSE trust-root creation
 also require focused Verification commands. Their four fallback branches and

@@ -54,7 +54,7 @@ func TestSigningAdministrationFixtureCommandsRollBackAllEffectsAfterWriteFailure
 			factory := app.NewMemoryUnitOfWorkFactory()
 			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
-			keysBefore, err := ledger.ListSigningKeys(t.Context(), scope.actor)
+			keysBefore, err := listFixtureSigningKeys(t.Context(), ledger, scope.actor)
 			if err != nil || len(keysBefore) != 1 {
 				t.Fatal("missing initial fixture signing key", err)
 			}
@@ -107,7 +107,7 @@ func TestSigningAdministrationFixtureCommandsRollBackAllEffectsAfterWriteFailure
 			if !reflect.DeepEqual(before, after) {
 				t.Fatal("failed signing command committed repository effects")
 			}
-			keysAfter, err := ledger.ListSigningKeys(t.Context(), scope.actor)
+			keysAfter, err := listFixtureSigningKeys(t.Context(), ledger, scope.actor)
 			if err != nil || !reflect.DeepEqual(keysBefore, keysAfter) {
 				t.Fatal("failed signing command published changed key lifecycle", err)
 			}
@@ -120,7 +120,7 @@ func TestSigningAdministrationFixtureGuardsKeepTenantAuthorityAndReadOnlyState(t
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
-	keys, err := ledger.ListSigningKeys(t.Context(), owner.actor)
+	keys, err := listFixtureSigningKeys(t.Context(), ledger, owner.actor)
 	if err != nil || len(keys) != 1 {
 		t.Fatal("missing owner key", err)
 	}

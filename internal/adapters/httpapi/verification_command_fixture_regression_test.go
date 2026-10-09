@@ -96,7 +96,7 @@ func TestVerificationCommandFixturesRollBackAllEffectsAfterWriteFailure(t *testi
 				}
 				path, body = "/v1/object-retention-policies/"+policy.ID+"/verify", `{}`
 			}
-			keysBefore, err := ledger.ListSigningKeys(t.Context(), scope.actor)
+			keysBefore, err := listFixtureSigningKeys(t.Context(), ledger, scope.actor)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +127,7 @@ func TestVerificationCommandFixturesRollBackAllEffectsAfterWriteFailure(t *testi
 			if !reflect.DeepEqual(before, after) {
 				t.Fatal("failed command committed key, signature, metadata, receipt, audit or job effects")
 			}
-			keysAfter, err := ledger.ListSigningKeys(t.Context(), scope.actor)
+			keysAfter, err := listFixtureSigningKeys(t.Context(), ledger, scope.actor)
 			if err != nil || !reflect.DeepEqual(keysBefore, keysAfter) {
 				t.Fatal("failed command changed cached signing-key lifecycle", err)
 			}

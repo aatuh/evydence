@@ -40,6 +40,28 @@ func (f verificationReadFixtureCommands) VerifyBackupManifest(ctx context.Contex
 
 type signingKeyFixtureQuery struct{ catalogFixtureCommands }
 
+// Existing command regressions compare complete public inventories. Traverse
+// actual native pages rather than reviving an aggregate read for their setup.
+func listFixtureSigningKeys(ctx context.Context, ledger *app.Ledger, actor domain.Actor) ([]domain.SigningKey, error) {
+	query := signingKeyFixtureQuery{catalogFixtureCommands{ledger: ledger}}
+	request := appquery.PageRequest{PageSize: appquery.MaxPageSize, Sort: appquery.SortID, Direction: appquery.Ascending}
+	var after *appquery.SortKey
+	items := make([]domain.SigningKey, 0)
+	for {
+		page, err := query.ListPage(ctx, actor, request, after)
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range page.Items {
+			items = append(items, signingKeyFromQuery(v))
+		}
+		if page.Next == nil {
+			return items, nil
+		}
+		after = page.Next
+	}
+}
+
 func signingKeyFixtureModel(value domain.SigningKey) (verificationdomain.SigningKey, error) {
 	status, err := verificationdomain.ParseSigningKeyStatus(value.Status)
 	if err != nil {
@@ -54,24 +76,35 @@ func signingKeyFixtureModel(value domain.SigningKey) (verificationdomain.Signing
 	}, nil
 }
 func (f signingKeyFixtureQuery) ListPage(ctx context.Context, actor domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[verificationdomain.SigningKey], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[verificationdomain.SigningKey]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListSigningKeys(ctx, actor)
+	query, err := verificationquery.NewSigningKeys(f)
 	if err != nil {
 		return appquery.Result[verificationdomain.SigningKey]{}, err
 	}
-	items := make([]verificationdomain.SigningKey, 0, len(values))
-	for _, value := range values {
-		item, err := signingKeyFixtureModel(value)
-		if err != nil {
-			return appquery.Result[verificationdomain.SigningKey]{}, err
-		}
-		items = append(items, item)
+	page, err := query.ListPage(ctx, actor, request, after)
+	return page, mapSigningKeyQueryError(err)
+}
+
+func (f signingKeyFixtureQuery) PageSigningKeys(ctx context.Context, request verificationquery.SigningKeyPageRequest) (appquery.Result[verificationdomain.SigningKey], error) {
+	var out appquery.Result[verificationdomain.SigningKey]
+	if ctx == nil {
+		return out, verificationquery.ErrSigningKeyValidation
 	}
-	return appquery.Page(items, request, after, func(value verificationdomain.SigningKey, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(value.ID, value.CreatedAt, sort)
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Signatures.(verificationquery.SigningKeyReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageSigningKeys(ctx, request)
+		return err
 	})
+	if err != nil {
+		return appquery.Result[verificationdomain.SigningKey]{}, err
+	}
+	return out, nil
 }
 
 type auditLogFixtureQuery struct{ catalogFixtureCommands }

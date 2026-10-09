@@ -142,6 +142,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"ListSBOMComponents":                 true,
 		"ListEvidenceLifecycleEvents":        true,
 		"GetEvidence":                        true,
+		"ListSigningKeys":                    true,
 		"GetVEXDocument":                     true,
 		"GetVEXImportReport":                 true,
 		"VulnerabilityDecisionSummaryReport": true,
