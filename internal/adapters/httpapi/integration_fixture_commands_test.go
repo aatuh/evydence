@@ -151,19 +151,34 @@ func (s *Server) bindIntegrationFixtureCommands(ledger *app.Ledger) {
 	} else if s.collectorCommands == nil {
 		s.collectorCommands = f
 	}
-	if _, fixture := s.sourceRepositoryCommands.(integrationFixtureCommands); s.sourceRepositoryCommands == nil || fixture {
+	if old, fixture := s.sourceRepositoryCommands.(integrationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.sourceRepositoryCommands = old
+	} else if s.sourceRepositoryCommands == nil {
 		s.sourceRepositoryCommands = f
 	}
-	if _, fixture := s.sourceCommitCommands.(integrationFixtureCommands); s.sourceCommitCommands == nil || fixture {
+	if old, fixture := s.sourceCommitCommands.(integrationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.sourceCommitCommands = old
+	} else if s.sourceCommitCommands == nil {
 		s.sourceCommitCommands = f
 	}
-	if _, fixture := s.sourceBranchCommands.(integrationFixtureCommands); s.sourceBranchCommands == nil || fixture {
+	if old, fixture := s.sourceBranchCommands.(integrationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.sourceBranchCommands = old
+	} else if s.sourceBranchCommands == nil {
 		s.sourceBranchCommands = f
 	}
-	if _, fixture := s.pullRequestCommands.(integrationFixtureCommands); s.pullRequestCommands == nil || fixture {
+	if old, fixture := s.pullRequestCommands.(integrationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.pullRequestCommands = old
+	} else if s.pullRequestCommands == nil {
 		s.pullRequestCommands = f
 	}
-	if _, fixture := s.sourceSnapshotCommands.(integrationFixtureCommands); s.sourceSnapshotCommands == nil || fixture {
+	if old, fixture := s.sourceSnapshotCommands.(integrationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.sourceSnapshotCommands = old
+	} else if s.sourceSnapshotCommands == nil {
 		s.sourceSnapshotCommands = f
 	}
 }
