@@ -470,6 +470,20 @@ production file is deleted. Typed memory readers do not prove PostgreSQL
 projection fences, share locks or durability; the existing SQL/runtime service
 is unchanged, and other direct Risk calls and Ledger state still require
 retirement under EVY-906.
+Manual-decision fixtures now have the focused reader ports over current typed
+Decision repositories: finding/source/parent and stable SBOM coordinates,
+evidence/VEX coordinates, exact scoped supporting-reference checks and bounded
+active heads. Ordinary manual-write replay preflight uses this finding reader,
+including its project coordinates, rather than the waiver-subject projection.
+Readers never select payloads, VEX metadata, prior statements or private notes.
+Malformed selected coordinate text fails closed. Head reads retain only the
+requested window, capped at 129 rows to preserve the native command's overflow
+sentinel rather than silently dropping it.
+All six support kinds and five supported approval-subject shapes retain current
+same-product/release parent checks. These typed models do not prove native SQL
+JSON shapes, work/transfer, fences, locks or durability and do not install a
+runtime backend. The manual append/supersession adapter, command migration and
+Ledger write-facade retirement are still required before EVY-906 can close.
 The existing synchronous VEX import/manual-link assertions remain intact;
 additional repository-fixture coverage exercises links to queued documents.
 Repository-backed ingestion fixtures now resolve product/project/release

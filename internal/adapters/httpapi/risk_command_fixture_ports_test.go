@@ -140,20 +140,20 @@ func (f riskCommandFixture) AuthorizeVulnerabilityDecision(ctx context.Context, 
 		return err
 	}
 	return f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
-		reader, ok := repos.Governance.(riskapp.WaiverCommandReader)
+		reader, ok := repos.Decisions.(riskapp.VulnerabilityDecisionReader)
 		if !ok {
 			return app.ErrValidation
 		}
-		// This authority-only finding read validates current typed scan/evidence/
-		// product/release parents and ambiguity without reading decision history.
-		owner, err := reader.ReadWaiverSubject(ctx, actor.TenantID, "finding", id)
+		// The focused manual-decision projection rechecks current typed source,
+		// parents and ambiguity without reading decision history or private notes.
+		owner, err := reader.ReadDecisionFinding(ctx, actor.TenantID, id)
 		if err != nil {
 			return err
 		}
-		if owner.TenantID != actor.TenantID || owner.ID != id || owner.Type != "finding" || owner.ProductID == "" || owner.ReleaseID == "" {
+		if owner.TenantID != actor.TenantID || owner.ID != id || owner.ScanID == "" || owner.ProductID == "" || owner.ReleaseID == "" {
 			return app.ErrNotFound
 		}
-		return authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopeEvidenceWrite, Resources: application.ResourceReferences{ProductID: owner.ProductID, ReleaseID: owner.ReleaseID}})
+		return authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopeEvidenceWrite, Resources: application.ResourceReferences{ProductID: owner.ProductID, ProjectID: owner.ProjectID, ReleaseID: owner.ReleaseID}})
 	})
 }
 
