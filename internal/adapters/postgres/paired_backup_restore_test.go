@@ -18,6 +18,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 )
 
 func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *testing.T) {
@@ -109,11 +110,19 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := ledger.CreateRedactionProfile(ctx, actor, app.CreateRedactionProfileInput{Name: "paired restore", AllowedTypes: []string{"sbom"}, ExcludedFields: []string{"internal_notes"}})
+	profiles, err := newRedactionProfileFixture(sourceStore)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, app.CreateCustomerPackageInput{ProductID: product.ID, ReleaseID: release.ID, RedactionProfileID: profile.ID, Title: "Paired restore package", ExpiresAt: time.Now().UTC().Add(time.Hour)})
+	profile, err := profiles.CreateRedactionProfile(ctx, actor, packageapp.CreateRedactionProfileInput{Name: "paired restore", AllowedTypes: []string{"sbom"}, ExcludedFields: []string{"internal_notes"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages, err := newCustomerPackageFixture(sourceStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, err := packages.CreateCustomerSecurityPackage(ctx, actor, packageapp.CreateCustomerPackageInput{ProductID: product.ID, ReleaseID: release.ID, RedactionProfileID: profile.ID, Title: "Paired restore package", ExpiresAt: time.Now().UTC().Add(time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}

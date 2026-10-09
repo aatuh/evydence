@@ -27,36 +27,43 @@ func (r memoryPackageRepository) LockCustomerPackageCreationScope(ctx context.Co
 func (r memoryPackageRepository) GetCustomerPackageRedactionProfile(ctx context.Context, tenant, id string) (packagedomain.RedactionProfile, error) {
 	var out packagedomain.RedactionProfile
 	err := memoryGovernanceRead(ctx, r.uow, tenant, id, func(s *MemoryUnitOfWorkSnapshot) error {
-		p, ok := s.RedactionProfiles[id]
-		if !ok || p.ID != id || p.TenantID != tenant || p.Name == "" || p.SchemaVersion == "" || len(p.AllowedTypes) == 0 {
-			return ErrNotFound
+		var err error
+		out, err = readMemoryCustomerRedactionProfile(s, tenant, id)
+		if err != nil {
+			return err
 		}
-		createdAt := p.CreatedAt.UTC()
-		if !memoryGovernanceText(p.Name, packageapp.MaxRedactionProfileTextBytes) || !memoryGovernanceText(p.Description, packageapp.MaxRedactionProfileTextBytes) || !memoryGovernanceText(p.SchemaVersion, 1024) || createdAt.IsZero() || createdAt.Year() < 1 || createdAt.Year() > 9999 {
-			return ErrConflict
-		}
-		for _, values := range [][]string{p.AllowedTypes, p.ExcludedFields} {
-			if len(values) > packageapp.MaxRedactionProfileEntries {
-				return ErrConflict
-			}
-			for _, v := range values {
-				if !memoryGovernanceText(v, packageapp.MaxRedactionProfileEntryBytes) {
-					return ErrConflict
-				}
-			}
-		}
-		raw, err := json.Marshal(p)
-		if err != nil || len(raw) > packageapp.MaxCustomerPackageManifestBytes {
-			return ErrConflict
-		}
-		out = packagedomain.RedactionProfile(p)
-		out.AllowedTypes = slices.Clone(p.AllowedTypes)
-		out.ExcludedFields = slices.Clone(p.ExcludedFields)
-		out.CreatedAt = createdAt
 		return ctx.Err()
 	})
 	if err != nil {
 		return packagedomain.RedactionProfile{}, err
 	}
+	return out, nil
+}
+
+func readMemoryCustomerRedactionProfile(s *MemoryUnitOfWorkSnapshot, tenant, id string) (packagedomain.RedactionProfile, error) {
+	p, ok := s.RedactionProfiles[id]
+	if !ok || p.ID != id || p.TenantID != tenant || p.Name == "" || p.SchemaVersion == "" || len(p.AllowedTypes) == 0 {
+		return packagedomain.RedactionProfile{}, ErrNotFound
+	}
+	p.CreatedAt = p.CreatedAt.UTC()
+	if !memoryGovernanceText(p.Name, packageapp.MaxRedactionProfileTextBytes) || !memoryGovernanceText(p.Description, packageapp.MaxRedactionProfileTextBytes) || !memoryGovernanceText(p.SchemaVersion, 1024) || p.CreatedAt.IsZero() || p.CreatedAt.Year() < 1 || p.CreatedAt.Year() > 9999 {
+		return packagedomain.RedactionProfile{}, ErrConflict
+	}
+	for _, values := range [][]string{p.AllowedTypes, p.ExcludedFields} {
+		if len(values) > packageapp.MaxRedactionProfileEntries {
+			return packagedomain.RedactionProfile{}, ErrConflict
+		}
+		for _, v := range values {
+			if !memoryGovernanceText(v, packageapp.MaxRedactionProfileEntryBytes) {
+				return packagedomain.RedactionProfile{}, ErrConflict
+			}
+		}
+	}
+	raw, err := json.Marshal(p)
+	if err != nil || len(raw) > packageapp.MaxCustomerPackageManifestBytes {
+		return packagedomain.RedactionProfile{}, ErrConflict
+	}
+	out := packagedomain.RedactionProfile(p)
+	out.AllowedTypes, out.ExcludedFields = slices.Clone(p.AllowedTypes), slices.Clone(p.ExcludedFields)
 	return out, nil
 }

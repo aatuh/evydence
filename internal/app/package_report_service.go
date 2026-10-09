@@ -35,22 +35,6 @@ func (l *Ledger) AuthorizeReleaseBundleCreation(ctx context.Context, a domain.Ac
 	return err
 }
 
-func (l *Ledger) CreateRedactionProfile(ctx context.Context, actor domain.Actor, in CreateRedactionProfileInput) (domain.RedactionProfile, error) {
-	value, err := l.packageCommands.CreateRedactionProfile(ctx, actor, packageapp.CreateRedactionProfileInput{
-		Name: in.Name, Description: in.Description, Preset: in.Preset,
-		AllowedTypes: append([]string(nil), in.AllowedTypes...), ExcludedFields: append([]string(nil), in.ExcludedFields...),
-	})
-	return redactionProfileFromPackageContext(value), fromPackageContextError(err)
-}
-
-func (l *Ledger) CreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, in CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error) {
-	value, err := l.packageCommands.CreateCustomerSecurityPackage(ctx, actor, packageapp.CreateCustomerPackageInput{
-		ProductID: in.ProductID, ReleaseID: in.ReleaseID, RedactionProfileID: in.RedactionProfileID,
-		Title: in.Title, ExpiresAt: in.ExpiresAt,
-	})
-	return customerSecurityPackageFromContext(value), fromPackageContextError(err)
-}
-
 func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
 	value, err := l.packageCommands.AccessCustomerSecurityPackage(ctx, actor, id)
 	return customerSecurityPackageFromContext(value), fromPackageContextError(err)

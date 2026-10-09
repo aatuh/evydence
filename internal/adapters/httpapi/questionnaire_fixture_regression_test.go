@@ -41,11 +41,11 @@ func seedQuestionnaireFixtureScope(t *testing.T, ledger *app.Ledger, name string
 		t.Fatal(err)
 	}
 	f.entry = answerLibraryEntryFromQuery(entry)
-	profile, err := ledger.CreateRedactionProfile(t.Context(), f.actor, app.CreateRedactionProfileInput{Preset: "customer_safe"})
+	profile, err := createRedactionProfileFixture(t.Context(), ledger, f.actor, packageapp.CreateRedactionProfileInput{Preset: "customer_safe"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.pkg, err = ledger.CreateCustomerSecurityPackage(t.Context(), f.actor, app.CreateCustomerPackageInput{ProductID: f.product.ID, ReleaseID: f.release.ID, RedactionProfileID: profile.ID, Title: "Review", ExpiresAt: time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)})
+	f.pkg, err = createCustomerPackageFixture(t.Context(), ledger, f.actor, packageapp.CreateCustomerPackageInput{ProductID: f.product.ID, ReleaseID: f.release.ID, RedactionProfileID: profile.ID, Title: "Review", ExpiresAt: time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)})
 	if err != nil {
 		t.Fatal(err)
 	}

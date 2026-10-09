@@ -88,7 +88,18 @@ func memoryCustomerMetadataFits(value any, remaining *int, depth int) bool {
 				return false
 			}
 		}
-	case nil, bool, int, int64, json.Number:
+	case []any:
+		if len(v) > 4096 {
+			return false
+		}
+		for _, child := range v {
+			if !memoryCustomerMetadataFits(child, remaining, depth+1) {
+				return false
+			}
+		}
+	case json.Number:
+		return text(v.String())
+	case nil, bool, int, int64, float64:
 	default:
 		return false
 	}
@@ -101,7 +112,14 @@ func (b *memoryCustomerSnapshotBudget) charge(value any) error {
 		return ErrConflict
 	}
 	raw, err := json.Marshal(value)
-	if err != nil || len(raw) > b.remainingBytes || jsonbounds.Validate(raw, jsonbounds.Limits{MaxDepth: 32, MaxObjectKeys: 4096, MaxArrayItems: packageapp.MaxSecurityReviewEvidenceIDs, MaxStringBytes: packageapp.MaxCustomerPackageManifestBytes}) != nil {
+	if err != nil {
+		return ErrConflict
+	}
+	return b.chargeJSON(raw)
+}
+
+func (b *memoryCustomerSnapshotBudget) chargeJSON(raw []byte) error {
+	if len(raw) > b.remainingBytes || jsonbounds.Validate(raw, jsonbounds.Limits{MaxDepth: 32, MaxObjectKeys: 4096, MaxArrayItems: packageapp.MaxSecurityReviewEvidenceIDs, MaxStringBytes: packageapp.MaxCustomerPackageManifestBytes}) != nil {
 		return ErrConflict
 	}
 	b.remainingBytes -= len(raw)
@@ -239,7 +257,7 @@ func validateMemoryCustomerSnapshotRead(ctx context.Context, s *MemoryUnitOfWork
 
 // Association bounds are independent of the public metadata budget, matching
 // the native catalog's capped input work. Payload/metadata fields are unread.
-func readMemoryCustomerCatalogArtifacts(ctx context.Context, s *MemoryUnitOfWorkSnapshot, tenant, product, release string, selected map[string]bool, budget *memoryCustomerSnapshotBudget) ([]map[string]any, error) {
+func memoryCustomerCatalogArtifactIDs(ctx context.Context, s *MemoryUnitOfWorkSnapshot, tenant, product, release string, selected map[string]bool) (map[string]bool, error) {
 	count, bytesRemaining := 0, packageapp.MaxCustomerPackageManifestBytes
 	artifacts := make(map[string]bool)
 	addArtifact := func(id string) error {
@@ -339,6 +357,14 @@ func readMemoryCustomerCatalogArtifacts(ctx context.Context, s *MemoryUnitOfWork
 		if err := charge(b.Outputs, len(b.Outputs)); err != nil {
 			return nil, err
 		}
+	}
+	return artifacts, nil
+}
+
+func readMemoryCustomerCatalogArtifacts(ctx context.Context, s *MemoryUnitOfWorkSnapshot, tenant, product, release string, selected map[string]bool, budget *memoryCustomerSnapshotBudget) ([]map[string]any, error) {
+	artifacts, err := memoryCustomerCatalogArtifactIDs(ctx, s, tenant, product, release, selected)
+	if err != nil {
+		return nil, err
 	}
 	out := []map[string]any{}
 	for id, a := range s.Artifacts {

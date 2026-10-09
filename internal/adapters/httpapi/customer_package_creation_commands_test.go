@@ -127,7 +127,7 @@ func TestCustomerCreationHTTPFocusedPortAndStrictInput(t *testing.T) {
 }
 
 func TestCustomerCreationHTTPBothProfilesCookieAndLocalReplay(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := operationsTestServer(t)
 	product := dataField(t, postJSON(t, base, secret, "/v1/products", "product", map[string]any{"name": "Product", "slug": "product"}, 201), "id")
 	profile := dataField(t, postJSON(t, base, secret, "/v1/redaction-profiles", "profile", map[string]any{"preset": "customer_safe"}, 201), "id")
 	body := fmt.Sprintf(`{"product_id":%q,"redaction_profile_id":%q,"title":"Review","expires_at":"2030-01-01T00:00:00Z"}`, product, profile)

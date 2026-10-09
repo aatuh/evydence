@@ -4328,6 +4328,13 @@ func cloneMemoryIdempotencyRecord(record IdempotencyRecord) (IdempotencyRecord, 
 	if err != nil {
 		return IdempotencyRecord{}, err
 	}
+	// Already encoded responses are immutable wire representations, not
+	// schema-free maps. Validate through Marshal above, then detach the exact
+	// bytes so completed replay cannot reorder fields or round numbers.
+	if raw, ok := record.Response.(json.RawMessage); ok {
+		cloned.Response = append(json.RawMessage(nil), raw...)
+		return cloned, nil
+	}
 	// Responses are schema-free JSON. A generic float64 clone would round
 	// valid revisions/counts and decimals before they can be replayed safely.
 	var response any

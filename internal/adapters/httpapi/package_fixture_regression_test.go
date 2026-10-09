@@ -68,7 +68,7 @@ func TestPackageFixtureCreationRollsBackPrivacySigningAndAuditEffects(t *testing
 			path, body := "/v1/redaction-profiles", `{"preset":"customer_safe"}`
 			switch action {
 			case "customer":
-				profile, err := ledger.CreateRedactionProfile(t.Context(), scope.actor, app.CreateRedactionProfileInput{Preset: "customer_safe"})
+				profile, err := createRedactionProfileFixture(t.Context(), ledger, scope.actor, packageapp.CreateRedactionProfileInput{Preset: "customer_safe"})
 				if err != nil {
 					t.Fatal(err)
 				}

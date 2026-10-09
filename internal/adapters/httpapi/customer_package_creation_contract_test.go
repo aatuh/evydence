@@ -46,7 +46,7 @@ func TestCustomerCreationOpenAPIConstrainsOnlyNewRequest(t *testing.T) {
 }
 
 func TestCustomerCreationLegacyHTTPUsesSharedRawInputBounds(t *testing.T) {
-	s, secret := testServer(t)
+	s, secret := operationsTestServer(t)
 	product := dataField(t, postJSON(t, s, secret, "/v1/products", "creation-product", map[string]any{"name": "Product", "slug": "creation-product"}, http.StatusCreated), "id")
 	profile := dataField(t, postJSON(t, s, secret, "/v1/redaction-profiles", "creation-profile", map[string]any{"preset": "customer_safe"}, http.StatusCreated), "id")
 	base := map[string]any{"product_id": product, "redaction_profile_id": profile, "title": "Review", "expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339)}

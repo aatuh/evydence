@@ -82,7 +82,7 @@ func TestRedactionHTTPRejectsMalformedInputBeforeCommand(t *testing.T) {
 }
 
 func TestRedactionHTTPBothProfilesRequireSafeCookieMutation(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := operationsTestServer(t)
 	for _, focused := range []bool{false, true} {
 		f := &redactionHTTPFake{}
 		opts := ServerOptions{}
@@ -117,7 +117,7 @@ func TestRedactionHTTPBothProfilesRequireSafeCookieMutation(t *testing.T) {
 }
 
 func TestRedactionHTTPLocalReplayRechecksTenantGrant(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := operationsTestServer(t)
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestRedactionHTTPLocalReplayRechecksTenantGrant(t *testing.T) {
 	const body = `{"preset":"customer_safe"}`
 	first := postRaw(t, s, secret, "/v1/redaction-profiles", "replay", []byte(body), 201)
 	if second := postRaw(t, s, secret, "/v1/redaction-profiles", "replay", []byte(body), 201); first != second {
-		t.Fatal("local replay changed original result")
+		t.Fatal("local replay changed original result", first, second)
 	}
 	auth.actor.ResourceGrants = []domain.ResourceGrant{{ResourceType: "product", ResourceID: "product", Scopes: []string{"*"}}}
 	postRaw(t, s, secret, "/v1/redaction-profiles", "replay", []byte(body), 403)

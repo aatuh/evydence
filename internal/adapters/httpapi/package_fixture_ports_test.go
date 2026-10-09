@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -59,28 +58,17 @@ func (f packageFixtureCommands) CreateReleaseBundle(ctx context.Context, actor d
 	return domain.ReleaseBundleToContextModel(value)
 }
 
-// Preserve the legacy preflight's real scoped policies. Fresh commands below
-// resolve their actual fixture parents; runtime ports stabilize SQL ownership.
 func (f packageFixtureCommands) AuthorizeCreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, input packageapp.CreateCustomerPackageInput) error {
-	input, err := packageapp.NormalizeCustomerPackageInput(input)
-	if err != nil {
-		return err
-	}
-	return packagequery.NewCustomerPackageCreationAuthorizer().Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopePackageWrite, Resources: application.ResourceReferences{ProductID: input.ProductID, ReleaseID: input.ReleaseID}})
+	return (customerPackageFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeCreateCustomerSecurityPackage(ctx, actor, input)
 }
 func (f packageFixtureCommands) CreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, input packageapp.CreateCustomerPackageInput) (packagedomain.CustomerSecurityPackage, error) {
-	value, err := f.commandLedger(ctx).CreateCustomerSecurityPackage(ctx, actor, app.CreateCustomerPackageInput{ProductID: input.ProductID, ReleaseID: input.ReleaseID, RedactionProfileID: input.RedactionProfileID, Title: input.Title, ExpiresAt: input.ExpiresAt})
-	return packagedomain.CustomerSecurityPackage(value), err
+	return (customerPackageFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateCustomerSecurityPackage(ctx, actor, input)
 }
 func (f packageFixtureCommands) AuthorizeCreateRedactionProfile(ctx context.Context, actor domain.Actor, input packageapp.CreateRedactionProfileInput) error {
-	if _, err := packageapp.NormalizeRedactionProfileInput(input); err != nil {
-		return err
-	}
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopePackageWrite)
+	return (redactionProfileFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeCreateRedactionProfile(ctx, actor, input)
 }
 func (f packageFixtureCommands) CreateRedactionProfile(ctx context.Context, actor domain.Actor, input packageapp.CreateRedactionProfileInput) (packagedomain.RedactionProfile, error) {
-	value, err := f.commandLedger(ctx).CreateRedactionProfile(ctx, actor, app.CreateRedactionProfileInput{Name: input.Name, Description: input.Description, Preset: input.Preset, AllowedTypes: input.AllowedTypes, ExcludedFields: input.ExcludedFields})
-	return packagedomain.RedactionProfile(value), err
+	return (redactionProfileFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateRedactionProfile(ctx, actor, input)
 }
 func (f packageFixtureCommands) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (packagedomain.CustomerSecurityPackage, error) {
 	value, err := f.commandLedger(ctx).AccessCustomerSecurityPackage(ctx, actor, id)
@@ -154,11 +142,17 @@ func (s *Server) bindPackageFixturePorts(ledger *app.Ledger) {
 	if _, fixture := s.releaseBundleCommands.(packageFixtureCommands); s.releaseBundleCommands == nil || fixture {
 		s.releaseBundleCommands = commands
 	}
-	if _, fixture := s.customerPackageCreationCommands.(packageFixtureCommands); s.customerPackageCreationCommands == nil || fixture {
-		s.customerPackageCreationCommands = commands
+	if old, ok := s.customerPackageCreationCommands.(customerPackageFixtureCommands); ok {
+		old.ledger = ledger
+		s.customerPackageCreationCommands = old
+	} else if _, fixture := s.customerPackageCreationCommands.(packageFixtureCommands); s.customerPackageCreationCommands == nil || fixture {
+		s.customerPackageCreationCommands = customerPackageFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
-	if _, fixture := s.redactionProfileCommands.(packageFixtureCommands); s.redactionProfileCommands == nil || fixture {
-		s.redactionProfileCommands = commands
+	if old, ok := s.redactionProfileCommands.(redactionProfileFixtureCommands); ok {
+		old.ledger = ledger
+		s.redactionProfileCommands = old
+	} else if _, legacy := s.redactionProfileCommands.(packageFixtureCommands); s.redactionProfileCommands == nil || legacy {
+		s.redactionProfileCommands = redactionProfileFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
 	if _, fixture := s.customerPackageAccessCommands.(packageFixtureCommands); s.customerPackageAccessCommands == nil || fixture {
 		s.customerPackageAccessCommands = commands

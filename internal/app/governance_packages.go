@@ -21,22 +21,6 @@ import (
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
-type CreateRedactionProfileInput struct {
-	Name           string
-	Description    string
-	Preset         string
-	AllowedTypes   []string
-	ExcludedFields []string
-}
-
-type CreateCustomerPackageInput struct {
-	ProductID          string
-	ReleaseID          string
-	RedactionProfileID string
-	Title              string
-	ExpiresAt          time.Time
-}
-
 type CustomerPackageArchive struct {
 	PackageID string
 	Filename  string
