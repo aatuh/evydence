@@ -27,14 +27,6 @@ type CreateRetentionOverrideInput struct {
 	Owner          string
 }
 
-type CreateCommercialCollectorInput struct {
-	Name          string
-	Provider      string
-	Version       string
-	ManifestHash  string
-	AllowedScopes []string
-}
-
 func (l *Ledger) CreateLegalHold(ctx context.Context, actor domain.Actor, in CreateLegalHoldInput) (domain.LegalHold, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.LegalHold{}, err
@@ -141,70 +133,6 @@ func (l *Ledger) RetentionReport(ctx context.Context, actor domain.Actor, scopeT
 		}
 	}
 	return domain.RetentionReport{ReportType: "retention", ScopeType: scopeType, ScopeID: scopeID, LegalHolds: holds, RetentionOverrides: overrides, Limitations: []string{"Retention reports describe Evydence records and do not replace external storage lifecycle verification."}, GeneratedAt: l.now()}, nil
-}
-
-func (l *Ledger) CreateCommercialCollectorDefinition(ctx context.Context, actor domain.Actor, in CreateCommercialCollectorInput) (domain.CommercialCollectorDefinition, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.CommercialCollectorDefinition{}, err
-	}
-	if err := require(actor, ScopeCollectorAdmin); err != nil {
-		return domain.CommercialCollectorDefinition{}, err
-	}
-	in.Name, in.Provider, in.Version = strings.TrimSpace(in.Name), strings.TrimSpace(in.Provider), strings.TrimSpace(in.Version)
-	if in.Name == "" || in.Provider == "" || in.Version == "" || !validDigest(in.ManifestHash) || !validCollectorScopes(in.AllowedScopes) {
-		return domain.CommercialCollectorDefinition{}, ErrValidation
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, existing := range l.commercialCollectors {
-		if existing.TenantID == actor.TenantID && existing.Name == in.Name && existing.Provider == in.Provider && existing.Version == in.Version {
-			return domain.CommercialCollectorDefinition{}, ErrConflict
-		}
-	}
-	def := domain.CommercialCollectorDefinition{ID: newID("ccol"), TenantID: actor.TenantID, Name: in.Name, Provider: in.Provider, Version: in.Version, ManifestHash: in.ManifestHash, AllowedScopes: sortedStrings(in.AllowedScopes), Status: "available", SchemaVersion: domain.CommercialCollectorVersion, CreatedAt: l.now()}
-	if l.unitOfWork != nil {
-		var entry domain.AuditChainEntry
-		if err := l.ExecuteUnitOfWork(ctx, func(ctx context.Context, repos Repositories) error {
-			if err := repos.Enterprise.InsertCommercialCollectorDefinition(ctx, def); err != nil {
-				return err
-			}
-			var err error
-			entry, err = repos.Audit.Append(ctx, newUnitOfWorkAuditEntry(def.CreatedAt, actor.TenantID, "commercial_collector.created", "commercial_collector", def.ID, actorType(actor), actorID(actor), in.ManifestHash, ""))
-			return err
-		}); err != nil {
-			return domain.CommercialCollectorDefinition{}, err
-		}
-		l.commercialCollectors[def.ID] = def
-		l.publishCommittedAuditEntryLocked(entry)
-		return def, nil
-	}
-	l.commercialCollectors[def.ID] = def
-	_, _ = l.appendChainLocked(actor.TenantID, "commercial_collector.created", "commercial_collector", def.ID, actorType(actor), actorID(actor), in.ManifestHash, "")
-	if err := l.persistLocked(ctx); err != nil {
-		return domain.CommercialCollectorDefinition{}, err
-	}
-	return def, nil
-}
-
-func (l *Ledger) ListCommercialCollectorDefinitions(ctx context.Context, actor domain.Actor) ([]domain.CommercialCollectorDefinition, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if err := require(actor, ScopeCollectorRead); err != nil {
-		return nil, err
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if err := l.authorizeResourceLocked(actor, ScopeCollectorRead, resourceRefs{}); err != nil {
-		return nil, err
-	}
-	out := []domain.CommercialCollectorDefinition{}
-	for _, def := range l.commercialCollectors {
-		if def.TenantID == actor.TenantID {
-			out = append(out, def)
-		}
-	}
-	return out, nil
 }
 
 func (l *Ledger) ensureRoleSubjectLocked(tenantID, subjectType, subjectID string) error {

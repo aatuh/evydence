@@ -34,15 +34,15 @@ func TestIntegrationFixtureReadsKeepTenantScopeCompletePagesAndDetachedMetadata(
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err := ledger.CreateCommercialCollectorDefinition(t.Context(), owner.actor, app.CreateCommercialCollectorInput{Name: "Scanner", Provider: "fixture", Version: "1", ManifestHash: "sha256:" + strings.Repeat("a", 64), AllowedScopes: []string{"evidence:write"}})
+	definition, err := commands.CreateCommercialCollectorDefinition(t.Context(), owner.actor, integrationapp.CreateCommercialCollectorInput{Name: "Scanner", Provider: "fixture", Version: "1", ManifestHash: "sha256:" + strings.Repeat("a", 64), AllowedScopes: []string{"evidence:write"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition2, err := ledger.CreateCommercialCollectorDefinition(t.Context(), owner.actor, app.CreateCommercialCollectorInput{Name: "Second", Provider: "fixture", Version: "2", ManifestHash: "sha256:" + strings.Repeat("b", 64), AllowedScopes: []string{"evidence:write"}})
+	definition2, err := commands.CreateCommercialCollectorDefinition(t.Context(), owner.actor, integrationapp.CreateCommercialCollectorInput{Name: "Second", Provider: "fixture", Version: "2", ManifestHash: "sha256:" + strings.Repeat("b", 64), AllowedScopes: []string{"evidence:write"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = ledger.CreateCommercialCollectorDefinition(t.Context(), foreign.actor, app.CreateCommercialCollectorInput{Name: "Foreign", Provider: "fixture", Version: "1", ManifestHash: "sha256:" + strings.Repeat("c", 64), AllowedScopes: []string{"evidence:write"}})
+	_, err = commands.CreateCommercialCollectorDefinition(t.Context(), foreign.actor, integrationapp.CreateCommercialCollectorInput{Name: "Foreign", Provider: "fixture", Version: "1", ManifestHash: "sha256:" + strings.Repeat("c", 64), AllowedScopes: []string{"evidence:write"}})
 	if err != nil {
 		t.Fatal(err)
 	}

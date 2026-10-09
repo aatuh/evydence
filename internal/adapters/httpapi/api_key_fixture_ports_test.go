@@ -12,6 +12,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 )
 
 // Focused issuance joins the actual fixture command transaction. Credential
@@ -204,7 +205,8 @@ func TestAPIKeyFixtureGuardUsesRepositoryTenantWithoutCredentialInventory(t *tes
 	if err := f.AuthorizeCreateAPIKey(t.Context(), actor, identityapp.CreateAPIKeyInput{Name: "Collector", Scopes: []string{"evidence:write"}}); err != nil {
 		t.Fatal("guard required cached tenant or bootstrap credential inventory", err)
 	}
-	if err := (collectorFixtureGuard{catalogFixtureCommands{ledger: ledger}}).LockCollectorWrites(t.Context(), actor.TenantID); err != nil {
+	collector := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if err := collector.AuthorizeCreateCollector(t.Context(), actor, integrationapp.CreateCollectorInput{Name: "Builder", Type: "generic_ci", Version: "1"}); err != nil {
 		t.Fatal("collector tenant guard required credential inventory", err)
 	}
 	after, err := factory.Snapshot()

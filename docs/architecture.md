@@ -532,6 +532,21 @@ preserve the existing assertions. These fixtures are not another API runtime or
 proof of PostgreSQL JSON shapes, work/transfer, fences or durability; native SQL,
 API contracts and schemas are unchanged. Shared collector replay/type/scope
 helpers still have production callers and are not claimed retired.
+Commercial collector definition creation and inventory fixtures now use the
+focused Integration command and query as well. Current tenant/provider/name/
+version identity checks precede clock/ID use; definition and human audit effects
+share the UoW, with no collector, credential or release capability available.
+Preflight rejects missing repositories/tenants and cannot read uniqueness metadata
+or perform effects. The obsolete standalone collector fixture preflight adapter
+is removed; its current-tenant/no-credential-inventory assertion now exercises
+the actual focused creation preflight. Commercial inventory selects at most
+page-size+1 typed coordinates before projecting detached public scopes, preserving
+time/ID ties and native cursor validation. The historical creation/list methods
+and input DTO are unchanged test-only oracles guarded against production return.
+Complete DTO, 501-record traversal, tenant/grant, duplicate, cancellation and
+failed read/write commit regressions preserve existing replay and inventory
+assertions. This is not PostgreSQL JSON-shape, work/transfer, per-field byte-budget,
+lock or durability evidence; native SQL, API contracts and schemas are unchanged.
 Other contexts' Ledger calls and aggregate state still await
 retirement; deleting the transport interface alone does not complete EVY-906.
 

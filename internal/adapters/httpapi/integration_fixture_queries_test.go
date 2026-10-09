@@ -59,22 +59,31 @@ func (f collectorPageFixture) PageCollectors(ctx context.Context, request integr
 	return out, nil
 }
 func (f commercialCollectorPageFixture) ListPage(ctx context.Context, a domain.Actor, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[integrationdomain.CommercialCollectorDefinition], error) {
-	if err := appquery.Validate(request, after); err != nil {
-		return appquery.Result[integrationdomain.CommercialCollectorDefinition]{}, err
-	}
-	values, err := f.commandLedger(ctx).ListCommercialCollectorDefinitions(ctx, a)
+	q, err := integrationquery.NewCommercialCollectors(f)
 	if err != nil {
 		return appquery.Result[integrationdomain.CommercialCollectorDefinition]{}, err
 	}
-	items := make([]integrationdomain.CommercialCollectorDefinition, 0, len(values))
-	for _, v := range values {
-		model := integrationdomain.CommercialCollectorDefinition(v)
-		model.AllowedScopes = slices.Clone(v.AllowedScopes)
-		items = append(items, model)
+	v, err := q.ListPage(ctx, a, request, after)
+	return v, mapIntegrationQueryError(err)
+}
+func (f commercialCollectorPageFixture) PageCommercialCollectors(ctx context.Context, request integrationquery.CommercialCollectorPageRequest) (appquery.Result[integrationdomain.CommercialCollectorDefinition], error) {
+	var out appquery.Result[integrationdomain.CommercialCollectorDefinition]
+	if ctx == nil {
+		return out, integrationquery.ErrValidation
 	}
-	return appquery.Page(items, request, after, func(v integrationdomain.CommercialCollectorDefinition, sort appquery.Sort) appquery.SortKey {
-		return appquery.RecordSortKey(v.ID, v.CreatedAt, sort)
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, r app.Repositories) error {
+		reader, ok := r.Enterprise.(integrationquery.CommercialCollectorReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.PageCommercialCollectors(ctx, request)
+		return err
 	})
+	if err != nil {
+		return appquery.Result[integrationdomain.CommercialCollectorDefinition]{}, err
+	}
+	return out, nil
 }
 func (f sourceRepositoryPageFixture) ListPage(ctx context.Context, a domain.Actor, project string, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[integrationdomain.SourceRepository], error) {
 	if err := appquery.Validate(request, after); err != nil {

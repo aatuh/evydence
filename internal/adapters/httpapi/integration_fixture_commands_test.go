@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"slices"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -117,10 +116,12 @@ func (f integrationFixtureCommands) RecordCollectorRelease(ctx context.Context, 
 	return v, collectorReleaseFixtureError(err)
 }
 func (f integrationFixtureCommands) CreateCommercialCollectorDefinition(ctx context.Context, a domain.Actor, in integrationapp.CreateCommercialCollectorInput) (integrationdomain.CommercialCollectorDefinition, error) {
-	v, err := f.commandLedger(ctx).CreateCommercialCollectorDefinition(ctx, a, app.CreateCommercialCollectorInput(in))
-	model := integrationdomain.CommercialCollectorDefinition(v)
-	model.AllowedScopes = slices.Clone(v.AllowedScopes)
-	return model, err
+	c, err := f.nativeCommercialCollector(false)
+	if err != nil {
+		return integrationdomain.CommercialCollectorDefinition{}, err
+	}
+	v, err := c.CreateCommercialCollectorDefinition(ctx, a, in)
+	return v, collectorReleaseFixtureError(err)
 }
 
 func (s *Server) bindIntegrationFixtureCommands(ledger *app.Ledger) {
