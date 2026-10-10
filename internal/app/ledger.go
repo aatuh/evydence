@@ -613,64 +613,6 @@ func (l *Ledger) appendChainLocked(tenantID, entryType, subjectType, subjectID, 
 	return entry, nil
 }
 
-func (l *Ledger) verifyChainLocked(tenantID string) []domain.VerifyCheck {
-	entries := l.chain[tenantID]
-	checks := []domain.VerifyCheck{}
-	previous := ""
-	passed := true
-	for i, entry := range entries {
-		if entry.TenantID != tenantID {
-			checks = append(checks, domain.VerifyCheck{Name: "tenant_id", Result: "failed", Detail: entry.ID})
-			passed = false
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "tenant_id", Result: "passed", Detail: entry.ID})
-		}
-		if entry.SchemaVersion != auditChainEntryLegacySchemaVersion && entry.SchemaVersion != domain.AuditChainEntrySchemaVersion {
-			checks = append(checks, domain.VerifyCheck{Name: "schema_version", Result: "failed", Detail: entry.ID})
-			passed = false
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "schema_version", Result: "passed", Detail: entry.ID})
-		}
-		if entry.Sequence != int64(i+1) {
-			checks = append(checks, domain.VerifyCheck{Name: "sequence", Result: "failed", Detail: entry.ID})
-			passed = false
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "sequence", Result: "passed", Detail: entry.ID})
-		}
-		if entry.PreviousEntryHash != previous {
-			checks = append(checks, domain.VerifyCheck{Name: "previous_hash", Result: "failed", Detail: entry.ID})
-			passed = false
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "previous_hash", Result: "passed", Detail: entry.ID})
-		}
-		canonical, canonicalMatches, err := verifiedAuditChainCanonicalHash(entry)
-		if err != nil || !canonicalMatches {
-			checks = append(checks, domain.VerifyCheck{Name: "canonical_entry_hash", Result: "failed", Detail: entry.ID})
-			passed = false
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "canonical_entry_hash", Result: "passed", Detail: entry.ID})
-		}
-		if err != nil || hashBytes([]byte(previous+"\n"+canonical)) != entry.EntryHash {
-			checks = append(checks, domain.VerifyCheck{Name: "entry_hash", Result: "failed", Detail: entry.ID})
-			passed = false
-		} else {
-			checks = append(checks, domain.VerifyCheck{Name: "entry_hash", Result: "passed", Detail: entry.ID})
-		}
-		signatureCheck := l.verifyAuditEntrySignatureLocked(entry)
-		checks = append(checks, signatureCheck)
-		if signatureCheck.Result != "passed" {
-			passed = false
-		}
-		previous = entry.EntryHash
-	}
-	if passed {
-		checks = append(checks, domain.VerifyCheck{Name: "audit_chain", Result: "passed"})
-	} else {
-		checks = append(checks, domain.VerifyCheck{Name: "audit_chain", Result: "failed"})
-	}
-	return checks
-}
-
 // newSigningKey creates private material without publishing it. Callers must
 // write it transactionally and must never return Private to normal callers.
 func (l *Ledger) newSigningKeyAt(tenantID, provider string, version int, now time.Time) (domain.SigningKey, error) {

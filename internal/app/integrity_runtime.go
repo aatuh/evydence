@@ -50,55 +50,6 @@ func normalizedReadinessChecks(checks []ReadinessCheck) []ReadinessCheck {
 	return operationsquery.NormalizeReadinessChecks(checks)
 }
 
-func (l *Ledger) resourceCountsLocked(tenantID string) map[string]int {
-	counts := map[string]int{
-		"audit_chain_entries":       len(l.chain[tenantID]),
-		"artifact_signatures":       0,
-		"cosign_verifications":      0,
-		"evidence":                  0,
-		"merkle_batches":            0,
-		"object_retention_policies": 0,
-		"release_bundles":           0,
-		"transparency_checkpoints":  0,
-	}
-	for _, item := range l.evidence {
-		if item.TenantID == tenantID {
-			counts["evidence"]++
-		}
-	}
-	for _, bundle := range l.bundles {
-		if bundle.TenantID == tenantID {
-			counts["release_bundles"]++
-		}
-	}
-	for _, sig := range l.artifactSigs {
-		if sig.TenantID == tenantID {
-			counts["artifact_signatures"]++
-		}
-	}
-	for _, verification := range l.cosignVerifs {
-		if verification.TenantID == tenantID {
-			counts["cosign_verifications"]++
-		}
-	}
-	for _, batch := range l.merkleBatches {
-		if batch.TenantID == tenantID {
-			counts["merkle_batches"]++
-		}
-	}
-	for _, checkpoint := range l.transparency {
-		if checkpoint.TenantID == tenantID {
-			counts["transparency_checkpoints"]++
-		}
-	}
-	for _, policy := range l.retentionPolicies {
-		if policy.TenantID == tenantID {
-			counts["object_retention_policies"]++
-		}
-	}
-	return counts
-}
-
 func merkleRoot(leaves []string) string {
 	if len(leaves) == 0 {
 		return ""

@@ -743,11 +743,19 @@ Current non-HTTP commands and queries are assigned by the same owner rule:
 | `internal/release/app`, `internal/release/query`, native platform wiring, and pure `internal/app/release_context_values.go` translations | Release catalog | Focused commands/queries own production behavior. The broad adapter, fourteen facades and three workflow input DTOs are historical test-only oracles; the service field and constructor wiring are removed. Remaining aggregate state and other context adapters still require retirement. |
 | `internal/evidence/app`, native parser adapters, and pure `internal/app/evidence_context_values.go` translations | Evidence ingestion, with decision effects emitted after commit | Focused commands own evidence/document behavior and normalization; the broad aggregate adapter and local VEX processor are test-only. Decision creation remains a separate decision command. |
 | `internal/risk/app`, `internal/risk/query`, native Package report queries and repository adapters | Vulnerability decisions and governance | Focused commands/queries own production behavior. Cached readiness, control coverage/CRA report and VEX decision/finding authority, old input DTOs, and OpenVEX wrappers are historical test-only oracles. Shared domain policies and the two detached copies in `internal/app/vex_context_values.go` remain; other aggregate retirement is incomplete. |
-| `internal/verification/app`, native platform wiring, stateless audit canonicalization and `internal/app/verification_context_values.go` profile translation | Verification and signing | Focused commands own production behavior. The broad aggregate adapter, its Service field/constructor wiring and backup-generation facade are historical test-only oracles. HTTP generation uses the actual core with an explicit commitment-port test double, not a full memory state profile; complete commitment and recovery evidence require PostgreSQL. Provider adapters remain outside the application package; other aggregate state/worker retirement remains open. |
+| `internal/verification/app`, native platform wiring, stateless audit canonicalization and `internal/app/verification_context_values.go` profile translation | Verification and signing | Focused commands own production behavior. The broad aggregate adapter, its Service field/constructor wiring, backup-generation facade, cached audit inspection and inventory counts are historical test-only oracles. HTTP generation uses the actual core with an explicit commitment-port test double, not a full memory state profile; complete commitment and recovery evidence require PostgreSQL. Provider adapters remain outside the application package; other aggregate state retirement remains open. |
 | `internal/app/risk_workflows.go` | Operations and incidents, Evidence ingestion, and Vulnerability decisions and governance | Split incidents, raw security evidence, and policy workflow methods. |
 | `internal/package/app`, `internal/package/query`, including `customer_package_archive.go`; remaining package/report portions of `internal/app/enterprise.go` | Package and reporting | Use committed, tenant-scoped snapshots only. Record-only HTML/ZIP rendering consumes the authorized frozen Package DTO; no legacy rendering facade is wired to production HTTP. |
 | `internal/app/outbox_admin.go`, runtime diagnostics, and reconciliation administration | Operations and incidents | Platform-only operator surface. |
 | `internal/app/future_extensions.go` | Experimental peripherals | Keep isolated; graduate or remove each feature before it becomes stable. |
+
+Cached worker hydration, parser-normalization cache publication and cached
+context authorizers are test-only historical characterization. Runtime selected
+worker records use the unchanged stateless helpers in
+`internal/app/worker_record_shapes.go`; `ValidateParserNormalizationRecord`
+continues to validate immutable source/audit bindings without an aggregate.
+The remaining fixture/replay locator and aggregate state/snapshot retirement
+remain EVY-906 work, not an alternate supported persistence profile.
 
 The persisted worker job kinds currently are assigned as follows:
 

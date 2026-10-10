@@ -8,8 +8,7 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-// Transitional cached authorizers remain only for Identity and Verification
-// aggregate retirement. Focused Release composition does not use them.
+// Historical cached authorizers are used only by aggregate oracle tests.
 type ledgerContextAuthorizer struct{ ledger *Ledger }
 
 func (a ledgerContextAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {

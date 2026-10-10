@@ -86,6 +86,20 @@ effects. The complete 98-resource reader and SQL recovery behavior require live
 PostgreSQL validation; physical worker/state/snapshot retirement and ticket-wide
 gates still keep EVY-906 open.
 
+Legacy worker inventory refresh/merge, parser-normalization cache publication,
+cached chain/checkpoint inspection, backup resource counting and cached context
+authorizers are historical test-only oracles. Native worker/read paths retain
+the unchanged selected-record shape/conflict helpers in
+`internal/app/worker_record_shapes.go` and the immutable
+`ValidateParserNormalizationRecord` check; neither requires a Ledger cache or
+publishes an inventory. Characterization covers accepted/queued rows and
+malformed IDs, foreign tenant/evidence links, invalid parsed shapes and parent
+relationships across SBOM, scan, OpenAPI, VEX and attestation records. Existing
+legacy merge, append-only audit and projection-divergence assertions remain.
+These source-retirement checks do not prove SQL transaction or recovery
+behavior. The fixture/replay locator and remaining aggregate state/snapshots
+still require retirement and full ticket validation.
+
 ## Current runtime composition
 
 The PostgreSQL API entry point binds

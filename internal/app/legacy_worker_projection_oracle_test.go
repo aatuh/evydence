@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -438,10 +437,6 @@ func requireAuthoritativeProjectionRows[T any](tenantID, kind string, seen map[s
 	return nil
 }
 
-func projectionConflict(subject string) error {
-	return fmt.Errorf("invalid worker projection %s: %w", subject, ErrConflict)
-}
-
 func mergeProjectedSBOM(existing, incoming domain.SBOM) (domain.SBOM, error) {
 	if !validSBOMProjectionShape(existing) || !validSBOMProjectionShape(incoming) {
 		return domain.SBOM{}, projectionConflict("SBOM parsed shape")
@@ -464,16 +459,6 @@ func mergeProjectedSBOM(existing, incoming domain.SBOM) (domain.SBOM, error) {
 		return domain.SBOM{}, projectionConflict("SBOM components")
 	}
 	return cloneSBOMValue(existing), nil
-}
-
-func validSBOMProjectionShape(value domain.SBOM) bool {
-	if value.ComponentCount < 0 {
-		return false
-	}
-	if value.SpecVersion == "" {
-		return value.ComponentCount == 0 && len(value.Components) == 0
-	}
-	return value.ComponentCount == len(value.Components)
 }
 
 func mergeProjectedScan(existing, incoming domain.VulnerabilityScan) (domain.VulnerabilityScan, error) {
@@ -507,20 +492,6 @@ func mergeProjectedScan(existing, incoming domain.VulnerabilityScan) (domain.Vul
 		return domain.VulnerabilityScan{}, projectionConflict("vulnerability scan findings")
 	}
 	return cloneVulnerabilityScanValue(existing), nil
-}
-
-func validScanProjectionShape(value domain.VulnerabilityScan) bool {
-	parsedFields := []string{value.Scanner, value.Adapter, value.AdapterVersion, value.SourceSchema, value.TargetRef}
-	present := 0
-	for _, field := range parsedFields {
-		if field != "" {
-			present++
-		}
-	}
-	if present == 0 {
-		return len(value.Summary) == 0 && len(value.Findings) == 0
-	}
-	return present == len(parsedFields)
 }
 
 func mergeProjectedContract(existing, incoming domain.OpenAPIContract) (domain.OpenAPIContract, error) {
@@ -670,21 +641,6 @@ func mergeProjectedBuildAttestation(existing, incoming domain.BuildAttestation) 
 		existing.VerificationStatus = incoming.VerificationStatus
 	}
 	return cloneBuildAttestationValue(existing), nil
-}
-
-func validBuildAttestationProjectionShape(value domain.BuildAttestation) bool {
-	if value.PayloadSize < 0 || value.MaterialsCount < 0 || value.SignatureCount < 0 {
-		return false
-	}
-	parsedFieldsEmpty := value.PayloadType == "" && value.PredicateType == "" && len(value.SubjectDigests) == 0 && value.BuilderID == "" && value.BuildType == "" && value.MaterialsCount == 0 && value.SignatureCount == 0
-	switch value.VerificationStatus {
-	case "accepted":
-		return parsedFieldsEmpty
-	case "structurally_valid":
-		return value.PayloadType != "" && value.PredicateType != ""
-	default:
-		return false
-	}
 }
 
 func mergeProjectedDecision(existing, incoming domain.VulnerabilityDecision) (domain.VulnerabilityDecision, error) {

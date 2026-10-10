@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired cached worker inventory hydration, parser-normalization cache
+publication, cached audit/checkpoint inspection, backup counts and cached context
+authorizers from production source. Historical implementation and behavioral
+assertions remain test-only; native selected-record shape/conflict helpers and
+immutable parser-normalization validation retain their algorithms. Additional
+characterization covers accepted/queued SBOM, scan and attestation records,
+OpenAPI/VEX records, tenant/evidence identity, malformed parsed shapes and parent
+relationships. Production contracts and native worker behavior are unchanged.
+Fixture/replay locator, aggregate state/snapshot retirement and full/race/live
+validation remain EVY-906 work; these tests are not SQL durability evidence.
+
 Retired the broad Verification aggregate adapter, its Service field and
 constructor wiring, and Ledger backup-generation facade from production source.
 Historical characterization remains test-only and constructs the adapter on
