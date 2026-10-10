@@ -18,7 +18,11 @@ checkpoints. References in those notes to remaining production Ledger maps,
 methods or aggregate adapters describe earlier checkpoints, not the current
 package tree. The source-retirement summary above
 the [current runtime composition](#current-runtime-composition) describes the
-present implementation; required full-ticket validation still keeps EVY-906 open.
+present implementation. EVY-906's required architecture, full unit, full race
+and production/live gates passed on 2026-10-10 for source commit `3c2f1037`.
+See the [completion record](../.EVYDENCE_CODEX_BACKLOG.md) for commands and
+limits. Earlier pending-validation statements in checkpoint notes below are
+superseded by that result, not claims about hosted CI or published artifacts.
 
 PostgreSQL API first-tenant bootstrap is composed directly from focused Identity
 and Verification commands, independently of Ledger construction or inventories.
@@ -49,8 +53,8 @@ oracles. API-key and SSO token prefixes,
 32-byte URL-safe entropy, prefix selection and persisted hashes are unchanged.
 The session fixture's API-key branch also reads current repositories and commits
 credential activity before returning a principal; it has no cached fallback.
-These fixture checks do not prove PostgreSQL locks or durability; required
-full-ticket validation keeps EVY-906 open.
+These fixture checks alone do not prove PostgreSQL locks or durability; the
+completion record separately documents the passing live PostgreSQL gates.
 
 HTTP fixture setup no longer calls Ledger bootstrap or authentication facades.
 Shared evidence, membership, integration and operations seeds compose the real
@@ -89,7 +93,7 @@ partial memory snapshot or proof of the PostgreSQL profile. Guards and saved
 replays do not read that commitment. Foreign, malformed and inconsistent
 commitments, cancellation and final commit failure return no manifest or partial
 effects. The complete 98-resource reader and SQL recovery behavior require live
-PostgreSQL validation; ticket-wide gates still keep EVY-906 open.
+PostgreSQL validation; the completion record supplies the passing live results.
 
 Legacy worker inventory refresh/merge, parser-normalization cache publication,
 cached chain/checkpoint inspection, backup resource counting and cached context
@@ -102,7 +106,7 @@ malformed IDs, foreign tenant/evidence links, invalid parsed shapes and parent
 relationships across SBOM, scan, OpenAPI, VEX and attestation records. Existing
 legacy merge, append-only audit and projection-divergence assertions remain.
 These source-retirement checks do not prove SQL transaction or recovery
-behavior. Required full-ticket validation remains unproven.
+behavior. Required full-ticket validation is separately recorded in the backlog.
 
 HTTP fixture construction/binding and seed/command/query helpers no longer
 accept or construct `app.Ledger`. Their test-only locator contains only a
@@ -119,8 +123,8 @@ used that cache now supplies a real transaction factory, with the same assertion
 Regression checks cover unreadable whole-state stores, one-transaction guard and
 command execution, no replay regeneration, current-authority denial and rollback
 of response-guard/final-commit failures. These memory-backed and focused race
-checks do not prove SQL locking or durability. Full-ticket validation remains
-EVY-906 work.
+checks do not prove SQL locking or durability. The passing production/live
+gate supplies separate evidence for the supported PostgreSQL profile.
 
 PostgreSQL compound setup and replay fixtures now take the transaction factory
 directly and use `app.IdempotencyUnitOfWork`, without a Ledger type, constructor,
@@ -131,7 +135,8 @@ name because the critical-behavior matrix and stress gate refer to it. Real memo
 repository regressions cover one-transaction compound setup, exact replay fields,
 foreign-parent denial, cancellation and final commit rollback. Their results do
 not establish SQL durability; the two required live cases remain unverified when
-the PostgreSQL test URL is unset. Full-ticket validation still keeps EVY-906 open.
+the PostgreSQL test URL is unset. Closure ran with that URL configured and both
+required live cases passing, including the unchanged 16-caller replay counts.
 
 The physical Ledger aggregate and all 52 remaining receiver methods now compile
 only in historical application tests. The production constructor/configuration,
@@ -143,8 +148,8 @@ idempotency key formats, constant-time credential comparison, object lifecycle,
 safe replay and transaction primitives retain their algorithms. Stateless value
 copies, persistence DTOs, and explicit import/export/storage utilities remain;
 they cannot construct the retired command surface. The authorization inventory
-checks the same policy body at its historical path. This is source-retirement
-evidence, not completion of required full/race/production or live SQL gates.
+checks the same policy body at its historical path. Source retirement alone is
+not full/race/production or live SQL evidence; those required gates also passed.
 
 ## Current runtime composition
 
@@ -175,8 +180,8 @@ files; existing HTTP behavior assertions are preserved. Production callers
 use `NewNativeServerWithOptionsContext`. The unused non-context `app.NewLedger`
 factory has also been deleted. The application constructor, configuration,
 aggregate maps/locks and remaining receiver implementation are now test-only.
-Required full-ticket validation is still pending; this does not create another
-supported runtime backend. See the
+Required full-ticket validation passed; this does not create another supported
+runtime backend. See the
 [unreleased migration note](reference/configuration.md#retired-local-memory-profile-unreleased).
 
 PostgreSQL HTTP integration fixtures now construct native servers directly,
@@ -1054,7 +1059,8 @@ EVY-905 composition/query migration passed its complete local production gate.
 That includes full tests, race, live dependencies, coverage, migration compatibility,
 black-box API/worker/restart flows and signing smoke. See the root backlog for
 commands, commits and limits. EVY-906 physical legacy retirement and architecture
-enforcement remain outstanding; local checks are not hosted CI or publication.
+enforcement also passed their complete local production gate. These local
+checks are not hosted CI or publication.
 
 Per-route transition notes below include historical migration checkpoints.
 Their pending EVY-905 startup, worker, wrapper and query-migration statements are
@@ -1063,7 +1069,7 @@ wiring. Local-memory passages below describe historical migration or remaining
 test utilities, not a supported API runtime. See the [runtime configuration reference](reference/configuration.md#first-tenant-bootstrap)
 for current operator behavior.
 
-## Architecture enforcement (EVY-906 in progress)
+## Architecture enforcement
 
 `make architecture-check` tests the source inspector and policy, then scans
 non-test Go source under `cmd`, `internal`, `pkg`, `sdk` and `examples` with the
@@ -1092,8 +1098,8 @@ transaction/publish/restore bridge, or the Ledger Package service field and
 constructor wiring. Historical characterization tests compose that adapter on
 demand; focused HTTP fixtures do not use it. Only pure error translation
 and the shared scalar signature-map clone remain in non-test
-source. This removes one aggregate adapter, not the remaining Ledger maps,
-mutexes or other context adapters; EVY-906 stays incomplete.
+source. This checkpoint removed one aggregate adapter; the remaining Ledger
+maps, mutexes and broad context adapters are now also historical test-only code.
 
 The broad Evidence adapter is also test-only. Production no longer constructs
 or stores its Service, cache readers, staged transaction/publish bridge, local
@@ -1105,8 +1111,9 @@ current typed repositories; read-only preflight cannot hash, inspect metadata,
 allocate IDs or generate effects. Exact-number evidence and lifecycle cloning
 keeps immutable inputs intact through the memory test transaction. Cold-cache,
 wrong-tenant, removed-grant, cancellation, real write-commit failure and complete
-rollback assertions cover these fixtures, not PostgreSQL durability. Remaining
-Ledger maps, worker refreshes and other context adapters still require retirement.
+rollback assertions cover these fixtures, not PostgreSQL durability. The
+remaining Ledger maps, worker refreshes and broad context adapters have also
+been retired; live PostgreSQL evidence comes from the recorded production gate.
 
 Ten cached catalog/workflow guard declarations are now historical test-only
 oracles: product/project/release creation, release/candidate transitions,
@@ -1193,8 +1200,10 @@ native SQL behavior; source checks forbid the retired production declarations.
 
 The import-graph gate now passes without boundary exemptions and is included in
 `fast-check` and `finalize`. Size/interface review flags remain. A passing import
-graph is not Ledger retirement: EVY-906 stays incomplete until its obsolete
-aggregate surface is removed and all required final validation passes.
+graph alone is not Ledger retirement. EVY-906 additionally removed the obsolete
+production aggregate surface and passed all required final validation. The
+18 size/interface review flags remain visible; this is not a zero-warning,
+fully cohesive architecture or multi-writer safety claim.
 
 ## Storage and workflow adapters
 

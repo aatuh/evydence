@@ -13,6 +13,15 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Completed EVY-906's production Ledger retirement and required local validation
+on 2026-10-10 for source commit `3c2f1037`. Architecture, full unit/race, live
+PostgreSQL/MinIO, migration compatibility, black-box restart/release-style
+binary flows and signing smoke passed. Coverage was 86.1% overall and 85.0%
+for critical packages, above the unchanged 80.0%/81.0% floors. This is local
+engineering evidence, not hosted CI, publication, external-provider verification
+or host-reboot/power-loss durability proof. Earlier pending notes below describe
+incremental migration checkpoints and are superseded by this completion record.
+
 Fixed native package-preparation pool exhaustion under concurrent idempotent
 commands. Committed bundle/customer-package snapshots and local signing-key
 reads use an independent read-only pool capped at four connections, or the
@@ -22,7 +31,7 @@ closes both pools; operators must account for the additional bounded connections
 Added saturated-single-connection regressions for committed-only reads, foreign
 scope rejection, signature validity, cancellation and connection release. The
 existing 16-caller replay/count test and its 45-second deadline are unchanged.
-Required full-ticket validation still keeps EVY-906 open.
+Required full-ticket validation subsequently passed without changing that test.
 
 Removed the physical Ledger aggregate, configuration/constructor, mutable
 maps/locks and all 52 remaining receiver methods from production source. Snapshot
@@ -33,8 +42,9 @@ credential comparison, scope constants and persistence utilities retain their
 algorithms. HTTP fixture inputs are test-local; authorization inventory follows
 the same retired policy body. Architecture and generated persistence reference
 now describe source retirement rather than a runtime aggregate fallback. API,
-storage and immutable hash contracts are unchanged. Source removal alone does
-not close EVY-906: full/race/production gates and live SQL evidence remain pending.
+storage and immutable hash contracts are unchanged. Source removal alone
+did not close EVY-906; the required full/race/production and live SQL gates
+subsequently passed.
 
 Removed the remaining PostgreSQL fixture dependencies on Ledger and its
 constructor/configuration adapter. Compound catalog setup takes the actual

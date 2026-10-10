@@ -9,7 +9,9 @@ database-backed command/query ports; native API and worker daemon wiring no
 longer reconstruct the production Ledger. The aggregate type/configuration,
 constructor, maps/locks and remaining receiver methods are now historical
 test-only oracles. Import-direction and source retirement checks are implemented;
-required full/race/production/live validation remains EVY-906 work.
+required full/race/production/live validation passed on 2026-10-10 for source
+commit `3c2f1037`. See the [completion record](../../.EVYDENCE_CODEX_BACKLOG.md)
+for exact checks, compatibility and local-evidence limits.
 
 Detailed transition notes below are historical migration checkpoints. Their
 pending startup/query/wrapper and aggregate-retirement claims are superseded by
@@ -1001,8 +1003,9 @@ package may depend on its own domain and inward-facing ports. Adapters and
 PostgreSQL, object-store, worker, or provider adapters. EVY-906 has introduced
 `make architecture-check` with syntax-aware import-graph enforcement and review
 thresholds. Import remediation now passes without boundary exemptions and is
-enforced by the broad local gates. Ledger retirement remains incomplete;
-see [current enforcement scope](../architecture.md#architecture-enforcement-evy-906-in-progress).
+enforced by the broad local gates. Production Ledger retirement and the required
+closure gates are complete; size/interface flags remain review triggers.
+See [current enforcement scope](../architecture.md#architecture-enforcement).
 
 ### Migration and retirement sequence
 
@@ -1042,7 +1045,7 @@ API-compatible.
    are now historical test-only oracles as well. Shared stateless helpers,
    persistence DTOs and explicit import/export utilities remain without
    aggregate command/query wiring. Required full/race/production validation
-   remains unfinished; source retirement alone does not close the ticket.
+   also passed; source retirement alone was not sufficient to close the ticket.
 
 Schema changes stay forward-only. A context adds new columns/tables and maps
 old records before a later release removes obsolete compatibility reads. A
