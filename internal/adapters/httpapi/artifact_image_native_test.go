@@ -89,7 +89,7 @@ func TestArtifactImageRegistrationPreflightRejectsMalformedInputBeforeCommands(t
 func TestArtifactImageRegistrationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) {
-			base, secret := testServer(t)
+			base, secret := governanceTestServer(t)
 			a, i := &artifactHTTPFake{}, &containerImageHTTPFake{}
 			s := base
 			if native {

@@ -1743,8 +1743,14 @@ guard locks the tenant and existing digest identity and checks current grants
 without private metadata, clocks or IDs. Fresh execution still reads bounded
 immutable metadata on natural-key reuse. Record, caller audit and replay are
 atomic. Live checks cover restart, current grants, exact integer sizes, oversized
-private metadata and record/audit/replay/outer-commit recovery. Explicit local
-memory retains nondurable replay with the same raw input and origin rules. A
+private metadata and record/audit/replay/outer-commit recovery. HTTP fixtures
+now compose the same focused commands over current transaction rows; historical
+cached artifact/image guards are test-only oracles. Their read-only preflight
+ports trap private metadata, digest rereads, clocks, IDs and writes. Memory
+readers preserve exact integer sizes and reject oversized selected metadata;
+cold-instance, current/revoked grant, immutable reuse and final write-commit
+rollback regressions do not establish SQL locking or durability. Test-only
+memory replay retains the same raw input and origin rules. A
 focused build-create command reads only project tenant/product ownership,
 release tenant/product/version coordinates, and output artifact tenant/digest
 identity, then rechecks them under share locks in the write transaction. Its
@@ -1866,9 +1872,13 @@ metadata or digest revalidation. These locks join the outer transaction; fresh
 execution retains digest checks and immutable natural-key reuse. Live tests
 cover record/audit/replay/outer-commit recovery, concurrent delivery, cancellation
 and lock lifetime. Raw input limits precede trimming; encoded repository index
-overflow maps to safe validation rather than a server error. Local memory keeps
-its explicit nondurable binding. Startup and other command wrappers still need
-migration; this does not establish Ledger retirement or multi-writer support.
+overflow maps to safe validation rather than a server error. HTTP fixtures use
+the native command and current ownership-only image/artifact projections, not
+cached Ledger guards. Omitting an artifact on reuse cannot bypass the existing
+attachment's grant; original image metadata and its audit remain immutable.
+Their memory transactions prove neither SQL locks nor durability. Startup and
+other command wrappers still need migration; this does not establish Ledger
+retirement or multi-writer support.
 
 SSO trust normalization now lives in a stateless Identity application policy,
 shared by local compatibility and production callers. It rejects recognized

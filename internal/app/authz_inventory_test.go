@@ -15,7 +15,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"legacy_deployment_guard_oracle_test.go":               {"AuthorizeEnvironmentCreation", "AuthorizeDeploymentRecording"},
 		"legacy_state_transition_guard_oracle_test.go":         {"AuthorizeReleaseTransition", "AuthorizeCandidateTransition", "authorizeStateTransition"},
 		"legacy_candidate_creation_guard_oracle_test.go":       {"AuthorizeCandidateCreation"},
-		"artifact_image_replay_guard.go":                       {"AuthorizeArtifactRegistration", "AuthorizeContainerImageRegistration"},
+		"legacy_artifact_image_guard_oracle_test.go":           {"AuthorizeArtifactRegistration", "AuthorizeContainerImageRegistration"},
 		"legacy_catalog_creation_guard_oracle_test.go":         {"AuthorizeProductCreation", "AuthorizeProjectCreation", "AuthorizeReleaseCreation", "authorizeCatalogCreation"},
 		"legacy_build_creation_guard_oracle_test.go":           {"AuthorizeBuildCreation"},
 		"legacy_build_attestation_guard_oracle_test.go":        {"AuthorizeBuildAttestationCreation"},

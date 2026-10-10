@@ -11,6 +11,7 @@ import (
 
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
+		"AuthorizeArtifactRegistration": true, "AuthorizeContainerImageRegistration": true,
 		"AuthorizeProductCreation": true, "AuthorizeProjectCreation": true, "AuthorizeReleaseCreation": true,
 		"authorizeCatalogCreation":   true,
 		"AuthorizeReleaseTransition": true, "AuthorizeCandidateTransition": true, "authorizeStateTransition": true,

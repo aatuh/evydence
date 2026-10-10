@@ -14,21 +14,37 @@ import (
 type registrationFixtureCommands struct{ catalogFixtureCommands }
 
 func (f registrationFixtureCommands) AuthorizeArtifactRegistration(ctx context.Context, actor identitydomain.Actor, input releaseapp.RegisterArtifactInput) error {
-	return f.commandLedger(ctx).AuthorizeArtifactRegistration(ctx, actor, input)
+	c, err := f.nativeArtifact(true)
+	if err != nil {
+		return err
+	}
+	return mapBuildAttestationCommandError(c.AuthorizeArtifactRegistration(ctx, actor, input))
 }
 
 func (f registrationFixtureCommands) RegisterArtifact(ctx context.Context, actor identitydomain.Actor, input releaseapp.RegisterArtifactInput) (releasedomain.Artifact, error) {
-	value, err := f.commandLedger(ctx).RegisterArtifact(ctx, actor, input.Name, input.MediaType, input.Digest, input.Size)
-	return artifactFixtureModel(value), err
+	c, err := f.nativeArtifact(false)
+	if err != nil {
+		return releasedomain.Artifact{}, err
+	}
+	value, err := c.RegisterArtifact(ctx, actor, input)
+	return value, mapBuildAttestationCommandError(err)
 }
 
 func (f registrationFixtureCommands) AuthorizeContainerImageRegistration(ctx context.Context, actor identitydomain.Actor, input releaseapp.RegisterContainerImageInput) error {
-	return f.commandLedger(ctx).AuthorizeContainerImageRegistration(ctx, actor, input)
+	c, err := f.nativeImage(true)
+	if err != nil {
+		return err
+	}
+	return mapBuildAttestationCommandError(c.AuthorizeContainerImageRegistration(ctx, actor, input))
 }
 
 func (f registrationFixtureCommands) RegisterContainerImage(ctx context.Context, actor identitydomain.Actor, input releaseapp.RegisterContainerImageInput) (releasedomain.ContainerImage, error) {
-	value, err := f.commandLedger(ctx).RegisterContainerImage(ctx, actor, app.RegisterContainerImageInput{ArtifactID: input.ArtifactID, Repository: input.Repository, Tag: input.Tag, Digest: input.Digest, Platform: input.Platform})
-	return releasedomain.ContainerImage{ID: value.ID, TenantID: value.TenantID, ArtifactID: value.ArtifactID, Repository: value.Repository, Tag: value.Tag, Digest: value.Digest, Platform: value.Platform, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt}, err
+	c, err := f.nativeImage(false)
+	if err != nil {
+		return releasedomain.ContainerImage{}, err
+	}
+	value, err := c.RegisterContainerImage(ctx, actor, input)
+	return value, mapBuildAttestationCommandError(err)
 }
 
 func (f registrationFixtureCommands) AuthorizeBuildCreation(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateBuildRunInput) error {

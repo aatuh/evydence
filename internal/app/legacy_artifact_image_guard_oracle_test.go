@@ -1,5 +1,7 @@
 package app
 
+// Historical aggregate guards are retained only as characterization oracles.
+
 import (
 	"context"
 	"strings"

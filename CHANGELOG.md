@@ -13,6 +13,15 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired cached artifact/image registration replay guards from production source.
+HTTP fixtures compose focused Release commands over current identity, grant and
+bounded metadata reads, retaining cookie/origin assertions. Regressions cover
+cold instances, revoked grants, omitted existing image attachments, exact large
+integer sizes, immutable duplicate reuse and final write-commit rollback. The
+PostgreSQL queries, wire contracts and natural-key identities are unchanged;
+memory fixtures do not prove database locks or durability. Remaining Release
+adapter and aggregate retirement stay open under EVY-906.
+
 Retired ten cached catalog, transition, build, candidate and attestation replay
 guard declarations from production source. HTTP fixtures use the focused Release
 commands and Evidence capability over current repository-only parents, retaining
