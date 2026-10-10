@@ -198,9 +198,9 @@ unknown fields and duplicate fields are rejected. The command creates
 The response field layout and eight legacy resource-count names are unchanged.
 
 The commitment covers the full declared tenant-owned relational metadata set in
-[`backup_commitment_catalog.go`](../../internal/adapters/postgres/repositories/backup_commitment_catalog.go)
+[`backup_profile_catalog.go`](../../internal/verification/app/backup_profile_catalog.go)
 and its versioned additions in
-[`backup_commitment.go`](../../internal/adapters/postgres/repositories/backup_commitment.go),
+[`backup_profile.go`](../../internal/verification/app/backup_profile.go),
 including evidence, decisions, releases, identity authorization metadata,
 signing public metadata, existing manifests and audit records. It is not merely
 a hash of counts or a chain head. One bounded SQL statement supplies one MVCC
@@ -214,6 +214,15 @@ are excluded. The original v1 allowlist remains unchanged in
 reproduce a historical v1 commitment using that declared profile. Existing
 manifests retain their original hashes and recorded profile limitations. Failed
 consistency observations remain failed in the generated manifest.
+
+The Verification application context owns the immutable vocabulary: 97
+resources in v1 and 98 in v2. Its profile helpers return fresh resource/column
+slices, and header-only SHA-256 regression vectors pin the original vocabulary
+and order. The PostgreSQL adapter consumes those definitions directly and owns
+SQL identifiers, tenant predicates, row keys, fences and bounded streaming.
+These static vectors do not prove schema coverage, a completed commitment,
+backup completeness or successful restore; live schema/commitment tests remain
+separate required evidence. Memory fixtures do not implement this full profile.
 
 Credential hashes, private signing bytes, replay records, compatibility
 `ledger_state`, cached `resource_index`, migration bookkeeping, worker

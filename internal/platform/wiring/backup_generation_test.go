@@ -208,7 +208,7 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 	_, pool := openHTMLReportWiringStore(t)
 	ctx := t.Context()
 	fields := map[string]map[string]bool{}
-	for _, r := range repositories.BackupCommitmentProfileResources() {
+	for _, r := range verificationapp.BackupCommitmentProfileResources() {
 		fields[r.Name] = map[string]bool{}
 		for _, c := range r.Columns {
 			fields[r.Name][c] = true

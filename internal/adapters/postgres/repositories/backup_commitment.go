@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -12,26 +11,6 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
-
-// BackupCommitmentProfileResources returns a fresh copy of the declared profile
-// so tooling can reproduce commitments and check migration coverage.
-func BackupCommitmentProfileResources() []verificationapp.BackupCommitmentResource {
-	sources := BackupCommitmentProfileResourcesV1()
-	sources = append(sources, verificationapp.BackupCommitmentResource{Name: "vulnerability_decision_supersessions", Columns: []string{"tenant_id", "finding_id", "predecessor_id", "successor_id", "created_at", "schema_version"}})
-	sort.Slice(sources, func(i, j int) bool { return sources[i].Name < sources[j].Name })
-	return sources
-}
-
-// BackupCommitmentProfileResourcesV1 retains the original allowlist for
-// historical commitment reproduction; v2 adds durable decision relationships.
-func BackupCommitmentProfileResourcesV1() []verificationapp.BackupCommitmentResource {
-	var sources []verificationapp.BackupCommitmentResource
-	for _, line := range strings.Split(strings.TrimSpace(backupCommitmentCatalog), "\n") {
-		name, columns, _ := strings.Cut(line, "|")
-		sources = append(sources, verificationapp.BackupCommitmentResource{Name: name, Columns: strings.Split(columns, ",")})
-	}
-	return sources
-}
 
 func (r integrity) ReadBackupStateCommitment(ctx context.Context, tenant string) (verificationapp.BackupStateCommitment, error) {
 	var empty verificationapp.BackupStateCommitment
@@ -55,7 +34,7 @@ func (r integrity) ReadBackupStateCommitment(ctx context.Context, tenant string)
 	if _, err := r.tx.Exec(ctx, `SET LOCAL TIME ZONE 'UTC'`); err != nil {
 		return empty, err
 	}
-	sources := BackupCommitmentProfileResources()
+	sources := verificationapp.BackupCommitmentProfileResources()
 	digester, err := verificationapp.NewBackupStateDigester(tenant, sources)
 	if err != nil {
 		return empty, err

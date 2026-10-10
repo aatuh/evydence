@@ -13,6 +13,14 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Moved the immutable v1/v2 backup-commitment resource vocabulary into the
+Verification application context. PostgreSQL consumes the same ordered fields
+directly; frozen header vectors pin both profiles and caller copies cannot
+mutate their definitions. The 97-resource v1 and 98-resource v2 declarations,
+digest framing, SQL selection and response contracts are unchanged. This is an
+architecture prerequisite, not backup-generation aggregate retirement or live
+backup/schema/restore evidence; EVY-906 remains open.
+
 Retired the generic Ledger verification facade from production source. Full-chain
 and both signed-checkpoint HTTP fixtures use focused commands with current bounded
 audit pages, public signing material and tenant-wide grants. Recovery verification

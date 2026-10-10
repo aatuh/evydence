@@ -1,4 +1,4 @@
-package repositories
+package app
 
 // This immutable allowlist defines tenant-relational-state.v1. Changes to its
 // fields or ownership/key rules require a new commitment profile, not silently
