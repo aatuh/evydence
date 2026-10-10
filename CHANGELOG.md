@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired Ledger-backed API-key/session credential adapters and its hash method
+from production source; the remaining Identity adapter uses the context-owned
+HMAC capability. Historical format oracles pin prefixes, 32-byte URL-safe token
+encoding, stored hashes and comparison behavior. The common HTTP fixture now
+uses native repository bootstrap, and session authentication no longer falls
+back to cached API keys. Wrong-pepper, cancellation and activity-commit failure
+regressions return no principal or partial state. Dedicated cache-only negative
+fixtures and existing transport assertions are retained. Wire/storage contracts
+are unchanged; remaining Identity/Verification, bootstrap and aggregate cleanup
+keep EVY-906 open, with no new SQL locking or durability claim.
+
 Moved the common repository-backed HTTP fixture bootstrap and authentication
 onto focused Identity/initial-signing-key commands and current rows. Credentials
 and clocks are explicit; derived servers inherit configured authenticators

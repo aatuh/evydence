@@ -169,12 +169,14 @@ func TestIngressLimitsInFlightRequestsAndNativeUploads(t *testing.T) {
 }
 
 func TestExpensiveTenantRateLimitIsScopedToTenantAndRoute(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	_, _, tenantASecret, err := ledger.BootstrapTenant(t.Context(), "Tenant A", "admin-a", []string{"*"})
+	factory := app.NewMemoryUnitOfWorkFactory()
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
+	_, _, tenantASecret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant A", "admin-a", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant A: %v", err)
 	}
-	_, _, tenantBSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant B", "admin-b", []string{"*"})
+	_, _, tenantBSecret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant B", "admin-b", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant B: %v", err)
 	}

@@ -23,7 +23,7 @@ database path. The [bootstrap configuration reference](reference/configuration.m
 owns the input bounds, lock timing, secret-output policy, and local signing-key
 storage limitations.
 
-Repository-backed governance, operations and identity HTTP test fixtures now
+The common HTTP test fixture and the governance, operations and identity helpers
 bootstrap through the same focused Identity and initial-signing-key commands,
 with explicit HMAC credentials and clocks. Tenant, credential hash, bootstrap
 audit and local signing material commit in one unit of work; failed commits
@@ -33,6 +33,12 @@ Derived transport fixtures inherit the configured authentication port and retain
 explicit overrides, cookie-origin checks and bearer precedence. Cache-only
 negative fixtures remain separate and do not gain repository dependencies.
 Two unused cached API-key creation helpers are historical test-only oracles.
+The remaining Identity adapter now uses context-owned HMAC credentials, not
+Ledger-backed credential/session managers or its hash method; those historical
+implementations are test-only format oracles. API-key and SSO token prefixes,
+32-byte URL-safe entropy, prefix selection and persisted hashes are unchanged.
+The session fixture's API-key branch also reads current repositories and commits
+credential activity before returning a principal; it has no cached fallback.
 These fixture checks do not prove PostgreSQL locks or durability, and the
 remaining aggregate bootstrap/authentication adapters still require retirement.
 

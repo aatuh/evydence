@@ -11,6 +11,7 @@ import (
 
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
+		"ledgerCredentialManager": true, "ledgerSessionCredentialManager": true, "hashSecret": true,
 		"createAPIKeyLocked": true, "newAPIKey": true,
 		"openVEXDocument": true, "openVEXStatement": true, "openVEXVulnerability": true, "openVEXProduct": true,
 		"parseOpenVEX": true, "parseOpenVEXReader": true, "vexValidationError": true,

@@ -13,6 +13,13 @@ Detailed transition notes below are historical migration checkpoints. Their
 pending EVY-905 startup/query/wrapper claims are superseded by the
 [current runtime composition](../architecture.md#current-runtime-composition).
 
+Credential generation and hash comparison belong to Identity's stateless
+`HMACAuthenticationCredentials`. The remaining legacy Identity adapter consumes
+that capability directly; Ledger-backed credential/session adapters and its
+hash method are test-only compatibility oracles. Common HTTP fixtures now use
+native bootstrap and current-row authentication; see the architecture summary
+above for the remaining aggregate-retirement and memory-test limitations.
+
 ## Context
 
 Customer-package creation now owns its orchestration in Package's focused

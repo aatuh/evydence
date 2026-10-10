@@ -167,11 +167,14 @@ func (f *failingCatalogFixtureProduct) CreateProduct(ctx context.Context, actor 
 func TestCatalogFixtureReplayKeepsFailedWritesInsideTheCommandClone(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})
+	clock := providerVerificationFixtureClock()
+	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("fixture-pepper"), clock}
+	_, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := ledger.Authenticate(t.Context(), secret)
+	auth := fixtureIdentityAuthenticator(ledger, "fixture-pepper", clock)
+	actor, err := auth.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +182,7 @@ func TestCatalogFixtureReplayKeepsFailedWritesInsideTheCommandClone(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := newLegacyServerFixture(ledger)
+	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

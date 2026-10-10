@@ -575,12 +575,6 @@ func idempotencyRecordKeyFromParts(parts []string) (IdempotencyRecordKey, bool) 
 	}, true
 }
 
-func (l *Ledger) hashSecret(secret string) string {
-	mac := hmac.New(sha256.New, l.pepper)
-	_, _ = mac.Write([]byte(secret))
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
 func secretHashEqual(stored, candidate string) bool {
 	if len(stored) != sha256.Size*2 || len(candidate) != sha256.Size*2 {
 		return false

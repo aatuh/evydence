@@ -134,8 +134,10 @@ func (f *controlEvidenceCommandFake) LinkControlEvidence(_ context.Context, acto
 }
 
 func TestControlEvidenceHTTPUsesNarrowCommandAndMapsDTOAndErrors(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	tenant, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	factory := app.NewMemoryUnitOfWorkFactory()
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
+	tenant, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}

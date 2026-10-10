@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -12,8 +11,8 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-// Session credentials use the real focused authenticator and bounded current
-// repository reads. API-key setup remains a historical test-only dependency.
+// Session and API-key credentials use the focused authenticator and current
+// repository reads; neither branch consults the aggregate's credential caches.
 type ssoFixtureAuthenticator struct {
 	catalogFixtureCommands
 	credentials *identityapp.HMACAuthenticationCredentials
@@ -34,24 +33,7 @@ func fixtureSessionAuthenticator(ledger *app.Ledger, pepper string, clock applic
 	return ssoFixtureAuthenticator{catalogFixtureCommands{ledger}, fixtureSessionCredentials(pepper), clock}
 }
 func (f ssoFixtureAuthenticator) Authenticate(ctx context.Context, secret string) (domain.Actor, error) {
-	if !strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(secret, "Bearer ")), "evysso_") {
-		return f.ledger.Authenticate(ctx, secret)
-	}
-	c, err := identityapp.NewAuthenticator(identityapp.AuthenticationConfig{Reader: f, Activity: f, Credentials: f.credentials, Clock: f.clock})
-	if err != nil {
-		return domain.Actor{}, providerVerificationFixtureError(err)
-	}
-	v, err := c.Authenticate(ctx, secret)
-	return v, providerVerificationFixtureError(err)
-}
-func (ssoFixtureAuthenticator) APIKeysByPrefix(ctx context.Context, _ string) ([]identitydomain.APIKey, error) {
-	return nil, ctx.Err()
-}
-func (ssoFixtureAuthenticator) CollectorByAPIKey(context.Context, string, string) (identityapp.CollectorBinding, bool, error) {
-	panic("session-only authentication read collectors")
-}
-func (ssoFixtureAuthenticator) RecordAPIKeyUse(context.Context, identitydomain.APIKey, identityapp.CollectorActivity) error {
-	panic("session-only authentication changed API keys")
+	return (identityNativeFixtureAuthenticator{f}).Authenticate(ctx, secret)
 }
 func (f ssoFixtureAuthenticator) SessionsByPrefix(ctx context.Context, prefix string) ([]identitydomain.SSOSession, error) {
 	var out []identitydomain.SSOSession

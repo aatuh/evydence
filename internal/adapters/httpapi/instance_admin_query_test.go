@@ -25,12 +25,14 @@ func (f *instanceCountsHTTPFake) ReadInstanceCounts(context.Context) (operations
 }
 
 func TestInstanceAdminHandlerUsesFocusedCountsAndPreservesExplicitScope(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	_, _, tenantSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
+	factory := app.NewMemoryUnitOfWorkFactory()
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
+	_, _, tenantSecret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, instanceSecret, err := ledger.BootstrapTenant(t.Context(), "Instance", "instance-admin", []string{"instance:admin"})
+	_, _, instanceSecret, err := bootstrap.BootstrapTenant(t.Context(), "Instance", "instance-admin", []string{"instance:admin"})
 	if err != nil {
 		t.Fatal(err)
 	}

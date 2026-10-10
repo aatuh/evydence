@@ -158,7 +158,7 @@ func TestDSSENativeFixtureUsesCurrentPolicyAndCommitsAtomicEffectsWithoutAggrega
 
 func TestDSSENativeFixtureHTTPReplayAndNegativeVerificationRollback(t *testing.T) {
 	seed := newDSSENativeFixture(t, true)
-	s, err := newLegacyServerFixture(seed.ledger)
+	s, err := newLegacyServerFixtureWithOptions(seed.ledger, ServerOptions{Authenticator: fixtureIdentityAuthenticator(seed.ledger, "fixture-pepper", providerVerificationFixtureClock())})
 	if err != nil {
 		t.Fatal(err)
 	}

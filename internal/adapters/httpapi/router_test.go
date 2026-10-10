@@ -2230,8 +2230,10 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 			return fmt.Errorf("postgres://user:super-secret@database.internal/evydence is unavailable")
 		},
 	}}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	_, _, instanceSecret, err := ledger.BootstrapTenant(t.Context(), "Runtime", "operator", []string{app.ScopeInstanceAdmin})
+	factory := app.NewMemoryUnitOfWorkFactory()
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
+	_, _, instanceSecret, err := bootstrap.BootstrapTenant(t.Context(), "Runtime", "operator", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatalf("bootstrap instance administrator: %v", err)
 	}
@@ -2313,16 +2315,7 @@ func TestReleaseTransitionsRequireIfMatchAndReportCurrentRevision(t *testing.T) 
 
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
-	if err != nil {
-		t.Fatalf("bootstrap: %v", err)
-	}
-	server, err := newLegacyServerFixture(ledger)
-	if err != nil {
-		t.Fatalf("server: %v", err)
-	}
-	return server, secret
+	return repositoryBootstrapTestServer(t)
 }
 
 type fakeOIDCDiscoveryHTTP struct {

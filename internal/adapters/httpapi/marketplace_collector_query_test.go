@@ -37,8 +37,10 @@ func (f *marketplaceCollectorQueryFake) Health(_ context.Context, _ identitydoma
 }
 
 func TestMarketplaceCollectorHandlersUseFocusedQueryAndValidatePagination(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	factory := app.NewMemoryUnitOfWorkFactory()
+	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
+	_, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}

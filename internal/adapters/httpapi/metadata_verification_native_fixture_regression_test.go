@@ -36,7 +36,7 @@ func TestMetadataVerificationNativeFixturesHTTPReplayAndCanonicalFailureRollback
 	if err := tx.Commit(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	server, err := newLegacyServerFixture(ledger)
+	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock())})
 	if err != nil {
 		t.Fatal(err)
 	}

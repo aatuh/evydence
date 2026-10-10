@@ -15,6 +15,10 @@ import (
 )
 
 func (l *Ledger) configureIdentityCommands() error {
+	credentials, err := identityapp.NewHMACAuthenticationCredentials(string(l.pepper))
+	if err != nil {
+		return fromIdentityContextError(err)
+	}
 	var discovery identityapp.OIDCDiscovery
 	if l.oidc != nil {
 		discovery = ledgerIdentityOIDCDiscovery{client: l.oidc}
@@ -22,7 +26,7 @@ func (l *Ledger) configureIdentityCommands() error {
 	service, err := identityapp.NewService(identityapp.Config{
 		Reader: ledgerIdentityReader{ledger: l}, Transactions: ledgerIdentityTransactions{ledger: l},
 		Authorizer: ledgerContextAuthorizer{ledger: l}, GrantPolicy: ledgerIdentityGrantPolicy{},
-		Credentials: ledgerCredentialManager{ledger: l}, SessionCredentials: ledgerSessionCredentialManager{ledger: l},
+		Credentials: credentials, SessionCredentials: credentials,
 		GrantTargets: ledgerIdentityGrantTargets{ledger: l}, SessionGrants: ledgerIdentitySessionGrants{},
 		TrustMaterial: identityapp.PublicTrustMaterialValidator{}, CanonicalHasher: ledgerIdentityCanonicalHasher{},
 		OIDCDiscovery: discovery, CredentialVerifier: LocalSSOCredentialVerifier{}, VerificationPolicy: LocalSSOVerificationPolicy{},
@@ -39,26 +43,6 @@ type ledgerIdentityGrantPolicy struct{}
 
 func (ledgerIdentityGrantPolicy) AuthorizeScopes(actor identitydomain.Actor, scopes []string) error {
 	return toIdentityContextError(requireGrantableScopes(actor, scopes))
-}
-
-type ledgerCredentialManager struct{ ledger *Ledger }
-
-func (m ledgerCredentialManager) Generate() (identityapp.Credential, error) {
-	secret := "evy_" + randomToken(32)
-	return identityapp.Credential{Secret: secret, Prefix: secretPrefix(secret), Hash: m.ledger.hashSecret(secret)}, nil
-}
-
-func (m ledgerCredentialManager) Prefix(secret string) string { return secretPrefix(secret) }
-func (m ledgerCredentialManager) Hash(secret string) string   { return m.ledger.hashSecret(secret) }
-func (ledgerCredentialManager) Equal(stored, candidate string) bool {
-	return secretHashEqual(stored, candidate)
-}
-
-type ledgerSessionCredentialManager struct{ ledger *Ledger }
-
-func (m ledgerSessionCredentialManager) GenerateSession() (identityapp.Credential, error) {
-	secret := "evysso_" + randomToken(32)
-	return identityapp.Credential{Secret: secret, Prefix: secretPrefix(secret), Hash: m.ledger.hashSecret(secret)}, nil
 }
 
 type ledgerIdentityGrantTargets struct{ ledger *Ledger }

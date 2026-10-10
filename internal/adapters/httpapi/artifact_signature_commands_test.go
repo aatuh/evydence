@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -113,15 +112,7 @@ func TestArtifactSignatureCreationStrictInputBeforeGuardInBothProfiles(t *testin
 
 func TestArtifactSignatureCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
-		_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		s, err := newLegacyServerFixture(ledger)
-		if err != nil {
-			t.Fatal(err)
-		}
+		s, secret := testServer(t)
 		f := &artifactSignatureCommandHTTPFake{}
 		if native {
 			s.artifactSignatureCommands = f
