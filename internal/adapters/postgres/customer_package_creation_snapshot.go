@@ -29,10 +29,10 @@ type CustomerPackageCreationSnapshotReader struct {
 var _ packageapp.CustomerPackageSnapshotReader = (*CustomerPackageCreationSnapshotReader)(nil)
 
 func NewCustomerPackageCreationSnapshotReader(store *Store, hasher verificationapp.CanonicalHasher, verifier verificationapp.PayloadSignatureVerifier) (*CustomerPackageCreationSnapshotReader, error) {
-	if store == nil || store.pool == nil || hasher == nil || verifier == nil {
+	if store == nil || store.packageReadPool == nil || hasher == nil || verifier == nil {
 		return nil, packageapp.ErrValidation
 	}
-	return &CustomerPackageCreationSnapshotReader{beginner: store.pool, hasher: hasher, verifier: verifier}, nil
+	return &CustomerPackageCreationSnapshotReader{beginner: store.packageReadPool, hasher: hasher, verifier: verifier}, nil
 }
 
 // The application authorizes the actor before this coordinate-only read. All

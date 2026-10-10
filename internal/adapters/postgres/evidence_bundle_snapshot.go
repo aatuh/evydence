@@ -22,13 +22,13 @@ var _ packageapp.EvidenceBundleSnapshotReader = (*Store)(nil)
 // head and bounded public retention proof metadata from one committed view.
 func (s *Store) ReadEvidenceBundleSnapshot(ctx context.Context, tenantID, releaseID string, now time.Time) (packageapp.EvidenceBundleSnapshot, error) {
 	var empty packageapp.EvidenceBundleSnapshot
-	if s == nil || s.pool == nil || ctx == nil || strings.TrimSpace(tenantID) == "" || now.IsZero() {
+	if s == nil || s.packageReadPool == nil || ctx == nil || strings.TrimSpace(tenantID) == "" || now.IsZero() {
 		return empty, packageapp.ErrValidation
 	}
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	tx, err := s.packageReadPool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return empty, fmt.Errorf("begin evidence bundle snapshot: %w", err)
 	}

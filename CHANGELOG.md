@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Fixed native package-preparation pool exhaustion under concurrent idempotent
+commands. Committed bundle/customer-package snapshots and local signing-key
+reads use an independent read-only pool capped at four connections, or the
+primary pool limit if smaller, without changing their SQL, row/byte budgets,
+tenant predicates, signature format or write-time validation. Store shutdown
+closes both pools; operators must account for the additional bounded connections.
+Added saturated-single-connection regressions for committed-only reads, foreign
+scope rejection, signature validity, cancellation and connection release. The
+existing 16-caller replay/count test and its 45-second deadline are unchanged.
+Required full-ticket validation still keeps EVY-906 open.
+
 Removed the physical Ledger aggregate, configuration/constructor, mutable
 maps/locks and all 52 remaining receiver methods from production source. Snapshot
 cloning, cached authorization, persistence forwarding and compatibility replay

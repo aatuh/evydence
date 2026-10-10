@@ -148,6 +148,15 @@ evidence, not completion of required full/race/production or live SQL gates.
 
 ## Current runtime composition
 
+Package preparation has independently bounded read-only PostgreSQL capacity.
+Release/evidence-bundle and customer-package snapshots retain their committed
+repeatable-read views; local package signing retains current tenant-key reads
+and write-time key revalidation. These reads cannot be starved by duplicate
+commands occupying the primary pool while waiting on one replay reservation.
+Both pools retain the configured database/TLS/session scope and close with the
+Store. See [PostgreSQL pool budgets](reference/capacity-and-failures.md#postgresql-pool-budgets)
+for the additional connection ceiling and cancellation limits.
+
 The PostgreSQL API entry point binds
 `httpapi.NewNativeServerWithOptionsContext`, without constructing a Ledger.
 The constructor requires every focused authentication, command and query port,

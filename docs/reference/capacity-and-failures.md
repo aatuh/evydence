@@ -58,6 +58,26 @@ Operators should measure these values in their own environment:
 - Monitor `/v1/ready`, admin metrics, outbox backlog, failed jobs, database
   connection errors, and object-store errors.
 
+## PostgreSQL Pool Budgets
+
+Each PostgreSQL Store has its ordinary command/query pool and a separate
+package-preparation pool. The latter serves committed release/evidence-bundle
+and customer-package snapshots, plus local package signing-key reads. It uses
+the same database, TLS and session scope configuration, with read-only sessions,
+zero minimum/idle-reserved connections and a maximum of
+`min(primary pool_max_conns, 4)`. Connections are opened on demand; Store shutdown
+closes both pools.
+
+Budget up to `primary pool_max_conns + min(primary pool_max_conns, 4)` connections
+per Store, not just the primary URL's pool limit. The writer lease consumes a
+primary-pool connection. Package preparation needs independent read capacity
+because concurrent commands can occupy the primary pool while waiting on the
+winning idempotency reservation. Its manifest inputs still come from a separate
+committed, read-only repeatable-read view; reading the pending write transaction
+would change that contract. Row/byte budgets, tenant predicates, signing-key
+revalidation and command atomicity are unchanged. Saturation of the read pool
+honors the caller's cancellation/deadline; this is not a throughput guarantee.
+
 ## Built-In Output Budgets
 
 The application applies these fixed output and diagnostic budgets. API

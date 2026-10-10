@@ -19,7 +19,10 @@ import (
 )
 
 type Store struct {
-	pool                  *pgxpool.Pool
+	pool *pgxpool.Pool
+	// Committed manifest/key reads must remain available while the command
+	// pool's transactions wait on one winning idempotency reservation.
+	packageReadPool       *pgxpool.Pool
 	loadMode              LoadMode
 	disableSnapshotWrites bool
 	writerLeaseMu         sync.RWMutex
@@ -58,7 +61,19 @@ func OpenWithOptions(ctx context.Context, databaseURL string, opts StoreOptions)
 		pool.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return &Store{pool: pool, loadMode: loadMode, disableSnapshotWrites: opts.DisableSnapshotWrites}, nil
+	readConfig := pool.Config()
+	readConfig.MaxConns = min(readConfig.MaxConns, 4)
+	readConfig.MinConns, readConfig.MinIdleConns = 0, 0
+	if readConfig.ConnConfig.RuntimeParams == nil {
+		readConfig.ConnConfig.RuntimeParams = make(map[string]string)
+	}
+	readConfig.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
+	packageReadPool, err := pgxpool.NewWithConfig(ctx, readConfig)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("open package preparation pool: %w", err)
+	}
+	return &Store{pool: pool, packageReadPool: packageReadPool, loadMode: loadMode, disableSnapshotWrites: opts.DisableSnapshotWrites}, nil
 }
 
 func (s *Store) Close() {
@@ -67,6 +82,9 @@ func (s *Store) Close() {
 		s.writerLease = nil
 		s.writerLeaseMu.Unlock()
 		s.pool.Close()
+	}
+	if s != nil && s.packageReadPool != nil {
+		s.packageReadPool.Close()
 	}
 }
 

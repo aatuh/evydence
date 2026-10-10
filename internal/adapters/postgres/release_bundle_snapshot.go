@@ -23,13 +23,13 @@ const maxBundleProofBytes = 8 << 20
 // queries use one read-only repeatable-read view and fail closed on overflow.
 func (s *Store) ReadReleaseBundleSnapshot(ctx context.Context, tenantID, releaseID string, now time.Time) (packageapp.ReleaseBundleSnapshot, error) {
 	var empty packageapp.ReleaseBundleSnapshot
-	if s == nil || s.pool == nil || ctx == nil || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(releaseID) == "" || now.IsZero() {
+	if s == nil || s.packageReadPool == nil || ctx == nil || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(releaseID) == "" || now.IsZero() {
 		return empty, packageapp.ErrValidation
 	}
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	tx, err := s.packageReadPool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return empty, fmt.Errorf("begin release bundle snapshot: %w", err)
 	}

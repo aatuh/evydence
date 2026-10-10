@@ -21,7 +21,7 @@ import (
 // The command's transaction must revalidate/share-lock this key before commit.
 func (s *Store) SignPackage(ctx context.Context, request packageapp.PackageSigningRequest) (packageapp.PackageSignature, error) {
 	var empty packageapp.PackageSignature
-	if s == nil || s.pool == nil || ctx == nil || request.TenantID == "" || request.SubjectID == "" || request.SubjectType == "" || request.PayloadHash == "" || request.CreatedAt.IsZero() {
+	if s == nil || s.packageReadPool == nil || ctx == nil || request.TenantID == "" || request.SubjectID == "" || request.SubjectType == "" || request.PayloadHash == "" || request.CreatedAt.IsZero() {
 		return empty, packageapp.ErrValidation
 	}
 	if err := ctx.Err(); err != nil {
@@ -32,7 +32,7 @@ func (s *Store) SignPackage(ctx context.Context, request packageapp.PackageSigni
 	var from time.Time
 	var until, revoked, compromised *time.Time
 	var oversized bool
-	err := s.pool.QueryRow(ctx, `SELECT left(id,1025),left(algorithm,65),left(provider,65),left(public_key,129),
+	err := s.packageReadPool.QueryRow(ctx, `SELECT left(id,1025),left(algorithm,65),left(provider,65),left(public_key,129),
 		CASE WHEN octet_length(encrypted_private_key)=64 THEN encrypted_private_key ELSE NULL END,
 		valid_from,valid_until,revoked_at,compromised_at,
 		(octet_length(id)>1024 OR octet_length(algorithm)>64 OR octet_length(provider)>64 OR octet_length(public_key)>128)
