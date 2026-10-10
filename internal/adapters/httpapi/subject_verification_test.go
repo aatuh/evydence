@@ -132,7 +132,7 @@ func TestSubjectVerificationStrictRawInputBeforeGuardForFixtureAndNativeCommands
 
 func TestSubjectVerificationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		s, secret := testServer(t)
+		s, secret := governanceTestServer(t)
 		f := &subjectVerificationHTTPFake{}
 		if native {
 			s.subjectVerification = f

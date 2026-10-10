@@ -19,6 +19,9 @@ import (
 type verificationCommandFixture struct{ catalogFixtureCommands }
 
 func (f verificationCommandFixture) AuthorizeSubjectVerification(ctx context.Context, actor domain.Actor, kind, id string) error {
+	if strings.TrimSpace(kind) == "backup_manifest" {
+		return f.authorizeCurrentBackup(ctx, actor, id)
+	}
 	if strings.TrimSpace(kind) == "release_bundle" {
 		return f.authorizeCurrentReleaseBundle(ctx, actor, id)
 	}
@@ -29,6 +32,9 @@ func (f verificationCommandFixture) AuthorizeSubjectVerification(ctx context.Con
 }
 
 func (f verificationCommandFixture) VerifySubject(ctx context.Context, actor domain.Actor, kind, id string) (verificationdomain.VerificationResult, error) {
+	if strings.TrimSpace(kind) == "backup_manifest" {
+		return f.verifyCurrentBackup(ctx, actor, id)
+	}
 	if strings.TrimSpace(kind) == "release_bundle" {
 		return f.verifyCurrentReleaseBundle(ctx, actor, id)
 	}

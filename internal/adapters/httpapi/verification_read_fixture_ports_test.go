@@ -36,8 +36,7 @@ func (f verificationReadFixtureCommands) VerifyMerkleBatch(ctx context.Context, 
 	return verificationCommandFixture(f).verifyCurrentMerkle(ctx, actor, id)
 }
 func (f verificationReadFixtureCommands) VerifyBackupManifest(ctx context.Context, actor domain.Actor, id string) (verificationdomain.VerificationResult, error) {
-	value, err := f.commandLedger(ctx).VerifyBackupManifest(ctx, actor, id)
-	return fixtureVerificationResult(value, err)
+	return verificationCommandFixture(f).verifyCurrentBackup(ctx, actor, id)
 }
 
 type signingKeyFixtureQuery struct{ catalogFixtureCommands }

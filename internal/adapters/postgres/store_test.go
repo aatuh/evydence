@@ -1767,7 +1767,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result, err := restored.VerifyBackupManifest(ctx, restoredActor, manifest.ID); err != nil {
+	if result, err := verifyBackupManifestFixture(ctx, targetStore, restoredActor, manifest.ID); err != nil {
 		t.Fatalf("verify backup manifest after restore: %v result=%#v", err, result)
 	}
 	query, err := evidencequery.NewSBOMPoints(targetStore)

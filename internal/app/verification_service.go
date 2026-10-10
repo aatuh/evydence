@@ -163,10 +163,6 @@ func (l *Ledger) VerifySubject(ctx context.Context, actor domain.Actor, subjectT
 	return domain.VerificationResultFromContextModel(value), fromVerificationContextError(err)
 }
 
-func (l *Ledger) VerifyBackupManifest(ctx context.Context, actor domain.Actor, id string) (domain.VerificationResult, error) {
-	return l.VerifySubject(ctx, actor, "backup_manifest", id)
-}
-
 func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domain.Actor, attestationID string) (domain.VerificationResult, error) {
 	return l.VerifySubject(ctx, actor, "build_attestation", attestationID)
 }

@@ -286,15 +286,21 @@ closed with no receipt, not a truncated passing assessment.
 Dedicated GET and direct verification persist completed negative receipts.
 Failed generic POST verification rolls back; successful idempotent replay adds
 no effects. Existing check names/order, profile strings, state-hash digest and
-response/storage fields are unchanged. Explicit local-memory mode shares the
-same recorded-check inspector and bounds. Backup generation uses a versioned
-tenant commitment in PostgreSQL and retains v1 compatibility in local memory; no
-historical record is rewritten here.
+response/storage fields are unchanged. HTTP memory fixtures now compose the
+same focused command over current typed manifest facts, with ownership-only
+replay rather than an aggregate cache. Reads detach checks and preserve the
+exact encoded budget, including an empty presence-only receipt; rejected reads
+return no partial facts. These fixtures are not an API backend and do not prove
+SQL locks, durability or restoration. Backup generation's remaining historical
+v1 fixture path is separate EVY-906 retirement work; no historical record is
+rewritten here.
 
 Source/test evidence: `internal/verification/app/backup_verification.go`,
 `internal/adapters/postgres/repositories/backup_verification.go`,
-`internal/platform/wiring/backup_verification_test.go` and
-`internal/adapters/httpapi/backup_verification_test.go`.
+`internal/platform/wiring/backup_verification_test.go`,
+`internal/adapters/httpapi/backup_verification_test.go`,
+`internal/app/memory_backup_verification_test.go` and
+`internal/adapters/httpapi/backup_verification_native_fixture_regression_test.go`.
 
 ## Full Audit Chain Verification
 

@@ -216,7 +216,7 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result, err := restored.VerifyBackupManifest(ctx, restoredActor, checkpoint.ID); err != nil {
+	if result, err := verifyBackupManifestFixture(ctx, targetStore, restoredActor, checkpoint.ID); err != nil {
 		t.Fatalf("verify restored consistency checkpoint: %v result=%#v", err, result)
 	}
 	if result, err := restored.VerifySubject(ctx, restoredActor, "audit_chain", ""); err != nil || result.Result != "passed" {

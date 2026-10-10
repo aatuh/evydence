@@ -73,6 +73,16 @@ Existing routes, JSON fields and key policy/storage formats are unchanged.
 Memory fixtures remain test-only, not SQL locking or external custody evidence;
 other aggregate retirement remains EVY-906 work.
 
+Retired the Ledger backup-manifest verification facade from production source.
+GET and generic POST fixtures now use the focused recorded-check command over
+current typed manifest facts, not an aggregate cache. Reads omit unused manifest
+metadata, detach checks and preserve exact byte/count bounds; replay guards read
+only ownership. Tests retain presence-only legacy receipts, failed direct/GET
+receipts, failed POST rollback, current-grant replay checks and atomic commit
+rollback. Existing profiles, checks, hashes and stored records are unchanged.
+These fixtures prove neither live backup contents nor restoration or SQL
+durability; remaining aggregate retirement stays EVY-906 work.
+
 Retired Ledger object-retention creation/verification facades and their input
 type from production source. HTTP fixtures compose the focused commands over
 current tenant/policy repositories, bounded detached policy reads and explicit
