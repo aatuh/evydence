@@ -93,7 +93,7 @@ func (t artifactMetadataVerificationFixtureTransaction) EnqueueOutbox(ctx contex
 }
 func (f verificationCommandFixture) verifyCurrentEvidence(ctx context.Context, a domain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	clock, ids := questionnaireNativeFixtureClockIDs(false)
-	c, err := verificationapp.NewEvidenceVerificationCommands(verificationapp.EvidenceVerificationConfig{Transactions: metadataVerificationFixtureTransactions(f), Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(), Hasher: evidenceCreationNativeFixture{}, Clock: clock, IDs: ids})
+	c, err := verificationapp.NewEvidenceVerificationCommands(verificationapp.EvidenceVerificationConfig{Transactions: (metadataVerificationFixtureTransactions{f.catalogFixtureCommands}), Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(), Hasher: evidenceCreationNativeFixture{}, Clock: clock, IDs: ids})
 	if err != nil {
 		return verificationdomain.VerificationResult{}, mapVerificationCommandError(err)
 	}
@@ -102,7 +102,7 @@ func (f verificationCommandFixture) verifyCurrentEvidence(ctx context.Context, a
 }
 func (f verificationCommandFixture) verifyCurrentArtifactMetadata(ctx context.Context, a domain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	clock, ids := questionnaireNativeFixtureClockIDs(false)
-	c, err := verificationapp.NewArtifactSignatureVerificationCommands(verificationapp.ArtifactSignatureVerificationConfig{Transactions: metadataVerificationFixtureTransactions(f), Authorizer: verificationquery.NewCosignVerificationAuthorizer(), Clock: clock, IDs: ids})
+	c, err := verificationapp.NewArtifactSignatureVerificationCommands(verificationapp.ArtifactSignatureVerificationConfig{Transactions: (metadataVerificationFixtureTransactions{f.catalogFixtureCommands}), Authorizer: verificationquery.NewCosignVerificationAuthorizer(), Clock: clock, IDs: ids})
 	if err != nil {
 		return verificationdomain.VerificationResult{}, mapVerificationCommandError(err)
 	}
@@ -118,7 +118,7 @@ func (f verificationCommandFixture) authorizeCurrentEvidenceVerification(ctx con
 	if err != nil {
 		return mapVerificationCommandError(err)
 	}
-	return mapVerificationCommandError(metadataVerificationFixtureTransactions(f).ExecuteEvidenceVerification(ctx, func(ctx context.Context, tx verificationapp.EvidenceVerificationTransaction) error {
+	return mapVerificationCommandError((metadataVerificationFixtureTransactions{f.catalogFixtureCommands}).ExecuteEvidenceVerification(ctx, func(ctx context.Context, tx verificationapp.EvidenceVerificationTransaction) error {
 		s, err := tx.ResolveEvidenceVerificationSubject(ctx, a.TenantID, id)
 		if err != nil {
 			return err
@@ -135,7 +135,7 @@ func (f verificationCommandFixture) authorizeCurrentArtifactMetadata(ctx context
 	if err != nil {
 		return mapVerificationCommandError(err)
 	}
-	return mapVerificationCommandError(metadataVerificationFixtureTransactions(f).ExecuteArtifactSignatureVerification(ctx, func(ctx context.Context, tx verificationapp.ArtifactSignatureVerificationTransaction) error {
+	return mapVerificationCommandError((metadataVerificationFixtureTransactions{f.catalogFixtureCommands}).ExecuteArtifactSignatureVerification(ctx, func(ctx context.Context, tx verificationapp.ArtifactSignatureVerificationTransaction) error {
 		locker, ok := tx.(verificationapp.CosignVerificationScopeLocker)
 		if !ok {
 			return verificationapp.ErrValidation

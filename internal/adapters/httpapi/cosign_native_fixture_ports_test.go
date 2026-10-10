@@ -54,7 +54,7 @@ func (f verificationCommandFixture) nativeCosign() (*verificationapp.CosignVerif
 	clock, ids := questionnaireNativeFixtureClockIDs(false)
 	// Ordinary fixtures have no configured trust policy. Use the actual offline
 	// inspector's unavailable path, not a synthetic successful verification.
-	return verificationapp.NewCosignVerificationCommands(verificationapp.CosignVerificationConfig{Transactions: cosignFixtureTransactions(f), Authorizer: verificationquery.NewCosignVerificationAuthorizer(), Inspector: cosignobjects.Inspector{}, Clock: clock, IDs: ids})
+	return verificationapp.NewCosignVerificationCommands(verificationapp.CosignVerificationConfig{Transactions: (cosignFixtureTransactions{f.catalogFixtureCommands}), Authorizer: verificationquery.NewCosignVerificationAuthorizer(), Inspector: cosignobjects.Inspector{}, Clock: clock, IDs: ids})
 }
 
 var _ verificationapp.CosignVerificationTransaction = cosignFixtureTransaction{}

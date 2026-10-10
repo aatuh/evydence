@@ -56,7 +56,7 @@ func (t backupVerificationFixtureTransaction) EnqueueOutbox(ctx context.Context,
 }
 func (f verificationCommandFixture) verifyCurrentBackup(ctx context.Context, a domain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	clock, ids := questionnaireNativeFixtureClockIDs(false)
-	c, err := verificationapp.NewBackupVerificationCommands(verificationapp.BackupVerificationConfig{Transactions: backupVerificationFixtureTransactions(f), Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(), Clock: clock, IDs: ids})
+	c, err := verificationapp.NewBackupVerificationCommands(verificationapp.BackupVerificationConfig{Transactions: (backupVerificationFixtureTransactions{f.catalogFixtureCommands}), Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(), Clock: clock, IDs: ids})
 	if err != nil {
 		return verificationdomain.VerificationResult{}, mapVerificationCommandError(err)
 	}
@@ -72,7 +72,7 @@ func (f verificationCommandFixture) authorizeCurrentBackup(ctx context.Context, 
 	if err != nil {
 		return mapVerificationCommandError(err)
 	}
-	return mapVerificationCommandError(backupVerificationFixtureTransactions(f).ExecuteBackupVerification(ctx, func(ctx context.Context, tx verificationapp.BackupVerificationTransaction) error {
+	return mapVerificationCommandError((backupVerificationFixtureTransactions{f.catalogFixtureCommands}).ExecuteBackupVerification(ctx, func(ctx context.Context, tx verificationapp.BackupVerificationTransaction) error {
 		locker, ok := tx.(interface {
 			LockBackupVerificationScope(context.Context, string, string) error
 		})

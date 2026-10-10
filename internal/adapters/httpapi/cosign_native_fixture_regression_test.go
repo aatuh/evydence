@@ -20,7 +20,7 @@ func TestCosignNativeFixtureUsesCurrentSignatureAndCommitsOnlyUnavailableReceipt
 	}
 	factory := &operatorQueryFailureFactory{base: base}
 	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("Cosign fixture used aggregate clock") }})
-	f := verificationCommandFixture{catalogFixtureCommands{ledger: rebound}}
+	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	input := verificationapp.VerifyCosignInput{ArtifactSignatureID: signature.ID, Mode: verificationapp.CosignVerificationModeKeyless, Offline: true, ExpectedIdentity: "repo:example/project", ExpectedIssuer: "https://issuer.example"}
 	before, err := base.Snapshot()
 	if err != nil {

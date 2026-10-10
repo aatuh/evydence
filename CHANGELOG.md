@@ -13,6 +13,15 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired the Ledger DSSE verification and generic cache-based verification replay
+guards from production source. Both DSSE HTTP fixture paths use focused commands,
+current typed ownership/policies, explicit bounded object storage and finalized
+payload bindings. Registered release-linked outputs remain the expected subjects;
+parsed claims do not grant trust. Signed-envelope, conservative unconfigured-root,
+replay and atomic rollback regressions preserve the existing offline assurance
+profile and API/storage contracts. Historical memory fixtures are not SQL locking,
+live-provider or worker-durability evidence; EVY-906 remains open.
+
 Current source retires the `local_memory` API profile. Local evaluation now
 requires `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`.
 Startup rejects the retired profile before resources or credentials are opened,

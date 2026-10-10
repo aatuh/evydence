@@ -72,7 +72,7 @@ func TestVerificationCommandFixturesRollBackAllEffectsAfterWriteFailure(t *testi
 				t.Fatal(err)
 			}
 			server.authn = &configuredAuthenticator{actor: scope.actor}
-			commands := &failingVerificationCommandFixture{verificationCommandFixture: verificationCommandFixture{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingVerificationCommandFixture{verificationCommandFixture: verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.subjectVerification, server.backupGenerationCommands, server.merkleCreationCommands = commands, commands, commands
 			server.transparencyCheckpointCommands, server.retentionCommands = commands, commands
 			path, body := "/v1/verify", `{"subject_type":"audit_chain"}`
@@ -140,7 +140,7 @@ func TestVerificationCommandFixtureGuardsPreserveAuthorityAndReadOnlyState(t *te
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
-	commands := verificationCommandFixture{catalogFixtureCommands{ledger: ledger}}
+	commands := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	batch, err := commands.CreateMerkleBatch(t.Context(), owner.actor, verificationapp.CreateMerkleBatchInput{})
 	if err != nil {
 		t.Fatal("missing owned checkpoint guard fixture", err)

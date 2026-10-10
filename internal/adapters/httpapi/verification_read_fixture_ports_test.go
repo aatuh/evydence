@@ -33,10 +33,10 @@ func (f verificationReadFixtureCommands) VerifyAuditChain(ctx context.Context, a
 	return fixtureVerificationResult(value, err)
 }
 func (f verificationReadFixtureCommands) VerifyMerkleBatch(ctx context.Context, actor domain.Actor, id string) (verificationdomain.VerificationResult, error) {
-	return verificationCommandFixture(f).verifyCurrentMerkle(ctx, actor, id)
+	return (verificationCommandFixture{catalogFixtureCommands: f.catalogFixtureCommands}).verifyCurrentMerkle(ctx, actor, id)
 }
 func (f verificationReadFixtureCommands) VerifyBackupManifest(ctx context.Context, actor domain.Actor, id string) (verificationdomain.VerificationResult, error) {
-	return verificationCommandFixture(f).verifyCurrentBackup(ctx, actor, id)
+	return (verificationCommandFixture{catalogFixtureCommands: f.catalogFixtureCommands}).verifyCurrentBackup(ctx, actor, id)
 }
 
 type signingKeyFixtureQuery struct{ catalogFixtureCommands }

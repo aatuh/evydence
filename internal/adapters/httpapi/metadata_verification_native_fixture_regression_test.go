@@ -87,7 +87,7 @@ func TestMetadataVerificationNativeFixturesEnforceCurrentGrantsAndAtomicCommitFa
 	}
 	factory := &bundleWriteFailureFactory{base: base}
 	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
-	f := verificationCommandFixture{catalogFixtureCommands{ledger: rebound}}
+	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	before, err := base.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +142,7 @@ func TestMetadataVerificationNativeFixturesUseCurrentFactsWithoutAggregateCache(
 		t.Fatal(err)
 	}
 	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("metadata verification used aggregate clock") }})
-	f := verificationCommandFixture{catalogFixtureCommands{ledger: rebound}}
+	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	for _, tc := range []struct{ kind, id, result, profile string }{
 		{"evidence_item", owner.original.ID, "passed", "evidence-canonical-hash.v1"},
 		{"artifact_signature", sig.ID, "limited", "artifact-signature-metadata.v1"},

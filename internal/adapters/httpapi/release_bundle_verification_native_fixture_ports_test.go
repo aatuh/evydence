@@ -66,7 +66,7 @@ func (t releaseBundleVerificationFixtureTransaction) EnqueueOutbox(ctx context.C
 }
 func (f verificationCommandFixture) verifyCurrentReleaseBundle(ctx context.Context, a domain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	clock, ids := questionnaireNativeFixtureClockIDs(false)
-	c, err := verificationapp.NewReleaseBundleVerificationCommands(verificationapp.ReleaseBundleVerificationConfig{Transactions: releaseBundleVerificationFixtureTransactions(f), Authorizer: verificationquery.NewReleaseBundleVerificationAuthorizer(), Hasher: releaseBundleVerificationFixtureHasher{}, Verifier: localed25519.PayloadVerifier{}, Clock: clock, IDs: ids})
+	c, err := verificationapp.NewReleaseBundleVerificationCommands(verificationapp.ReleaseBundleVerificationConfig{Transactions: (releaseBundleVerificationFixtureTransactions{f.catalogFixtureCommands}), Authorizer: verificationquery.NewReleaseBundleVerificationAuthorizer(), Hasher: releaseBundleVerificationFixtureHasher{}, Verifier: localed25519.PayloadVerifier{}, Clock: clock, IDs: ids})
 	if err != nil {
 		return verificationdomain.VerificationResult{}, mapVerificationCommandError(err)
 	}
@@ -79,7 +79,7 @@ func (f verificationCommandFixture) authorizeCurrentReleaseBundle(ctx context.Co
 	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
 		return mapVerificationCommandError(err)
 	}
-	return mapVerificationCommandError(releaseBundleVerificationFixtureTransactions(f).ExecuteReleaseBundleVerification(ctx, func(ctx context.Context, tx verificationapp.ReleaseBundleVerificationTransaction) error {
+	return mapVerificationCommandError((releaseBundleVerificationFixtureTransactions{f.catalogFixtureCommands}).ExecuteReleaseBundleVerification(ctx, func(ctx context.Context, tx verificationapp.ReleaseBundleVerificationTransaction) error {
 		subject, err := tx.ResolveReleaseBundleVerificationSubject(ctx, a.TenantID, strings.TrimSpace(id))
 		if err != nil {
 			return err

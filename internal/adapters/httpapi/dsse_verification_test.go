@@ -90,7 +90,7 @@ func TestDSSEHTTPStrictEmptyInputBeforeGuardForFixtureAndNativeCommands(t *testi
 
 func TestDSSEHTTPCookieMutationAndBearerPrecedenceForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		s, secret := testServer(t)
+		s, secret := governanceTestServer(t)
 		f := &dsseVerificationHTTPFake{}
 		if native {
 			s.dsseVerification = f

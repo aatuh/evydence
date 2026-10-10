@@ -16,9 +16,15 @@ import (
 // These adapters exist only in the test binary. Guards retain the actual
 // former policies, while commands run on the fixture's isolated replay clone.
 // They do not emulate PostgreSQL ownership locks or its v2 backup commitment.
-type verificationCommandFixture struct{ catalogFixtureCommands }
+type verificationCommandFixture struct {
+	catalogFixtureCommands
+	dsseObjects app.BoundedObjectReader
+}
 
 func (f verificationCommandFixture) AuthorizeSubjectVerification(ctx context.Context, actor domain.Actor, kind, id string) error {
+	if strings.TrimSpace(kind) == "build_attestation" {
+		return f.AuthorizeDSSEVerification(ctx, actor, id)
+	}
 	if strings.TrimSpace(kind) == "evidence_item" {
 		return f.authorizeCurrentEvidenceVerification(ctx, actor, id)
 	}
@@ -34,10 +40,13 @@ func (f verificationCommandFixture) AuthorizeSubjectVerification(ctx context.Con
 	if strings.TrimSpace(kind) == "merkle_batch" {
 		return f.authorizeCurrentMerkle(ctx, actor, id)
 	}
-	return f.commandLedger(ctx).AuthorizeSubjectVerification(ctx, actor, kind, id)
+	return f.authorizeCurrentSubjectScope(ctx, actor, kind, id)
 }
 
 func (f verificationCommandFixture) VerifySubject(ctx context.Context, actor domain.Actor, kind, id string) (verificationdomain.VerificationResult, error) {
+	if strings.TrimSpace(kind) == "build_attestation" {
+		return f.VerifyDSSEAttestationSignature(ctx, actor, id)
+	}
 	if strings.TrimSpace(kind) == "evidence_item" {
 		return f.verifyCurrentEvidence(ctx, actor, id)
 	}
@@ -62,12 +71,26 @@ func (f verificationCommandFixture) VerifyReleaseBundle(ctx context.Context, act
 }
 
 func (f verificationCommandFixture) AuthorizeDSSEVerification(ctx context.Context, actor domain.Actor, id string) error {
-	return f.commandLedger(ctx).AuthorizeDSSEVerification(ctx, actor, id)
+	c, err := f.nativeDSSE(true)
+	if err != nil {
+		return mapVerificationCommandError(err)
+	}
+	return mapVerificationCommandError(c.AuthorizeDSSEVerification(ctx, actor, id))
 }
 
 func (f verificationCommandFixture) VerifyDSSEAttestationSignature(ctx context.Context, actor domain.Actor, id string) (verificationdomain.VerificationResult, error) {
-	value, err := f.commandLedger(ctx).VerifyDSSEAttestationSignature(ctx, actor, id)
-	return fixtureVerificationResult(value, err)
+	if ctx == nil {
+		return verificationdomain.VerificationResult{}, app.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return verificationdomain.VerificationResult{}, err
+	}
+	c, err := f.nativeDSSE(false)
+	if err != nil {
+		return verificationdomain.VerificationResult{}, mapVerificationCommandError(err)
+	}
+	value, err := c.VerifyDSSEAttestationSignature(ctx, actor, id)
+	return value, mapVerificationCommandError(err)
 }
 
 func (f verificationCommandFixture) AuthorizeCosignVerification(ctx context.Context, actor domain.Actor, _ verificationapp.VerifyCosignInput) error {
@@ -155,14 +178,20 @@ func (f verificationCommandFixture) VerifyObjectRetentionPolicy(ctx context.Cont
 }
 
 func (s *Server) bindVerificationCommandFixturePorts(ledger *app.Ledger) {
-	commands := verificationCommandFixture{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.subjectVerification.(verificationCommandFixture); s.subjectVerification == nil || fixture {
+	commands := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.subjectVerification.(verificationCommandFixture); fixture {
+		old.ledger = ledger
+		s.subjectVerification = old
+	} else if s.subjectVerification == nil {
 		s.subjectVerification = commands
 	}
 	if _, fixture := s.releaseBundleVerification.(verificationCommandFixture); s.releaseBundleVerification == nil || fixture {
 		s.releaseBundleVerification = commands
 	}
-	if _, fixture := s.dsseVerification.(verificationCommandFixture); s.dsseVerification == nil || fixture {
+	if old, fixture := s.dsseVerification.(verificationCommandFixture); fixture {
+		old.ledger = ledger
+		s.dsseVerification = old
+	} else if s.dsseVerification == nil {
 		s.dsseVerification = commands
 	}
 	if _, fixture := s.cosignVerification.(verificationCommandFixture); s.cosignVerification == nil || fixture {

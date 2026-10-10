@@ -107,7 +107,7 @@ func TestReleaseBundleVerificationNativeFixtureUsesCurrentRowsAndAtomicReceipt(t
 	}
 	factory := &bundleWriteFailureFactory{base: base}
 	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("bundle verifier consulted aggregate clock") }})
-	f := verificationCommandFixture{catalogFixtureCommands{ledger: rebound}}
+	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	before, err := base.Snapshot()
 	if err != nil {
 		t.Fatal(err)

@@ -53,7 +53,7 @@ func (t merkleVerificationFixtureTransaction) EnqueueOutbox(ctx context.Context,
 }
 func (f verificationCommandFixture) verifyCurrentMerkle(ctx context.Context, a domain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	clock, ids := questionnaireNativeFixtureClockIDs(false)
-	c, err := verificationapp.NewMerkleVerificationCommands(verificationapp.MerkleVerificationConfig{Transactions: merkleVerificationFixtureTransactions(f), Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(), Verifier: localed25519.PayloadVerifier{}, Clock: clock, IDs: ids})
+	c, err := verificationapp.NewMerkleVerificationCommands(verificationapp.MerkleVerificationConfig{Transactions: (merkleVerificationFixtureTransactions{f.catalogFixtureCommands}), Authorizer: verificationquery.NewEvidenceVerificationAuthorizer(), Verifier: localed25519.PayloadVerifier{}, Clock: clock, IDs: ids})
 	if err != nil {
 		return verificationdomain.VerificationResult{}, mapVerificationCommandError(err)
 	}
@@ -65,7 +65,7 @@ func (f verificationCommandFixture) authorizeCurrentMerkle(ctx context.Context, 
 	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
 		return mapVerificationCommandError(err)
 	}
-	return mapVerificationCommandError(merkleVerificationFixtureTransactions(f).ExecuteMerkleVerification(ctx, func(ctx context.Context, tx verificationapp.MerkleVerificationTransaction) error {
+	return mapVerificationCommandError((merkleVerificationFixtureTransactions{f.catalogFixtureCommands}).ExecuteMerkleVerification(ctx, func(ctx context.Context, tx verificationapp.MerkleVerificationTransaction) error {
 		if _, err := tx.ResolveMerkleVerificationSubject(ctx, a.TenantID, strings.TrimSpace(id)); err != nil {
 			return err
 		}

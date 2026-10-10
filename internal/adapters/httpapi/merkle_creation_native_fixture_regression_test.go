@@ -59,7 +59,7 @@ func TestMerkleCreationNativeFixtureUsesCurrentChainAndKeysWithoutAggregate(t *t
 		t.Fatal(err)
 	}
 	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("Merkle command used aggregate clock") }})
-	f := verificationCommandFixture{catalogFixtureCommands{ledger: rebound}}
+	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	batch, err := f.CreateMerkleBatch(t.Context(), owner.actor, verificationapp.CreateMerkleBatchInput{})
 	if err != nil || batch.ID == "" || batch.TenantID != owner.actor.TenantID || batch.FromSequence != 1 || batch.ToSequence != int64(len(before.AuditEntries[owner.actor.TenantID])) || len(batch.SignatureRefs) != 1 {
 		t.Fatal("focused batch lost current view or signature", err)
@@ -72,7 +72,7 @@ func TestMerkleCreationNativeFixtureUsesCurrentChainAndKeysWithoutAggregate(t *t
 	if err != nil || len(after.MerkleBatches) != len(before.MerkleBatches)+1 || len(after.TransparencyCheckpoints) != len(before.TransparencyCheckpoints)+1 || len(after.Signatures) != len(before.Signatures)+1 || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+2 || !reflect.DeepEqual(after.SigningKeys, before.SigningKeys) {
 		t.Fatal("batch/checkpoint effects escaped atomic owned paths", err)
 	}
-	result, err := verificationReadFixtureCommands(f).VerifyMerkleBatch(t.Context(), owner.actor, batch.ID)
+	result, err := (verificationReadFixtureCommands{f.catalogFixtureCommands}).VerifyMerkleBatch(t.Context(), owner.actor, batch.ID)
 	if err != nil || result.Result.String() != "passed" || len(result.Checks) != 3 {
 		t.Fatal("focused Merkle verification lost creation result", err)
 	}

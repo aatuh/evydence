@@ -1372,9 +1372,19 @@ job commit together; successful POST replay adds no duplicate effects and failed
 POST verification rolls back its enclosing transaction. Public profiles, schemas
 and response fields remain compatible. See the [DSSE verification limits and
 compatibility boundary](reference/evidence-format-compatibility.md#dsse-and-in-toto-json).
-Local-memory inspection shares the profile and root-policy evaluation but retains
-its explicit compatibility storage/transaction path. Other verification subjects
-and broad startup Ledger retirement remain EVY-905 work.
+HTTP DSSE fixtures now compose this focused command over current typed
+repositories and explicitly supplied bounded object storage. Their ownership-only
+guards read no payload, root policy, build outputs or prior receipts; snapshot
+reads bind the attestation to coherent evidence/parents and finalized payload
+metadata, with 4096-record bounds and a shared 8 MiB selected-fact budget. Expected
+subjects come from registered, release-linked outputs, not parsed claims.
+Signed-envelope fixtures cover actual offline verification, conservative
+`not_verified` results without usable roots, successful replay and failed-POST
+or commit rollback of receipt/audit/job effects. The Ledger DSSE verification
+and generic replay-guard facades are historical test-only characterization.
+Memory ownership/lifecycle checks do not prove SQL locks, transfer/allocation
+bounds, provider storage or worker durability. Remaining aggregate retirement
+and final architecture documentation are EVY-906 work.
 
 PostgreSQL-profile artifact-signature creation uses a focused command with
 transaction-scoped artifact grants, bounded digest reads and the shared

@@ -116,7 +116,7 @@ func TestBackupVerificationNativeFixtureRetainsNegativeReceiptsAndCommitRollback
 	backup := seedBackupVerificationFixture(t, base, owner.actor.TenantID, "backup", "failed")
 	factory := &bundleWriteFailureFactory{base: base}
 	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
-	f := verificationCommandFixture{catalogFixtureCommands{ledger: rebound}}
+	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	v, err := f.VerifySubject(t.Context(), owner.actor, "backup_manifest", backup.ID)
 	if !errors.Is(err, app.ErrVerificationFailed) || v.Result.String() != "failed" || len(v.Checks) != 2 || v.Checks[0].Result != "failed" || v.Profile.TransparencyProof != "not_evaluated" {
 		t.Fatal("negative recorded fact lost its receipt", err)
@@ -126,7 +126,7 @@ func TestBackupVerificationNativeFixtureRetainsNegativeReceiptsAndCommitRollback
 		t.Fatal("negative receipt was not committed", err)
 	}
 	factory.failAt = factory.begins + 1
-	if v, err := verificationReadFixtureCommands(f).VerifyBackupManifest(t.Context(), owner.actor, backup.ID); err == nil || !reflect.DeepEqual(v, verificationdomain.VerificationResult{}) || factory.begins != factory.failAt {
+	if v, err := (verificationReadFixtureCommands{f.catalogFixtureCommands}).VerifyBackupManifest(t.Context(), owner.actor, backup.ID); err == nil || !reflect.DeepEqual(v, verificationdomain.VerificationResult{}) || factory.begins != factory.failAt {
 		t.Fatal("backup verification commit failure not exercised or returned data", err)
 	}
 	after, err := base.Snapshot()
