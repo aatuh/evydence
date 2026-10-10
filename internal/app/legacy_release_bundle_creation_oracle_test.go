@@ -9,7 +9,7 @@ import (
 
 // Unchanged aggregate behavior is retained only as a characterization oracle.
 func (l *Ledger) CreateReleaseBundle(ctx context.Context, actor domain.Actor, releaseID string) (domain.ReleaseBundle, error) {
-	value, err := l.packageCommands.CreateReleaseBundle(ctx, actor, releaseID)
+	value, err := l.legacyPackageCommands().CreateReleaseBundle(ctx, actor, releaseID)
 	return domain.ReleaseBundleFromContextModel(value), fromPackageContextError(err)
 }
 

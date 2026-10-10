@@ -18,7 +18,7 @@ type CreateRedactionProfileInput struct {
 }
 
 func (l *Ledger) CreateRedactionProfile(ctx context.Context, actor domain.Actor, in CreateRedactionProfileInput) (domain.RedactionProfile, error) {
-	value, err := l.packageCommands.CreateRedactionProfile(ctx, actor, packageapp.CreateRedactionProfileInput{
+	value, err := l.legacyPackageCommands().CreateRedactionProfile(ctx, actor, packageapp.CreateRedactionProfileInput{
 		Name: in.Name, Description: in.Description, Preset: in.Preset,
 		AllowedTypes: append([]string(nil), in.AllowedTypes...), ExcludedFields: append([]string(nil), in.ExcludedFields...),
 	})

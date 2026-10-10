@@ -19,7 +19,9 @@ import (
 
 const packageSnapshotVersion = packageapp.CustomerPackageSnapshotVersion
 
-func (l *Ledger) configurePackageCommands() error {
+// Only historical characterization tests compose this aggregate adapter. The
+// production constructor neither stores nor builds a Package Service.
+func (l *Ledger) legacyPackageCommands() *packageapp.Service {
 	service, err := packageapp.NewService(packageapp.Config{
 		Reader: ledgerPackageReader{ledger: l}, Transactions: ledgerPackageTransactions{ledger: l},
 		Authorizer: ledgerContextAuthorizer{ledger: l}, Canonicalizer: ledgerPackageCanonicalizer{},
@@ -28,10 +30,9 @@ func (l *Ledger) configurePackageCommands() error {
 		IDs: application.IDGeneratorFunc(newID),
 	})
 	if err != nil {
-		return err
+		panic(err)
 	}
-	l.packageCommands = service
-	return nil
+	return service
 }
 
 type ledgerPackageCanonicalizer struct{}
@@ -738,14 +739,6 @@ func getCustomerSecurityPackageLocked(ledger *Ledger, tenantID, id string) (pack
 	return customerSecurityPackageToContext(value), nil
 }
 
-func redactionProfileToPackageContext(value domain.RedactionProfile) packagedomain.RedactionProfile {
-	return packagedomain.RedactionProfile{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Description: value.Description,
-		AllowedTypes: append([]string(nil), value.AllowedTypes...), ExcludedFields: append([]string(nil), value.ExcludedFields...),
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
 func redactionProfileFromPackageContext(value packagedomain.RedactionProfile) domain.RedactionProfile {
 	return domain.RedactionProfile{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Description: value.Description,
@@ -1011,14 +1004,6 @@ func cloneReleaseBundleMap(values map[string]domain.ReleaseBundle) map[string]do
 	return result
 }
 
-func cloneSignatureMap(values map[string]domain.Signature) map[string]domain.Signature {
-	result := make(map[string]domain.Signature, len(values))
-	for key, value := range values {
-		result[key] = value
-	}
-	return result
-}
-
 func toPackageContextError(err error) error {
 	if err == nil {
 		return nil
@@ -1032,24 +1017,6 @@ func toPackageContextError(err error) error {
 		return packageapp.ErrNotFound
 	case errors.Is(err, ErrConflict):
 		return packageapp.ErrConflict
-	default:
-		return err
-	}
-}
-
-func fromPackageContextError(err error) error {
-	if err == nil {
-		return nil
-	}
-	switch {
-	case errors.Is(err, packageapp.ErrValidation):
-		return ErrValidation
-	case errors.Is(err, packageapp.ErrForbidden):
-		return ErrForbidden
-	case errors.Is(err, packageapp.ErrNotFound):
-		return ErrNotFound
-	case errors.Is(err, packageapp.ErrConflict):
-		return ErrConflict
 	default:
 		return err
 	}

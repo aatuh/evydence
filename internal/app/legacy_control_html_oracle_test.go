@@ -8,6 +8,6 @@ import (
 
 // Unchanged historical HTML facade; never production wiring.
 func (l *Ledger) CRAReadinessHTMLPackage(ctx context.Context, actor domain.Actor, productID, releaseID string) (domain.HTMLReportPackage, error) {
-	value, err := l.packageCommands.CRAReadinessHTMLPackage(ctx, actor, productID, releaseID)
+	value, err := l.legacyPackageCommands().CRAReadinessHTMLPackage(ctx, actor, productID, releaseID)
 	return htmlReportPackageFromPackageContext(value), fromPackageContextError(err)
 }

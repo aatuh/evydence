@@ -17,7 +17,6 @@ import (
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
-	packageapp "github.com/aatuh/evydence/internal/package/app"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
@@ -113,7 +112,6 @@ type Ledger struct {
 	releaseCommands        *releaseapp.Service
 	evidenceCommands       *evidenceapp.Service
 	identityCommands       *identityapp.Service
-	packageCommands        *packageapp.Service
 	verificationCommands   *verificationapp.Service
 
 	tenants               map[string]domain.Tenant
@@ -380,9 +378,6 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		return nil, err
 	}
 	if err := ledger.configureIdentityCommands(); err != nil {
-		return nil, err
-	}
-	if err := ledger.configurePackageCommands(); err != nil {
 		return nil, err
 	}
 	if err := ledger.configureVerificationCommands(); err != nil {

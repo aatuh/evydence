@@ -11,6 +11,12 @@ import (
 
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
+		"configurePackageCommands": true, "legacyPackageCommands": true,
+		"packageSnapshotVersion":     true,
+		"ledgerPackageCanonicalizer": true, "ledgerPackageSigner": true,
+		"ledgerPackageProjectionRefresher": true, "ledgerPackageReader": true,
+		"ledgerPackageTransactions": true, "ledgerPackageTransaction": true,
+		"newLedgerPackageTransaction":      true,
 		"CreateQuestionnaireTemplateInput": true, "CreateQuestionnairePackageInput": true, "CreateQuestionnaireDraftInput": true,
 		"CreateQuestionnaireTemplate": true, "AuthorizeQuestionnaireTemplateCreate": true, "cloneQuestionnaireTemplateDTO": true,
 		"CreateQuestionnairePackage": true, "AuthorizeQuestionnairePackageCreate": true, "authorizeQuestionnairePackageCreateLocked": true,
@@ -247,6 +253,17 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch value := node.(type) {
 			case *ast.TypeSpec:
+				if value.Name.Name == "Ledger" {
+					if fields, ok := value.Type.(*ast.StructType); ok {
+						for _, field := range fields.Fields.List {
+							for _, fieldName := range field.Names {
+								if fieldName.Name == "packageCommands" {
+									t.Errorf("%s retains retired aggregate package service field", name)
+								}
+							}
+						}
+					}
+				}
 				if value.Name.Name == "matchedFinding" {
 					t.Errorf("%s retains retired aggregate matching projection", name)
 				}

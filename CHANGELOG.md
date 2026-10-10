@@ -49,6 +49,12 @@ local signature validation and atomic bundle/signature/audit effects. Existing
 API and persisted contracts are unchanged. Memory fixtures remain test-only;
 broader aggregate retirement remains unfinished under EVY-906.
 
+Removed the aggregate Package adapter and its Ledger service field/constructor
+wiring from production source. Historical characterization tests compose the
+old reader/signer/transaction bridge only in test builds. Three still-used pure
+DTO/error/signature-clone helpers retain their existing behavior. Native API
+and storage contracts are unchanged; EVY-906 aggregate removal remains open.
+
 Customer-visible vulnerability-decision summaries now fail closed above 4,096
 selected decisions or an 8 MiB selected text/encoded-container budget, before
 PostgreSQL transfers decision metadata. Oversized summaries return no partial

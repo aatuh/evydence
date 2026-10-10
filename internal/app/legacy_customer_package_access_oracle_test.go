@@ -8,7 +8,7 @@ import (
 
 // Unchanged aggregate behavior is retained only as a characterization oracle.
 func (l *Ledger) AccessCustomerSecurityPackage(ctx context.Context, actor domain.Actor, id string) (domain.CustomerSecurityPackage, error) {
-	value, err := l.packageCommands.AccessCustomerSecurityPackage(ctx, actor, id)
+	value, err := l.legacyPackageCommands().AccessCustomerSecurityPackage(ctx, actor, id)
 	return customerSecurityPackageFromContext(value), fromPackageContextError(err)
 }
 
@@ -21,7 +21,7 @@ func (l *Ledger) ExportCustomerSecurityPackageArchive(ctx context.Context, actor
 }
 
 func (l *Ledger) SecurityReviewPackageReport(ctx context.Context, actor domain.Actor, packageID string) (domain.SecurityReviewPackageReport, error) {
-	report, err := l.packageCommands.SecurityReviewPackageReport(ctx, actor, packageID)
+	report, err := l.legacyPackageCommands().SecurityReviewPackageReport(ctx, actor, packageID)
 	if err != nil {
 		return domain.SecurityReviewPackageReport{}, fromPackageContextError(err)
 	}

@@ -943,6 +943,15 @@ This metric does not expand embedded method sets; reviewers must inspect those
 as well. Generated declaration size is exempt, not generated imports. These
 are review triggers, not proof of cohesive architecture.
 
+The aggregate Package adapter is now test-only. Production source no longer
+contains its cache readers, map-backed signer, projection refresher, staged
+transaction/publish/restore bridge, or the Ledger Package service field and
+constructor wiring. Historical characterization tests compose that adapter on
+demand; focused HTTP fixtures do not use it. Only pure redaction/error
+translations and the shared scalar signature-map clone remain in non-test
+source. This removes one aggregate adapter, not the remaining Ledger maps,
+mutexes or other context adapters; EVY-906 stays incomplete.
+
 The Package report query now consumes Risk-owned readiness facts and the pure
 `internal/risk/domain` evaluator, not the Risk application service. Complete
 policy-result compatibility vectors preserve its check order, wording and
