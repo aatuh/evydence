@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -53,7 +54,7 @@ func (s *ExceptionCommands) preflight(ctx context.Context, actor identitydomain.
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionExceptionsManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if !validControlText(actor.TenantID, 1024, true) || !validControlText(auditActorID(actor), 1024, true) {
@@ -82,7 +83,7 @@ func (s *ExceptionCommands) prepareCreate(ctx context.Context, actor identitydom
 	return in, nil
 }
 func authorizeExceptionScope(ctx context.Context, tx ExceptionTransaction, actor identitydomain.Actor, releaseID, findingID, controlID string) error {
-	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionExceptionsManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if !validControlText(releaseID, 1024, true) || !validControlText(findingID, 1024, false) || !validControlText(controlID, 1024, false) {
@@ -98,7 +99,7 @@ func authorizeExceptionScope(ctx context.Context, tx ExceptionTransaction, actor
 	if !validControlText(release.ProductID, 1024, true) {
 		return ErrValidation
 	}
-	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: subjectResources(release)}); err != nil {
+	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionExceptionsManage, Resources: subjectResources(release)}); err != nil {
 		return err
 	}
 	if findingID != "" {
@@ -170,7 +171,7 @@ func (s *ExceptionCommands) prepareApproval(ctx context.Context, actor identityd
 	return strings.TrimSpace(id), nil
 }
 func authorizeExceptionApproval(ctx context.Context, tx ExceptionTransaction, actor identitydomain.Actor, id string) (ExceptionTransitionState, error) {
-	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionExceptionsManage, ScopeOnly: true}); err != nil {
 		return ExceptionTransitionState{}, err
 	}
 	v, err := tx.ReadExceptionTransitionState(ctx, actor.TenantID, id)

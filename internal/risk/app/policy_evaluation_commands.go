@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -41,7 +42,7 @@ func NewPolicyEvaluationCommands(c PolicyEvaluationCommandConfig) (*PolicyEvalua
 	return &PolicyEvaluationCommands{c}, nil
 }
 func NewPolicyEvaluationAuthorizer() application.Authorizer {
-	return riskResourceWriteAuthorizer{scope: ScopeVerifyRead}
+	return riskResourceWriteAuthorizer{action: authz.ActionPolicyEvaluationsCreate}
 }
 func (s *PolicyEvaluationCommands) prepare(ctx context.Context, a identitydomain.Actor, release string) (string, error) {
 	if s == nil {
@@ -50,7 +51,7 @@ func (s *PolicyEvaluationCommands) prepare(ctx context.Context, a identitydomain
 	if err := contextError(ctx); err != nil {
 		return "", err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPolicyEvaluationsCreate, ScopeOnly: true}); err != nil {
 		return "", err
 	}
 	if !validControlText(a.TenantID, 1024, true) || !validControlText(auditActorID(a), 1024, true) || !validControlText(release, 1024, true) {
@@ -63,7 +64,7 @@ func (s *PolicyEvaluationCommands) prepare(ctx context.Context, a identitydomain
 	return release, nil
 }
 func authorizeEvaluationRelease(ctx context.Context, tx PolicyEvaluationTransaction, a identitydomain.Actor, id string) (GovernanceSubjectReference, error) {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPolicyEvaluationsCreate, ScopeOnly: true}); err != nil {
 		return GovernanceSubjectReference{}, err
 	}
 	r, err := tx.ReadPolicyEvaluationRelease(ctx, a.TenantID, id)
@@ -76,7 +77,7 @@ func authorizeEvaluationRelease(ctx context.Context, tx PolicyEvaluationTransact
 	if !validControlText(r.ProductID, 1024, true) {
 		return GovernanceSubjectReference{}, ErrValidation
 	}
-	return r, tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subjectResources(r)})
+	return r, tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPolicyEvaluationsCreate, Resources: subjectResources(r)})
 }
 
 // AuthorizeEvaluateRelease checks current coordinates and grants before replay,

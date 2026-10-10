@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -46,7 +47,7 @@ func (s *ApprovalCommands) prepare(ctx context.Context, actor identitydomain.Act
 	if err := contextError(ctx); err != nil {
 		return input, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionApprovalsRecord, ScopeOnly: true}); err != nil {
 		return input, err
 	}
 	for _, v := range []string{actor.TenantID, auditActorID(actor), input.SubjectID, input.EvidenceID} {
@@ -78,7 +79,7 @@ func (s *ApprovalCommands) AuthorizeApproval(ctx context.Context, actor identity
 }
 
 func authorizeApprovalSubject(ctx context.Context, tx ApprovalTransaction, actor identitydomain.Actor, input CreateApprovalInput) error {
-	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionApprovalsRecord, ScopeOnly: true}); err != nil {
 		return err
 	}
 	subject, err := tx.ReadApprovalSubject(ctx, actor.TenantID, input.SubjectType, input.SubjectID)
@@ -94,7 +95,7 @@ func authorizeApprovalSubject(ctx context.Context, tx ApprovalTransaction, actor
 	if !validControlText(subject.ProductID, 1024, false) || !validControlText(subject.ReleaseID, 1024, false) {
 		return ErrValidation
 	}
-	return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: subjectResources(subject), TenantWide: subject.ProductID == ""})
+	return tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionApprovalsRecord, Resources: subjectResources(subject), TenantWide: subject.ProductID == ""})
 }
 
 func (s *ApprovalCommands) CreateApprovalRecord(ctx context.Context, actor identitydomain.Actor, input CreateApprovalInput) (riskdomain.ApprovalRecord, error) {

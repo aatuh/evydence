@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -22,7 +23,7 @@ func TestApprovalWriteAuthorizerRequiresCurrentSubjectOrTenantGrant(t *testing.T
 		{"release", "release", true, application.ErrForbidden}, {"tenant", "other", true, application.ErrForbidden},
 	} {
 		actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{ScopeReleaseWrite}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: test.typ, ResourceID: test.id, Scopes: []string{ScopeReleaseWrite}}}}
-		r := application.AuthorizationRequest{Scope: ScopeReleaseWrite, TenantWide: test.wide}
+		r := application.AuthorizationRequest{Action: authz.ActionApprovalsRecord, TenantWide: test.wide}
 		if !test.wide {
 			r.Resources = application.ResourceReferences{ProductID: "product", ReleaseID: "release"}
 		}
@@ -31,10 +32,10 @@ func TestApprovalWriteAuthorizerRequiresCurrentSubjectOrTenantGrant(t *testing.T
 		}
 	}
 	key := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopeReleaseWrite}}
-	if err := auth.Authorize(t.Context(), key, application.AuthorizationRequest{Scope: ScopeReleaseWrite, TenantWide: true}); err != nil {
+	if err := auth.Authorize(t.Context(), key, application.AuthorizationRequest{Action: authz.ActionApprovalsRecord, TenantWide: true}); err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range []application.AuthorizationRequest{{Scope: ScopeEvidenceWrite, ScopeOnly: true}, {Scope: ScopeReleaseWrite}, {Scope: ScopeReleaseWrite, TenantWide: true, Resources: application.ResourceReferences{ProductID: "product"}}, {Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: "product", ArtifactID: "artifact"}}} {
+	for _, r := range []application.AuthorizationRequest{{Scope: ScopeEvidenceWrite, ScopeOnly: true}, {Action: authz.ActionApprovalsRecord}, {Action: authz.ActionApprovalsRecord, TenantWide: true, Resources: application.ResourceReferences{ProductID: "product"}}, {Action: authz.ActionApprovalsRecord, Resources: application.ResourceReferences{ProductID: "product", ArtifactID: "artifact"}}} {
 		if err := auth.Authorize(t.Context(), key, r); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal("unrelated capability accepted", r, err)
 		}

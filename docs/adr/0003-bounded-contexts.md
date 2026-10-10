@@ -1010,9 +1010,9 @@ See [current enforcement scope](../architecture.md#architecture-enforcement).
 ### Authorization policy
 
 `internal/authz` owns registered action/capability definitions and the migrated
-tenant-wide, instance, catalog resource, deployment/environment, and incident
-write decisions. Migrated privileged callers and those commands/queries select
-typed application actions.
+tenant-wide, instance, catalog resource, deployment/environment, incident-write,
+and migrated risk-workflow decisions. Migrated privileged callers and those
+commands/queries select typed application actions.
 Catalog's scope-to-action fallback is removed: legacy scope strings, mixed
 action/scope requests, and foreign action families are rejected even for
 wildcard credentials. `internal/application`
@@ -1064,6 +1064,17 @@ results. Command and fixed deployment-evidence requests use typed actions with
 no scope-string fallback. Ownership locks, transaction/audit/replay protocols,
 public scopes, and evidence canonicalization are unchanged. Incident reports
 and other Operations policies remain outside this migrated scope.
+
+Risk command factories select distinct actions for vulnerability decisions,
+approvals, waivers, exceptions, vulnerability workflows, and built-in policy
+evaluation. The custom-policy factory accepts only its create/evaluate actions.
+Shared public credential scopes cannot select another factory's operation.
+Current product/project/release grants and the permitted tenant-wide phases are
+evaluated centrally, without local scope-string fallback or cached authority.
+Focused command guards still resolve tenant-owned current subjects before
+reservation/replay; append-only decisions, supersession, approvals, audits,
+policy hashes, and response replay formats are unchanged. Risk query and
+control-evidence policies, and broader service contracts, remain to migrate.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete

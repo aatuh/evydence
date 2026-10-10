@@ -7,6 +7,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
@@ -62,7 +63,7 @@ func (g riskWorkflowFixtureGuard) ReadWorkflowFinding(ctx context.Context, tenan
 	return g.workflow.ReadWorkflowFinding(ctx, tenant, id)
 }
 func (riskWorkflowFixtureGuard) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope == "security:write" {
+	if r.Action == authz.ActionVulnerabilityWorkflowsRecord {
 		return riskapp.NewVulnerabilityWorkflowWriteAuthorizer().Authorize(ctx, a, r)
 	}
 	return riskapp.NewCustomPolicyAuthorizer().Authorize(ctx, a, r)

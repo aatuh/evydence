@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -56,19 +57,19 @@ func NewCustomPolicyAuthorizer() application.Authorizer { return customPolicyAut
 type customPolicyAuthorizer struct{}
 
 func (customPolicyAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopePolicyRead && r.Scope != ScopePolicyWrite {
+	if r.Scope != "" || r.Action != authz.ActionCustomPoliciesCreate && r.Action != authz.ActionCustomPoliciesEvaluate {
 		return application.ErrForbidden
 	}
-	return (riskResourceWriteAuthorizer{scope: r.Scope, tenantOnly: r.Scope == ScopePolicyWrite}).Authorize(ctx, a, r)
+	return (riskResourceWriteAuthorizer{action: r.Action}).Authorize(ctx, a, r)
 }
-func (s *CustomPolicyCommands) prepare(ctx context.Context, a identitydomain.Actor, scope string) error {
+func (s *CustomPolicyCommands) prepare(ctx context.Context, a identitydomain.Actor, action authz.Action) error {
 	if s == nil {
 		return ErrValidation
 	}
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: scope, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: action, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if !validControlText(a.TenantID, 1024, true) || !validControlText(auditActorID(a), 1024, true) {
@@ -93,7 +94,7 @@ func validCustomPolicyRules(rules []riskdomain.PolicyRule) bool {
 	return true
 }
 func (s *CustomPolicyCommands) prepareCreate(ctx context.Context, a identitydomain.Actor, in CreateCustomPolicyInput) (CreateCustomPolicyInput, error) {
-	if err := s.prepare(ctx, a, ScopePolicyWrite); err != nil {
+	if err := s.prepare(ctx, a, authz.ActionCustomPoliciesCreate); err != nil {
 		return in, err
 	}
 	if !validControlText(in.Name, 1024, true) || !validControlText(in.Version, 1024, true) || len(a.TenantID)+len(in.Name)+len(in.Version) > 2048 || !validControlText(in.Description, 65536, false) || !validCustomPolicyRules(in.Rules) {
@@ -107,7 +108,7 @@ func (s *CustomPolicyCommands) prepareCreate(ctx context.Context, a identitydoma
 	return in, nil
 }
 func authorizePolicyTenant(ctx context.Context, tx CustomPolicyTransaction, a identitydomain.Actor) error {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePolicyWrite, TenantWide: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionCustomPoliciesCreate, TenantWide: true}); err != nil {
 		return err
 	}
 	exists, err := tx.PolicyTenantExists(ctx, a.TenantID)
@@ -159,7 +160,7 @@ func (s *CustomPolicyCommands) CreateCustomPolicy(ctx context.Context, a identit
 	return p, nil
 }
 func (s *CustomPolicyCommands) prepareEvaluate(ctx context.Context, a identitydomain.Actor, policy, release string) (string, string, error) {
-	if err := s.prepare(ctx, a, ScopePolicyRead); err != nil {
+	if err := s.prepare(ctx, a, authz.ActionCustomPoliciesEvaluate); err != nil {
 		return "", "", err
 	}
 	if !validControlText(policy, 1024, true) || !validControlText(release, 1024, true) {
@@ -172,7 +173,7 @@ func (s *CustomPolicyCommands) prepareEvaluate(ctx context.Context, a identitydo
 	return policy, release, nil
 }
 func authorizePolicyEvaluation(ctx context.Context, tx CustomPolicyTransaction, a identitydomain.Actor, policy, release string) error {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePolicyRead, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionCustomPoliciesEvaluate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	p, err := tx.ReadCustomPolicySubject(ctx, a.TenantID, "policy", policy)
@@ -192,7 +193,7 @@ func authorizePolicyEvaluation(ctx context.Context, tx CustomPolicyTransaction, 
 	if !validControlText(r.ProductID, 1024, true) {
 		return ErrValidation
 	}
-	return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePolicyRead, Resources: subjectResources(r)})
+	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionCustomPoliciesEvaluate, Resources: subjectResources(r)})
 }
 
 // Replay authorization reads current ownership only, not rules or evidence.

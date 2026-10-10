@@ -57,6 +57,14 @@ const (
 	ActionDeploymentsRead              Action = "deployments.read"
 	ActionDeploymentsRecord            Action = "deployments.record"
 	ActionIncidentsManage              Action = "incidents.manage"
+	ActionVulnerabilityDecisionsRecord Action = "vulnerability_decisions.record"
+	ActionApprovalsRecord              Action = "approvals.record"
+	ActionWaiversManage                Action = "waivers.manage"
+	ActionExceptionsManage             Action = "exceptions.manage"
+	ActionVulnerabilityWorkflowsRecord Action = "vulnerability_workflows.record"
+	ActionPolicyEvaluationsCreate      Action = "policy_evaluations.create"
+	ActionCustomPoliciesCreate         Action = "custom_policies.create"
+	ActionCustomPoliciesEvaluate       Action = "custom_policies.evaluate"
 )
 
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
@@ -129,6 +137,18 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "deployment:write", Boundary: ResourceBoundary}, true
 	case ActionIncidentsManage:
 		return Definition{Scope: "incident:write", Boundary: ResourceBoundary}, true
+	case ActionVulnerabilityDecisionsRecord:
+		return Definition{Scope: "evidence:write", Boundary: ResourceBoundary}, true
+	case ActionApprovalsRecord, ActionExceptionsManage:
+		return Definition{Scope: "release:write", Boundary: ResourceBoundary}, true
+	case ActionWaiversManage, ActionCustomPoliciesCreate:
+		return Definition{Scope: "policy:write", Boundary: ResourceBoundary}, true
+	case ActionVulnerabilityWorkflowsRecord:
+		return Definition{Scope: "security:write", Boundary: ResourceBoundary}, true
+	case ActionPolicyEvaluationsCreate:
+		return Definition{Scope: "verify:read", Boundary: ResourceBoundary}, true
+	case ActionCustomPoliciesEvaluate:
+		return Definition{Scope: "policy:read", Boundary: ResourceBoundary}, true
 	default:
 		return Definition{}, false
 	}

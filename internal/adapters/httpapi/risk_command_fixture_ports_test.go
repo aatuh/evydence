@@ -10,6 +10,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
@@ -32,7 +33,7 @@ type vexDecisionPointFixture struct {
 
 func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Context, actor domain.Actor, id string) error {
 	authorizer := riskapp.NewVulnerabilityDecisionWriteAuthorizer()
-	if err := authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionVulnerabilityDecisionsRecord, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if err := validateControlEvidencePathID(id); err != nil {
@@ -93,7 +94,7 @@ func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Cont
 	if product.TenantID != actor.TenantID || release.TenantID != actor.TenantID {
 		return app.ErrNotFound
 	}
-	return authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: app.ScopeEvidenceWrite, Resources: application.ResourceReferences{ProductID: product.ID, ReleaseID: release.ID}})
+	return authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionVulnerabilityDecisionsRecord, Resources: application.ResourceReferences{ProductID: product.ID, ReleaseID: release.ID}})
 }
 
 func riskCommandTestServer(t *testing.T) (*Server, string) {

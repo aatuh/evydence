@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -54,7 +55,7 @@ func (s *WaiverCommands) preflight(ctx context.Context, actor identitydomain.Act
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePolicyWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionWaiversManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if !validControlText(actor.TenantID, 1024, true) || !validControlText(auditActorID(actor), 1024, true) {
@@ -115,7 +116,7 @@ func authorizeWaiverSubject(ctx context.Context, tx WaiverTransaction, actor ide
 			return ErrNotFound
 		}
 	}
-	return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePolicyWrite, Resources: subjectResources(subject), TenantWide: subject.ProductID == ""})
+	return tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionWaiversManage, Resources: subjectResources(subject), TenantWide: subject.ProductID == ""})
 }
 func readAuthorizedWaiverState(ctx context.Context, tx WaiverTransaction, actor identitydomain.Actor, id string) (WaiverTransitionState, error) {
 	v, err := tx.ReadWaiverTransitionState(ctx, actor.TenantID, id)
@@ -134,7 +135,7 @@ func readAuthorizedWaiverState(ctx context.Context, tx WaiverTransaction, actor 
 	return v, nil
 }
 func authorizeWaiverCreation(ctx context.Context, tx WaiverTransaction, actor identitydomain.Actor, in CreateWaiverInput) (WaiverTransitionState, error) {
-	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePolicyWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionWaiversManage, ScopeOnly: true}); err != nil {
 		return WaiverTransitionState{}, err
 	}
 	if err := authorizeWaiverSubject(ctx, tx, actor, in.ScopeType, in.ScopeID); err != nil {
@@ -211,7 +212,7 @@ func (s *WaiverCommands) prepareApproval(ctx context.Context, actor identitydoma
 	return strings.TrimSpace(id), nil
 }
 func authorizeWaiverApproval(ctx context.Context, tx WaiverTransaction, actor identitydomain.Actor, id string) (WaiverTransitionState, error) {
-	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePolicyWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionWaiversManage, ScopeOnly: true}); err != nil {
 		return WaiverTransitionState{}, err
 	}
 	return readAuthorizedWaiverState(ctx, tx, actor, id)

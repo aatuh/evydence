@@ -75,7 +75,7 @@ func TestApprovalCommandsAppendAndAuthorizeCurrentCoordinates(t *testing.T) {
 	if err != nil || v != want || len(f.writes) != 1 || f.writes[0] != want || len(f.audits) != 1 || f.audits[0].EntryType != "approval.created" || f.audits[0].SubjectID != v.ID || f.audits[0].ActorID != "human" || f.audits[0].ActorType != "human_user" || f.audits[0].OccurredAt != now || f.reads != 1 || f.evidenceReads != 1 {
 		t.Fatal("approval lost transaction, identity, or metadata", v, err)
 	}
-	wantAuth := []application.AuthorizationRequest{{Scope: ScopeReleaseWrite, ScopeOnly: true}, {Scope: ScopeReleaseWrite, ScopeOnly: true}, {Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}}
+	wantAuth := []application.AuthorizationRequest{{Action: "approvals.record", ScopeOnly: true}, {Action: "approvals.record", ScopeOnly: true}, {Action: "approvals.record", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}}
 	if !reflect.DeepEqual(f.requests, wantAuth) || input.Reason != " Review " {
 		t.Fatal("authorization coordinates or caller input changed", f.requests, input)
 	}

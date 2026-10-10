@@ -37,7 +37,8 @@ func allowsTenantResourceEvaluation(action Action) bool {
 	case ActionProductsRead, ActionProjectsRead, ActionProjectsCreate,
 		ActionReleasesRead, ActionReleasesManage, ActionBuildsRead, ActionBuildsCreate,
 		ActionBuildAttestationsCreate, ActionReleaseCandidatesCreate,
-		ActionEnvironmentsRead, ActionDeploymentsRead, ActionIncidentsManage:
+		ActionEnvironmentsRead, ActionDeploymentsRead, ActionIncidentsManage,
+		ActionApprovalsRecord, ActionWaiversManage, ActionVulnerabilityWorkflowsRecord, ActionCustomPoliciesCreate:
 		return true
 	default:
 		return false
@@ -56,6 +57,10 @@ func validResourceReferences(action Action, refs ResourceReferences) bool {
 		return refs.ProductID != "" && refs.ReleaseID != "" && refs.EnvironmentID != "" && refs.DeploymentID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, EnvironmentID: refs.EnvironmentID, DeploymentID: refs.DeploymentID})
 	case ActionIncidentsManage:
 		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID})
+	case ActionVulnerabilityDecisionsRecord, ActionApprovalsRecord, ActionWaiversManage,
+		ActionExceptionsManage, ActionVulnerabilityWorkflowsRecord, ActionPolicyEvaluationsCreate,
+		ActionCustomPoliciesCreate, ActionCustomPoliciesEvaluate:
+		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID})
 	default:
 		return validCatalogResources(action, refs)
 	}
