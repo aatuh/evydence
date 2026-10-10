@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -21,43 +22,12 @@ func (deploymentWriteAuthorizer) Authorize(ctx context.Context, a identitydomain
 	if a.TenantID == "" || a.KeyID == "" && a.UserID == "" && a.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if r.Scope != "deployment:write" || !a.HasScope(r.Scope) && !a.HasScope("admin") {
+	if r.Scope != "" || r.TenantWide || r.Action != authz.ActionEnvironmentsCreate && r.Action != authz.ActionDeploymentsRecord {
 		return application.ErrForbidden
 	}
-	if r.TenantWide {
-		return application.ErrForbidden
-	}
+	evaluation := authz.ResolvedEvaluation
 	if r.ScopeOnly {
-		if r.Resources != (application.ResourceReferences{}) {
-			return application.ErrForbidden
-		}
-		return nil
+		evaluation = authz.ScopeEvaluation
 	}
-	refs := r.Resources
-	environmentCreation := refs == (application.ResourceReferences{ProductID: refs.ProductID})
-	deploymentRecording := refs.ReleaseID != "" && refs.EnvironmentID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, EnvironmentID: refs.EnvironmentID})
-	if refs.ProductID == "" || !environmentCreation && !deploymentRecording {
-		return application.ErrForbidden
-	}
-	if a.UserID == "" || a.KeyID != "" || a.CollectorID != "" {
-		return nil
-	}
-	for _, g := range a.ResourceGrants {
-		allowed := false
-		for _, scope := range g.Scopes {
-			if scope == r.Scope || scope == "admin" || scope == "*" {
-				allowed = true
-			}
-		}
-		if !allowed {
-			continue
-		}
-		if (g.ResourceType == "" || g.ResourceType == "tenant") && (g.ResourceID == "" || g.ResourceID == a.TenantID) || g.ResourceType == "product" && g.ResourceID == refs.ProductID {
-			return nil
-		}
-		if deploymentRecording && g.ResourceType == "release" && g.ResourceID == refs.ReleaseID {
-			return nil
-		}
-	}
-	return application.ErrForbidden
+	return authz.Authorize(ctx, a, authz.Request{Action: r.Action, Resources: r.Resources, Evaluation: evaluation})
 }

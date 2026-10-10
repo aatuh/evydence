@@ -1010,8 +1010,9 @@ See [current enforcement scope](../architecture.md#architecture-enforcement).
 ### Authorization policy
 
 `internal/authz` owns registered action/capability definitions and the migrated
-tenant-wide, instance, and catalog resource decisions. Migrated privileged
-callers and catalog commands/queries select typed application actions.
+tenant-wide, instance, catalog resource, deployment/environment, and incident
+write decisions. Migrated privileged callers and those commands/queries select
+typed application actions.
 Catalog's scope-to-action fallback is removed: legacy scope strings, mixed
 action/scope requests, and foreign action families are rejected even for
 wildcard credentials. `internal/application`
@@ -1050,6 +1051,19 @@ scope-only promotion, foreign targets, and another action family. Current human
 tenant grants remain required. Credential generation, public scopes, session
 protocols, and transactional audit/replay behavior are unchanged; this does not
 complete collector-to-resource binding or remaining policy migration.
+
+Operations actions preserve the distinct grant hierarchies: environment creation
+requires current tenant/product authority, deployment recording and reads also
+accept release grants, and incident writes additionally accept project grants
+over resolved ownership. Direct environment/deployment grants do not confer
+access. Deployment/environment query visibility is derived centrally from
+current actor capabilities and grants, then applied by tenant-bound readers
+before pagination. Returned projections are still checked and authorized;
+foreign and missing deployment points retain indistinguishable not-found
+results. Command and fixed deployment-evidence requests use typed actions with
+no scope-string fallback. Ownership locks, transaction/audit/replay protocols,
+public scopes, and evidence canonicalization are unchanged. Incident reports
+and other Operations policies remain outside this migrated scope.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete

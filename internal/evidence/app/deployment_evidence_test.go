@@ -47,7 +47,7 @@ func (f *fixedDeploymentEvidenceFake) Authorize(_ context.Context, _ identitydom
 	if f.failure == "grant" {
 		return application.ErrForbidden
 	}
-	if r.Scope != "deployment:write" || r.Resources.EnvironmentID != "env" {
+	if r.Action != "deployments.record" || r.Scope != "" || r.ScopeOnly || r.TenantWide || r.Resources != (application.ResourceReferences{ProductID: "product", ReleaseID: "release", EnvironmentID: "env"}) {
 		return errors.New("wrong authorization")
 	}
 	return nil

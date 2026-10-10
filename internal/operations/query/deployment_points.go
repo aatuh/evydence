@@ -6,12 +6,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 )
-
-const scopeDeploymentRead = "deployment:read"
 
 var (
 	ErrValidation = errors.New("invalid deployment query")
@@ -47,7 +45,7 @@ func (s *DeploymentPoints) GetDeployment(ctx context.Context, actor identitydoma
 	if err := ctx.Err(); err != nil {
 		return operationsdomain.DeploymentEvent{}, err
 	}
-	if err := authorizeDeploymentRead(actor, "", ""); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionDeploymentsRead, Evaluation: authz.ScopeEvaluation}); err != nil {
 		return operationsdomain.DeploymentEvent{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -63,53 +61,8 @@ func (s *DeploymentPoints) GetDeployment(ctx context.Context, actor identitydoma
 		strings.TrimSpace(point.ProductID) == "" || strings.TrimSpace(deployment.ReleaseID) == "" || strings.TrimSpace(deployment.EnvironmentID) == "" {
 		return operationsdomain.DeploymentEvent{}, ErrNotFound
 	}
-	if err := authorizeDeploymentRead(actor, point.ProductID, deployment.ReleaseID); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionDeploymentsRead, Resources: authz.ResourceReferences{TenantID: deployment.TenantID, ProductID: point.ProductID, ReleaseID: deployment.ReleaseID, EnvironmentID: deployment.EnvironmentID, DeploymentID: deployment.ID}}); err != nil {
 		return operationsdomain.DeploymentEvent{}, err
 	}
 	return deployment, nil
-}
-
-// authorizeDeploymentRead mirrors the legacy point-read boundary: credential
-// scopes are sufficient for keys/collectors, while human sessions require a
-// current tenant, product, or release grant. A project grant does not cover a
-// deployment, even when a build on that project belongs to its release.
-func authorizeDeploymentRead(actor identitydomain.Actor, productID, releaseID string) error {
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return application.ErrUnauthorized
-	}
-	if !actor.HasScope(scopeDeploymentRead) && !actor.HasScope("admin") {
-		return application.ErrForbidden
-	}
-	if productID == "" && releaseID == "" || actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	for _, grant := range actor.ResourceGrants {
-		if !deploymentGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return nil
-			}
-		case "product":
-			if grant.ResourceID == productID {
-				return nil
-			}
-		case "release":
-			if grant.ResourceID == releaseID {
-				return nil
-			}
-		}
-	}
-	return application.ErrForbidden
-}
-
-func deploymentGrantHasScope(grant identitydomain.ResourceGrant) bool {
-	for _, scope := range grant.Scopes {
-		if scope == scopeDeploymentRead || scope == "admin" || scope == "*" {
-			return true
-		}
-	}
-	return false
 }

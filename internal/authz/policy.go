@@ -86,7 +86,7 @@ func Authorize(ctx context.Context, actor identitydomain.Actor, request Request)
 		}
 		return authorizeCurrentGrant(actor, definition.Scope, ResourceReferences{}, true)
 	case ResourceBoundary:
-		return authorizeCatalogResource(actor, definition.Scope, request)
+		return authorizeResource(actor, definition.Scope, request)
 	default:
 		return ErrForbidden
 	}

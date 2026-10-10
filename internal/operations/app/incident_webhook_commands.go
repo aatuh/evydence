@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
@@ -115,7 +116,7 @@ func (c *IncidentWebhookCommands) prepareReceiver(ctx context.Context, a identit
 	return in, nil
 }
 func authorizeWebhookReceiver(ctx context.Context, tx IncidentWebhookTransaction, a identitydomain.Actor, id string) error {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeIncidentWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	v, err := tx.ReadIncidentSubject(ctx, a.TenantID, "incident", id)
@@ -125,7 +126,7 @@ func authorizeWebhookReceiver(ctx context.Context, tx IncidentWebhookTransaction
 	if !validIncidentSubject(v, a.TenantID, "incident", id) {
 		return ErrNotFound
 	}
-	return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeIncidentWrite, Resources: v.Resources})
+	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, Resources: v.Resources})
 }
 func (c *IncidentWebhookCommands) execute(ctx context.Context, fn func(context.Context, IncidentWebhookTransaction) error) error {
 	return c.config.Transactions.ExecuteIncidentWebhook(ctx, func(ctx context.Context, tx IncidentWebhookTransaction) error {

@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 )
@@ -59,14 +59,15 @@ func (s *DeploymentLists) ListEnvironmentsPage(ctx context.Context, actor identi
 	if err := appquery.Validate(page, after); err != nil {
 		return appquery.Result[operationsdomain.DeploymentEnvironment]{}, ErrValidation
 	}
-	if err := authorizeDeploymentRead(actor, "", ""); err != nil {
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionEnvironmentsRead)
+	if err != nil {
 		return appquery.Result[operationsdomain.DeploymentEnvironment]{}, err
 	}
-	tenantWide, products, _ := deploymentListVisibility(actor)
+	tenantWide, products := visibility.TenantWide, visibility.ProductIDs
 	if !tenantWide && len(products) == 0 {
 		return appquery.Result[operationsdomain.DeploymentEnvironment]{Items: []operationsdomain.DeploymentEnvironment{}}, nil
 	}
-	request := EnvironmentPageRequest{TenantID: actor.TenantID, ProductID: productID, TenantWide: tenantWide, AllowedProductIDs: products, Page: page, After: after}
+	request := EnvironmentPageRequest{TenantID: visibility.TenantID, ProductID: productID, TenantWide: tenantWide, AllowedProductIDs: products, Page: page, After: after}
 	result, err := s.reader.PageDeploymentEnvironments(ctx, request)
 	if err != nil {
 		return appquery.Result[operationsdomain.DeploymentEnvironment]{}, err
@@ -80,7 +81,7 @@ func (s *DeploymentLists) ListEnvironmentsPage(ctx context.Context, actor identi
 		if item.ID == "" || item.TenantID != actor.TenantID || item.ProductID == "" || productID != "" && item.ProductID != productID || !tenantWide && !contains(products, item.ProductID) {
 			return appquery.Result[operationsdomain.DeploymentEnvironment]{}, ErrInvalidProjection
 		}
-		if err := authorizeDeploymentRead(actor, item.ProductID, ""); err != nil {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionEnvironmentsRead, Resources: authz.ResourceReferences{TenantID: item.TenantID, ProductID: item.ProductID, EnvironmentID: item.ID}}); err != nil {
 			return appquery.Result[operationsdomain.DeploymentEnvironment]{}, ErrInvalidProjection
 		}
 	}
@@ -97,14 +98,15 @@ func (s *DeploymentLists) ListDeploymentsPage(ctx context.Context, actor identit
 	if err := appquery.Validate(page, after); err != nil {
 		return appquery.Result[operationsdomain.DeploymentEvent]{}, ErrValidation
 	}
-	if err := authorizeDeploymentRead(actor, "", ""); err != nil {
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionDeploymentsRead)
+	if err != nil {
 		return appquery.Result[operationsdomain.DeploymentEvent]{}, err
 	}
-	tenantWide, products, releases := deploymentListVisibility(actor)
+	tenantWide, products, releases := visibility.TenantWide, visibility.ProductIDs, visibility.ReleaseIDs
 	if !tenantWide && len(products) == 0 && len(releases) == 0 {
 		return appquery.Result[operationsdomain.DeploymentEvent]{Items: []operationsdomain.DeploymentEvent{}}, nil
 	}
-	request := DeploymentPageRequest{TenantID: actor.TenantID, ReleaseID: releaseID, EnvironmentID: environmentID, TenantWide: tenantWide, AllowedProductIDs: products, AllowedReleaseIDs: releases, Page: page, After: after}
+	request := DeploymentPageRequest{TenantID: visibility.TenantID, ReleaseID: releaseID, EnvironmentID: environmentID, TenantWide: tenantWide, AllowedProductIDs: products, AllowedReleaseIDs: releases, Page: page, After: after}
 	result, err := s.reader.PageDeployments(ctx, request)
 	if err != nil {
 		return appquery.Result[operationsdomain.DeploymentEvent]{}, err
@@ -122,50 +124,12 @@ func (s *DeploymentLists) ListDeploymentsPage(ctx context.Context, actor identit
 			!tenantWide && !contains(products, point.ProductID) && !contains(releases, item.ReleaseID) {
 			return appquery.Result[operationsdomain.DeploymentEvent]{}, ErrInvalidProjection
 		}
-		if err := authorizeDeploymentRead(actor, point.ProductID, item.ReleaseID); err != nil {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionDeploymentsRead, Resources: authz.ResourceReferences{TenantID: item.TenantID, ProductID: point.ProductID, ReleaseID: item.ReleaseID, EnvironmentID: item.EnvironmentID, DeploymentID: item.ID}}); err != nil {
 			return appquery.Result[operationsdomain.DeploymentEvent]{}, ErrInvalidProjection
 		}
 		items = append(items, item)
 	}
 	return appquery.Result[operationsdomain.DeploymentEvent]{Items: items, Next: result.Next}, nil
-}
-
-func deploymentListVisibility(actor identitydomain.Actor) (bool, []string, []string) {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true, nil, nil
-	}
-	productSet := make(map[string]struct{})
-	releaseSet := make(map[string]struct{})
-	for _, grant := range actor.ResourceGrants {
-		if !deploymentGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true, nil, nil
-			}
-		case "product":
-			if grant.ResourceID != "" {
-				productSet[grant.ResourceID] = struct{}{}
-			}
-		case "release":
-			if grant.ResourceID != "" {
-				releaseSet[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	products := make([]string, 0, len(productSet))
-	for id := range productSet {
-		products = append(products, id)
-	}
-	sort.Strings(products)
-	releases := make([]string, 0, len(releaseSet))
-	for id := range releaseSet {
-		releases = append(releases, id)
-	}
-	sort.Strings(releases)
-	return false, products, releases
 }
 
 func contains(values []string, value string) bool {

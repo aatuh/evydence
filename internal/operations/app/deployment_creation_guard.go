@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -92,7 +93,7 @@ func authorizeEnvironmentCreationScope(ctx context.Context, tx DeploymentEnviron
 	if len(a.TenantID)+len(in.ProductID)+len(in.Name) > MaxEnvironmentKeyBytes {
 		return EnvironmentProduct{}, ErrValidation
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEnvironmentsCreate, ScopeOnly: true}); err != nil {
 		return EnvironmentProduct{}, err
 	}
 	if err := tx.LockDeploymentTenant(ctx, a.TenantID); err != nil {
@@ -105,7 +106,7 @@ func authorizeEnvironmentCreationScope(ctx context.Context, tx DeploymentEnviron
 	if p.ID != in.ProductID || p.TenantID != a.TenantID {
 		return EnvironmentProduct{}, ErrNotFound
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", Resources: application.ResourceReferences{ProductID: p.ID}}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEnvironmentsCreate, Resources: application.ResourceReferences{ProductID: p.ID}}); err != nil {
 		return EnvironmentProduct{}, err
 	}
 	return p, nil
@@ -113,7 +114,7 @@ func authorizeEnvironmentCreationScope(ctx context.Context, tx DeploymentEnviron
 func authorizeDeploymentRecordingScope(ctx context.Context, tx DeploymentTransaction, a identitydomain.Actor, in RecordDeploymentInput) (DeploymentEnvironmentIdentity, DeploymentReleaseIdentity, error) {
 	var env DeploymentEnvironmentIdentity
 	var release DeploymentReleaseIdentity
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionDeploymentsRecord, ScopeOnly: true}); err != nil {
 		return env, release, err
 	}
 	if err := tx.LockDeploymentTenant(ctx, a.TenantID); err != nil {
@@ -133,7 +134,7 @@ func authorizeDeploymentRecordingScope(ctx context.Context, tx DeploymentTransac
 	if release.ID != in.ReleaseID || release.TenantID != a.TenantID || release.ProductID != env.ProductID {
 		return env, release, ErrNotFound
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", Resources: application.ResourceReferences{ProductID: env.ProductID, ReleaseID: release.ID, EnvironmentID: env.ID}}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionDeploymentsRecord, Resources: application.ResourceReferences{ProductID: env.ProductID, ReleaseID: release.ID, EnvironmentID: env.ID}}); err != nil {
 		return env, release, err
 	}
 	if err := tx.CheckDeploymentArtifacts(ctx, a.TenantID, in.ArtifactIDs); err != nil {
@@ -157,7 +158,7 @@ func (s *DeploymentEnvironmentCommands) AuthorizeEnvironmentCreation(ctx context
 	if err := validateDeploymentActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEnvironmentsCreate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	in, err := NormalizeEnvironmentCreationInput(in)
@@ -179,7 +180,7 @@ func (s *DeploymentCommands) AuthorizeDeploymentRecording(ctx context.Context, a
 	if err := validateDeploymentActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionDeploymentsRecord, ScopeOnly: true}); err != nil {
 		return err
 	}
 	in, err := NormalizeDeploymentRecordingInput(in)

@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -72,7 +73,7 @@ func (w *DeploymentEventEvidenceWriter) WriteDeploymentEventEvidence(ctx context
 			return "", ErrValidation
 		}
 	}
-	if err := w.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "deployment:write", Resources: application.ResourceReferences{ProductID: in.ProductID, ReleaseID: in.ReleaseID, EnvironmentID: in.EnvironmentID}}); err != nil {
+	if err := w.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionDeploymentsRecord, Resources: application.ResourceReferences{ProductID: in.ProductID, ReleaseID: in.ReleaseID, EnvironmentID: in.EnvironmentID}}); err != nil {
 		return "", err
 	}
 	// This is a commitment to submitted metadata, not a runtime observation.

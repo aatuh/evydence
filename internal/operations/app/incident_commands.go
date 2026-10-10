@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 )
@@ -83,7 +84,7 @@ func prepareIncidentActor(ctx context.Context, a identitydomain.Actor, authorize
 	if err := incidentContextError(ctx); err != nil {
 		return err
 	}
-	if err := authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeIncidentWrite, ScopeOnly: true}); err != nil {
+	if err := authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	_, id := incidentActor(a)
@@ -194,7 +195,7 @@ func authorizeIncidentSubject(ctx context.Context, tx IncidentTransaction, a ide
 	if !validIncidentSubject(v, a.TenantID, kind, id) {
 		return IncidentSubject{}, ErrNotFound
 	}
-	err = tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeIncidentWrite, Resources: v.Resources, TenantWide: v.Resources == (application.ResourceReferences{})})
+	err = tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, Resources: v.Resources, TenantWide: v.Resources == (application.ResourceReferences{})})
 	return v, err
 }
 func authorizeIncidentCreation(ctx context.Context, tx IncidentTransaction, a identitydomain.Actor, in CreateIncidentInput) error {
@@ -219,7 +220,7 @@ func authorizeIncidentCreation(ctx context.Context, tx IncidentTransaction, a id
 		}
 		refs = v.Resources
 	}
-	return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeIncidentWrite, Resources: refs})
+	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, Resources: refs})
 }
 func authorizeIncidentTimeline(ctx context.Context, tx IncidentTransaction, a identitydomain.Actor, id string, in RecordIncidentTimelineInput) error {
 	if _, err := authorizeIncidentSubject(ctx, tx, a, "incident", id); err != nil {
@@ -251,7 +252,7 @@ func (c *IncidentCommands) execute(ctx context.Context, a identitydomain.Actor, 
 		if tx == nil {
 			return ErrValidation
 		}
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeIncidentWrite, ScopeOnly: true}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, ScopeOnly: true}); err != nil {
 			return err
 		}
 		if err := fn(ctx, tx); err != nil {

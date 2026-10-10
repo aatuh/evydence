@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 )
@@ -67,7 +68,7 @@ func (s *DeploymentCommands) RecordDeployment(ctx context.Context, a identitydom
 	if err := ctx.Err(); err != nil {
 		return operationsdomain.DeploymentEvent{}, err
 	}
-	scope := application.AuthorizationRequest{Scope: "deployment:write", ScopeOnly: true}
+	scope := application.AuthorizationRequest{Action: authz.ActionDeploymentsRecord, ScopeOnly: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, scope); err != nil {
 		return operationsdomain.DeploymentEvent{}, err
 	}

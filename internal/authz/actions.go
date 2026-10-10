@@ -52,6 +52,11 @@ const (
 	ActionBuildsCreate                 Action = "builds.create"
 	ActionBuildAttestationsCreate      Action = "build_attestations.create"
 	ActionReleaseCandidatesCreate      Action = "release_candidates.create"
+	ActionEnvironmentsRead             Action = "environments.read"
+	ActionEnvironmentsCreate           Action = "environments.create"
+	ActionDeploymentsRead              Action = "deployments.read"
+	ActionDeploymentsRecord            Action = "deployments.record"
+	ActionIncidentsManage              Action = "incidents.manage"
 )
 
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
@@ -118,6 +123,12 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "build:write", Boundary: ResourceBoundary}, true
 	case ActionReleaseCandidatesCreate:
 		return Definition{Scope: "release:write", Boundary: ResourceBoundary}, true
+	case ActionEnvironmentsRead, ActionDeploymentsRead:
+		return Definition{Scope: "deployment:read", Boundary: ResourceBoundary}, true
+	case ActionEnvironmentsCreate, ActionDeploymentsRecord:
+		return Definition{Scope: "deployment:write", Boundary: ResourceBoundary}, true
+	case ActionIncidentsManage:
+		return Definition{Scope: "incident:write", Boundary: ResourceBoundary}, true
 	default:
 		return Definition{}, false
 	}

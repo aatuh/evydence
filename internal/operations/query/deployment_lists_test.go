@@ -44,11 +44,11 @@ func TestDeploymentListsFilterBeforeLimitAndValidateProjection(t *testing.T) {
 	actor := deploymentActor("product", "prod_1")
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}
 	environments, err := service.ListEnvironmentsPage(t.Context(), actor, "prod_1", page, nil)
-	if err != nil || len(environments.Items) != 1 || reader.envCalls != 1 || reader.envRequest.TenantWide || len(reader.envRequest.AllowedProductIDs) != 1 || reader.envRequest.AllowedProductIDs[0] != "prod_1" {
+	if err != nil || len(environments.Items) != 1 || reader.envCalls != 1 || reader.envRequest.TenantID != actor.TenantID || reader.envRequest.ProductID != "prod_1" || reader.envRequest.TenantWide || len(reader.envRequest.AllowedProductIDs) != 1 || reader.envRequest.AllowedProductIDs[0] != "prod_1" {
 		t.Fatalf("product-scoped environment page=%#v request=%#v error=%v", environments, reader.envRequest, err)
 	}
 	deployments, err := service.ListDeploymentsPage(t.Context(), actor, "rel_1", "env_1", page, nil)
-	if err != nil || len(deployments.Items) != 1 || reader.depCalls != 1 || reader.depRequest.TenantWide || len(reader.depRequest.AllowedProductIDs) != 1 || reader.depRequest.AllowedProductIDs[0] != "prod_1" {
+	if err != nil || len(deployments.Items) != 1 || reader.depCalls != 1 || reader.depRequest.TenantID != actor.TenantID || reader.depRequest.ReleaseID != "rel_1" || reader.depRequest.EnvironmentID != "env_1" || reader.depRequest.TenantWide || len(reader.depRequest.AllowedProductIDs) != 1 || reader.depRequest.AllowedProductIDs[0] != "prod_1" {
 		t.Fatalf("product-scoped deployment page=%#v request=%#v error=%v", deployments, reader.depRequest, err)
 	}
 

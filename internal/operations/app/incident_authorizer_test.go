@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -18,7 +19,7 @@ func TestIncidentWriteAuthorizerRequiresCurrentScopeAndResourceGrants(t *testing
 			t.Run(kind+"/"+scope, func(t *testing.T) {
 				a := base
 				a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: kind, ResourceID: kind, Scopes: []string{scope}}}
-				err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "incident:write", Resources: refs})
+				err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, Resources: refs})
 				if scope == "evidence:write" {
 					if !errors.Is(err, application.ErrForbidden) {
 						t.Fatal(err)
@@ -29,17 +30,17 @@ func TestIncidentWriteAuthorizerRequiresCurrentScopeAndResourceGrants(t *testing
 					t.Fatal(err)
 				}
 				a.ResourceGrants[0].ResourceID = "other"
-				if err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "incident:write", Resources: refs}); !errors.Is(err, application.ErrForbidden) {
+				if err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, Resources: refs}); !errors.Is(err, application.ErrForbidden) {
 					t.Fatal("foreign grant", err)
 				}
 			})
 		}
 	}
 	for _, a := range []identitydomain.Actor{base, {TenantID: "tenant", KeyID: "key", Scopes: []string{"incident:write"}}, {TenantID: "tenant", CollectorID: "collector", Scopes: []string{"incident:write"}}} {
-		if err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "incident:write", ScopeOnly: true}); err != nil {
+		if err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, ScopeOnly: true}); err != nil {
 			t.Fatal(err)
 		}
-		err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "incident:write", Resources: refs})
+		err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, Resources: refs})
 		if a.UserID != "" {
 			if !errors.Is(err, application.ErrForbidden) {
 				t.Fatal("removed grant", err)
@@ -50,11 +51,11 @@ func TestIncidentWriteAuthorizerRequiresCurrentScopeAndResourceGrants(t *testing
 	}
 	for _, request := range []application.AuthorizationRequest{
 		{Scope: "release:write", ScopeOnly: true},
-		{Scope: "incident:write", ScopeOnly: true, Resources: refs},
-		{Scope: "incident:write", ScopeOnly: true, TenantWide: true},
-		{Scope: "incident:write"},
-		{Scope: "incident:write", Resources: application.ResourceReferences{ProductID: "product", ArtifactID: "artifact"}},
-		{Scope: "incident:write", TenantWide: true, Resources: refs},
+		{Action: authz.ActionIncidentsManage, ScopeOnly: true, Resources: refs},
+		{Action: authz.ActionIncidentsManage, ScopeOnly: true, TenantWide: true},
+		{Action: authz.ActionIncidentsManage},
+		{Action: authz.ActionIncidentsManage, Resources: application.ResourceReferences{ProductID: "product", ArtifactID: "artifact"}},
+		{Action: authz.ActionIncidentsManage, TenantWide: true, Resources: refs},
 	} {
 		a := base
 		a.KeyID = "key"
@@ -62,7 +63,7 @@ func TestIncidentWriteAuthorizerRequiresCurrentScopeAndResourceGrants(t *testing
 			t.Fatal(request, err)
 		}
 	}
-	tenantRequest := application.AuthorizationRequest{Scope: "incident:write", TenantWide: true}
+	tenantRequest := application.AuthorizationRequest{Action: authz.ActionIncidentsManage, TenantWide: true}
 	base.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "product", Scopes: []string{"incident:write"}}}
 	if err := auth.Authorize(t.Context(), base, tenantRequest); !errors.Is(err, application.ErrForbidden) {
 		t.Fatal(err)

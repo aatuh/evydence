@@ -46,8 +46,8 @@ func (f *deploymentCommandFake) Authorize(_ context.Context, _ identitydomain.Ac
 	if f.failure == "scope" && r.ScopeOnly || f.failure == "grant" && !r.ScopeOnly {
 		return application.ErrForbidden
 	}
-	if r.Scope != "deployment:write" {
-		return errors.New("hidden scope")
+	if r.Action != "deployments.record" || r.Scope != "" {
+		return errors.New("hidden or untyped action")
 	}
 	return nil
 }

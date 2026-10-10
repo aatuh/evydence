@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -12,13 +13,15 @@ import (
 )
 
 type deploymentPointReaderStub struct {
-	point DeploymentPoint
-	err   error
-	calls int
+	point      DeploymentPoint
+	err        error
+	calls      int
+	tenant, id string
 }
 
-func (r *deploymentPointReaderStub) GetDeploymentPoint(_ context.Context, _, _ string) (DeploymentPoint, error) {
+func (r *deploymentPointReaderStub) GetDeploymentPoint(_ context.Context, tenant, id string) (DeploymentPoint, error) {
 	r.calls++
+	r.tenant, r.id = tenant, id
 	return r.point, r.err
 }
 
@@ -58,10 +61,30 @@ func TestDeploymentPointsAuthorizeTenantAndCurrentParent(t *testing.T) {
 			if test.want == nil && deployment.ID != "dep_1" {
 				t.Fatalf("deployment=%#v", deployment)
 			}
-			if reader.calls != 1 {
-				t.Fatalf("reader calls=%d", reader.calls)
+			if reader.calls != 1 || reader.tenant != test.actor.TenantID || reader.id != "dep_1" {
+				t.Fatalf("reader boundary: %#v", reader)
+			}
+			if test.want != nil && !reflect.DeepEqual(deployment, operationsdomain.DeploymentEvent{}) {
+				t.Fatalf("denial returned deployment data: %#v", deployment)
 			}
 		})
+	}
+}
+
+func TestDeploymentPointsForeignAndMissingRowsAreIndistinguishable(t *testing.T) {
+	actor := identitydomain.Actor{TenantID: "ten_1", KeyID: "key", Scopes: []string{"deployment:read"}}
+	for _, reader := range []*deploymentPointReaderStub{
+		{err: ErrNotFound},
+		{point: DeploymentPoint{ProductID: "foreign_product", Deployment: operationsdomain.DeploymentEvent{ID: "dep_1", TenantID: "foreign", ReleaseID: "foreign_release", EnvironmentID: "foreign_environment"}}},
+	} {
+		service, err := NewDeploymentPoints(reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := service.GetDeployment(t.Context(), actor, "dep_1")
+		if !errors.Is(err, ErrNotFound) || !reflect.DeepEqual(out, operationsdomain.DeploymentEvent{}) || reader.calls != 1 || reader.tenant != actor.TenantID {
+			t.Fatalf("foreign/missing result leaked: %#v error=%v reader=%#v", out, err, reader)
+		}
 	}
 }
 

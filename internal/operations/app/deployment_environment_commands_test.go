@@ -40,7 +40,7 @@ func (f *environmentCommandFake) Authorize(_ context.Context, a identitydomain.A
 	if !a.HasScope("deployment:write") || f.failure == "scope" || !r.ScopeOnly && f.failure == "grant" {
 		return application.ErrForbidden
 	}
-	if r.Scope != "deployment:write" || r.TenantWide || r.ScopeOnly && r.Resources != (application.ResourceReferences{}) || !r.ScopeOnly && r.Resources != (application.ResourceReferences{ProductID: "product"}) {
+	if r.Action != "environments.create" || r.Scope != "" || r.TenantWide || r.ScopeOnly && r.Resources != (application.ResourceReferences{}) || !r.ScopeOnly && r.Resources != (application.ResourceReferences{ProductID: "product"}) {
 		return application.ErrForbidden
 	}
 	return nil

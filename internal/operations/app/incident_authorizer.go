@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -22,55 +23,14 @@ func (incidentWriteAuthorizer) Authorize(ctx context.Context, a identitydomain.A
 	if strings.TrimSpace(a.TenantID) == "" || strings.TrimSpace(id) == "" {
 		return application.ErrUnauthorized
 	}
-	if r.Scope != ScopeIncidentWrite || !a.HasScope(r.Scope) && !a.HasScope("admin") {
+	if r.Action != authz.ActionIncidentsManage || r.Scope != "" || r.ScopeOnly && r.TenantWide {
 		return application.ErrForbidden
 	}
-	refs := r.Resources
+	evaluation := authz.ResolvedEvaluation
 	if r.ScopeOnly {
-		if r.TenantWide || refs != (application.ResourceReferences{}) {
-			return application.ErrForbidden
-		}
-		return nil
+		evaluation = authz.ScopeEvaluation
+	} else if r.TenantWide {
+		evaluation = authz.TenantEvaluation
 	}
-	if r.TenantWide {
-		if refs != (application.ResourceReferences{}) {
-			return application.ErrForbidden
-		}
-	} else if refs.ProductID == "" || refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID}) {
-		return application.ErrForbidden
-	}
-	if a.UserID == "" || a.KeyID != "" || a.CollectorID != "" {
-		return nil
-	}
-	for _, grant := range a.ResourceGrants {
-		allowed := false
-		for _, scope := range grant.Scopes {
-			if scope == r.Scope || scope == "admin" || scope == "*" {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == a.TenantID {
-				return nil
-			}
-		case "product":
-			if grant.ResourceID != "" && grant.ResourceID == refs.ProductID {
-				return nil
-			}
-		case "project":
-			if grant.ResourceID != "" && grant.ResourceID == refs.ProjectID {
-				return nil
-			}
-		case "release":
-			if grant.ResourceID != "" && grant.ResourceID == refs.ReleaseID {
-				return nil
-			}
-		}
-	}
-	return application.ErrForbidden
+	return authz.Authorize(ctx, a, authz.Request{Action: r.Action, Resources: r.Resources, Evaluation: evaluation})
 }

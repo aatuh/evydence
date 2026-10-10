@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func TestDeploymentWriteAuthorizerRequiresScopedProductOrTenantGrant(t *testing.T) {
 	auth := NewDeploymentWriteAuthorizer()
-	request := application.AuthorizationRequest{Scope: "deployment:write", Resources: application.ResourceReferences{ProductID: "product"}}
+	request := application.AuthorizationRequest{Action: authz.ActionEnvironmentsCreate, Resources: application.ResourceReferences{ProductID: "product"}}
 	for _, tc := range []struct {
 		actor identitydomain.Actor
 		allow bool
@@ -33,7 +34,7 @@ func TestDeploymentWriteAuthorizerRequiresScopedProductOrTenantGrant(t *testing.
 
 func TestDeploymentWriteAuthorizerAcceptsVerifiedDeploymentCoordinates(t *testing.T) {
 	auth := NewDeploymentWriteAuthorizer()
-	r := application.AuthorizationRequest{Scope: "deployment:write", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release", EnvironmentID: "env"}}
+	r := application.AuthorizationRequest{Action: authz.ActionDeploymentsRecord, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release", EnvironmentID: "env"}}
 	for _, tc := range []struct {
 		kind, id string
 		allow    bool
