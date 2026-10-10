@@ -15,7 +15,7 @@ import (
 
 func TestVerificationQueryFixturesKeepTenantAuthorityAndReadOnlyState(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owners := []evidenceFixtureScope{seedEvidenceFixtureScope(t, ledger, "Alpha"), seedEvidenceFixtureScope(t, ledger, "Bravo")}
 	keys := signingKeyFixtureQuery{catalogFixtureCommands{ledger: ledger}}
 	audits := auditLogFixtureQuery{catalogFixtureCommands{ledger: ledger}}

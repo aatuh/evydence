@@ -135,7 +135,7 @@ func (w tenantBootstrapFixtureIdentityWriter) InsertTenant(ctx context.Context, 
 func repositoryBootstrapTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	clock := application.ClockFunc(func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) })
 	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), clock}
 	_, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})

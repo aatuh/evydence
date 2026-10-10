@@ -141,7 +141,7 @@ func integrationFixtureRequests(f integrationFixtureScope) []integrationFixtureR
 
 func integrationRegressionLedger() (*repositoryFixture, *app.MemoryUnitOfWorkFactory) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	return newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }}), factory
+	return newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }}), factory
 }
 
 func TestIntegrationFixturesRollBackCredentialsPinsSourceChildrenAndAudit(t *testing.T) {

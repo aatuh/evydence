@@ -12,7 +12,7 @@ import (
 
 func TestVEXCompletionFixtureCommitsRealDecisionsAuditAndReportOrNothing(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
 	owner := seedEvidenceReadFixtureScope(t, ledger, "Owner")
 	before, err := factory.base.Snapshot()
 	if err != nil || before.VEXImportReports[owner.report.ID].Status != "accepted" || len(before.Decisions) != 0 {

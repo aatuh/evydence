@@ -49,7 +49,7 @@ type RelationalStateStore interface {
 }
 
 // EvidencePageStore is the bounded, index-oriented read port used for large
-// evidence collections. Authorization remains in Ledger; adapters receive a
+// evidence collections. Authorization remains in focused services; adapters receive a
 // tenant-bound request only after scope policy has been evaluated.
 type EvidencePageStore interface {
 	ListEvidencePage(context.Context, EvidencePageRequest) (appquery.Result[domain.EvidenceItem], error)
@@ -812,7 +812,3 @@ type ReleaseLedgerMutation struct {
 	AuditChainEntries      []domain.AuditChainEntry
 	OutboxJobs             []OutboxJob
 }
-
-type nopOutbox struct{}
-
-func (nopOutbox) Enqueue(context.Context, OutboxJob) error { return nil }

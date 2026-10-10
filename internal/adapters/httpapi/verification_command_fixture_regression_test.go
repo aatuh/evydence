@@ -65,7 +65,7 @@ func TestVerificationCommandFixturesRollBackAllEffectsAfterWriteFailure(t *testi
 	for _, action := range []string{"subject", "backup", "merkle", "checkpoint", "retention-create", "retention-verify"} {
 		t.Run(action, func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
 			server, err := newLegacyServerFixture(ledger)
 			if err != nil {
@@ -137,7 +137,7 @@ func TestVerificationCommandFixturesRollBackAllEffectsAfterWriteFailure(t *testi
 
 func TestVerificationCommandFixtureGuardsPreserveAuthorityAndReadOnlyState(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
 	commands := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}

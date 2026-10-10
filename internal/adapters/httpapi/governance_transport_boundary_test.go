@@ -75,7 +75,7 @@ func TestGovernanceTransportRequiresFocusedCommands(t *testing.T) {
 }
 
 func TestGovernanceHTTPFixtureExplicitlySuppliesFocusedGovernanceRepositories(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	if err := ledger.ExecuteUnitOfWork(t.Context(), func(_ context.Context, repos app.Repositories) error {
 		if _, ok := repos.Governance.(riskapp.WaiverCommandReader); !ok {
 			t.Fatal("fixture lacks focused waiver reader")

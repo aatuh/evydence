@@ -52,7 +52,7 @@ func TestSigningAdministrationFixtureCommandsRollBackAllEffectsAfterWriteFailure
 	for _, action := range []string{"rotate", "revoke", "provider", "root"} {
 		t.Run(action, func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
 			keysBefore, err := listFixtureSigningKeys(t.Context(), ledger, scope.actor)
 			if err != nil || len(keysBefore) != 1 {
@@ -117,7 +117,7 @@ func TestSigningAdministrationFixtureCommandsRollBackAllEffectsAfterWriteFailure
 
 func TestSigningAdministrationFixtureGuardsKeepTenantAuthorityAndReadOnlyState(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
 	keys, err := listFixtureSigningKeys(t.Context(), ledger, owner.actor)

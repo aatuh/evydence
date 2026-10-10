@@ -29,7 +29,7 @@ func TestDeploymentNativeFixtureReadsCurrentRepositoryAndDiscardsFailedCommit(t 
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("deployment read used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("deployment read used aggregate clock") }})
 	query := deploymentQueryFixture{catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"deployment:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "release", ResourceID: owner.release.ID, Scopes: []string{"deployment:read"}}}}
 	before, err := base.Snapshot()
@@ -76,7 +76,7 @@ func TestDeploymentNativeFixtureReadsCurrentRepositoryAndDiscardsFailedCommit(t 
 }
 
 func TestDeploymentNativeFixtureRequiresRepositoriesAndPreservesExplicitPort(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	query := deploymentQueryFixture{catalogFixtureCommands{ledger: ledger}}
 	a := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"deployment:read"}}
 	if v, err := query.GetDeployment(t.Context(), a, "deployment"); !errors.Is(err, app.ErrValidation) || !reflect.DeepEqual(v, operationsdomain.DeploymentEvent{}) {
@@ -117,7 +117,7 @@ func TestDeploymentNativeFixtureListsUseCurrentGrantsAndDiscardFailedCommit(t *t
 	}
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("deployment list used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("deployment list used aggregate clock") }})
 	f := deploymentQueryFixture{catalogFixtureCommands{ledger: rebound}}
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"deployment:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"deployment:read"}}}}
@@ -170,7 +170,7 @@ func TestDeploymentNativeFixtureListsUseCurrentGrantsAndDiscardFailedCommit(t *t
 }
 
 func TestDeploymentNativeFixtureListsFailWithoutRepositoriesAndPreserveExplicitPort(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	f := deploymentQueryFixture{catalogFixtureCommands{ledger: ledger}}
 	a := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"deployment:read"}}
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}

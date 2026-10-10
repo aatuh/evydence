@@ -23,7 +23,7 @@ type vexCompletionFixturePort interface {
 func vexCompletionTestServer(t *testing.T) (*Server, string, *app.MemoryUnitOfWorkFactory) {
 	t.Helper()
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

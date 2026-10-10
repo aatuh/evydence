@@ -52,7 +52,7 @@ func (f immutableVEXDocumentReceiptFixture) GetVEXDocument(ctx context.Context, 
 }
 
 func TestVEXDocumentReceiptUsesFocusedIdentityPolicyAndDetachedMetadata(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test"})
 	document := evidencedomain.VEXDocument{ID: "vex", TenantID: "tenant", EvidenceID: "source", ReleaseID: "release", Format: "openvex", StatementCount: 1, StatusSummary: map[string]int{"fixed": 1}, SchemaVersion: "vex-document.v1", CreatedAt: time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC)}
 	reader := immutableVEXDocumentReceiptFixture{evidenceReadFixture: evidenceReadFixture{catalogFixtureCommands{ledger: ledger}}, point: evidencequery.VEXDocumentPoint{Document: document, ProductID: "product"}}
 	actor := domain.Actor{TenantID: "tenant", UserID: "reader", Scopes: []string{"evidence:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: "product", Scopes: []string{"evidence:read"}}}}

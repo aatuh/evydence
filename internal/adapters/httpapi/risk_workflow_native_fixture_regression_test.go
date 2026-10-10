@@ -27,7 +27,7 @@ func TestRiskWorkflowNativeFixturesRetainExplicitResourcesAndCommitOnlyOwnedRows
 			idCalls := 0
 			ids := application.IDGeneratorFunc(func(prefix string) string { idCalls++; return fmt.Sprintf("%s-native-%d", prefix, idCalls) })
 			server.bindRiskWorkflowFixtureResources(clock, ids)
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { panic("Risk command consulted aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { panic("Risk command consulted aggregate clock") }})
 			server.bindLegacyLedgerFixture(rebound)
 			before, err := factory.Snapshot()
 			if err != nil {
@@ -103,7 +103,7 @@ func TestRiskWorkflowNativeFixturesRetainExplicitResourcesAndCommitOnlyOwnedRows
 }
 
 func TestRiskWorkflowNativeFixturesRejectMissingRepositoriesAndKeepExplicitPorts(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test"})
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)

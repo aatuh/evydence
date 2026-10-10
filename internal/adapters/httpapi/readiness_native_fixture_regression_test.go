@@ -16,7 +16,7 @@ import (
 
 func TestReadinessNativeFixturesKeepFailedCommitsPrivateAndRequireRepositories(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedPackageReportFixtureScope(t, ledger, "Owner")
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: &configuredAuthenticator{actor: owner.actor}})
 	if err != nil {
@@ -53,7 +53,7 @@ func TestReadinessNativeFixturesKeepFailedCommitsPrivateAndRequireRepositories(t
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("failed readiness reads changed repository state", err)
 	}
-	missingRepository := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	missingRepository := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test"})
 	readiness.catalogFixtureCommands, preview.catalogFixtureCommands = catalogFixtureCommands{ledger: missingRepository}, catalogFixtureCommands{ledger: missingRepository}
 	if value, err := readiness.Report(t.Context(), owner.actor, owner.release.ID); !errors.Is(err, app.ErrValidation) || !reflect.DeepEqual(value, packagedomain.ReleaseReadinessReport{}) {
 		t.Fatal("missing readiness repository fell back to aggregate state", value, err)

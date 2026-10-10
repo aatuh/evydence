@@ -17,7 +17,7 @@ import (
 
 func TestCatalogNativeQueryFixturesSelectRepositoryOnlyDTOsAndCurrentGrants(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
 	at := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
@@ -97,7 +97,7 @@ func TestCatalogNativeQueryFixturesSelectRepositoryOnlyDTOsAndCurrentGrants(t *t
 
 func TestCatalogNativeQueryFixturesDiscardProjectionOnCommitFailure(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	project, err := releaseSetup(ledger).CreateProject(t.Context(), owner.actor, owner.product.ID, "Project")
 	if err != nil {

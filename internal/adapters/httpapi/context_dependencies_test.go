@@ -7,15 +7,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
-
-	"github.com/aatuh/evydence/internal/app"
 )
 
 func TestBindLedgerReplacesEveryContextDependency(t *testing.T) {
 	t.Parallel()
 
-	first := newLegacyLedgerFixture(app.Config{APIKeyPepper: "first-test-pepper"})
-	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "second-test-pepper"})
+	first := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "first-test-pepper"})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "second-test-pepper"})
 	server, err := newLegacyServerFixture(first)
 	if err != nil {
 		t.Fatalf("new server: %v", err)

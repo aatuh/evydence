@@ -341,7 +341,7 @@ func TestMembershipFixtureGuardsArePureAndKeepExplicitBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
+	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(repositoryFixtureConfig{}))
 	if server.membershipCommands != membership || server.roleBindingCommands != role {
 		t.Fatal("fixture binding replaced explicit focused commands")
 	}
@@ -360,7 +360,7 @@ func TestMembershipNativeFixturesPreserveClockDuringRebinding(t *testing.T) {
 	role := s.roleBindingCommands.(membershipFixtureCommands)
 	role.clock = clock
 	s.roleBindingCommands = role
-	second := newLegacyLedgerFixture(app.Config{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	s.bindLegacyLedgerFixture(second)
 	for name, port := range map[string]any{"member": s.membershipCommands, "role": s.roleBindingCommands} {
 		f := port.(membershipFixtureCommands)

@@ -89,7 +89,7 @@ func TestControlHTMLNativeFixtureConsumesCurrentControlsAndRollsBackReportInsert
 	owner := seedControlFixtureScope(t, ledger, "Owner")
 	foreign := seedControlFixtureScope(t, ledger, "Foreign")
 	factory := &controlHTMLFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("HTML used cached aggregate report") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("HTML used cached aggregate report") }})
 	f := packageFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 	a := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"report:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"report:read"}}}}
 	before, err := base.Snapshot()

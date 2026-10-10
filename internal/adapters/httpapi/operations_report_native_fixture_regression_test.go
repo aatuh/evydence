@@ -27,7 +27,7 @@ func TestOperationsReportNativeFixturesReadCurrentStateAndDiscardFailedCommit(t 
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("report used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("report used aggregate clock") }})
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
 	incident := incidentReportFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, now: clock.Now}
 	retention := retentionReportFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, now: clock.Now}
@@ -90,7 +90,7 @@ func TestOperationsReportNativeFixturesReadCurrentStateAndDiscardFailedCommit(t 
 }
 
 func TestOperationsReportNativeFixturesRequireRepositoriesAndPreserveExplicitPorts(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	incident := incidentReportFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	retention := retentionReportFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	a := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"*"}}
@@ -129,7 +129,7 @@ func TestOperationsReportNativeFixturesRequireRepositoriesAndPreserveExplicitPor
 	}
 	at := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
 	now := func() time.Time { return at }
-	old := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	old := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	server = &Server{incidentReportQuery: incidentReportFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: old}, now: now}, retentionQuery: retentionReportFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: old}, now: now}}
 	server.bindOperationsFixtureQueries(ledger)
 	boundIncident, ok := server.incidentReportQuery.(incidentReportFixture)

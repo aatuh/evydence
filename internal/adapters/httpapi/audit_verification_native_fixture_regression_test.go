@@ -27,7 +27,7 @@ func TestAuditNativeFixtureUsesCurrentCanonicalPagesWithoutAggregateClockAndComm
 		t.Fatal(err)
 	}
 	failure := &bundleWriteFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: failure, Now: func() time.Time { panic("audit verification used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: failure, Now: func() time.Time { panic("audit verification used aggregate clock") }})
 	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	for _, tc := range []struct{ kind, id string }{{"audit_chain", ""}, {"audit_chain_checkpoint", batch.ID}, {"audit_chain_release_manifest", bundle.ID}} {
 		before, err := base.Snapshot()

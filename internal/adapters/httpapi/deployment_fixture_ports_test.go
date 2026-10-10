@@ -213,7 +213,7 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 	for _, event := range []bool{false, true} {
 		t.Run(fmt.Sprintf("event=%t", event), func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Fixture", "admin", []string{"*"})
 			if err != nil {
 				t.Fatal(err)
@@ -286,7 +286,7 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 }
 
 func TestDeploymentQueryFixturesPreserveTenantOwnershipAndReadScope(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	query := deploymentQueryFixture{catalogFixtureCommands{ledger: ledger}}
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
 	var actors []domain.Actor

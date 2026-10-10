@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -18,44 +17,6 @@ import (
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
-)
-
-const (
-	ScopeAdmin           = "admin"
-	ScopeProductWrite    = "product:write"
-	ScopeProductRead     = "product:read"
-	ScopeProjectWrite    = "project:write"
-	ScopeProjectRead     = "project:read"
-	ScopeReleaseWrite    = "release:write"
-	ScopeReleaseRead     = "release:read"
-	ScopeEvidenceWrite   = "evidence:write"
-	ScopeEvidenceRead    = "evidence:read"
-	ScopeBundleWrite     = "bundle:write"
-	ScopeBundleRead      = "bundle:read"
-	ScopeVerifyRead      = "verify:read"
-	ScopeKeysAdmin       = "keys:admin"
-	ScopeCollectorAdmin  = "collector:admin"
-	ScopeCollectorRead   = "collector:read"
-	ScopeBuildWrite      = "build:write"
-	ScopeBuildRead       = "build:read"
-	ScopeSourceWrite     = "source:write"
-	ScopeSourceRead      = "source:read"
-	ScopeDeploymentWrite = "deployment:write"
-	ScopeDeploymentRead  = "deployment:read"
-	ScopeIncidentWrite   = "incident:write"
-	ScopeIncidentRead    = "incident:read"
-	ScopeSecurityWrite   = "security:write"
-	ScopeSecurityRead    = "security:read"
-	ScopePolicyWrite     = "policy:write"
-	ScopePolicyRead      = "policy:read"
-	ScopePackageWrite    = "package:write"
-	ScopePackageRead     = "package:read"
-	ScopeControlsAdmin   = "controls:admin"
-	ScopeControlsRead    = "controls:read"
-	ScopeControlsWrite   = "controls:write"
-	ScopeReportRead      = "report:read"
-	ScopeIdentityAdmin   = "identity:admin"
-	ScopeInstanceAdmin   = "instance:admin"
 )
 
 type Config struct {
@@ -79,6 +40,30 @@ type Config struct {
 	// WorkerOwnedParserSideEffects stores accepted parser records first and
 	// lets outbox workers populate parser-derived fields from raw payloads.
 	WorkerOwnedParserSideEffects bool
+}
+
+type CreateEvidenceInput struct {
+	ProductID        string
+	ProjectID        string
+	ReleaseID        string
+	BuildID          string
+	DeploymentID     string
+	Type             string
+	Subtype          string
+	Title            string
+	SourceSystem     string
+	SourceIdentity   map[string]any
+	CollectorID      string
+	ObservedAt       time.Time
+	PayloadRef       string
+	PayloadHash      string
+	PayloadMediaType string
+	PayloadSize      int64
+	StagedPayload    ObjectPayload
+	SubjectRefs      []domain.SubjectRef
+	Metadata         map[string]any
+	Tags             []string
+	Limitations      []string
 }
 
 // Ledger is the compatibility facade used while bounded-context services and
@@ -379,30 +364,6 @@ func workerProjectionStore(store Store) WorkerProjectionStore {
 	return projections
 }
 
-type CreateEvidenceInput struct {
-	ProductID        string
-	ProjectID        string
-	ReleaseID        string
-	BuildID          string
-	DeploymentID     string
-	Type             string
-	Subtype          string
-	Title            string
-	SourceSystem     string
-	SourceIdentity   map[string]any
-	CollectorID      string
-	ObservedAt       time.Time
-	PayloadRef       string
-	PayloadHash      string
-	PayloadMediaType string
-	PayloadSize      int64
-	StagedPayload    ObjectPayload
-	SubjectRefs      []domain.SubjectRef
-	Metadata         map[string]any
-	Tags             []string
-	Limitations      []string
-}
-
 // newEvidenceItemForScopeLocked keeps composite command authorization explicit.
 // The build-attestation and deployment compatibility bridges use their
 // documented command scopes and must not introduce a hidden evidence:write
@@ -499,68 +460,6 @@ func (l *Ledger) withIdempotencyRequestHash(ctx context.Context, actor domain.Ac
 		return l.withDurableIdempotency(ctx, reservation, run)
 	}
 	return l.withInMemoryIdempotency(ctx, reservation, run)
-}
-
-func idempotencyActorID(actor domain.Actor) string {
-	switch {
-	case strings.TrimSpace(actor.KeyID) != "":
-		return "api_key:" + strings.TrimSpace(actor.KeyID)
-	case strings.TrimSpace(actor.UserID) != "":
-		return "user:" + strings.TrimSpace(actor.UserID)
-	case strings.TrimSpace(actor.CollectorID) != "":
-		return "collector:" + strings.TrimSpace(actor.CollectorID)
-	default:
-		return "anonymous"
-	}
-}
-
-func NewIdempotencyRecordKey(tenantID, actorID, method, path, key string) string {
-	parts := []string{tenantID, actorID, method, path, key}
-	encoded := make([]string, 0, len(parts))
-	for _, part := range parts {
-		encoded = append(encoded, base64.RawURLEncoding.EncodeToString([]byte(part)))
-	}
-	return "v2:" + strings.Join(encoded, ".")
-}
-
-func ParseIdempotencyRecordKey(value string) (IdempotencyRecordKey, bool) {
-	value = strings.TrimSpace(value)
-	if strings.HasPrefix(value, "v2:") {
-		parts := strings.Split(strings.TrimPrefix(value, "v2:"), ".")
-		if len(parts) != 5 {
-			return IdempotencyRecordKey{}, false
-		}
-		decoded := make([]string, 0, len(parts))
-		for _, part := range parts {
-			raw, err := base64.RawURLEncoding.DecodeString(part)
-			if err != nil {
-				return IdempotencyRecordKey{}, false
-			}
-			decoded = append(decoded, string(raw))
-		}
-		return idempotencyRecordKeyFromParts(decoded)
-	}
-	return idempotencyRecordKeyFromParts(strings.Split(value, "\x00"))
-}
-
-func idempotencyRecordKeyFromParts(parts []string) (IdempotencyRecordKey, bool) {
-	if len(parts) != 5 || parts[0] == "" || parts[1] == "" || parts[4] == "" {
-		return IdempotencyRecordKey{}, false
-	}
-	return IdempotencyRecordKey{
-		TenantID:       parts[0],
-		ActorID:        parts[1],
-		Method:         parts[2],
-		Path:           parts[3],
-		IdempotencyKey: parts[4],
-	}, true
-}
-
-func secretHashEqual(stored, candidate string) bool {
-	if len(stored) != sha256.Size*2 || len(candidate) != sha256.Size*2 {
-		return false
-	}
-	return hmac.Equal([]byte(stored), []byte(candidate))
 }
 
 func (l *Ledger) ensureScopeLocked(tenantID, productID, projectID, releaseID string) error {

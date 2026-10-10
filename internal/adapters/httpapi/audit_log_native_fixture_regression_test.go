@@ -17,7 +17,7 @@ import (
 
 func TestAuditLogNativeFixtureReadsCurrentRowsPastInventoryCapAndCommitFailureReturnsNothing(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	seedEvidenceFixtureScope(t, ledger, "Foreign")
 	at := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
@@ -32,7 +32,7 @@ func TestAuditLogNativeFixtureReadsCurrentRowsPastInventoryCapAndCommitFailureRe
 	}); err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("audit page consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("audit page consulted aggregate clock") }})
 	query := auditLogFixtureQuery{catalogFixtureCommands{ledger: rebound}}
 	filter := verificationquery.AuditFilter{SubjectType: "native-page", SubjectID: "scope", Since: &at}
 	request := appquery.PageRequest{PageSize: 500, Sort: appquery.SortID, Direction: appquery.Ascending}
@@ -60,7 +60,7 @@ func TestAuditLogNativeFixtureReadsCurrentRowsPastInventoryCapAndCommitFailureRe
 }
 
 func TestAuditLogNativeFixtureRequiresRepositoryAndPreservesExplicitPort(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", Now: func() time.Time { panic("audit query used aggregate clock") }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", Now: func() time.Time { panic("audit query used aggregate clock") }})
 	query := auditLogFixtureQuery{catalogFixtureCommands{ledger: ledger}}
 	actor := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"admin"}}
 	request := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}

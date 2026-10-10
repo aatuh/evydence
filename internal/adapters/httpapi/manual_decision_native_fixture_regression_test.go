@@ -12,9 +12,9 @@ import (
 
 func TestManualDecisionFixtureUsesCurrentRepositoryAndNoAggregateClock(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory})
 	owner := seedRiskQueryFixtureScope(t, ledger, "Owner")
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("manual decision consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("manual decision consulted aggregate clock") }})
 	commands := riskCommandFixture{catalogFixtureCommands{ledger: rebound}}
 	before, err := factory.base.Snapshot()
 	if err != nil {

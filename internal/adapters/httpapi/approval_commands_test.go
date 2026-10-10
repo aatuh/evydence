@@ -38,7 +38,7 @@ func (f *approvalHTTPFake) CreateApprovalRecord(_ context.Context, a identitydom
 
 func TestApprovalHTTPUsesNarrowPortAndPreservesDTOAndSafeErrors(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
 	tenant, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {

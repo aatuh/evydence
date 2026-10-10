@@ -192,7 +192,7 @@ func TestSummaryDraftFixtureGuardsArePureCancellableAndKeepExplicitBindings(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
+	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(repositoryFixtureConfig{}))
 	if s.evidenceSummaryCommands != summaries || s.questionnaireDraftCommands != drafts {
 		t.Fatal("binder replaced explicit report ports")
 	}

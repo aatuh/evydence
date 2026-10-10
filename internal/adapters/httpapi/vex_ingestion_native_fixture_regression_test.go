@@ -28,7 +28,7 @@ func TestVEXIngestionNativeFixtureUsesCurrentScopeAndAtomicAcceptedWorkerHandoff
 				t.Fatal(err)
 			}
 			factory := &operatorQueryFailureFactory{base: base}
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("VEX ingestion used aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("VEX ingestion used aggregate clock") }})
 			clock := &diffFixtureClock{at: time.Date(2026, 10, 9, 17, 0, 0, 0, time.UTC)}
 			f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, objects: objects, clock: clock}
 			human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{app.ScopeEvidenceWrite}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{app.ScopeEvidenceWrite}}}}
@@ -197,7 +197,7 @@ func TestVEXIngestionNativeFixturePreservesExplicitNoStorageResourcesAndSafeHTTP
 	clock := &diffFixtureClock{at: time.Date(2026, 10, 9, 17, 0, 0, 0, time.UTC)}
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: clock}
 	s := &Server{vexIngestionCommands: f}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound VEX used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound VEX used aggregate clock") }})
 	s.bindIngestionFixturePorts(rebound)
 	bound, ok := s.vexIngestionCommands.(ingestionFixtureCommands)
 	if !ok || bound.objects != nil || bound.clock != clock || bound.ledger != rebound {
@@ -266,7 +266,7 @@ func TestVEXIngestionNativeFixturePreservesExplicitNoStorageResourcesAndSafeHTTP
 	if s.vexIngestionCommands != explicit {
 		t.Fatal("VEX rebind replaced injected port")
 	}
-	missing := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	missing := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if err := missing.AuthorizeUploadVEX(t.Context(), owner.actor, in); !errors.Is(err, evidenceapp.ErrValidation) {
 		t.Fatal("missing VEX repository guard fell back", err)
 	}

@@ -27,7 +27,7 @@ func TestSecurityDocumentNativeFixtureUsesCurrentScopeExplicitObjectsAndAtomicEf
 	}
 	factory := &operatorQueryFailureFactory{base: base}
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("security document used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("security document used aggregate clock") }})
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, objects: objects, clock: clock}
 	a := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"security:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"security:write"}}}}
 	scanIn := evidenceapp.UploadSecurityScanInput{ProductID: owner.product.ID, ReleaseID: ownerRelease.ID, ArtifactID: owner.artifact.ID, Category: "secret_scan", Format: "generic", Scanner: "fixture", TargetRef: owner.artifact.Digest, Raw: []byte(`{"findings":[{"severity":"high"}]}`)}
@@ -151,7 +151,7 @@ func TestSecurityDocumentNativeFixtureRejectsUntrustedStagingAndKeepsExplicitRes
 		t.Fatal("bad staging metadata published repository effects or skipped object boundary", err)
 	}
 	f.objects = objects
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound security command used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound security command used aggregate clock") }})
 	s := &Server{securityDocumentCommands: f}
 	s.bindIngestionFixturePorts(rebound)
 	bound, ok := s.securityDocumentCommands.(ingestionFixtureCommands)
@@ -234,7 +234,7 @@ func TestSecurityDocumentNativeFixtureRejectsForeignScopesRevokedGrantsAndMalfor
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base})}, objects: objects}
+	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base})}, objects: objects}
 	before, err := base.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -275,7 +275,7 @@ func TestSecurityDocumentNativeFixtureRejectsForeignScopesRevokedGrantsAndMalfor
 	if _, err := f.UploadManualSecurityDocument(t.Context(), owner.actor, manual); !errors.Is(err, app.ErrNotFound) {
 		t.Fatal("foreign manual scope accepted", err)
 	}
-	bare := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}, objects: objects}
+	bare := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}, objects: objects}
 	if _, err := bare.UploadSecurityScan(t.Context(), owner.actor, in); !errors.Is(err, app.ErrValidation) {
 		t.Fatal("missing repository restored cached write", err)
 	}

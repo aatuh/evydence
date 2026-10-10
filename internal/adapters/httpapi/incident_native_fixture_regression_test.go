@@ -21,7 +21,7 @@ func TestIncidentNativeFixtureUsesCurrentReferencesExplicitTimeAndAtomicAudit(t 
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("incident used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("incident used aggregate clock") }})
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
 	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: clock}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"incident:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"incident:write"}}}}
@@ -87,7 +87,7 @@ func TestIncidentWebhookNativeFixtureVerifiesSignatureReplayAndCurrentEvidence(t
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
-	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("webhook used aggregate clock") }})}, clock: clock}
+	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("webhook used aggregate clock") }})}, clock: clock}
 	private := ed25519.NewKeyFromSeed([]byte(strings.Repeat("k", 32)))
 	in := operationsapp.CreateIncidentWebhookReceiverInput{IncidentID: owner.incident.ID, Name: " Pager ", Provider: " fixture ", PublicKey: base64.RawStdEncoding.EncodeToString(private.Public().(ed25519.PublicKey))}
 	if err := f.AuthorizeCreateIncidentWebhookReceiver(t.Context(), owner.actor, in); err != nil || clock.calls != 0 {
@@ -153,7 +153,7 @@ func TestIncidentNativeFixtureRequiresRepositoriesAndRejectsForeignScopes(t *tes
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
-	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base})}}
+	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base})}}
 	in := operationsapp.CreateIncidentInput{ProductID: foreign.product.ID, ReleaseID: foreign.release.ID, Title: "Incident", Severity: "high"}
 	if _, err := f.CreateIncident(t.Context(), owner.actor, in); !errors.Is(err, app.ErrNotFound) {
 		t.Fatal("foreign incident creation accepted", err)
@@ -195,7 +195,7 @@ func TestIncidentNativeFixtureRequiresRepositoriesAndRejectsForeignScopes(t *tes
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("denied incident references changed state", err)
 	}
-	bare := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	bare := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if _, err := bare.CreateIncident(t.Context(), owner.actor, in); !errors.Is(err, app.ErrValidation) {
 		t.Fatal("missing repository restored cached incident creation", err)
 	}

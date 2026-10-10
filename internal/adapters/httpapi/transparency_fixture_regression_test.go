@@ -37,7 +37,7 @@ func (f *countingTransparencyFixtureFetcher) FetchTransparencyProof(ctx context.
 func transparencyRegressionLedger() (*repositoryFixture, *app.MemoryUnitOfWorkFactory, *countingTransparencyFixtureFetcher) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	fetcher := &countingTransparencyFixtureFetcher{}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Transparency: fetcher, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Transparency: fetcher, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
 	return ledger, factory, fetcher
 }
 

@@ -58,7 +58,7 @@ func TestMerkleCreationNativeFixtureUsesCurrentChainAndKeysWithoutAggregate(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("Merkle command used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("Merkle command used aggregate clock") }})
 	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	batch, err := f.CreateMerkleBatch(t.Context(), owner.actor, verificationapp.CreateMerkleBatchInput{})
 	if err != nil || batch.ID == "" || batch.TenantID != owner.actor.TenantID || batch.FromSequence != 1 || batch.ToSequence != int64(len(before.AuditEntries[owner.actor.TenantID])) || len(batch.SignatureRefs) != 1 {
@@ -82,7 +82,7 @@ func TestMerkleCreationNativeFixtureGuardsArePureAndCommitFailuresReturnNoEffect
 	ledger, base := integrationRegressionLedger()
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	factory := &bundleWriteFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory})
 	f := merkleCreationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	batch, err := f.CreateMerkleBatch(t.Context(), owner.actor, verificationapp.CreateMerkleBatchInput{})
 	if err != nil {

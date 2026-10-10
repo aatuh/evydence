@@ -69,13 +69,13 @@ func TestParsedPointFixturePreservesCompletedEmptyContractFromUpload(t *testing.
 func TestParsedPointFixturesUseRepositoryRowsAndDiscardFailedCommits(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
 	at := time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC)
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { return at }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { return at }})
 	owner := seedEvidenceReadFixtureScope(t, ledger, "Owner")
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("parsed point consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("parsed point consulted aggregate clock") }})
 	server.bindLegacyLedgerFixture(rebound)
 	server.authn = &configuredAuthenticator{actor: owner.actor}
 	before, err := factory.base.Snapshot()
@@ -125,7 +125,7 @@ func TestParsedPointFixturesUseRepositoryRowsAndDiscardFailedCommits(t *testing.
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("parsed reads or failed commits changed recorded rows", err)
 	}
-	read.ledger = newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	read.ledger = newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test"})
 	if _, err := read.GetSBOM(t.Context(), owner.actor, owner.sbom.ID); !errors.Is(err, app.ErrValidation) {
 		t.Fatal("missing SBOM repository used an aggregate fallback", err)
 	}

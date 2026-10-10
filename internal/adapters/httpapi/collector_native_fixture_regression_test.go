@@ -19,7 +19,7 @@ func TestCollectorNativeFixturePreflightUsesCurrentRepositoryWithoutEffects(t *t
 	owner := seedIntegrationFixtureScope(t, ledger, "Owner")
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector preflight used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector preflight used aggregate clock") }})
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	in := integrationapp.RecordCollectorReleaseInput{CollectorID: owner.collector.ID, Version: "2", ArtifactDigest: "sha256:" + strings.Repeat("b", 64), Pinned: true}
 	before, err := base.Snapshot()
@@ -50,7 +50,7 @@ func TestCollectorNativeFixturePinsAndHumanAuditCommitTogether(t *testing.T) {
 	owner := seedIntegrationFixtureScope(t, ledger, "Owner")
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector release used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector release used aggregate clock") }})
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"collector:admin", "collector:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"collector:admin", "collector:read"}}}}
 	in := integrationapp.RecordCollectorReleaseInput{CollectorID: owner.collector.ID, Version: "2", ArtifactDigest: "sha256:" + strings.Repeat("b", 64), Pinned: true}
@@ -103,7 +103,7 @@ func TestCollectorNativeFixtureHealthUsesCurrentRepositoryAndDiscardsFailedRead(
 	owner := seedIntegrationFixtureScope(t, ledger, "Owner")
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector health used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector health used aggregate clock") }})
 	f := collectorHealthFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, now: func() time.Time { return owner.collector.CreatedAt }}
 	before, err := base.Snapshot()
 	if err != nil {

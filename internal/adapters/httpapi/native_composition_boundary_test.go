@@ -13,8 +13,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/aatuh/evydence/internal/app"
 )
 
 func assertNoAggregateServerDependencies(t *testing.T, server *Server) {
@@ -131,7 +129,7 @@ func TestNativeCompositionCoreDoesNotAcceptOrConstructLedger(t *testing.T) {
 }
 
 func TestLocalConstructorKeepsExplicitAuthenticatorAfterLegacyBinding(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{})
 	authenticator := &configuredAuthenticator{}
 	server, err := newLegacyServerFixtureWithOptionsContext(t.Context(), ledger, ServerOptions{Authenticator: authenticator})
 	if err != nil || legacyFixtureLedger(server) != ledger || server.authn != authenticator || server.durableCommandExecutor == nil {
@@ -143,7 +141,7 @@ func TestLocalConstructorKeepsExplicitAuthenticatorAfterLegacyBinding(t *testing
 func TestLegacySetupHandleUsesExistingQueryFixturesWithoutChangingExplicitPorts(t *testing.T) {
 	for _, name := range []string{"role-binding", "api-key"} {
 		t.Run(name, func(t *testing.T) {
-			ledger := newLegacyLedgerFixture(app.Config{})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{})
 			authenticator := &configuredAuthenticator{}
 			options := ServerOptions{Authenticator: authenticator}
 			roles, keys := &roleBindingQueryFake{}, &apiKeyQueryFake{}
@@ -162,7 +160,7 @@ func TestLegacySetupHandleUsesExistingQueryFixturesWithoutChangingExplicitPorts(
 			if (name == "role-binding" && server.roleBindingQuery != roles) || (name == "api-key" && server.apiKeyQuery != keys) {
 				t.Fatal("setup handle replaced an explicit query port")
 			}
-			second := newLegacyLedgerFixture(app.Config{})
+			second := newLegacyLedgerFixture(repositoryFixtureConfig{})
 			server.bindLegacyLedgerFixture(second)
 			if legacyFixtureLedger(server) != second {
 				t.Fatal("setup handle retained stale fixture state after rebinding")
@@ -208,7 +206,7 @@ func TestLocalConstructorsRequireExplicitLedger(t *testing.T) {
 }
 
 func TestLocalConstructorRejectsInvalidContextBeforeComposition(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{})
 	var missingContext context.Context
 	if server, err := newLegacyServerFixtureWithOptionsContext(missingContext, ledger, ServerOptions{}); server != nil || err == nil || err.Error() != "server context is required" {
 		t.Fatalf("missing context accepted: server present=%t err=%v", server != nil, err)

@@ -189,7 +189,7 @@ func TestRiskReportFixturesKeepCurrentGrantsCompleteDTOsPrivacyAndDetachedMetada
 	if _, err := reader.Report(cancelled, human, owner.release.ID); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled posture accepted", err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { panic("summary consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { panic("summary consulted aggregate clock") }})
 	server.bindLegacyLedgerFixture(rebound)
 	server.authn = auth
 	clock.at = owner.release.CreatedAt.Add(2 * time.Hour)

@@ -57,7 +57,7 @@ func reportSigningRegressionLedger(t *testing.T) (*repositoryFixture, *app.Memor
 		t.Fatal(err)
 	}
 	objects, signer, factory := &signatureFixtureStore{Store: store}, &reportFixtureSigner{}, app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, ObjectStore: objects, Signer: signer, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, ObjectStore: objects, Signer: signer, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
 	return ledger, factory, objects, signer
 }
 

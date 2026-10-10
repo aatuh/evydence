@@ -63,7 +63,7 @@ func TestPackageFixtureCreationRollsBackPrivacySigningAndAuditEffects(t *testing
 	for _, action := range []string{"redaction", "customer", "release-bundle"} {
 		t.Run(action, func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
 			path, body := "/v1/redaction-profiles", `{"preset":"customer_safe"}`
 			switch action {
@@ -136,7 +136,7 @@ func TestPackageFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T)
 	for _, action := range []string{"template", "render", "import", "export"} {
 		t.Run(action, func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
 			path, body := "/v1/report-templates", `{"name":"Definition","version":"1","report_type":"metadata","allowed_fields":["subject_id"]}`
 			switch action {
@@ -198,7 +198,7 @@ func TestPackageFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T)
 
 func TestPackageFixtureReplayCannotBypassSavedResponseAuthorization(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{UnitOfWork: factory})
 	scope := seedOperationsFixtureScope(t, ledger, "Fixture")
 	executor := catalogFixtureReplayExecutor{ledger: ledger}
 	guards, replayGuards, runs := 0, 0, 0

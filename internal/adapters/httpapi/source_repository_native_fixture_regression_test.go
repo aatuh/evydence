@@ -28,7 +28,7 @@ func TestSourceRepositoryNativeFixturePreflightUsesCurrentRequestedAndExistingPa
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("repository preflight used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("repository preflight used aggregate clock") }})
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"source:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "project", ResourceID: owner.project.ID, Scopes: []string{"source:write"}}}}
 	in := integrationapp.CreateSourceRepositoryInput{ProjectID: owner.project.ID, Provider: owner.repository.Provider, FullName: owner.repository.FullName}
@@ -68,7 +68,7 @@ func TestSourceRepositoryNativeFixturePagesUseCurrentScopeAndDiscardFailedCommit
 	owner := seedIntegrationFixtureScope(t, ledger, "Owner")
 	_ = seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("repository page used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("repository page used aggregate clock") }})
 	f := sourceRepositoryPageFixture{catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"source:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"source:read"}}}}
 	req := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
@@ -101,7 +101,7 @@ func TestSourceRepositoryNativeFixturePagesUseCurrentScopeAndDiscardFailedCommit
 }
 
 func TestSourceRepositoryNativeFixtureFailsWithoutTransactionRepositories(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	a := domain.Actor{TenantID: "tenant", KeyID: "admin", Scopes: []string{"*"}}
 	in := integrationapp.CreateSourceRepositoryInput{Provider: "git", FullName: "org/api"}
@@ -124,7 +124,7 @@ func TestSourceRepositoryNativeFixtureCreatesReusesAndRollsBackCurrentRecord(t *
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
 	at := peripheralFixtureQueryClock()
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("repository creation used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("repository creation used aggregate clock") }})
 	clockCalls := 0
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: application.ClockFunc(func() time.Time { clockCalls++; return at })}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"source:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "project", ResourceID: owner.project.ID, Scopes: []string{"source:write"}}}}

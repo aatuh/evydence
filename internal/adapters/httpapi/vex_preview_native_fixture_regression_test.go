@@ -13,13 +13,13 @@ import (
 
 func TestVEXPreviewFixtureUsesCurrentRepositoryWithoutPublishingEffects(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
 	owner := seedEvidenceReadFixtureScope(t, ledger, "Owner")
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("preview consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("preview consulted aggregate clock") }})
 	server.bindLegacyLedgerFixture(rebound)
 	server.authn = &configuredAuthenticator{actor: owner.actor}
 	before, err := factory.base.Snapshot()

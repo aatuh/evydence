@@ -21,10 +21,10 @@ import (
 
 func TestBackupGenerationFixtureUsesNativeTenantManifestNotLegacySnapshot(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
-	cold := newLegacyLedgerFixture(app.Config{UnitOfWork: factory, Now: func() time.Time { panic("backup consulted aggregate clock") }})
+	cold := newLegacyLedgerFixture(repositoryFixtureConfig{UnitOfWork: factory, Now: func() time.Time { panic("backup consulted aggregate clock") }})
 	commands := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: cold}}
 	before, err := factory.Snapshot()
 	if err != nil {
@@ -79,7 +79,7 @@ func TestBackupGenerationFixtureUsesNativeTenantManifestNotLegacySnapshot(t *tes
 
 func TestBackupGenerationFixtureGuardAndReplayAvoidCommitmentReads(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	reads := 0
 	commands := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, backupCommitment: func(ctx context.Context, tenant string, reader verificationapp.AuditChainVerificationReader) (verificationapp.BackupStateCommitment, error) {
@@ -153,7 +153,7 @@ func TestBackupGenerationFixtureRejectsInvalidCommitmentAndCommitFailureWithoutE
 		t.Run(tc.name, func(t *testing.T) {
 			base := app.NewMemoryUnitOfWorkFactory()
 			factory := &operatorQueryFailureFactory{base: base}
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 			reads := 0
 			commands := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, backupCommitment: func(ctx context.Context, tenant string, reader verificationapp.AuditChainVerificationReader) (verificationapp.BackupStateCommitment, error) {

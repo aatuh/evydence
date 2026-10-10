@@ -136,7 +136,7 @@ func TestRetentionNativeFixtureUsesCurrentPolicyWithoutAggregateClockOrProviderP
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("retention used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("retention used aggregate clock") }})
 	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	p, err := f.CreateObjectRetentionPolicy(t.Context(), owner.actor, verificationapp.CreateObjectRetentionPolicyInput{Name: "Lock", Mode: "governance", RetentionDays: 30})
 	if err != nil || p.ID == "" || p.TenantID != owner.actor.TenantID || p.Status != "configured" {
@@ -156,7 +156,7 @@ func TestRetentionNativeFixtureCommitFailureLeavesNoPolicyOrObservation(t *testi
 	ledger, base := integrationRegressionLedger()
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	factory := &bundleWriteFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory})
 	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	p, err := f.CreateObjectRetentionPolicy(t.Context(), owner.actor, verificationapp.CreateObjectRetentionPolicyInput{Name: "Lock", Mode: "governance", RetentionDays: 30})
 	if err != nil {

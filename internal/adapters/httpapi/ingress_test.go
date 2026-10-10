@@ -12,7 +12,7 @@ import (
 )
 
 func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
-	ledgerServer, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
+	ledgerServer, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(repositoryFixtureConfig{}), ServerOptions{
 		RateLimitRequestsPerMinute: 1,
 		TrustedProxyCIDRs:          []string{"10.0.0.0/8"},
 	})
@@ -39,7 +39,7 @@ func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
 		t.Fatalf("trusted proxy repeated client status=%d, want rate limited", got)
 	}
 
-	untrustedServer, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{RateLimitRequestsPerMinute: 1})
+	untrustedServer, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(repositoryFixtureConfig{}), ServerOptions{RateLimitRequestsPerMinute: 1})
 	if err != nil {
 		t.Fatalf("newLegacyServerFixtureWithOptions untrusted: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestServerClientRateLimitHonorsConfiguredTrustedProxies(t *testing.T) {
 }
 
 func TestServerRateLimiterBoundsClientBuckets(t *testing.T) {
-	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
+	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(repositoryFixtureConfig{}), ServerOptions{
 		RateLimitRequestsPerMinute: 10,
 		RateLimitBucketCapacity:    2,
 	})
@@ -95,7 +95,7 @@ func TestRequestRateLimiterExpiresWindowState(t *testing.T) {
 }
 
 func TestIngressRejectsOversizedURLsAndUnsupportedBodyEncodings(t *testing.T) {
-	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{MaxURLBytes: 24})
+	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(repositoryFixtureConfig{}), ServerOptions{MaxURLBytes: 24})
 	if err != nil {
 		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestIngressRejectsOversizedURLsAndUnsupportedBodyEncodings(t *testing.T) {
 }
 
 func TestIngressLimitsInFlightRequestsAndNativeUploads(t *testing.T) {
-	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{MaxInFlightRequests: 1, MaxConcurrentUploads: 1})
+	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(repositoryFixtureConfig{}), ServerOptions{MaxInFlightRequests: 1, MaxConcurrentUploads: 1})
 	if err != nil {
 		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestIngressLimitsInFlightRequestsAndNativeUploads(t *testing.T) {
 
 func TestExpensiveTenantRateLimitIsScopedToTenantAndRoute(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
 	_, _, tenantASecret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant A", "admin-a", []string{"*"})
 	if err != nil {

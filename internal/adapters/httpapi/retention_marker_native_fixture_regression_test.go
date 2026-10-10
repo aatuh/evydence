@@ -21,7 +21,7 @@ func TestRetentionMarkerNativeFixtureUsesCurrentRootsClockAndAtomicHumanAudit(t 
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("retention marker used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("retention marker used aggregate clock") }})
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
 	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: clock}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"admin"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"admin"}}}}
@@ -99,7 +99,7 @@ func TestRetentionMarkerNativeFixtureDeniesForeignAndScopedAdminWithoutEffects(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base})}}
+	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base})}}
 	before, err := base.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestRetentionMarkerNativeFixtureDeniesForeignAndScopedAdminWithoutEffects(t
 }
 
 func TestRetentionMarkerNativeFixtureRequiresRepositoriesAndPreservesExplicitClock(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	a := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"*"}}
 	in := operationsapp.RetentionMarkerInput{ScopeType: "tenant", ScopeID: a.TenantID, Reason: "Review", Owner: "Legal"}
@@ -161,7 +161,7 @@ func TestRetentionMarkerNativeFixtureRequiresRepositoriesAndPreservesExplicitClo
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
 	explicit := &markerHTTPFake{}
 	server := &Server{retentionMarkerCommands: operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: clock}}
-	other := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	other := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	server.bindOperationsFixtureCommands(other)
 	bound, ok := server.retentionMarkerCommands.(operationsFixtureCommands)
 	if !ok || bound.ledger != other || bound.clock != clock {

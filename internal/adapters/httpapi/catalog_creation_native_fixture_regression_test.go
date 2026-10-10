@@ -26,7 +26,7 @@ func TestCatalogCreationNativeFixturesUseCurrentRowsWithoutAggregateClockAndComm
 			owner := seedEvidenceFixtureParents(t, ledger, "Owner")
 			foreign := seedEvidenceFixtureParents(t, ledger, "Foreign")
 			factory := &bundleWriteFailureFactory{base: base}
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("catalog creation used aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("catalog creation used aggregate clock") }})
 			f := catalogFixtureCommands{ledger: rebound}
 			guard := func(ctx context.Context, actor domain.Actor, label string) error {
 				switch action {

@@ -62,7 +62,7 @@ func TestEvidenceFlowNativeFixtureUsesCurrentScalarCountsGrantsAndExplicitClock(
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 8, 16, 0, 0, 0, time.UTC)}
 	forbidAggregateClock := false
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time {
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time {
 		if forbidAggregateClock {
 			panic("flow query consulted aggregate clock")
 		}
@@ -117,7 +117,7 @@ func TestEvidenceFlowNativeFixtureUsesCurrentScalarCountsGrantsAndExplicitClock(
 	if clock.calls != 1 {
 		t.Fatal("denied/foreign/cancelled flow consulted clock")
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("rebound aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("rebound aggregate clock") }})
 	server.bindLegacyLedgerFixture(rebound)
 	server.authn = auth
 	auth.actor = human
@@ -134,7 +134,7 @@ func TestEvidenceFlowNativeFixtureUsesCurrentScalarCountsGrantsAndExplicitClock(
 
 func TestEvidenceFlowNativeFixtureDiscardsCountsOnCommitFailureBeforeClock(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	seedEvidenceFlowFixtureRows(t, ledger, owner)
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: &configuredAuthenticator{actor: owner.actor}})

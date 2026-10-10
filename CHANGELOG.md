@@ -13,6 +13,18 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Removed the physical Ledger aggregate, configuration/constructor, mutable
+maps/locks and all 52 remaining receiver methods from production source. Snapshot
+cloning, cached authorization, persistence forwarding and compatibility replay
+remain historical test-only implementations with their existing behavior tests.
+Shared native transaction/replay, object lifecycle, key formats, constant-time
+credential comparison, scope constants and persistence utilities retain their
+algorithms. HTTP fixture inputs are test-local; authorization inventory follows
+the same retired policy body. Architecture and generated persistence reference
+now describe source retirement rather than a runtime aggregate fallback. API,
+storage and immutable hash contracts are unchanged. Source removal alone does
+not close EVY-906: full/race/production gates and live SQL evidence remain pending.
+
 Removed the remaining PostgreSQL fixture dependencies on Ledger and its
 constructor/configuration adapter. Compound catalog setup takes the actual
 transaction factory; atomic replay and independent concurrent callers use native

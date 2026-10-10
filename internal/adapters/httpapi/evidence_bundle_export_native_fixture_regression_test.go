@@ -17,7 +17,7 @@ func TestEvidenceBundleExportNativeFixtureUsesCurrentSelectionKeyAndAtomicWrites
 	ledger, base := integrationRegressionLedger()
 	owner := seedControlFixtureScope(t, ledger, "Owner")
 	writeFailure := &bundleWriteFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: writeFailure, Now: func() time.Time { panic("export used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: writeFailure, Now: func() time.Time { panic("export used aggregate clock") }})
 	f := packageFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 	before, err := base.Snapshot()
 	if err != nil {
@@ -66,7 +66,7 @@ func TestEvidenceBundleExportNativeFixtureFiltersCurrentGrantsAndRejectsForeignR
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := createEvidenceFixture(t.Context(), ledger, owner.actor, app.CreateEvidenceInput{ProductID: other.ID, Type: "document", Title: "Private source label", PayloadHash: "sha256:" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	item, err := createEvidenceFixture(t.Context(), ledger, owner.actor, evidenceFixtureInput{ProductID: other.ID, Type: "document", Title: "Private source label", PayloadHash: "sha256:" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestEvidenceBundleExportNativeFixtureFiltersCurrentGrantsAndRejectsForeignR
 }
 
 func TestEvidenceBundleExportNativeFixtureRejectsMissingRepositories(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	f := evidenceBundleFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	actor := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{app.ScopeBundleRead}}
 	if err := f.AuthorizeEvidenceBundleExport(t.Context(), actor, "", nil); !errors.Is(err, app.ErrValidation) {

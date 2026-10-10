@@ -38,7 +38,7 @@ func TestGovernanceNativeFixturesPreserveResourcesCompleteRowsAndOnlyIntendedEff
 			idCalls := 0
 			ids := application.IDGeneratorFunc(func(prefix string) string { idCalls++; return fmt.Sprintf("%s-native-%d", prefix, idCalls) })
 			server.bindGovernanceFixtureResources(clock, ids)
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { panic("native governance consulted aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { panic("native governance consulted aggregate clock") }})
 			server.bindLegacyLedgerFixture(rebound)
 			human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "reviewer", Scopes: []string{"*"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"*"}}}}
 			before, err := factory.Snapshot()

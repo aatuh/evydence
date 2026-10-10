@@ -50,7 +50,7 @@ func newDSSENativeFixture(t *testing.T, trust bool) dsseNativeFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := createEvidenceFixture(t.Context(), ledger, a, app.CreateEvidenceInput{ProductID: f.owner.product.ID, ReleaseID: release.ID, Type: "manual", Title: "Release artifact", PayloadHash: artifact.Digest, SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: artifact.ID, Digest: artifact.Digest}}}); err != nil {
+	if _, err := createEvidenceFixture(t.Context(), ledger, a, evidenceFixtureInput{ProductID: f.owner.product.ID, ReleaseID: release.ID, Type: "manual", Title: "Release artifact", PayloadHash: artifact.Digest, SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: artifact.ID, Digest: artifact.Digest}}}); err != nil {
 		t.Fatal(err)
 	}
 	f.build, err = releaseSetup(ledger).CreateBuildRun(t.Context(), a, releaseapp.CreateBuildRunInput{ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: strings.Repeat("a", 40), Status: "passed", StartedAt: time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC), Outputs: []releasedomain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}})
@@ -107,7 +107,7 @@ func newDSSENativeFixture(t *testing.T, trust bool) dsseNativeFixture {
 func TestDSSENativeFixtureUsesCurrentPolicyAndCommitsAtomicEffectsWithoutAggregateClock(t *testing.T) {
 	seed := newDSSENativeFixture(t, true)
 	failure := &bundleWriteFailureFactory{base: seed.base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: failure, Now: func() time.Time { panic("DSSE used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: failure, Now: func() time.Time { panic("DSSE used aggregate clock") }})
 	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, dsseObjects: seed.objects}
 	before, err := seed.base.Snapshot()
 	if err != nil {
@@ -251,7 +251,7 @@ func TestDSSENativeFixtureUnconfiguredTrustAndExplicitResourceRebinding(t *testi
 		}
 	}
 	s := &Server{dsseVerification: f, subjectVerification: f}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: seed.base})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: seed.base})
 	s.bindVerificationCommandFixturePorts(rebound)
 	for _, port := range []any{s.dsseVerification, s.subjectVerification} {
 		bound, ok := port.(verificationCommandFixture)

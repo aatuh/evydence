@@ -266,7 +266,7 @@ func TestPortalFixtureGuardsArePureCancellableAndPreserveExplicitBindings(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
+	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(repositoryFixtureConfig{}))
 	if s.portalAccessCommands != access || s.portalTokenCommands != consumer || s.portalAccessQuery != query {
 		t.Fatal("fixture binder replaced explicit portal ports")
 	}

@@ -22,7 +22,7 @@ func TestCommercialCollectorNativeFixtureUsesCurrentIdentityAndAtomicHumanAudit(
 	factory := &operatorQueryFailureFactory{base: base}
 	at := peripheralFixtureQueryClock()
 	aggregateClockCalls, clockCalls := 0, 0
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { aggregateClockCalls++; return at.Add(time.Hour) }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { aggregateClockCalls++; return at.Add(time.Hour) }})
 	aggregateClockCalls = 0
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: application.ClockFunc(func() time.Time { clockCalls++; return at })}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"collector:admin"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"collector:admin"}}}}
@@ -87,7 +87,7 @@ func TestCommercialCollectorNativeFixtureReadsCurrentPageAndDiscardsFailedCommit
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("commercial query used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("commercial query used aggregate clock") }})
 	f := commercialCollectorPageFixture{catalogFixtureCommands{ledger: rebound}}
 	req := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
 	before, err := base.Snapshot()
@@ -118,7 +118,7 @@ func TestCommercialCollectorNativeFixtureRejectsMissingRepositoriesAndUnknownTen
 	in := integrationapp.CreateCommercialCollectorInput{Name: "Scanner", Provider: "provider", Version: "1", ManifestHash: "sha256:" + strings.Repeat("a", 64), AllowedScopes: []string{"evidence:write"}}
 	a := domain.Actor{TenantID: "unknown", KeyID: "admin", Scopes: []string{"*"}}
 	for _, factory := range []app.UnitOfWorkFactory{nil, app.NewMemoryUnitOfWorkFactory()} {
-		ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
+		ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory})
 		f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 		if err := f.AuthorizeCreateCommercialCollectorDefinition(t.Context(), a, in); err == nil {
 			t.Fatal("commercial preflight accepted missing repositories or tenant")

@@ -26,7 +26,7 @@ func TestScanIngestionNativeFixtureUsesCurrentScopeExplicitResourcesAndAtomicNor
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("scan ingestion used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("scan ingestion used aggregate clock") }})
 	clock := &diffFixtureClock{at: time.Date(2026, 10, 9, 16, 0, 0, 0, time.UTC)}
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, objects: objects, clock: clock}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{app.ScopeEvidenceWrite}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{app.ScopeEvidenceWrite}}}}
@@ -201,7 +201,7 @@ func TestScanIngestionNativeFixtureKeepsExplicitWorkerPolicyAndNoStorageOnRebind
 				f.objects = objects
 			}
 			s := &Server{scanIngestionCommands: f}
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound scan used aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound scan used aggregate clock") }})
 			s.bindIngestionFixturePorts(rebound)
 			bound, ok := s.scanIngestionCommands.(ingestionFixtureCommands)
 			if !ok || bound.ledger != rebound || bound.objects != f.objects || bound.clock != clock || !bound.workerOwnedParsers {
@@ -297,7 +297,7 @@ func TestScanIngestionNativeFixtureHTTPFailureRollsBackAndMissingRepositoryFails
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("failed HTTP scan committed evidence/findings/payload/audit/jobs")
 	}
-	missing := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}, objects: objects, clock: clock}
+	missing := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}, objects: objects, clock: clock}
 	in := evidenceapp.VulnerabilityScanScope{ReleaseID: release.ID}
 	source := evidenceapp.BytesPayloadSource(raw)
 	if err := missing.AuthorizeUploadVulnerabilityScan(t.Context(), owner.actor, in); !errors.Is(err, evidenceapp.ErrValidation) {

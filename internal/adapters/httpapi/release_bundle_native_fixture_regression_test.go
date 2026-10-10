@@ -18,13 +18,13 @@ import (
 func TestReleaseBundleNativeFixtureReadsCurrentRowsAndDiscardsFailedCommit(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
 	at := time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { return at }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { return at }})
 	owner := seedPackageReportFixtureScope(t, ledger, "Owner")
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: &configuredAuthenticator{actor: owner.actor}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("bundle query consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("bundle query consulted aggregate clock") }})
 	server.bindLegacyLedgerFixture(rebound)
 	server.authn = &configuredAuthenticator{actor: owner.actor}
 	before, err := factory.base.Snapshot()
@@ -70,7 +70,7 @@ func TestReleaseBundleNativeFixtureReadsCurrentRowsAndDiscardsFailedCommit(t *te
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("bundle reads or failed commits changed current repository rows", err)
 	}
-	missing := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	missing := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test"})
 	server.bindLegacyLedgerFixture(missing)
 	if value, err := server.releaseBundleQuery.GetReleaseBundle(t.Context(), owner.actor, owner.bundle.ID); !errors.Is(err, app.ErrValidation) || !reflect.DeepEqual(value, packagedomain.ReleaseBundle{}) {
 		t.Fatal("missing bundle repository fell back to aggregate state", value, err)

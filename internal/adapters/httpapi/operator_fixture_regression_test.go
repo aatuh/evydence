@@ -22,12 +22,12 @@ func TestOperatorQueryFixturesPreserveResponsesIsolationAndReadOnlyState(t *test
 		now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }, operator: operator,
 		checks: []operationsquery.ReadinessCheck{{Name: "postgres", FailureDetail: "database connectivity is unavailable", Check: func(context.Context) error { return errors.New("private-probe-secret@database.internal") }}},
 	}
-	ledger := newLegacyLedgerFixture(app.Config{
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{
 		APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: resources.now,
 	})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
-	if _, err := createEvidenceFixture(t.Context(), ledger, foreign.actor, app.CreateEvidenceInput{ProductID: foreign.product.ID, ReleaseID: foreign.release.ID, Type: "security_review", Title: "private-foreign-title", PayloadHash: "sha256:" + strings.Repeat("b", 64)}); err != nil {
+	if _, err := createEvidenceFixture(t.Context(), ledger, foreign.actor, evidenceFixtureInput{ProductID: foreign.product.ID, ReleaseID: foreign.release.ID, Type: "security_review", Title: "private-foreign-title", PayloadHash: "sha256:" + strings.Repeat("b", 64)}); err != nil {
 		t.Fatal(err)
 	}
 	instance := owner.actor
@@ -169,7 +169,7 @@ func TestOperatorReplayFixtureRechecksAuthorityAndDoesNotRepeatOperatorEffect(t 
 	factory := app.NewMemoryUnitOfWorkFactory()
 	at := time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)
 	operator := &recordingReplayFixtureOperator{fakeOutboxAdminHTTP: fakeOutboxAdminHTTP{replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: at}}}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, OutboxAdmin: operator, Now: func() time.Time { return at }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, OutboxAdmin: operator, Now: func() time.Time { return at }})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Instance", "instance-admin", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatal(err)
@@ -223,7 +223,7 @@ func TestOperatorFixtureBindingPreservesExplicitFocusedPorts(t *testing.T) {
 	instance := &struct{ InstanceAdminQuery }{}
 	diagnostics := &struct{ OutboxDiagnosticsQuery }{}
 	replay := &struct{ OutboxReplayCommand }{}
-	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{
+	server, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(repositoryFixtureConfig{}), ServerOptions{
 		ReadinessQuery: readiness, MetricsQuery: metrics, InstanceAdminQuery: instance,
 		OutboxDiagnosticsQuery: diagnostics, OutboxReplayCommand: replay,
 	})
@@ -231,7 +231,7 @@ func TestOperatorFixtureBindingPreservesExplicitFocusedPorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	server.bindOperatorFixtureResources(operatorFixtureResources{checks: []operationsquery.ReadinessCheck{{Name: "explicit", Check: func(context.Context) error { return nil }}}})
-	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
+	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(repositoryFixtureConfig{}))
 	if server.readinessQuery != readiness || server.metricsQuery != metrics || server.instanceAdminQuery != instance || server.outboxDiagnosticsQuery != diagnostics || server.outboxReplayCommand != replay {
 		t.Fatal("fixture binding replaced an explicitly configured focused port")
 	}

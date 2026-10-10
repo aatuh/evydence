@@ -14,7 +14,7 @@ import (
 
 func TestSigningCustodyNativeFixtureReadsCurrentRecordsWithoutAggregateClock(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
 	if err := app.ExecuteUnitOfWork(t.Context(), factory, func(ctx context.Context, r app.Repositories) error {
@@ -27,7 +27,7 @@ func TestSigningCustodyNativeFixtureReadsCurrentRecordsWithoutAggregateClock(t *
 	}); err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("custody report consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("custody report consulted aggregate clock") }})
 	query := custodyFixtureQuery{catalogFixtureCommands{ledger: rebound}}
 	before, err := factory.base.Snapshot()
 	if err != nil {
@@ -49,7 +49,7 @@ func TestSigningCustodyNativeFixtureReadsCurrentRecordsWithoutAggregateClock(t *
 }
 
 func TestSigningCustodyNativeFixtureRequiresRepositoryAndPreservesExplicitPort(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", Now: func() time.Time { panic("custody report used aggregate clock") }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", Now: func() time.Time { panic("custody report used aggregate clock") }})
 	query := custodyFixtureQuery{catalogFixtureCommands{ledger: ledger}}
 	actor := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"keys:admin"}}
 	report, err := query.Report(t.Context(), actor)

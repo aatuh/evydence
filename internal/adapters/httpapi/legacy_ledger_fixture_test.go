@@ -6,7 +6,32 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
+
+// Historical input canaries stay explicit in test setup. Only transactions and
+// the replay clock enter the locator; no aggregate configuration exists at run time.
+type repositoryFixtureConfig struct {
+	BuildAttestationParser       releaseapp.BuildAttestationParser
+	DSSEPolicyVerifier           verificationapp.DSSEPolicyVerifier
+	APIKeyPepper                 string
+	Now                          func() time.Time
+	Store                        app.Store
+	UnitOfWork                   app.UnitOfWorkFactory
+	ObjectStore                  app.ObjectStore
+	Retention                    app.ObjectRetentionVerifier
+	Signer                       app.SigningExecutor
+	OIDC                         app.OIDCDiscoveryClient
+	ProviderAPI                  app.ProviderIdentityValidator
+	Transparency                 app.TransparencyProofFetcher
+	Cosign                       app.CosignPolicyVerifier
+	Outbox                       app.Outbox
+	OutboxAdmin                  app.OutboxAdmin
+	ReconciliationMetrics        app.ObjectReconciliationMetricsStore
+	ReadinessChecks              []app.ReadinessCheck
+	WorkerOwnedParserSideEffects bool
+}
 
 // This test-only locator contains capabilities, never aggregate data, secrets,
 // locks or a state-store fallback. Native commands join the caller's actual
@@ -51,7 +76,7 @@ func (f *repositoryFixture) WithIdempotencyRequestHash(ctx context.Context, acto
 	})
 }
 
-func newLegacyLedgerFixture(cfg app.Config) *repositoryFixture {
+func newLegacyLedgerFixture(cfg repositoryFixtureConfig) *repositoryFixture {
 	if cfg.Store != nil {
 		panic("NewLedger does not load durable state; use NewLedgerWithContext")
 	}
@@ -62,7 +87,7 @@ func newLegacyLedgerFixture(cfg app.Config) *repositoryFixture {
 	return ledger
 }
 
-func newLegacyLedgerFixtureWithContext(ctx context.Context, cfg app.Config) (*repositoryFixture, error) {
+func newLegacyLedgerFixtureWithContext(ctx context.Context, cfg repositoryFixtureConfig) (*repositoryFixture, error) {
 	if ctx == nil {
 		return nil, app.ErrValidation
 	}

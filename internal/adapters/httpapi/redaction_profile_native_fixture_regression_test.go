@@ -17,7 +17,7 @@ func TestRedactionNativeFixtureRequiresCurrentTenantAndAtomicDetachedPolicy(t *t
 	ledger, base := integrationRegressionLedger()
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("redaction used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("redaction used aggregate clock") }})
 	f := packageFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{app.ScopePackageWrite}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{app.ScopePackageWrite}}}}
 	in := packageapp.CreateRedactionProfileInput{Name: " Customer ", Description: " Review ", AllowedTypes: []string{"vex", "sbom", "sbom"}, ExcludedFields: []string{"internal_notes", "api_key", "api_key", " "}}
@@ -89,7 +89,7 @@ func TestRedactionNativeFixtureRejectsProductGrantsUnknownTenantsAndMissingRepos
 	if v, err := f.CreateRedactionProfile(t.Context(), unknown, in); !errors.Is(err, app.ErrNotFound) || !reflect.DeepEqual(v, packagedomain.RedactionProfile{}) {
 		t.Fatal("unknown tenant profile created", err)
 	}
-	missing := packageFixtureCommands{catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	missing := packageFixtureCommands{catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if err := missing.AuthorizeCreateRedactionProfile(t.Context(), owner.actor, in); !errors.Is(err, packageapp.ErrValidation) {
 		t.Fatal("missing profile repository preflight fell back", err)
 	}

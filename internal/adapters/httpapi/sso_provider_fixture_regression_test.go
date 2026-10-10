@@ -31,7 +31,7 @@ func publicSSOFixtureJWKS(kid string) map[string]any {
 func ssoFixtureLedger() (*repositoryFixture, *app.MemoryUnitOfWorkFactory, *countingSSOFixtureDiscovery) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	discovery := &countingSSOFixtureDiscovery{fakeOIDCDiscoveryHTTP: fakeOIDCDiscoveryHTTP{result: app.OIDCDiscoveryResult{Issuer: "https://issuer.example.test", JWKS: publicSSOFixtureJWKS("discovered")}}}
-	return newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, OIDC: discovery, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }}), factory, discovery
+	return newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, OIDC: discovery, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }}), factory, discovery
 }
 
 type ssoProviderFixtureScope struct {
@@ -251,7 +251,7 @@ func TestSSOProviderFixtureGuardsArePureCancellableAndPreserveExplicitPorts(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
+	server.bindLegacyLedgerFixture(newLegacyLedgerFixture(repositoryFixtureConfig{}))
 	if server.ssoProviderCommands != providers || server.ssoIdentityLinkCommands != links {
 		t.Fatal("fixture binding replaced explicit SSO ports")
 	}
@@ -359,7 +359,7 @@ func TestSSONativeFixtureRebindingPreservesExplicitResources(t *testing.T) {
 	s.bindSSOProviderFixtureResources(discovery, clock)
 	s.bindSSOSessionFixtureResources("fixture-pepper", clock)
 	authBefore := s.authn.(ssoFixtureAuthenticator)
-	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	s.bindLegacyLedgerFixture(second)
 	for name, port := range map[string]any{"provider": s.ssoProviderCommands, "link": s.ssoIdentityLinkCommands} {
 		f := port.(ssoProviderFixtureCommands)

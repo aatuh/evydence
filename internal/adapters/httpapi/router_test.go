@@ -25,7 +25,7 @@ import (
 )
 
 func TestRoutesValidateAndOpenAPIRenders(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test"})
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatalf("newLegacyServerFixture: %v", err)
@@ -511,7 +511,7 @@ func TestSSOProviderOIDCDiscoveryRefreshRoute(t *testing.T) {
 		Issuer: "https://idp.example.test",
 		JWKS:   map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": "kid-route", "x": base64.RawURLEncoding.EncodeToString(pub)}}},
 	}}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", OIDC: discovery, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", OIDC: discovery, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -537,7 +537,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keygen: %v", err)
 	}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -616,7 +616,7 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 
 func TestPublicTransparencyProofFetchRoute(t *testing.T) {
 	fetcher := &fakeTransparencyProofHTTP{}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Transparency: fetcher, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", Transparency: fetcher, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -822,7 +822,7 @@ func TestRegisterArtifactRequiresMediaType(t *testing.T) {
 }
 
 func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test"})
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{RateLimitRequestsPerMinute: 2})
 	if err != nil {
 		t.Fatalf("newLegacyServerFixtureWithOptions: %v", err)
@@ -988,7 +988,7 @@ func TestCosignVerificationRejectsLegacyMetadataFields(t *testing.T) {
 }
 
 func TestCrossTenantEvidenceReadDenied(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secretA, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant A", "admin-a", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap A: %v", err)
@@ -1020,7 +1020,7 @@ func TestCrossTenantEvidenceReadDenied(t *testing.T) {
 }
 
 func TestInstanceAdminHTTPRequiresExplicitScope(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, tenantSecret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -1059,7 +1059,7 @@ func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
 		replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: at},
 		diag:   app.OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: at},
 	}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, tenantSecret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "tenant-admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
@@ -2042,7 +2042,7 @@ func TestCustomerPortalPackageFormValidation(t *testing.T) {
 }
 
 func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*", app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -2231,7 +2231,7 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 		},
 	}}
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
 	_, _, instanceSecret, err := bootstrap.BootstrapTenant(t.Context(), "Runtime", "operator", []string{app.ScopeInstanceAdmin})
 	if err != nil {

@@ -17,7 +17,7 @@ import (
 
 func TestOperatorNativeFixturesSelectCommittedCountsWithoutAggregatePublication(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Owner", "admin", []string{"*", app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func (u operatorQueryFailureTransaction) Rollback(ctx context.Context) error {
 
 func TestOperatorNativeQueriesDiscardCompleteProjectionOnCommitFailure(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	actor := owner.actor
 	actor.Scopes = []string{"*", app.ScopeInstanceAdmin}
@@ -134,7 +134,7 @@ func TestOperatorNativeQueriesDiscardCompleteProjectionOnCommitFailure(t *testin
 }
 
 func TestOperatorNativeResourceBindingKeepsExplicitResourcesAcrossRebinding(t *testing.T) {
-	first := newLegacyLedgerFixture(app.Config{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	first := newLegacyLedgerFixture(repositoryFixtureConfig{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	server, err := newLegacyServerFixture(first)
 	if err != nil {
 		t.Fatal(err)
@@ -144,7 +144,7 @@ func TestOperatorNativeResourceBindingKeepsExplicitResourcesAcrossRebinding(t *t
 	checks := []operationsquery.ReadinessCheck{{Name: "postgres", FailureDetail: "safe failure", Check: func(context.Context) error { return errors.New("private-probe") }}}
 	server.bindOperatorFixtureResources(operatorFixtureResources{checks: checks, operator: operator, now: func() time.Time { return at }})
 	checks[0].Name, checks[0].FailureDetail = "modified", "private-modification"
-	second := newLegacyLedgerFixture(app.Config{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	server.bindLegacyLedgerFixture(second)
 	ports := []operatorFixtureQueries{
 		server.readinessQuery.(readinessFixture).operatorFixtureQueries,
@@ -172,7 +172,7 @@ func TestOperatorNativeResourceBindingKeepsExplicitResourcesAcrossRebinding(t *t
 
 func TestOperatorNativeReplayValidatesOperatorResultBeforeSavingSuccess(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Instance", "admin", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatal(err)
@@ -228,7 +228,7 @@ func (f *operatorNativeReconciliationFixture) ObjectReconciliationMetrics(ctx co
 
 func TestOperatorNativeMetricsUseTenantBoundExplicitReconciliationResource(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	at := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 	receipts := &operatorNativeReconciliationFixture{metrics: app.ObjectReconciliationMetrics{Runs: 2, ScannedPayloads: 3, MissingFinalObjects: 4, MissingStagedObjects: 5, DigestMismatches: 6, ProviderOrphans: 7, QuarantinedPayloads: 8, LastRunAt: at.Add(-30 * time.Second)}}

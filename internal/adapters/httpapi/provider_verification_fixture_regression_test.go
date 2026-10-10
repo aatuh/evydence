@@ -42,7 +42,7 @@ func (f *providerVerificationFixtureAPI) ValidateProviderIdentity(ctx context.Co
 }
 func providerVerificationRegressionLedger() (*repositoryFixture, *app.MemoryUnitOfWorkFactory, *providerVerificationFixtureAPI) {
 	factory, live := app.NewMemoryUnitOfWorkFactory(), &providerVerificationFixtureAPI{}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, ProviderAPI: live, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, ProviderAPI: live, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
 	return ledger, factory, live
 }
 func seedProviderVerificationFixture(t *testing.T, ledger *repositoryFixture, name string) ssoProviderFixtureScope {
@@ -334,7 +334,7 @@ func TestProviderVerificationFixtureGuardsArePureCancellableAndKeepExplicitBindi
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
+	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(repositoryFixtureConfig{}))
 	if s.providerVerificationCommands != explicit {
 		t.Fatal("fixture binding replaced explicit focused commands")
 	}

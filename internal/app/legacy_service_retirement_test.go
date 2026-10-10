@@ -20,6 +20,12 @@ func assertNoLegacyVerificationServiceField(t *testing.T, ledger *Ledger) {
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
 		"configureIdentityCommands": true, "legacyIdentityCommands": true,
+		"Ledger": true, "Config": true, "NewLedgerWithContext": true, "IdempotencyCommand": true,
+		"validateLedgerDSSEPorts": true,
+		"nopOutbox":               true, "ledgerVerificationPayloadVerifier": true,
+		"resourceRefs": true, "refsForEvidence": true,
+		"releaseLedgerMutationFromState": true, "criticalMutationFromState": true,
+		"evidencePageStore": true, "workerProjectionStore": true, "CreateEvidenceInput": true,
 		"configureVerificationCommands": true, "legacyVerificationCommands": true,
 		"refreshWorkerProjectionLocked":                   true,
 		"mergeWorkerSBOMs":                                true,

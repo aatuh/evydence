@@ -185,7 +185,7 @@ func TestRiskWorkflowFixturesReplayRechecksCurrentHumanGrantsAndForeignParents(t
 	// Current upload commands require a release, but existing release-less rows
 	// are still supported by workflow authority. Seed the actual repository,
 	// not an invalid current-upload request or fabricated successful read.
-	source, err := createEvidenceFixture(t.Context(), ledger, owner.actor, app.CreateEvidenceInput{ProductID: owner.product.ID, Type: "vulnerability_scan", Title: "Legacy scan", SourceSystem: "fixture", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	source, err := createEvidenceFixture(t.Context(), ledger, owner.actor, evidenceFixtureInput{ProductID: owner.product.ID, Type: "vulnerability_scan", Title: "Legacy scan", SourceSystem: "fixture", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal("release-less source:", err)
 	}

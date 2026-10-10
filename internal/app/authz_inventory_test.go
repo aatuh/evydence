@@ -49,14 +49,14 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		// Preserve the historical command authorization assertions in their
 		// test-only oracle. Uncalled replay guards are now covered by the
 		// production-surface retirement test, not a live runtime inventory.
-		"legacy_portal_oracle_test.go":                       {"CreateCustomerPortalAccess", "RevokeCustomerPortalAccess", "authorizePortalWriteLocked"},
-		"legacy_peripheral_oracle_test.go":                   {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked", "AuthorizeCreateSaaSEditionProfile", "AuthorizeCreateMarketplaceCollector", "CreateGraphSnapshot", "CreateSaaSEditionProfile", "CreateMarketplaceCollector"},
-		"product_release_authorization.go":                   {"authorizeProductReleaseLocked"},
-		"legacy_pdf_signing_oracle_test.go":                  {"AuthorizeCreatePDFReportPackage", "AuthorizeCreateSigningOperation", "CreatePDFReportPackage", "CreateSigningOperation"},
-		"legacy_anomaly_oracle_test.go":                      {"AuthorizeGenerateAnomalyReport", "GenerateAnomalyReport"},
-		"legacy_public_transparency_metadata_oracle_test.go": {"AuthorizeCreatePublicTransparencyLog", "AuthorizePublishPublicTransparencyLogEntry"},
-		"legacy_public_transparency_proof_oracle_test.go":    {"AuthorizeVerifyPublicTransparencyLogEntry", "AuthorizeFetchPublicTransparencyLogEntryProof", "FetchAndVerifyPublicTransparencyLogEntry"},
-		"legacy_public_transparency_oracle_test.go":          {"CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry", "VerifyPublicTransparencyLogEntry"},
+		"legacy_portal_oracle_test.go":                                  {"CreateCustomerPortalAccess", "RevokeCustomerPortalAccess", "authorizePortalWriteLocked"},
+		"legacy_peripheral_oracle_test.go":                              {"AuthorizeCreateGraphSnapshot", "authorizeGraphSnapshotLocked", "AuthorizeCreateSaaSEditionProfile", "AuthorizeCreateMarketplaceCollector", "CreateGraphSnapshot", "CreateSaaSEditionProfile", "CreateMarketplaceCollector"},
+		"legacy_product_release_authorization_aggregate_oracle_test.go": {"authorizeProductReleaseLocked"},
+		"legacy_pdf_signing_oracle_test.go":                             {"AuthorizeCreatePDFReportPackage", "AuthorizeCreateSigningOperation", "CreatePDFReportPackage", "CreateSigningOperation"},
+		"legacy_anomaly_oracle_test.go":                                 {"AuthorizeGenerateAnomalyReport", "GenerateAnomalyReport"},
+		"legacy_public_transparency_metadata_oracle_test.go":            {"AuthorizeCreatePublicTransparencyLog", "AuthorizePublishPublicTransparencyLogEntry"},
+		"legacy_public_transparency_proof_oracle_test.go":               {"AuthorizeVerifyPublicTransparencyLogEntry", "AuthorizeFetchPublicTransparencyLogEntryProof", "FetchAndVerifyPublicTransparencyLogEntry"},
+		"legacy_public_transparency_oracle_test.go":                     {"CreatePublicTransparencyLog", "PublishPublicTransparencyLogEntry", "VerifyPublicTransparencyLogEntry"},
 		"legacy_questionnaire_oracle_test.go": {
 			"CreateQuestionnairePackage",
 			"AuthorizeQuestionnairePackageCreate",

@@ -37,7 +37,7 @@ func (f *auditLogQueryFake) ListPage(_ context.Context, actor identitydomain.Act
 
 func TestAuditLogHandlerUsesFocusedQueryAndRejectsMalformedFilters(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
 	_, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
 	if err != nil {

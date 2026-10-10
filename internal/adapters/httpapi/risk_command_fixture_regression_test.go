@@ -41,7 +41,7 @@ func (f *failingRiskCommandFixture) EvaluateRelease(ctx context.Context, a domai
 func newRiskCommandRegressionLedger(t *testing.T) (*repositoryFixture, *app.MemoryUnitOfWorkFactory) {
 	t.Helper()
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
 	return ledger, factory
 }
 

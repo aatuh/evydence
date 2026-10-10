@@ -26,11 +26,11 @@ func seedEvidenceFixtureScope(t *testing.T, ledger *repositoryFixture, name stri
 	t.Helper()
 	scope := seedEvidenceFixtureParents(t, ledger, name)
 	var err error
-	scope.original, err = createEvidenceFixture(t.Context(), ledger, scope.actor, app.CreateEvidenceInput{ProductID: scope.product.ID, Type: "manual", Title: "Original", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	scope.original, err = createEvidenceFixture(t.Context(), ledger, scope.actor, evidenceFixtureInput{ProductID: scope.product.ID, Type: "manual", Title: "Original", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope.replacement, err = createEvidenceFixture(t.Context(), ledger, scope.actor, app.CreateEvidenceInput{ProductID: scope.product.ID, Type: "manual", Title: "Replacement", PayloadHash: "sha256:" + strings.Repeat("b", 64)})
+	scope.replacement, err = createEvidenceFixture(t.Context(), ledger, scope.actor, evidenceFixtureInput{ProductID: scope.product.ID, Type: "manual", Title: "Replacement", PayloadHash: "sha256:" + strings.Repeat("b", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestEvidenceFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T
 	for _, action := range []string{"create", "supersede", "link", "lifecycle"} {
 		t.Run(action, func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
 			server, err := newLegacyServerFixture(ledger)
 			if err != nil {
@@ -171,7 +171,7 @@ func TestEvidenceFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T
 
 func TestEvidenceFixtureGuardsEnforceTenantScopeAndCancellationWithoutWrites(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
 	commands := evidenceFixtureCommands{catalogFixtureCommands{ledger: ledger}}

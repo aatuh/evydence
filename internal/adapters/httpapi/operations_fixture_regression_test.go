@@ -95,7 +95,7 @@ func seedOperationsFixtureReferences(t *testing.T, ledger *repositoryFixture, na
 	t.Helper()
 	f := seedOperationsFixtureParents(t, ledger, name)
 	var err error
-	f.evidence, err = createEvidenceFixture(t.Context(), ledger, f.actor, app.CreateEvidenceInput{ProductID: f.product.ID, ReleaseID: f.release.ID, Type: "security_review", Title: "Review", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	f.evidence, err = createEvidenceFixture(t.Context(), ledger, f.actor, evidenceFixtureInput{ProductID: f.product.ID, ReleaseID: f.release.ID, Type: "security_review", Title: "Review", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestOperationsFixtureSignedWebhookRollbackRecoveryAndBusinessReplay(t *test
 	now := time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)
 	memory := app.NewMemoryUnitOfWorkFactory()
 	factory := &failingWebhookFixtureFactory{inner: memory}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return now }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return now }})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	private := ed25519.NewKeyFromSeed([]byte(strings.Repeat("w", 32)))
 	commands := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return now })}

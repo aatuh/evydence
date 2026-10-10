@@ -14,13 +14,13 @@ import (
 
 func TestDecisionHistoryFixtureReadsReboundRepositoryAndFailsClosed(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) }})
 	owner := seedRiskQueryFixtureScope(t, ledger, "Owner")
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("history consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("history consulted aggregate clock") }})
 	server.bindLegacyLedgerFixture(rebound)
 	server.authn = &configuredAuthenticator{actor: owner.actor}
 	before, err := factory.base.Snapshot()

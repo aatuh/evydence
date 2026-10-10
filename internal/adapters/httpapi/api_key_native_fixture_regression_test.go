@@ -14,7 +14,7 @@ import (
 func TestAPIKeyNativeFixturePreservesCompleteDTOSecretFreeReplayAndExpiry(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	clock := &ssoFixtureRebindClock{at: peripheralFixtureQueryClock()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: clock.Now})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: clock.Now})
 	_, _, adminSecret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: clock}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestAPIKeyNativeFixturePreservesCompleteDTOSecretFreeReplayAndExpiry(t *tes
 }
 
 func TestAPIKeyNativeFixtureRebindingPreservesCredentialsClockAndExplicitAuthentication(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	s, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestAPIKeyNativeFixtureRebindingPreservesCredentialsClockAndExplicitAuthent
 	s.bindAPIKeyFixtureResources("fixture-pepper", clock)
 	command := s.apiKeyCommands.(apiKeyFixtureCommands)
 	auth := s.authn.(identityNativeFixtureAuthenticator)
-	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	s.bindLegacyLedgerFixture(second)
 	newCommand, newAuth := s.apiKeyCommands.(apiKeyFixtureCommands), s.authn.(identityNativeFixtureAuthenticator)
 	if newCommand.ledger != second || newCommand.clock != clock || newCommand.credentials != command.credentials || newAuth.ledger != second || newAuth.clock != clock || newAuth.credentials != auth.credentials {

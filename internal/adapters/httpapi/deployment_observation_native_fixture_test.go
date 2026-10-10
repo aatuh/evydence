@@ -32,7 +32,7 @@ func TestDeploymentObservationNativeFixtureReadsCurrentScopeAndFailsClosed(t *te
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("observation used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("observation used aggregate clock") }})
 	f := evidenceCreationNativeFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"evidence:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "release", ResourceID: owner.release.ID, Scopes: []string{"evidence:write"}}}}
 	input := evidenceapp.CreateEvidenceInput{ProductID: owner.product.ID, ReleaseID: owner.release.ID, DeploymentID: deployment.ID, Type: "deployment", Subtype: "observation", Title: "Deployment observation", PayloadHash: artifact.Digest}
@@ -78,7 +78,7 @@ func TestDeploymentObservationNativeFixtureReadsCurrentScopeAndFailsClosed(t *te
 	if err != nil || !reflect.DeepEqual(after, failed) {
 		t.Fatal("denied/failed observation changed state", err)
 	}
-	bare := evidenceCreationNativeFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	bare := evidenceCreationNativeFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if v, err := bare.CreateEvidence(t.Context(), owner.actor, input); !errors.Is(err, app.ErrValidation) || !reflect.DeepEqual(v, evidencedomain.EvidenceItem{}) {
 		t.Fatal("missing repository restored observation caches", err)
 	}

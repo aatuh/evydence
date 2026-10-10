@@ -22,7 +22,7 @@ func TestSourceWriteNativeFixturesUseCurrentRepositoryHeadAndAtomicHumanAudit(t 
 	owner := seedIntegrationFixtureScope(t, ledger, "Owner")
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("source write used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("source write used aggregate clock") }})
 	at := peripheralFixtureQueryClock()
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: application.ClockFunc(func() time.Time { return at })}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"source:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "project", ResourceID: owner.project.ID, Scopes: []string{"source:write"}}}}
@@ -108,7 +108,7 @@ func TestSourceWriteNativeFixturesUseCurrentRepositoryHeadAndAtomicHumanAudit(t 
 }
 
 func TestSourceWriteNativeFixturesFailClosedWithoutRepositories(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	a := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"source:write"}}
 	commit := integrationapp.RecordSourceCommitInput{RepositoryID: "repository", SHA: strings.Repeat("a", 40)}

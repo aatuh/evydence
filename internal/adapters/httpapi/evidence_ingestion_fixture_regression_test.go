@@ -106,7 +106,7 @@ func TestIngestionFixturesRollBackEveryDocumentPayloadAuditJobAndDiffEffect(t *t
 	for _, name := range []string{"cyclonedx", "spdx", "openvex", "cyclonedx-vex", "scanner", "openapi", "security-scan", "api-security", "manual", "sbom-diff", "contract-diff"} {
 		t.Run(name, func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
 			owner := seedEvidenceReadFixtureScope(t, ledger, "Owner")
 			var request ingestionFixtureRequest
 			for _, candidate := range ingestionFixtureRequests(t, ledger, owner) {
@@ -155,7 +155,7 @@ func TestIngestionFixturesRollBackEveryDocumentPayloadAuditJobAndDiffEffect(t *t
 
 func TestIngestionFixturesRecheckCurrentGrantsAndNeverReapplyCompletedEffects(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
 	owner := seedEvidenceReadFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceReadFixtureScope(t, ledger, "Foreign")
 	requests := ingestionFixtureRequests(t, ledger, owner)

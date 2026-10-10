@@ -32,7 +32,7 @@ func newCachedReleaseFixture(t *testing.T, name string) cachedReleaseFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	locator := newLegacyLedgerFixture(app.Config{APIKeyPepper: "not-the-bootstrap-pepper", UnitOfWork: factory})
+	locator := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "not-the-bootstrap-pepper", UnitOfWork: factory})
 	actor, err := fixtureIdentityAuthenticator(locator, "fixture-pepper", clock).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func newCachedReleaseFixture(t *testing.T, name string) cachedReleaseFixture {
 		t.Fatal(err)
 	}
 	f.historicalCache = store
-	cfg := app.Config{APIKeyPepper: "fixture-pepper", Store: store, Now: clock.Now}
+	cfg := repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", Store: store, Now: clock.Now}
 	f.ledger, err = newLegacyLedgerFixtureWithContext(t.Context(), cfg)
 	if err != nil {
 		t.Fatal(err)

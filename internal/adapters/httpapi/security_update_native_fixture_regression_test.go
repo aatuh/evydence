@@ -15,7 +15,7 @@ import (
 
 func TestSecurityUpdateNativeFixtureKeepsFailedCommitPrivateAndRequiresRepositories(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedPackageReportFixtureScope(t, ledger, "Owner")
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: &configuredAuthenticator{actor: owner.actor}})
 	if err != nil {
@@ -46,7 +46,7 @@ func TestSecurityUpdateNativeFixtureKeepsFailedCommitPrivateAndRequiresRepositor
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("failed report mutated stored records", err)
 	}
-	withoutRepositories := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
+	withoutRepositories := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test"})
 	reader.catalogFixtureCommands = catalogFixtureCommands{ledger: withoutRepositories}
 	if value, err := reader.Report(t.Context(), owner.actor, owner.product.ID, owner.release.ID); !errors.Is(err, app.ErrValidation) || !reflect.DeepEqual(value, packagedomain.SecurityUpdateEvidenceReport{}) || clock.calls != 0 {
 		t.Fatal("missing repository used aggregate fallback or reached the clock", value, err)

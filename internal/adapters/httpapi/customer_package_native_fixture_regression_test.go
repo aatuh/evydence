@@ -21,7 +21,7 @@ func TestCustomerPackageNativeFixtureUsesCurrentRepositoriesAndAtomicDetachedMan
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("customer package used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("customer package used aggregate clock") }})
 	f := packageFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{app.ScopePackageWrite}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{app.ScopePackageWrite}}}}
 	in := packageapp.CreateCustomerPackageInput{ProductID: owner.product.ID, RedactionProfileID: profile.ID, Title: "Review", ExpiresAt: time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)}
@@ -90,7 +90,7 @@ func TestCustomerPackageNativeFixtureRechecksCurrentScopeAndPolicyForPreflight(t
 	if err := f.AuthorizeCreateCustomerSecurityPackage(t.Context(), human, in); !errors.Is(err, packageapp.ErrForbidden) {
 		t.Fatal("missing grant accepted", err)
 	}
-	missing := packageFixtureCommands{catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	missing := packageFixtureCommands{catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if err := missing.AuthorizeCreateCustomerSecurityPackage(t.Context(), owner.actor, in); !errors.Is(err, packageapp.ErrValidation) {
 		t.Fatal("missing repositories fell back", err)
 	}

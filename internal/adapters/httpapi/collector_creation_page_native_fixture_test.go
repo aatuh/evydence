@@ -39,7 +39,7 @@ func TestCollectorCreationNativeFixtureUsesExplicitCredentialsClockAndAtomicWrit
 	factory := &operatorQueryFailureFactory{base: base}
 	clock := &ssoFixtureRebindClock{at: peripheralFixtureQueryClock()}
 	clockReads := 0
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "unrelated", UnitOfWork: factory, Now: func() time.Time { clockReads++; return clock.at.Add(time.Hour) }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "unrelated", UnitOfWork: factory, Now: func() time.Time { clockReads++; return clock.at.Add(time.Hour) }})
 	clockReads = 0
 	credentials := &collectorCountingCredentials{credentials: fixtureSessionCredentials("issued-pepper")}
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, credentials: credentials, clock: clock}
@@ -101,7 +101,7 @@ func TestCollectorPageNativeFixtureReadsCurrentStateAndDiscardsFailedCommit(t *t
 	owner := seedIntegrationFixtureScope(t, ledger, "Owner")
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector page used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("collector page used aggregate clock") }})
 	f := collectorPageFixture{catalogFixtureCommands{ledger: rebound}}
 	req := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
 	before, err := base.Snapshot()
@@ -135,7 +135,7 @@ func TestCollectorPageNativeFixtureReadsCurrentStateAndDiscardsFailedCommit(t *t
 }
 
 func TestCollectorCreationNativeFixturePreservesBoundResourcesAndFailsWithoutRepositories(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
@@ -144,7 +144,7 @@ func TestCollectorCreationNativeFixturePreservesBoundResourcesAndFailsWithoutRep
 	server.bindCollectorFixtureResources("fixture-pepper", clock)
 	old := server.collectorCommands.(integrationFixtureCommands)
 	oldAuth := server.authn.(identityNativeFixtureAuthenticator)
-	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	server.bindLegacyLedgerFixture(second)
 	current := server.collectorCommands.(integrationFixtureCommands)
 	auth := server.authn.(identityNativeFixtureAuthenticator)
@@ -159,7 +159,7 @@ func TestCollectorCreationNativeFixturePreservesBoundResourcesAndFailsWithoutRep
 	if server.authn != customAuth || server.collectorCommands != customCommands {
 		t.Fatal("collector binding replaced explicit ports")
 	}
-	missing := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper"})
+	missing := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper"})
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: missing}}
 	a := domain.Actor{TenantID: "tenant", KeyID: "admin", Scopes: []string{"*"}}
 	in := integrationapp.CreateCollectorInput{Name: "Builder", Type: "generic_ci", Version: "1"}

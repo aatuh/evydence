@@ -9,8 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/aatuh/evydence/internal/app"
 )
 
 // Constructor-only dependencies: promoted methods are deliberately unusable.
@@ -234,7 +232,7 @@ func TestNativeServerInstallsNoAggregateOrLocalFallbackAndPreservesRoutes(t *tes
 	if s.authn != options.Authenticator || s.durableCommandExecutor != options.DurableCommandExecutor {
 		t.Fatal("native explicit dependencies not bound")
 	}
-	local, err := newLegacyServerFixtureWithOptionsContext(t.Context(), newLegacyLedgerFixture(app.Config{}), ServerOptions{PaginationSecret: options.PaginationSecret})
+	local, err := newLegacyServerFixtureWithOptionsContext(t.Context(), newLegacyLedgerFixture(repositoryFixtureConfig{}), ServerOptions{PaginationSecret: options.PaginationSecret})
 	if err != nil {
 		t.Fatal(err)
 	}

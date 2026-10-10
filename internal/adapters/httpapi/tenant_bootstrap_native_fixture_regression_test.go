@@ -53,7 +53,7 @@ func TestTenantBootstrapNativeFixtureCommitsIdentityAuditAndSigningKeyWithoutAgg
 	if err != nil || strings.Contains(string(public), secret) || strings.Contains(string(public), stored.Hash) {
 		t.Fatal("public bootstrap identity exposed credential material", err)
 	}
-	fresh := newLegacyLedgerFixture(app.Config{APIKeyPepper: "not-the-native-pepper", UnitOfWork: base, Now: func() time.Time { panic("authentication used aggregate clock") }})
+	fresh := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "not-the-native-pepper", UnitOfWork: base, Now: func() time.Time { panic("authentication used aggregate clock") }})
 	auth := fixtureIdentityAuthenticator(fresh, "fixture-bootstrap-pepper", clock)
 	actor, err := auth.Authenticate(t.Context(), secret)
 	if err != nil || actor.TenantID != tenant.ID || actor.KeyID != key.ID || !reflect.DeepEqual(actor.Scopes, []string{"*"}) {

@@ -109,7 +109,7 @@ var (
 )
 
 func TestIdentityQueryFixturesPreserveTenantIsolationAndAdminChecks(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
 	keys := apiKeyFixtureQuery{catalogFixtureCommands{ledger: ledger}}
 	roles := roleBindingFixtureQuery{catalogFixtureCommands{ledger: ledger}}

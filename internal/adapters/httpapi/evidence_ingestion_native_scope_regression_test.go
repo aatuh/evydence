@@ -19,7 +19,7 @@ func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
 	guardPhase := false
 	at := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time {
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time {
 		if guardPhase {
 			panic("ownership guard read aggregate clock")
 		}
@@ -120,7 +120,7 @@ func TestRepositoryIngestionScopeGuardsUseOneCurrentOwnershipOnlyTransaction(t *
 
 func TestRepositoryIngestionScopeGuardDoesNotFallbackAfterCommitOrRepositoryFailure(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	commands := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	input := evidenceapp.SBOMIngestionInput{ReleaseID: owner.release.ID, Format: "cyclonedx"}
@@ -161,13 +161,13 @@ func TestRepositoryIngestionScopeGuardDoesNotFallbackAfterCommitOrRepositoryFail
 }
 
 func TestRepositoryIngestionScopeBindingSurvivesRebindingAndPreservesExplicitPorts(t *testing.T) {
-	first := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	first := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	oldOwner := seedOperationsFixtureReferences(t, first, "First")
 	server, err := newLegacyServerFixture(first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	owner := seedOperationsFixtureReferences(t, second, "Second")
 	server.bindLegacyLedgerFixture(second)
 	for _, port := range []any{server.sbomIngestionCommands, server.vexIngestionCommands, server.openAPIIngestionCommands, server.scanIngestionCommands, server.securityDocumentCommands} {

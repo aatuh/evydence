@@ -14,7 +14,7 @@ import (
 func TestNativeBootstrapTestExecutorKeepsFailedCommitsAndCancellationPrivate(t *testing.T) {
 	base := app.NewMemoryUnitOfWorkFactory()
 	factory := &bundleWriteFailureFactory{base: base}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "wrong-cached-pepper", UnitOfWork: factory, Now: func() time.Time { panic("bootstrap executor used aggregate clock") }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "wrong-cached-pepper", UnitOfWork: factory, Now: func() time.Time { panic("bootstrap executor used aggregate clock") }})
 	f := tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
 	tenant, key, secret, err := f.BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Owner", "admin", []string{"*"})
 	if err != nil || tenant.ID == "" || key.ID == "" || key.TenantID != tenant.ID || key.Hash != "" || secret == "" {
@@ -82,7 +82,7 @@ func TestSharedScopeSeedsUseNativeIdentityWithoutAggregateCredentialsOrClock(t *
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
-			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "wrong-cached-pepper", UnitOfWork: factory, Now: func() time.Time { panic("shared seed used aggregate identity clock") }})
+			ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "wrong-cached-pepper", UnitOfWork: factory, Now: func() time.Time { panic("shared seed used aggregate identity clock") }})
 			actor := tc.seed(t, ledger, "Owner")
 			foreign := tc.seed(t, ledger, "Foreign")
 			snapshot, err := factory.Snapshot()
@@ -120,7 +120,7 @@ func TestIdentityFixtureRebindingPreservesExplicitAuthenticator(t *testing.T) {
 	}
 	explicit := &configuredAuthenticator{actor: actor}
 	server.authn = explicit
-	cold := newLegacyLedgerFixture(app.Config{APIKeyPepper: "unrelated-pepper"})
+	cold := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "unrelated-pepper"})
 	server.bindLegacyLedgerFixture(cold)
 	if server.authn != explicit {
 		t.Fatal("fixture rebinding replaced an explicit authenticator with aggregate authority")

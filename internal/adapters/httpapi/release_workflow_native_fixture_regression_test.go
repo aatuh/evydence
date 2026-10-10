@@ -58,7 +58,7 @@ func TestReleaseWorkflowNativeFixturesUseRepositoryOnlyParentsAndRollBackWriteCo
 				t.Fatal(err)
 			}
 			factory := &bundleWriteFailureFactory{base: base}
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("release workflow used aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("release workflow used aggregate clock") }})
 			reg := registrationFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 			life := lifecycleFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 			guard := func(ctx context.Context, a domain.Actor) error {

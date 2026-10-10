@@ -26,7 +26,7 @@ func TestCustomerAccessNativeFixtureUsesCurrentPackageWithoutAggregateClockAndCo
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("access used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("access used aggregate clock") }})
 	f := customerAccessFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{app.ScopePackageRead}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "customer_security_package", ResourceID: pkg.ID, Scopes: []string{app.ScopePackageRead}}}}
 	before, err := base.Snapshot()
@@ -87,7 +87,7 @@ func TestCustomerAccessNativeFixtureRejectsRevokedGrantsForeignScopeMissingRepos
 	if v, err := f.AccessCustomerSecurityPackage(t.Context(), foreign.actor, pkg.ID); !errors.Is(err, app.ErrNotFound) || !reflect.DeepEqual(v, packagedomain.CustomerSecurityPackage{}) {
 		t.Fatal("foreign package returned", err)
 	}
-	missing := customerAccessFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	missing := customerAccessFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if v, err := missing.AccessCustomerSecurityPackage(t.Context(), owner.actor, pkg.ID); !errors.Is(err, app.ErrValidation) || !reflect.DeepEqual(v, packagedomain.CustomerSecurityPackage{}) {
 		t.Fatal("missing repositories fell back", err)
 	}
@@ -140,8 +140,8 @@ func TestCustomerAccessNativeFixtureExpiryAndMalformedFrozenReportLeaveNoEffects
 }
 
 func TestCustomerAccessNativeFixtureBindingPreservesExplicitClockAndInjectedPorts(t *testing.T) {
-	first := newLegacyLedgerFixture(app.Config{APIKeyPepper: "first-fixture"})
-	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "second-fixture"})
+	first := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "first-fixture"})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "second-fixture"})
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	server := &Server{customerPackageAccessCommands: customerAccessFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: first}, clock: application.ClockFunc(func() time.Time { return now })}}
 	server.bindPackageFixturePorts(second)

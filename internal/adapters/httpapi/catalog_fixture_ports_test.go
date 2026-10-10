@@ -177,7 +177,7 @@ func (f *failingCatalogFixtureProduct) CreateProduct(ctx context.Context, actor 
 
 func TestCatalogFixtureReplayKeepsFailedWritesInsideTheCommandClone(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	clock := providerVerificationFixtureClock()
 	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("fixture-pepper"), clock}
 	_, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})

@@ -38,7 +38,7 @@ func TestSessionFixtureAPIKeyAuthenticationUsesCurrentRowsWithoutLedgerFallback(
 		t.Fatal(err)
 	}
 	factory := &bundleWriteFailureFactory{base: base}
-	cold := newLegacyLedgerFixture(app.Config{APIKeyPepper: "wrong-cached-pepper", UnitOfWork: factory, Now: func() time.Time { panic("session fixture used aggregate authentication clock") }})
+	cold := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "wrong-cached-pepper", UnitOfWork: factory, Now: func() time.Time { panic("session fixture used aggregate authentication clock") }})
 	f := fixtureSessionAuthenticator(cold, "current-pepper", clock)
 	before, err := base.Snapshot()
 	if err != nil {

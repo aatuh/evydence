@@ -32,7 +32,7 @@ func TestDiffNativeFixtureUsesCurrentSubjectsExplicitClockAndAtomicDetachedEffec
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("diff used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("diff used aggregate clock") }})
 	clock := &diffFixtureClock{at: time.Date(2026, 10, 9, 13, 0, 0, 0, time.UTC)}
 	f := ingestionDiffFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: clock}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{app.ScopeEvidenceRead}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{app.ScopeEvidenceRead}}}}
@@ -151,7 +151,7 @@ func TestDiffNativeFixtureRejectsForeignScopesRevokedGrantsAndPreservesRebindDep
 		t.Fatal("denied diff generated effects/time", err)
 	}
 	s := &Server{sbomDiffCommands: f, contractDiffCommands: f}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base})
 	s.bindDiffFixturePorts(rebound)
 	for _, port := range []any{s.sbomDiffCommands, s.contractDiffCommands} {
 		bound, ok := port.(ingestionDiffFixture)
@@ -165,7 +165,7 @@ func TestDiffNativeFixtureRejectsForeignScopesRevokedGrantsAndPreservesRebindDep
 	if s.sbomDiffCommands != explicitSBOM || s.contractDiffCommands != explicitContract {
 		t.Fatal("rebind replaced injected diff ports")
 	}
-	missing := ingestionDiffFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}, clock: clock}
+	missing := ingestionDiffFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}, clock: clock}
 	if err := missing.AuthorizeCreateSBOMDiff(t.Context(), owner.actor, si); !errors.Is(err, evidenceapp.ErrValidation) {
 		t.Fatal("missing repositories recovered from aggregate preflight", err)
 	}

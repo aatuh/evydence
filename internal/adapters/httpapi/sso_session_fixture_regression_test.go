@@ -307,7 +307,7 @@ func TestSSOSessionFixtureGuardsArePureCancellableAndKeepExplicitPorts(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
+	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(repositoryFixtureConfig{}))
 	if s.ssoSessionCommands != issue || s.ssoSessionRevocationCommands != revoke || s.ssoExchangeCommands != exchange {
 		t.Fatal("fixture binder replaced explicit session ports")
 	}

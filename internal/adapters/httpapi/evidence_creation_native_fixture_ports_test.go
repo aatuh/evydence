@@ -180,7 +180,7 @@ var _ EvidenceCreationCommands = evidenceCreationNativeFixture{}
 
 // Preserve existing fixture setup inputs while creating through the focused
 // service. This helper is test-only and never publishes a Ledger cache result.
-func createEvidenceFixture(ctx context.Context, ledger *repositoryFixture, actor domain.Actor, in app.CreateEvidenceInput) (domain.EvidenceItem, error) {
+func createEvidenceFixture(ctx context.Context, ledger *repositoryFixture, actor domain.Actor, in evidenceFixtureInput) (domain.EvidenceItem, error) {
 	refs := make([]evidencedomain.SubjectRef, 0, len(in.SubjectRefs))
 	for _, ref := range in.SubjectRefs {
 		refs = append(refs, evidencedomain.SubjectRef{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})

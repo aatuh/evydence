@@ -19,7 +19,7 @@ func TestEvidenceCreationFixtureUsesCurrentScopeAndExactCanonicalFieldsWithoutAg
 	ledger, base := integrationRegressionLedger()
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	factory := &bundleWriteFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("evidence creation used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("evidence creation used aggregate clock") }})
 	f := evidenceFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 	in := evidenceapp.CreateEvidenceInput{ProductID: owner.product.ID, Type: "manual", Subtype: "note", Title: "Recorded", PayloadHash: "sha256:" + strings.Repeat("a", 64), SourceSystem: "fixture", SourceIdentity: map[string]any{"run": json.Number("9007199254740993")}, Metadata: map[string]any{"nested": map[string]any{"number": json.Number("9007199254740993")}}, Tags: []string{"b", "a"}, Limitations: []string{"recorded evidence only"}}
 	before, err := base.Snapshot()
@@ -90,7 +90,7 @@ func TestEvidenceCreationFixtureRejectsMissingRepositoryForeignScopeRemovedGrant
 	if v, err := f.CreateEvidence(ctx, owner.actor, in); !errors.Is(err, context.Canceled) || !reflect.DeepEqual(v, evidencedomain.EvidenceItem{}) {
 		t.Fatal("cancelled creation returned evidence", err)
 	}
-	bare := evidenceFixtureCommands{catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	bare := evidenceFixtureCommands{catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if v, err := bare.CreateEvidence(t.Context(), owner.actor, in); !errors.Is(err, app.ErrValidation) || !reflect.DeepEqual(v, evidencedomain.EvidenceItem{}) {
 		t.Fatal("missing repository restored aggregate creation", err)
 	}

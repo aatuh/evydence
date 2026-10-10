@@ -18,7 +18,7 @@ func TestControlNativeWriteFixtureUsesCurrentParentsAndAtomicHumanAudits(t *test
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	factory := &operatorQueryFailureFactory{base: base}
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("control write used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("control write used aggregate clock") }})
 	f := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: clock}
 	a := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"controls:admin", "controls:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"controls:admin"}}, {ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"controls:write"}}}}
 	in := riskapp.CreateControlFrameworkInput{Name: " Manual ", Version: " 1 ", Description: " Guidance "}
@@ -96,7 +96,7 @@ func TestControlNativeWriteFixtureInstallsCompleteTemplateAtomically(t *testing.
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
 	factory := &operatorQueryFailureFactory{base: base}
-	f := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("template used aggregate clock") }})}, clock: clock}
+	f := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("template used aggregate clock") }})}, clock: clock}
 	pack := riskdomain.BuiltinTemplatePacks()[0]
 	if err := f.AuthorizeControlTemplateInstallation(t.Context(), owner.actor, pack.Slug); err != nil || clock.calls != 0 {
 		t.Fatal("template guard used effects or lost current tenant", err)
@@ -152,7 +152,7 @@ func TestControlNativeWriteFixtureRejectsForeignReferencesRevokedGrantsAndMissin
 	ledger, base := integrationRegressionLedger()
 	owner := seedControlFixtureScope(t, ledger, "Owner")
 	foreign := seedControlFixtureScope(t, ledger, "Foreign")
-	f := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base})}, clock: &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}}
+	f := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base})}, clock: &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}}
 	before, err := base.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -175,7 +175,7 @@ func TestControlNativeWriteFixtureRejectsForeignReferencesRevokedGrantsAndMissin
 	if _, err := f.LinkControlEvidence(t.Context(), human, owner.control.ID, riskapp.LinkControlEvidenceInput{EvidenceType: "build", SubjectType: "evidence", SubjectID: owner.evidence.ID, Confidence: "high"}); !errors.Is(err, app.ErrForbidden) {
 		t.Fatal("revoked subject grant accepted", err)
 	}
-	bare := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	bare := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if _, err := bare.CreateControlFramework(t.Context(), owner.actor, riskapp.CreateControlFrameworkInput{Name: "No repository", Version: "1"}); !errors.Is(err, app.ErrValidation) {
 		t.Fatal("missing repository restored aggregate write", err)
 	}

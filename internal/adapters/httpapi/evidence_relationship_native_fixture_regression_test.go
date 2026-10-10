@@ -29,16 +29,16 @@ func TestEvidenceRelationshipNativeFixturesUseCurrentScopeWithoutAggregateClockA
 			if err != nil {
 				t.Fatal(err)
 			}
-			secondOriginal, err := createEvidenceFixture(t.Context(), ledger, owner.actor, app.CreateEvidenceInput{ProductID: owner.product.ID, Type: "manual", Title: "Second original", PayloadHash: owner.original.PayloadHash})
+			secondOriginal, err := createEvidenceFixture(t.Context(), ledger, owner.actor, evidenceFixtureInput{ProductID: owner.product.ID, Type: "manual", Title: "Second original", PayloadHash: owner.original.PayloadHash})
 			if err != nil {
 				t.Fatal(err)
 			}
-			secondReplacement, err := createEvidenceFixture(t.Context(), ledger, owner.actor, app.CreateEvidenceInput{ProductID: owner.product.ID, Type: "manual", Title: "Second replacement", PayloadHash: owner.replacement.PayloadHash})
+			secondReplacement, err := createEvidenceFixture(t.Context(), ledger, owner.actor, evidenceFixtureInput{ProductID: owner.product.ID, Type: "manual", Title: "Second replacement", PayloadHash: owner.replacement.PayloadHash})
 			if err != nil {
 				t.Fatal(err)
 			}
 			factory := &bundleWriteFailureFactory{base: base}
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("relationship used aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("relationship used aggregate clock") }})
 			f := evidenceFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 			input := evidenceapp.RecordLifecycleInput{Action: "amendment", Reason: "reviewed", Details: map[string]any{"sequence": json.Number("9007199254740993"), "secret": "private-value"}}
 			guard := func(ctx context.Context, a domain.Actor, original, replacement string) error {

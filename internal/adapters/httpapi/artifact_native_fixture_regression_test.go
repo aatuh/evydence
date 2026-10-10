@@ -35,7 +35,7 @@ func seedArtifactNativeFixture(t *testing.T, ledger *repositoryFixture, owner op
 
 func TestArtifactNativeFixtureUsesRepositoryOnlyPointCurrentAssociationsAndGrants(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
 	a := seedArtifactNativeFixture(t, ledger, owner)
@@ -93,7 +93,7 @@ func TestArtifactNativeFixtureUsesRepositoryOnlyPointCurrentAssociationsAndGrant
 
 func TestArtifactNativeFixtureDiscardsPointAndGrantOnCommitFailure(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	a := seedArtifactNativeFixture(t, ledger, owner)
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: &configuredAuthenticator{actor: owner.actor}})

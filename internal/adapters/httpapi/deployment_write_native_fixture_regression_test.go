@@ -20,7 +20,7 @@ func TestDeploymentWriteNativeFixturesUseCurrentStateExplicitTimeAndAtomicEffect
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("deployment command used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("deployment command used aggregate clock") }})
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 123456000, time.UTC)}
 	f := deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: clock}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"deployment:write"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"deployment:write"}}}}
@@ -93,7 +93,7 @@ func TestDeploymentWriteNativeFixturesDenyForeignAndRevokedScopeAndPreserveBindi
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("native deployment used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("native deployment used aggregate clock") }})
 	clock := &evidenceFlowFixtureClock{at: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}
 	f := deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, clock: clock}
 	before, err := base.Snapshot()
@@ -126,7 +126,7 @@ func TestDeploymentWriteNativeFixturesDenyForeignAndRevokedScopeAndPreserveBindi
 	if !ok || bound.ledger != rebound || bound.clock != clock || s.deploymentCommands != explicit {
 		t.Fatal("rebind discarded explicit clock or replaced injected command")
 	}
-	bare := deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}}
+	bare := deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}}
 	if v, err := bare.CreateDeploymentEnvironment(t.Context(), owner.actor, input); !errors.Is(err, app.ErrValidation) || v != (operationsdomain.DeploymentEnvironment{}) {
 		t.Fatal("missing repositories restored cached creation", err)
 	}
@@ -169,7 +169,7 @@ func TestDeploymentWriteNativeFixturesBindArtifactRollbackAndCurrentReleaseScope
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("deployment reference checks used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("deployment reference checks used aggregate clock") }})
 	f := deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	env, err := f.CreateDeploymentEnvironment(t.Context(), owner.actor, operationsapp.CreateEnvironmentInput{ProductID: owner.product.ID, Name: "Production", Kind: "production"})
 	if err != nil {

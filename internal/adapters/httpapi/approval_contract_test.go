@@ -13,7 +13,7 @@ import (
 
 func TestApprovalHTTPAcceptsPublishedEnumWithoutChangingLifecycle(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	if err != nil {
 		t.Fatal(err)
 	}

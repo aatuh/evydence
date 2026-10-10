@@ -11,7 +11,7 @@ import (
 
 func TestPackageReportNativeFixturesRetainClockAndDiscardProjectionOnCommitFailure(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedPackageReportFixtureScope(t, ledger, "Owner")
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
@@ -19,7 +19,7 @@ func TestPackageReportNativeFixturesRetainClockAndDiscardProjectionOnCommitFailu
 	}
 	clock := &evidenceFlowFixtureClock{at: owner.release.CreatedAt}
 	server.bindPackageReportFixtureClock(clock.Now)
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("native report consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory, Now: func() time.Time { panic("native report consulted aggregate clock") }})
 	server.bindLegacyLedgerFixture(rebound)
 	coverage, err := server.controlCoverageQuery.CRAReadiness(t.Context(), owner.actor, owner.product.ID, owner.release.ID)
 	if err != nil || len(coverage.AcceptedExceptions) != 1 || !coverage.GeneratedAt.Equal(clock.at) {

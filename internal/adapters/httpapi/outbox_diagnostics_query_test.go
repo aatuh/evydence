@@ -32,7 +32,7 @@ func (f *outboxDiagnosticsQueryFake) Diagnostics(context.Context, identitydomain
 
 func TestOutboxDiagnosticsHandlerUsesFocusedQueryWithoutLedgerOperator(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
 	_, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Instance", "instance-admin", []string{app.ScopeInstanceAdmin})
 	if err != nil {
@@ -60,7 +60,7 @@ func TestOutboxDiagnosticsHandlerMapsFocusedQueryErrors(t *testing.T) {
 		{errors.New("private database detail"), http.StatusInternalServerError},
 	} {
 		factory := app.NewMemoryUnitOfWorkFactory()
-		ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+		ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 		bootstrap := tenantBootstrapNativeFixture{factory, fixtureSessionCredentials("test"), providerVerificationFixtureClock()}
 		_, _, secret, err := bootstrap.BootstrapTenant(t.Context(), "Instance", "instance-admin", []string{app.ScopeInstanceAdmin})
 		if err != nil {

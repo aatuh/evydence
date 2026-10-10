@@ -21,7 +21,7 @@ func TestSigningAdministrationNativeFixtureUsesCurrentRepositoriesWithoutAggrega
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("signing administration used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("signing administration used aggregate clock") }})
 	f := signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	guard := f
 	guard.clock = application.ClockFunc(func() time.Time { panic("signing replay guard allocated time") })
@@ -64,7 +64,7 @@ func TestSigningAdministrationNativeFixtureTrustCreationAndCommitFailureAreAtomi
 	ledger, base := integrationRegressionLedger()
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	failure := &bundleWriteFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: failure, Now: func() time.Time { panic("trust creation used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: failure, Now: func() time.Time { panic("trust creation used aggregate clock") }})
 	f := signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	provider, err := f.CreateSigningProvider(t.Context(), owner.actor, verificationapp.CreateSigningProviderInput{Name: "Recorded KMS", Type: "aws_kms", KeyRef: "public-key-reference", Encrypted: true})
 	if err != nil || provider.ID == "" || provider.TenantID != owner.actor.TenantID || provider.Type != "aws_kms" {
@@ -129,8 +129,8 @@ func TestSigningAdministrationNativeFixtureTrustCreationAndCommitFailureAreAtomi
 }
 
 func TestSigningAdministrationNativeFixtureBindingPreservesClockAndInjectedPorts(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
-	old := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
+	old := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	at := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	f := signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: old}, clock: application.ClockFunc(func() time.Time { return at })}
 	s := &Server{signingKeyCommands: f, trustConfigurationCommands: f}
@@ -150,7 +150,7 @@ func TestSigningAdministrationNativeFixtureBindingPreservesClockAndInjectedPorts
 }
 
 func TestSigningAdministrationNativeFixtureRejectsMissingRepositoriesAndRevokedGrants(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	f := signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	actor := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{app.ScopeKeysAdmin}}
 	if err := f.AuthorizeTrustConfiguration(t.Context(), actor); !errors.Is(err, app.ErrValidation) {

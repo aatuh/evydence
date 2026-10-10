@@ -137,7 +137,7 @@ func apiKeyTestServer(t *testing.T) (*Server, string) {
 
 func TestAPIKeyFixtureGuardUsesRealPolicyWithoutIssuance(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Fixture", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func TestAPIKeyFixtureGuardUsesRealPolicyWithoutIssuance(t *testing.T) {
 
 func TestAPIKeyFixtureGuardUsesRepositoryTenantWithoutCredentialInventory(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	if err := ledger.ExecuteUnitOfWork(t.Context(), func(ctx context.Context, r app.Repositories) error {
 		return r.Identity.InsertTenant(ctx, domain.Tenant{ID: "repository-tenant", Name: "Repository Tenant", CreatedAt: peripheralFixtureQueryClock()})
 	}); err != nil {
@@ -234,7 +234,7 @@ func (f *failingAPIKeyFixtureCommand) CreateAPIKey(ctx context.Context, actor id
 
 func TestAPIKeyFixtureReplayRollsBackFailedIssuanceAndRechecksAuthority(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Fixture", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)

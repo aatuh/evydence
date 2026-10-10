@@ -41,7 +41,7 @@ func TestReleaseBundleCreationNativeFixtureUsesCurrentSnapshotKeyAndAtomicWrites
 	ledger, base := integrationRegressionLedger()
 	owner := seedControlFixtureScope(t, ledger, "Owner")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("bundle creation used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("bundle creation used aggregate clock") }})
 	f := packageFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 	before, err := base.Snapshot()
 	if err != nil {
@@ -77,7 +77,7 @@ func TestReleaseBundleCreationNativeFixtureUsesCurrentSnapshotKeyAndAtomicWrites
 	}
 	factory.fail = false
 	writeFailure := &bundleWriteFailureFactory{base: base}
-	writer := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: writeFailure})
+	writer := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: writeFailure})
 	writeFailure.failAt = writeFailure.begins + 3 // Snapshot, signing, then write commit.
 	if value, err := (releaseBundleFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: writer}}).CreateReleaseBundle(t.Context(), owner.actor, owner.release.ID); err == nil || !reflect.DeepEqual(value, packagedomain.ReleaseBundle{}) || writeFailure.begins != writeFailure.failAt {
 		t.Fatal("write-phase failure did not roll back after real signing", err)
@@ -106,7 +106,7 @@ func TestReleaseBundleVerificationNativeFixtureUsesCurrentRowsAndAtomicReceipt(t
 		t.Fatal(err)
 	}
 	factory := &bundleWriteFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("bundle verifier consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("bundle verifier consulted aggregate clock") }})
 	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	before, err := base.Snapshot()
 	if err != nil {

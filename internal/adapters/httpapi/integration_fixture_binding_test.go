@@ -7,8 +7,8 @@ import (
 )
 
 func TestIntegrationFixtureRebindingPreservesExplicitDependenciesOnEveryPort(t *testing.T) {
-	first := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
-	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	first := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	clock := &ssoFixtureRebindClock{at: peripheralFixtureQueryClock()}
 	credentials := &collectorCountingCredentials{credentials: fixtureSessionCredentials("fixture")}
 	configured := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: first}, clock: clock, credentials: credentials}
@@ -23,7 +23,7 @@ func TestIntegrationFixtureRebindingPreservesExplicitDependenciesOnEveryPort(t *
 }
 
 func TestIntegrationFixtureBindingPreservesExplicitPortsAndInitializesMissingPorts(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
 	f := &failingIntegrationFixture{integrationFixtureCommands: integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 	s := &Server{collectorCommands: f, sourceRepositoryCommands: f, sourceCommitCommands: f, sourceBranchCommands: f, pullRequestCommands: f, sourceSnapshotCommands: f}
 	s.bindIntegrationFixtureCommands(ledger)

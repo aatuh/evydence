@@ -44,7 +44,7 @@ func seedCatalogNativeBuildCandidate(t *testing.T, ledger *repositoryFixture, ow
 
 func TestCatalogBuildCandidateNativeQueriesUseRepositoryOnlyDTOsCurrentGrantsAndPages(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
 	b, c := seedCatalogNativeBuildCandidate(t, ledger, owner)
@@ -129,7 +129,7 @@ func TestCatalogBuildCandidateNativeQueriesUseRepositoryOnlyDTOsCurrentGrantsAnd
 
 func TestCatalogBuildCandidateNativeQueriesDiscardResultsOnCommitFailure(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	b, c := seedCatalogNativeBuildCandidate(t, ledger, owner)
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: &configuredAuthenticator{actor: owner.actor}})

@@ -35,7 +35,7 @@ func signatureRegressionLedger(t *testing.T) (*repositoryFixture, *app.MemoryUni
 	}
 	objects := &signatureFixtureStore{Store: store}
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, ObjectStore: objects, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, ObjectStore: objects, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
 	return ledger, factory, objects
 }
 
@@ -52,7 +52,7 @@ func seedSignatureFixtureScope(t *testing.T, ledger *repositoryFixture, name str
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := createEvidenceFixture(t.Context(), ledger, f.actor, app.CreateEvidenceInput{ProductID: f.product.ID, Type: "manual", Title: "Artifact association", PayloadHash: "sha256:" + strings.Repeat("d", 64), SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: f.artifact.ID, Digest: f.artifact.Digest}}}); err != nil {
+	if _, err := createEvidenceFixture(t.Context(), ledger, f.actor, evidenceFixtureInput{ProductID: f.product.ID, Type: "manual", Title: "Artifact association", PayloadHash: "sha256:" + strings.Repeat("d", 64), SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: f.artifact.ID, Digest: f.artifact.Digest}}}); err != nil {
 		t.Fatal(err)
 	}
 	return f

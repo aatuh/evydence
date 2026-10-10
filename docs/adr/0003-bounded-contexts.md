@@ -6,8 +6,10 @@ services. EVY-904 has added focused Decision, Package, and Verification
 services and moved their migrated HTTP workflows behind context-specific
 interfaces. EVY-905 implemented shared explicit runtime composition and bounded
 database-backed command/query ports; native API and worker daemon wiring no
-longer reconstruct the production Ledger. Physical legacy-facade retirement and
-dependency enforcement remain EVY-906.
+longer reconstruct the production Ledger. The aggregate type/configuration,
+constructor, maps/locks and remaining receiver methods are now historical
+test-only oracles. Import-direction and source retirement checks are implemented;
+required full/race/production/live validation remains EVY-906 work.
 
 Detailed transition notes below are historical migration checkpoints. Their
 pending EVY-905 startup/query/wrapper claims are superseded by the

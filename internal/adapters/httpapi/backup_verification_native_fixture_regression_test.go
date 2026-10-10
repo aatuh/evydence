@@ -98,7 +98,7 @@ func TestBackupVerificationNativeFixtureReadsCurrentRecordedFactsWithoutAggregat
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("backup verification used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("backup verification used aggregate clock") }})
 	f := verificationReadFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 	v, err := f.VerifyBackupManifest(t.Context(), owner.actor, backup.ID)
 	if err != nil || v.ID == "" || v.Result.String() != "passed" || len(v.Checks) != 2 || v.Checks[0].Name != "recorded_chain" || v.Checks[1].Name != "backup_manifest_present" || v.Profile.PayloadDigest != backup.StateHash || v.Profile.TransparencyProof != "not_evaluated" || len(v.Profile.Limitations) == 0 {
@@ -115,7 +115,7 @@ func TestBackupVerificationNativeFixtureRetainsNegativeReceiptsAndCommitRollback
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	backup := seedBackupVerificationFixture(t, base, owner.actor.TenantID, "backup", "failed")
 	factory := &bundleWriteFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory})
 	f := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	v, err := f.VerifySubject(t.Context(), owner.actor, "backup_manifest", backup.ID)
 	if !errors.Is(err, app.ErrVerificationFailed) || v.Result.String() != "failed" || len(v.Checks) != 2 || v.Checks[0].Result != "failed" || v.Profile.TransparencyProof != "not_evaluated" {

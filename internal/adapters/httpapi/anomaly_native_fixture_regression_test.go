@@ -13,7 +13,7 @@ import (
 func TestAnomalyFixtureReadsRepositoryFactsWithoutAggregatePublication(t *testing.T) {
 	ledger, factory, _, _ := reportSigningRegressionLedger(t)
 	owner := seedReportSigningFixtureScope(t, ledger, "Native")
-	source, err := createEvidenceFixture(t.Context(), ledger, owner.actor, app.CreateEvidenceInput{ProductID: owner.product.ID, ReleaseID: owner.release.ID, Type: "vulnerability_scan", Title: "Scan metadata", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	source, err := createEvidenceFixture(t.Context(), ledger, owner.actor, evidenceFixtureInput{ProductID: owner.product.ID, ReleaseID: owner.release.ID, Type: "vulnerability_scan", Title: "Scan metadata", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}

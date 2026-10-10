@@ -65,7 +65,7 @@ func seedRiskQueryFixtureScope(t *testing.T, ledger *repositoryFixture, name str
 
 func TestRiskQueryFixturesPreserveTenantFiltersPrivacyPagingAndReadOnlyState(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 15, 0, 0, 0, time.UTC) }})
 	owners := []riskQueryFixtureScope{seedRiskQueryFixtureScope(t, ledger, "Alpha"), seedRiskQueryFixtureScope(t, ledger, "Bravo")}
 	decisions := decisionQueryFixture{catalogFixtureCommands{ledger: ledger}}
 	exceptions := exceptionQueryFixture{catalogFixtureCommands{ledger: ledger}}

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/app"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -30,7 +29,7 @@ func TestSSOExchangeTransportRejectsAmbiguousBodiesBeforeCredentialVerification(
 		"{\"provider_id\":\"p\",\"subject\":\"s\",\"id_token\":\"\xff\"}",
 	} {
 		f := &exchangeTransportStub{}
-		s, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(app.Config{}), ServerOptions{SSOExchangeCommands: f})
+		s, err := newLegacyServerFixtureWithOptions(newLegacyLedgerFixture(repositoryFixtureConfig{}), ServerOptions{SSOExchangeCommands: f})
 		if err != nil {
 			t.Fatal(err)
 		}

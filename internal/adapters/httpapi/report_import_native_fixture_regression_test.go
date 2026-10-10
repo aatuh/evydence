@@ -24,7 +24,7 @@ func TestReportImportNativeFixturesUseCurrentRepositoriesWithoutAggregateStateOr
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("report/import used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("report/import used aggregate clock") }})
 	f := packageFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 	render := packageapp.RenderReportInput{TemplateID: template.ID, SubjectType: " release ", SubjectID: " nonexistent-label "}
 	bundle, err := decodeBundleImport([]byte(bundleImportNativeBody(t)))
@@ -163,8 +163,8 @@ func TestReportImportNativeFixturesRejectRevokedScopeForeignTemplateAndCancellat
 }
 
 func TestReportImportNativeFixturesRequireRepositoriesAndPreserveInjectedDependencies(t *testing.T) {
-	first := newLegacyLedgerFixture(app.Config{APIKeyPepper: "first-fixture"})
-	second := newLegacyLedgerFixture(app.Config{APIKeyPepper: "second-fixture"})
+	first := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "first-fixture"})
+	second := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "second-fixture"})
 	actor := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{app.ScopeReportRead, app.ScopeBundleWrite}}
 	f := packageFixtureCommands{catalogFixtureCommands{ledger: first}}
 	in := packageapp.CreateReportTemplateInput{Name: "Definition", Version: "1", ReportType: "metadata", AllowedFields: []string{"subject_id"}}

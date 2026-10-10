@@ -31,7 +31,7 @@ func (s *repositoryFixtureStateTrap) SaveState(context.Context, app.PersistedSta
 func TestRepositoryFixtureConstructionNeverLoadsAggregateState(t *testing.T) {
 	store := &repositoryFixtureStateTrap{}
 	factory := app.NewMemoryUnitOfWorkFactory()
-	fixture, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{UnitOfWork: factory, Store: store})
+	fixture, err := newLegacyLedgerFixtureWithContext(t.Context(), repositoryFixtureConfig{UnitOfWork: factory, Store: store})
 	if err != nil || fixture == nil || store.loads != 0 || store.saves != 0 {
 		t.Fatal("repository-only fixture still constructs or loads an aggregate", err)
 	}
@@ -81,7 +81,7 @@ func TestHTTPTestFixturesDoNotReferenceAggregateType(t *testing.T) {
 		inspected++
 		ast.Inspect(file, func(node ast.Node) bool {
 			selector, ok := node.(*ast.SelectorExpr)
-			if !ok || selector.Sel.Name != "Ledger" {
+			if !ok || selector.Sel.Name != "Ledger" && selector.Sel.Name != "Config" {
 				return true
 			}
 			if qualifier, ok := selector.X.(*ast.Ident); ok && qualifier.Name == "app" {
@@ -99,7 +99,7 @@ func TestRepositoryFixtureReplayUsesOneActualTransactionAndCurrentAuthority(t *t
 	base := app.NewMemoryUnitOfWorkFactory()
 	factory := &operatorQueryFailureFactory{base: base}
 	store := &repositoryFixtureStateTrap{}
-	fixture, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{UnitOfWork: factory, Store: store})
+	fixture, err := newLegacyLedgerFixtureWithContext(t.Context(), repositoryFixtureConfig{UnitOfWork: factory, Store: store})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestRepositoryFixtureReplayUsesOneActualTransactionAndCurrentAuthority(t *t
 
 func TestRepositoryFixtureFirstDeliveryResponseGuardRollsBackActualWrites(t *testing.T) {
 	base := app.NewMemoryUnitOfWorkFactory()
-	fixture := newLegacyLedgerFixture(app.Config{UnitOfWork: base})
+	fixture := newLegacyLedgerFixture(repositoryFixtureConfig{UnitOfWork: base})
 	owner := seedEvidenceFixtureScope(t, fixture, "Owner")
 	commands := catalogFixtureCommands{ledger: fixture}
 	executor := catalogFixtureReplayExecutor{ledger: fixture}

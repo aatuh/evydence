@@ -23,7 +23,7 @@ func TestArtifactSignatureNativeCommandUsesCurrentRepositoryClockAndAtomicEffect
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("signature creation used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("signature creation used aggregate clock") }})
 	commands := artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, objects: objects}
 	input := verificationapp.CreateArtifactSignatureInput{ArtifactID: owner.artifact.ID, Algorithm: "cosign", KeyID: "public-key", Signature: "recorded", RawPayload: []byte(`{"private":"native-command-payload"}`), PayloadMediaType: "application/json"}
 	before, err := base.Snapshot()
@@ -60,14 +60,14 @@ func TestArtifactSignatureNativeCommandUsesCurrentRepositoryClockAndAtomicEffect
 func TestArtifactSignatureNativeCommandRequiresRepositoryAndPreservesExplicitResources(t *testing.T) {
 	ledger, factory, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
-	bare := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", Now: func() time.Time { panic("missing-repository command used aggregate clock") }})
+	bare := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", Now: func() time.Time { panic("missing-repository command used aggregate clock") }})
 	commands := artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: bare}, objects: objects}
 	input := verificationapp.CreateArtifactSignatureInput{ArtifactID: owner.artifact.ID, Algorithm: "cosign", Signature: "recorded", RawPayload: []byte(`{"private":"unstaged"}`), PayloadMediaType: "application/json"}
 	value, err := commands.CreateArtifactSignature(t.Context(), owner.actor, input)
 	if !errors.Is(err, app.ErrValidation) || value != (verificationdomain.ArtifactSignature{}) || objects.stages != 0 {
 		t.Fatal("missing repository restored aggregate creation or staged bytes", err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("native command used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("native command used aggregate clock") }})
 	explicit := &artifactSignatureQueryFake{}
 	server := &Server{artifactSignatureCommands: artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, objects: objects}, artifactSignatureQuery: explicit}
 	server.bindArtifactSignatureFixturePorts(rebound)
@@ -90,7 +90,7 @@ func TestArtifactSignatureNativeFixtureUsesCurrentRepositoryAndReturnsNothingOnF
 		t.Fatal(err)
 	}
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, ObjectStore: &signatureQueryObjectTrap{objects}, Now: func() time.Time { panic("signature metadata query used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, ObjectStore: &signatureQueryObjectTrap{objects}, Now: func() time.Time { panic("signature metadata query used aggregate clock") }})
 	query := artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}}
 	before, err := base.Snapshot()
 	if err != nil {
@@ -112,7 +112,7 @@ func TestArtifactSignatureNativeFixtureUsesCurrentRepositoryAndReturnsNothingOnF
 }
 
 func TestArtifactSignatureNativeFixtureRequiresRepositoryAndPreservesExplicitPort(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", Now: func() time.Time { panic("signature query used aggregate clock") }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", Now: func() time.Time { panic("signature query used aggregate clock") }})
 	query := artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	actor := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"evidence:read"}}
 	value, err := query.GetArtifactSignature(t.Context(), actor, "signature")

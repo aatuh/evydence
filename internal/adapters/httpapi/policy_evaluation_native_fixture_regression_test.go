@@ -15,13 +15,13 @@ import (
 
 func TestPolicyEvaluationFixtureUsesCurrentRepositoryAndCommitsEvaluationWithAudit(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) }})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) }})
 	owner := seedRiskQueryFixtureScope(t, ledger, "Owner")
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) }})
 	server.bindLegacyLedgerFixture(rebound)
 	server.authn = &configuredAuthenticator{actor: owner.actor}
 	body := []byte(fmt.Sprintf(`{"release_id":%q}`, owner.release.ID))
@@ -73,9 +73,9 @@ func TestPolicyEvaluationFixtureUsesCurrentRepositoryAndCommitsEvaluationWithAud
 
 func TestPolicyEvaluationFixtureCommandIgnoresAggregateClockAndReturnsNoResultOnCommitFailure(t *testing.T) {
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory})
 	owner := seedRiskQueryFixtureScope(t, ledger, "Owner")
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("policy command consulted aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("policy command consulted aggregate clock") }})
 	commands := riskCommandFixture{catalogFixtureCommands{ledger: rebound}}
 	if err := commands.AuthorizeEvaluateRelease(t.Context(), owner.actor, owner.release.ID); err != nil {
 		t.Fatal("native policy guard could not use current repository", err)

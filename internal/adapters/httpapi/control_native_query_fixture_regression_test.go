@@ -19,7 +19,7 @@ func TestControlNativeQueryFixtureUsesCurrentRepositoriesAndDiscardsFailedCommit
 	owner := seedControlFixtureScope(t, ledger, "Owner")
 	foreign := seedControlFixtureScope(t, ledger, "Foreign")
 	factory := &operatorQueryFailureFactory{base: base}
-	rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("control read used aggregate clock") }})
+	rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("control read used aggregate clock") }})
 	f := controlReadFixture{catalogFixtureCommands{ledger: rebound}}
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{"controls:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"controls:read"}}}}
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
@@ -83,7 +83,7 @@ func TestControlNativeQueryFixtureUsesCurrentRepositoriesAndDiscardsFailedCommit
 }
 
 func TestControlNativeQueryFixtureRequiresRepositoriesAndKeepsExplicitPorts(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})
+	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})
 	f := controlReadFixture{catalogFixtureCommands{ledger: ledger}}
 	a := domain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"controls:read"}}
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}

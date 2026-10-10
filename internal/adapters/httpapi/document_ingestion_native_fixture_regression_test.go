@@ -79,7 +79,7 @@ func TestDocumentIngestionNativeFixtureUsesExplicitResourcesAndAtomicDigestBound
 				t.Fatal(err)
 			}
 			factory := &operatorQueryFailureFactory{base: base}
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("document ingestion used aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("document ingestion used aggregate clock") }})
 			clock := &diffFixtureClock{at: time.Date(2026, 10, 9, 15, 0, 0, 0, time.UTC)}
 			f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: rebound}, objects: objects, clock: clock}
 			human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "human", Scopes: []string{app.ScopeEvidenceWrite}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{app.ScopeEvidenceWrite}}}}
@@ -280,7 +280,7 @@ func TestDocumentIngestionNativeFixtureKeepsExplicitParserPolicyAndNoStorageSema
 					f.objects = objects
 				}
 				s := &Server{sbomIngestionCommands: f, openAPIIngestionCommands: f}
-				rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound document used aggregate clock") }})
+				rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("rebound document used aggregate clock") }})
 				s.bindIngestionFixturePorts(rebound)
 				for _, port := range []any{s.sbomIngestionCommands, s.openAPIIngestionCommands} {
 					bound, ok := port.(ingestionFixtureCommands)
@@ -397,7 +397,7 @@ func TestDocumentIngestionNativeFixtureRejectsChangedRepeatableBytesAndUntrusted
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("failed staging published evidence/document/audit/jobs", err)
 	}
-	missing := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture"})}, objects: objects, clock: clock}
+	missing := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture"})}, objects: objects, clock: clock}
 	if err := tc.preflight(t.Context(), missing, owner.actor, owner.product.ID, release.ID, owner.artifact.ID); !errors.Is(err, evidenceapp.ErrValidation) {
 		t.Fatal("missing repository preflight fell back to Ledger", err)
 	}

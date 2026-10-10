@@ -5,7 +5,7 @@ Evydence follows a ports-and-adapters shape:
 - `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain` contains the context-owned core models and schema constants.
 - `internal/{identity,release,evidence}/app` owns the focused Identity, Release, and Evidence command services implemented by EVY-903.
 - `internal/domain` supplies compatibility DTOs at HTTP, persistence, and legacy-facade boundaries while callers migrate.
-- `internal/app` is the deprecated Ledger compatibility facade, the shared transaction and storage port surface, and the temporary home of contexts not yet migrated.
+- `internal/app` contains shared transaction/storage ports, stateless compatibility/validation helpers and the memory test backend. The Ledger aggregate, configuration, constructor, maps, locks, methods and snapshot/replay forwarding are historical test-only oracles, not a production command/query surface.
 - `internal/adapters/httpapi` adapts application services to HTTP and OpenAPI; migrated Identity, Release, Evidence, Decision, Package, and Verification handlers depend on context-specific interfaces.
 - `internal/adapters/postgres` provides the durable ledger-state store, migration runner, tenant-scoped relational resource projection, and persisted outbox.
 - `internal/platform/wiring` validates the PostgreSQL-only API/worker runtime, opens database and object-store adapters, and composes the API's focused durable authentication/command/query ports. Retired local-memory input fails before resources are opened.
@@ -42,8 +42,8 @@ oracles. API-key and SSO token prefixes,
 32-byte URL-safe entropy, prefix selection and persisted hashes are unchanged.
 The session fixture's API-key branch also reads current repositories and commits
 credential activity before returning a principal; it has no cached fallback.
-These fixture checks do not prove PostgreSQL locks or durability; worker,
-state, snapshot and remaining aggregate cleanup keep EVY-906 open.
+These fixture checks do not prove PostgreSQL locks or durability; required
+full-ticket validation keeps EVY-906 open.
 
 HTTP fixture setup no longer calls Ledger bootstrap or authentication facades.
 Shared evidence, membership, integration and operations seeds compose the real
@@ -82,8 +82,7 @@ partial memory snapshot or proof of the PostgreSQL profile. Guards and saved
 replays do not read that commitment. Foreign, malformed and inconsistent
 commitments, cancellation and final commit failure return no manifest or partial
 effects. The complete 98-resource reader and SQL recovery behavior require live
-PostgreSQL validation; physical worker/state/snapshot retirement and ticket-wide
-gates still keep EVY-906 open.
+PostgreSQL validation; ticket-wide gates still keep EVY-906 open.
 
 Legacy worker inventory refresh/merge, parser-normalization cache publication,
 cached chain/checkpoint inspection, backup resource counting and cached context
@@ -96,8 +95,7 @@ malformed IDs, foreign tenant/evidence links, invalid parsed shapes and parent
 relationships across SBOM, scan, OpenAPI, VEX and attestation records. Existing
 legacy merge, append-only audit and projection-divergence assertions remain.
 These source-retirement checks do not prove SQL transaction or recovery
-behavior. Remaining aggregate state/snapshots still require retirement and full
-ticket validation.
+behavior. Required full-ticket validation remains unproven.
 
 HTTP fixture construction/binding and seed/command/query helpers no longer
 accept or construct `app.Ledger`. Their test-only locator contains only a
@@ -114,8 +112,8 @@ used that cache now supplies a real transaction factory, with the same assertion
 Regression checks cover unreadable whole-state stores, one-transaction guard and
 command execution, no replay regeneration, current-authority denial and rollback
 of response-guard/final-commit failures. These memory-backed and focused race
-checks do not prove SQL locking or durability. Application aggregate/state/snapshot
-retirement remains EVY-906 work.
+checks do not prove SQL locking or durability. Full-ticket validation remains
+EVY-906 work.
 
 PostgreSQL compound setup and replay fixtures now take the transaction factory
 directly and use `app.IdempotencyUnitOfWork`, without a Ledger type, constructor,
@@ -126,8 +124,20 @@ name because the critical-behavior matrix and stress gate refer to it. Real memo
 repository regressions cover one-transaction compound setup, exact replay fields,
 foreign-parent denial, cancellation and final commit rollback. Their results do
 not establish SQL durability; the two required live cases remain unverified when
-the PostgreSQL test URL is unset. Physical application aggregate/state/snapshot
-removal and full-ticket validation still keep EVY-906 open.
+the PostgreSQL test URL is unset. Full-ticket validation still keeps EVY-906 open.
+
+The physical Ledger aggregate and all 52 remaining receiver methods now compile
+only in historical application tests. The production constructor/configuration,
+mutable maps, mutex/transaction gate, cached authorization, snapshot cloning and
+persistence forwarding are absent. Historical fields and implementation bodies
+remain characterized without production wiring; HTTP inputs use test-local
+configuration/evidence DTOs and actual focused commands. Native scope constants,
+idempotency key formats, constant-time credential comparison, object lifecycle,
+safe replay and transaction primitives retain their algorithms. Stateless value
+copies, persistence DTOs, and explicit import/export/storage utilities remain;
+they cannot construct the retired command surface. The authorization inventory
+checks the same policy body at its historical path. This is source-retirement
+evidence, not completion of required full/race/production or live SQL gates.
 
 ## Current runtime composition
 
@@ -147,9 +157,9 @@ legacy replay interface or aggregate handler fallback. Historical fixture
 construction/binding and focused test-port adapters exist only in `_test.go`
 files; existing HTTP behavior assertions are preserved. Production callers
 use `NewNativeServerWithOptionsContext`. The unused non-context `app.NewLedger`
-factory has also been deleted. The application constructor and remaining
-aggregate implementation still await physical retirement in EVY-906. This
-fixture separation is not completion of that work and does not create another
+factory has also been deleted. The application constructor, configuration,
+aggregate maps/locks and remaining receiver implementation are now test-only.
+Required full-ticket validation is still pending; this does not create another
 supported runtime backend. See the
 [unreleased migration note](reference/configuration.md#retired-local-memory-profile-unreleased).
 

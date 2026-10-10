@@ -48,7 +48,7 @@ func TestRegistrationNativeFixturesUseCurrentRowsAndImmutableIdentityWithoutAggr
 				}
 			}
 			factory := &bundleWriteFailureFactory{base: base}
-			rebound := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("registration used aggregate clock") }})
+			rebound := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture", UnitOfWork: factory, Now: func() time.Time { panic("registration used aggregate clock") }})
 			f := registrationFixtureCommands{catalogFixtureCommands{ledger: rebound}}
 			guard := func(ctx context.Context, a domain.Actor) error {
 				if action == "artifact" {

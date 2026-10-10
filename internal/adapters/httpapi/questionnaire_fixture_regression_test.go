@@ -353,7 +353,7 @@ func TestQuestionnaireFixtureGuardsArePureCancellableAndPreserveExplicitPorts(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(app.Config{}))
+	s.bindLegacyLedgerFixture(newLegacyLedgerFixture(repositoryFixtureConfig{}))
 	if s.questionnaireTemplateCommands != templates || s.questionnairePackageCommands != packages || s.answerLibraryCommands != answers || s.answerLibraryQuery != query {
 		t.Fatal("binder replaced explicit questionnaire ports")
 	}
