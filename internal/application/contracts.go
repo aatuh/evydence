@@ -37,16 +37,7 @@ func (f IDGeneratorFunc) NewID(prefix string) string { return f(prefix) }
 
 // ResourceReferences are the explicit, tenant-scoped resource coordinates
 // supplied to authorization policy. Blank fields are intentionally absent.
-type ResourceReferences struct {
-	ProductID         string
-	ProjectID         string
-	ReleaseID         string
-	ArtifactID        string
-	BuildID           string
-	DeploymentID      string
-	EnvironmentID     string
-	CustomerPackageID string
-}
+type ResourceReferences = authz.ResourceReferences
 
 // AuthorizationRequest keeps scope and resource decisions visible at each
 // service entry point. ScopeOnly preserves operations that have no resource

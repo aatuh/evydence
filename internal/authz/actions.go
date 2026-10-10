@@ -42,14 +42,23 @@ const (
 	ActionSaaSProfilesManage           Action = "saas_profiles.manage"
 	ActionTenantSubjectVerify          Action = "tenant_subject.verify"
 	ActionBackupGenerate               Action = "backup.generate"
+	ActionProductsRead                 Action = "products.read"
+	ActionProductsCreate               Action = "products.create"
+	ActionProjectsRead                 Action = "projects.read"
+	ActionProjectsCreate               Action = "projects.create"
+	ActionReleasesRead                 Action = "releases.read"
+	ActionReleasesManage               Action = "releases.manage"
+	ActionBuildsRead                   Action = "builds.read"
+	ActionBuildsCreate                 Action = "builds.create"
 )
 
-// Boundary distinguishes tenant authority from explicit instance authority.
+// Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
 const (
 	TenantBoundary Boundary = iota + 1
 	InstanceBoundary
+	ResourceBoundary
 )
 
 // Definition is the immutable capability and ownership boundary of an action.
@@ -87,6 +96,22 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "package:write", Boundary: TenantBoundary}, true
 	case ActionInstanceSnapshotRead, ActionInstanceReadinessRead, ActionInstanceMetricsRead, ActionOutboxDiagnosticsRead, ActionOutboxReplay, ActionSaaSProfilesManage:
 		return Definition{Scope: "instance:admin", Boundary: InstanceBoundary}, true
+	case ActionProductsRead:
+		return Definition{Scope: "product:read", Boundary: ResourceBoundary}, true
+	case ActionProductsCreate:
+		return Definition{Scope: "product:write", Boundary: TenantBoundary}, true
+	case ActionProjectsRead:
+		return Definition{Scope: "project:read", Boundary: ResourceBoundary}, true
+	case ActionProjectsCreate:
+		return Definition{Scope: "project:write", Boundary: ResourceBoundary}, true
+	case ActionReleasesRead:
+		return Definition{Scope: "release:read", Boundary: ResourceBoundary}, true
+	case ActionReleasesManage:
+		return Definition{Scope: "release:write", Boundary: ResourceBoundary}, true
+	case ActionBuildsRead:
+		return Definition{Scope: "build:read", Boundary: ResourceBoundary}, true
+	case ActionBuildsCreate:
+		return Definition{Scope: "build:write", Boundary: ResourceBoundary}, true
 	default:
 		return Definition{}, false
 	}

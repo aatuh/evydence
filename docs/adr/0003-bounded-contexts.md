@@ -1010,10 +1010,13 @@ See [current enforcement scope](../architecture.md#architecture-enforcement).
 ### Authorization policy
 
 `internal/authz` owns registered action/capability definitions and the migrated
-tenant-wide and instance decisions. Callers select typed application actions,
-not arbitrary scope strings. `internal/application` retains the shared
-authorization port and aliases the safe denial errors; its former tenant-wide
-and instance scope-string gate functions are removed.
+tenant-wide, instance, and catalog resource decisions. Migrated privileged
+callers select typed application actions. Catalog's fixed scope-to-action
+binding preserves its existing context-port shape while caller migration is
+unfinished; it no longer evaluates grants locally. `internal/application`
+retains the shared authorization port and aliases the policy-owned resource
+references and safe denial errors; its former tenant-wide and instance
+scope-string gate functions are removed.
 
 Human sessions need both an effective issued scope and a current tenant grant
 for tenant-wide actions. API keys and collectors retain their issued capability
@@ -1024,9 +1027,17 @@ The policy does not cache authority or replace tenant-filtered ownership reads.
 Import enforcement treats it as shared inward core: it cannot depend on an
 adapter, composition root, or context application/query service.
 
-This is partial EVY-1002 implementation. Resource-specific authorizers and the
-complete route-to-action positive/negative coverage matrix still need migration
-and validation. These scoped policy checks are not ticket closure or live
+Catalog actions constrain product/project/release/build coordinates and current
+grants. Scope preflight, tenant inventory, and resolved-resource evaluation are
+explicitly distinct; preflight and inventory cannot silently discard resource
+claims. Product lists filter current human grants before reads, and foreign
+points retain the missing-resource result. Empty new tenant/organization
+coordinates are omitted from internal reference JSON, preserving prior bytes.
+
+This is partial EVY-1002 implementation. Remaining resource-specific policies,
+typed caller contracts, collector binding, and the complete route-to-action
+positive/negative coverage matrix still need migration and validation.
+These scoped policy checks are not ticket closure or live
 PostgreSQL, hosted CI, or external-provider evidence.
 
 ### Migration and retirement sequence

@@ -4,12 +4,12 @@ import (
 	"context"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-// NewCatalogAuthorizer returns the actor-grant policy for release-catalog
-// queries. The owning query service supplies only tenant-verified product,
-// project, and release coordinates from its database reader.
+// NewCatalogAuthorizer binds context requests to the registered central policy.
+// Ownership readers still supply only current, tenant-verified coordinates.
 func NewCatalogAuthorizer() application.Authorizer {
 	return catalogAuthorizer{}
 }
@@ -26,85 +26,46 @@ func (catalogAuthorizer) Authorize(ctx context.Context, actor identitydomain.Act
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if !catalogScope(request.Scope) || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
+	action := catalogAction(request.Scope)
+	if action == authz.ActionProductsCreate && (!request.TenantWide || request.ScopeOnly) {
 		return application.ErrForbidden
 	}
-	if request.Scope == "product:write" {
-		if !request.TenantWide || request.ScopeOnly || request.Resources != (application.ResourceReferences{}) {
-			return application.ErrForbidden
-		}
-		return authorizeCatalogGrant(actor, request.Scope, application.ResourceReferences{}, true)
-	}
+	evaluation := authz.ResolvedEvaluation
 	if request.TenantWide {
-		return authorizeCatalogGrant(actor, request.Scope, application.ResourceReferences{}, true)
+		evaluation = authz.TenantEvaluation
+	} else if request.ScopeOnly {
+		evaluation = authz.ScopeEvaluation
 	}
-	if request.ScopeOnly {
-		return nil
-	}
-	if !validCatalogReferences(request.Scope, request.Resources) {
-		return application.ErrForbidden
-	}
-	return authorizeCatalogGrant(actor, request.Scope, request.Resources, false)
+	return authz.Authorize(ctx, actor, authz.Request{Action: action, Resources: request.Resources, Evaluation: evaluation})
 }
 
-func catalogScope(scope string) bool {
-	return scope == ScopeProductRead || scope == "product:write" || scope == scopeProjectRead || scope == "project:write" || scope == scopeReleaseRead || scope == "release:write" || scope == scopeBuildRead || scope == "build:write"
-}
-
-func validCatalogReferences(scope string, refs application.ResourceReferences) bool {
+// This fixed binding preserves the existing context-port request contract
+// during migration; arbitrary capabilities cannot select a catalog policy.
+func catalogAction(scope string) authz.Action {
 	switch scope {
 	case ScopeProductRead:
-		return refs.ProductID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID})
-	case "project:write":
-		return refs.ProductID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID})
-	case "release:write":
-		return refs.ProductID != "" && (refs == (application.ResourceReferences{ProductID: refs.ProductID}) ||
-			refs.ReleaseID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID}))
+		return authz.ActionProductsRead
+	case "product:write":
+		return authz.ActionProductsCreate
 	case scopeProjectRead:
-		return refs.ProductID != "" && refs.ProjectID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID})
+		return authz.ActionProjectsRead
+	case "project:write":
+		return authz.ActionProjectsCreate
 	case scopeReleaseRead:
-		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+		return authz.ActionReleasesRead
+	case "release:write":
+		return authz.ActionReleasesManage
 	case scopeBuildRead:
-		return refs.ProductID != "" && refs.ProjectID != "" && refs.ReleaseID != "" && refs.BuildID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID})
+		return authz.ActionBuildsRead
 	case "build:write":
-		return refs.ProductID != "" && refs.ProjectID != "" && refs.ReleaseID != "" && refs == (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID})
+		return authz.ActionBuildsCreate
 	default:
-		return false
+		return ""
 	}
 }
 
-func authorizeCatalogGrant(actor identitydomain.Actor, scope string, refs application.ResourceReferences, tenantWide bool) error {
-	// API keys and collectors are constrained by their scopes; human sessions
-	// additionally require a current resource grant.
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	for _, grant := range actor.ResourceGrants {
-		if !catalogGrantHasScope(grant, scope) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return nil
-			}
-		case "product":
-			if !tenantWide && refs.ProductID != "" && grant.ResourceID == refs.ProductID {
-				return nil
-			}
-		case "project":
-			if !tenantWide && refs.ProjectID != "" && grant.ResourceID == refs.ProjectID {
-				return nil
-			}
-		case "release":
-			if !tenantWide && refs.ReleaseID != "" && grant.ResourceID == refs.ReleaseID {
-				return nil
-			}
-		}
-	}
-	return application.ErrForbidden
-}
-
+// This capability predicate is also used by bounded artifact/candidate read
+// filters; it does not authorize an operation or replace the central policy.
 func catalogGrantHasScope(grant identitydomain.ResourceGrant, scope string) bool {
 	for _, got := range grant.Scopes {
 		if got == scope || got == "admin" || got == "*" {
