@@ -34,7 +34,7 @@ func TestGenericEvidenceCreationStrictPreflightAndExactNumbers(t *testing.T) {
 func TestGenericEvidenceCreationCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) {
-			base, secret := testServer(t)
+			base, secret := governanceTestServer(t)
 			f := &evidenceCreationHTTPFake{}
 			s := base
 			if native {

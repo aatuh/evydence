@@ -163,6 +163,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"prepareLocalSourceRepositoryCreation": true,
 	}
 	retired := map[string]bool{
+		"AuthorizeEvidenceCreation": true, "authorizeArtifactSignatureCreationLocked": true,
 		"VerifyBackupManifest":        true,
 		"CreateObjectRetentionPolicy": true, "VerifyObjectRetentionPolicy": true,
 		"CreateMerkleBatch": true, "CreateTransparencyCheckpoint": true, "VerifyMerkleBatch": true,

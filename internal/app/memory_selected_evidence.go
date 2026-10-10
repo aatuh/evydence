@@ -35,24 +35,34 @@ func readMemoryEvidencePoint(ctx context.Context, s *MemoryUnitOfWorkSnapshot, t
 		return empty, err
 	}
 	remaining := verificationapp.MaxEvidenceVerificationBytes
-	raw, err := memorySelectedEvidenceJSON(e, &remaining)
+	detached, err := readMemoryEvidenceWithProvenance(ctx, s, e, &remaining)
 	if err != nil {
 		return empty, err
 	}
-	if err := validateMemoryWorkerEvidence(ctx, s, e, &remaining); err != nil {
-		return empty, err
+	return evidencequery.EvidencePoint{Item: domain.EvidenceToContextModel(detached), ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, WorkerProjectionValidated: evidencedomain.RequiresWorkerProjection(detached.Type)}, nil
+}
+
+// Point reads and verification share one selected item/provenance decoder.
+// The caller keeps its own combined budget and authorizes before calling.
+func readMemoryEvidenceWithProvenance(ctx context.Context, s *MemoryUnitOfWorkSnapshot, e domain.EvidenceItem, remaining *int) (domain.EvidenceItem, error) {
+	raw, err := memorySelectedEvidenceJSON(e, remaining)
+	if err != nil {
+		return domain.EvidenceItem{}, err
+	}
+	if err := validateMemoryWorkerEvidence(ctx, s, e, remaining); err != nil {
+		return domain.EvidenceItem{}, err
 	}
 	// Decode schema-free JSON without rounding recorded numbers or sharing maps.
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	var detached domain.EvidenceItem
 	if err := decoder.Decode(&detached); err != nil {
-		return empty, evidencequery.ErrConflict
+		return domain.EvidenceItem{}, evidencequery.ErrConflict
 	}
 	if err := ctx.Err(); err != nil {
-		return empty, err
+		return domain.EvidenceItem{}, err
 	}
-	return evidencequery.EvidencePoint{Item: domain.EvidenceToContextModel(detached), ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, WorkerProjectionValidated: evidencedomain.RequiresWorkerProjection(detached.Type)}, nil
+	return detached, nil
 }
 
 func memorySelectedEvidenceJSON(value any, remaining *int) ([]byte, error) {

@@ -15,7 +15,7 @@ import (
 type evidenceFixtureCommands struct{ catalogFixtureCommands }
 
 func (f evidenceFixtureCommands) AuthorizeEvidenceCreation(ctx context.Context, actor identitydomain.Actor, input evidenceapp.CreateEvidenceInput) error {
-	return f.commandLedger(ctx).AuthorizeEvidenceCreation(ctx, actor, input)
+	return (evidenceCreationNativeFixture{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeEvidenceCreation(ctx, actor, input)
 }
 func (f evidenceFixtureCommands) AuthorizeSupersedeEvidence(ctx context.Context, actor identitydomain.Actor, id, replacement, reason string) error {
 	return f.commandLedger(ctx).AuthorizeSupersedeEvidence(ctx, actor, id, replacement, reason)

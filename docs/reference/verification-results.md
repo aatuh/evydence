@@ -538,15 +538,21 @@ validation before resolving the stored subject.
 Direct completed negative assessments persist their receipts and return the
 verification failure. Failed idempotent HTTP commands roll back their enclosing
 transaction; successful replay returns the original assessment without duplicate
-effects. Local-memory inspection uses the same core policy through its explicit
-compatibility path. Profiles, check names and response fields remain unchanged;
-no schema migration or historical receipt rewrite is performed.
+effects. HTTP fixtures use this same focused command over current typed
+artifact/signature ownership, digest labels and presence flags, not an aggregate
+cache. Guards resolve only current ownership; raw signature, algorithm and object
+fields are omitted from the inspection projection. Memory tests do not establish
+SQL locks/durability or cryptographic validity. Profiles, check names and response
+fields remain unchanged; no schema migration or historical receipt rewrite is
+performed.
 
 Source/test evidence: `internal/verification/app/artifact_signature_verification.go`,
 `internal/adapters/postgres/repositories/artifact_signature_verification.go`,
 `internal/platform/wiring/artifact_signature_verification.go`,
-`TestPostgresArtifactSignatureVerificationIsDurableMetadataOnly` and
-`TestArtifactSignatureVerificationHandlerUsesDurableMetadataAndReplay`.
+`TestPostgresArtifactSignatureVerificationIsDurableMetadataOnly`,
+`TestArtifactSignatureVerificationHandlerUsesDurableMetadataAndReplay`,
+`internal/app/memory_metadata_verification_test.go` and
+`internal/adapters/httpapi/metadata_verification_native_fixture_regression_test.go`.
 
 ## Persistence And Legacy Records
 

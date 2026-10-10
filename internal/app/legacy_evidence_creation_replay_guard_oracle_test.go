@@ -9,8 +9,8 @@ import (
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 )
 
-// AuthorizeEvidenceCreation checks explicit local-memory ownership only; native
-// PostgreSQL creation uses focused transaction guards, not these maps.
+// Historical characterization only. Current HTTP fixtures and PostgreSQL use
+// focused transaction guards, not this former map-based creation guard.
 func (l *Ledger) AuthorizeEvidenceCreation(ctx context.Context, a domain.Actor, in evidenceapp.CreateEvidenceInput) error {
 	if ctx == nil {
 		return ErrValidation

@@ -61,7 +61,7 @@ func TestEvidenceRelationshipCookieOriginAndBearerPrecedenceAcrossFixturePorts(t
 	for _, native := range []bool{false, true} {
 		for _, tc := range relationshipHTTPRequests {
 			t.Run(fmt.Sprintf("%t/%s", native, tc.name), func(t *testing.T) {
-				base, secret := testServer(t)
+				base, secret := governanceTestServer(t)
 				s := base
 				f := &evidenceRelationshipHTTPFake{}
 				ids := make([]string, 2)

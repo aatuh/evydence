@@ -73,6 +73,18 @@ Existing routes, JSON fields and key policy/storage formats are unchanged.
 Memory fixtures remain test-only, not SQL locking or external custody evidence;
 other aggregate retirement remains EVY-906 work.
 
+Evidence canonical and detached artifact-signature metadata verification fixtures
+now compose focused commands over current typed ownership/facts, not aggregate
+maps. Evidence point/verification reads share detached exact-number provenance;
+selected legacy origins retain the same combined byte/count limits. Signature
+metadata reads select digest labels and presence only, not signature/algorithm
+text, objects or trust roots. Product-scoped canonical grants and tenant-wide
+detached-signature grants remain distinct; receipt/audit/job commit rollback has
+regressions. The map-based evidence-creation guard and artifact-association matcher
+are test-only. Existing canonical/hash profiles and metadata-only `limited` state
+are unchanged; these fixtures are not SQL durability, payload-authenticity or
+cryptographic-trust proof. EVY-906 remains open.
+
 Retired the Ledger backup-manifest verification facade from production source.
 GET and generic POST fixtures now use the focused recorded-check command over
 current typed manifest facts, not an aggregate cache. Reads omit unused manifest
