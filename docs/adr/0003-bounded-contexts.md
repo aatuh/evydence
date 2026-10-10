@@ -12,7 +12,8 @@ test-only oracles. Import-direction and source retirement checks are implemented
 required full/race/production/live validation remains EVY-906 work.
 
 Detailed transition notes below are historical migration checkpoints. Their
-pending EVY-905 startup/query/wrapper claims are superseded by the
+pending startup/query/wrapper and aggregate-retirement claims are superseded by
+the source-retirement summary and
 [current runtime composition](../architecture.md#current-runtime-composition).
 
 Credential generation and hash comparison belong to Identity's stateless
@@ -1012,8 +1013,9 @@ API-compatible.
    Old `internal/domain` names remain type aliases or compatibility mappers;
    persisted and OpenAPI DTOs remain at adapter boundaries.
 2. EVY-903 moved identity, release, and evidence commands to focused services
-   and their handlers behind context-specific interfaces. `Ledger` is now a
-   deprecated forwarding facade; no new command behaviour is added to it.
+   and their handlers behind context-specific interfaces. At that checkpoint,
+   `Ledger` was a deprecated forwarding facade; no new command behaviour was
+   added to it.
 3. EVY-904 moved decision, package, and verification workflows, split mixed
    repository methods, and made package reads transaction-consistent.
 4. EVY-905 installed one validated runtime composition root and database-backed
@@ -1036,8 +1038,11 @@ API-compatible.
    cloning remain without aggregate state or command wiring; metadata builders
    and the redaction mapper are now test-only. Record-only archive rendering is
    owned by `internal/package/app`, and static templates use the Risk query.
-   Other context
-   adapters and final aggregate removal remain unfinished.
+   The other broad context aggregate adapters and physical Ledger declaration
+   are now historical test-only oracles as well. Shared stateless helpers,
+   persistence DTOs and explicit import/export utilities remain without
+   aggregate command/query wiring. Required full/race/production validation
+   remains unfinished; source retirement alone does not close the ticket.
 
 Schema changes stay forward-only. A context adds new columns/tables and maps
 old records before a later release removes obsolete compatibility reads. A

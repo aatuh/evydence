@@ -13,6 +13,13 @@ Evydence follows a ports-and-adapters shape:
 - `internal/adapters/objectstore/s3` stores the same tenant-prefixed object keys in S3/MinIO-compatible buckets.
 - `cmd/*` contains process entry points.
 
+Detailed migration notes below record incremental EVY-903 through EVY-906
+checkpoints. References in those notes to remaining production Ledger maps,
+methods or aggregate adapters describe earlier checkpoints, not the current
+package tree. The source-retirement summary above
+the [current runtime composition](#current-runtime-composition) describes the
+present implementation; required full-ticket validation still keeps EVY-906 open.
+
 PostgreSQL API first-tenant bootstrap is composed directly from focused Identity
 and Verification commands, independently of Ledger construction or inventories.
 The boolean empty-installation check and tenant/API-key/audit/initial-signing-key
