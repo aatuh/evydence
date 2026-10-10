@@ -19,9 +19,9 @@ type postgresConcurrentIdempotencyResult struct {
 	err      error
 }
 
-// TestStoreConcurrentIdempotencyAcrossLedgerInstances uses independent Ledger
-// instances sharing only PostgreSQL. This models simultaneous API processes,
-// not merely goroutines protected by one process-local transaction gate.
+// The historical test name is retained by the critical-behavior matrix. Actual
+// callers are independent native executors sharing only PostgreSQL, not a
+// process-local Ledger transaction gate or an aggregate snapshot.
 func TestStoreConcurrentIdempotencyAcrossLedgerInstances(t *testing.T) {
 	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -61,15 +61,12 @@ func TestStoreConcurrentIdempotencyAcrossLedgerInstances(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate actor: %v", err)
 	}
-	owner, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
-	if err != nil {
-		t.Fatalf("create owner ledger: %v", err)
-	}
-	product, err := postgresReleaseSetup(owner).CreateProduct(ctx, actor, "PostgreSQL payments", "postgres-payments")
+	setup := postgresReleaseSetup(store)
+	product, err := setup.CreateProduct(ctx, actor, "PostgreSQL payments", "postgres-payments")
 	if err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	release, err := postgresReleaseSetup(owner).CreateRelease(ctx, actor, product.ID, "1.0.0")
+	release, err := setup.CreateRelease(ctx, actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatalf("create release: %v", err)
 	}
@@ -79,24 +76,20 @@ func TestStoreConcurrentIdempotencyAcrossLedgerInstances(t *testing.T) {
 	}
 
 	const callers = 16
-	ledgers := make([]*app.Ledger, 0, callers)
+	executors := make([]app.IdempotencyUnitOfWork, 0, callers)
 	for i := 0; i < callers; i++ {
-		ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
-		if err != nil {
-			t.Fatalf("create ledger instance %d: %v", i, err)
-		}
-		ledgers = append(ledgers, ledger)
+		executors = append(executors, app.IdempotencyUnitOfWork{Transactions: store})
 	}
 	ready := make(chan struct{}, callers)
 	start := make(chan struct{})
 	results := make(chan postgresConcurrentIdempotencyResult, callers)
 	body := []byte(`{"release_id":"stable"}`)
-	for i := range ledgers {
-		ledger := ledgers[i]
+	for i := range executors {
+		executor := executors[i]
 		go func() {
 			ready <- struct{}{}
 			<-start
-			status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/release-bundles", "postgres-concurrent-release-bundle", body, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
+			status, response, err := executor.WithBody(ctx, actor, "POST", "/v1/release-bundles", "postgres-concurrent-release-bundle", body, func(commandCtx context.Context, _ app.Repositories) (int, any, error) {
 				bundle, err := createReleaseBundleFixture(commandCtx, store, actor, release.ID)
 				return 201, bundle, err
 			})

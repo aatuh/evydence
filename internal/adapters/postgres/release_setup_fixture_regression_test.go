@@ -2,25 +2,23 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
 
 // This proves the outer fixture's transaction composition with the real memory
 // test backend, not PostgreSQL locks, durability or backup/restore behavior.
 func TestPostgresReleaseSetupFixtureUsesCurrentRowsAndCallerReplayTransaction(t *testing.T) {
 	base := app.NewMemoryUnitOfWorkFactory()
-	ledger, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{APIKeyPepper: "fixture", UnitOfWork: base})
-	if err != nil {
-		t.Fatal(err)
-	}
+	executor := app.IdempotencyUnitOfWork{Transactions: base}
 	identity := postgresIdentitySetup(base, "fixture")
 	_, _, secret, err := identity.BootstrapTenant(t.Context(), "Owner", "admin", []string{"*"})
 	if err != nil {
@@ -30,11 +28,7 @@ func TestPostgresReleaseSetupFixtureUsesCurrentRowsAndCallerReplayTransaction(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	cold, err := newLegacyLedgerFixtureWithContext(t.Context(), app.Config{APIKeyPepper: "fixture", UnitOfWork: base, Now: func() time.Time { panic("release setup used aggregate clock") }})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f := postgresReleaseSetup(cold)
+	f := postgresReleaseSetup(base)
 	product, err := f.CreateProduct(t.Context(), actor, "Original", "original")
 	if err != nil || product.ID == "" {
 		t.Fatal("cold product setup failed", err)
@@ -67,8 +61,8 @@ func TestPostgresReleaseSetupFixtureUsesCurrentRowsAndCallerReplayTransaction(t 
 		t.Fatal("duplicate or denied setup wrote effects", err)
 	}
 	want := errors.New("fixture outer transaction rollback")
-	_, _, err = ledger.WithIdempotency(t.Context(), actor, "POST", "/v1/products", "fixture-rollback", []byte(`{"name":"Pending","slug":"pending"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		commands := postgresReleaseSetup(commandLedger)
+	_, _, err = executor.WithBody(t.Context(), actor, "POST", "/v1/products", "fixture-rollback", []byte(`{"name":"Pending","slug":"pending"}`), func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		commands := postgresReleaseSetup(base)
 		pending, err := commands.CreateProduct(ctx, actor, "Pending", "pending")
 		if err != nil {
 			return 0, nil, err
@@ -97,5 +91,105 @@ func TestPostgresReleaseSetupFixtureUsesCurrentRowsAndCallerReplayTransaction(t 
 	after.Idempotency = before.Idempotency
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("nested setup escaped the caller's transaction rollback")
+	}
+}
+
+func TestPostgresNativeReplayFixtureCommitsCurrentRowsAndDiscardsFinalCommitFailure(t *testing.T) {
+	base := app.NewMemoryUnitOfWorkFactory()
+	factory := &identityFixtureCommitFailureFactory{UnitOfWorkFactory: base}
+	identity := postgresIdentitySetup(factory, "fixture-pepper")
+	_, _, secret, err := identity.BootstrapTenant(t.Context(), "Owner", "admin", []string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := identity.Authenticate(t.Context(), secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, foreignSecret, err := identity.BootstrapTenant(t.Context(), "Foreign", "admin", []string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := identity.Authenticate(t.Context(), foreignSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup := postgresReleaseSetup(factory)
+	executor := app.IdempotencyUnitOfWork{Transactions: factory}
+	runs := 0
+	run := func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		runs++
+		product, err := setup.CreateProduct(ctx, actor, "Native replay", "native-replay")
+		if err != nil {
+			return 0, nil, err
+		}
+		if _, err := setup.CreateRelease(ctx, actor, product.ID, "1"); err != nil {
+			return 0, nil, err
+		}
+		return 201, product, nil
+	}
+	before, err := base.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	commits := factory.commits
+	status, first, err := executor.WithBody(t.Context(), actor, "POST", "/v1/products", "native-compound", []byte(`{"name":"Native replay"}`), run)
+	if err != nil || status != 201 || runs != 1 || factory.commits != commits+1 {
+		t.Fatal("compound native setup did not join one caller transaction", err)
+	}
+	productID := postgresIdempotencyResponseID(t, first)
+	after, err := base.Snapshot()
+	if err != nil || len(after.Products) != len(before.Products)+1 || len(after.Releases) != len(before.Releases)+1 || len(after.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID])+2 || len(after.Idempotency) != len(before.Idempotency)+1 {
+		t.Fatal("compound native setup did not atomically commit product/release/audit/replay rows", err)
+	}
+	status, replay, err := executor.WithBody(t.Context(), actor, "POST", "/v1/products", "native-compound", []byte(`{"name":"Native replay"}`), run)
+	if err != nil || status != 201 || runs != 1 || postgresIdempotencyResponseID(t, replay) != productID {
+		t.Fatal("matching native delivery did not replay the original result", err)
+	}
+	firstJSON, err := json.Marshal(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayJSON, err := json.Marshal(replay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left, right any
+	leftDecoder, rightDecoder := json.NewDecoder(strings.NewReader(string(firstJSON))), json.NewDecoder(strings.NewReader(string(replayJSON)))
+	leftDecoder.UseNumber()
+	rightDecoder.UseNumber()
+	if leftDecoder.Decode(&left) != nil || rightDecoder.Decode(&right) != nil || !reflect.DeepEqual(left, right) {
+		t.Fatal("native replay changed a stored response field")
+	}
+	if value, err := setup.CreateRelease(t.Context(), foreign, productID, "foreign"); !errors.Is(err, releaseapp.ErrNotFound) || value != (domain.Release{}) {
+		t.Fatal("native release setup exposed another tenant's product", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if status, response, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "cancelled", []byte(`{}`), run); !errors.Is(err, context.Canceled) || status != 0 || response != nil || runs != 1 {
+		t.Fatal("cancelled native replay invoked business work or returned data", err)
+	}
+	unchanged, err := base.Snapshot()
+	if err != nil || !reflect.DeepEqual(after, unchanged) {
+		t.Fatal("replay/foreign/cancelled setup changed current rows", err)
+	}
+	factory.fail = true
+	commits = factory.commits
+	status, response, err := executor.WithBody(t.Context(), actor, "POST", "/v1/products", "commit-failure", []byte(`{}`), func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		product, err := setup.CreateProduct(ctx, actor, "Pending", "pending")
+		if err != nil {
+			return 0, nil, err
+		}
+		if _, err := setup.CreateRelease(ctx, actor, product.ID, "1"); err != nil {
+			return 0, nil, err
+		}
+		return 201, product, nil
+	})
+	if err == nil || status != 0 || response != nil || factory.commits != commits+1 {
+		t.Fatal("final native commit failure returned a partial response or was not reached", err)
+	}
+	unchanged, err = base.Snapshot()
+	if err != nil || !reflect.DeepEqual(after, unchanged) {
+		t.Fatal("failed final commit published product, release, audit or replay effects", err)
 	}
 }

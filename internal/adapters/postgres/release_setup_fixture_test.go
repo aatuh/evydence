@@ -26,10 +26,12 @@ type postgresReleaseSetupFixture struct {
 	repos   *app.Repositories
 }
 
-// The Ledger is only an existing transaction locator for historical compound
-// replay tests. Commands use current PostgreSQL rows and never publish caches.
-func postgresReleaseSetup(ledger *app.Ledger) postgresReleaseSetupFixture {
-	return postgresReleaseSetupFixture{execute: ledger.ExecuteUnitOfWork}
+// Commands use the actual caller-owned transaction factory/current rows, never
+// a Ledger locator or published cache. Native replay contexts join that unit.
+func postgresReleaseSetup(factory app.UnitOfWorkFactory) postgresReleaseSetupFixture {
+	return postgresReleaseSetupFixture{execute: func(ctx context.Context, run app.UnitOfWorkCommand) error {
+		return app.ExecuteUnitOfWork(ctx, factory, run)
+	}}
 }
 func postgresReleaseFixtureError(err error) error {
 	switch {

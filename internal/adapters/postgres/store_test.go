@@ -293,14 +293,11 @@ func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate actor: %v", err)
 	}
-	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
-	if err != nil {
-		t.Fatal(err)
-	}
+	executor := app.IdempotencyUnitOfWork{Transactions: store}
 
 	commandErr := errors.New("force transactional rollback")
-	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "rollback", []byte(`{"name":"Rollback","slug":"rollback"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		if _, err := postgresReleaseSetup(commandLedger).CreateProduct(ctx, actor, "Rollback", "rollback"); err != nil {
+	if _, _, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "rollback", []byte(`{"name":"Rollback","slug":"rollback"}`), func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		if _, err := postgresReleaseSetup(store).CreateProduct(ctx, actor, "Rollback", "rollback"); err != nil {
 			return 0, nil, err
 		}
 		return 500, nil, commandErr
@@ -322,14 +319,14 @@ func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
 		t.Fatalf("failed idempotency records=%d, want 1", failed)
 	}
 
-	status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		product, err := postgresReleaseSetup(commandLedger).CreateProduct(ctx, actor, "Committed", "committed")
+	status, _, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		product, err := postgresReleaseSetup(store).CreateProduct(ctx, actor, "Committed", "committed")
 		return 201, product, err
 	})
 	if err != nil || status != 201 {
 		t.Fatalf("commit command status=%d err=%v", status, err)
 	}
-	if status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(context.Context, *app.Ledger) (int, any, error) {
+	if status, _, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(context.Context, app.Repositories) (int, any, error) {
 		t.Fatal("committed request must replay after a lost client response")
 		return 0, nil, nil
 	}); err != nil || status != 201 {

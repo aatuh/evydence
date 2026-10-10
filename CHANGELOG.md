@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Removed the remaining PostgreSQL fixture dependencies on Ledger and its
+constructor/configuration adapter. Compound catalog setup takes the actual
+transaction factory; atomic replay and independent concurrent callers use native
+idempotency without aggregate snapshots or caches. Existing live SQL effect,
+original-response and rollback assertions remain, with additional memory-backed
+compound commit, exact replay, foreign-parent, cancellation and final-commit
+failure regressions. The historical concurrency test name remains wired to the
+critical-behavior matrix/stress gate. Runtime contracts are unchanged. Live SQL
+cases are not proven by skipped tests; application aggregate/state retirement
+and full/race/production validation still keep EVY-906 open.
+
 HTTP test fixtures no longer construct or accept the application Ledger. Their
 locator contains only a transaction factory and replay clock; actual focused
 commands, current guards and saved-selection replay share the native unit of

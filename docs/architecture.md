@@ -68,7 +68,6 @@ directly, with no Ledger construction or cache publication. The fixture fails
 closed when a backend lacks the complete commitment capability; the memory
 backend cannot manufacture a v2 profile from its partial snapshot. Existing
 restore assertions remain, with additional native schema/tenant/count checks.
-Historical replay setup elsewhere still loads genuine committed bootstrap rows.
 Compilation and memory tests do not establish live PostgreSQL restore/concurrency
 evidence.
 
@@ -115,8 +114,20 @@ used that cache now supplies a real transaction factory, with the same assertion
 Regression checks cover unreadable whole-state stores, one-transaction guard and
 command execution, no replay regeneration, current-authority denial and rollback
 of response-guard/final-commit failures. These memory-backed and focused race
-checks do not prove SQL locking or durability. Remaining PostgreSQL legacy setup
-and application aggregate/state/snapshot retirement remain EVY-906 work.
+checks do not prove SQL locking or durability. Application aggregate/state/snapshot
+retirement remains EVY-906 work.
+
+PostgreSQL compound setup and replay fixtures now take the transaction factory
+directly and use `app.IdempotencyUnitOfWork`, without a Ledger type, constructor,
+configuration adapter or state/cache loading. The atomic product/replay test and
+16-caller concurrency test preserve their SQL row/audit/signature/outbox counts,
+original-result and rollback assertions; the concurrency test retains its old
+name because the critical-behavior matrix and stress gate refer to it. Real memory
+repository regressions cover one-transaction compound setup, exact replay fields,
+foreign-parent denial, cancellation and final commit rollback. Their results do
+not establish SQL durability; the two required live cases remain unverified when
+the PostgreSQL test URL is unset. Physical application aggregate/state/snapshot
+removal and full-ticket validation still keep EVY-906 open.
 
 ## Current runtime composition
 

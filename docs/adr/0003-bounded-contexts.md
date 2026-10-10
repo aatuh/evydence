@@ -759,9 +759,13 @@ with no Ledger type, constructor, cache/snapshot clone or replay fallback.
 Current request and saved-selection guards share the actual transaction;
 first-delivery response checks run before commit. Missing-repository fixtures
 keep historical cache canaries separate and fail closed. Existing response,
-fingerprint and guard assertions remain. Remaining PostgreSQL legacy setup and
-application aggregate state/snapshot retirement remain EVY-906 work, not an
-alternate supported persistence profile.
+fingerprint and guard assertions remain. PostgreSQL setup/replay fixtures now
+use the transaction factory and native idempotency directly, without Ledger
+types, construction or configuration adapters. Atomic-write and independent
+executor concurrency SQL assertions are preserved; memory fixture regressions
+do not establish their live results. Application aggregate state/snapshot
+retirement and full-ticket validation remain EVY-906 work, not an alternate
+supported persistence profile.
 
 The persisted worker job kinds currently are assigned as follows:
 
