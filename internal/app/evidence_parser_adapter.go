@@ -18,12 +18,6 @@ import (
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 )
 
-type ledgerEvidencePayloadParser struct{}
-
-func (ledgerEvidencePayloadParser) ProbeVulnerabilityScanScope(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.VulnerabilityScanScope, error) {
-	return (VulnerabilityScanPayloadParser{}).ProbeVulnerabilityScanScope(ctx, source)
-}
-
 // VulnerabilityScanPayloadParser shares bounded scope probing and normalization
 // without constructing a Ledger or unrelated document parsers.
 type VulnerabilityScanPayloadParser struct{}
@@ -48,10 +42,6 @@ func (VulnerabilityScanPayloadParser) ProbeVulnerabilityScanScope(ctx context.Co
 		return evidenceapp.VulnerabilityScanScope{}, toEvidenceContextError(err)
 	}
 	return evidenceapp.VulnerabilityScanScope{ReleaseID: releaseID}, nil
-}
-
-func (ledgerEvidencePayloadParser) ParseSBOM(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedSBOM, error) {
-	return (SBOMPayloadParser{}).ParseSBOM(ctx, format, source)
 }
 
 // SBOMPayloadParser reuses the checked normalization pipeline without a Ledger
@@ -94,10 +84,6 @@ func (SBOMPayloadParser) ParseSBOM(ctx context.Context, format string, source ev
 	default:
 		return evidenceapp.ParsedSBOM{}, evidenceapp.ErrValidation
 	}
-}
-
-func (ledgerEvidencePayloadParser) ParseVulnerabilityScan(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedVulnerabilityScan, error) {
-	return (VulnerabilityScanPayloadParser{}).ParseVulnerabilityScan(ctx, source)
 }
 
 func (VulnerabilityScanPayloadParser) ParseVulnerabilityScan(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedVulnerabilityScan, error) {
@@ -146,10 +132,6 @@ func (VulnerabilityScanPayloadParser) ParseVulnerabilityScan(ctx context.Context
 	}, nil
 }
 
-func (ledgerEvidencePayloadParser) ParseOpenAPIContract(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedOpenAPIContract, error) {
-	return (OpenAPIContractPayloadParser{}).ParseOpenAPIContract(ctx, source)
-}
-
 // OpenAPIContractPayloadParser is a stateless adapter. Focused production
 // ingestion does not construct a Ledger or unrelated document parsers.
 type OpenAPIContractPayloadParser struct{}
@@ -183,10 +165,6 @@ func (OpenAPIContractPayloadParser) ParseOpenAPIContract(ctx context.Context, so
 			NormalizedSchema: "evydence-openapi-contract.v1", ReplayStatus: ParserReplayStatusOriginal,
 		}),
 	}, nil
-}
-
-func (ledgerEvidencePayloadParser) ParseVEX(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedVEX, error) {
-	return (VEXPayloadParser{}).ParseVEX(ctx, format, source)
 }
 
 // VEXPayloadParser preserves the checked format adapters and statement indexes
@@ -272,16 +250,6 @@ func (VEXPayloadParser) ParseVEX(ctx context.Context, format string, source evid
 		StatementCount: len(parsed.Statements), ValidStatementCount: validStatements, StatusSummary: statusSummary,
 		Statements: statements, Warnings: warnings, InvalidStatements: invalidStatements, Metadata: metadata,
 	}, nil
-}
-
-type ledgerEvidenceSourceObjectIngestion struct{ ledger *Ledger }
-
-func (s ledgerEvidenceSourceObjectIngestion) StagePayloadSource(ctx context.Context, tenantID, mediaType string, source evidenceapp.PayloadSource) (evidenceapp.StagedPayload, error) {
-	payload, err := s.ledger.stagePayloadSource(ctx, tenantID, mediaType, payloadSourceFromEvidenceContext(source))
-	if err != nil {
-		return evidenceapp.StagedPayload{}, toEvidenceContextError(err)
-	}
-	return objectPayloadToEvidenceContext(payload), nil
 }
 
 func payloadSourceFromEvidenceContext(source evidenceapp.PayloadSource) PayloadSource {
@@ -421,6 +389,3 @@ func openAPIResponseStatuses(operation *openapi3.Operation) []string {
 	sort.Strings(statuses)
 	return statuses
 }
-
-var _ evidenceapp.PayloadParser = ledgerEvidencePayloadParser{}
-var _ evidenceapp.SourceObjectIngestion = ledgerEvidenceSourceObjectIngestion{}

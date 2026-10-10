@@ -198,7 +198,7 @@ func TestPackageFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T)
 
 func TestPackageFixtureReplayCannotBypassSavedResponseAuthorization(t *testing.T) {
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper"})
-	scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
+	scope := seedEvidenceFixtureParents(t, ledger, "Fixture")
 	executor := catalogFixtureReplayExecutor{ledger: ledger}
 	guards, replayGuards, runs := 0, 0, 0
 	authorize := func(context.Context) error { guards++; return nil }

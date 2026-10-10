@@ -11,14 +11,14 @@ import (
 // Unchanged historical VEX uploads and preview helpers: test-only oracles.
 
 func (l *Ledger) UploadVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
-	value, err := l.evidenceCommands.UploadVEX(ctx, actor, releaseID, artifactID, raw)
+	value, err := l.legacyEvidenceCommands().UploadVEX(ctx, actor, releaseID, artifactID, raw)
 	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 // UploadVEXPayload accepts a repeatable pre-hashed payload source for
 // streaming HTTP ingestion.
 func (l *Ledger) UploadVEXPayload(ctx context.Context, actor domain.Actor, releaseID, artifactID string, source PayloadSource) (domain.VEXDocument, error) {
-	value, err := l.evidenceCommands.UploadVEXPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
+	value, err := l.legacyEvidenceCommands().UploadVEXPayload(ctx, actor, releaseID, artifactID, payloadSourceToEvidenceContext(source))
 	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
@@ -74,7 +74,7 @@ func parseCycloneDXVEX(raw []byte) (cycloneDXVEXDocument, error) {
 }
 
 func (l *Ledger) UploadCycloneDXVEX(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.VEXDocument, error) {
-	value, err := l.evidenceCommands.UploadCycloneDXVEX(ctx, actor, releaseID, artifactID, raw)
+	value, err := l.legacyEvidenceCommands().UploadCycloneDXVEX(ctx, actor, releaseID, artifactID, raw)
 	return vexDocumentFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 

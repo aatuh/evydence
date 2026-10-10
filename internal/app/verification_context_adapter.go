@@ -1087,7 +1087,7 @@ func inspectVerificationSubjectLocked(ctx context.Context, ledger *Ledger, subje
 				snapshot.Lifecycle = append(snapshot.Lifecycle, evidencedomain.EvidenceLifecycleEvent{TenantID: event.TenantID, EvidenceID: event.EvidenceID, SchemaVersion: event.SchemaVersion, Details: event.Details})
 			}
 		}
-		return verificationapp.InspectEvidenceCanonicalHash(ctx, snapshot, ledgerEvidenceCanonicalizer{})
+		return verificationapp.InspectEvidenceCanonicalHash(ctx, snapshot, evidenceCanonicalHasher{})
 	case "release_bundle":
 		bundle := ledger.bundles[subject.ID]
 		snapshot := verificationapp.ReleaseBundleVerificationSnapshot{Subject: subject, Manifest: bundle.Manifest, ManifestHash: bundle.ManifestHash, SignatureRefs: bundle.SignatureRefs}

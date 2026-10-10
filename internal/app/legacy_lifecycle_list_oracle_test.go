@@ -9,7 +9,7 @@ import (
 // Historical aggregate behavior remains only as an unchanged test oracle.
 // Focused lifecycle fixtures read current repository rows instead.
 func (l *Ledger) ListEvidenceLifecycleEvents(ctx context.Context, actor domain.Actor, evidenceID string) ([]domain.EvidenceLifecycleEvent, error) {
-	events, err := l.evidenceCommands.ListLifecycleEvents(ctx, actor, evidenceID)
+	events, err := l.legacyEvidenceCommands().ListLifecycleEvents(ctx, actor, evidenceID)
 	if err != nil {
 		return nil, fromEvidenceContextError(err)
 	}

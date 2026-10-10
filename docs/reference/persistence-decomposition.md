@@ -30,13 +30,13 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| unclassified | `internal/app/evidence_context_adapter.go` | `commitCompatibility` | `persistReleaseLedgerLocked` |
+| none | none | none | none |
 
 ## Remaining Broad Relational-State Mutations
 
 | Family | File | Function | Call |
 | --- | --- | --- | --- |
-| unclassified | `internal/app/evidence_context_adapter.go` | `commitCompatibility` | `persistLocked` |
+| none | none | none | none |
 
 ## Compatibility-Only Broad Fallbacks
 

@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/domain"
-	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
-	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
 
@@ -52,29 +50,4 @@ func (l *Ledger) RegisterArtifact(ctx context.Context, actor domain.Actor, name,
 func (l *Ledger) GetArtifact(ctx context.Context, actor domain.Actor, id string) (domain.Artifact, error) {
 	value, err := l.releaseCommands.GetArtifact(ctx, actor, id)
 	return artifactFromReleaseContext(value), fromReleaseContextError(err)
-}
-
-func (l *Ledger) CreateEvidence(ctx context.Context, actor domain.Actor, in CreateEvidenceInput) (domain.EvidenceItem, error) {
-	subjects := make([]evidencedomain.SubjectRef, 0, len(in.SubjectRefs))
-	for _, subject := range in.SubjectRefs {
-		subjects = append(subjects, evidencedomain.SubjectRef{Type: subject.Type, ID: subject.ID, Digest: subject.Digest})
-	}
-	value, err := l.evidenceCommands.CreateEvidence(ctx, actor, evidenceapp.CreateEvidenceInput{
-		ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, BuildID: in.BuildID, DeploymentID: in.DeploymentID,
-		Type: in.Type, Subtype: in.Subtype, Title: in.Title, SourceSystem: in.SourceSystem, SourceIdentity: cloneMap(in.SourceIdentity),
-		CollectorID: in.CollectorID, ObservedAt: in.ObservedAt, PayloadRef: in.PayloadRef, PayloadHash: in.PayloadHash,
-		PayloadMediaType: in.PayloadMediaType, PayloadSize: in.PayloadSize, StagedPayload: objectPayloadToEvidenceContext(in.StagedPayload),
-		SubjectRefs: subjects, Metadata: cloneMap(in.Metadata), Tags: append([]string(nil), in.Tags...), Limitations: append([]string(nil), in.Limitations...),
-	})
-	return evidenceFromContext(value), fromEvidenceContextError(err)
-}
-
-func (l *Ledger) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, replacementID, reason string) (domain.EvidenceItem, error) {
-	value, err := l.evidenceCommands.SupersedeEvidence(ctx, actor, id, replacementID, reason)
-	return evidenceFromContext(value), fromEvidenceContextError(err)
-}
-
-func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targetType, targetID string) (domain.EvidenceItem, error) {
-	value, err := l.evidenceCommands.LinkEvidence(ctx, actor, id, targetType, targetID)
-	return evidenceFromContext(value), fromEvidenceContextError(err)
 }

@@ -48,7 +48,7 @@ func newDSSENativeFixture(t *testing.T, trust bool) dsseNativeFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ledger.CreateEvidence(t.Context(), a, app.CreateEvidenceInput{ProductID: f.owner.product.ID, ReleaseID: release.ID, Type: "manual", Title: "Release artifact", PayloadHash: artifact.Digest, SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: artifact.ID, Digest: artifact.Digest}}}); err != nil {
+	if _, err := createEvidenceFixture(t.Context(), ledger, a, app.CreateEvidenceInput{ProductID: f.owner.product.ID, ReleaseID: release.ID, Type: "manual", Title: "Release artifact", PayloadHash: artifact.Digest, SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: artifact.ID, Digest: artifact.Digest}}}); err != nil {
 		t.Fatal(err)
 	}
 	f.build, err = ledger.CreateBuildRun(t.Context(), a, app.CreateBuildRunInput{ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: strings.Repeat("a", 40), Status: "passed", StartedAt: time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC), Outputs: []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}})

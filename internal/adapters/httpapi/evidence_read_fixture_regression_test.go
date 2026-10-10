@@ -14,6 +14,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 )
 
@@ -59,7 +60,7 @@ func seedEvidenceReadFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 	}
 	scope.report = vexImportReportFromQuery(report)
 	for i := range 2 {
-		_, err := ledger.RecordEvidenceLifecycleEvent(t.Context(), scope.actor, scope.original.ID, app.RecordEvidenceLifecycleInput{Action: "amendment", Reason: fmt.Sprintf("review-%d", i), Details: map[string]any{"note": "visible", "nested": map[string]any{"value": "original"}, "secret": "private-value"}})
+		_, err := (evidenceFixtureCommands{catalogFixtureCommands{ledger: ledger}}).RecordLifecycleEvent(t.Context(), scope.actor, scope.original.ID, evidenceapp.RecordLifecycleInput{Action: "amendment", Reason: fmt.Sprintf("review-%d", i), Details: map[string]any{"note": "visible", "nested": map[string]any{"value": "original"}, "secret": "private-value"}})
 		if err != nil {
 			t.Fatal(err)
 		}

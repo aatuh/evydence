@@ -31,6 +31,16 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 		"sortedStringSet": true, "sortManifestMapsByID": true, "cleanExternalLabel": true,
 		"builtinTemplatePacks": true, "validWaiverScope": true, "validApprovalSubject": true, "validApprovalDecision": true,
 		"configurePackageCommands": true, "legacyPackageCommands": true,
+		"configureEvidenceCommands": true, "legacyEvidenceCommands": true,
+		"ledgerEvidenceProjectionRefresher": true, "ledgerEvidenceReader": true,
+		"ledgerEvidenceTransactions": true, "ledgerEvidenceTransaction": true,
+		"newLedgerEvidenceTransaction": true, "validateLedgerEvidenceScopeLocked": true,
+		"ledgerEvidenceObjectIngestion": true, "ledgerEvidenceSourceObjectIngestion": true,
+		"ledgerEvidencePayloadParser": true, "ledgerEvidenceLifecycleSanitizer": true,
+		"validateEvidenceLinkTarget": true,
+		"completeLocalVEXDecision":   true, "stageLocalVEXDecisionFailure": true,
+		"processLocalVEXDecisionJob": true, "validateLocalVEXDecisionEvent": true,
+		"localVEXDecisionStatement": true, "localVEXDecisionStatements": true, "localVEXDecisionKeysValid": true,
 		"packageSnapshotVersion":     true,
 		"ledgerPackageCanonicalizer": true, "ledgerPackageSigner": true,
 		"ledgerPackageProjectionRefresher": true, "ledgerPackageReader": true,
@@ -163,8 +173,12 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"prepareLocalSourceRepositoryCreation": true,
 	}
 	retired := map[string]bool{
-		"VerifySubject":                true,
-		"AuthorizeSubjectVerification": true, "AuthorizeDSSEVerification": true, "VerifyDSSEAttestationSignature": true,
+		"VerifySubject":     true,
+		"CreateEvidence":    true,
+		"SupersedeEvidence": true, "LinkEvidence": true, "RecordEvidenceLifecycleEvent": true,
+		"AuthorizeSupersedeEvidence": true, "AuthorizeLinkEvidence": true, "AuthorizeLifecycleEvent": true,
+		"authorizeEvidenceRelationships": true,
+		"AuthorizeSubjectVerification":   true, "AuthorizeDSSEVerification": true, "VerifyDSSEAttestationSignature": true,
 		"AuthorizeEvidenceCreation": true, "authorizeArtifactSignatureCreationLocked": true,
 		"VerifyBackupManifest":        true,
 		"CreateObjectRetentionPolicy": true, "VerifyObjectRetentionPolicy": true,
@@ -285,8 +299,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					if fields, ok := value.Type.(*ast.StructType); ok {
 						for _, field := range fields.Fields.List {
 							for _, fieldName := range field.Names {
-								if fieldName.Name == "packageCommands" {
-									t.Errorf("%s retains retired aggregate package service field", name)
+								if fieldName.Name == "packageCommands" || fieldName.Name == "evidenceCommands" {
+									t.Errorf("%s retains retired aggregate service field", name)
 								}
 							}
 						}

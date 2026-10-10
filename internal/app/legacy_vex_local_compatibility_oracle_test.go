@@ -319,15 +319,3 @@ func appendUniqueLocalString(values []string, value string) []string {
 	}
 	return append(values, value)
 }
-
-func cloneVulnerabilityDecisionMap(values map[string]domain.VulnerabilityDecision) map[string]domain.VulnerabilityDecision {
-	result := make(map[string]domain.VulnerabilityDecision, len(values))
-	for id, decision := range values {
-		decision.EvidenceIDs = append([]string(nil), decision.EvidenceIDs...)
-		decision.SupportingRefs = cloneSubjectRefs(decision.SupportingRefs)
-		decision.ReviewedAt = cloneTimePtr(decision.ReviewedAt)
-		decision.ReviewDueAt = cloneTimePtr(decision.ReviewDueAt)
-		result[id] = decision
-	}
-	return result
-}

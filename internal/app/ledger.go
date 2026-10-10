@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
-	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
@@ -110,7 +109,6 @@ type Ledger struct {
 	buildAttestationParser releaseapp.BuildAttestationParser
 	dssePolicyVerifier     verificationapp.DSSEPolicyVerifier
 	releaseCommands        *releaseapp.Service
-	evidenceCommands       *evidenceapp.Service
 	identityCommands       *identityapp.Service
 	verificationCommands   *verificationapp.Service
 
@@ -372,9 +370,6 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 		}
 	}
 	if err := ledger.configureReleaseCommands(); err != nil {
-		return nil, err
-	}
-	if err := ledger.configureEvidenceCommands(); err != nil {
 		return nil, err
 	}
 	if err := ledger.configureIdentityCommands(); err != nil {

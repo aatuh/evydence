@@ -177,3 +177,16 @@ func (f evidenceCreationNativeFixture) CreateEvidence(ctx context.Context, a dom
 }
 
 var _ EvidenceCreationCommands = evidenceCreationNativeFixture{}
+
+// Preserve existing fixture setup inputs while creating through the focused
+// service. This helper is test-only and never publishes a Ledger cache result.
+func createEvidenceFixture(ctx context.Context, ledger *app.Ledger, actor domain.Actor, in app.CreateEvidenceInput) (domain.EvidenceItem, error) {
+	refs := make([]evidencedomain.SubjectRef, 0, len(in.SubjectRefs))
+	for _, ref := range in.SubjectRefs {
+		refs = append(refs, evidencedomain.SubjectRef{Type: ref.Type, ID: ref.ID, Digest: ref.Digest})
+	}
+	p := in.StagedPayload
+	input := evidenceapp.CreateEvidenceInput{ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, BuildID: in.BuildID, DeploymentID: in.DeploymentID, Type: in.Type, Subtype: in.Subtype, Title: in.Title, SourceSystem: in.SourceSystem, SourceIdentity: in.SourceIdentity, CollectorID: in.CollectorID, ObservedAt: in.ObservedAt, PayloadRef: in.PayloadRef, PayloadHash: in.PayloadHash, PayloadMediaType: in.PayloadMediaType, PayloadSize: in.PayloadSize, SubjectRefs: refs, Metadata: in.Metadata, Tags: in.Tags, Limitations: in.Limitations, StagedPayload: evidenceapp.StagedPayload{TenantID: p.TenantID, Digest: p.Digest, Size: p.Size, MediaType: p.MediaType, StagingKey: p.StagingKey, FinalKey: p.FinalKey, Status: string(p.Status), FailureCode: p.FailureCode, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt, FinalizedAt: p.FinalizedAt, FailedAt: p.FailedAt, OrphanedAt: p.OrphanedAt}}
+	v, err := (evidenceCreationNativeFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateEvidence(ctx, actor, input)
+	return domain.EvidenceFromContextModel(v), err
+}

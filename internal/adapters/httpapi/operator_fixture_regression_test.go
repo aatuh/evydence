@@ -27,7 +27,7 @@ func TestOperatorQueryFixturesPreserveResponsesIsolationAndReadOnlyState(t *test
 	})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
-	if _, err := ledger.CreateEvidence(t.Context(), foreign.actor, app.CreateEvidenceInput{ProductID: foreign.product.ID, ReleaseID: foreign.release.ID, Type: "security_review", Title: "private-foreign-title", PayloadHash: "sha256:" + strings.Repeat("b", 64)}); err != nil {
+	if _, err := createEvidenceFixture(t.Context(), ledger, foreign.actor, app.CreateEvidenceInput{ProductID: foreign.product.ID, ReleaseID: foreign.release.ID, Type: "security_review", Title: "private-foreign-title", PayloadHash: "sha256:" + strings.Repeat("b", 64)}); err != nil {
 		t.Fatal(err)
 	}
 	instance := owner.actor

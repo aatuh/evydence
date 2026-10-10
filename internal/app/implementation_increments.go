@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
-	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
 
@@ -65,13 +64,6 @@ type RegisterContainerImageInput struct {
 	Tag        string
 	Digest     string
 	Platform   string
-}
-
-func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.Actor, evidenceID string, in RecordEvidenceLifecycleInput) (domain.EvidenceLifecycleEvent, error) {
-	event, err := l.evidenceCommands.RecordLifecycleEvent(ctx, actor, evidenceID, evidenceapp.RecordLifecycleInput{
-		Action: in.Action, Reason: in.Reason, Details: cloneMap(in.Details), ReplacementID: in.ReplacementID,
-	})
-	return lifecycleFromEvidenceContext(event), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor, in CreateReleaseCandidateInput) (domain.ReleaseCandidate, error) {

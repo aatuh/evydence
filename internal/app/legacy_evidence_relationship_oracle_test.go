@@ -8,8 +8,8 @@ import (
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 )
 
-// These guards belong to the explicit local-memory profile. Native handlers
-// lock current database identities in the same transaction as replay and writes.
+// Historical aggregate behavior is retained only for characterization tests.
+// Native handlers and HTTP fixtures use focused, current-repository commands.
 func (l *Ledger) AuthorizeSupersedeEvidence(ctx context.Context, a domain.Actor, id, replacement, reason string) error {
 	if err := localRelationshipCaller(ctx, a); err != nil {
 		return err
@@ -92,4 +92,21 @@ func (l *Ledger) authorizeEvidenceRelationships(a domain.Actor, ids []string, ki
 	default:
 		return nil
 	}
+}
+
+func (l *Ledger) SupersedeEvidence(ctx context.Context, actor domain.Actor, id, replacementID, reason string) (domain.EvidenceItem, error) {
+	value, err := l.legacyEvidenceCommands().SupersedeEvidence(ctx, actor, id, replacementID, reason)
+	return evidenceFromContext(value), fromEvidenceContextError(err)
+}
+
+func (l *Ledger) LinkEvidence(ctx context.Context, actor domain.Actor, id, targetType, targetID string) (domain.EvidenceItem, error) {
+	value, err := l.legacyEvidenceCommands().LinkEvidence(ctx, actor, id, targetType, targetID)
+	return evidenceFromContext(value), fromEvidenceContextError(err)
+}
+
+func (l *Ledger) RecordEvidenceLifecycleEvent(ctx context.Context, actor domain.Actor, evidenceID string, in RecordEvidenceLifecycleInput) (domain.EvidenceLifecycleEvent, error) {
+	event, err := l.legacyEvidenceCommands().RecordLifecycleEvent(ctx, actor, evidenceID, evidenceapp.RecordLifecycleInput{
+		Action: in.Action, Reason: in.Reason, Details: cloneMap(in.Details), ReplacementID: in.ReplacementID,
+	})
+	return lifecycleFromEvidenceContext(event), fromEvidenceContextError(err)
 }

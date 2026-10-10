@@ -30,7 +30,7 @@ type UploadManualSecurityDocumentInput struct {
 }
 
 func (l *Ledger) UploadSecurityScan(ctx context.Context, actor domain.Actor, in UploadSecurityScanInput) (domain.SecurityScan, error) {
-	value, err := l.evidenceCommands.UploadSecurityScan(ctx, actor, evidenceapp.UploadSecurityScanInput{
+	value, err := l.legacyEvidenceCommands().UploadSecurityScan(ctx, actor, evidenceapp.UploadSecurityScanInput{
 		ProductID: in.ProductID, ReleaseID: in.ReleaseID, ArtifactID: in.ArtifactID, Category: in.Category,
 		Format: in.Format, Scanner: in.Scanner, TargetRef: in.TargetRef, Raw: append([]byte(nil), in.Raw...),
 	})
@@ -38,7 +38,7 @@ func (l *Ledger) UploadSecurityScan(ctx context.Context, actor domain.Actor, in 
 }
 
 func (l *Ledger) UploadManualSecurityDocument(ctx context.Context, actor domain.Actor, in UploadManualSecurityDocumentInput) (domain.ManualSecurityDocument, error) {
-	value, err := l.evidenceCommands.UploadManualSecurityDocument(ctx, actor, evidenceapp.UploadManualSecurityDocumentInput{
+	value, err := l.legacyEvidenceCommands().UploadManualSecurityDocument(ctx, actor, evidenceapp.UploadManualSecurityDocumentInput{
 		ProductID: in.ProductID, ReleaseID: in.ReleaseID, DocumentType: in.DocumentType, Title: in.Title,
 		Sensitivity: in.Sensitivity, Raw: append([]byte(nil), in.Raw...), MediaType: in.MediaType,
 	})

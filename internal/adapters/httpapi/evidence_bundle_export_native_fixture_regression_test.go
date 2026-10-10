@@ -66,7 +66,7 @@ func TestEvidenceBundleExportNativeFixtureFiltersCurrentGrantsAndRejectsForeignR
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := ledger.CreateEvidence(t.Context(), owner.actor, app.CreateEvidenceInput{ProductID: other.ID, Type: "document", Title: "Private source label", PayloadHash: "sha256:" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	item, err := createEvidenceFixture(t.Context(), ledger, owner.actor, app.CreateEvidenceInput{ProductID: other.ID, Type: "document", Title: "Private source label", PayloadHash: "sha256:" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
 	if err != nil {
 		t.Fatal(err)
 	}

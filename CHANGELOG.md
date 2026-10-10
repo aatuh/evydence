@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired the broad Evidence aggregate adapter, its Ledger Service field and
+constructor wiring, local VEX decision processor, object-ingestion wrappers,
+and generic creation/relationship/replay facades from production source.
+Historical characterization stays test-only; real parsers and shared value
+mappings remain. HTTP fixtures compose focused commands over current typed
+ownership and bounded origins, with no cache publication. Evidence and lifecycle
+JSON numbers survive memory transactions without rounding. Tenant/grant,
+cancellation, exact-budget and real write-commit rollback regressions preserve
+existing API, immutable hashes, redaction and storage contracts. Memory tests
+do not prove SQL locks or durability; remaining aggregate removal is EVY-906 work.
+
 Moved the immutable v1/v2 backup-commitment resource vocabulary into the
 Verification application context. PostgreSQL consumes the same ordered fields
 directly; frozen header vectors pin both profiles and caller copies cannot

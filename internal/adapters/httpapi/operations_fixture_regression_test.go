@@ -91,9 +91,20 @@ func seedOperationsFixtureScope(t *testing.T, ledger *app.Ledger, name string) o
 	return f
 }
 
-// Missing-repository regressions need only cached references, not an incident
-// command that correctly requires its focused repository dependencies.
 func seedOperationsFixtureReferences(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
+	t.Helper()
+	f := seedOperationsFixtureParents(t, ledger, name)
+	var err error
+	f.evidence, err = createEvidenceFixture(t.Context(), ledger, f.actor, app.CreateEvidenceInput{ProductID: f.product.ID, ReleaseID: f.release.ID, Type: "security_review", Title: "Review", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// Missing-repository regressions need only genuinely cached parents, not
+// evidence/incident commands that require focused repository dependencies.
+func seedOperationsFixtureParents(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
 	t.Helper()
 	var f operationsFixtureScope
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), name, "admin", []string{"*"})
@@ -109,10 +120,6 @@ func seedOperationsFixtureReferences(t *testing.T, ledger *app.Ledger, name stri
 		t.Fatal(err)
 	}
 	f.release, err = ledger.CreateRelease(t.Context(), f.actor, f.product.ID, "1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.evidence, err = ledger.CreateEvidence(t.Context(), f.actor, app.CreateEvidenceInput{ProductID: f.product.ID, ReleaseID: f.release.ID, Type: "security_review", Title: "Review", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}

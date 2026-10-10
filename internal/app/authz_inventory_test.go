@@ -84,7 +84,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		for _, name := range funcs {
 			fn := functionBody(t, body, name)
 			if !strings.Contains(fn, "authorizeResourceLocked") && !strings.Contains(fn, "resourceAllowedLocked") &&
-				!strings.Contains(fn, "releaseCommands.") && !strings.Contains(fn, "evidenceCommands.") &&
+				!strings.Contains(fn, "releaseCommands.") && (!strings.HasSuffix(file, "_test.go") || !strings.Contains(fn, "legacyEvidenceCommands().")) &&
 				!strings.Contains(fn, "authorizeAnswerLibraryCreateLocked") && !strings.Contains(fn, "packagequery.NewAnswerLibraryAuthorizer().Authorize") &&
 				!strings.Contains(fn, "authorizeQuestionnairePackageCreateLocked") && !strings.Contains(fn, "packagequery.NewQuestionnairePackageAuthorizer().Authorize") &&
 				!strings.Contains(fn, "authorizePortalWriteLocked") && !strings.Contains(fn, "packagequery.NewPortalAccessWriteAuthorizer().Authorize") &&

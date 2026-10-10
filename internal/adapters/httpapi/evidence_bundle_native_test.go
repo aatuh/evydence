@@ -73,7 +73,7 @@ func TestEvidenceBundleLocalReplayAuthorizesOriginalSelectionUnderChangedGrants(
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := legacyFixtureLedger(base).CreateEvidence(t.Context(), owner, app.CreateEvidenceInput{ProductID: product.ID, Type: "document", Title: "Public label", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	evidence, err := createEvidenceFixture(t.Context(), legacyFixtureLedger(base), owner, app.CreateEvidenceInput{ProductID: product.ID, Type: "document", Title: "Public label", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}

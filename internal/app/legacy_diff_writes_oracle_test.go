@@ -22,14 +22,14 @@ type CreateContractDiffInput struct {
 }
 
 func (l *Ledger) CreateSBOMDiff(ctx context.Context, actor domain.Actor, in CreateSBOMDiffInput) (domain.SBOMDiff, error) {
-	value, err := l.evidenceCommands.CreateSBOMDiff(ctx, actor, evidenceapp.CreateSBOMDiffInput{
+	value, err := l.legacyEvidenceCommands().CreateSBOMDiff(ctx, actor, evidenceapp.CreateSBOMDiffInput{
 		BaseSBOMID: in.BaseSBOMID, TargetSBOMID: in.TargetSBOMID, ReleaseID: in.ReleaseID,
 	})
 	return sbomDiffFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 
 func (l *Ledger) CreateContractDiff(ctx context.Context, actor domain.Actor, in CreateContractDiffInput) (domain.ContractDiff, error) {
-	value, err := l.evidenceCommands.CreateContractDiff(ctx, actor, evidenceapp.CreateContractDiffInput{
+	value, err := l.legacyEvidenceCommands().CreateContractDiff(ctx, actor, evidenceapp.CreateContractDiffInput{
 		BaseContractID: in.BaseContractID, TargetContractID: in.TargetContractID, ReleaseID: in.ReleaseID,
 	})
 	return contractDiffFromEvidenceContext(value), fromEvidenceContextError(err)

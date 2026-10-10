@@ -963,6 +963,19 @@ and the shared scalar signature-map clone remain in non-test
 source. This removes one aggregate adapter, not the remaining Ledger maps,
 mutexes or other context adapters; EVY-906 stays incomplete.
 
+The broad Evidence adapter is also test-only. Production no longer constructs
+or stores its Service, cache readers, staged transaction/publish bridge, local
+VEX decision processor or Ledger-backed object-ingestion wrappers. Historical
+package-local tests compose it on demand. Shared parser/worker/query value
+translations and the pure canonical hasher remain, without aggregate wiring.
+Generic creation and relationship HTTP fixtures use the focused commands over
+current typed repositories; read-only preflight cannot hash, inspect metadata,
+allocate IDs or generate effects. Exact-number evidence and lifecycle cloning
+keeps immutable inputs intact through the memory test transaction. Cold-cache,
+wrong-tenant, removed-grant, cancellation, real write-commit failure and complete
+rollback assertions cover these fixtures, not PostgreSQL durability. Remaining
+Ledger maps, worker refreshes and other context adapters still require retirement.
+
 The cache-backed Package metadata builders and static-template catalog facade
 are also test-only. `internal/package/app/customer_package_archive.go` owns
 record-only HTML/ZIP rendering; customer and portal handlers call it directly
@@ -1259,9 +1272,12 @@ declared digests and staged payloads. Guard locks survive through the outer
 evidence/audit/replay commit without generating clocks, IDs or hashes. Transport
 and replay retain exact numeric metadata, while the existing float64 hash
 normalization profile and historical hashes remain unchanged. Replay retains
-the established private `payload_ref` omission. Local memory keeps explicit
-nondurable storage and current-map guards. Other wrappers and broad startup
-state loading remain EVY-905 migration work. See
+the established private `payload_ref` omission. HTTP fixtures now compose the
+same focused creator and current repository guards; evidence and lifecycle
+details retain exact JSON numbers through memory insert, commit, snapshot and
+reopen. Memory fixtures are not SQL locking or durability evidence. The Ledger
+creation facade and broad Evidence adapter are historical test-only oracles;
+remaining aggregate deletion stays EVY-906 work. See
 [generic evidence creation](api.md#generic-evidence-creation) for input bounds,
 authorization, compatibility and metadata-only limitations.
 
@@ -2448,8 +2464,14 @@ reads and selects only authoritative legacy origins (8 MiB, at most 4096 rows),
 not a complete timeline. Relationship fields, append-only event(s), audit and
 safe replay completion commit together; immutable core fields and canonical
 hash profiles stay unchanged. Both profiles share strict raw-bounded input and
-cookie-Origin protection. Explicit local memory uses current-map guards and
-nondurable compatibility storage, not the native transaction guarantees. See
+cookie-Origin protection. HTTP fixtures use this same focused relationship
+command with current repository guards and detached selected origins, bounded
+to 4096 rows and 8 MiB. Guards do not load canonical metadata or lifecycle
+history. Their transaction-owned writes preserve exact JSON numbers, immutable
+hashes, redaction and atomic audit/lifecycle effects; failure tests reach the
+real final write commit. The three command and three replay facades are now
+historical test-only oracles, not a supported memory API runtime. Memory tests
+do not establish SQL locks or durability. See
 [evidence relationship writes](api.md#evidence-relationship-writes).
 
 Evidence point reads and lifecycle pages in the PostgreSQL profile also use

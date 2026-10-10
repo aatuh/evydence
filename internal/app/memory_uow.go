@@ -1063,7 +1063,7 @@ func (r memoryEvidenceRepository) GetEvidence(ctx context.Context, tenantID, id 
 	if !ok || value.TenantID != tenantID {
 		return domain.EvidenceItem{}, ErrNotFound
 	}
-	return cloneMemoryJSON(value)
+	return cloneMemoryEvidenceRecord(value)
 }
 
 func (r memoryEvidenceRepository) GetSBOM(ctx context.Context, tenantID, id string) (domain.SBOM, error) {
@@ -1149,7 +1149,7 @@ func validateMemoryEvidenceScope(state MemoryUnitOfWorkSnapshot, tenantID, produ
 }
 
 func (r memoryEvidenceRepository) InsertEvidence(ctx context.Context, evidence domain.EvidenceItem) error {
-	cloned, err := cloneMemoryJSON(evidence)
+	cloned, err := cloneMemoryEvidenceRecord(evidence)
 	if err != nil {
 		return err
 	}
@@ -1178,11 +1178,11 @@ func (r memoryEvidenceRepository) InsertEvidence(ctx context.Context, evidence d
 }
 
 func (r memoryEvidenceRepository) CompareAndSwapEvidenceLinks(ctx context.Context, expected, replacement domain.EvidenceItem) error {
-	expectedClone, err := cloneMemoryJSON(expected)
+	expectedClone, err := cloneMemoryEvidenceRecord(expected)
 	if err != nil {
 		return err
 	}
-	cloned, err := cloneMemoryJSON(replacement)
+	cloned, err := cloneMemoryEvidenceRecord(replacement)
 	if err != nil {
 		return err
 	}
@@ -1227,11 +1227,11 @@ func sameEvidenceLinkState(left, right domain.EvidenceItem) bool {
 }
 
 func (r memoryEvidenceRepository) RecordSupersession(ctx context.Context, superseded, replacement domain.EvidenceItem) error {
-	clonedSuperseded, err := cloneMemoryJSON(superseded)
+	clonedSuperseded, err := cloneMemoryEvidenceRecord(superseded)
 	if err != nil {
 		return err
 	}
-	clonedReplacement, err := cloneMemoryJSON(replacement)
+	clonedReplacement, err := cloneMemoryEvidenceRecord(replacement)
 	if err != nil {
 		return err
 	}
@@ -1260,7 +1260,7 @@ func (r memoryEvidenceRepository) RecordSupersession(ctx context.Context, supers
 }
 
 func (r memoryEvidenceRepository) AppendLifecycle(ctx context.Context, event domain.EvidenceLifecycleEvent) error {
-	cloned, err := cloneMemoryJSON(event)
+	cloned, err := cloneMemoryEvidenceRecord(event)
 	if err != nil {
 		return err
 	}
@@ -3939,11 +3939,19 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.Artifacts, err = cloneMemoryMap(snapshot.Artifacts); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
-	if cloned.Evidence, err = cloneMemoryMap(snapshot.Evidence); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.Evidence = make(map[string]domain.EvidenceItem, len(snapshot.Evidence))
+	for id, value := range snapshot.Evidence {
+		cloned.Evidence[id], err = cloneMemoryEvidenceRecord(value)
+		if err != nil {
+			return MemoryUnitOfWorkSnapshot{}, err
+		}
 	}
-	if cloned.EvidenceLifecycle, err = cloneMemoryMap(snapshot.EvidenceLifecycle); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.EvidenceLifecycle = make(map[string]domain.EvidenceLifecycleEvent, len(snapshot.EvidenceLifecycle))
+	for id, value := range snapshot.EvidenceLifecycle {
+		cloned.EvidenceLifecycle[id], err = cloneMemoryEvidenceRecord(value)
+		if err != nil {
+			return MemoryUnitOfWorkSnapshot{}, err
+		}
 	}
 	if cloned.SBOMs, err = cloneMemoryMap(snapshot.SBOMs); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err

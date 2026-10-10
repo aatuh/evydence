@@ -52,7 +52,7 @@ func seedSignatureFixtureScope(t *testing.T, ledger *app.Ledger, name string) si
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ledger.CreateEvidence(t.Context(), f.actor, app.CreateEvidenceInput{ProductID: f.product.ID, Type: "manual", Title: "Artifact association", PayloadHash: "sha256:" + strings.Repeat("d", 64), SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: f.artifact.ID, Digest: f.artifact.Digest}}}); err != nil {
+	if _, err := createEvidenceFixture(t.Context(), ledger, f.actor, app.CreateEvidenceInput{ProductID: f.product.ID, Type: "manual", Title: "Artifact association", PayloadHash: "sha256:" + strings.Repeat("d", 64), SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: f.artifact.ID, Digest: f.artifact.Digest}}}); err != nil {
 		t.Fatal(err)
 	}
 	return f

@@ -93,9 +93,6 @@ func TestValidatedSPDXUploadRetainsNoObjectProjectionAndQueuesParserJob(t *testi
 	memory := NewMemoryUnitOfWorkFactory()
 	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
 	ledger.workerOwnedParsers = true
-	if err := ledger.configureEvidenceCommands(); err != nil {
-		t.Fatal(err)
-	}
 	product, err := ledger.CreateProduct(ctx, actor, "UOW SPDX", "uow-spdx")
 	if err != nil {
 		t.Fatal(err)

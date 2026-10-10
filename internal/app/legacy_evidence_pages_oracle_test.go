@@ -11,7 +11,7 @@ import (
 // Historical aggregate list/page behavior remains only as unchanged test
 // oracles. Focused fixtures use current typed repository pages instead.
 func (l *Ledger) ListEvidence(ctx context.Context, actor domain.Actor, releaseID, typ string) ([]domain.EvidenceItem, error) {
-	values, err := l.evidenceCommands.ListEvidence(ctx, actor, releaseID, typ)
+	values, err := l.legacyEvidenceCommands().ListEvidence(ctx, actor, releaseID, typ)
 	if err != nil {
 		return nil, fromEvidenceContextError(err)
 	}

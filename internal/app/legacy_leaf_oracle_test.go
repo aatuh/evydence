@@ -192,7 +192,7 @@ func (l *Ledger) uploadSourceSnapshot(ctx context.Context, actor domain.Actor, p
 }
 
 func (l *Ledger) UploadAPISecurityScan(ctx context.Context, actor domain.Actor, in UploadSecurityScanInput) (domain.SecurityScan, error) {
-	value, err := l.evidenceCommands.UploadAPISecurityScan(ctx, actor, evidenceapp.UploadSecurityScanInput{
+	value, err := l.legacyEvidenceCommands().UploadAPISecurityScan(ctx, actor, evidenceapp.UploadSecurityScanInput{
 		ProductID: in.ProductID, ReleaseID: in.ReleaseID, ArtifactID: in.ArtifactID, Category: in.Category,
 		Format: in.Format, Scanner: in.Scanner, TargetRef: in.TargetRef, Raw: append([]byte(nil), in.Raw...),
 	})
@@ -200,7 +200,7 @@ func (l *Ledger) UploadAPISecurityScan(ctx context.Context, actor domain.Actor, 
 }
 
 func (l *Ledger) UploadSPDXSBOM(ctx context.Context, actor domain.Actor, releaseID, artifactID string, raw []byte) (domain.SBOM, error) {
-	value, err := l.evidenceCommands.UploadSPDXSBOM(ctx, actor, releaseID, artifactID, raw)
+	value, err := l.legacyEvidenceCommands().UploadSPDXSBOM(ctx, actor, releaseID, artifactID, raw)
 	return sbomFromEvidenceContext(value), fromEvidenceContextError(err)
 }
 

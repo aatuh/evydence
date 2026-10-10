@@ -24,6 +24,21 @@ type evidenceFixtureScope struct {
 
 func seedEvidenceFixtureScope(t *testing.T, ledger *app.Ledger, name string) evidenceFixtureScope {
 	t.Helper()
+	scope := seedEvidenceFixtureParents(t, ledger, name)
+	var err error
+	scope.original, err = createEvidenceFixture(t.Context(), ledger, scope.actor, app.CreateEvidenceInput{ProductID: scope.product.ID, Type: "manual", Title: "Original", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope.replacement, err = createEvidenceFixture(t.Context(), ledger, scope.actor, app.CreateEvidenceInput{ProductID: scope.product.ID, Type: "manual", Title: "Replacement", PayloadHash: "sha256:" + strings.Repeat("b", 64)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return scope
+}
+
+func seedEvidenceFixtureParents(t *testing.T, ledger *app.Ledger, name string) evidenceFixtureScope {
+	t.Helper()
 	var scope evidenceFixtureScope
 	_, _, secret, err := ledger.BootstrapTenant(t.Context(), name, "admin", []string{"*"})
 	if err != nil {
@@ -35,14 +50,6 @@ func seedEvidenceFixtureScope(t *testing.T, ledger *app.Ledger, name string) evi
 		t.Fatal(err)
 	}
 	scope.product, err = ledger.CreateProduct(t.Context(), scope.actor, name, name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	scope.original, err = ledger.CreateEvidence(t.Context(), scope.actor, app.CreateEvidenceInput{ProductID: scope.product.ID, Type: "manual", Title: "Original", PayloadHash: "sha256:" + strings.Repeat("a", 64)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	scope.replacement, err = ledger.CreateEvidence(t.Context(), scope.actor, app.CreateEvidenceInput{ProductID: scope.product.ID, Type: "manual", Title: "Replacement", PayloadHash: "sha256:" + strings.Repeat("b", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}
