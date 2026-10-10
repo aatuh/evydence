@@ -170,20 +170,6 @@ func (l *Ledger) VerifyBackupManifest(ctx context.Context, actor domain.Actor, i
 func (l *Ledger) VerifyDSSEAttestationSignature(ctx context.Context, actor domain.Actor, attestationID string) (domain.VerificationResult, error) {
 	return l.VerifySubject(ctx, actor, "build_attestation", attestationID)
 }
-func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.Actor, in CreateObjectRetentionPolicyInput) (domain.ObjectRetentionPolicy, error) {
-	value, err := l.verificationCommands.CreateObjectRetentionPolicy(ctx, actor, verificationapp.CreateObjectRetentionPolicyInput{
-		Name: in.Name, ObjectPrefix: in.ObjectPrefix, ObjectKey: in.ObjectKey, Mode: in.Mode,
-		RetentionDays: in.RetentionDays, MaxVerificationAgeHours: in.MaxVerificationAgeHours,
-		RequireLegalHold: in.RequireLegalHold,
-	})
-	return objectRetentionPolicyFromVerificationContext(value), fromVerificationContextError(err)
-}
-
-func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.Actor, id string) (domain.ObjectRetentionPolicy, error) {
-	value, err := l.verificationCommands.VerifyObjectRetentionPolicy(ctx, actor, id)
-	return objectRetentionPolicyFromVerificationContext(value), fromVerificationContextError(err)
-}
-
 func (l *Ledger) GenerateBackupManifest(ctx context.Context, actor domain.Actor) (domain.BackupManifest, error) {
 	value, err := l.verificationCommands.GenerateBackupManifest(ctx, actor)
 	return backupManifestFromVerificationContext(value), fromVerificationContextError(err)

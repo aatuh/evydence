@@ -90,7 +90,7 @@ func TestVerificationCommandFixturesRollBackAllEffectsAfterWriteFailure(t *testi
 			case "retention-create":
 				path, body = "/v1/object-retention-policies", `{"name":"Lock","mode":"governance","retention_days":30}`
 			case "retention-verify":
-				policy, err := ledger.CreateObjectRetentionPolicy(t.Context(), scope.actor, app.CreateObjectRetentionPolicyInput{Name: "Lock", Mode: "governance", RetentionDays: 30})
+				policy, err := (retentionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateObjectRetentionPolicy(t.Context(), scope.actor, verificationapp.CreateObjectRetentionPolicyInput{Name: "Lock", Mode: "governance", RetentionDays: 30})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -145,6 +145,11 @@ func TestVerificationCommandFixtureGuardsPreserveAuthorityAndReadOnlyState(t *te
 	if err != nil {
 		t.Fatal("missing owned checkpoint guard fixture", err)
 	}
+	retentionInput := verificationapp.CreateObjectRetentionPolicyInput{Name: "Lock", Mode: "governance", RetentionDays: 30}
+	policy, err := commands.CreateObjectRetentionPolicy(t.Context(), owner.actor, retentionInput)
+	if err != nil {
+		t.Fatal("missing owned retention guard fixture", err)
+	}
 	checks := []struct {
 		name, scope string
 		run         func(context.Context, domain.Actor) error
@@ -155,10 +160,10 @@ func TestVerificationCommandFixtureGuardsPreserveAuthorityAndReadOnlyState(t *te
 			return commands.AuthorizeTransparencyCheckpoint(ctx, actor, batch.ID)
 		}},
 		{"retention-create", "admin", func(ctx context.Context, actor domain.Actor) error {
-			return commands.AuthorizeCreateObjectRetentionPolicy(ctx, actor, verificationapp.CreateObjectRetentionPolicyInput{})
+			return commands.AuthorizeCreateObjectRetentionPolicy(ctx, actor, retentionInput)
 		}},
 		{"retention-verify", "verify:read", func(ctx context.Context, actor domain.Actor) error {
-			return commands.AuthorizeVerifyObjectRetentionPolicy(ctx, actor, "policy")
+			return commands.AuthorizeVerifyObjectRetentionPolicy(ctx, actor, policy.ID)
 		}},
 		{"cosign", "verify:read", func(ctx context.Context, actor domain.Actor) error {
 			return commands.AuthorizeCosignVerification(ctx, actor, verificationapp.VerifyCosignInput{})

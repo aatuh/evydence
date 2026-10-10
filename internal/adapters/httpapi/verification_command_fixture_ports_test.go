@@ -120,22 +120,20 @@ func (f verificationCommandFixture) CreateTransparencyCheckpoint(ctx context.Con
 	return (merkleCreationFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateTransparencyCheckpoint(ctx, actor, input)
 }
 
-func (f verificationCommandFixture) AuthorizeCreateObjectRetentionPolicy(ctx context.Context, actor domain.Actor, _ verificationapp.CreateObjectRetentionPolicyInput) error {
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopeAdmin)
+func (f verificationCommandFixture) AuthorizeCreateObjectRetentionPolicy(ctx context.Context, actor domain.Actor, in verificationapp.CreateObjectRetentionPolicyInput) error {
+	return (retentionFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeCreateObjectRetentionPolicy(ctx, actor, in)
 }
 
-func (f verificationCommandFixture) AuthorizeVerifyObjectRetentionPolicy(ctx context.Context, actor domain.Actor, _ string) error {
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopeVerifyRead)
+func (f verificationCommandFixture) AuthorizeVerifyObjectRetentionPolicy(ctx context.Context, actor domain.Actor, id string) error {
+	return (retentionFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeVerifyObjectRetentionPolicy(ctx, actor, id)
 }
 
 func (f verificationCommandFixture) CreateObjectRetentionPolicy(ctx context.Context, actor domain.Actor, input verificationapp.CreateObjectRetentionPolicyInput) (verificationdomain.ObjectRetentionPolicy, error) {
-	value, err := f.commandLedger(ctx).CreateObjectRetentionPolicy(ctx, actor, app.CreateObjectRetentionPolicyInput(input))
-	return domain.ObjectRetentionPolicyToContextModel(value), err
+	return (retentionFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateObjectRetentionPolicy(ctx, actor, input)
 }
 
 func (f verificationCommandFixture) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.Actor, id string) (verificationdomain.ObjectRetentionPolicy, error) {
-	value, err := f.commandLedger(ctx).VerifyObjectRetentionPolicy(ctx, actor, id)
-	return domain.ObjectRetentionPolicyToContextModel(value), err
+	return (retentionFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).VerifyObjectRetentionPolicy(ctx, actor, id)
 }
 
 func (s *Server) bindVerificationCommandFixturePorts(ledger *app.Ledger) {
@@ -167,8 +165,11 @@ func (s *Server) bindVerificationCommandFixturePorts(ledger *app.Ledger) {
 	} else if _, legacy := s.transparencyCheckpointCommands.(verificationCommandFixture); s.transparencyCheckpointCommands == nil || legacy {
 		s.transparencyCheckpointCommands = merkleCreationFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
-	if _, fixture := s.retentionCommands.(verificationCommandFixture); s.retentionCommands == nil || fixture {
-		s.retentionCommands = commands
+	if old, fixture := s.retentionCommands.(retentionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.retentionCommands = old
+	} else if _, legacy := s.retentionCommands.(verificationCommandFixture); s.retentionCommands == nil || legacy {
+		s.retentionCommands = retentionFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
 }
 

@@ -73,6 +73,16 @@ Existing routes, JSON fields and key policy/storage formats are unchanged.
 Memory fixtures remain test-only, not SQL locking or external custody evidence;
 other aggregate retirement remains EVY-906 work.
 
+Retired Ledger object-retention creation/verification facades and their input
+type from production source. HTTP fixtures compose the focused commands over
+current tenant/policy repositories, bounded detached policy reads and explicit
+provider observations. Ownership-only guards do not read receipt metadata or
+contact providers; same-status observation races and policy/audit commit rollback
+have focused regressions. No configured provider remains `not_verified`, and
+unavailable-provider receipts omit raw errors. Policy fields, hashes, expiry and
+no-outbox behavior are unchanged. These tests do not prove real-provider
+enforcement or SQL durability; EVY-906 remains open.
+
 Retired Ledger Merkle-batch creation/verification and recorded-checkpoint
 creation facades and their input types from production source. HTTP fixtures
 now use focused commands over current sequence/hash views, batch ownership/roots and local signing

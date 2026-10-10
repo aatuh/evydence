@@ -11,7 +11,8 @@ import (
 
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
-		"CreateMerkleBatchInput": true, "CreateTransparencyCheckpointInput": true,
+		"CreateObjectRetentionPolicyInput": true,
+		"CreateMerkleBatchInput":           true, "CreateTransparencyCheckpointInput": true,
 		"CreateSigningProviderInput": true, "CreateDSSETrustRootInput": true, "SigningKeyRevocationInput": true,
 		"CustomerPackageArchive": true, "RenderCustomerPackageArchive": true,
 		"customerPackageArchive": true, "customerPackageHTMLReport": true,
@@ -162,6 +163,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"prepareLocalSourceRepositoryCreation": true,
 	}
 	retired := map[string]bool{
+		"CreateObjectRetentionPolicy": true, "VerifyObjectRetentionPolicy": true,
 		"CreateMerkleBatch": true, "CreateTransparencyCheckpoint": true, "VerifyMerkleBatch": true,
 		"RotateSigningKey": true, "RevokeSigningKeyWithPolicy": true, "AuthorizeSigningKeyRevocation": true,
 		"CreateSigningProvider": true, "CreateDSSETrustRoot": true, "signingProviderFromVerificationService": true,

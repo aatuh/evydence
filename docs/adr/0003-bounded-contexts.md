@@ -530,8 +530,13 @@ audit-hash and replay writes. A validated public retention DTO may preserve
 its safe tenant-prefixed sample key in replay; arbitrary storage references
 and diagnostic secrets keep the generic denylist. Provider observations are
 not rolled back by database failure and local intent is not enforcement proof.
-Explicit local memory retains nondurable compatibility storage. API startup
-and the remaining command wrappers still require EVY-905 migration. See
+HTTP fixtures now use the same focused command with current typed tenant/policy
+repositories, detached bounded policy reads, ownership-only replay and explicit
+provider injection. Same-status receipt changes fail the complete-snapshot
+recheck; policy/audit commit failures return no partial effects. Missing providers
+remain `not_verified`, and raw provider errors do not enter receipts. The Ledger
+facades/input type are test-only. Memory fixtures prove neither SQL locks nor
+durability or a real provider's enforcement; remaining retirement is EVY-906. See
 [retention commands](../api.md#object-retention-policy-creation-and-verification).
 Package-owned release-bundle creation now uses native durable replay with a
 flat current release/product guard. The actor-tenant fence precedes parent

@@ -184,7 +184,7 @@ func TestRetentionHTTPRawBoundsAliasesAndScopedObjectsForFixtureAndNativeCommand
 }
 
 func TestRetentionHTTPFixtureAndNativeCookieGuardAndFixtureReplayAuthority(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	id := dataField(t, postJSON(t, base, secret, "/v1/object-retention-policies", "local-policy", map[string]any{"name": "Lock", "mode": "governance", "retention_days": 30}, 201), "id")
 	for _, focused := range []bool{false, true} {
 		f := &retentionHTTPFake{}

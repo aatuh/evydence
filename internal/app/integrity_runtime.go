@@ -9,16 +9,6 @@ import (
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
-type CreateObjectRetentionPolicyInput struct {
-	Name                    string
-	ObjectPrefix            string
-	ObjectKey               string
-	Mode                    string
-	RetentionDays           int
-	MaxVerificationAgeHours int
-	RequireLegalHold        bool
-}
-
 const (
 	defaultRetentionVerificationAgeHours = 24
 	maxRetentionVerificationAgeHours     = 24 * 366

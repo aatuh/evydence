@@ -1337,8 +1337,15 @@ non-empty verification objects are rejected according to the published schema.
 Names, prefixes and sample keys are bounded to 4 KiB of valid UTF-8 without NUL;
 retention duration must fit a positive PostgreSQL integer. These observations
 describe the configured bucket and sample, not general WORM enforcement, storage
-completeness, external key custody, or legal compliance. Local-memory mode shares
-the command orchestration through explicit compatibility ports.
+completeness, external key custody, or legal compliance. HTTP fixtures now use
+the same focused commands over current typed tenant/policy repositories rather
+than Ledger caches. Their replay guards inspect only current ownership, without
+allocating time or calling a provider. Detached policy reads preserve receipt
+fields and fail closed above 8 MiB; complete-snapshot rechecks and commit-failure
+tests protect policy/audit atomicity. The Ledger create/verify facades and input
+type are test-only. Injected observations are fixture evidence, not verification
+of a real operator's provider; memory behavior does not prove SQL locks or
+durability. Other aggregate retirement remains EVY-906 work.
 
 Both DSSE verification entry points (`POST /v1/build-attestations/{id}/verify-signature`
 and build-attestation requests to `POST /v1/verify`) use a focused command in the
