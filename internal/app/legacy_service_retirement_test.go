@@ -11,6 +11,7 @@ import (
 
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
+		"CreateSigningProviderInput": true, "CreateDSSETrustRootInput": true, "SigningKeyRevocationInput": true,
 		"CustomerPackageArchive": true, "RenderCustomerPackageArchive": true,
 		"customerPackageArchive": true, "customerPackageHTMLReport": true,
 		"redactionProfileToPackageContext": true,
@@ -160,6 +161,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"prepareLocalSourceRepositoryCreation": true,
 	}
 	retired := map[string]bool{
+		"RotateSigningKey": true, "RevokeSigningKeyWithPolicy": true, "AuthorizeSigningKeyRevocation": true,
+		"CreateSigningProvider": true, "CreateDSSETrustRoot": true, "signingProviderFromVerificationService": true,
 		"ListControlFrameworkTemplatePacks": true,
 		"HasTenants":                        true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
 		"SearchEvidence": true, "UploadAPISecurityScan": true,

@@ -248,7 +248,7 @@ func TestTrustConfigurationHTTPStrictFieldsBeforeFixtureAndNativeCommands(t *tes
 }
 
 func TestTrustConfigurationHTTPFixtureAndNativeCookieAndReplayAuthority(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	for _, focused := range []bool{false, true} {
 		f := &trustConfigurationHTTPFake{}
 		opts := ServerOptions{}

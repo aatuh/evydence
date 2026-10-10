@@ -5,18 +5,8 @@ import (
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
-// Existing compatibility inputs and DSSE readers remain until the Verification
+// Existing compatibility DSSE readers remain until the Verification
 // aggregate adapter is retired. No Package metadata construction lives here.
-type CreateDSSETrustRootInput struct {
-	Name                  string
-	KeyID                 string
-	Algorithm             string
-	PublicKey             string
-	AllowedPredicateTypes []string
-	ExpectedBuilderIDs    []string
-	RequiredClaims        []string
-}
-
 func validDSSETrustRoot(root domain.DSSETrustRoot) bool {
 	return verificationapp.ValidDSSETrustRoot(domain.DSSETrustRootToContextModel(root))
 }

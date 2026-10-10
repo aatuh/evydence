@@ -158,7 +158,7 @@ func TestSigningKeyHTTPStrictFieldsBeforeFixtureAndNativeCommands(t *testing.T) 
 
 func TestSigningKeyHTTPFixtureAndNativeCookieAndReplayAuthority(t *testing.T) {
 	for _, focused := range []bool{false, true} {
-		base, secret := testServer(t)
+		base, secret := governanceTestServer(t)
 		f := &signingKeyHTTPFake{}
 		opts := ServerOptions{}
 		if focused {
@@ -189,7 +189,7 @@ func TestSigningKeyHTTPFixtureAndNativeCookieAndReplayAuthority(t *testing.T) {
 			}
 		}
 	}
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)

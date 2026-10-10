@@ -64,6 +64,15 @@ bytes/hash can therefore differ while frozen manifests/hash stay unchanged.
 See [archive compatibility](docs/reference/api-versioning.md#unreleased-customer-package-access-boundary).
 Other Ledger retirement remains EVY-906 work.
 
+Retired Ledger key rotation/revocation/replay-guard and signing-provider/DSSE
+trust-root creation facades, plus their obsolete input types, from production
+source. HTTP fixtures now use focused commands over current repository rows,
+with bounded public key metadata, ownership-only replay, real local key
+generation, private-byte cleanup and atomic lifecycle/trust/audit effects.
+Existing routes, JSON fields and key policy/storage formats are unchanged.
+Memory fixtures remain test-only, not SQL locking or external custody evidence;
+other aggregate retirement remains EVY-906 work.
+
 Customer-visible vulnerability-decision summaries now fail closed above 4,096
 selected decisions or an 8 MiB selected text/encoded-container budget, before
 PostgreSQL transfers decision metadata. Oversized summaries return no partial

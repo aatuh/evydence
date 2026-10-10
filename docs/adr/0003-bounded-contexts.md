@@ -512,10 +512,12 @@ The Identity adapter supplies only a tenant-existence/mutation guard: the
 common tenant writer fence precedes tenant/audit locks and survives through
 metadata, audit and replay commit. These routes never clone or read Ledger,
 load credential inventories, or contact a signing provider. Both runtime
-profiles share strict bounded decoding and public-metadata normalization;
-explicit local memory retains nondurable replay. Registration establishes
-neither key custody nor authenticated builder identity. Broad API startup
-and other compatibility-backed operations remain EVY-905 work. See
+handlers share strict bounded decoding and public-metadata normalization.
+HTTP test fixtures now compose the same focused commands over current typed
+repositories and tenant guards; provider/root Ledger facades and input types
+are test-only. Registration establishes neither key custody nor authenticated
+builder identity. Fixtures do not establish SQL locking or durability; remaining
+aggregate retirement is EVY-906 work. See
 [trust configuration](../api.md#signing-provider-and-dsse-trust-configuration).
 Object-retention creation and verification also use Verification-owned commands
 with native durable replay. Current tenant-wide `admin`/`verify:read` authority
@@ -563,9 +565,12 @@ tenant-wide `keys:admin` guards and atomic lifecycle/audit/replay transactions.
 The shared writer fence precedes tenant/key locks; revocation replay checks
 only a flat owned key row, not lifecycle metadata or private material. Completed
 replay neither generates keys nor changes revocation semantics, and still
-requires current authority. Explicit local memory retains nondurable storage
-and its narrow ownership guard. This does not finish broad API startup or the
-remaining command-wrapper cutover. See
+requires current authority. HTTP fixtures now use focused commands with current
+public lifecycle readers, local key generation and ownership-only replay.
+Rotation/revocation/guard Ledger facades and the obsolete revocation input
+remain only as historical test characterization. Memory models do not prove
+SQL locks, key custody or storage encryption; other aggregate retirement
+remains EVY-906 work. See
 [key lifecycle commands](../api.md#signing-key-lifecycle-commands).
 Merkle-batch creation also uses native durable HTTP execution. Its current
 tenant-admin replay guard reads only the tenant root, not chain leaves or keys.

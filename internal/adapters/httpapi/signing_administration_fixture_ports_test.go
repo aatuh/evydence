@@ -10,60 +10,85 @@ import (
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
-// Test-only adapters preserve the former fixture's actual policies and its
-// isolated command ledger. Runtime signing administration has no fallback.
-type signingAdministrationFixtureCommands struct{ catalogFixtureCommands }
+// Test-only composition uses current repositories and focused commands, never
+// aggregate key/provider/root caches. Runtime signing administration has no fallback.
+type signingAdministrationFixtureCommands struct {
+	catalogFixtureCommands
+	clock application.Clock
+}
 
 func (f signingAdministrationFixtureCommands) AuthorizeSigningKeyRotation(ctx context.Context, actor domain.Actor) error {
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopeKeysAdmin)
+	c, err := f.signingCommands()
+	if err != nil {
+		return err
+	}
+	return mapSigningKeyCommandError(c.AuthorizeSigningKeyRotation(ctx, actor))
 }
 
 func (f signingAdministrationFixtureCommands) AuthorizeSigningKeyRevocation(ctx context.Context, actor domain.Actor, id string) error {
-	return f.commandLedger(ctx).AuthorizeSigningKeyRevocation(ctx, actor, id)
+	c, err := f.signingCommands()
+	if err != nil {
+		return err
+	}
+	return mapSigningKeyCommandError(c.AuthorizeSigningKeyRevocation(ctx, actor, id))
 }
 
 func (f signingAdministrationFixtureCommands) RotateSigningKey(ctx context.Context, actor domain.Actor, reason string) (verificationdomain.SigningKey, error) {
-	value, err := f.commandLedger(ctx).RotateSigningKey(ctx, actor, reason)
+	c, err := f.signingCommands()
 	if err != nil {
 		return verificationdomain.SigningKey{}, err
 	}
-	return signingKeyFixtureModel(value)
+	value, err := c.RotateSigningKey(ctx, actor, reason)
+	return value, mapSigningKeyCommandError(err)
 }
 
 func (f signingAdministrationFixtureCommands) RevokeSigningKey(ctx context.Context, actor domain.Actor, id string, input verificationapp.SigningKeyRevocationInput) (verificationdomain.SigningKey, error) {
-	value, err := f.commandLedger(ctx).RevokeSigningKeyWithPolicy(ctx, actor, id, app.SigningKeyRevocationInput(input))
+	c, err := f.signingCommands()
 	if err != nil {
 		return verificationdomain.SigningKey{}, err
 	}
-	return signingKeyFixtureModel(value)
+	value, err := c.RevokeSigningKey(ctx, actor, id, input)
+	return value, mapSigningKeyCommandError(err)
 }
 
 func (f signingAdministrationFixtureCommands) AuthorizeTrustConfiguration(ctx context.Context, actor domain.Actor) error {
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopeKeysAdmin)
+	c, err := f.trustCommands()
+	if err != nil {
+		return err
+	}
+	return mapSigningKeyCommandError(c.AuthorizeTrustConfiguration(ctx, actor))
 }
 
 func (f signingAdministrationFixtureCommands) CreateSigningProvider(ctx context.Context, actor domain.Actor, input verificationapp.CreateSigningProviderInput) (verificationdomain.SigningProvider, error) {
-	value, err := f.commandLedger(ctx).CreateSigningProvider(ctx, actor, app.CreateSigningProviderInput(input))
+	c, err := f.trustCommands()
 	if err != nil {
 		return verificationdomain.SigningProvider{}, err
 	}
-	return domain.SigningProviderToContextModel(value), nil
+	value, err := c.CreateSigningProvider(ctx, actor, input)
+	return value, mapSigningKeyCommandError(err)
 }
 
 func (f signingAdministrationFixtureCommands) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, input verificationapp.CreateDSSETrustRootInput) (verificationdomain.DSSETrustRoot, error) {
-	value, err := f.commandLedger(ctx).CreateDSSETrustRoot(ctx, actor, app.CreateDSSETrustRootInput(input))
+	c, err := f.trustCommands()
 	if err != nil {
 		return verificationdomain.DSSETrustRoot{}, err
 	}
-	return domain.DSSETrustRootToContextModel(value), nil
+	value, err := c.CreateDSSETrustRoot(ctx, actor, input)
+	return value, mapSigningKeyCommandError(err)
 }
 
 func (s *Server) bindSigningAdministrationFixturePorts(ledger *app.Ledger) {
-	commands := signingAdministrationFixtureCommands{catalogFixtureCommands{ledger: ledger}}
-	if _, fixture := s.signingKeyCommands.(signingAdministrationFixtureCommands); s.signingKeyCommands == nil || fixture {
+	commands := signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
+	if old, fixture := s.signingKeyCommands.(signingAdministrationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.signingKeyCommands = old
+	} else if s.signingKeyCommands == nil {
 		s.signingKeyCommands = commands
 	}
-	if _, fixture := s.trustConfigurationCommands.(signingAdministrationFixtureCommands); s.trustConfigurationCommands == nil || fixture {
+	if old, fixture := s.trustConfigurationCommands.(signingAdministrationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.trustConfigurationCommands = old
+	} else if s.trustConfigurationCommands == nil {
 		s.trustConfigurationCommands = commands
 	}
 }

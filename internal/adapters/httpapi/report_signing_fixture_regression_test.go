@@ -12,6 +12,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
@@ -68,11 +69,11 @@ type reportSigningFixtureScope struct {
 func seedReportSigningFixtureScope(t *testing.T, ledger *app.Ledger, name string) reportSigningFixtureScope {
 	t.Helper()
 	f := reportSigningFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
-	var err error
-	f.provider, err = ledger.CreateSigningProvider(t.Context(), f.actor, app.CreateSigningProviderInput{Name: name, Type: "aws_kms", KeyRef: "key-" + name, Encrypted: true})
+	provider, err := (signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.release.CreatedAt })}).CreateSigningProvider(t.Context(), f.actor, verificationapp.CreateSigningProviderInput{Name: name, Type: "aws_kms", KeyRef: "key-" + name, Encrypted: true})
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.provider = domain.SigningProviderFromContextModel(provider)
 	return f
 }
 func reportSigningFixtureHuman(f reportSigningFixtureScope) domain.Actor {

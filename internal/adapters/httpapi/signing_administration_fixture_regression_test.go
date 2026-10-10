@@ -64,7 +64,7 @@ func TestSigningAdministrationFixtureCommandsRollBackAllEffectsAfterWriteFailure
 			}
 			// Authentication heartbeats are outside the command under test.
 			server.authn = &configuredAuthenticator{actor: scope.actor}
-			commands := &failingSigningAdministrationFixtureCommands{signingAdministrationFixtureCommands: signingAdministrationFixtureCommands{catalogFixtureCommands{ledger: ledger}}}
+			commands := &failingSigningAdministrationFixtureCommands{signingAdministrationFixtureCommands: signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}}
 			server.signingKeyCommands, server.trustConfigurationCommands = commands, commands
 			path, body := "/v1/signing-keys/rotate", `{"reason":"scheduled"}`
 			switch action {
@@ -124,7 +124,7 @@ func TestSigningAdministrationFixtureGuardsKeepTenantAuthorityAndReadOnlyState(t
 	if err != nil || len(keys) != 1 {
 		t.Fatal("missing owner key", err)
 	}
-	commands := signingAdministrationFixtureCommands{catalogFixtureCommands{ledger: ledger}}
+	commands := signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	checks := []struct {
 		name string
 		run  func(context.Context, domain.Actor) error

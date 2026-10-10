@@ -9,19 +9,6 @@ import (
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
-type CreateSigningProviderInput struct {
-	Name      string
-	Type      string
-	KeyRef    string
-	Encrypted bool
-}
-
-type SigningKeyRevocationInput struct {
-	Reason                   string
-	Semantics                string
-	HistoricalValidityPolicy string
-}
-
 type CreateMerkleBatchInput struct {
 	FromSequence int64
 	ToSequence   int64

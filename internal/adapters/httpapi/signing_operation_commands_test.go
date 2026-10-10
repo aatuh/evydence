@@ -98,7 +98,7 @@ func localSigningOperationHTTPFixture(t *testing.T) (*Server, string, string, *s
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := l.CreateSigningProvider(t.Context(), a, app.CreateSigningProviderInput{Name: "Provider", Type: "aws_kms", KeyRef: "key", Encrypted: true})
+	p, err := (signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: l}}).CreateSigningProvider(t.Context(), a, verificationapp.CreateSigningProviderInput{Name: "Provider", Type: "aws_kms", KeyRef: "key", Encrypted: true})
 	if err != nil {
 		t.Fatal(err)
 	}
