@@ -186,7 +186,7 @@ func TestDiffNativeFixtureValidatesRequestedReleaseWithoutInventingScope(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	third, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "3")
+	third, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "3")
 	if err != nil {
 		t.Fatal(err)
 	}

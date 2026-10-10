@@ -55,7 +55,7 @@ func TestGovernanceFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing
 			factory := app.NewMemoryUnitOfWorkFactory()
 			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 			scope := seedEvidenceFixtureScope(t, ledger, "Fixture")
-			release, err := ledger.CreateRelease(t.Context(), scope.actor, scope.product.ID, "1.0.0")
+			release, err := releaseSetup(ledger).CreateRelease(t.Context(), scope.actor, scope.product.ID, "1.0.0")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,7 +123,7 @@ func TestGovernanceFixtureReplaysRequireCurrentGrantsWithoutReapplyingTransition
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
-	release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1.0.0")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}

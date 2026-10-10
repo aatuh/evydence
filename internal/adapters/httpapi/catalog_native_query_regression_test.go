@@ -99,7 +99,7 @@ func TestCatalogNativeQueryFixturesDiscardProjectionOnCommitFailure(t *testing.T
 	factory := &operatorQueryFailureFactory{base: app.NewMemoryUnitOfWorkFactory()}
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
-	project, err := ledger.CreateProject(t.Context(), owner.actor, owner.product.ID, "Project")
+	project, err := releaseSetup(ledger).CreateProject(t.Context(), owner.actor, owner.product.ID, "Project")
 	if err != nil {
 		t.Fatal(err)
 	}

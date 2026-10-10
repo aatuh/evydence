@@ -19,7 +19,7 @@ func TestSourceRepositoryNativeFixturePreflightUsesCurrentRequestedAndExistingPa
 	ledger, base := integrationRegressionLedger()
 	owner := seedIntegrationFixtureScope(t, ledger, "Owner")
 	foreign := seedIntegrationFixtureScope(t, ledger, "Foreign")
-	second, err := ledger.CreateProject(t.Context(), owner.actor, owner.product.ID, "Private")
+	second, err := releaseSetup(ledger).CreateProject(t.Context(), owner.actor, owner.product.ID, "Private")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -134,7 +134,7 @@ func seedMembershipFixtureScope(t *testing.T, ledger *app.Ledger, name string) m
 		t.Fatal(err)
 	}
 	f.user = domain.HumanUser(user)
-	f.product, err = ledger.CreateProduct(t.Context(), f.actor, name, strings.ToLower(name))
+	f.product, err = releaseSetup(ledger).CreateProduct(t.Context(), f.actor, name, strings.ToLower(name))
 	if err != nil {
 		t.Fatal(err)
 	}

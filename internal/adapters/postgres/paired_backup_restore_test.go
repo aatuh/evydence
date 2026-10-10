@@ -81,15 +81,15 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	product, err := ledger.CreateProduct(ctx, actor, "Paired Restore API", "paired-restore-api")
+	product, err := postgresReleaseSetup(ledger).CreateProduct(ctx, actor, "Paired Restore API", "paired-restore-api")
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	release, err := postgresReleaseSetup(ledger).CreateRelease(ctx, actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact, err := ledger.RegisterArtifact(ctx, actor, "paired.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
+	artifact, err := postgresReleaseSetup(ledger).RegisterArtifact(ctx, actor, "paired.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
 	if err != nil {
 		t.Fatal(err)
 	}

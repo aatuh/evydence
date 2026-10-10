@@ -1,12 +1,9 @@
 package app
 
 import (
-	"context"
-	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
-	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
 
 const (
@@ -44,48 +41,6 @@ type RecordEvidenceLifecycleInput struct {
 	Reason        string
 	Details       map[string]any
 	ReplacementID string
-}
-
-type CreateReleaseCandidateInput struct {
-	ReleaseID   string
-	Name        string
-	BuildIDs    []string
-	ArtifactIDs []string
-	SBOMIDs     []string
-	ScanIDs     []string
-	VEXIDs      []string
-	ContractIDs []string
-	BundleIDs   []string
-}
-
-type RegisterContainerImageInput struct {
-	ArtifactID string
-	Repository string
-	Tag        string
-	Digest     string
-	Platform   string
-}
-
-func (l *Ledger) CreateReleaseCandidate(ctx context.Context, actor domain.Actor, in CreateReleaseCandidateInput) (domain.ReleaseCandidate, error) {
-	value, err := l.releaseCommands.CreateReleaseCandidate(ctx, actor, releaseapp.CreateReleaseCandidateInput{
-		ReleaseID: in.ReleaseID, Name: in.Name, BuildIDs: append([]string(nil), in.BuildIDs...),
-		ArtifactIDs: append([]string(nil), in.ArtifactIDs...), SBOMIDs: append([]string(nil), in.SBOMIDs...),
-		ScanIDs: append([]string(nil), in.ScanIDs...), VEXIDs: append([]string(nil), in.VEXIDs...),
-		ContractIDs: append([]string(nil), in.ContractIDs...), BundleIDs: append([]string(nil), in.BundleIDs...),
-	})
-	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)
-}
-
-func (l *Ledger) UpdateReleaseCandidateState(ctx context.Context, actor domain.Actor, id, state, reason string, expectedRevision int64) (domain.ReleaseCandidate, error) {
-	value, err := l.releaseCommands.UpdateReleaseCandidateState(ctx, actor, id, state, reason, expectedRevision)
-	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)
-}
-
-func (l *Ledger) RegisterContainerImage(ctx context.Context, actor domain.Actor, in RegisterContainerImageInput) (domain.ContainerImage, error) {
-	value, err := l.releaseCommands.RegisterContainerImage(ctx, actor, releaseapp.RegisterContainerImageInput{
-		ArtifactID: in.ArtifactID, Repository: in.Repository, Tag: in.Tag, Digest: in.Digest, Platform: in.Platform,
-	})
-	return containerImageFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func matchesEvidenceSearch(item domain.EvidenceItem, in EvidenceSearchInput) bool {
@@ -154,52 +109,6 @@ func validLifecycleAction(action string) bool {
 	default:
 		return false
 	}
-}
-
-func (l *Ledger) validateCandidateRefsLocked(tenantID, releaseID string, in CreateReleaseCandidateInput) error {
-	for _, id := range in.BuildIDs {
-		item, ok := l.buildRuns[strings.TrimSpace(id)]
-		if !ok || item.TenantID != tenantID || item.ReleaseID != releaseID {
-			return ErrNotFound
-		}
-	}
-	for _, id := range in.ArtifactIDs {
-		item, ok := l.artifacts[strings.TrimSpace(id)]
-		if !ok || item.TenantID != tenantID {
-			return ErrNotFound
-		}
-	}
-	for _, id := range in.SBOMIDs {
-		item, ok := l.sboms[strings.TrimSpace(id)]
-		if !ok || item.TenantID != tenantID || item.ReleaseID != releaseID {
-			return ErrNotFound
-		}
-	}
-	for _, id := range in.ScanIDs {
-		item, ok := l.scans[strings.TrimSpace(id)]
-		if !ok || item.TenantID != tenantID || item.ReleaseID != releaseID {
-			return ErrNotFound
-		}
-	}
-	for _, id := range in.VEXIDs {
-		item, ok := l.vexDocuments[strings.TrimSpace(id)]
-		if !ok || item.TenantID != tenantID || item.ReleaseID != releaseID {
-			return ErrNotFound
-		}
-	}
-	for _, id := range in.ContractIDs {
-		item, ok := l.contracts[strings.TrimSpace(id)]
-		if !ok || item.TenantID != tenantID || item.ReleaseID != releaseID {
-			return ErrNotFound
-		}
-	}
-	for _, id := range in.BundleIDs {
-		item, ok := l.bundles[strings.TrimSpace(id)]
-		if !ok || item.TenantID != tenantID || item.ReleaseID != releaseID {
-			return ErrNotFound
-		}
-	}
-	return nil
 }
 
 func validPullRequestState(state string) bool {

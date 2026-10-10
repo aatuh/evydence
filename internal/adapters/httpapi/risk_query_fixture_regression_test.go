@@ -27,7 +27,7 @@ func seedRiskQueryFixtureScope(t *testing.T, ledger *app.Ledger, name string) ri
 	t.Helper()
 	scope := riskQueryFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}
 	var err error
-	scope.release, err = ledger.CreateRelease(t.Context(), scope.actor, scope.product.ID, "1.0.0")
+	scope.release, err = releaseSetup(ledger).CreateRelease(t.Context(), scope.actor, scope.product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}

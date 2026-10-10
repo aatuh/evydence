@@ -108,7 +108,6 @@ type Ledger struct {
 	workerOwnedParsers     bool
 	buildAttestationParser releaseapp.BuildAttestationParser
 	dssePolicyVerifier     verificationapp.DSSEPolicyVerifier
-	releaseCommands        *releaseapp.Service
 	identityCommands       *identityapp.Service
 	verificationCommands   *verificationapp.Service
 
@@ -368,9 +367,6 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 				return nil, err
 			}
 		}
-	}
-	if err := ledger.configureReleaseCommands(); err != nil {
-		return nil, err
 	}
 	if err := ledger.configureIdentityCommands(); err != nil {
 		return nil, err

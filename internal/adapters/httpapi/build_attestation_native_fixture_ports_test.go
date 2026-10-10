@@ -134,7 +134,10 @@ func (f buildAttestationNativeFixture) StageBuildAttestationPayload(ctx context.
 	return releaseapp.StagedBuildAttestationPayload{TenantID: p.TenantID, Digest: p.Digest, Size: p.Size, MediaType: p.MediaType, Reference: p.Reference(), StagingKey: p.StagingKey, FinalKey: p.FinalKey, Status: string(p.Status), CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}, nil
 }
 func (f lifecycleFixtureCommands) nativeAttestation(readOnly bool) (*releaseapp.BuildAttestationCommands, error) {
+	return f.nativeAttestationWithObjects(readOnly, nil)
+}
+func (f lifecycleFixtureCommands) nativeAttestationWithObjects(readOnly bool, objects app.ObjectStore) (*releaseapp.BuildAttestationCommands, error) {
 	ports, clock, ids := f.nativeWorkflow(readOnly, "build")
-	bound := buildAttestationNativeFixture{releaseWorkflowNativeFixture: ports}
+	bound := buildAttestationNativeFixture{releaseWorkflowNativeFixture: ports, objects: objects}
 	return releaseapp.NewBuildAttestationCommands(releaseapp.BuildAttestationCommandConfig{Reader: bound, Transactions: bound, Authorizer: bound, AttestationParser: dsse.BuildAttestationIngestionParser{}, PayloadStager: bound, Clock: clock, IDs: ids})
 }

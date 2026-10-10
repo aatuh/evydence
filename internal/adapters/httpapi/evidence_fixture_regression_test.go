@@ -49,7 +49,7 @@ func seedEvidenceFixtureParents(t *testing.T, ledger *app.Ledger, name string) e
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope.product, err = ledger.CreateProduct(t.Context(), scope.actor, name, name)
+	scope.product, err = releaseSetup(ledger).CreateProduct(t.Context(), scope.actor, name, name)
 	if err != nil {
 		t.Fatal(err)
 	}

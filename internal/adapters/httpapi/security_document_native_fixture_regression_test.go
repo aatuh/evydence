@@ -21,7 +21,7 @@ import (
 func TestSecurityDocumentNativeFixtureUsesCurrentScopeExplicitObjectsAndAtomicEffects(t *testing.T) {
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
-	ownerRelease, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	ownerRelease, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,12 +225,12 @@ func TestSecurityDocumentNativeFixtureHTTPFailureOmitsPrivateBodyAndRollsBackAll
 func TestSecurityDocumentNativeFixtureRejectsForeignScopesRevokedGrantsAndMalformedInputsBeforeStaging(t *testing.T) {
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
-	ownerRelease, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	ownerRelease, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	foreign := seedSignatureFixtureScope(t, ledger, "Foreign")
-	foreignRelease, err := ledger.CreateRelease(t.Context(), foreign.actor, foreign.product.ID, "1")
+	foreignRelease, err := releaseSetup(ledger).CreateRelease(t.Context(), foreign.actor, foreign.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}

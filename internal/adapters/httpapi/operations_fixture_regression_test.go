@@ -102,8 +102,8 @@ func seedOperationsFixtureReferences(t *testing.T, ledger *app.Ledger, name stri
 	return f
 }
 
-// Missing-repository regressions need only genuinely cached parents, not
-// evidence/incident commands that require focused repository dependencies.
+// Parent setup runs focused commands; missing-repository regressions use
+// newCachedReleaseFixture to load cached rows without enabling repositories.
 func seedOperationsFixtureParents(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
 	t.Helper()
 	var f operationsFixtureScope
@@ -115,11 +115,11 @@ func seedOperationsFixtureParents(t *testing.T, ledger *app.Ledger, name string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.product, err = ledger.CreateProduct(t.Context(), f.actor, name, strings.ToLower(name))
+	f.product, err = releaseSetup(ledger).CreateProduct(t.Context(), f.actor, name, strings.ToLower(name))
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.release, err = ledger.CreateRelease(t.Context(), f.actor, f.product.ID, "1")
+	f.release, err = releaseSetup(ledger).CreateRelease(t.Context(), f.actor, f.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}

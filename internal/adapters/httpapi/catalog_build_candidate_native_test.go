@@ -168,20 +168,8 @@ func TestCatalogBuildCandidateNativeQueriesDiscardResultsOnCommitFailure(t *test
 }
 
 func TestCatalogBuildCandidateNativeQueriesNeverFallBackToCachedLedgerRows(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	owner := seedOperationsFixtureParents(t, ledger, "Owner")
-	project, err := ledger.CreateProject(t.Context(), owner.actor, owner.product.ID, "Project")
-	if err != nil {
-		t.Fatal(err)
-	}
-	build, err := ledger.CreateBuildRun(t.Context(), owner.actor, app.CreateBuildRunInput{ProjectID: project.ID, ReleaseID: owner.release.ID, Provider: "generic_ci", CommitSHA: strings.Repeat("a", 40), Status: "passed", StartedAt: time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	candidate, err := ledger.CreateReleaseCandidate(t.Context(), owner.actor, app.CreateReleaseCandidateInput{ReleaseID: owner.release.ID, Name: "Cached candidate"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	cached := newCachedReleaseFixture(t, "Owner")
+	ledger, owner, build, candidate := cached.ledger, cached.scope, cached.build, cached.candidate
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: &configuredAuthenticator{actor: owner.actor}})
 	if err != nil {
 		t.Fatal(err)

@@ -985,8 +985,23 @@ exclude descriptions, uniqueness checks, release state, build source identity,
 output digests and hashing. Fresh writes preserve revision conflicts and commit
 their records, evidence capability, audit and replay effects together. Cold
 instances, foreign tenants, absent grants, cancellation and real final-write
-commit failures have regressions. This removes cached guards, not the remaining
-Release adapter, its setup facades or the Ledger aggregate.
+commit failures have regressions. Artifact/image registration guards are also
+historical test-only oracles; their focused commands retain current grants and
+immutable duplicate metadata.
+
+The broad Release adapter, fourteen mutation/read facades and three workflow
+input DTOs are now test-only. Production no longer stores or constructs the
+aggregate Release Service or its staged transaction/publish/restore bridge.
+Historical package-local tests compose it on demand. HTTP setup uses focused
+commands over current repository rows, with explicit object resources for
+signed-attestation tests. Cache-only negative tests instead load real persisted
+records without supplying repositories, preserving their fail-closed coverage.
+PostgreSQL backup and compound-replay test setup also uses focused commands in
+the caller's unit of work; their live checks remain required. Pure DTO copies,
+error translation and still-used audit/attestation clones remain. Shared cached
+authorizers still serve the unfinished Identity and Verification adapters; they
+are not used by focused Release composition. This removes the Release adapter,
+not the remaining Ledger state, locks, worker paths or other context adapters.
 
 The cache-backed Package metadata builders and static-template catalog facade
 are also test-only. `internal/package/app/customer_package_archive.go` owns

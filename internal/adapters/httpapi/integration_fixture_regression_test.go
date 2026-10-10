@@ -86,11 +86,11 @@ func seedIntegrationFixtureScope(t *testing.T, ledger *app.Ledger, name string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.product, err = ledger.CreateProduct(t.Context(), f.actor, name, strings.ToLower(name))
+	f.product, err = releaseSetup(ledger).CreateProduct(t.Context(), f.actor, name, strings.ToLower(name))
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.project, err = ledger.CreateProject(t.Context(), f.actor, f.product.ID, name)
+	f.project, err = releaseSetup(ledger).CreateProject(t.Context(), f.actor, f.product.ID, name)
 	if err != nil {
 		t.Fatal(err)
 	}

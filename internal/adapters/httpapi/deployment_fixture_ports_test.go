@@ -222,13 +222,13 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			product, err := ledger.CreateProduct(t.Context(), actor, "Fixture", "fixture")
+			product, err := releaseSetup(ledger).CreateProduct(t.Context(), actor, "Fixture", "fixture")
 			if err != nil {
 				t.Fatal(err)
 			}
 			path, body := "/v1/environments", fmt.Sprintf(`{"product_id":%q,"name":"Production","kind":"production"}`, product.ID)
 			if event {
-				release, err := ledger.CreateRelease(t.Context(), actor, product.ID, "1")
+				release, err := releaseSetup(ledger).CreateRelease(t.Context(), actor, product.ID, "1")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -301,11 +301,11 @@ func TestDeploymentQueryFixturesPreserveTenantOwnershipAndReadScope(t *testing.T
 		if err != nil {
 			t.Fatal(err)
 		}
-		product, err := ledger.CreateProduct(t.Context(), actor, name, name)
+		product, err := releaseSetup(ledger).CreateProduct(t.Context(), actor, name, name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		release, err := ledger.CreateRelease(t.Context(), actor, product.ID, "1")
+		release, err := releaseSetup(ledger).CreateRelease(t.Context(), actor, product.ID, "1")
 		if err != nil {
 			t.Fatal(err)
 		}

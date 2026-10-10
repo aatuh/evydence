@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	application "github.com/aatuh/evydence/internal/application"
@@ -12,7 +11,8 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-func (l *Ledger) configureReleaseCommands() error {
+// Only historical characterization composes the aggregate Release adapter.
+func (l *Ledger) legacyReleaseCommands() *releaseapp.Service {
 	service, err := releaseapp.NewService(releaseapp.Config{
 		Reader:              ledgerReleaseReader{ledger: l},
 		Transactions:        ledgerReleaseTransactions{ledger: l},
@@ -26,10 +26,9 @@ func (l *Ledger) configureReleaseCommands() error {
 		IDs:                 application.IDGeneratorFunc(newID),
 	})
 	if err != nil {
-		return err
+		panic(err)
 	}
-	l.releaseCommands = service
-	return nil
+	return service
 }
 
 type ledgerBuildAttestationPayloadStager struct{ ledger *Ledger }
@@ -62,54 +61,6 @@ type ledgerReleaseCandidateCanonicalizer struct{}
 
 func (ledgerReleaseCandidateCanonicalizer) HashReleaseCandidate(_ context.Context, candidate releasedomain.ReleaseCandidate) (string, error) {
 	return canonicalAnyHash(releaseCandidateFromReleaseContext(candidate))
-}
-
-type ledgerContextAuthorizer struct{ ledger *Ledger }
-
-// NewContextAuthorizer exposes the existing policy as a narrow transitional
-// port for context-owned query services. It does not expose Ledger internals to
-// transport handlers and will be retired with the compatibility aggregate.
-func NewContextAuthorizer(ledger *Ledger) (application.Authorizer, error) {
-	if ledger == nil {
-		return nil, ErrValidation
-	}
-	return ledgerContextAuthorizer{ledger: ledger}, nil
-}
-
-func (a ledgerContextAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if err := require(actor, request.Scope); err != nil {
-		return toApplicationAuthorizationError(err)
-	}
-	if request.TenantWide {
-		a.ledger.mu.Lock()
-		defer a.ledger.mu.Unlock()
-		return toApplicationAuthorizationError(a.ledger.authorizeResourceLocked(actor, request.Scope, resourceRefs{}))
-	}
-	if request.ScopeOnly {
-		return nil
-	}
-	a.ledger.mu.Lock()
-	defer a.ledger.mu.Unlock()
-	return toApplicationAuthorizationError(a.ledger.authorizeResourceLocked(actor, request.Scope, resourceRefs{
-		ProductID:         request.Resources.ProductID,
-		ProjectID:         request.Resources.ProjectID,
-		ReleaseID:         request.Resources.ReleaseID,
-		ArtifactID:        request.Resources.ArtifactID,
-		BuildID:           request.Resources.BuildID,
-		DeploymentID:      request.Resources.DeploymentID,
-		EnvironmentID:     request.Resources.EnvironmentID,
-		CustomerPackageID: request.Resources.CustomerPackageID,
-	}))
-}
-
-func toApplicationAuthorizationError(err error) error {
-	if errors.Is(err, ErrForbidden) {
-		return application.ErrForbidden
-	}
-	return err
 }
 
 type ledgerReleaseReader struct{ ledger *Ledger }
@@ -293,33 +244,6 @@ func (t *ledgerReleaseTransaction) Authorization() application.Authorizer {
 }
 func (t *ledgerReleaseTransaction) Audit() application.AuditAppender   { return t }
 func (t *ledgerReleaseTransaction) Outbox() application.OutboxEnqueuer { return t }
-
-// ledgerLockedContextAuthorizer is transaction-scoped. ledgerReleaseTransactions
-// holds Ledger.mu for the complete callback, so this adapter must not attempt to
-// acquire it again.
-type ledgerLockedContextAuthorizer struct{ ledger *Ledger }
-
-func (a ledgerLockedContextAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if err := require(actor, request.Scope); err != nil {
-		return toApplicationAuthorizationError(err)
-	}
-	if request.ScopeOnly {
-		return nil
-	}
-	return toApplicationAuthorizationError(a.ledger.authorizeResourceLocked(actor, request.Scope, resourceRefs{
-		ProductID:         request.Resources.ProductID,
-		ProjectID:         request.Resources.ProjectID,
-		ReleaseID:         request.Resources.ReleaseID,
-		ArtifactID:        request.Resources.ArtifactID,
-		BuildID:           request.Resources.BuildID,
-		DeploymentID:      request.Resources.DeploymentID,
-		EnvironmentID:     request.Resources.EnvironmentID,
-		CustomerPackageID: request.Resources.CustomerPackageID,
-	}))
-}
 
 func (t *ledgerReleaseTransaction) ProductBySlug(_ context.Context, tenantID, slug string) (releasedomain.Product, bool, error) {
 	for _, product := range t.products {
@@ -786,194 +710,11 @@ func (t *ledgerReleaseTransaction) commitCompatibility(ctx context.Context) erro
 	return nil
 }
 
-func productToReleaseContext(value domain.Product) releasedomain.Product {
-	return releasedomain.Product{ID: value.ID, TenantID: value.TenantID, Name: value.Name, Slug: value.Slug, CreatedAt: value.CreatedAt}
-}
-
-func productFromReleaseContext(value releasedomain.Product) domain.Product {
-	return domain.Product{ID: value.ID, TenantID: value.TenantID, Name: value.Name, Slug: value.Slug, CreatedAt: value.CreatedAt}
-}
-
-func projectToReleaseContext(value domain.Project) releasedomain.Project {
-	return releasedomain.Project{ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, Name: value.Name, CreatedAt: value.CreatedAt}
-}
-
-func projectFromReleaseContext(value releasedomain.Project) domain.Project {
-	return domain.Project{ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, Name: value.Name, CreatedAt: value.CreatedAt}
-}
-
-func artifactToReleaseContext(value domain.Artifact) releasedomain.Artifact {
-	return releasedomain.Artifact{ID: value.ID, TenantID: value.TenantID, Name: value.Name, MediaType: value.MediaType, Size: value.Size, Digest: value.Digest, CreatedAt: value.CreatedAt}
-}
-
-func artifactFromReleaseContext(value releasedomain.Artifact) domain.Artifact {
-	return domain.Artifact{ID: value.ID, TenantID: value.TenantID, Name: value.Name, MediaType: value.MediaType, Size: value.Size, Digest: value.Digest, CreatedAt: value.CreatedAt}
-}
-
-func buildRunToReleaseContext(value domain.BuildRun) releasedomain.BuildRun {
-	outputs := make([]releasedomain.BuildOutput, 0, len(value.Outputs))
-	for _, output := range value.Outputs {
-		outputs = append(outputs, releasedomain.BuildOutput{ArtifactID: output.ArtifactID, Digest: output.Digest})
+func NewContextAuthorizer(ledger *Ledger) (application.Authorizer, error) {
+	if ledger == nil {
+		return nil, ErrValidation
 	}
-	return releasedomain.BuildRun{
-		ID: value.ID, TenantID: value.TenantID, ProjectID: value.ProjectID, ReleaseID: value.ReleaseID,
-		CollectorID: value.CollectorID, Provider: value.Provider, CommitSHA: value.CommitSHA,
-		Repository: value.Repository, WorkflowRef: value.WorkflowRef, RunID: value.RunID, RunAttempt: value.RunAttempt,
-		JobID: value.JobID, Actor: value.Actor, Ref: value.Ref, OIDCSubject: value.OIDCSubject, Status: value.Status,
-		StartedAt: value.StartedAt, FinishedAt: cloneTimePtr(value.FinishedAt), ParametersHash: value.ParametersHash,
-		EnvironmentHash: value.EnvironmentHash, SourceIdentity: cloneIdentityAnyMap(value.SourceIdentity), Outputs: outputs,
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func buildRunFromReleaseContext(value releasedomain.BuildRun) domain.BuildRun {
-	outputs := make([]domain.BuildOutput, 0, len(value.Outputs))
-	for _, output := range value.Outputs {
-		outputs = append(outputs, domain.BuildOutput{ArtifactID: output.ArtifactID, Digest: output.Digest})
-	}
-	return domain.BuildRun{
-		ID: value.ID, TenantID: value.TenantID, ProjectID: value.ProjectID, ReleaseID: value.ReleaseID,
-		CollectorID: value.CollectorID, Provider: value.Provider, CommitSHA: value.CommitSHA,
-		Repository: value.Repository, WorkflowRef: value.WorkflowRef, RunID: value.RunID, RunAttempt: value.RunAttempt,
-		JobID: value.JobID, Actor: value.Actor, Ref: value.Ref, OIDCSubject: value.OIDCSubject, Status: value.Status,
-		StartedAt: value.StartedAt, FinishedAt: cloneTimePtr(value.FinishedAt), ParametersHash: value.ParametersHash,
-		EnvironmentHash: value.EnvironmentHash, SourceIdentity: cloneIdentityAnyMap(value.SourceIdentity), Outputs: outputs,
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func buildAttestationToReleaseContext(value domain.BuildAttestation) releasedomain.BuildAttestation {
-	return releasedomain.BuildAttestation{
-		ID: value.ID, TenantID: value.TenantID, BuildID: value.BuildID, EvidenceID: value.EvidenceID,
-		PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, PayloadSize: value.PayloadSize,
-		PayloadType: value.PayloadType, PredicateType: value.PredicateType,
-		SubjectDigests: append([]string(nil), value.SubjectDigests...), BuilderID: value.BuilderID,
-		BuildType: value.BuildType, MaterialsCount: value.MaterialsCount, SignatureCount: value.SignatureCount,
-		VerificationStatus: value.VerificationStatus, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func buildAttestationFromReleaseContext(value releasedomain.BuildAttestation) domain.BuildAttestation {
-	return domain.BuildAttestation{
-		ID: value.ID, TenantID: value.TenantID, BuildID: value.BuildID, EvidenceID: value.EvidenceID,
-		PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, PayloadSize: value.PayloadSize,
-		PayloadType: value.PayloadType, PredicateType: value.PredicateType,
-		SubjectDigests: append([]string(nil), value.SubjectDigests...), BuilderID: value.BuilderID,
-		BuildType: value.BuildType, MaterialsCount: value.MaterialsCount, SignatureCount: value.SignatureCount,
-		VerificationStatus: value.VerificationStatus, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func stagedBuildAttestationPayloadToReleaseContext(value ObjectPayload) releaseapp.StagedBuildAttestationPayload {
-	return releaseapp.StagedBuildAttestationPayload{
-		TenantID: value.TenantID, Digest: value.Digest, Size: value.Size, MediaType: value.MediaType,
-		Reference: value.Reference(), StagingKey: value.StagingKey, FinalKey: value.FinalKey,
-		Status: string(value.Status), FailureCode: value.FailureCode, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-		FinalizedAt: cloneTimePtr(value.FinalizedAt), FailedAt: cloneTimePtr(value.FailedAt),
-		OrphanedAt: cloneTimePtr(value.OrphanedAt),
-	}
-}
-
-func stagedBuildAttestationPayloadFromReleaseContext(value releaseapp.StagedBuildAttestationPayload) ObjectPayload {
-	return ObjectPayload{
-		TenantID: value.TenantID, Digest: value.Digest, Size: value.Size, MediaType: value.MediaType,
-		StagingKey: value.StagingKey, FinalKey: value.FinalKey, Status: ObjectPayloadStatus(value.Status),
-		FailureCode: value.FailureCode, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-		FinalizedAt: cloneTimePtr(value.FinalizedAt), FailedAt: cloneTimePtr(value.FailedAt),
-		OrphanedAt: cloneTimePtr(value.OrphanedAt),
-	}
-}
-
-func releaseCandidateToReleaseContext(value domain.ReleaseCandidate) (releasedomain.ReleaseCandidate, error) {
-	state, err := releasedomain.ParseReleaseCandidateState(value.State)
-	if err != nil {
-		return releasedomain.ReleaseCandidate{}, releaseapp.ErrValidation
-	}
-	return releasedomain.ReleaseCandidate{
-		ID: value.ID, TenantID: value.TenantID, ReleaseID: value.ReleaseID, Name: value.Name, Revision: value.Revision,
-		State: state, BuildIDs: append([]string(nil), value.BuildIDs...), ArtifactIDs: append([]string(nil), value.ArtifactIDs...),
-		SBOMIDs: append([]string(nil), value.SBOMIDs...), ScanIDs: append([]string(nil), value.ScanIDs...),
-		VEXIDs: append([]string(nil), value.VEXIDs...), ContractIDs: append([]string(nil), value.ContractIDs...),
-		BundleIDs: append([]string(nil), value.BundleIDs...), SnapshotHash: value.SnapshotHash,
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt, PromotedAt: cloneTimePtr(value.PromotedAt),
-		RejectedAt: cloneTimePtr(value.RejectedAt),
-	}, nil
-}
-
-func releaseCandidateFromReleaseContext(value releasedomain.ReleaseCandidate) domain.ReleaseCandidate {
-	return domain.ReleaseCandidate{
-		ID: value.ID, TenantID: value.TenantID, ReleaseID: value.ReleaseID, Name: value.Name, Revision: value.Revision,
-		State: value.State.String(), BuildIDs: append([]string(nil), value.BuildIDs...), ArtifactIDs: append([]string(nil), value.ArtifactIDs...),
-		SBOMIDs: append([]string(nil), value.SBOMIDs...), ScanIDs: append([]string(nil), value.ScanIDs...),
-		VEXIDs: append([]string(nil), value.VEXIDs...), ContractIDs: append([]string(nil), value.ContractIDs...),
-		BundleIDs: append([]string(nil), value.BundleIDs...), SnapshotHash: value.SnapshotHash,
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt, PromotedAt: cloneTimePtr(value.PromotedAt),
-		RejectedAt: cloneTimePtr(value.RejectedAt),
-	}
-}
-
-func containerImageToReleaseContext(value domain.ContainerImage) releasedomain.ContainerImage {
-	return releasedomain.ContainerImage{
-		ID: value.ID, TenantID: value.TenantID, ArtifactID: value.ArtifactID, Repository: value.Repository,
-		Tag: value.Tag, Digest: value.Digest, Platform: value.Platform, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func containerImageFromReleaseContext(value releasedomain.ContainerImage) domain.ContainerImage {
-	return domain.ContainerImage{
-		ID: value.ID, TenantID: value.TenantID, ArtifactID: value.ArtifactID, Repository: value.Repository,
-		Tag: value.Tag, Digest: value.Digest, Platform: value.Platform, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func legacyReleaseToContext(value domain.Release) (releasedomain.Release, error) {
-	result, err := domain.ReleaseToContextModel(value)
-	if err != nil {
-		return releasedomain.Release{}, releaseapp.ErrValidation
-	}
-	return result, nil
-}
-
-func toReleaseContextError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if revision, ok := CurrentRevision(err); ok {
-		return releaseapp.NewVersionConflict(revision)
-	}
-	switch {
-	case errors.Is(err, ErrValidation):
-		return releaseapp.ErrValidation
-	case errors.Is(err, ErrForbidden):
-		return releaseapp.ErrForbidden
-	case errors.Is(err, ErrNotFound):
-		return releaseapp.ErrNotFound
-	case errors.Is(err, ErrConflict):
-		return releaseapp.ErrConflict
-	default:
-		return err
-	}
-}
-
-func fromReleaseContextError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if revision, ok := releaseapp.CurrentRevision(err); ok {
-		return NewVersionConflict(revision)
-	}
-	switch {
-	case errors.Is(err, releaseapp.ErrValidation):
-		return ErrValidation
-	case errors.Is(err, releaseapp.ErrForbidden):
-		return ErrForbidden
-	case errors.Is(err, releaseapp.ErrNotFound):
-		return ErrNotFound
-	case errors.Is(err, releaseapp.ErrConflict):
-		return ErrConflict
-	default:
-		return err
-	}
+	return ledgerContextAuthorizer{ledger: ledger}, nil
 }
 
 func cloneProductMap(values map[string]domain.Product) map[string]domain.Product {
@@ -1016,14 +757,6 @@ func cloneBuildRunMap(values map[string]domain.BuildRun) map[string]domain.Build
 	return result
 }
 
-func cloneReleaseBuildAttestationMap(values map[string]domain.BuildAttestation) map[string]domain.BuildAttestation {
-	result := make(map[string]domain.BuildAttestation, len(values))
-	for key, value := range values {
-		result[key] = buildAttestationFromReleaseContext(buildAttestationToReleaseContext(value))
-	}
-	return result
-}
-
 func cloneReleaseEvidenceMap(values map[string]domain.EvidenceItem) map[string]domain.EvidenceItem {
 	result := make(map[string]domain.EvidenceItem, len(values))
 	for key, value := range values {
@@ -1057,14 +790,6 @@ func cloneContainerImageMap(values map[string]domain.ContainerImage) map[string]
 	result := make(map[string]domain.ContainerImage, len(values))
 	for key, value := range values {
 		result[key] = containerImageFromReleaseContext(containerImageToReleaseContext(value))
-	}
-	return result
-}
-
-func cloneAuditChainMap(values map[string][]domain.AuditChainEntry) map[string][]domain.AuditChainEntry {
-	result := make(map[string][]domain.AuditChainEntry, len(values))
-	for key, entries := range values {
-		result[key] = append([]domain.AuditChainEntry(nil), entries...)
 	}
 	return result
 }

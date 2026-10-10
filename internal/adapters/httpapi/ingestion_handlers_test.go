@@ -121,11 +121,11 @@ func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
-	product, err := legacyFixtureLedger(server).CreateProduct(t.Context(), actor, "Legacy replay", "legacy-replay")
+	product, err := releaseSetup(legacyFixtureLedger(server)).CreateProduct(t.Context(), actor, "Legacy replay", "legacy-replay")
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := legacyFixtureLedger(server).CreateRelease(t.Context(), actor, product.ID, "1.0.0")
+	release, err := releaseSetup(legacyFixtureLedger(server)).CreateRelease(t.Context(), actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
 	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), `"legacy_replay":true`) || !strings.Contains(rec.Body.String(), `"id":"sbom_legacy"`) {
 		t.Fatalf("legacy retry status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	other, err := legacyFixtureLedger(server).CreateRelease(t.Context(), actor, product.ID, "2.0.0")
+	other, err := releaseSetup(legacyFixtureLedger(server)).CreateRelease(t.Context(), actor, product.ID, "2.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}

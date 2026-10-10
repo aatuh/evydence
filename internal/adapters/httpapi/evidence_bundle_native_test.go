@@ -65,11 +65,11 @@ func TestEvidenceBundleLocalReplayAuthorizesOriginalSelectionUnderChangedGrants(
 	if err != nil {
 		t.Fatal(err)
 	}
-	product, err := legacyFixtureLedger(base).CreateProduct(t.Context(), owner, "Original", "original")
+	product, err := releaseSetup(legacyFixtureLedger(base)).CreateProduct(t.Context(), owner, "Original", "original")
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := legacyFixtureLedger(base).CreateProduct(t.Context(), owner, "Other", "other")
+	other, err := releaseSetup(legacyFixtureLedger(base)).CreateProduct(t.Context(), owner, "Other", "other")
 	if err != nil {
 		t.Fatal(err)
 	}

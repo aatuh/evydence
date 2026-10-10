@@ -74,7 +74,7 @@ func TestPackageFixtureCreationRollsBackPrivacySigningAndAuditEffects(t *testing
 				}
 				path, body = "/v1/customer-packages", fmt.Sprintf(`{"product_id":%q,"redaction_profile_id":%q,"title":"Review","expires_at":%q}`, scope.product.ID, profile.ID, time.Now().UTC().Add(24*time.Hour).Format(time.RFC3339Nano))
 			case "release-bundle":
-				release, err := ledger.CreateRelease(t.Context(), scope.actor, scope.product.ID, "1")
+				release, err := releaseSetup(ledger).CreateRelease(t.Context(), scope.actor, scope.product.ID, "1")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -197,8 +197,8 @@ func TestPackageFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T)
 }
 
 func TestPackageFixtureReplayCannotBypassSavedResponseAuthorization(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper"})
-	scope := seedEvidenceFixtureParents(t, ledger, "Fixture")
+	cached := newCachedReleaseFixture(t, "Fixture")
+	ledger, scope := cached.ledger, cached.scope
 	executor := catalogFixtureReplayExecutor{ledger: ledger}
 	guards, replayGuards, runs := 0, 0, 0
 	authorize := func(context.Context) error { guards++; return nil }

@@ -16,7 +16,7 @@ import (
 func TestRetentionMarkerNativeFixtureUsesCurrentRootsClockAndAtomicHumanAudit(t *testing.T) {
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
-	project, err := ledger.CreateProject(t.Context(), owner.actor, owner.product.ID, "Project")
+	project, err := releaseSetup(ledger).CreateProject(t.Context(), owner.actor, owner.product.ID, "Project")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestRetentionMarkerNativeFixtureDeniesForeignAndScopedAdminWithoutEffects(t
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
-	foreignProject, err := ledger.CreateProject(t.Context(), foreign.actor, foreign.product.ID, "Project")
+	foreignProject, err := releaseSetup(ledger).CreateProject(t.Context(), foreign.actor, foreign.product.ID, "Project")
 	if err != nil {
 		t.Fatal(err)
 	}

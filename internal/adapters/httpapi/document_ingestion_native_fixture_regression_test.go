@@ -74,7 +74,7 @@ func TestDocumentIngestionNativeFixtureUsesExplicitResourcesAndAtomicDigestBound
 		t.Run(tc.name, func(t *testing.T) {
 			ledger, base, objects := signatureRegressionLedger(t)
 			owner := seedSignatureFixtureScope(t, ledger, "Owner")
-			release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+			release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -205,11 +205,11 @@ func TestDocumentIngestionNativeFixtureRejectsForeignAndMalformedSourcesBeforeEf
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
 	foreign := seedSignatureFixtureScope(t, ledger, "Foreign")
-	release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignRelease, err := ledger.CreateRelease(t.Context(), foreign.actor, foreign.product.ID, "1")
+	foreignRelease, err := releaseSetup(ledger).CreateRelease(t.Context(), foreign.actor, foreign.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +270,7 @@ func TestDocumentIngestionNativeFixtureKeepsExplicitParserPolicyAndNoStorageSema
 			t.Run(tc.name+"/"+mode, func(t *testing.T) {
 				ledger, base, objects := signatureRegressionLedger(t)
 				owner := seedSignatureFixtureScope(t, ledger, "Owner")
-				release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+				release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -365,7 +365,7 @@ func TestDocumentIngestionNativeFixtureKeepsExplicitParserPolicyAndNoStorageSema
 func TestDocumentIngestionNativeFixtureRejectsChangedRepeatableBytesAndUntrustedStaging(t *testing.T) {
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
-	release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}

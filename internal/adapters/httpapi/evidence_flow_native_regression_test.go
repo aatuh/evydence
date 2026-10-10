@@ -172,8 +172,8 @@ func TestEvidenceFlowNativeFixtureDiscardsCountsOnCommitFailureBeforeClock(t *te
 }
 
 func TestEvidenceFlowNativeFixtureRequiresRepositoryAndPreservesExplicitQueryPorts(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	owner := seedOperationsFixtureParents(t, ledger, "Owner")
+	cached := newCachedReleaseFixture(t, "Owner")
+	ledger, owner := cached.ledger, cached.scope
 	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{Authenticator: &configuredAuthenticator{actor: owner.actor}})
 	if err != nil {
 		t.Fatal(err)

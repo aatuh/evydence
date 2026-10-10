@@ -25,7 +25,7 @@ func TestEvidenceRelationshipNativeFixturesUseCurrentScopeWithoutAggregateClockA
 			ledger, base := integrationRegressionLedger()
 			owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 			foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
-			release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+			release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 			if err != nil {
 				t.Fatal(err)
 			}

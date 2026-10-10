@@ -21,7 +21,7 @@ func nativeScanFixturePayload(release string) []byte {
 func TestScanIngestionNativeFixtureUsesCurrentScopeExplicitResourcesAndAtomicNormalizedEffects(t *testing.T) {
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
-	release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,15 +121,15 @@ func TestScanIngestionNativeFixtureRejectsForeignRevokedAndIncoherentScopesBefor
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
-	release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignRelease, err := ledger.CreateRelease(t.Context(), foreign.actor, foreign.product.ID, "1")
+	foreignRelease, err := releaseSetup(ledger).CreateRelease(t.Context(), foreign.actor, foreign.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "2")
+	other, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestScanIngestionNativeFixtureKeepsExplicitWorkerPolicyAndNoStorageOnRebind
 		t.Run(mode, func(t *testing.T) {
 			ledger, base, objects := signatureRegressionLedger(t)
 			owner := seedEvidenceFixtureScope(t, ledger, "Owner")
-			release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+			release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -254,7 +254,7 @@ func TestScanIngestionNativeFixtureKeepsExplicitWorkerPolicyAndNoStorageOnRebind
 func TestScanIngestionNativeFixtureHTTPFailureRollsBackAndMissingRepositoryFailsClosed(t *testing.T) {
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
-	release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}

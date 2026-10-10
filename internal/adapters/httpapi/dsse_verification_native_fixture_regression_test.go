@@ -17,6 +17,8 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
+	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -36,22 +38,22 @@ func newDSSENativeFixture(t *testing.T, trust bool) dsseNativeFixture {
 	ledger, base, objects := signatureRegressionLedger(t)
 	f := dsseNativeFixture{ledger: ledger, base: base, objects: objects, owner: seedSignatureFixtureScope(t, ledger, "Owner")}
 	a := f.owner.actor
-	project, err := ledger.CreateProject(t.Context(), a, f.owner.product.ID, "API")
+	project, err := releaseSetup(ledger).CreateProject(t.Context(), a, f.owner.product.ID, "API")
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := ledger.CreateRelease(t.Context(), a, f.owner.product.ID, "1.0.0")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), a, f.owner.product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact, err := ledger.RegisterArtifact(t.Context(), a, "payments-api.tar.gz", "application/octet-stream", "sha256:"+strings.Repeat("a", 64), 42)
+	artifact, err := releaseSetup(ledger).RegisterArtifact(t.Context(), a, "payments-api.tar.gz", "application/octet-stream", "sha256:"+strings.Repeat("a", 64), 42)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := createEvidenceFixture(t.Context(), ledger, a, app.CreateEvidenceInput{ProductID: f.owner.product.ID, ReleaseID: release.ID, Type: "manual", Title: "Release artifact", PayloadHash: artifact.Digest, SubjectRefs: []domain.SubjectRef{{Type: "artifact", ID: artifact.ID, Digest: artifact.Digest}}}); err != nil {
 		t.Fatal(err)
 	}
-	f.build, err = ledger.CreateBuildRun(t.Context(), a, app.CreateBuildRunInput{ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: strings.Repeat("a", 40), Status: "passed", StartedAt: time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC), Outputs: []domain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}})
+	f.build, err = releaseSetup(ledger).CreateBuildRun(t.Context(), a, releaseapp.CreateBuildRunInput{ProjectID: project.ID, ReleaseID: release.ID, Provider: "generic_ci", CommitSHA: strings.Repeat("a", 40), Status: "passed", StartedAt: time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC), Outputs: []releasedomain.BuildOutput{{ArtifactID: artifact.ID, Digest: artifact.Digest}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +72,9 @@ func newDSSENativeFixture(t *testing.T, trust bool) dsseNativeFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.attestation, err = ledger.UploadBuildAttestation(t.Context(), a, f.build.ID, f.raw)
+	setup := releaseSetup(ledger)
+	setup.objects = objects
+	f.attestation, err = setup.UploadBuildAttestation(t.Context(), a, f.build.ID, f.raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +192,9 @@ func TestDSSENativeFixtureHTTPReplayAndNegativeVerificationRollback(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	bad, err := seed.ledger.UploadBuildAttestation(t.Context(), seed.owner.actor, seed.build.ID, badRaw)
+	setup := releaseSetup(seed.ledger)
+	setup.objects = seed.objects
+	bad, err := setup.UploadBuildAttestation(t.Context(), seed.owner.actor, seed.build.ID, badRaw)
 	if err != nil {
 		t.Fatal(err)
 	}

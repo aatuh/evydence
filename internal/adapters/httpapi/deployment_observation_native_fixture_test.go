@@ -27,7 +27,7 @@ func TestDeploymentObservationNativeFixtureReadsCurrentScopeAndFailsClosed(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact, err := ledger.RegisterArtifact(t.Context(), owner.actor, "Artifact", "text/plain", "sha256:"+strings.Repeat("a", 64), 1)
+	artifact, err := releaseSetup(ledger).RegisterArtifact(t.Context(), owner.actor, "Artifact", "text/plain", "sha256:"+strings.Repeat("a", 64), 1)
 	if err != nil {
 		t.Fatal(err)
 	}

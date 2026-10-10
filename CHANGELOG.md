@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired the broad Release aggregate adapter, its Service field and constructor
+wiring, fourteen command/read facades, three workflow input DTOs and cached
+candidate-reference validator from production. Historical characterization
+remains test-only; shared pure value mappings and still-used authorizers remain
+explicit. HTTP and PostgreSQL test setup uses focused commands rather than
+aggregate mutation facades. Signed attestation fixtures retain real explicitly
+bound object resources, and missing-repository tests load genuine cached rows
+without adding a fallback. Existing API, storage, replay and hash contracts are
+unchanged. Remaining Identity, Verification, state and worker aggregate cleanup
+and required live validation keep EVY-906 open.
+
 Retired cached artifact/image registration replay guards from production source.
 HTTP fixtures compose focused Release commands over current identity, grant and
 bounded metadata reads, retaining cookie/origin assertions. Regressions cover

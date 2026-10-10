@@ -64,11 +64,11 @@ func TestStoreConcurrentIdempotencyAcrossLedgerInstances(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate actor: %v", err)
 	}
-	product, err := owner.CreateProduct(ctx, actor, "PostgreSQL payments", "postgres-payments")
+	product, err := postgresReleaseSetup(owner).CreateProduct(ctx, actor, "PostgreSQL payments", "postgres-payments")
 	if err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	release, err := owner.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	release, err := postgresReleaseSetup(owner).CreateRelease(ctx, actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatalf("create release: %v", err)
 	}

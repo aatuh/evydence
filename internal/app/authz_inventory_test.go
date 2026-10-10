@@ -19,9 +19,11 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		"legacy_catalog_creation_guard_oracle_test.go":         {"AuthorizeProductCreation", "AuthorizeProjectCreation", "AuthorizeReleaseCreation", "authorizeCatalogCreation"},
 		"legacy_build_creation_guard_oracle_test.go":           {"AuthorizeBuildCreation"},
 		"legacy_build_attestation_guard_oracle_test.go":        {"AuthorizeBuildAttestationCreation"},
-		"builds.go": {
+		"legacy_release_workflow_oracle_test.go": {
 			"CreateBuildRun",
 			"UploadBuildAttestation",
+			"CreateReleaseCandidate",
+			"UpdateReleaseCandidateState",
 		},
 		"legacy_catalog_query_oracle_test.go":         {"GetBuildRun", "GetReleaseCandidate", "ListReleaseCandidates"},
 		"legacy_vulnerability_posture_oracle_test.go": {"VulnerabilityPostureReport"},
@@ -64,10 +66,6 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 			"UploadSecurityScan",
 			"UploadManualSecurityDocument",
 		},
-		"implementation_increments.go": {
-			"CreateReleaseCandidate",
-			"UpdateReleaseCandidateState",
-		},
 		"legacy_deployment_point_oracle_test.go":   {"GetDeployment"},
 		"legacy_deployment_lists_oracle_test.go":   {"ListDeploymentEnvironments", "ListDeployments"},
 		"legacy_deployment_write_oracle_test.go":   {"CreateDeploymentEnvironment", "RecordDeployment"},
@@ -84,7 +82,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 		for _, name := range funcs {
 			fn := functionBody(t, body, name)
 			if !strings.Contains(fn, "authorizeResourceLocked") && !strings.Contains(fn, "resourceAllowedLocked") &&
-				!strings.Contains(fn, "releaseCommands.") && (!strings.HasSuffix(file, "_test.go") || !strings.Contains(fn, "legacyEvidenceCommands().")) &&
+				(!strings.HasSuffix(file, "_test.go") || !strings.Contains(fn, "legacyEvidenceCommands().") && !strings.Contains(fn, "legacyReleaseCommands().")) &&
 				!strings.Contains(fn, "authorizeAnswerLibraryCreateLocked") && !strings.Contains(fn, "packagequery.NewAnswerLibraryAuthorizer().Authorize") &&
 				!strings.Contains(fn, "authorizeQuestionnairePackageCreateLocked") && !strings.Contains(fn, "packagequery.NewQuestionnairePackageAuthorizer().Authorize") &&
 				!strings.Contains(fn, "authorizePortalWriteLocked") && !strings.Contains(fn, "packagequery.NewPortalAccessWriteAuthorizer().Authorize") &&

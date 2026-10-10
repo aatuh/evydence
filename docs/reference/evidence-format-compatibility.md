@@ -155,8 +155,9 @@ version replay parity is not a claim that older parser versions have been
 migrated.
 
 Evidence: `internal/app/parsers/cyclonedx`,
-`internal/app/cyclonedx_ingestion.go`, `internal/app/cyclonedx_upload.go`,
-`internal/app/cyclonedx_validator.go`, `internal/app/release_evidence_service.go`,
+`internal/app/cyclonedx_ingestion.go`,
+`internal/app/cyclonedx_validator.go`, `internal/evidence/app/sbom_ingestion_commands.go`,
+`internal/adapters/httpapi/sbom_ingestion_commands.go`,
 `internal/app/cyclonedx_replay.go`, `internal/app/parser_versions.go`,
 `cmd/evydence-worker/main.go`, and the CycloneDX parser/ingestion/upload/replay
 tests.

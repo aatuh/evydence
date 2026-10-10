@@ -23,7 +23,7 @@ func TestVEXIngestionNativeFixtureUsesCurrentScopeAndAtomicAcceptedWorkerHandoff
 		t.Run(tc.format, func(t *testing.T) {
 			ledger, base, objects := signatureRegressionLedger(t)
 			owner := seedSignatureFixtureScope(t, ledger, "Owner")
-			release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+			release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -126,11 +126,11 @@ func TestVEXIngestionNativeFixtureRejectsForeignScopesRevocationAndMalformedStre
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
 	foreign := seedSignatureFixtureScope(t, ledger, "Foreign")
-	release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fr, err := ledger.CreateRelease(t.Context(), foreign.actor, foreign.product.ID, "1")
+	fr, err := releaseSetup(ledger).CreateRelease(t.Context(), foreign.actor, foreign.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestVEXIngestionNativeFixtureRejectsForeignScopesRevocationAndMalformedStre
 func TestVEXIngestionNativeFixturePreservesExplicitNoStorageResourcesAndSafeHTTPFailure(t *testing.T) {
 	ledger, base, objects := signatureRegressionLedger(t)
 	owner := seedSignatureFixtureScope(t, ledger, "Owner")
-	release, err := ledger.CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
+	release, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, owner.product.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}

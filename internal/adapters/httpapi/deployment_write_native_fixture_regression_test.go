@@ -161,11 +161,11 @@ func TestDeploymentWriteNativeFixturesBindArtifactRollbackAndCurrentReleaseScope
 	ledger, base := integrationRegressionLedger()
 	owner := seedOperationsFixtureScope(t, ledger, "Owner")
 	foreign := seedOperationsFixtureScope(t, ledger, "Foreign")
-	artifact, err := ledger.RegisterArtifact(t.Context(), owner.actor, "Owned", "application/octet-stream", "sha256:"+strings.Repeat("a", 64), 1)
+	artifact, err := releaseSetup(ledger).RegisterArtifact(t.Context(), owner.actor, "Owned", "application/octet-stream", "sha256:"+strings.Repeat("a", 64), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignArtifact, err := ledger.RegisterArtifact(t.Context(), foreign.actor, "Foreign", "application/octet-stream", "sha256:"+strings.Repeat("b", 64), 1)
+	foreignArtifact, err := releaseSetup(ledger).RegisterArtifact(t.Context(), foreign.actor, "Foreign", "application/octet-stream", "sha256:"+strings.Repeat("b", 64), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,11 +183,11 @@ func TestDeploymentWriteNativeFixturesBindArtifactRollbackAndCurrentReleaseScope
 	if err != nil {
 		t.Fatal(err)
 	}
-	otherProduct, err := ledger.CreateProduct(t.Context(), owner.actor, "Other", "other")
+	otherProduct, err := releaseSetup(ledger).CreateProduct(t.Context(), owner.actor, "Other", "other")
 	if err != nil {
 		t.Fatal(err)
 	}
-	otherRelease, err := ledger.CreateRelease(t.Context(), owner.actor, otherProduct.ID, "1")
+	otherRelease, err := releaseSetup(ledger).CreateRelease(t.Context(), owner.actor, otherProduct.ID, "1")
 	if err != nil {
 		t.Fatal(err)
 	}

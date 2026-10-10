@@ -53,8 +53,8 @@ func TestReleaseSummaryNativeFixtureDiscardsProjectionOnCommitFailure(t *testing
 }
 
 func TestReleaseSummaryNativeFixtureRequiresRepositoryAndPreservesExplicitPorts(t *testing.T) {
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test"})
-	owner := seedOperationsFixtureParents(t, ledger, "Owner")
+	cached := newCachedReleaseFixture(t, "Owner")
+	ledger, owner := cached.ledger, cached.scope
 	server, err := newLegacyServerFixture(ledger)
 	if err != nil {
 		t.Fatal(err)

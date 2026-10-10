@@ -10,7 +10,7 @@ import (
 
 // Unchanged historical algorithms remain package-local test oracles only.
 func (l *Ledger) ListProducts(ctx context.Context, actor domain.Actor) ([]domain.Product, error) {
-	values, err := l.releaseCommands.ListProducts(ctx, actor)
+	values, err := l.legacyReleaseCommands().ListProducts(ctx, actor)
 	if err != nil {
 		return nil, fromReleaseContextError(err)
 	}
@@ -49,22 +49,22 @@ func (l *Ledger) ReleaseEvidenceFlowPlan(ctx context.Context, actor domain.Actor
 }
 
 func (l *Ledger) GetProject(ctx context.Context, actor domain.Actor, id string) (domain.Project, error) {
-	value, err := l.releaseCommands.GetProject(ctx, actor, id)
+	value, err := l.legacyReleaseCommands().GetProject(ctx, actor, id)
 	return projectFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) GetBuildRun(ctx context.Context, actor domain.Actor, id string) (domain.BuildRun, error) {
-	value, err := l.releaseCommands.GetBuildRun(ctx, actor, id)
+	value, err := l.legacyReleaseCommands().GetBuildRun(ctx, actor, id)
 	return buildRunFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) GetReleaseCandidate(ctx context.Context, actor domain.Actor, id string) (domain.ReleaseCandidate, error) {
-	value, err := l.releaseCommands.GetReleaseCandidate(ctx, actor, id)
+	value, err := l.legacyReleaseCommands().GetReleaseCandidate(ctx, actor, id)
 	return releaseCandidateFromReleaseContext(value), fromReleaseContextError(err)
 }
 
 func (l *Ledger) ListReleaseCandidates(ctx context.Context, actor domain.Actor, releaseID string) ([]domain.ReleaseCandidate, error) {
-	values, err := l.releaseCommands.ListReleaseCandidates(ctx, actor, releaseID)
+	values, err := l.legacyReleaseCommands().ListReleaseCandidates(ctx, actor, releaseID)
 	if err != nil {
 		return nil, fromReleaseContextError(err)
 	}

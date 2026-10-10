@@ -62,7 +62,7 @@ func TestEvidenceBundleExportNativeFixtureFiltersCurrentGrantsAndRejectsForeignR
 	ledger, base := integrationRegressionLedger()
 	owner := seedControlFixtureScope(t, ledger, "Owner")
 	foreign := seedControlFixtureScope(t, ledger, "Foreign")
-	other, err := ledger.CreateProduct(t.Context(), owner.actor, "Other product", "other-product")
+	other, err := releaseSetup(ledger).CreateProduct(t.Context(), owner.actor, "Other product", "other-product")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,63 +1,13 @@
 package app
 
 import (
-	"context"
-	"time"
-
 	"github.com/aatuh/evydence/internal/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
-	releaseapp "github.com/aatuh/evydence/internal/release/app"
-	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
 const (
 	buildStatusPassed = "passed"
 )
-
-type CreateBuildRunInput struct {
-	ProjectID        string
-	ReleaseID        string
-	Provider         string
-	CommitSHA        string
-	Repository       string
-	WorkflowRef      string
-	RunID            string
-	RunAttempt       int
-	JobID            string
-	GitHubActor      string
-	Ref              string
-	OIDCSubject      string
-	Status           string
-	StartedAt        time.Time
-	FinishedAt       *time.Time
-	ParametersHash   string
-	EnvironmentHash  string
-	ProviderMetadata map[string]any
-	Outputs          []domain.BuildOutput
-}
-
-func (l *Ledger) CreateBuildRun(ctx context.Context, actor domain.Actor, in CreateBuildRunInput) (domain.BuildRun, error) {
-	outputs := make([]releasedomain.BuildOutput, 0, len(in.Outputs))
-	for _, output := range in.Outputs {
-		outputs = append(outputs, releasedomain.BuildOutput{ArtifactID: output.ArtifactID, Digest: output.Digest})
-	}
-	value, err := l.releaseCommands.CreateBuildRun(ctx, actor, releaseapp.CreateBuildRunInput{
-		ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, Provider: in.Provider, CommitSHA: in.CommitSHA,
-		Repository: in.Repository, WorkflowRef: in.WorkflowRef, RunID: in.RunID, RunAttempt: in.RunAttempt,
-		JobID: in.JobID, GitHubActor: in.GitHubActor, Ref: in.Ref, OIDCSubject: in.OIDCSubject,
-		Status: in.Status, StartedAt: in.StartedAt, FinishedAt: cloneTimePtr(in.FinishedAt),
-		ParametersHash: in.ParametersHash, EnvironmentHash: in.EnvironmentHash,
-		ProviderMetadata: cloneIdentityAnyMap(in.ProviderMetadata), Outputs: outputs,
-	})
-	return buildRunFromReleaseContext(value), fromReleaseContextError(err)
-}
-
-// UploadBuildAttestation is retained as an HTTP compatibility facade.
-// Deprecated: use the focused release application service.
-func (l *Ledger) UploadBuildAttestation(ctx context.Context, actor domain.Actor, buildID string, raw []byte) (domain.BuildAttestation, error) {
-	value, err := l.releaseCommands.UploadBuildAttestation(ctx, actor, buildID, raw)
-	return buildAttestationFromReleaseContext(value), fromReleaseContextError(err)
-}
 
 func validCollectorScopes(scopes []string) bool {
 	_, err := integrationapp.NormalizeCollectorScopes(scopes)

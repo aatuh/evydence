@@ -11,6 +11,12 @@ import (
 
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
+		"configureReleaseCommands": true, "legacyReleaseCommands": true,
+		"ledgerReleaseReader": true, "ledgerReleaseTransactions": true, "ledgerReleaseTransaction": true,
+		"newLedgerReleaseTransaction": true, "ledgerReleaseCandidateReferences": true,
+		"ledgerReleaseCandidateCanonicalizer": true, "ledgerBuildAttestationPayloadStager": true,
+		"CreateBuildRunInput": true, "CreateReleaseCandidateInput": true, "RegisterContainerImageInput": true,
+		"validateCandidateRefsLocked": true, "NewContextAuthorizer": true,
 		"AuthorizeArtifactRegistration": true, "AuthorizeContainerImageRegistration": true,
 		"AuthorizeProductCreation": true, "AuthorizeProjectCreation": true, "AuthorizeReleaseCreation": true,
 		"authorizeCatalogCreation":   true,
@@ -154,6 +160,49 @@ func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	}
 	if inspected == 0 {
 		t.Fatal("no production application files inspected")
+	}
+}
+
+func TestLegacyReleaseFacadesAndServiceFieldAreAbsentFromProduction(t *testing.T) {
+	retired := map[string]bool{"CreateProduct": true, "GetProduct": true, "CreateProject": true,
+		"CreateRelease": true, "GetRelease": true, "FreezeRelease": true, "ApproveRelease": true,
+		"RegisterArtifact": true, "GetArtifact": true, "CreateBuildRun": true,
+		"UploadBuildAttestation": true, "CreateReleaseCandidate": true,
+		"UpdateReleaseCandidateState": true, "RegisterContainerImage": true}
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), entry.Name(), nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch v := node.(type) {
+			case *ast.FuncDecl:
+				if v.Recv == nil || len(v.Recv.List) != 1 || !retired[v.Name.Name] {
+					break
+				}
+				typ := v.Recv.List[0].Type
+				if ptr, ok := typ.(*ast.StarExpr); ok {
+					typ = ptr.X
+				}
+				if id, ok := typ.(*ast.Ident); ok && id.Name == "Ledger" {
+					t.Errorf("%s retains Release aggregate facade %s", entry.Name(), v.Name.Name)
+				}
+			case *ast.Field:
+				for _, name := range v.Names {
+					if name.Name == "releaseCommands" {
+						t.Errorf("%s retains aggregate Release service field", entry.Name())
+					}
+				}
+			}
+			return true
+		})
 	}
 }
 

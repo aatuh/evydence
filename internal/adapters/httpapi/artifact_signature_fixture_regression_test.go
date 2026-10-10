@@ -48,7 +48,7 @@ func seedSignatureFixtureScope(t *testing.T, ledger *app.Ledger, name string) si
 	t.Helper()
 	f := signatureFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}
 	var err error
-	f.artifact, err = ledger.RegisterArtifact(t.Context(), f.actor, "api.tar", "application/octet-stream", "sha256:"+strings.Repeat("c", 64), 42)
+	f.artifact, err = releaseSetup(ledger).RegisterArtifact(t.Context(), f.actor, "api.tar", "application/octet-stream", "sha256:"+strings.Repeat("c", 64), 42)
 	if err != nil {
 		t.Fatal(err)
 	}

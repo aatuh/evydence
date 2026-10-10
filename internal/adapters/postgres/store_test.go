@@ -298,7 +298,7 @@ func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
 
 	commandErr := errors.New("force transactional rollback")
 	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "rollback", []byte(`{"name":"Rollback","slug":"rollback"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		if _, err := commandLedger.CreateProduct(ctx, actor, "Rollback", "rollback"); err != nil {
+		if _, err := postgresReleaseSetup(commandLedger).CreateProduct(ctx, actor, "Rollback", "rollback"); err != nil {
 			return 0, nil, err
 		}
 		return 500, nil, commandErr
@@ -321,7 +321,7 @@ func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
 	}
 
 	status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		product, err := commandLedger.CreateProduct(ctx, actor, "Committed", "committed")
+		product, err := postgresReleaseSetup(commandLedger).CreateProduct(ctx, actor, "Committed", "committed")
 		return 201, product, err
 	})
 	if err != nil || status != 201 {
@@ -1704,15 +1704,15 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	product, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments-restore")
+	product, err := postgresReleaseSetup(ledger).CreateProduct(ctx, actor, "Payments API", "payments-restore")
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	release, err := postgresReleaseSetup(ledger).CreateRelease(ctx, actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact, err := ledger.RegisterArtifact(ctx, actor, "payments.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
+	artifact, err := postgresReleaseSetup(ledger).RegisterArtifact(ctx, actor, "payments.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
 	if err != nil {
 		t.Fatal(err)
 	}
