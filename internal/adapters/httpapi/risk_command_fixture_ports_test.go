@@ -174,7 +174,7 @@ func (f riskCommandFixture) EvaluateRelease(ctx context.Context, actor domain.Ac
 	return value, policyEvaluationFixtureError(err)
 }
 
-func (s *Server) bindRiskCommandFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindRiskCommandFixturePorts(ledger *repositoryFixture) {
 	commands := riskCommandFixture{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.vulnerabilityDecisionCommands.(riskCommandFixture); s.vulnerabilityDecisionCommands == nil || fixture {
 		s.vulnerabilityDecisionCommands = commands

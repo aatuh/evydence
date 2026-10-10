@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
@@ -87,7 +86,7 @@ func (f controlFixtureCommands) LinkControlEvidence(ctx context.Context, a domai
 	v, err := c.LinkControlEvidence(ctx, a, id, in)
 	return v, mapControlCommandError(err)
 }
-func (s *Server) bindControlFixtureCommands(ledger *app.Ledger) {
+func (s *Server) bindControlFixtureCommands(ledger *repositoryFixture) {
 	f := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.controlCommands.(controlFixtureCommands); fixture {
 		old.ledger = ledger

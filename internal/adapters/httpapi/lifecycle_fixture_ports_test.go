@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
@@ -72,7 +71,7 @@ func (f lifecycleFixtureCommands) UploadBuildAttestation(ctx context.Context, ac
 	return value, mapBuildAttestationCommandError(err)
 }
 
-func (s *Server) bindLifecycleFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindLifecycleFixturePorts(ledger *repositoryFixture) {
 	commands := lifecycleFixtureCommands{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.releaseStateCommands.(lifecycleFixtureCommands); s.releaseStateCommands == nil || fixture {
 		s.releaseStateCommands = commands

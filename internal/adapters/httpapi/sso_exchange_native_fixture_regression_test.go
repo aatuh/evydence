@@ -104,7 +104,7 @@ func (r ssoExchangeFailureAudit) Append(ctx context.Context, v domain.AuditChain
 	return v, nil
 }
 
-func signedSSOExchangeNativeFixture(t *testing.T, transactions app.UnitOfWorkFactory) (*app.Ledger, ssoProviderFixtureScope, string) {
+func signedSSOExchangeNativeFixture(t *testing.T, transactions app.UnitOfWorkFactory) (*repositoryFixture, ssoProviderFixtureScope, string) {
 	t.Helper()
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: transactions, Now: peripheralFixtureQueryClock})
 	owner := seedProviderVerificationFixture(t, ledger, "Owner")

@@ -52,7 +52,7 @@ type controlFixtureScope struct {
 	control   domain.SecurityControl
 }
 
-func seedControlFixtureScope(t *testing.T, ledger *app.Ledger, name string) controlFixtureScope {
+func seedControlFixtureScope(t *testing.T, ledger *repositoryFixture, name string) controlFixtureScope {
 	t.Helper()
 	f := controlFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
 	commands := controlFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.product.CreatedAt })}

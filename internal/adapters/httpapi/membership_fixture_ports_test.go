@@ -157,7 +157,7 @@ func (f membershipFixtureCommands) CreateRoleBinding(ctx context.Context, a doma
 	v, err := c.CreateRoleBinding(ctx, a, in)
 	return v, providerVerificationFixtureError(err)
 }
-func (s *Server) bindMembershipFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindMembershipFixturePorts(ledger *repositoryFixture) {
 	f := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.membershipCommands.(membershipFixtureCommands); fixture {
 		old.ledger = ledger

@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
@@ -39,7 +38,7 @@ func (f riskWorkflowFixtureCommands) RecordVulnerabilityWorkflow(ctx context.Con
 	}
 	return commands.RecordVulnerabilityWorkflow(ctx, a, in)
 }
-func (s *Server) bindRiskWorkflowFixtureCommands(ledger *app.Ledger) {
+func (s *Server) bindRiskWorkflowFixtureCommands(ledger *repositoryFixture) {
 	if f, fixture := s.customPolicyCommands.(riskWorkflowFixtureCommands); s.customPolicyCommands == nil || fixture {
 		f.catalogFixtureCommands = catalogFixtureCommands{ledger: ledger}
 		s.customPolicyCommands = f

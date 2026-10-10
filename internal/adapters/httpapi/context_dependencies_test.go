@@ -25,7 +25,7 @@ func TestBindLedgerReplacesEveryContextDependency(t *testing.T) {
 	assertServerContextDependencies(t, server, second)
 }
 
-func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.Ledger) {
+func assertServerContextDependencies(t *testing.T, server *Server, ledger *repositoryFixture) {
 	t.Helper()
 	if legacyFixtureLedger(server) != ledger {
 		t.Fatal("compatibility ledger was not rebound")
@@ -499,7 +499,7 @@ func TestAggregateIdempotencyCommandWrappersAreRetired(t *testing.T) {
 						t.Errorf("%s reaches s.ledger directly", functionName)
 					}
 					if receiverOK && receiver.Name == "app" && value.Sel.Name == "Ledger" {
-						t.Errorf("%s depends on *app.Ledger", functionName)
+						t.Errorf("%s depends on *repositoryFixture", functionName)
 					}
 				case *ast.AssignStmt:
 					for _, expression := range value.Lhs {

@@ -136,7 +136,7 @@ func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
 	legacyResponse := map[string]any{"legacy_replay": true, "id": "sbom_legacy", "tenant_id": actor.TenantID, "release_id": release.ID, "artifact_id": "", "format": "cyclonedx"}
 	status, _, err := legacyFixtureLedger(server).WithIdempotencyRequestHash(
 		t.Context(), actor, http.MethodPost, "/v1/sboms", key, bodyDigest,
-		func(context.Context, *app.Ledger) (int, any, error) {
+		func(context.Context, *repositoryFixture) (int, any, error) {
 			return http.StatusCreated, legacyResponse, nil
 		},
 	)

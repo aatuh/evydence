@@ -94,7 +94,7 @@ func (f roleBindingFixtureQuery) ListPage(ctx context.Context, actor domain.Acto
 	return result, providerVerificationFixtureError(err)
 }
 
-func (s *Server) bindIdentityQueryFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindIdentityQueryFixturePorts(ledger *repositoryFixture) {
 	if _, fixture := s.apiKeyQuery.(apiKeyFixtureQuery); s.apiKeyQuery == nil || fixture {
 		s.apiKeyQuery = apiKeyFixtureQuery{catalogFixtureCommands{ledger: ledger}}
 	}

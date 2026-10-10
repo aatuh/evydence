@@ -157,7 +157,7 @@ func (f outboxReplayFixture) ReplayIdempotent(ctx context.Context, actor domain.
 	if err != nil {
 		return 0, nil, err
 	}
-	return f.ledger.WithIdempotency(ctx, actor, method, path, key, body, func(commandCtx context.Context, _ *app.Ledger) (int, any, error) {
+	return f.ledger.WithIdempotency(ctx, actor, method, path, key, body, func(commandCtx context.Context, _ *repositoryFixture) (int, any, error) {
 		// The actual service joins the receipt transaction. The external
 		// fake itself cannot roll back its observable side effects.
 		v, err := commands.ReplayTerminalJob(commandCtx, actor, jobID)
@@ -190,7 +190,7 @@ func (f operatorReplayFixtureRepository) ReplayTerminalJob(ctx context.Context, 
 	return operationsapp.OutboxReplay{JobID: v.JobID, Status: v.Status, ReplayedAt: v.ReplayedAt}, nil
 }
 
-func (s *Server) bindOperatorFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindOperatorFixturePorts(ledger *repositoryFixture) {
 	base := operatorFixtureQueries{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if f, ok := s.readinessQuery.(readinessFixture); ok {
 		f.ledger = ledger

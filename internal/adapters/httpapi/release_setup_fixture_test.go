@@ -15,7 +15,7 @@ type releaseSetupFixture struct {
 	objects app.ObjectStore
 }
 
-func releaseSetup(ledger *app.Ledger) releaseSetupFixture {
+func releaseSetup(ledger *repositoryFixture) releaseSetupFixture {
 	return releaseSetupFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 }
 func (f releaseSetupFixture) CreateProduct(ctx context.Context, a domain.Actor, name, slug string) (domain.Product, error) {

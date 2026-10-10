@@ -21,7 +21,7 @@ type riskReportFixtureScope struct {
 	scan domain.VulnerabilityScan
 }
 
-func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) riskReportFixtureScope {
+func seedRiskReportFixtureScope(t *testing.T, ledger *repositoryFixture, name string) riskReportFixtureScope {
 	t.Helper()
 	f := seedRiskReportFixtureParentScope(t, ledger, name)
 	var err error
@@ -38,7 +38,7 @@ func seedRiskReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) r
 
 // Missing-repository characterization needs real cached parent coordinates,
 // not a scan write that would require the deliberately absent repositories.
-func seedRiskReportFixtureParentScope(t *testing.T, ledger *app.Ledger, name string) riskReportFixtureScope {
+func seedRiskReportFixtureParentScope(t *testing.T, ledger *repositoryFixture, name string) riskReportFixtureScope {
 	t.Helper()
 	f := riskReportFixtureScope{riskQueryFixtureScope: riskQueryFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}}
 	var err error

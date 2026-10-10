@@ -3,19 +3,17 @@ package httpapi
 import (
 	"context"
 	"errors"
-
-	"github.com/aatuh/evydence/internal/app"
 )
 
-// This preserves the pre-retirement local fixture's transaction and response
-// assertions during aggregate retirement. It is not a supported runtime backend and
-// cannot be used by a production caller. EVY-906 still requires deletion of the
-// remaining aggregate, not merely this fixture separation.
-func newLegacyServerFixture(ledger *app.Ledger) (*Server, error) {
+// Historical helper names and response assertions are retained, but composition
+// receives only a transaction-factory fixture, never an application aggregate.
+// This test-only wiring is not a supported runtime backend. EVY-906 still
+// requires deletion of the remaining application aggregate/state machinery.
+func newLegacyServerFixture(ledger *repositoryFixture) (*Server, error) {
 	return newLegacyServerFixtureWithOptionsContext(context.Background(), ledger, ServerOptions{})
 }
 
-func newLegacyServerFixtureWithOptions(ledger *app.Ledger, opts ServerOptions) (*Server, error) {
+func newLegacyServerFixtureWithOptions(ledger *repositoryFixture, opts ServerOptions) (*Server, error) {
 	return newLegacyServerFixtureWithOptionsContext(context.Background(), ledger, opts)
 }
 
@@ -31,7 +29,7 @@ func derivedServerFixtureWithContext(ctx context.Context, base *Server, opts Ser
 	return newLegacyServerFixtureWithOptionsContext(ctx, legacyFixtureLedger(base), opts)
 }
 
-func newLegacyServerFixtureWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions) (*Server, error) {
+func newLegacyServerFixtureWithOptionsContext(ctx context.Context, ledger *repositoryFixture, opts ServerOptions) (*Server, error) {
 	if ctx == nil {
 		return nil, errors.New("server context is required")
 	}
@@ -52,10 +50,10 @@ func newLegacyServerFixtureWithOptionsContext(ctx context.Context, ledger *app.L
 	return server, nil
 }
 
-// The legacy setup handle is obtained from existing test-only query ports,
+// The transaction-only setup handle is obtained from existing test-only query ports,
 // never a production Server field or a global registry. Tests overriding both
-// query ports should retain their explicit setup ledger instead.
-func legacyFixtureLedger(server *Server) *app.Ledger {
+// query ports should retain their explicit transaction locator instead.
+func legacyFixtureLedger(server *Server) *repositoryFixture {
 	if query, ok := server.roleBindingQuery.(roleBindingFixtureQuery); ok {
 		return query.ledger
 	}
@@ -67,7 +65,7 @@ func legacyFixtureLedger(server *Server) *app.Ledger {
 
 // Focused replay fixture ports keep isolated command effects and their replay
 // record in the same transaction; there is no legacy Server replay field.
-func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
+func (s *Server) bindLegacyLedgerFixture(ledger *repositoryFixture) {
 	if authn, ok := s.authn.(identityNativeFixtureAuthenticator); ok {
 		authn.ledger = ledger
 		s.authn = authn

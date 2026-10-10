@@ -40,12 +40,12 @@ func (f *providerVerificationFixtureAPI) ValidateProviderIdentity(ctx context.Co
 	}
 	return v, nil
 }
-func providerVerificationRegressionLedger() (*app.Ledger, *app.MemoryUnitOfWorkFactory, *providerVerificationFixtureAPI) {
+func providerVerificationRegressionLedger() (*repositoryFixture, *app.MemoryUnitOfWorkFactory, *providerVerificationFixtureAPI) {
 	factory, live := app.NewMemoryUnitOfWorkFactory(), &providerVerificationFixtureAPI{}
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, ProviderAPI: live, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
 	return ledger, factory, live
 }
-func seedProviderVerificationFixture(t *testing.T, ledger *app.Ledger, name string) ssoProviderFixtureScope {
+func seedProviderVerificationFixture(t *testing.T, ledger *repositoryFixture, name string) ssoProviderFixtureScope {
 	t.Helper()
 	f := seedSSOProviderFixtureScope(t, ledger, name)
 	commands := ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: providerVerificationFixtureClock()}

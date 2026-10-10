@@ -143,7 +143,7 @@ func (f collectorHealthFixture) GetCollectorHealthPoint(ctx context.Context, ten
 	}
 	return out, nil
 }
-func (s *Server) bindIntegrationFixtureQueries(ledger *app.Ledger) {
+func (s *Server) bindIntegrationFixtureQueries(ledger *repositoryFixture) {
 	f := catalogFixtureCommands{ledger: ledger}
 	if _, fixture := s.collectorQuery.(collectorPageFixture); s.collectorQuery == nil || fixture {
 		s.collectorQuery = collectorPageFixture{f}

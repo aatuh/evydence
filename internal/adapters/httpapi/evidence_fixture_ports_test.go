@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/app"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -65,7 +64,7 @@ func (f evidenceFixtureCommands) RecordLifecycleEvent(ctx context.Context, actor
 	return value, mapEvidenceCreationCommandError(err)
 }
 
-func (s *Server) bindEvidenceFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindEvidenceFixturePorts(ledger *repositoryFixture) {
 	commands := evidenceFixtureCommands{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.evidenceCreationCommands.(evidenceFixtureCommands); s.evidenceCreationCommands == nil || fixture {
 		s.evidenceCreationCommands = commands

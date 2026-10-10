@@ -225,7 +225,7 @@ func (f portalFixturePorts) ListPage(ctx context.Context, a domain.Actor, id str
 	}
 	return q.ListPage(ctx, a, id, page, after)
 }
-func (s *Server) bindPortalFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindPortalFixturePorts(ledger *repositoryFixture) {
 	f := portalFixturePorts{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.portalAccessCommands.(portalFixturePorts); s.portalAccessCommands == nil || fixture {
 		s.portalAccessCommands = f

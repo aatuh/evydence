@@ -16,7 +16,7 @@ import (
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 )
 
-func seedArtifactNativeFixture(t *testing.T, ledger *app.Ledger, owner operationsFixtureScope) domain.Artifact {
+func seedArtifactNativeFixture(t *testing.T, ledger *repositoryFixture, owner operationsFixtureScope) domain.Artifact {
 	t.Helper()
 	a := domain.Artifact{ID: owner.product.ID + "-repository-artifact", TenantID: owner.actor.TenantID, Name: "Repository artifact", MediaType: "application/octet-stream", Size: 42, Digest: "sha256:" + strings.Repeat("a", 64), CreatedAt: time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)}
 	e := owner.evidence

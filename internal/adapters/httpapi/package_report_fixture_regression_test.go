@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
@@ -31,7 +30,7 @@ type packageReportFixtureScope struct {
 	task        domain.RemediationTask
 }
 
-func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string) packageReportFixtureScope {
+func seedPackageReportFixtureScope(t *testing.T, ledger *repositoryFixture, name string) packageReportFixtureScope {
 	t.Helper()
 	f := packageReportFixtureScope{controlFixtureScope: seedControlFixtureScope(t, ledger, name)}
 	governance := governanceFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.release.CreatedAt })}

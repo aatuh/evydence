@@ -83,7 +83,7 @@ func (f evidencePageFixture) PageEvidence(ctx context.Context, request evidenceq
 }
 
 // Preserve historical DTO comparisons through the native query, not caches.
-func readFixtureEvidence(ctx context.Context, ledger *app.Ledger, actor domain.Actor, id string) (domain.EvidenceItem, error) {
+func readFixtureEvidence(ctx context.Context, ledger *repositoryFixture, actor domain.Actor, id string) (domain.EvidenceItem, error) {
 	value, err := (evidenceReadFixture{catalogFixtureCommands{ledger: ledger}}).GetEvidence(ctx, actor, id)
 	return domain.EvidenceFromContextModel(value), err
 }

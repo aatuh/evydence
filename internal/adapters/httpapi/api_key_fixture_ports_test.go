@@ -104,7 +104,7 @@ func (apiKeyFixtureNoIssuance) Generate() (identityapp.Credential, error) {
 	panic("API-key guard minted credential")
 }
 
-func (s *Server) bindAPIKeyFixturePort(ledger *app.Ledger) {
+func (s *Server) bindAPIKeyFixturePort(ledger *repositoryFixture) {
 	if old, fixture := s.apiKeyCommands.(apiKeyFixtureCommands); fixture {
 		old.ledger = ledger
 		s.apiKeyCommands = old

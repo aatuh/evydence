@@ -25,7 +25,7 @@ type portalFixtureScope struct {
 	pkg domain.CustomerSecurityPackage
 }
 
-func seedPortalFixtureScope(t *testing.T, ledger *app.Ledger, name string) portalFixtureScope {
+func seedPortalFixtureScope(t *testing.T, ledger *repositoryFixture, name string) portalFixtureScope {
 	t.Helper()
 	f := portalFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
 	profile, err := createRedactionProfileFixture(t.Context(), ledger, f.actor, packageapp.CreateRedactionProfileInput{Preset: "customer_safe"})
@@ -38,7 +38,7 @@ func seedPortalFixtureScope(t *testing.T, ledger *app.Ledger, name string) porta
 	}
 	return f
 }
-func portalRegressionPorts(ledger *app.Ledger) portalFixturePorts {
+func portalRegressionPorts(ledger *repositoryFixture) portalFixturePorts {
 	return portalFixturePorts{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) })}
 }
 func portalFixtureInput(f portalFixtureScope) packageapp.CreatePortalAccessInput {

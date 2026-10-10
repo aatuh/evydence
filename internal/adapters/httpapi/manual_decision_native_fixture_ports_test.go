@@ -48,7 +48,7 @@ func (f riskCommandFixture) manualDecision() (*riskapp.VulnerabilityDecisionComm
 	return riskapp.NewVulnerabilityDecisionCommands(riskapp.VulnerabilityDecisionCommandConfig{Authorizer: riskapp.NewVulnerabilityDecisionWriteAuthorizer(), Transactions: manualDecisionFixtureTransactions(f), Clock: clock, IDs: ids})
 }
 
-func createFixtureManualDecision(ctx context.Context, ledger *app.Ledger, actor domain.Actor, finding string, input riskapp.CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
+func createFixtureManualDecision(ctx context.Context, ledger *repositoryFixture, actor domain.Actor, finding string, input riskapp.CreateVulnerabilityDecisionInput) (domain.VulnerabilityDecision, error) {
 	value, err := (riskCommandFixture{catalogFixtureCommands{ledger: ledger}}).CreateVulnerabilityDecision(ctx, actor, finding, input)
 	return domain.VulnerabilityDecisionFromContextModel(value), err
 }

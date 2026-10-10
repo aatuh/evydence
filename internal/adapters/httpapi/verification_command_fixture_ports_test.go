@@ -199,7 +199,7 @@ func (f verificationCommandFixture) VerifyObjectRetentionPolicy(ctx context.Cont
 	return (retentionFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).VerifyObjectRetentionPolicy(ctx, actor, id)
 }
 
-func (s *Server) bindVerificationCommandFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindVerificationCommandFixturePorts(ledger *repositoryFixture) {
 	commands := verificationCommandFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.subjectVerification.(verificationCommandFixture); fixture {
 		old.ledger = ledger

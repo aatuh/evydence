@@ -53,7 +53,7 @@ func (f riskReportFixture) ReadVulnerabilityPosture(ctx context.Context, tenant,
 	}
 	return out, nil
 }
-func (s *Server) bindRiskReportFixtureQueries(ledger *app.Ledger) {
+func (s *Server) bindRiskReportFixtureQueries(ledger *repositoryFixture) {
 	commands := catalogFixtureCommands{ledger: ledger}
 	if query, fixture := s.releaseSecuritySummaryQuery.(releaseSummaryNativeFixture); s.releaseSecuritySummaryQuery == nil || fixture {
 		query.catalogFixtureCommands = commands

@@ -93,7 +93,7 @@ func (f retentionReportFixture) ReadRetentionRecords(ctx context.Context, tenant
 	}
 	return out, nil
 }
-func (s *Server) bindOperationsFixtureQueries(ledger *app.Ledger) {
+func (s *Server) bindOperationsFixtureQueries(ledger *repositoryFixture) {
 	f := catalogFixtureCommands{ledger: ledger}
 	if old, fixture := s.incidentReportQuery.(incidentReportFixture); fixture {
 		old.ledger = ledger

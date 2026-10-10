@@ -65,7 +65,7 @@ func (f artifactSignatureFixture) GetArtifactSignaturePoint(ctx context.Context,
 	}
 	return out, nil
 }
-func (s *Server) bindArtifactSignatureFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindArtifactSignatureFixturePorts(ledger *repositoryFixture) {
 	f := artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.artifactSignatureCommands.(artifactSignatureFixture); fixture {
 		old.ledger = ledger

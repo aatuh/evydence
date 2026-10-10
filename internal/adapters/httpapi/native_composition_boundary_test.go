@@ -226,7 +226,7 @@ func TestLocalConstructorRejectsInvalidContextBeforeComposition(t *testing.T) {
 		{name: "expired", ctx: expired, want: context.DeadlineExceeded},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			for _, dependency := range []*app.Ledger{nil, ledger} {
+			for _, dependency := range []*repositoryFixture{nil, ledger} {
 				server, err := newLegacyServerFixtureWithOptionsContext(test.ctx, dependency, ServerOptions{})
 				if server != nil || !errors.Is(err, test.want) {
 					t.Fatalf("inactive context did not stop composition: server present=%t err=%v", server != nil, err)

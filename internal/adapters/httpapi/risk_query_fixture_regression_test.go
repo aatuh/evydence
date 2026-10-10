@@ -23,7 +23,7 @@ type riskQueryFixtureScope struct {
 	head    domain.VulnerabilityDecision
 }
 
-func seedRiskQueryFixtureScope(t *testing.T, ledger *app.Ledger, name string) riskQueryFixtureScope {
+func seedRiskQueryFixtureScope(t *testing.T, ledger *repositoryFixture, name string) riskQueryFixtureScope {
 	t.Helper()
 	scope := riskQueryFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}
 	var err error

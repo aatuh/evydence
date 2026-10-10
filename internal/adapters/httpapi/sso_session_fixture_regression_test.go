@@ -57,7 +57,7 @@ func fixtureSessionPost(t *testing.T, s *Server, secret, path, key, body string,
 	}
 	return w
 }
-func seedFixtureSession(t *testing.T, l *app.Ledger, f ssoProviderFixtureScope) (domain.SSOSession, string) {
+func seedFixtureSession(t *testing.T, l *repositoryFixture, f ssoProviderFixtureScope) (domain.SSOSession, string) {
 	t.Helper()
 	grantFixtureSessionUser(t, l, f)
 	c := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: l}, credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
@@ -68,7 +68,7 @@ func seedFixtureSession(t *testing.T, l *app.Ledger, f ssoProviderFixtureScope) 
 	return domain.SSOSession(v), secret
 }
 
-func grantFixtureSessionUser(t *testing.T, l *app.Ledger, f ssoProviderFixtureScope) {
+func grantFixtureSessionUser(t *testing.T, l *repositoryFixture, f ssoProviderFixtureScope) {
 	t.Helper()
 	commands := membershipFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: l}, clock: providerVerificationFixtureClock()}
 	if _, err := commands.CreateRoleBinding(t.Context(), f.actor, identityapp.CreateRoleBindingInput{SubjectType: "user", SubjectID: f.user.ID, Role: "release_manager", ResourceType: "tenant", ResourceID: f.actor.TenantID}); err != nil {

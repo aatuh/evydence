@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -143,7 +142,7 @@ func (f integrationFixtureCommands) CreateCommercialCollectorDefinition(ctx cont
 	return v, collectorReleaseFixtureError(err)
 }
 
-func (s *Server) bindIntegrationFixtureCommands(ledger *app.Ledger) {
+func (s *Server) bindIntegrationFixtureCommands(ledger *repositoryFixture) {
 	f := integrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.collectorCommands.(integrationFixtureCommands); fixture {
 		old.ledger = ledger

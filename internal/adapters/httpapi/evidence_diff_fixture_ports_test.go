@@ -217,7 +217,7 @@ func (f ingestionDiffFixture) CreateContractDiff(ctx context.Context, a domain.A
 	v, err := c.CreateContractDiff(ctx, a, in)
 	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
-func (s *Server) bindDiffFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindDiffFixturePorts(ledger *repositoryFixture) {
 	commands := ingestionDiffFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, ok := s.sbomDiffCommands.(ingestionDiffFixture); ok {
 		old.ledger = ledger

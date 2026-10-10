@@ -75,7 +75,7 @@ type integrationFixtureScope struct {
 	release    domain.CollectorRelease
 }
 
-func seedIntegrationFixtureScope(t *testing.T, ledger *app.Ledger, name string) integrationFixtureScope {
+func seedIntegrationFixtureScope(t *testing.T, ledger *repositoryFixture, name string) integrationFixtureScope {
 	t.Helper()
 	var f integrationFixtureScope
 	bootstrap := tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
@@ -139,7 +139,7 @@ func integrationFixtureRequests(f integrationFixtureScope) []integrationFixtureR
 	}
 }
 
-func integrationRegressionLedger() (*app.Ledger, *app.MemoryUnitOfWorkFactory) {
+func integrationRegressionLedger() (*repositoryFixture, *app.MemoryUnitOfWorkFactory) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	return newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }}), factory
 }

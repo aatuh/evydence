@@ -15,15 +15,14 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-// Only existing local test setup uses these adapters. Production transport has
-// no aggregate fallback for catalog writes. The scoped clone preserves the
-// fixture's real transaction/replay algorithm until the aggregate is deleted.
+// Test-only composition uses focused services and the real native transaction
+// and replay algorithm. The scoped locator carries no aggregate cache.
 type catalogFixtureCommandContextKey struct{}
 
-type catalogFixtureCommands struct{ ledger *app.Ledger }
+type catalogFixtureCommands struct{ ledger *repositoryFixture }
 
-func (f catalogFixtureCommands) commandLedger(ctx context.Context) *app.Ledger {
-	if ledger, ok := ctx.Value(catalogFixtureCommandContextKey{}).(*app.Ledger); ok {
+func (f catalogFixtureCommands) commandLedger(ctx context.Context) *repositoryFixture {
+	if ledger, ok := ctx.Value(catalogFixtureCommandContextKey{}).(*repositoryFixture); ok {
 		return ledger
 	}
 	return f.ledger
@@ -80,17 +79,16 @@ func (f catalogFixtureCommands) CreateRelease(ctx context.Context, actor identit
 	return value, mapBuildAttestationCommandError(err)
 }
 
-type catalogFixtureReplayExecutor struct{ ledger *app.Ledger }
+type catalogFixtureReplayExecutor struct{ ledger *repositoryFixture }
 
 func (e catalogFixtureReplayExecutor) WithBodyDigest(ctx context.Context, actor domain.Actor, method, path, key, digest string, authorize func(context.Context) error, run func(context.Context) (int, any, error)) (int, any, error) {
 	if e.ledger == nil || authorize == nil || run == nil {
 		return 0, nil, app.ErrValidation
 	}
-	if err := authorize(ctx); err != nil {
-		return 0, nil, err
-	}
-	return e.ledger.WithIdempotencyRequestHash(ctx, actor, method, path, key, digest, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		return run(context.WithValue(commandCtx, catalogFixtureCommandContextKey{}, commandLedger))
+	x := e.nativeReplay(authorize, nil)
+	return x.WithBodyDigest(ctx, actor, method, path, key, digest, func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		ctx, _ = e.ledger.commandContext(ctx)
+		return run(ctx)
 	})
 }
 
@@ -98,32 +96,45 @@ func (e catalogFixtureReplayExecutor) WithBody(ctx context.Context, actor domain
 	if e.ledger == nil || authorize == nil || run == nil {
 		return 0, nil, app.ErrValidation
 	}
-	if err := authorize(ctx); err != nil {
-		return 0, nil, err
-	}
-	return e.ledger.WithIdempotency(ctx, actor, method, path, key, body, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		return run(context.WithValue(commandCtx, catalogFixtureCommandContextKey{}, commandLedger))
+	x := e.nativeReplay(authorize, nil)
+	return x.WithBody(ctx, actor, method, path, key, body, func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		ctx, _ = e.ledger.commandContext(ctx)
+		return run(ctx)
 	})
 }
 
-// Preserve the legacy fixture's response guard, including on saved responses.
-// This post-execution guard is test-only, not a SQL ownership-locking proof.
-// Production replay authorization runs inside its focused durable transaction.
+// Preserve response authorization on first delivery and saved selections, now
+// inside the real caller-owned transaction rather than after cache publication.
 func (e catalogFixtureReplayExecutor) WithBodyReplayAuthorization(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, authorize func(context.Context) error, authorizeReplay func(context.Context, any) error, run func(context.Context) (int, any, error)) (int, any, error) {
-	if authorizeReplay == nil {
+	if e.ledger == nil || authorize == nil || authorizeReplay == nil || run == nil {
 		return 0, nil, app.ErrValidation
 	}
-	status, response, err := e.WithBody(ctx, actor, method, path, key, body, authorize, run)
-	if err != nil {
-		return 0, nil, err
-	}
-	if err := authorizeReplay(ctx, response); err != nil {
-		return 0, nil, err
-	}
-	return status, response, nil
+	x := e.nativeReplay(authorize, authorizeReplay)
+	return x.WithBody(ctx, actor, method, path, key, body, func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		ctx, _ = e.ledger.commandContext(ctx)
+		status, response, err := run(ctx)
+		if err == nil {
+			err = authorizeReplay(ctx, response)
+		}
+		return status, response, err
+	})
 }
 
-func (s *Server) bindCatalogFixturePorts(ledger *app.Ledger) {
+func (e catalogFixtureReplayExecutor) nativeReplay(authorize func(context.Context) error, authorizeReplay func(context.Context, any) error) app.IdempotencyUnitOfWork {
+	x := app.IdempotencyUnitOfWork{Transactions: e.ledger.transactions, Now: e.ledger.now, Authorize: func(ctx context.Context, _ app.Repositories) error {
+		ctx, _ = e.ledger.commandContext(ctx)
+		return authorize(ctx)
+	}}
+	if authorizeReplay != nil {
+		x.AuthorizeReplay = func(ctx context.Context, _ app.Repositories, response any) error {
+			ctx, _ = e.ledger.commandContext(ctx)
+			return authorizeReplay(ctx, response)
+		}
+	}
+	return x
+}
+
+func (s *Server) bindCatalogFixturePorts(ledger *repositoryFixture) {
 	commands := catalogFixtureCommands{ledger: ledger}
 	if _, fixture := s.productCommands.(catalogFixtureCommands); s.productCommands == nil || fixture {
 		s.productCommands = commands

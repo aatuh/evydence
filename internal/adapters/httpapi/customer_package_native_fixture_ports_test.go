@@ -127,7 +127,7 @@ func (f customerPackageFixtureCommands) CreateCustomerSecurityPackage(ctx contex
 
 var _ CustomerPackageCreationCommands = customerPackageFixtureCommands{}
 
-func createCustomerPackageFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, in packageapp.CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error) {
+func createCustomerPackageFixture(ctx context.Context, ledger *repositoryFixture, a domain.Actor, in packageapp.CreateCustomerPackageInput) (domain.CustomerSecurityPackage, error) {
 	v, err := (customerPackageFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateCustomerSecurityPackage(ctx, a, in)
 	return domain.CustomerSecurityPackage(v), err
 }

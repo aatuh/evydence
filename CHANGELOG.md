@@ -13,6 +13,18 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+HTTP test fixtures no longer construct or accept the application Ledger. Their
+locator contains only a transaction factory and replay clock; actual focused
+commands, current guards and saved-selection replay share the native unit of
+work, with no aggregate snapshot/cache clone or in-memory fallback. Historical
+fingerprint/response assertions remain; a cache-only positive replay test now
+uses a real factory. Missing-repository fixtures keep a separate real cache
+canary and still fail closed. Added no-whole-state-access, shared-transaction,
+current-authority, response-guard and final-commit rollback regressions. Runtime
+API and persistence contracts are unchanged. Remaining PostgreSQL legacy setup,
+aggregate/state retirement and full/race/live gates keep EVY-906 open; these
+memory-backed fixture checks are not SQL durability evidence.
+
 Retired cached worker inventory hydration, parser-normalization cache
 publication, cached audit/checkpoint inspection, backup counts and cached context
 authorizers from production source. Historical implementation and behavioral

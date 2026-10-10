@@ -11,16 +11,17 @@ import (
 )
 
 type cachedReleaseFixture struct {
-	ledger    *app.Ledger
-	scope     operationsFixtureScope
-	project   domain.Project
-	artifact  domain.Artifact
-	build     domain.BuildRun
-	candidate domain.ReleaseCandidate
+	ledger          *repositoryFixture
+	historicalCache app.Store
+	scope           operationsFixtureScope
+	project         domain.Project
+	artifact        domain.Artifact
+	build           domain.BuildRun
+	candidate       domain.ReleaseCandidate
 }
 
-// Missing-repository tests load real cached records through the existing
-// persisted-state boundary. No command fallback or repository is provided.
+// Missing-repository tests retain real historical cache rows separately from
+// the transaction-only locator. No command fallback or repository is provided.
 func newCachedReleaseFixture(t *testing.T, name string) cachedReleaseFixture {
 	t.Helper()
 	at := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
@@ -74,6 +75,7 @@ func newCachedReleaseFixture(t *testing.T, name string) cachedReleaseFixture {
 	if err := store.SaveState(t.Context(), state); err != nil {
 		t.Fatal(err)
 	}
+	f.historicalCache = store
 	cfg := app.Config{APIKeyPepper: "fixture-pepper", Store: store, Now: clock.Now}
 	f.ledger, err = newLegacyLedgerFixtureWithContext(t.Context(), cfg)
 	if err != nil {

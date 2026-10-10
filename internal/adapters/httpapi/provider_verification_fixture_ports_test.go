@@ -90,7 +90,7 @@ func (f providerVerificationFixtureCommands) VerifyProviderIdentity(ctx context.
 	v, err := c.VerifyProviderIdentity(ctx, a, in)
 	return v, providerVerificationFixtureError(err)
 }
-func (s *Server) bindProviderVerificationFixturePort(ledger *app.Ledger) {
+func (s *Server) bindProviderVerificationFixturePort(ledger *repositoryFixture) {
 	if old, fixture := s.providerVerificationCommands.(providerVerificationFixtureCommands); fixture {
 		old.ledger = ledger
 		s.providerVerificationCommands = old

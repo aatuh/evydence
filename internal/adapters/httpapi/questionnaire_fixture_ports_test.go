@@ -104,7 +104,7 @@ func (f answerLibraryFixtureQuery) PageAnswerLibrary(ctx context.Context, reques
 	})
 	return out, err
 }
-func (s *Server) bindQuestionnaireFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindQuestionnaireFixturePorts(ledger *repositoryFixture) {
 	f := questionnaireFixtureCommands{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.questionnaireTemplateCommands.(questionnaireFixtureCommands); s.questionnaireTemplateCommands == nil || fixture {
 		s.questionnaireTemplateCommands = f

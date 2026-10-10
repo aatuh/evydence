@@ -27,7 +27,7 @@ type peripheralFixtureScope struct {
 	scan        domain.VulnerabilityScan
 }
 
-func seedPeripheralFixtureScope(t *testing.T, ledger *app.Ledger, name string) peripheralFixtureScope {
+func seedPeripheralFixtureScope(t *testing.T, ledger *repositoryFixture, name string) peripheralFixtureScope {
 	t.Helper()
 	f := peripheralFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
 	var err error

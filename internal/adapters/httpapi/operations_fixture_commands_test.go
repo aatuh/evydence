@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
@@ -79,7 +78,7 @@ func (f operationsFixtureCommands) CreateRetentionOverride(ctx context.Context, 
 	v, err := c.CreateRetentionOverride(ctx, a, in)
 	return v, mapDeploymentCommandError(err)
 }
-func (s *Server) bindOperationsFixtureCommands(ledger *app.Ledger) {
+func (s *Server) bindOperationsFixtureCommands(ledger *repositoryFixture) {
 	f := operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.incidentCommands.(operationsFixtureCommands); fixture {
 		old.ledger = ledger

@@ -84,7 +84,7 @@ func (f redactionProfileFixtureCommands) CreateRedactionProfile(ctx context.Cont
 
 var _ RedactionProfileCommands = redactionProfileFixtureCommands{}
 
-func createRedactionProfileFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, in packageapp.CreateRedactionProfileInput) (domain.RedactionProfile, error) {
+func createRedactionProfileFixture(ctx context.Context, ledger *repositoryFixture, a domain.Actor, in packageapp.CreateRedactionProfileInput) (domain.RedactionProfile, error) {
 	v, err := (redactionProfileFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}).CreateRedactionProfile(ctx, a, in)
 	return domain.RedactionProfile(v), err
 }

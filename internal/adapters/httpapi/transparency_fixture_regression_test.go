@@ -34,7 +34,7 @@ func (f *countingTransparencyFixtureFetcher) FetchTransparencyProof(ctx context.
 	}
 	return f.fakeTransparencyProofHTTP.FetchTransparencyProof(ctx, req)
 }
-func transparencyRegressionLedger() (*app.Ledger, *app.MemoryUnitOfWorkFactory, *countingTransparencyFixtureFetcher) {
+func transparencyRegressionLedger() (*repositoryFixture, *app.MemoryUnitOfWorkFactory, *countingTransparencyFixtureFetcher) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	fetcher := &countingTransparencyFixtureFetcher{}
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Transparency: fetcher, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }})
@@ -49,7 +49,7 @@ type transparencyFixtureScope struct {
 	entry      domain.PublicTransparencyLogEntry
 }
 
-func seedTransparencyFixtureScope(t *testing.T, ledger *app.Ledger, name string) transparencyFixtureScope {
+func seedTransparencyFixtureScope(t *testing.T, ledger *repositoryFixture, name string) transparencyFixtureScope {
 	t.Helper()
 	f := transparencyFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
 	var err error

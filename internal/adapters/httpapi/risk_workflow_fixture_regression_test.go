@@ -47,7 +47,7 @@ type riskWorkflowFixtureScope struct {
 	policy domain.CustomPolicy
 }
 
-func seedRiskWorkflowFixtureScope(t *testing.T, ledger *app.Ledger, name string) riskWorkflowFixtureScope {
+func seedRiskWorkflowFixtureScope(t *testing.T, ledger *repositoryFixture, name string) riskWorkflowFixtureScope {
 	t.Helper()
 	f := riskWorkflowFixtureScope{riskQueryFixtureScope: seedRiskQueryFixtureScope(t, ledger, name)}
 	var err error

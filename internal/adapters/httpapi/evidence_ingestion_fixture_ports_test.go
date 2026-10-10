@@ -139,7 +139,7 @@ func (f ingestionFixtureCommands) UploadManualSecurityDocument(ctx context.Conte
 	return v, mapEvidenceCreationCommandError(fixtureIngestionError(err))
 }
 
-func (s *Server) bindIngestionFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindIngestionFixturePorts(ledger *repositoryFixture) {
 	commands := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.sbomIngestionCommands.(ingestionFixtureCommands); fixture {
 		old.ledger = ledger

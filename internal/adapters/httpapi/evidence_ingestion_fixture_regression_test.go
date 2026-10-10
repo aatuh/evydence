@@ -70,7 +70,7 @@ func (f *failingIngestionFixture) CreateContractDiff(ctx context.Context, a doma
 
 type ingestionFixtureRequest struct{ name, path, body string }
 
-func ingestionFixtureRequests(t *testing.T, ledger *app.Ledger, scope evidenceReadFixtureScope) []ingestionFixtureRequest {
+func ingestionFixtureRequests(t *testing.T, ledger *repositoryFixture, scope evidenceReadFixtureScope) []ingestionFixtureRequest {
 	t.Helper()
 	target, err := uploadSBOMFixture(t.Context(), ledger, scope.actor, scope.release.ID, "", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"next","purl":"pkg:generic/next@2"}]}`))
 	if err != nil {

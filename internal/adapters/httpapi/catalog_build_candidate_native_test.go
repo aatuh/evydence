@@ -17,7 +17,7 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-func seedCatalogNativeBuildCandidate(t *testing.T, ledger *app.Ledger, owner operationsFixtureScope) (domain.BuildRun, domain.ReleaseCandidate) {
+func seedCatalogNativeBuildCandidate(t *testing.T, ledger *repositoryFixture, owner operationsFixtureScope) (domain.BuildRun, domain.ReleaseCandidate) {
 	t.Helper()
 	at := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 	j := domain.Project{ID: owner.product.ID + "-query-project", TenantID: owner.actor.TenantID, ProductID: owner.product.ID, Name: "Repository project", CreatedAt: at}

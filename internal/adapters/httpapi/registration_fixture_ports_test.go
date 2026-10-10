@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -81,7 +80,7 @@ func (f registrationFixtureCommands) CreateReleaseCandidate(ctx context.Context,
 	return value, mapBuildAttestationCommandError(err)
 }
 
-func (s *Server) bindRegistrationFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindRegistrationFixturePorts(ledger *repositoryFixture) {
 	commands := registrationFixtureCommands{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.artifactCommands.(registrationFixtureCommands); s.artifactCommands == nil || fixture {
 		s.artifactCommands = commands

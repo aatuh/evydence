@@ -97,8 +97,26 @@ malformed IDs, foreign tenant/evidence links, invalid parsed shapes and parent
 relationships across SBOM, scan, OpenAPI, VEX and attestation records. Existing
 legacy merge, append-only audit and projection-divergence assertions remain.
 These source-retirement checks do not prove SQL transaction or recovery
-behavior. The fixture/replay locator and remaining aggregate state/snapshots
-still require retirement and full ticket validation.
+behavior. Remaining aggregate state/snapshots still require retirement and full
+ticket validation.
+
+HTTP fixture construction/binding and seed/command/query helpers no longer
+accept or construct `app.Ledger`. Their test-only locator contains only a
+transaction factory and optional replay clock: no tenant/resource maps, mutex,
+snapshot, credential cache or state-store fallback. Commands join the caller's
+actual repositories through `app.ExecuteUnitOfWork`; request/digest replay uses
+`app.IdempotencyUnitOfWork` without cloning or publishing an aggregate. Current
+request and saved-selection guards run inside that transaction; first-delivery
+response checks also run before commit. Historical body/digest fixtures preserve
+the real persisted fingerprint and safe response algorithm. Missing-repository
+fixtures retain their selected historical cache as a separate canary and cannot
+use it for commands or replay. A positive replay characterization that previously
+used that cache now supplies a real transaction factory, with the same assertions.
+Regression checks cover unreadable whole-state stores, one-transaction guard and
+command execution, no replay regeneration, current-authority denial and rollback
+of response-guard/final-commit failures. These memory-backed and focused race
+checks do not prove SQL locking or durability. Remaining PostgreSQL legacy setup
+and application aggregate/state/snapshot retirement remain EVY-906 work.
 
 ## Current runtime composition
 

@@ -27,7 +27,7 @@ type questionnaireFixtureScope struct {
 	pkg      domain.CustomerSecurityPackage
 }
 
-func seedQuestionnaireFixtureScope(t *testing.T, ledger *app.Ledger, name string) questionnaireFixtureScope {
+func seedQuestionnaireFixtureScope(t *testing.T, ledger *repositoryFixture, name string) questionnaireFixtureScope {
 	t.Helper()
 	f := questionnaireFixtureScope{controlFixtureScope: seedControlFixtureScope(t, ledger, name)}
 	var err error

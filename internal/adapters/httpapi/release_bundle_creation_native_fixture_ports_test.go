@@ -156,7 +156,7 @@ func (f releaseBundleFixtureCommands) CreateReleaseBundle(ctx context.Context, a
 
 var _ ReleaseBundleCommands = releaseBundleFixtureCommands{}
 
-func createReleaseBundleFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, id string, at time.Time) (domain.ReleaseBundle, error) {
+func createReleaseBundleFixture(ctx context.Context, ledger *repositoryFixture, a domain.Actor, id string, at time.Time) (domain.ReleaseBundle, error) {
 	v, err := (releaseBundleFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return at })}).CreateReleaseBundle(ctx, a, id)
 	return domain.ReleaseBundleFromContextModel(v), err
 }

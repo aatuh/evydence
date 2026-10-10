@@ -28,7 +28,7 @@ func (f *countingSSOFixtureDiscovery) FetchOIDCTrustMaterial(ctx context.Context
 func publicSSOFixtureJWKS(kid string) map[string]any {
 	return map[string]any{"keys": []any{map[string]any{"kty": "OKP", "crv": "Ed25519", "kid": kid, "x": "public-only"}}}
 }
-func ssoFixtureLedger() (*app.Ledger, *app.MemoryUnitOfWorkFactory, *countingSSOFixtureDiscovery) {
+func ssoFixtureLedger() (*repositoryFixture, *app.MemoryUnitOfWorkFactory, *countingSSOFixtureDiscovery) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	discovery := &countingSSOFixtureDiscovery{fakeOIDCDiscoveryHTTP: fakeOIDCDiscoveryHTTP{result: app.OIDCDiscoveryResult{Issuer: "https://issuer.example.test", JWKS: publicSSOFixtureJWKS("discovered")}}}
 	return newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, OIDC: discovery, Now: func() time.Time { return time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC) }}), factory, discovery
@@ -39,7 +39,7 @@ type ssoProviderFixtureScope struct {
 	provider domain.SSOProvider
 }
 
-func seedSSOProviderFixtureScope(t *testing.T, ledger *app.Ledger, name string) ssoProviderFixtureScope {
+func seedSSOProviderFixtureScope(t *testing.T, ledger *repositoryFixture, name string) ssoProviderFixtureScope {
 	t.Helper()
 	f := ssoProviderFixtureScope{membershipFixtureScope: seedMembershipFixtureScope(t, ledger, name)}
 	commands := ssoProviderFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: providerVerificationFixtureClock()}

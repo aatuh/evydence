@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -56,7 +55,7 @@ func (f summaryDraftFixtureCommands) CreateQuestionnaireDraft(ctx context.Contex
 	}
 	return c.CreateQuestionnaireDraft(ctx, a, in)
 }
-func (s *Server) bindSummaryDraftFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindSummaryDraftFixturePorts(ledger *repositoryFixture) {
 	f := summaryDraftFixtureCommands{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.evidenceSummaryCommands.(summaryDraftFixtureCommands); s.evidenceSummaryCommands == nil || fixture {
 		s.evidenceSummaryCommands = f

@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
@@ -93,7 +92,7 @@ func (f marketplaceQueryFixture) Health(ctx context.Context, a domain.Actor, id 
 	}
 	return c.Health(ctx, a, id)
 }
-func (s *Server) bindPeripheralFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindPeripheralFixturePorts(ledger *repositoryFixture) {
 	f := catalogFixtureCommands{ledger: ledger}
 	commands := peripheralFixtureCommands{f}
 	if _, fixture := s.graphSnapshotCommands.(peripheralFixtureCommands); s.graphSnapshotCommands == nil || fixture {

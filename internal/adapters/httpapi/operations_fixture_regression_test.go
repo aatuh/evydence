@@ -80,7 +80,7 @@ func callFixtureSignedWebhook(t *testing.T, server *Server, receiver string, pri
 	return w.Body.String()
 }
 
-func seedOperationsFixtureScope(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
+func seedOperationsFixtureScope(t *testing.T, ledger *repositoryFixture, name string) operationsFixtureScope {
 	t.Helper()
 	f := seedOperationsFixtureReferences(t, ledger, name)
 	incident, err := (operationsFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.product.CreatedAt })}).CreateIncident(t.Context(), f.actor, operationsapp.CreateIncidentInput{ProductID: f.product.ID, ReleaseID: f.release.ID, Title: "Initial incident", Severity: "high"})
@@ -91,7 +91,7 @@ func seedOperationsFixtureScope(t *testing.T, ledger *app.Ledger, name string) o
 	return f
 }
 
-func seedOperationsFixtureReferences(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
+func seedOperationsFixtureReferences(t *testing.T, ledger *repositoryFixture, name string) operationsFixtureScope {
 	t.Helper()
 	f := seedOperationsFixtureParents(t, ledger, name)
 	var err error
@@ -104,7 +104,7 @@ func seedOperationsFixtureReferences(t *testing.T, ledger *app.Ledger, name stri
 
 // Parent setup runs focused commands; missing-repository regressions use
 // newCachedReleaseFixture to load cached rows without enabling repositories.
-func seedOperationsFixtureParents(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
+func seedOperationsFixtureParents(t *testing.T, ledger *repositoryFixture, name string) operationsFixtureScope {
 	t.Helper()
 	var f operationsFixtureScope
 	bootstrap := tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}

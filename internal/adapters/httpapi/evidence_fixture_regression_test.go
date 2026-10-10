@@ -22,7 +22,7 @@ type evidenceFixtureScope struct {
 	original, replacement domain.EvidenceItem
 }
 
-func seedEvidenceFixtureScope(t *testing.T, ledger *app.Ledger, name string) evidenceFixtureScope {
+func seedEvidenceFixtureScope(t *testing.T, ledger *repositoryFixture, name string) evidenceFixtureScope {
 	t.Helper()
 	scope := seedEvidenceFixtureParents(t, ledger, name)
 	var err error
@@ -37,7 +37,7 @@ func seedEvidenceFixtureScope(t *testing.T, ledger *app.Ledger, name string) evi
 	return scope
 }
 
-func seedEvidenceFixtureParents(t *testing.T, ledger *app.Ledger, name string) evidenceFixtureScope {
+func seedEvidenceFixtureParents(t *testing.T, ledger *repositoryFixture, name string) evidenceFixtureScope {
 	t.Helper()
 	var scope evidenceFixtureScope
 	bootstrap := tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}

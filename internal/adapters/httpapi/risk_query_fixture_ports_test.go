@@ -122,7 +122,7 @@ func (f decisionSummaryQueryFixture) ReadVulnerabilityDecisionSummary(ctx contex
 	})
 }
 
-func (s *Server) bindRiskQueryFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindRiskQueryFixturePorts(ledger *repositoryFixture) {
 	base := catalogFixtureCommands{ledger: ledger}
 	if _, fixture := s.vulnerabilityDecisionQuery.(decisionQueryFixture); s.vulnerabilityDecisionQuery == nil || fixture {
 		s.vulnerabilityDecisionQuery = decisionQueryFixture{base}

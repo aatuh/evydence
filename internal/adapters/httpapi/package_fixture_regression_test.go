@@ -197,8 +197,9 @@ func TestPackageFixtureCommandsRollBackAllEffectsAfterWriteFailure(t *testing.T)
 }
 
 func TestPackageFixtureReplayCannotBypassSavedResponseAuthorization(t *testing.T) {
-	cached := newCachedReleaseFixture(t, "Fixture")
-	ledger, scope := cached.ledger, cached.scope
+	factory := app.NewMemoryUnitOfWorkFactory()
+	ledger := newLegacyLedgerFixture(app.Config{UnitOfWork: factory})
+	scope := seedOperationsFixtureScope(t, ledger, "Fixture")
 	executor := catalogFixtureReplayExecutor{ledger: ledger}
 	guards, replayGuards, runs := 0, 0, 0
 	authorize := func(context.Context) error { guards++; return nil }

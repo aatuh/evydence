@@ -14,7 +14,7 @@ import (
 // It never falls back to Ledger credential, collector or session caches.
 type identityNativeFixtureAuthenticator struct{ ssoFixtureAuthenticator }
 
-func fixtureIdentityAuthenticator(ledger *app.Ledger, pepper string, clock application.Clock) identityNativeFixtureAuthenticator {
+func fixtureIdentityAuthenticator(ledger *repositoryFixture, pepper string, clock application.Clock) identityNativeFixtureAuthenticator {
 	return identityNativeFixtureAuthenticator{fixtureSessionAuthenticator(ledger, pepper, clock)}
 }
 func (f identityNativeFixtureAuthenticator) Authenticate(ctx context.Context, secret string) (domain.Actor, error) {

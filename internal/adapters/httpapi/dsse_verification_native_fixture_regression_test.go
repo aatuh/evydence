@@ -24,7 +24,7 @@ import (
 )
 
 type dsseNativeFixture struct {
-	ledger      *app.Ledger
+	ledger      *repositoryFixture
 	base        *app.MemoryUnitOfWorkFactory
 	objects     *signatureFixtureStore
 	owner       signatureFixtureScope

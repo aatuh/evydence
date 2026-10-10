@@ -50,7 +50,7 @@ func (f *reportFixtureSigner) Sign(ctx context.Context, r app.SigningRequest) (a
 	}
 	return v, nil
 }
-func reportSigningRegressionLedger(t *testing.T) (*app.Ledger, *app.MemoryUnitOfWorkFactory, *signatureFixtureStore, *reportFixtureSigner) {
+func reportSigningRegressionLedger(t *testing.T) (*repositoryFixture, *app.MemoryUnitOfWorkFactory, *signatureFixtureStore, *reportFixtureSigner) {
 	t.Helper()
 	store, err := filesystem.New(t.TempDir())
 	if err != nil {
@@ -66,7 +66,7 @@ type reportSigningFixtureScope struct {
 	provider domain.SigningProvider
 }
 
-func seedReportSigningFixtureScope(t *testing.T, ledger *app.Ledger, name string) reportSigningFixtureScope {
+func seedReportSigningFixtureScope(t *testing.T, ledger *repositoryFixture, name string) reportSigningFixtureScope {
 	t.Helper()
 	f := reportSigningFixtureScope{operationsFixtureScope: seedOperationsFixtureScope(t, ledger, name)}
 	provider, err := (signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, clock: application.ClockFunc(func() time.Time { return f.release.CreatedAt })}).CreateSigningProvider(t.Context(), f.actor, verificationapp.CreateSigningProviderInput{Name: name, Type: "aws_kms", KeyRef: "key-" + name, Encrypted: true})

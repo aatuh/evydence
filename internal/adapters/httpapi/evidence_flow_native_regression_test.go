@@ -23,7 +23,7 @@ type evidenceFlowFixtureClock struct {
 
 func (c *evidenceFlowFixtureClock) Now() time.Time { c.calls++; return c.at }
 
-func seedEvidenceFlowFixtureRows(t *testing.T, ledger *app.Ledger, owner operationsFixtureScope) {
+func seedEvidenceFlowFixtureRows(t *testing.T, ledger *repositoryFixture, owner operationsFixtureScope) {
 	t.Helper()
 	at := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 	private := strings.Repeat("private-flow-metadata", 4000)

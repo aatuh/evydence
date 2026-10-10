@@ -177,7 +177,7 @@ func (f ssoProviderFixtureCommands) LinkSSOIdentity(ctx context.Context, a domai
 	v, err := c.LinkSSOIdentity(ctx, a, in)
 	return v, providerVerificationFixtureError(err)
 }
-func (s *Server) bindSSOProviderFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindSSOProviderFixturePorts(ledger *repositoryFixture) {
 	if old, fixture := s.ssoProviderCommands.(ssoProviderFixtureCommands); fixture {
 		old.ledger = ledger
 		s.ssoProviderCommands = old

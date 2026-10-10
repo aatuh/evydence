@@ -754,8 +754,14 @@ context authorizers are test-only historical characterization. Runtime selected
 worker records use the unchanged stateless helpers in
 `internal/app/worker_record_shapes.go`; `ValidateParserNormalizationRecord`
 continues to validate immutable source/audit bindings without an aggregate.
-The remaining fixture/replay locator and aggregate state/snapshot retirement
-remain EVY-906 work, not an alternate supported persistence profile.
+HTTP fixtures now use a transaction-factory-only locator and native idempotency,
+with no Ledger type, constructor, cache/snapshot clone or replay fallback.
+Current request and saved-selection guards share the actual transaction;
+first-delivery response checks run before commit. Missing-repository fixtures
+keep historical cache canaries separate and fail closed. Existing response,
+fingerprint and guard assertions remain. Remaining PostgreSQL legacy setup and
+application aggregate state/snapshot retirement remain EVY-906 work, not an
+alternate supported persistence profile.
 
 The persisted worker job kinds currently are assigned as follows:
 

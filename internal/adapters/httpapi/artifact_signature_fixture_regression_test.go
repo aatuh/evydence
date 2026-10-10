@@ -27,7 +27,7 @@ func (s *signatureFixtureStore) StagePayload(ctx context.Context, p app.ObjectPa
 	s.stages++
 	return s.Store.StagePayload(ctx, p, r)
 }
-func signatureRegressionLedger(t *testing.T) (*app.Ledger, *app.MemoryUnitOfWorkFactory, *signatureFixtureStore) {
+func signatureRegressionLedger(t *testing.T) (*repositoryFixture, *app.MemoryUnitOfWorkFactory, *signatureFixtureStore) {
 	t.Helper()
 	store, err := filesystem.New(t.TempDir())
 	if err != nil {
@@ -44,7 +44,7 @@ type signatureFixtureScope struct {
 	artifact domain.Artifact
 }
 
-func seedSignatureFixtureScope(t *testing.T, ledger *app.Ledger, name string) signatureFixtureScope {
+func seedSignatureFixtureScope(t *testing.T, ledger *repositoryFixture, name string) signatureFixtureScope {
 	t.Helper()
 	f := signatureFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}
 	var err error

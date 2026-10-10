@@ -154,7 +154,7 @@ func (f deploymentQueryFixture) GetDeploymentPoint(ctx context.Context, tenant, 
 	return out, nil
 }
 
-func (s *Server) bindDeploymentFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindDeploymentFixturePorts(ledger *repositoryFixture) {
 	commands := deploymentFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.deploymentEnvironmentCommands.(deploymentFixtureCommands); fixture {
 		old.ledger = ledger

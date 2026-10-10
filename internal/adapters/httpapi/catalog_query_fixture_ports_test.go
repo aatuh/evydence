@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/app"
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -80,7 +79,7 @@ func (f catalogQueryFixture) ListPage(ctx context.Context, actor domain.Actor, r
 	return query.ListPage(ctx, actor, releaseID, request, after)
 }
 
-func (s *Server) bindCatalogQueryFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindCatalogQueryFixturePorts(ledger *repositoryFixture) {
 	query := catalogQueryFixture{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.productQuery.(catalogQueryFixture); s.productQuery == nil || fixture {
 		s.productQuery = query

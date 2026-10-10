@@ -29,7 +29,7 @@ type evidenceReadFixtureScope struct {
 	payload  []byte
 }
 
-func seedEvidenceReadFixtureScope(t *testing.T, ledger *app.Ledger, name string) evidenceReadFixtureScope {
+func seedEvidenceReadFixtureScope(t *testing.T, ledger *repositoryFixture, name string) evidenceReadFixtureScope {
 	t.Helper()
 	scope := evidenceReadFixtureScope{evidenceFixtureScope: seedEvidenceFixtureScope(t, ledger, name)}
 	var err error

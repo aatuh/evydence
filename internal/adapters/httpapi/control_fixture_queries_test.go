@@ -104,7 +104,7 @@ func (f controlEvidencePageFixture) PageControlEvidence(ctx context.Context, req
 	}
 	return out, nil
 }
-func (s *Server) bindControlFixtureQueries(ledger *app.Ledger) {
+func (s *Server) bindControlFixtureQueries(ledger *repositoryFixture) {
 	f := catalogFixtureCommands{ledger: ledger}
 	if _, fixture := s.controlsQuery.(controlReadFixture); s.controlsQuery == nil || fixture {
 		s.controlsQuery = controlReadFixture{f}

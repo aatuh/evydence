@@ -149,7 +149,7 @@ func (f evidenceReadFixture) PreviewVEXImport(ctx context.Context, actor domain.
 	return value, legacyParsedPointError(err)
 }
 
-func (s *Server) bindEvidenceReadFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindEvidenceReadFixturePorts(ledger *repositoryFixture) {
 	base := catalogFixtureCommands{ledger: ledger}
 	read := evidenceReadFixture{base}
 	if _, fixture := s.evidencePointQuery.(evidenceReadFixture); s.evidencePointQuery == nil || fixture {

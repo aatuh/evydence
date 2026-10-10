@@ -87,7 +87,7 @@ func (f transparencyFixtureCommands) FetchAndVerifyPublicTransparencyLogEntry(ct
 	}
 	return c.FetchAndVerifyPublicTransparencyLogEntry(ctx, a, id)
 }
-func (s *Server) bindTransparencyFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindTransparencyFixturePorts(ledger *repositoryFixture) {
 	f := transparencyFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.publicTransparencyMetadata.(transparencyFixtureCommands); fixture {
 		old.ledger = ledger

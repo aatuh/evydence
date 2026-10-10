@@ -83,7 +83,7 @@ func (f reportSigningFixtureCommands) CreateSigningOperation(ctx context.Context
 	}
 	return c.CreateSigningOperation(ctx, a, in)
 }
-func (s *Server) bindReportSigningFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindReportSigningFixturePorts(ledger *repositoryFixture) {
 	f := reportSigningFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.pdfReportCommands.(reportSigningFixtureCommands); fixture {
 		old.ledger = ledger

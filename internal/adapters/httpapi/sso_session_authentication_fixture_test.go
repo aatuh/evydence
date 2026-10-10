@@ -26,7 +26,7 @@ func fixtureSessionCredentials(pepper string) *identityapp.HMACAuthenticationCre
 	}
 	return c
 }
-func fixtureSessionAuthenticator(ledger *app.Ledger, pepper string, clock application.Clock) ssoFixtureAuthenticator {
+func fixtureSessionAuthenticator(ledger *repositoryFixture, pepper string, clock application.Clock) ssoFixtureAuthenticator {
 	if clock == nil {
 		clock = application.ClockFunc(time.Now)
 	}

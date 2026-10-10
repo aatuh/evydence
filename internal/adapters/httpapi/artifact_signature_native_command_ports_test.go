@@ -164,7 +164,7 @@ func (s *Server) bindArtifactSignatureFixtureResources(objects app.PayloadObject
 	}
 }
 
-func createFixtureArtifactSignature(ctx context.Context, ledger *app.Ledger, objects app.PayloadObjectStore, actor domain.Actor, input verificationapp.CreateArtifactSignatureInput) (domain.ArtifactSignature, error) {
+func createFixtureArtifactSignature(ctx context.Context, ledger *repositoryFixture, objects app.PayloadObjectStore, actor domain.Actor, input verificationapp.CreateArtifactSignatureInput) (domain.ArtifactSignature, error) {
 	v, err := (artifactSignatureFixture{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, objects: objects}).CreateArtifactSignature(ctx, actor, input)
 	return domain.ArtifactSignature(v), err
 }

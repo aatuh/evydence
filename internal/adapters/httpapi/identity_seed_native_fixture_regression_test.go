@@ -65,18 +65,18 @@ func TestNativeBootstrapTestExecutorKeepsFailedCommitsAndCancellationPrivate(t *
 func TestSharedScopeSeedsUseNativeIdentityWithoutAggregateCredentialsOrClock(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		seed func(*testing.T, *app.Ledger, string) domain.Actor
+		seed func(*testing.T, *repositoryFixture, string) domain.Actor
 	}{
-		{"evidence", func(t *testing.T, l *app.Ledger, name string) domain.Actor {
+		{"evidence", func(t *testing.T, l *repositoryFixture, name string) domain.Actor {
 			return seedEvidenceFixtureParents(t, l, name).actor
 		}},
-		{"integration", func(t *testing.T, l *app.Ledger, name string) domain.Actor {
+		{"integration", func(t *testing.T, l *repositoryFixture, name string) domain.Actor {
 			return seedIntegrationFixtureScope(t, l, name).actor
 		}},
-		{"membership", func(t *testing.T, l *app.Ledger, name string) domain.Actor {
+		{"membership", func(t *testing.T, l *repositoryFixture, name string) domain.Actor {
 			return seedMembershipFixtureScope(t, l, name).actor
 		}},
-		{"operations", func(t *testing.T, l *app.Ledger, name string) domain.Actor {
+		{"operations", func(t *testing.T, l *repositoryFixture, name string) domain.Actor {
 			return seedOperationsFixtureParents(t, l, name).actor
 		}},
 	} {

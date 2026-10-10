@@ -203,7 +203,7 @@ func (f governanceFixtureCommands) CreateApprovalRecord(ctx context.Context, act
 	return commands.CreateApprovalRecord(ctx, actor, input)
 }
 
-func (s *Server) bindGovernanceFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindGovernanceFixturePorts(ledger *repositoryFixture) {
 	if commands, fixture := s.waiverCommands.(governanceFixtureCommands); s.waiverCommands == nil || fixture {
 		commands.catalogFixtureCommands = catalogFixtureCommands{ledger: ledger}
 		s.waiverCommands = commands

@@ -112,7 +112,7 @@ func TestMembershipFixturesUseRepositoryOnlyParentsAndUsers(t *testing.T) {
 	}
 }
 
-func seedMembershipFixtureScope(t *testing.T, ledger *app.Ledger, name string) membershipFixtureScope {
+func seedMembershipFixtureScope(t *testing.T, ledger *repositoryFixture, name string) membershipFixtureScope {
 	t.Helper()
 	var f membershipFixtureScope
 	bootstrap := tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}

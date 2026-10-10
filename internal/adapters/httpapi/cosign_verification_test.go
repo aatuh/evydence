@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -123,7 +122,7 @@ func TestCosignLocalCompletedReplayStillNeedsCurrentTenantVerificationGrant(t *t
 	path, body := "/v1/artifact-signatures/signature/verify-cosign", `{"mode":"key","offline":true}`
 	// Seed the local compatibility replay algorithm with a historical receipt;
 	// the route must authorize it even though fresh inspection is not invoked.
-	if _, _, err := legacyFixtureLedger(base).WithIdempotency(t.Context(), a, "POST", path, "local", []byte(body), func(context.Context, *app.Ledger) (int, any, error) {
+	if _, _, err := legacyFixtureLedger(base).WithIdempotency(t.Context(), a, "POST", path, "local", []byte(body), func(context.Context, *repositoryFixture) (int, any, error) {
 		return 200, domain.CosignVerification{ID: "historical-cosign", TenantID: a.TenantID, ArtifactSignatureID: "signature", Result: "passed"}, nil
 	}); err != nil {
 		t.Fatal(err)

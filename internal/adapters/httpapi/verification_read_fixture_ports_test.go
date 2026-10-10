@@ -42,7 +42,7 @@ type signingKeyFixtureQuery struct{ catalogFixtureCommands }
 
 // Existing command regressions compare complete public inventories. Traverse
 // actual native pages rather than reviving an aggregate read for their setup.
-func listFixtureSigningKeys(ctx context.Context, ledger *app.Ledger, actor domain.Actor) ([]domain.SigningKey, error) {
+func listFixtureSigningKeys(ctx context.Context, ledger *repositoryFixture, actor domain.Actor) ([]domain.SigningKey, error) {
 	query := signingKeyFixtureQuery{catalogFixtureCommands{ledger: ledger}}
 	request := appquery.PageRequest{PageSize: appquery.MaxPageSize, Sort: appquery.SortID, Direction: appquery.Ascending}
 	var after *appquery.SortKey
@@ -184,7 +184,7 @@ func (f custodyFixtureQuery) ReadSigningCustodySnapshot(ctx context.Context, ten
 	return out, nil
 }
 
-func (s *Server) bindVerificationReadFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindVerificationReadFixturePorts(ledger *repositoryFixture) {
 	commands := verificationReadFixtureCommands{catalogFixtureCommands{ledger: ledger}}
 	if _, fixture := s.auditChainVerification.(verificationReadFixtureCommands); s.auditChainVerification == nil || fixture {
 		s.auditChainVerification = commands

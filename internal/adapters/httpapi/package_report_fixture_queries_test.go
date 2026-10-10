@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
@@ -84,7 +83,7 @@ func (f packageMissingFixture) Report(ctx context.Context, a domain.Actor, id st
 	}
 	return renderer.Report(ctx, a, id)
 }
-func (s *Server) bindPackageReportFixtureQueries(ledger *app.Ledger) {
+func (s *Server) bindPackageReportFixtureQueries(ledger *repositoryFixture) {
 	f := catalogFixtureCommands{ledger: ledger}
 	if query, fixture := s.controlCoverageQuery.(packageCoverageFixture); s.controlCoverageQuery == nil || fixture {
 		query.catalogFixtureCommands = f

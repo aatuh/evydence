@@ -206,13 +206,13 @@ func (f ingestionFixtureCommands) nativeVEXIngestion(readOnly bool) (*evidenceap
 	return evidenceapp.NewVEXIngestionCommands(evidenceapp.VEXIngestionCommandConfig{Authorizer: auth, Transactions: ports, Parser: ports, Objects: ports, Payloads: ports, Canonicalizer: ports, CanonicalizationProfile: evidencedomain.EvidenceCanonicalizationProfileVersion, Clock: clock, IDs: ids})
 }
 
-func uploadVEXFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, release, artifact string, raw []byte) (domain.VEXDocument, error) {
+func uploadVEXFixture(ctx context.Context, ledger *repositoryFixture, a domain.Actor, release, artifact string, raw []byte) (domain.VEXDocument, error) {
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	v, err := f.UploadVEXPayload(ctx, a, evidenceapp.VEXIngestionInput{ReleaseID: release, ArtifactID: artifact, Format: "openvex"}, evidenceapp.BytesPayloadSource(raw))
 	return domain.VEXDocumentFromContext(v), err
 }
 
-func uploadVulnerabilityScanFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
+func uploadVulnerabilityScanFixture(ctx context.Context, ledger *repositoryFixture, a domain.Actor, raw []byte) (domain.VulnerabilityScan, error) {
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	source := evidenceapp.BytesPayloadSource(raw)
 	in, err := f.ProbeVulnerabilityScanScope(ctx, a, source)
@@ -223,12 +223,12 @@ func uploadVulnerabilityScanFixture(ctx context.Context, ledger *app.Ledger, a d
 	return domain.VulnerabilityScanFromContext(v), err
 }
 
-func uploadSBOMFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, release, artifact string, raw []byte) (domain.SBOM, error) {
+func uploadSBOMFixture(ctx context.Context, ledger *repositoryFixture, a domain.Actor, release, artifact string, raw []byte) (domain.SBOM, error) {
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	v, err := f.UploadSBOMPayload(ctx, a, evidenceapp.SBOMIngestionInput{ReleaseID: release, ArtifactID: artifact, Format: "cyclonedx"}, evidenceapp.BytesPayloadSource(raw))
 	return domain.SBOMFromContext(v), err
 }
-func uploadOpenAPIContractFixture(ctx context.Context, ledger *app.Ledger, a domain.Actor, product, release, version string, raw []byte) (domain.OpenAPIContract, error) {
+func uploadOpenAPIContractFixture(ctx context.Context, ledger *repositoryFixture, a domain.Actor, product, release, version string, raw []byte) (domain.OpenAPIContract, error) {
 	f := ingestionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	v, err := f.UploadOpenAPIContractPayload(ctx, a, evidenceapp.OpenAPIIngestionInput{ProductID: product, ReleaseID: release, Version: version}, evidenceapp.BytesPayloadSource(raw))
 	return domain.OpenAPIContractFromContext(v), err

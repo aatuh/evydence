@@ -156,7 +156,7 @@ func mapMerkleFixtureGuardError(err error) error {
 	return mapVerificationCommandError(err)
 }
 
-func createMerkleBatchFixture(ctx context.Context, ledger *app.Ledger, actor domain.Actor, at time.Time) (domain.MerkleBatch, error) {
+func createMerkleBatchFixture(ctx context.Context, ledger *repositoryFixture, actor domain.Actor, at time.Time) (domain.MerkleBatch, error) {
 	f := merkleCreationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if !at.IsZero() {
 		f.clock = application.ClockFunc(func() time.Time { return at })
@@ -164,7 +164,7 @@ func createMerkleBatchFixture(ctx context.Context, ledger *app.Ledger, actor dom
 	v, err := f.CreateMerkleBatch(ctx, actor, verificationapp.CreateMerkleBatchInput{})
 	return domain.MerkleBatch(v), err
 }
-func createTransparencyCheckpointFixture(ctx context.Context, ledger *app.Ledger, actor domain.Actor, in verificationapp.CreateTransparencyCheckpointInput, at time.Time) (domain.TransparencyCheckpoint, error) {
+func createTransparencyCheckpointFixture(ctx context.Context, ledger *repositoryFixture, actor domain.Actor, in verificationapp.CreateTransparencyCheckpointInput, at time.Time) (domain.TransparencyCheckpoint, error) {
 	f := merkleCreationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if !at.IsZero() {
 		f.clock = application.ClockFunc(func() time.Time { return at })

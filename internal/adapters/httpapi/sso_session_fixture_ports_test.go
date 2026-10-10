@@ -170,7 +170,7 @@ func ssoFixtureVerificationModel(v domain.ProviderVerification) identitydomain.P
 	p.Limitations = slices.Clone(p.Limitations)
 	return identitydomain.ProviderVerification{ID: v.ID, TenantID: v.TenantID, ProviderType: v.ProviderType, ProviderID: v.ProviderID, Subject: v.Subject, Result: v.Result, Checks: checks, Profile: p, Limitations: slices.Clone(v.Limitations), SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt}
 }
-func (s *Server) bindSSOSessionFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindSSOSessionFixturePorts(ledger *repositoryFixture) {
 	f := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.ssoSessionCommands.(ssoSessionFixtureCommands); fixture {
 		old.ledger = ledger

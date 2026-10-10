@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
@@ -77,7 +76,7 @@ func (f signingAdministrationFixtureCommands) CreateDSSETrustRoot(ctx context.Co
 	return value, mapSigningKeyCommandError(err)
 }
 
-func (s *Server) bindSigningAdministrationFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindSigningAdministrationFixturePorts(ledger *repositoryFixture) {
 	commands := signingAdministrationFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.signingKeyCommands.(signingAdministrationFixtureCommands); fixture {
 		old.ledger = ledger

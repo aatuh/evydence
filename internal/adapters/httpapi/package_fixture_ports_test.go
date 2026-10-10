@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -112,7 +111,7 @@ func readinessFixtureReportModel(value domain.ReleaseReadinessReport) packagedom
 	}
 }
 
-func (s *Server) bindPackageFixturePorts(ledger *app.Ledger) {
+func (s *Server) bindPackageFixturePorts(ledger *repositoryFixture) {
 	commands := packageFixtureCommands{catalogFixtureCommands{ledger: ledger}}
 	if old, fixture := s.reportTemplateCommands.(reportTemplateFixtureCommands); fixture {
 		old.ledger = ledger
