@@ -987,6 +987,14 @@ JSON numbers instead of rounding frozen integers or decimals through `float64`.
 Only the access counter and its audit entry change; frozen package fields are
 not rewritten with the sanitized delivery view.
 
+Record-only archive rendering now lives in the Package application package.
+Existing ZIP entry names, bounds, privacy checks and HTTP headers remain.
+Static HTML displays preserved JSON-number values, including integers beyond
+floating-point precision, instead of leaving those numeric cells blank. Frozen
+manifest bytes/hash and stored records are not rewritten. A regenerated ZIP's
+bytes and archive hash can change when its HTML now contains previously omitted
+numbers; previously downloaded archives are not modified.
+
 Selected stored manifests must satisfy the existing creation limits: 8 MiB,
 32 JSON container levels, 4,096 keys per object and 4,096 items per array.
 Oversized, malformed or ambiguous projections fail closed with no partial

@@ -14,12 +14,13 @@ import (
 // Authentication is owned by the handler; the focused command resolves scope,
 // expiry and committed access auditing. Rendering only consumes that frozen
 // result, using the same bounded utility as the portal download path.
-func (s *Server) customerPackageArchive(ctx context.Context, actor domain.Actor, id string) (app.CustomerPackageArchive, error) {
+func (s *Server) customerPackageArchive(ctx context.Context, actor domain.Actor, id string) (packageapp.CustomerPackageArchive, error) {
 	pkg, err := s.customerPackageAccessCommands.AccessCustomerSecurityPackage(ctx, actor, id)
 	if err != nil {
-		return app.CustomerPackageArchive{}, mapCustomerPackageAccessError(err)
+		return packageapp.CustomerPackageArchive{}, mapCustomerPackageAccessError(err)
 	}
-	return app.RenderCustomerPackageArchive(customerPackageFromAccess(pkg))
+	v, err := packageapp.RenderCustomerPackageArchive(pkg)
+	return v, mapCustomerPackageAccessError(err)
 }
 
 func mapCustomerPackageAccessError(err error) error {

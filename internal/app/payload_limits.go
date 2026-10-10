@@ -16,9 +16,9 @@ const (
 	MaxGeneratedReportBytes = packageapp.MaxGeneratedReportBytes
 	// Customer package generation stays within the archive shape accepted by
 	// the offline verifier. Stored ZIP entries avoid compression-ratio drift.
-	MaxCustomerPackageFileBytes     = 10 << 20
-	MaxCustomerPackageArchiveBytes  = 32 << 20
-	MaxCustomerPackageExpandedBytes = 40 << 20
+	MaxCustomerPackageFileBytes     = packageapp.MaxCustomerPackageFileBytes
+	MaxCustomerPackageArchiveBytes  = packageapp.MaxCustomerPackageArchiveBytes
+	MaxCustomerPackageExpandedBytes = packageapp.MaxCustomerPackageExpandedBytes
 	// MaxEvidenceSummaryItems caps report construction over a scoped release.
 	MaxEvidenceSummaryItems = packageapp.MaxEvidenceSummaryItems
 	// Evidence graph snapshots are deliberately bounded materialized views,

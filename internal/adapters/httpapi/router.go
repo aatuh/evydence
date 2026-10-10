@@ -25,6 +25,7 @@ import (
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
+	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -2196,7 +2197,7 @@ func writeData(w http.ResponseWriter, status int, data any) {
 	httpx.WriteJSON(w, status, map[string]any{"data": data, "meta": map[string]string{"api_version": "v1"}})
 }
 
-func writeArchive(w http.ResponseWriter, archive app.CustomerPackageArchive) {
+func writeArchive(w http.ResponseWriter, archive packageapp.CustomerPackageArchive) {
 	w.Header().Set("Content-Type", archive.MediaType)
 	w.Header().Set("Content-Disposition", `attachment; filename="`+archive.Filename+`"`)
 	w.Header().Set("Content-Length", strconv.FormatInt(archive.Size, 10))

@@ -716,10 +716,10 @@ Current non-HTTP commands and queries are assigned by the same owner rule:
 | `internal/identity/app` with remaining adapters in `internal/app/identity_context_adapter.go` | Identity and access | Focused services own production commands. The membership/provider/session facade file is retired; remaining bootstrap/API-key/authentication adapters and DTO mapping still need retirement. |
 | `internal/release/app` with adapters in `internal/app/release_evidence_service.go`, `release_context_adapter.go`, and build paths | Release catalog | Focused service owns release/catalog/build commands; the old facade forwards during migration. |
 | `internal/evidence/app` with adapters in `internal/app/evidence_context_adapter.go`, parser adapters, and remaining `vex.go` compatibility | Evidence ingestion, with decision effects emitted after commit | Focused service owns evidence/document commands and normalization; decision creation remains a separate decision command. |
-| `internal/app/governance_packages.go`, `controls.go`, and policy paths | Vulnerability decisions and governance; Package and reporting for output/rendering | Policy mutation and read-only package rendering separate. |
+| `internal/risk/app`, `internal/risk/query`, remaining `internal/app/controls.go` and policy helpers | Vulnerability decisions and governance | Focused commands/queries own production behavior. Former aggregate Package metadata builders and static catalog facade are test-only. |
 | `internal/app/integrity_runtime.go`, audit chain, and verification profiles | Verification and signing | Provider adapters remain outside the application package. |
 | `internal/app/risk_workflows.go` | Operations and incidents, Evidence ingestion, and Vulnerability decisions and governance | Split incidents, raw security evidence, and policy workflow methods. |
-| `internal/app/package_report_service.go` and package/report portions of `enterprise.go` | Package and reporting | Use committed, tenant-scoped snapshots only. |
+| `internal/package/app`, `internal/package/query`, including `customer_package_archive.go`; remaining package/report portions of `internal/app/enterprise.go` | Package and reporting | Use committed, tenant-scoped snapshots only. Record-only HTML/ZIP rendering consumes the authorized frozen Package DTO; no legacy rendering facade is wired to production HTTP. |
 | `internal/app/outbox_admin.go`, runtime diagnostics, and reconciliation administration | Operations and incidents | Platform-only operator surface. |
 | `internal/app/future_extensions.go` | Experimental peripherals | Keep isolated; graduate or remove each feature before it becomes stable. |
 
@@ -986,8 +986,11 @@ API-compatible.
    The former aggregate Package reader/signer/transaction adapter and its Ledger
    service field/constructor wiring are now absent from production source.
    Historical characterization tests compose it on demand; focused HTTP fixtures
-   use current repository ports. Three still-used pure DTO/error/signature-clone
-   helpers remain without aggregate state or command wiring. Other context
+   use current repository ports. Pure error translation and public-signature
+   cloning remain without aggregate state or command wiring; metadata builders
+   and the redaction mapper are now test-only. Record-only archive rendering is
+   owned by `internal/package/app`, and static templates use the Risk query.
+   Other context
    adapters and final aggregate removal remain unfinished.
 
 Schema changes stay forward-only. A context adds new columns/tables and maps

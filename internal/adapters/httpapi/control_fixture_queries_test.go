@@ -11,7 +11,7 @@ import (
 )
 
 // Framework pages and control points compose the actual focused query over
-// current typed repositories. Link/catalog retirement remains separate work.
+// current typed repositories; static template packs use the same owned query.
 type controlReadFixture struct{ catalogFixtureCommands }
 type controlEvidencePageFixture struct{ catalogFixtureCommands }
 
@@ -70,19 +70,12 @@ func (f controlReadFixture) GetControl(ctx context.Context, tenant, id string) (
 	return out, nil
 }
 func (f controlReadFixture) ListTemplatePacks(ctx context.Context, a domain.Actor) ([]riskdomain.ControlFrameworkTemplatePack, error) {
-	values, err := f.commandLedger(ctx).ListControlFrameworkTemplatePacks(ctx, a)
+	query, err := riskquery.NewControls(f)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]riskdomain.ControlFrameworkTemplatePack, 0, len(values))
-	for _, v := range values {
-		controls := make([]riskdomain.SecurityControl, 0, len(v.Controls))
-		for _, control := range v.Controls {
-			controls = append(controls, fixtureSecurityControl(control))
-		}
-		items = append(items, riskdomain.ControlFrameworkTemplatePack{ID: v.ID, Name: v.Name, Slug: v.Slug, Version: v.Version, Description: v.Description, Controls: controls, SchemaVersion: v.SchemaVersion})
-	}
-	return items, nil
+	values, err := query.ListTemplatePacks(ctx, a)
+	return values, mapControlsQueryError(err)
 }
 func (f controlEvidencePageFixture) ListPage(ctx context.Context, a domain.Actor, filter riskquery.ControlEvidenceFilter, request appquery.PageRequest, after *appquery.SortKey) (appquery.Result[riskdomain.ControlEvidence], error) {
 	query, err := riskquery.NewControlEvidence(f)

@@ -55,6 +55,15 @@ old reader/signer/transaction bridge only in test builds. Three still-used pure
 DTO/error/signature-clone helpers retain their existing behavior. Native API
 and storage contracts are unchanged; EVY-906 aggregate removal remains open.
 
+Retired the aggregate Package metadata builders and static-template catalog
+facade from production source. Customer/portal ZIP rendering now belongs to
+the Package application package, with the existing access boundary, archive
+bounds, privacy checks, fixed entries and HTML escaping. Static HTML now shows
+stored JSON-number cells without floating-point rounding; regenerated ZIP
+bytes/hash can therefore differ while frozen manifests/hash stay unchanged.
+See [archive compatibility](docs/reference/api-versioning.md#unreleased-customer-package-access-boundary).
+Other Ledger retirement remains EVY-906 work.
+
 Customer-visible vulnerability-decision summaries now fail closed above 4,096
 selected decisions or an 8 MiB selected text/encoded-container budget, before
 PostgreSQL transfers decision metadata. Oversized summaries return no partial

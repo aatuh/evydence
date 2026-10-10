@@ -11,6 +11,22 @@ import (
 
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
+		"CustomerPackageArchive": true, "RenderCustomerPackageArchive": true,
+		"customerPackageArchive": true, "customerPackageHTMLReport": true,
+		"redactionProfileToPackageContext": true,
+		"packageTenantMetadataLocked":      true, "packageOrganizationMetadataLocked": true,
+		"packageProductMetadata": true, "packageReleaseMetadata": true,
+		"packageArtifactMetadataLocked": true, "packageReleaseArtifactIDsLocked": true,
+		"packageSBOMMetadataLocked": true, "packageVulnerabilityScanMetadataLocked": true,
+		"packageVEXMetadataLocked": true, "packageAPIContractMetadataLocked": true, "packageOpenAPIOperations": true,
+		"packageApprovalSummariesLocked": true, "approvalBelongsToPackage": true,
+		"packageExceptionSummariesLocked": true, "packageWaiverSummariesLocked": true,
+		"packageAnswerLibraryMetadataLocked": true, "packageObjectLockProofsLocked": true, "packageVerifyChecks": true,
+		"packageProvenanceMetadataLocked": true, "packageBuildOutputs": true, "packageOptionalTime": true,
+		"packageVerificationMaterialLocked": true, "verificationMatchesReleaseLocked": true,
+		"packageAuditChainSummaryLocked": true, "packageDecisionSummariesLocked": true, "profileAllowsPackageType": true,
+		"sortedStringSet": true, "sortManifestMapsByID": true, "cleanExternalLabel": true,
+		"builtinTemplatePacks": true, "validWaiverScope": true, "validApprovalSubject": true, "validApprovalDecision": true,
 		"configurePackageCommands": true, "legacyPackageCommands": true,
 		"packageSnapshotVersion":     true,
 		"ledgerPackageCanonicalizer": true, "ledgerPackageSigner": true,
@@ -144,7 +160,8 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"prepareLocalSourceRepositoryCreation": true,
 	}
 	retired := map[string]bool{
-		"HasTenants": true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
+		"ListControlFrameworkTemplatePacks": true,
+		"HasTenants":                        true, "MissingEvidenceReport": true, "RevokeSigningKey": true,
 		"SearchEvidence": true, "UploadAPISecurityScan": true,
 		"UploadGitHubSourceSnapshot": true, "UploadGitLabSourceSnapshot": true,
 		"UploadSPDXSBOM": true, "UploadBuildAttestationPayload": true,

@@ -16,7 +16,6 @@ import (
 
 	fsobject "github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -261,7 +260,7 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	packageAfter, err := app.RenderCustomerPackageArchive(domain.CustomerSecurityPackage(accessedPackage))
+	packageAfter, err := packageapp.RenderCustomerPackageArchive(accessedPackage)
 	if err != nil || packageAfter.PackageID != pkg.ID || packageAfter.Hash == "" || packageAfter.Size != int64(len(packageAfter.Bytes)) {
 		t.Fatalf("restored customer package archive=%#v err=%v", packageAfter, err)
 	}

@@ -12,6 +12,7 @@ import (
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
+	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
 )
 
@@ -43,7 +44,7 @@ func TestControlFixtureReadsKeepOwnedCompletePagesAndDetachedDefinitions(t *test
 	human := domain.Actor{TenantID: owner.actor.TenantID, UserID: "reader", Scopes: []string{"controls:read"}, ResourceGrants: []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: owner.actor.TenantID, Scopes: []string{"controls:read"}}, {ResourceType: "product", ResourceID: owner.product.ID, Scopes: []string{"controls:read"}}}}
 	auth := &configuredAuthenticator{actor: human}
 	server.authn = auth
-	packs, err := ledger.ListControlFrameworkTemplatePacks(t.Context(), human)
+	packs, err := (controlReadFixture{catalogFixtureCommands{ledger: ledger}}).ListTemplatePacks(t.Context(), human)
 	if err != nil || len(packs) == 0 {
 		t.Fatal("template catalog unavailable", err)
 	}
@@ -167,7 +168,7 @@ func TestControlFixtureReadsKeepOwnedCompletePagesAndDetachedDefinitions(t *test
 	if err != nil || !reflect.DeepEqual(securityControlFromQuery(again), owner.control) {
 		t.Fatal("control fixture exposed stored aliases", err)
 	}
-	againPacks, err := ledger.ListControlFrameworkTemplatePacks(t.Context(), human)
+	againPacks, err := reader.ListTemplatePacks(t.Context(), human)
 	if err != nil || !reflect.DeepEqual(againPacks, packs) {
 		t.Fatal("template fixture exposed stored aliases", err)
 	}
@@ -192,10 +193,10 @@ func TestControlFixtureReadsKeepOwnedCompletePagesAndDetachedDefinitions(t *test
 	}
 }
 
-func controlFixturePackValues(packs []domain.ControlFrameworkTemplatePack) []any {
+func controlFixturePackValues(packs []riskdomain.ControlFrameworkTemplatePack) []any {
 	values := make([]any, 0, len(packs))
 	for _, pack := range packs {
-		values = append(values, pack)
+		values = append(values, controlTemplatePackFromQuery(pack))
 	}
 	return values
 }

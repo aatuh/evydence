@@ -947,10 +947,21 @@ The aggregate Package adapter is now test-only. Production source no longer
 contains its cache readers, map-backed signer, projection refresher, staged
 transaction/publish/restore bridge, or the Ledger Package service field and
 constructor wiring. Historical characterization tests compose that adapter on
-demand; focused HTTP fixtures do not use it. Only pure redaction/error
-translations and the shared scalar signature-map clone remain in non-test
+demand; focused HTTP fixtures do not use it. Only pure error translation
+and the shared scalar signature-map clone remain in non-test
 source. This removes one aggregate adapter, not the remaining Ledger maps,
 mutexes or other context adapters; EVY-906 stays incomplete.
+
+The cache-backed Package metadata builders and static-template catalog facade
+are also test-only. `internal/package/app/customer_package_archive.go` owns
+record-only HTML/ZIP rendering; customer and portal handlers call it directly
+after scoped access commits. The static catalog fixture calls the existing Risk
+query without Ledger. Existing archive bounds, redaction, escaping, CSP and
+fixed stored ZIP entries remain. JSON-number fields now render without float
+rounding; see [archive compatibility](reference/api-versioning.md#unreleased-customer-package-access-boundary).
+Shared integer-map cloning, pure waiver-scope matching and the still-used DSSE
+compatibility helpers remain while their Evidence/VEX/Verification callers are
+retired. No new aggregate runtime path is introduced.
 
 The Package report query now consumes Risk-owned readiness facts and the pure
 `internal/risk/domain` evaluator, not the Risk application service. Complete

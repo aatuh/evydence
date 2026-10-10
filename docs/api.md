@@ -3061,7 +3061,7 @@ together, including on repeated or restarted download requests; this GET has
 the same established audited-access side effect as the package JSON read.
 Audit or transaction-commit failure returns no ZIP and rolls back the count.
 
-After access commits, the existing record-only renderer produces fixed ZIP
+After access commits, the Package-owned record-only renderer produces fixed ZIP
 entry names, scoped public manifest metadata, verification guidance and HTML.
 It does not fetch evidence payloads or rebuild a package from current tenant
 state. Existing rendering bounds remain: 10 MiB per file, 4 MiB for generated
@@ -3069,12 +3069,15 @@ HTML, 40 MiB expanded ZIP content, and 32 MiB archive bytes. Responses retain
 `Content-Type: application/zip`, attachment filename, `Content-Length`, and
 `X-Evydence-Archive-Hash` over the returned bytes. The frozen stored manifest
 is not rewritten by access or rendering.
+Numeric HTML cells preserve stored JSON-number text without a floating-point
+conversion; see [archive compatibility](reference/api-versioning.md#unreleased-customer-package-access-boundary)
+for the regenerated ZIP/hash implications.
 
 Access auditing is not proof of delivery: a later render or network failure can
 leave the already committed access count/audit. No archive headers or bytes are
-returned on access or rendering errors. Explicit local memory retains its
-storage facade and the same record-only renderer; this does not make local
-memory durable or establish a compliance, certification, or secure-release
+returned on access or rendering errors. HTTP memory fixtures use focused
+repository ports and the same owned renderer; they are not an API profile or
+proof of PostgreSQL durability, compliance, certification, or secure-release
 conclusion.
 
 ### PDF Report Packaging

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -46,12 +45,13 @@ func (s *Server) portalPackage(ctx context.Context, token string, in packageapp.
 	}
 	return customerPackageFromAccess(v), nil
 }
-func (s *Server) portalArchive(ctx context.Context, token string, in packageapp.PortalAcceptanceInput) (app.CustomerPackageArchive, error) {
+func (s *Server) portalArchive(ctx context.Context, token string, in packageapp.PortalAcceptanceInput) (packageapp.CustomerPackageArchive, error) {
 	v, err := s.portalTokenCommands.AccessPortalPackage(ctx, token, in, true)
 	if err != nil {
-		return app.CustomerPackageArchive{}, mapCustomerPackageAccessError(err)
+		return packageapp.CustomerPackageArchive{}, mapCustomerPackageAccessError(err)
 	}
-	return app.RenderCustomerPackageArchive(customerPackageFromAccess(v))
+	archive, err := packageapp.RenderCustomerPackageArchive(v)
+	return archive, mapCustomerPackageAccessError(err)
 }
 func decodePortalAccessRequest(body []byte) (packageapp.CreatePortalAccessInput, error) {
 	var in struct {
