@@ -1,5 +1,7 @@
 package app
 
+// Historical cached report construction remains only for characterization.
+
 import (
 	"sort"
 	"strings"

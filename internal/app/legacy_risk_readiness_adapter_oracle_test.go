@@ -1,5 +1,7 @@
 package app
 
+// Native readiness uses focused repository facts, not this historical adapter.
+
 import (
 	"errors"
 	"strings"

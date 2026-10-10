@@ -229,7 +229,8 @@ requires it to match the normalized request; without it, decision processing
 continues from the normalized request without independent raw replay.
 
 The PostgreSQL profile binds a standalone focused command and stateless
-parser; explicit local-memory mode retains its compatibility service. Current
+parser. Test-only memory fixtures use focused commands over current rows;
+the historical aggregate service and OpenVEX wrappers are not API runtimes. Current
 parent ownership and grants are rechecked on replay without normalization or
 staging. See [VEX ingestion](../api.md#vex-ingestion) for source-byte semantics,
 normalized projection and worker-request budgets, and retained body-only
@@ -242,7 +243,7 @@ limits are documented in [VEX import preview](../api.md#3-upload-sbom-and-vulner
 Evidence: `internal/evidence/app/vex_ingestion_commands.go`,
 `internal/platform/wiring/vex_ingestion_commands.go`,
 `internal/app/evidence_parser_adapter.go`,
-`internal/app/evidence_context_adapter.go`, `cmd/evydence-worker/main.go`,
+`cmd/evydence-worker/main.go`,
 `TestPostgresVEXIngestionUsesFocusedAtomicUploadsAndRestartReplay`,
 `TestPostgresVEXIngestionJoinsPendingParentsAndOuterRollback`,
 `TestUploadVEXPayloadPersistsInitialRecordsAndReplayJobAtomically`,

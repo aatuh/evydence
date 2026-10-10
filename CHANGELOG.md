@@ -13,6 +13,15 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired 25 cached readiness, control-report, VEX decision/finding and build-policy
+authority routines, the old control-report DTOs, and unused OpenVEX wrappers
+from production source. Historical behavior remains characterized in test-only
+oracles; AST checks prevent reintroduction. Native bounded readers, shared domain
+policies and real VEX parsers are unchanged. Only detached time/reference copies
+remain in the VEX value boundary. This does not change report, API, persistence
+or immutable hash contracts, or retire the remaining Identity/Verification,
+bootstrap, worker and aggregate state paths under EVY-906.
+
 Retired the broad Release aggregate adapter, its Service field and constructor
 wiring, fourteen command/read facades, three workflow input DTOs and cached
 candidate-reference validator from production. Historical characterization

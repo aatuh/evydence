@@ -1003,6 +1003,19 @@ authorizers still serve the unfinished Identity and Verification adapters; they
 are not used by focused Release composition. This removes the Release adapter,
 not the remaining Ledger state, locks, worker paths or other context adapters.
 
+Cached Risk readiness, control-coverage/CRA report construction, VEX finding,
+decision and supporting-reference reads, and the old build-policy checks are
+now historical test-only oracles. Their two control-report input DTOs, OpenVEX
+format wrappers and unused constants are also absent from production. Native
+Risk commands and Package report queries continue to use current bounded
+repository facts and shared domain policies; ingestion keeps the real shared
+OpenVEX parser and its existing byte/schema limits. Only detached time/reference
+copies remain in `internal/app/vex_context_values.go`. Two cached DSSE receipt
+and release-artifact helpers remain for the unfinished Verification adapter;
+this unit does not retire bootstrap, authentication, backup generation, worker
+refresh or the Ledger state itself. Existing assertions are preserved; memory
+checks are not PostgreSQL locking, durability or external assurance evidence.
+
 The cache-backed Package metadata builders and static-template catalog facade
 are also test-only. `internal/package/app/customer_package_archive.go` owns
 record-only HTML/ZIP rendering; customer and portal handlers call it directly
