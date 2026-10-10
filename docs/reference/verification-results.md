@@ -345,14 +345,20 @@ nonempty subject IDs and explicit JSON null fields are rejected before verifying
 Integrity of the currently recorded chain does not establish external publication
 or detect truncation to a still-valid prefix without an independently trusted
 checkpoint. The signed-checkpoint profiles are distinct assessments, and
-transparency remains `not_evaluated` here. These limits and guarantees apply to
-the focused PostgreSQL command; local-memory storage remains its explicit
-compatibility path.
+transparency remains `not_evaluated` here. PostgreSQL locking guarantees apply
+to the focused PostgreSQL command. Typed memory fixtures compose the same core
+profiles over current pages and public signature bindings, not Ledger caches;
+they do not prove SQL locks or durability and are not a supported API backend.
+Canonical audit metadata uses exact JSON numbers in the PostgreSQL page decoder
+and through memory append, commit, snapshot, reopen and page copying.
 
 Source/test evidence: `internal/verification/app/audit_chain_hash.go`,
 `internal/verification/app/audit_chain_verification.go`,
 `internal/platform/wiring/audit_chain_verification_test.go` and
-`internal/adapters/httpapi/audit_chain_verification_test.go`.
+`internal/adapters/httpapi/audit_chain_verification_test.go`, plus
+`internal/app/memory_audit_verification_test.go`,
+`internal/adapters/postgres/repositories/audit_chain_decode_test.go` and
+`internal/adapters/httpapi/audit_verification_native_fixture_regression_test.go`.
 
 ## Signed Merkle Audit-Chain Checkpoint Verification
 
@@ -396,7 +402,8 @@ PostgreSQL command checks the entire current tenant chain, then
 `checkpoint_manifest_hash`, `checkpoint_signature` and `checkpoint_coverage`.
 The normalized-JSON manifest hash and historically valid tenant signature must
 bind to the selected release bundle. The signed manifest's `chain_checkpoint`
-must contain an integer `sequence` and string `head_hash`; a positive sequence
+must contain an integer `sequence` and string `head_hash`; exact `json.Number`
+integers are accepted without floating-point conversion. A positive sequence
 must exist in the same inspected chain and match that entry's stored hash.
 Missing, malformed, negative or truncated coverage fails. Sequence zero retains
 its existing empty-range behavior. All three checkpoint checks remain in a
@@ -406,8 +413,8 @@ This is a tenant-wide assessment, including canonical entries beyond the
 covered prefix. Human actors therefore require a tenant-wide `verify:read`
 grant **before content reads** in the PostgreSQL profile. A release/product
 grant alone no longer permits this assessment; ordinary release-bundle
-signature verification remains resource-scoped. The explicit local-memory
-compatibility path retains its legacy authorization behavior.
+signature verification remains resource-scoped. Current typed HTTP fixtures use
+the same tenant-wide policy; historical aggregate characterization is test-only.
 
 The audit writer fence and shared tenant, release/product, bundle, audit,
 signature and public-key locks preserve one view through atomic receipt, audit

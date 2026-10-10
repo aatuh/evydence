@@ -27,7 +27,7 @@ func (r memoryVerificationRepository) ResolveSubjectVerificationScope(ctx contex
 		case "build_attestation":
 			refs, err = memoryDSSECoordinates(s, tenant, id)
 		case "release_bundle", "audit_chain_release_manifest":
-			b, ok := s.EvidenceBundles[id]
+			b, ok := s.ReleaseBundles[id]
 			if !ok || b.ID != id || b.TenantID != tenant {
 				return ErrNotFound
 			}

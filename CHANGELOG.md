@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired the generic Ledger verification facade from production source. Full-chain
+and both signed-checkpoint HTTP fixtures use focused commands with current bounded
+audit pages, public signing material and tenant-wide grants. Recovery verification
+uses native readers. Fixed release-bundle replay ownership to consult release
+records rather than evidence-export records, and preserved exact canonical audit
+JSON integers through memory transactions and the PostgreSQL page decoder.
+Release-manifest checkpoints accept exact JSON-number integers without rounding.
+Replay, failed GET/POST and atomic rollback regressions retain existing profiles
+and contracts; no external anchoring or SQL durability is claimed from memory
+fixtures. Broader aggregate removal remains EVY-906 work.
+
 Retired the Ledger DSSE verification and generic cache-based verification replay
 guards from production source. Both DSSE HTTP fixture paths use focused commands,
 current typed ownership/policies, explicit bounded object storage and finalized

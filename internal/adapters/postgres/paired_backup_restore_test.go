@@ -219,10 +219,10 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if result, err := verifyBackupManifestFixture(ctx, targetStore, restoredActor, checkpoint.ID); err != nil {
 		t.Fatalf("verify restored consistency checkpoint: %v result=%#v", err, result)
 	}
-	if result, err := restored.VerifySubject(ctx, restoredActor, "audit_chain", ""); err != nil || result.Result != "passed" {
+	if result, err := verifyRestoredSubjectFixture(ctx, targetStore, restoredActor, "audit_chain", ""); err != nil || result.Result != "passed" {
 		t.Fatalf("verify restored audit chain: result=%#v err=%v", result, err)
 	}
-	if result, err := restored.VerifySubject(ctx, restoredActor, "release_bundle", bundle.ID); err != nil || result.Result != "passed" {
+	if result, err := verifyRestoredSubjectFixture(ctx, targetStore, restoredActor, "release_bundle", bundle.ID); err != nil || result.Result != "passed" {
 		t.Fatalf("verify restored release bundle: result=%#v err=%v", result, err)
 	}
 	query, err := evidencequery.NewSBOMPoints(targetStore)

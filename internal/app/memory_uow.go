@@ -260,7 +260,7 @@ func (u *memoryUnitOfWork) appendAudit(ctx context.Context, entry domain.AuditCh
 	if err := RehashAuditChainEntry(&entry); err != nil {
 		return domain.AuditChainEntry{}, err
 	}
-	cloned, err := cloneMemoryJSON(entry)
+	cloned, err := cloneMemoryAuditEntry(entry)
 	if err != nil {
 		return domain.AuditChainEntry{}, err
 	}
@@ -4031,8 +4031,20 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.DSSETrustRoots, err = cloneMemoryMap(snapshot.DSSETrustRoots); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
-	if cloned.AuditEntries, err = cloneMemoryJSON(snapshot.AuditEntries); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.AuditEntries = make(map[string][]domain.AuditChainEntry, len(snapshot.AuditEntries))
+	for tenant, entries := range snapshot.AuditEntries {
+		if entries == nil {
+			cloned.AuditEntries[tenant] = nil
+			continue
+		}
+		copied := make([]domain.AuditChainEntry, len(entries))
+		for i, entry := range entries {
+			copied[i], err = cloneMemoryAuditEntry(entry)
+			if err != nil {
+				return MemoryUnitOfWorkSnapshot{}, err
+			}
+		}
+		cloned.AuditEntries[tenant] = copied
 	}
 	cloned.Idempotency = make(map[IdempotencyRecordKey]IdempotencyRecord, len(snapshot.Idempotency))
 	for key, record := range snapshot.Idempotency {

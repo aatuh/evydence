@@ -1300,8 +1300,18 @@ resources or private keys. The inspector retains existing per-entry checks and
 both canonical schema versions, including v1 timestamp reconstruction. See the
 [full-chain verification boundary](reference/verification-results.md#full-audit-chain-verification)
 for resource limits, HTTP compatibility and the distinction from signed
-checkpoint/external anchoring assurance. Both signed-checkpoint subjects now
-have focused commands; broad startup Ledger retirement remains EVY-905 work.
+checkpoint/external anchoring assurance. Both signed-checkpoint subjects have
+focused commands. HTTP fixtures now compose all three profiles over current
+typed pages and public signing material; the generic Ledger verification facade
+is historical test-only characterization. Typed pages recheck the captured
+head/count, detach exact-number canonical metadata and charge their complete
+encoded size. Audit append/commit/snapshot/reopen and the PostgreSQL page decoder
+preserve recorded JSON integers instead of rounding canonical inputs. Fixtures
+cover current tenant grants, real local signatures, successful replay, negative
+GET receipts, failed POST rollback and atomic commit failure. Recovery tests use
+native readers rather than reconstructed verification caches; their live gates
+still require a configured database. Memory checks are not SQL-locking or
+durability evidence. Remaining aggregate removal is EVY-906 work.
 
 Evidence-item requests to `POST /v1/verify` use a focused durable command in the PostgreSQL profile. It resolves and share-locks tenant-owned evidence and parent coordinates, then checks `verify:read` and human tenant/product/project/release grants before selecting hash inputs. An 8 MiB combined JSON budget covers the selected evidence, authoritative legacy origins and related parser/audit facts; origin and parsed-record reads each stop at 4096 rows and reject overflow rather than truncate. The reader selects payload references only as canonical hash inputs, never downloads payload bytes and never exposes those references in receipts. Shared evidence-domain rules preserve v2 immutable subjects while excluding mutable relationship projections, and reconstruct legacy relationships only from matching v2 lifecycle origins. Authoritative origin publication takes an evidence-row lock, including when the origin set was previously empty. Selected SBOM, scan, OpenAPI, VEX and build-attestation projections retain shared shape and source-relationship checks; queued uploads need not have parsed records yet. Parser-normalization markers additionally bind their source evidence and linked audit fact, with a bounded predecessor-integrity check. This is not full audit-chain verification or a payload-origin/completeness proof. Receipt, audit and outbox effects commit together; successful idempotent POST replay creates no extra receipt, and a failed POST rolls back its enclosing transaction. HTTP fixtures now compose the same focused command over current typed item, provenance and selected legacy-origin rows, not aggregate maps. Point queries share the detached exact-number provenance decoder; verification adds origins under the same combined budget. Current grants, failed inspection and receipt/audit/job commit rollback have focused regressions. These memory fixtures prove neither SQL locking/durability nor payload authenticity or completeness. Remaining aggregate retirement is EVY-906 work.
 

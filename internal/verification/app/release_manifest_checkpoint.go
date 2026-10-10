@@ -126,6 +126,12 @@ func ReleaseManifestAuditChainCheckpoint(manifest map[string]any) (int64, string
 		sequence = int64(value)
 	case int64:
 		sequence = value
+	case json.Number:
+		var err error
+		sequence, err = value.Int64()
+		if err != nil {
+			return 0, "", false
+		}
 	case float64:
 		if math.IsNaN(value) || math.IsInf(value, 0) || value >= float64(1<<63) || value < -float64(1<<63) || value != math.Trunc(value) {
 			return 0, "", false

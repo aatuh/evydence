@@ -1794,7 +1794,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if object.Digest != evidence.PayloadHash {
 		t.Fatalf("restored object digest = %q, want %q", object.Digest, evidence.PayloadHash)
 	}
-	if vr, err := restored.VerifySubject(ctx, restoredActor, "release_bundle", bundle.ID); err != nil || vr.Result != "passed" {
+	if vr, err := verifyRestoredSubjectFixture(ctx, targetStore, restoredActor, "release_bundle", bundle.ID); err != nil || vr.Result != "passed" {
 		t.Fatalf("verify restored bundle = %#v err=%v", vr, err)
 	}
 }

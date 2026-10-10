@@ -44,6 +44,11 @@ func (f verificationCommandFixture) AuthorizeSubjectVerification(ctx context.Con
 }
 
 func (f verificationCommandFixture) VerifySubject(ctx context.Context, actor domain.Actor, kind, id string) (verificationdomain.VerificationResult, error) {
+	var err error
+	kind, id, err = verificationapp.NormalizeSubjectVerificationInput(kind, id)
+	if err != nil {
+		return verificationdomain.VerificationResult{}, mapVerificationCommandError(err)
+	}
 	if strings.TrimSpace(kind) == "build_attestation" {
 		return f.VerifyDSSEAttestationSignature(ctx, actor, id)
 	}
@@ -62,8 +67,16 @@ func (f verificationCommandFixture) VerifySubject(ctx context.Context, actor dom
 	if strings.TrimSpace(kind) == "merkle_batch" {
 		return f.verifyCurrentMerkle(ctx, actor, id)
 	}
-	value, err := f.commandLedger(ctx).VerifySubject(ctx, actor, kind, id)
-	return fixtureVerificationResult(value, err)
+	switch kind {
+	case "audit_chain":
+		return f.verifyCurrentAuditChain(ctx, actor)
+	case "audit_chain_checkpoint":
+		return f.verifyCurrentAuditMerkleCheckpoint(ctx, actor, id)
+	case "audit_chain_release_manifest":
+		return f.verifyCurrentAuditManifestCheckpoint(ctx, actor, id)
+	default:
+		return verificationdomain.VerificationResult{}, app.ErrValidation
+	}
 }
 
 func (f verificationCommandFixture) VerifyReleaseBundle(ctx context.Context, actor domain.Actor, id string) (verificationdomain.VerificationResult, error) {

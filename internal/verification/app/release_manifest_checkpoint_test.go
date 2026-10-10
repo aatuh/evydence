@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math"
 	"strings"
@@ -157,15 +158,25 @@ func TestReleaseManifestCheckpointChecksPagesBeyondCoveredPrefix(t *testing.T) {
 	}
 }
 func TestReleaseManifestCheckpointParserPreservesIntegerRepresentations(t *testing.T) {
-	for _, value := range []any{int(1), int64(1), float64(1)} {
+	for _, value := range []any{int(1), int64(1), float64(1), json.Number("1")} {
 		sequence, head, ok := ReleaseManifestAuditChainCheckpoint(map[string]any{"chain_checkpoint": map[string]any{"sequence": value, "head_hash": "head"}})
 		if !ok || sequence != 1 || head != "head" {
 			t.Fatal(value, sequence, head, ok)
 		}
 	}
-	for _, value := range []any{nil, "1", float64(1.5), math.NaN(), math.Inf(1), float64(1 << 63)} {
+	for _, value := range []any{nil, "1", float64(1.5), math.NaN(), math.Inf(1), float64(1 << 63), json.Number("1.5"), json.Number("9223372036854775808"), json.Number("invalid")} {
 		if _, _, ok := ReleaseManifestAuditChainCheckpoint(map[string]any{"chain_checkpoint": map[string]any{"sequence": value, "head_hash": "head"}}); ok {
 			t.Fatal("malformed sequence accepted", value)
+		}
+	}
+	for _, text := range []string{"9007199254740993", "9223372036854775807"} {
+		want, err := json.Number(text).Int64()
+		if err != nil {
+			t.Fatal(err)
+		}
+		sequence, _, ok := ReleaseManifestAuditChainCheckpoint(map[string]any{"chain_checkpoint": map[string]any{"sequence": json.Number(text), "head_hash": "head"}})
+		if !ok || sequence != want {
+			t.Fatal("exact checkpoint sequence rounded or rejected", text, sequence, ok)
 		}
 	}
 }

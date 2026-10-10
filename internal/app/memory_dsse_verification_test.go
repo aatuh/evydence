@@ -120,7 +120,7 @@ func TestMemorySubjectVerificationScopeUsesOnlyCurrentOwnedCoordinates(t *testin
 	}
 	tx.state.MerkleBatches["batch"] = domain.MerkleBatch{ID: "batch", TenantID: "tenant", RootHash: strings.Repeat("private", 100000)}
 	tx.state.BackupManifests["backup"] = domain.BackupManifest{ID: "backup", TenantID: "tenant", StateHash: strings.Repeat("private", 100000)}
-	tx.state.EvidenceBundles["bundle"] = domain.EvidenceBundle{ID: "bundle", TenantID: "tenant", ReleaseID: "tenant-release", Manifest: map[string]any{"unreadable": func() {}}}
+	tx.state.ReleaseBundles["bundle"] = domain.ReleaseBundle{ID: "bundle", TenantID: "tenant", ReleaseID: "tenant-release", Manifest: map[string]any{"unreadable": func() {}}}
 	for _, tc := range []struct{ kind, id, release string }{{"audit_chain", "", ""}, {"audit_chain_checkpoint", "batch", ""}, {"merkle_batch", "batch", ""}, {"backup_manifest", "backup", ""}, {"audit_chain_release_manifest", "bundle", ""}, {"release_bundle", "bundle", "tenant-release"}, {"build_attestation", "attestation", "tenant-release"}} {
 		v, err := r.ResolveSubjectVerificationScope(t.Context(), "tenant", tc.kind, tc.id)
 		if err != nil || v.ID != tc.id || v.Resources.ReleaseID != tc.release {

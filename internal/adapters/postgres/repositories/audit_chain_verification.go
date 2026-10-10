@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -137,8 +138,8 @@ func (r verification) readAuditChainPage(ctx context.Context, view verificationa
 			rows.Close()
 			return page, app.ErrConflict
 		}
-		var entry domain.AuditChainEntry
-		if jsonbounds.Validate(raw, jsonbounds.Limits{MaxDepth: 32, MaxObjectKeys: 4096, MaxArrayItems: 4096, MaxStringBytes: verificationapp.MaxAuditChainVerificationBytes}) != nil || json.Unmarshal(raw, &entry) != nil {
+		entry, err := decodeAuditVerificationEntry(raw)
+		if err != nil {
 			rows.Close()
 			return page, app.ErrConflict
 		}
@@ -187,6 +188,19 @@ func (r verification) readAuditChainPage(ctx context.Context, view verificationa
 	}
 	page.BytesRead = budget - remaining
 	return page, nil
+}
+
+func decodeAuditVerificationEntry(raw []byte) (domain.AuditChainEntry, error) {
+	var entry *domain.AuditChainEntry
+	if len(raw) > verificationapp.MaxAuditChainVerificationBytes || jsonbounds.Validate(raw, jsonbounds.Limits{MaxDepth: 32, MaxObjectKeys: 4096, MaxArrayItems: 4096, MaxStringBytes: verificationapp.MaxAuditChainVerificationBytes}) != nil {
+		return domain.AuditChainEntry{}, app.ErrConflict
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&entry); err != nil || entry == nil {
+		return domain.AuditChainEntry{}, app.ErrConflict
+	}
+	return *entry, nil
 }
 
 func (r verification) readAuditSignatureBinding(ctx context.Context, e verificationdomain.AuditChainEntry, budget *int, lock bool) (verificationapp.AuditSignatureBinding, error) {
