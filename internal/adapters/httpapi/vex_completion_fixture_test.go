@@ -24,7 +24,7 @@ func vexCompletionTestServer(t *testing.T) (*Server, string, *app.MemoryUnitOfWo
 	t.Helper()
 	factory := app.NewMemoryUnitOfWorkFactory()
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}

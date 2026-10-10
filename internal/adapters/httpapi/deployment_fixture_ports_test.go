@@ -214,11 +214,11 @@ func TestDeploymentFixtureReplayRollsBackAllEffectsAfterWriteFailure(t *testing.
 		t.Run(fmt.Sprintf("event=%t", event), func(t *testing.T) {
 			factory := app.NewMemoryUnitOfWorkFactory()
 			ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
-			_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})
+			_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Fixture", "admin", []string{"*"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			actor, err := ledger.Authenticate(t.Context(), secret)
+			actor, err := fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -293,11 +293,11 @@ func TestDeploymentQueryFixturesPreserveTenantOwnershipAndReadScope(t *testing.T
 	var environments []domain.DeploymentEnvironment
 	var events []domain.DeploymentEvent
 	for _, name := range []string{"Alpha", "Bravo"} {
-		_, _, secret, err := ledger.BootstrapTenant(t.Context(), name, "admin", []string{"*"})
+		_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, name, "admin", []string{"*"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		actor, err := ledger.Authenticate(t.Context(), secret)
+		actor, err := fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 		if err != nil {
 			t.Fatal(err)
 		}

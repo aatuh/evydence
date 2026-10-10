@@ -18,11 +18,11 @@ import (
 func TestOperatorNativeFixturesSelectCommittedCountsWithoutAggregatePublication(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Owner", "admin", []string{"*", app.ScopeInstanceAdmin})
+	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Owner", "admin", []string{"*", app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := ledger.Authenticate(t.Context(), secret)
+	actor, err := fixtureIdentityAuthenticator(ledger, "test", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,11 +173,11 @@ func TestOperatorNativeResourceBindingKeepsExplicitResourcesAcrossRebinding(t *t
 func TestOperatorNativeReplayValidatesOperatorResultBeforeSavingSuccess(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: factory})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Instance", "admin", []string{app.ScopeInstanceAdmin})
+	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Instance", "admin", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := ledger.Authenticate(t.Context(), secret)
+	actor, err := fixtureIdentityAuthenticator(ledger, "test", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -90,11 +90,11 @@ func localSigningOperationHTTPFixture(t *testing.T) (*Server, string, string, *s
 	t.Helper()
 	f := &signingOperationHTTPLocalSigner{}
 	l := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", Signer: f, UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
-	tenant, _, secret, err := l.BootstrapTenant(t.Context(), "Tenant", "operator", []string{"*"})
+	tenant, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, l.ExecuteUnitOfWork, "Tenant", "operator", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := l.Authenticate(t.Context(), secret)
+	a, err := fixtureIdentityAuthenticator(l, "test", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}

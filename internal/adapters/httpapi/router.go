@@ -205,8 +205,8 @@ type ServerOptions struct {
 	MaxInFlightRequests              int
 	MaxConcurrentUploads             int
 	BuildIdentity                    runtimeinfo.Identity
-	// Authenticator overrides the local-memory Ledger authentication adapter.
-	// Production binds it to current PostgreSQL credential and grant rows.
+	// Authenticator is the required native credential and grant port.
+	// Production binds it to current PostgreSQL rows, with no Ledger fallback.
 	Authenticator Authenticator
 	// APIKeyCommands issues credentials without Ledger inventories or state.
 	APIKeyCommands APIKeyCommands

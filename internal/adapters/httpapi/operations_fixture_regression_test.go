@@ -107,11 +107,12 @@ func seedOperationsFixtureReferences(t *testing.T, ledger *app.Ledger, name stri
 func seedOperationsFixtureParents(t *testing.T, ledger *app.Ledger, name string) operationsFixtureScope {
 	t.Helper()
 	var f operationsFixtureScope
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), name, "admin", []string{"*"})
+	bootstrap := tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
+	_, _, secret, err := bootstrap.BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, name, "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.actor, err = ledger.Authenticate(t.Context(), secret)
+	f.actor, err = fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}

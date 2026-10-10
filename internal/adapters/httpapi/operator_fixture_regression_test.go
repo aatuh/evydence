@@ -170,11 +170,11 @@ func TestOperatorReplayFixtureRechecksAuthorityAndDoesNotRepeatOperatorEffect(t 
 	at := time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)
 	operator := &recordingReplayFixtureOperator{fakeOutboxAdminHTTP: fakeOutboxAdminHTTP{replay: app.OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: at}}}
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, OutboxAdmin: operator, Now: func() time.Time { return at }})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Instance", "instance-admin", []string{app.ScopeInstanceAdmin})
+	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Instance", "instance-admin", []string{app.ScopeInstanceAdmin})
 	if err != nil {
 		t.Fatal(err)
 	}
-	instance, err := ledger.Authenticate(t.Context(), secret)
+	instance, err := fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -115,11 +115,11 @@ func TestIdentityQueryFixturesPreserveTenantIsolationAndAdminChecks(t *testing.T
 	roles := roleBindingFixtureQuery{catalogFixtureCommands{ledger: ledger}}
 	var actors []domain.Actor
 	for _, name := range []string{"Alpha", "Bravo"} {
-		_, _, secret, err := ledger.BootstrapTenant(t.Context(), name, "admin", []string{"*"})
+		_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, name, "admin", []string{"*"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		actor, err := ledger.Authenticate(t.Context(), secret)
+		actor, err := fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 		if err != nil {
 			t.Fatal(err)
 		}

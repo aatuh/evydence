@@ -26,7 +26,7 @@ type concurrentHTTPResult struct {
 // same key and receive the one completed response.
 func TestCreateProductConcurrentIdempotencyRetriesOneStoredResponse(t *testing.T) {
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: newSerializedHTTPFixtureTransactions()})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Concurrent HTTP", "admin", []string{"*"})
+	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Concurrent HTTP", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
 	}

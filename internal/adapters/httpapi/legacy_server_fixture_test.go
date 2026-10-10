@@ -74,8 +74,8 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	} else if authn, ok := s.authn.(ssoFixtureAuthenticator); ok {
 		authn.ledger = ledger
 		s.authn = authn
-	} else {
-		s.authn = ledger
+	} else if s.authn == nil {
+		s.authn = fixtureSessionAuthenticator(ledger, "test", nil)
 	}
 	s.bindCatalogFixturePorts(ledger)
 	s.bindRegistrationFixturePorts(ledger)
@@ -117,5 +117,3 @@ func (s *Server) bindLegacyLedgerFixture(ledger *app.Ledger) {
 	s.bindQuestionnaireFixturePorts(ledger)
 	s.bindSummaryDraftFixturePorts(ledger)
 }
-
-var _ Authenticator = (*app.Ledger)(nil)

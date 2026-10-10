@@ -17,7 +17,7 @@ func TestApprovalHTTPAcceptsPublishedEnumWithoutChangingLifecycle(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}

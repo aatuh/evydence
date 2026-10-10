@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+HTTP fixture setup no longer calls aggregate bootstrap/authentication facades.
+Shared scope seeds and direct setup callers use focused Identity/initial-signing
+commands and current-row authentication with explicit credentials and time.
+Factory and root-context executor setup share core preparation/commit logic;
+failed commits, missing repositories and cancellation return no identity or
+one-time secret and publish no partial state. Fixture rebinding preserves explicit
+authentication ports. Cache-only negative fixtures retain genuine stored rows
+without gaining repositories or a fallback; their selected cache is not a full
+backup. Existing assertions and production API/storage behavior are unchanged.
+Remaining aggregate retirement and full-ticket validation keep EVY-906 open.
+
 Retired Ledger-backed API-key/session credential adapters and its hash method
 from production source; the remaining Identity adapter uses the context-owned
 HMAC capability. Historical format oracles pin prefixes, 32-byte URL-safe token

@@ -42,6 +42,19 @@ credential activity before returning a principal; it has no cached fallback.
 These fixture checks do not prove PostgreSQL locks or durability, and the
 remaining aggregate bootstrap/authentication adapters still require retirement.
 
+HTTP fixture setup no longer calls Ledger bootstrap or authentication facades.
+Shared evidence, membership, integration and operations seeds compose the real
+Identity and initial-signing commands with explicit fixture credentials/time,
+then authenticate current rows. Executor-based setup is restricted to the test's
+root context so public identity and one-time secrets are returned after its
+transaction commits, not from a still-pending outer command. A small prepared
+composition shares the same core commit logic with factory-backed setup; it
+does not add a production adapter. Failure, cancellation and missing-repository
+checks retain zero results and full rollback. Explicit authenticators survive
+fixture rebinding. Cache-only negative fixtures copy genuine native bootstrap
+rows into their selected historical cache and still have no repository; this
+selected cache is not a complete backup or another supported runtime profile.
+
 ## Current runtime composition
 
 The PostgreSQL API entry point binds

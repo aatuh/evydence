@@ -138,11 +138,11 @@ func apiKeyTestServer(t *testing.T) (*Server, string) {
 func TestAPIKeyFixtureGuardUsesRealPolicyWithoutIssuance(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})
+	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Fixture", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := ledger.Authenticate(t.Context(), secret)
+	actor, err := fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,11 +235,11 @@ func (f *failingAPIKeyFixtureCommand) CreateAPIKey(ctx context.Context, actor id
 func TestAPIKeyFixtureReplayRollsBackFailedIssuanceAndRechecksAuthority(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Fixture", "admin", []string{"*"})
+	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Fixture", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := ledger.Authenticate(t.Context(), secret)
+	actor, err := fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}

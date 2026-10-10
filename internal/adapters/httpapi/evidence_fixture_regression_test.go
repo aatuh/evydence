@@ -40,12 +40,13 @@ func seedEvidenceFixtureScope(t *testing.T, ledger *app.Ledger, name string) evi
 func seedEvidenceFixtureParents(t *testing.T, ledger *app.Ledger, name string) evidenceFixtureScope {
 	t.Helper()
 	var scope evidenceFixtureScope
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), name, "admin", []string{"*"})
+	bootstrap := tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
+	_, _, secret, err := bootstrap.BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, name, "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	scope.secret = secret
-	scope.actor, err = ledger.Authenticate(t.Context(), secret)
+	scope.actor, err = fixtureIdentityAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}

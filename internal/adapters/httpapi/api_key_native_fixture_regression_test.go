@@ -15,7 +15,7 @@ func TestAPIKeyNativeFixturePreservesCompleteDTOSecretFreeReplayAndExpiry(t *tes
 	factory := app.NewMemoryUnitOfWorkFactory()
 	clock := &ssoFixtureRebindClock{at: peripheralFixtureQueryClock()}
 	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "fixture-pepper", UnitOfWork: factory, Now: clock.Now})
-	_, _, adminSecret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
+	_, _, adminSecret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("fixture-pepper"), clock: clock}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}

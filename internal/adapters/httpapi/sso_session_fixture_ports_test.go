@@ -193,8 +193,6 @@ func (s *Server) bindSSOSessionFixturePorts(ledger *app.Ledger) {
 	if old, fixture := s.authn.(ssoFixtureAuthenticator); fixture {
 		old.ledger = ledger
 		s.authn = old
-	} else if _, historical := s.authn.(*app.Ledger); historical {
-		s.authn = fixtureSessionAuthenticator(ledger, "test", nil)
 	}
 }
 
