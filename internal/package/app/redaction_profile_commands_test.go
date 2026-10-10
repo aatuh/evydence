@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -29,7 +30,7 @@ func (f *redactionFixture) Authorize(ctx context.Context, a identitydomain.Actor
 	if r.Scope != ScopePackageWrite || !r.ScopeOnly || r.TenantWide || r.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
-	return application.AuthorizeTenantWideScope(ctx, a, r.Scope)
+	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionRedactionProfilesManage})
 }
 
 func (f *redactionFixture) ExecuteRedactionProfile(ctx context.Context, tenant string, fn func(context.Context, RedactionProfileTransaction) error) error {

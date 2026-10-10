@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
@@ -42,7 +42,7 @@ func (s *CollectorHealth) Report(ctx context.Context, actor identitydomain.Actor
 	if s == nil || ctx == nil {
 		return empty, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, scopeCollectorRead); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionCollectorHealthRead}); err != nil {
 		return empty, err
 	}
 	id = strings.TrimSpace(id)

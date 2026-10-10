@@ -4,12 +4,10 @@ import (
 	"context"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
-
-const scopeCollectorRead = "collector:read"
 
 type CollectorPageRequest struct {
 	TenantID string
@@ -37,7 +35,7 @@ func (s *Collectors) ListPage(ctx context.Context, actor identitydomain.Actor, p
 	if s == nil || ctx == nil {
 		return appquery.Result[integrationdomain.Collector]{}, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, scopeCollectorRead); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionCollectorsRead}); err != nil {
 		return appquery.Result[integrationdomain.Collector]{}, err
 	}
 	if err := appquery.Validate(page, after); err != nil {

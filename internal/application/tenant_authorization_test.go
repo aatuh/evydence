@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -24,7 +25,7 @@ func TestAuthorizeTenantWideScope(t *testing.T) {
 		{name: "human unscoped grant", actor: identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{"admin"}, ResourceGrants: []identitydomain.ResourceGrant{{Scopes: []string{"admin"}}}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			err := AuthorizeTenantWideScope(t.Context(), test.actor, "admin")
+			err := authz.Authorize(t.Context(), test.actor, authz.Request{Action: authz.ActionAPIKeysRead})
 			if test.want == nil && err != nil || test.want != nil && !errors.Is(err, test.want) {
 				t.Fatalf("authorization error=%v, want %v", err, test.want)
 			}

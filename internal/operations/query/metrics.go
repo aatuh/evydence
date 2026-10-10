@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -60,10 +60,10 @@ func (s *Metrics) Snapshot(ctx context.Context, actor identitydomain.Actor) (map
 	}
 	instanceAdmin := actor.HasExplicitScope("instance:admin")
 	if instanceAdmin {
-		if err := application.AuthorizeInstanceScope(ctx, actor, "instance:admin"); err != nil {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionInstanceMetricsRead}); err != nil {
 			return nil, err
 		}
-	} else if err := application.AuthorizeTenantWideScope(ctx, actor, "admin"); err != nil {
+	} else if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionTenantMetricsRead}); err != nil {
 		return nil, err
 	}
 	snapshot, err := s.reader.ReadMetricsSnapshot(ctx, actor.TenantID, instanceAdmin)

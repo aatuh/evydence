@@ -1007,6 +1007,28 @@ enforced by the broad local gates. Production Ledger retirement and the required
 closure gates are complete; size/interface flags remain review triggers.
 See [current enforcement scope](../architecture.md#architecture-enforcement).
 
+### Authorization policy
+
+`internal/authz` owns registered action/capability definitions and the migrated
+tenant-wide and instance decisions. Callers select typed application actions,
+not arbitrary scope strings. `internal/application` retains the shared
+authorization port and aliases the safe denial errors; its former tenant-wide
+and instance scope-string gate functions are removed.
+
+Human sessions need both an effective issued scope and a current tenant grant
+for tenant-wide actions. API keys and collectors retain their issued capability
+contract. Instance actions require the explicit instance scope; a tenant admin,
+wildcard, or human tenant grant does not imply instance authority. Unknown
+actions, foreign tenant targets, and unsupported resource coordinates deny.
+The policy does not cache authority or replace tenant-filtered ownership reads.
+Import enforcement treats it as shared inward core: it cannot depend on an
+adapter, composition root, or context application/query service.
+
+This is partial EVY-1002 implementation. Resource-specific authorizers and the
+complete route-to-action positive/negative coverage matrix still need migration
+and validation. These scoped policy checks are not ticket closure or live
+PostgreSQL, hosted CI, or external-provider evidence.
+
 ### Migration and retirement sequence
 
 Each step is additive and must leave the repository buildable, testable, and

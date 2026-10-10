@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
@@ -75,7 +76,7 @@ func (collectorWriteAuthorizer) Authorize(ctx context.Context, a identitydomain.
 	if r.Scope != ScopeCollectorAdmin || r.ScopeOnly || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
-	return application.AuthorizeTenantWideScope(ctx, a, r.Scope)
+	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionCollectorsManage})
 }
 func collectorAuthorization() application.AuthorizationRequest {
 	return application.AuthorizationRequest{Scope: ScopeCollectorAdmin, TenantWide: true}

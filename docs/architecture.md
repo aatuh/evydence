@@ -4,6 +4,7 @@ Evydence follows a ports-and-adapters shape:
 
 - `internal/{identity,release,evidence,risk,package,verification,operations,integration,experimental}/domain` contains the context-owned core models and schema constants.
 - `internal/{identity,release,evidence}/app` owns the focused Identity, Release, and Evidence command services implemented by EVY-903.
+- `internal/authz` owns registered typed actions and migrated tenant-wide/instance authorization. Resource-specific policy and full route coverage remain EVY-1002 work; see the [authorization policy boundary](adr/0003-bounded-contexts.md#authorization-policy).
 - `internal/domain` supplies compatibility DTOs at HTTP, persistence, and legacy-facade boundaries while callers migrate.
 - `internal/app` contains shared transaction/storage ports, stateless compatibility/validation helpers and the memory test backend. The Ledger aggregate, configuration, constructor, maps, locks, methods and snapshot/replay forwarding are historical test-only oracles, not a production command/query surface.
 - `internal/adapters/httpapi` adapts application services to HTTP and OpenAPI; migrated Identity, Release, Evidence, Decision, Package, and Verification handlers depend on context-specific interfaces.

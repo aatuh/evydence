@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -49,7 +50,7 @@ func (apiKeyWriteAuthorizer) Authorize(ctx context.Context, a identitydomain.Act
 	if r.Scope != ScopeAdmin || r.ScopeOnly || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
-	return application.AuthorizeTenantWideScope(ctx, a, ScopeAdmin)
+	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionAPIKeysManage})
 }
 func apiKeyAuthorization() application.AuthorizationRequest {
 	return application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -75,7 +76,7 @@ func (s *ControlCoverageReport) Coverage(ctx context.Context, actor identitydoma
 	filter.ProductID = strings.TrimSpace(filter.ProductID)
 	filter.ReleaseID = strings.TrimSpace(filter.ReleaseID)
 	if filter.ProductID == "" && filter.ReleaseID == "" {
-		if err := application.AuthorizeTenantWideScope(ctx, actor, "report:read"); err != nil {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionControlCoverageRead}); err != nil {
 			return empty, err
 		}
 	} else if filter.ProductID != "" && !releaseReportAllowed(actor, filter.ProductID, filter.ReleaseID) {

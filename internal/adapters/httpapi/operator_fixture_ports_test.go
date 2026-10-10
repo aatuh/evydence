@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
@@ -150,7 +150,7 @@ func (f outboxDiagnosticsFixture) ReadOutboxCounts(ctx context.Context) (operati
 func (f outboxReplayFixture) ReplayIdempotent(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, jobID string) (int, any, error) {
 	// Current explicit instance authority also gates completed receipts; a
 	// revoked operator cannot retrieve an earlier successful replay response.
-	if err := application.AuthorizeInstanceScope(ctx, actor, app.ScopeInstanceAdmin); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionOutboxReplay}); err != nil {
 		return 0, nil, mapInstanceAdminQueryError(err)
 	}
 	commands, err := operationsapp.NewOutboxReplayCommands(f)

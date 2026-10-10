@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -30,7 +31,7 @@ func (f *qTemplateFixture) Authorize(ctx context.Context, a identitydomain.Actor
 	if r.Scope != ScopePackageWrite || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
-	return application.AuthorizeTenantWideScope(ctx, a, r.Scope)
+	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionQuestionnaireTemplatesManage})
 }
 
 func (f *qTemplateFixture) ExecuteQuestionnaireTemplate(ctx context.Context, _ string, fn func(context.Context, QuestionnaireTemplateTransaction) error) error {

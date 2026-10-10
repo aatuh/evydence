@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -15,5 +16,9 @@ func (retentionAuthorizer) Authorize(ctx context.Context, actor identitydomain.A
 	if (request.Scope != "admin" && request.Scope != "verify:read") || !request.TenantWide || request.ScopeOnly || request.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
-	return application.AuthorizeTenantWideScope(ctx, actor, request.Scope)
+	action := authz.ActionRetentionPoliciesRead
+	if request.Scope == "admin" {
+		action = authz.ActionRetentionPoliciesManage
+	}
+	return authz.Authorize(ctx, actor, authz.Request{Action: action})
 }

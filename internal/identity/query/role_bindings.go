@@ -4,7 +4,7 @@ import (
 	"context"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -32,7 +32,7 @@ func (s *RoleBindings) ListPage(ctx context.Context, actor identitydomain.Actor,
 	if s == nil || ctx == nil {
 		return appquery.Result[identitydomain.RoleBinding]{}, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, "identity:admin"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionRoleBindingsRead}); err != nil {
 		return appquery.Result[identitydomain.RoleBinding]{}, err
 	}
 	if err := appquery.Validate(page, after); err != nil {

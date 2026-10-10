@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -39,7 +39,7 @@ func (s *APIKeys) ListPage(ctx context.Context, actor identitydomain.Actor, page
 	if s == nil || ctx == nil {
 		return appquery.Result[identitydomain.APIKey]{}, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, "admin"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionAPIKeysRead}); err != nil {
 		return appquery.Result[identitydomain.APIKey]{}, err
 	}
 	if err := appquery.Validate(page, after); err != nil {

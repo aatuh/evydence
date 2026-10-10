@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -44,7 +44,7 @@ func authorizeLocalControlAdmin(ctx context.Context, a domain.Actor) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, a, ScopeControlsAdmin); err != nil {
+	if err := authz.Authorize(ctx, a, authz.Request{Action: authz.ActionControlsManage}); err != nil {
 		return fromRiskContextError(err)
 	}
 	if len(a.TenantID) > 1024 || !utf8.ValidString(a.TenantID) || strings.ContainsRune(a.TenantID, 0) || strings.TrimSpace(a.TenantID) != a.TenantID {

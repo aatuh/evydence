@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -53,7 +54,7 @@ func (membershipWriteAuthorizer) Authorize(ctx context.Context, a identitydomain
 	if r.Scope != ScopeIdentityAdmin || r.ScopeOnly || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
-	return application.AuthorizeTenantWideScope(ctx, a, ScopeIdentityAdmin)
+	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionMembershipsManage})
 }
 func membershipAuthorization() application.AuthorizationRequest {
 	return application.AuthorizationRequest{Scope: ScopeIdentityAdmin, TenantWide: true}

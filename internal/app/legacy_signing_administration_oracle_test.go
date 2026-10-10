@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -37,7 +37,7 @@ type CreateDSSETrustRootInput struct {
 // AuthorizeSigningKeyRevocation preserves the legacy test fixture's replay
 // policy. Native HTTP uses the flat transactional ownership guard instead.
 func (l *Ledger) AuthorizeSigningKeyRevocation(ctx context.Context, a domain.Actor, raw string) error {
-	if err := application.AuthorizeTenantWideScope(ctx, a, ScopeKeysAdmin); err != nil {
+	if err := authz.Authorize(ctx, a, authz.Request{Action: authz.ActionSigningKeysManage}); err != nil {
 		return fromVerificationContextError(err)
 	}
 	id, err := verificationapp.NormalizeSigningKeyID(raw)

@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -41,7 +41,7 @@ func (s *SigningKeys) ListPage(ctx context.Context, actor identitydomain.Actor, 
 	if s == nil || ctx == nil {
 		return empty, ErrSigningKeyValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, "verify:read"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionSigningKeysRead}); err != nil {
 		return empty, err
 	}
 	if err := appquery.Validate(page, after); err != nil {

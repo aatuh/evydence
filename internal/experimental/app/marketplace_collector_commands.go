@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -69,7 +70,7 @@ func NormalizeMarketplaceCollectorInput(in MarketplaceCollectorInput) (Marketpla
 	return in, nil
 }
 func AuthorizeMarketplaceCollectorActor(ctx context.Context, a identitydomain.Actor) error {
-	if err := application.AuthorizeTenantWideScope(ctx, a, "collector:admin"); err != nil {
+	if err := authz.Authorize(ctx, a, authz.Request{Action: authz.ActionMarketplaceCollectorsManage}); err != nil {
 		return err
 	}
 	_, id := anomalyActor(a)

@@ -8,6 +8,7 @@ import (
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -46,7 +47,7 @@ func (s *Controls) ListFrameworksPage(ctx context.Context, actor identitydomain.
 	if s == nil || ctx == nil {
 		return appquery.Result[riskdomain.ControlFramework]{}, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, scopeControlsRead); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionControlsRead}); err != nil {
 		return appquery.Result[riskdomain.ControlFramework]{}, err
 	}
 	if err := appquery.Validate(page, after); err != nil {
@@ -71,7 +72,7 @@ func (s *Controls) GetSecurityControl(ctx context.Context, actor identitydomain.
 	if s == nil || ctx == nil {
 		return riskdomain.SecurityControl{}, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, scopeControlsRead); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionControlsRead}); err != nil {
 		return riskdomain.SecurityControl{}, err
 	}
 	id = strings.TrimSpace(id)

@@ -24,6 +24,28 @@ def source(package: str, imports: tuple[str, ...] = (), **extra: object) -> dict
 
 
 class ArchitectureCheckTests(unittest.TestCase):
+    def test_authorization_policy_is_shared_inward_core_not_a_service_locator(self) -> None:
+        for target in (
+            "internal/adapters/postgres", "internal/platform/wiring",
+            "internal/identity/app", "internal/release/query", "internal/app",
+        ):
+            with self.subTest(target=target):
+                errors, _ = check.analyze([source(
+                    "internal/authz", (check.MODULE + "/" + target,), generated=True,
+                )])
+                self.assertTrue(errors)
+        errors, _ = check.analyze([
+            source("internal/authz", (check.MODULE + "/internal/platform/helper",)),
+            source("internal/platform/helper", (check.MODULE + "/internal/adapters/postgres",)),
+        ])
+        self.assertIn("internal/authz -> internal/platform/helper -> internal/adapters/postgres", "\n".join(errors))
+        errors, warnings = check.analyze([
+            source("internal/authz", ("context", "errors", check.MODULE + "/internal/identity/domain")),
+            source("internal/application", (check.MODULE + "/internal/authz",)),
+            source("internal/release/app", (check.MODULE + "/internal/authz",)),
+        ])
+        self.assertEqual((errors, warnings), ([], []))
+
     def test_broad_project_gates_include_architecture_enforcement(self) -> None:
         makefile = (check.ROOT / "Makefile").read_text(encoding="utf-8")
         for target in ("fast-check", "finalize"):

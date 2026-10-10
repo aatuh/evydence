@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -108,7 +108,7 @@ func (f verificationCommandFixture) VerifyDSSEAttestationSignature(ctx context.C
 }
 
 func (f verificationCommandFixture) AuthorizeCosignVerification(ctx context.Context, actor domain.Actor, _ verificationapp.VerifyCosignInput) error {
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopeVerifyRead)
+	return authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionTenantSubjectVerify})
 }
 
 func fixtureVerificationProfile(value domain.VerificationProfile) verificationdomain.VerificationProfile {
@@ -136,7 +136,7 @@ func (f verificationCommandFixture) VerifyCosign(ctx context.Context, actor doma
 }
 
 func (f verificationCommandFixture) AuthorizeBackupGeneration(ctx context.Context, actor domain.Actor) error {
-	if err := application.AuthorizeTenantWideScope(ctx, actor, app.ScopeAdmin); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionBackupGenerate}); err != nil {
 		return err
 	}
 	c, err := f.nativeBackupGeneration()

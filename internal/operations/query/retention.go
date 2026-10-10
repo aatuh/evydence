@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 )
@@ -38,7 +38,7 @@ func (s *RetentionReport) Report(ctx context.Context, actor identitydomain.Actor
 	if s == nil || ctx == nil {
 		return empty, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, "admin"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionRetentionReportRead}); err != nil {
 		return empty, err
 	}
 	snapshot, err := s.reader.ReadRetentionRecords(ctx, actor.TenantID, scopeType, scopeID)

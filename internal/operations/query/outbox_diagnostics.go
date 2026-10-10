@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -38,7 +38,7 @@ func (s *OutboxDiagnostics) Diagnostics(ctx context.Context, actor identitydomai
 	if s == nil || ctx == nil {
 		return empty, ErrValidation
 	}
-	if err := application.AuthorizeInstanceScope(ctx, actor, "instance:admin"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionOutboxDiagnosticsRead}); err != nil {
 		return empty, err
 	}
 	result, err := s.reader.ReadOutboxCounts(ctx)

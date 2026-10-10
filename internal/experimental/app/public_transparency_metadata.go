@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	d "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -53,7 +54,7 @@ func NewPublicTransparencyMetadataCommands(c PublicTransparencyMetadataConfig) (
 	return &PublicTransparencyMetadataCommands{c}, nil
 }
 func AuthorizePublicTransparencyMetadataActor(ctx context.Context, a identitydomain.Actor) error {
-	if err := application.AuthorizeTenantWideScope(ctx, a, "keys:admin"); err != nil {
+	if err := authz.Authorize(ctx, a, authz.Request{Action: authz.ActionTransparencyMetadataPublish}); err != nil {
 		return err
 	}
 	_, id := anomalyActor(a)

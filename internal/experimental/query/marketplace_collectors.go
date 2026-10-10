@@ -8,7 +8,7 @@ import (
 	"time"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -57,7 +57,7 @@ func (s *MarketplaceCollectors) ListPage(ctx context.Context, actor identitydoma
 	if s == nil || ctx == nil {
 		return empty, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, "collector:read"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionMarketplaceCollectorsRead}); err != nil {
 		return empty, err
 	}
 	if err := appquery.Validate(page, after); err != nil {
@@ -86,7 +86,7 @@ func (s *MarketplaceCollectors) Health(ctx context.Context, actor identitydomain
 	if s == nil || ctx == nil {
 		return empty, ErrValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, "collector:read"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionMarketplaceCollectorsRead}); err != nil {
 		return empty, err
 	}
 	id = strings.TrimSpace(id)

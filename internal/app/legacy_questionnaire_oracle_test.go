@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -38,7 +39,7 @@ func (l *Ledger) CreateQuestionnaireTemplate(ctx context.Context, actor domain.A
 	if err := ctx.Err(); err != nil {
 		return domain.QuestionnaireTemplate{}, err
 	}
-	if err := fromIdentityContextError(application.AuthorizeTenantWideScope(ctx, actor, ScopePackageWrite)); err != nil {
+	if err := fromIdentityContextError(authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionQuestionnaireTemplatesManage})); err != nil {
 		return domain.QuestionnaireTemplate{}, err
 	}
 	if len(in.Questions) > packageapp.MaxQuestionnaireTemplateQuestions {
@@ -95,7 +96,7 @@ func (l *Ledger) AuthorizeQuestionnaireTemplateCreate(ctx context.Context, actor
 	if l == nil {
 		return ErrValidation
 	}
-	if err := fromIdentityContextError(application.AuthorizeTenantWideScope(ctx, actor, ScopePackageWrite)); err != nil {
+	if err := fromIdentityContextError(authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionQuestionnaireTemplatesManage})); err != nil {
 		return err
 	}
 	l.mu.Lock()

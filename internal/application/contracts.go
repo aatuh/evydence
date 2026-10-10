@@ -4,17 +4,17 @@ package application
 
 import (
 	"context"
-	"errors"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 // Authorization sentinels are transport-neutral. Adapters map them to the
 // public problem catalog without exposing actor or grant details.
 var (
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
+	ErrUnauthorized = authz.ErrUnauthorized
+	ErrForbidden    = authz.ErrForbidden
 )
 
 // Clock supplies command timestamps without hidden process-global state.

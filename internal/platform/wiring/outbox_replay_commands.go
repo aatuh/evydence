@@ -8,6 +8,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 )
@@ -32,7 +33,7 @@ type outboxReplayCommand struct {
 
 func (c outboxReplayCommand) ReplayIdempotent(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, jobID string) (int, any, error) {
 	// Revoked instance authority must also block retrieval of an old replay.
-	if err := application.AuthorizeInstanceScope(ctx, actor, app.ScopeInstanceAdmin); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionOutboxReplay}); err != nil {
 		return 0, nil, mapOutboxReplayError(err)
 	}
 	status, response, err := c.executor.WithBody(ctx, actor, method, path, key, body, func(ctx context.Context, _ app.Repositories) (int, any, error) {

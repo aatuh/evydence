@@ -8,7 +8,7 @@ import (
 	"time"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -53,7 +53,7 @@ func (s *AuditLog) ListPage(ctx context.Context, actor identitydomain.Actor, fil
 	if err := ctx.Err(); err != nil {
 		return appquery.Result[verificationdomain.AuditChainEntry]{}, err
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, "admin"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionAuditLogRead}); err != nil {
 		return appquery.Result[verificationdomain.AuditChainEntry]{}, err
 	}
 	if err := appquery.Validate(page, after); err != nil {

@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -48,7 +48,7 @@ func (s *SigningCustody) Report(ctx context.Context, actor identitydomain.Actor)
 	if s == nil || ctx == nil {
 		return empty, ErrSigningCustodyValidation
 	}
-	if err := application.AuthorizeTenantWideScope(ctx, actor, verificationapp.ScopeKeysAdmin); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionSigningCustodyRead}); err != nil {
 		return empty, err
 	}
 	snapshot, err := s.reader.ReadSigningCustodySnapshot(ctx, actor.TenantID)

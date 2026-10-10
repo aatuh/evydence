@@ -38,7 +38,7 @@ def layer(package: str) -> tuple[str, str | None]:
     parts = name.split("/")
     if len(parts) >= 3 and parts[0] == "internal" and parts[1] in CONTEXTS and parts[2] in {"domain", "app", "query"}:
         return parts[2], parts[1]
-    if within(name, "internal/application"):
+    if within(name, "internal/application") or within(name, "internal/authz"):
         return "application", None
     if within(name, "internal/app"):
         return "legacy-application", None

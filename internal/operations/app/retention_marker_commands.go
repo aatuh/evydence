@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 )
@@ -90,7 +91,7 @@ func (retentionMarkerAuthorizer) Authorize(ctx context.Context, a identitydomain
 	if r.Scope != "admin" || !r.TenantWide || r.ScopeOnly || r.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
-	return application.AuthorizeTenantWideScope(ctx, a, "admin")
+	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionRetentionMarkersManage})
 }
 
 func (s *RetentionMarkerCommands) execute(ctx context.Context, a identitydomain.Actor, kind, id string, fn func(context.Context, RetentionMarkerTransaction) error) error {

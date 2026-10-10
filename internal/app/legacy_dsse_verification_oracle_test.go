@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
@@ -59,7 +59,7 @@ func (l *Ledger) AuthorizeSubjectVerification(ctx context.Context, a domain.Acto
 		}
 	}
 	if kind != "evidence_item" && kind != "release_bundle" {
-		return fromVerificationContextError(application.AuthorizeTenantWideScope(ctx, a, ScopeVerifyRead))
+		return fromVerificationContextError(authz.Authorize(ctx, a, authz.Request{Action: authz.ActionTenantSubjectVerify}))
 	}
 	return l.authorizeResourceLocked(a, ScopeVerifyRead, resourceRefs{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID})
 }

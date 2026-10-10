@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -57,7 +58,7 @@ func NormalizeSaaSProfileInput(in SaaSProfileInput) (SaaSProfileInput, error) {
 	return in, nil
 }
 func AuthorizeSaaSProfileActor(ctx context.Context, a identitydomain.Actor) error {
-	if err := application.AuthorizeInstanceScope(ctx, a, "instance:admin"); err != nil {
+	if err := authz.Authorize(ctx, a, authz.Request{Action: authz.ActionSaaSProfilesManage}); err != nil {
 		return err
 	}
 	_, id := anomalyActor(a)

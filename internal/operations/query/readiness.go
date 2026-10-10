@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -64,7 +64,7 @@ func (s *Readiness) Operator(ctx context.Context, actor identitydomain.Actor) (m
 	if s == nil || ctx == nil {
 		return nil, ErrValidation
 	}
-	if err := application.AuthorizeInstanceScope(ctx, actor, "instance:admin"); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionInstanceReadinessRead}); err != nil {
 		return nil, err
 	}
 	return s.status(ctx, true), nil
