@@ -7,9 +7,9 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
-// Detach the persisted DTO without rounding immutable canonical metadata or
-// append-only lifecycle details. JSON and time validation remain unchanged.
-func cloneMemoryEvidenceRecord[T domain.EvidenceItem | domain.EvidenceLifecycleEvent](value T) (T, error) {
+// Detach recorded evidence/build identity and append-only lifecycle details
+// without numeric rounding. JSON and time validation remain unchanged.
+func cloneMemoryCanonicalRecord[T domain.EvidenceItem | domain.EvidenceLifecycleEvent | domain.BuildRun](value T) (T, error) {
 	var detached T
 	raw, err := json.Marshal(value)
 	if err != nil {

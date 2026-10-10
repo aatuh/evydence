@@ -8,7 +8,7 @@ import (
 )
 
 func TestProjectSchemasMatchAcceptedRequestAndReturnedResource(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	productJSON := postJSON(t, server, secret, "/v1/products", "schema-product", map[string]any{"name": "Product", "slug": "schema-product"}, 201)
 	var parent struct {
 		Data struct {

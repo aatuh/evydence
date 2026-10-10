@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -22,7 +23,7 @@ func TestBuildAttestationEvidenceWriterFixedShapeAndPayloadEffects(t *testing.T)
 	a := identitydomain.Actor{TenantID: "tenant", KeyID: "key", CollectorID: "collector", Scopes: []string{"build:write"}}
 	at := time.Date(2026, 10, 2, 0, 0, 0, 123456789, time.UTC)
 	digest := "sha256:" + strings.Repeat("a", 64)
-	in := BuildAttestationEvidenceInput{ProductID: "product", ProjectID: "project", ReleaseID: "release", BuildID: "build", SourceSystem: "generic_ci", SourceIdentity: map[string]any{"oidc_verified": false}, ObservedAt: at, CreatedAt: at, PayloadHash: digest, PayloadSize: 10, ParserVersion: "dsse-in-toto-json.v1.0.0", PayloadType: "application/vnd.in-toto+json", PredicateType: "https://slsa.dev/provenance/v1", SignatureCount: 1, Subjects: []evidencedomain.SubjectRef{{Type: "artifact", ID: "artifact", Digest: digest}}}
+	in := BuildAttestationEvidenceInput{ProductID: "product", ProjectID: "project", ReleaseID: "release", BuildID: "build", SourceSystem: "generic_ci", SourceIdentity: map[string]any{"oidc_verified": false, "nested": map[string]any{"sequence": json.Number("9007199254740993")}}, ObservedAt: at, CreatedAt: at, PayloadHash: digest, PayloadSize: 10, ParserVersion: "dsse-in-toto-json.v1.0.0", PayloadType: "application/vnd.in-toto+json", PredicateType: "https://slsa.dev/provenance/v1", SignatureCount: 1, Subjects: []evidencedomain.SubjectRef{{Type: "artifact", ID: "artifact", Digest: digest}}}
 	id, err := w.WriteBuildAttestationEvidence(t.Context(), a, in)
 	item := f.item
 	if err != nil || id != "ev_id" || item.Type != "build_attestation" || item.Subtype != "dsse_in_toto" || item.Title != "DSSE in-toto build attestation" || item.TrustLevel != "L2" || item.VerificationStatus != "pending" || item.UploadedBy != "key" || item.CollectorID != "collector" || item.Canonicalization != evidencedomain.EvidenceCanonicalizationProfileVersion || item.ChainEntryID != "ace_id" || item.CreatedAt != at.Truncate(time.Microsecond) || item.ObservedAt != item.CreatedAt || item.Metadata["signature_count"] != 1 {
@@ -34,6 +35,13 @@ func TestBuildAttestationEvidenceWriterFixedShapeAndPayloadEffects(t *testing.T)
 	}
 	if f.hashInput.CreatedAt != item.CreatedAt || f.hashInput.ObservedAt != item.ObservedAt || f.hashInput.CanonicalHash != "" || f.hashInput.ChainEntryID != "" || !reflect.DeepEqual(f.hashInput.SubjectRefs, item.SubjectRefs) {
 		t.Fatal("hash did not receive the committed immutable fields", f.hashInput, item)
+	}
+	if !reflect.DeepEqual(item.SourceIdentity, in.SourceIdentity) || !reflect.DeepEqual(f.hashInput.SourceIdentity, in.SourceIdentity) {
+		t.Fatal("evidence writer rounded immutable build source identity")
+	}
+	in.SourceIdentity["nested"].(map[string]any)["sequence"] = "changed"
+	if item.SourceIdentity["nested"].(map[string]any)["sequence"] != json.Number("9007199254740993") {
+		t.Fatal("evidence source identity shares caller-owned maps")
 	}
 	parser := item.Metadata["parser"].(map[string]any)
 	if parser["name"] != "dsse-in-toto" || parser["version"] != in.ParserVersion || parser["source_schema"] != "in-toto-statement.v1" || parser["normalized_schema"] != "evydence-build-attestation.v1" || parser["replay_status"] != "original" || len(item.Limitations) != 1 {

@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired ten cached catalog, transition, build, candidate and attestation replay
+guard declarations from production source. HTTP fixtures use the focused Release
+commands and Evidence capability over current repository-only parents, retaining
+tenant/grant checks, revision conflicts, cookie/replay assertions and atomic
+write-commit rollback. Immutable build source identity now retains exact JSON
+numbers through memory transactions, PostgreSQL's selected snapshot decoder
+and attestation evidence creation. Null selected builds fail closed. Existing
+API, schema, selection budgets and normalized hash profiles are unchanged.
+Memory and pure-decoder tests are not live SQL or storage evidence; the remaining
+Release adapter and aggregate cleanup stay open under EVY-906.
+
 Retired the broad Evidence aggregate adapter, its Ledger Service field and
 constructor wiring, local VEX decision processor, object-ingestion wrappers,
 and generic creation/relationship/replay facades from production source.

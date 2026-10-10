@@ -93,7 +93,7 @@ func TestStateTransitionsCookieOriginAndBearerPrecedenceBothProfiles(t *testing.
 	for _, native := range []bool{false, true} {
 		for _, kind := range []string{"freeze", "approve", "promote", "reject"} {
 			t.Run(fmt.Sprintf("native=%t/%s", native, kind), func(t *testing.T) {
-				base, secret := testServer(t)
+				base, secret := governanceTestServer(t)
 				p := postJSON(t, base, secret, "/v1/products", "parent", map[string]any{"name": "Parent", "slug": "parent"}, 201)
 				release := postJSON(t, base, secret, "/v1/releases", "release", map[string]any{"product_id": dataField(t, p, "id"), "version": "1"}, 201)
 				id := dataField(t, release, "id")

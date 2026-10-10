@@ -77,7 +77,7 @@ func TestCandidateCreationStrictPreflightRunsBeforeCommands(t *testing.T) {
 func TestCandidateCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) {
-			base, secret := testServer(t)
+			base, secret := governanceTestServer(t)
 			p := postJSON(t, base, secret, "/v1/products", "parent", map[string]any{"name": "Parent", "slug": "parent"}, 201)
 			release := postJSON(t, base, secret, "/v1/releases", "release", map[string]any{"product_id": dataField(t, p, "id"), "version": "1"}, 201)
 			f := &candidateCreationHTTPFake{}

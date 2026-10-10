@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -64,8 +65,10 @@ func ReadBuildAttestationBuild(ctx context.Context, q buildIdentityQueryer, tena
 	if len(raw) == 0 || len(raw) > 8<<20 {
 		return releasedomain.BuildRun{}, app.ErrConflict
 	}
-	var b domain.BuildRun
-	if err := json.Unmarshal(raw, &b); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var b *domain.BuildRun
+	if err := decoder.Decode(&b); err != nil || b == nil {
 		return releasedomain.BuildRun{}, app.ErrConflict
 	}
 	outputs := make([]releasedomain.BuildOutput, 0, len(b.Outputs))

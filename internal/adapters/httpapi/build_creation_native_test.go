@@ -57,7 +57,7 @@ func TestBuildCreationRejectsMalformedInputBeforeNativeGuard(t *testing.T) {
 
 func TestBuildCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		base, secret := testServer(t)
+		base, secret := governanceTestServer(t)
 		s := base
 		f := &buildCreationHTTPFake{}
 		if native {

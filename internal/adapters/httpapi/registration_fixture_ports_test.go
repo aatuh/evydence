@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -13,18 +12,6 @@ import (
 // These test-only ports preserve fixture state while release-write handlers
 // shed the legacy transport interface. They share the scoped replay clone.
 type registrationFixtureCommands struct{ catalogFixtureCommands }
-
-func localBuildCreationInput(in releaseapp.CreateBuildRunInput) app.CreateBuildRunInput {
-	outputs := make([]domain.BuildOutput, 0, len(in.Outputs))
-	for _, out := range in.Outputs {
-		outputs = append(outputs, domain.BuildOutput{ArtifactID: out.ArtifactID, Digest: out.Digest})
-	}
-	return app.CreateBuildRunInput{ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, Provider: in.Provider, CommitSHA: in.CommitSHA, Repository: in.Repository, WorkflowRef: in.WorkflowRef, RunID: in.RunID, RunAttempt: in.RunAttempt, JobID: in.JobID, GitHubActor: in.GitHubActor, Ref: in.Ref, OIDCSubject: in.OIDCSubject, Status: in.Status, StartedAt: in.StartedAt, FinishedAt: in.FinishedAt, ParametersHash: in.ParametersHash, EnvironmentHash: in.EnvironmentHash, ProviderMetadata: in.ProviderMetadata, Outputs: outputs}
-}
-
-func candidateLocalInput(in releaseapp.CreateReleaseCandidateInput) app.CreateReleaseCandidateInput {
-	return app.CreateReleaseCandidateInput{ReleaseID: in.ReleaseID, Name: in.Name, BuildIDs: in.BuildIDs, ArtifactIDs: in.ArtifactIDs, SBOMIDs: in.SBOMIDs, ScanIDs: in.ScanIDs, VEXIDs: in.VEXIDs, ContractIDs: in.ContractIDs, BundleIDs: in.BundleIDs}
-}
 
 func (f registrationFixtureCommands) AuthorizeArtifactRegistration(ctx context.Context, actor identitydomain.Actor, input releaseapp.RegisterArtifactInput) error {
 	return f.commandLedger(ctx).AuthorizeArtifactRegistration(ctx, actor, input)
@@ -45,24 +32,37 @@ func (f registrationFixtureCommands) RegisterContainerImage(ctx context.Context,
 }
 
 func (f registrationFixtureCommands) AuthorizeBuildCreation(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateBuildRunInput) error {
-	return f.commandLedger(ctx).AuthorizeBuildCreation(ctx, actor, input)
+	c, err := f.nativeBuild(true)
+	if err != nil {
+		return err
+	}
+	return mapBuildAttestationCommandError(c.AuthorizeBuildCreation(ctx, actor, input))
 }
 
 func (f registrationFixtureCommands) CreateBuildRun(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateBuildRunInput) (releasedomain.BuildRun, error) {
-	value, err := f.commandLedger(ctx).CreateBuildRun(ctx, actor, localBuildCreationInput(input))
-	return buildFixtureModel(value), err
+	c, err := f.nativeBuild(false)
+	if err != nil {
+		return releasedomain.BuildRun{}, err
+	}
+	value, err := c.CreateBuildRun(ctx, actor, input)
+	return value, mapBuildAttestationCommandError(err)
 }
 
 func (f registrationFixtureCommands) AuthorizeCandidateCreation(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateReleaseCandidateInput) error {
-	return f.commandLedger(ctx).AuthorizeCandidateCreation(ctx, actor, input)
+	c, err := f.nativeCandidate(true)
+	if err != nil {
+		return err
+	}
+	return mapBuildAttestationCommandError(c.AuthorizeCandidateCreation(ctx, actor, input))
 }
 
 func (f registrationFixtureCommands) CreateReleaseCandidate(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateReleaseCandidateInput) (releasedomain.ReleaseCandidate, error) {
-	value, err := f.commandLedger(ctx).CreateReleaseCandidate(ctx, actor, candidateLocalInput(input))
+	c, err := f.nativeCandidate(false)
 	if err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	return candidateFixtureModel(value)
+	value, err := c.CreateReleaseCandidate(ctx, actor, input)
+	return value, mapBuildAttestationCommandError(err)
 }
 
 func (s *Server) bindRegistrationFixturePorts(ledger *app.Ledger) {

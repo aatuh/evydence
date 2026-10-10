@@ -72,18 +72,18 @@ func TestMemoryEvidenceClonesStillRejectNonJSONValuesAndInvalidTimesWithoutParti
 	cycle := map[string]any{}
 	cycle["self"] = cycle
 	for _, metadata := range []map[string]any{{"bad": make(chan int)}, {"bad": json.Number("invalid")}, cycle} {
-		if v, err := cloneMemoryEvidenceRecord(domain.EvidenceItem{ID: "e", Metadata: metadata}); err == nil || !reflect.DeepEqual(v, domain.EvidenceItem{}) {
+		if v, err := cloneMemoryCanonicalRecord(domain.EvidenceItem{ID: "e", Metadata: metadata}); err == nil || !reflect.DeepEqual(v, domain.EvidenceItem{}) {
 			t.Fatal("evidence clone accepted invalid JSON or returned partial fields", err)
 		}
-		if v, err := cloneMemoryEvidenceRecord(domain.EvidenceLifecycleEvent{ID: "event", Details: metadata}); err == nil || !reflect.DeepEqual(v, domain.EvidenceLifecycleEvent{}) {
+		if v, err := cloneMemoryCanonicalRecord(domain.EvidenceLifecycleEvent{ID: "event", Details: metadata}); err == nil || !reflect.DeepEqual(v, domain.EvidenceLifecycleEvent{}) {
 			t.Fatal("lifecycle clone accepted invalid JSON or returned partial fields", err)
 		}
 	}
 	invalidTime := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
-	if v, err := cloneMemoryEvidenceRecord(domain.EvidenceItem{ID: "e", CreatedAt: invalidTime}); err == nil || !reflect.DeepEqual(v, domain.EvidenceItem{}) {
+	if v, err := cloneMemoryCanonicalRecord(domain.EvidenceItem{ID: "e", CreatedAt: invalidTime}); err == nil || !reflect.DeepEqual(v, domain.EvidenceItem{}) {
 		t.Fatal("evidence clone bypassed stored time validation", err)
 	}
-	if v, err := cloneMemoryEvidenceRecord(domain.EvidenceLifecycleEvent{ID: "event", CreatedAt: invalidTime}); err == nil || !reflect.DeepEqual(v, domain.EvidenceLifecycleEvent{}) {
+	if v, err := cloneMemoryCanonicalRecord(domain.EvidenceLifecycleEvent{ID: "event", CreatedAt: invalidTime}); err == nil || !reflect.DeepEqual(v, domain.EvidenceLifecycleEvent{}) {
 		t.Fatal("lifecycle clone bypassed stored time validation", err)
 	}
 }

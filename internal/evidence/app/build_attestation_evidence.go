@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -95,7 +96,9 @@ func (w *BuildAttestationEvidenceWriter) WriteBuildAttestationEvidence(ctx conte
 		return "", ErrValidation
 	}
 	var sourceIdentity map[string]any
-	if err := json.Unmarshal(encoded, &sourceIdentity); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if err := decoder.Decode(&sourceIdentity); err != nil {
 		return "", ErrValidation
 	}
 	if len(sourceIdentity) == 0 {

@@ -671,7 +671,7 @@ func TestOpenAPIDoesNotAdvertiseImpossibleSuccessStatusCodes(t *testing.T) {
 }
 
 func TestCreateProductRequiresAuthAndIdempotency(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/products", strings.NewReader(`{"name":"Payments","slug":"payments"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -772,7 +772,7 @@ func TestProductProjectArtifactReadEndpoints(t *testing.T) {
 }
 
 func TestReleaseAndArtifactRejectUnsupportedRelationshipFields(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "contract-fields-product", map[string]any{"name": "Contract API", "slug": "contract-api"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 
@@ -2294,7 +2294,7 @@ func TestRuntimeSystemEndpointsExposeIdentityAndSafeDependencyReadiness(t *testi
 }
 
 func TestReleaseTransitionsRequireIfMatchAndReportCurrentRevision(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	product := postJSON(t, server, secret, "/v1/products", "revision-product", map[string]any{"name": "Revision product", "slug": "revision-product"}, http.StatusCreated)
 	release := postJSON(t, server, secret, "/v1/releases", "revision-release", map[string]any{"product_id": dataField(t, product, "id"), "version": "1.0.0"}, http.StatusCreated)
 	releaseID := dataField(t, release, "id")

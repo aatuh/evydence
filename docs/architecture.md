@@ -976,6 +976,18 @@ wrong-tenant, removed-grant, cancellation, real write-commit failure and complet
 rollback assertions cover these fixtures, not PostgreSQL durability. Remaining
 Ledger maps, worker refreshes and other context adapters still require retirement.
 
+Ten cached catalog/workflow guard declarations are now historical test-only
+oracles: product/project/release creation, release/candidate transitions,
+build and candidate creation, attestation creation, and their two shared cache
+helpers. HTTP fixtures compose the existing focused commands for these writes
+over current repository identities, not cached parents or builds. Their guards
+exclude descriptions, uniqueness checks, release state, build source identity,
+output digests and hashing. Fresh writes preserve revision conflicts and commit
+their records, evidence capability, audit and replay effects together. Cold
+instances, foreign tenants, absent grants, cancellation and real final-write
+commit failures have regressions. This removes cached guards, not the remaining
+Release adapter, its setup facades or the Ledger aggregate.
+
 The cache-backed Package metadata builders and static-template catalog facade
 are also test-only. `internal/package/app/customer_package_archive.go` owns
 record-only HTML/ZIP rendering; customer and portal handlers call it directly
@@ -1582,6 +1594,13 @@ concurrent one-time creation and cancellation. Broader API startup and other
 unmigrated wrappers remain EVY-905 work. See
 [catalog creation](api.md#1-create-product-project-and-release).
 
+HTTP catalog fixtures also use the focused creation commands and current
+transaction-owned scope readers. Read-only preflight cannot inspect slugs or
+versions, allocate IDs, hash or write; fresh commands retain duplicate-slug and
+duplicate-version rejection. Memory-backed HTTP tests retain the original
+request/schema, cookie, replay and rollback assertions. These are test fakes,
+not a supported local-memory API profile or SQL durability evidence.
+
 The release context has standalone product-, project-, and release-create
 commands with narrow tenant-scoped repositories and audit transactions.
 Durable product creation uses a boolean slug-existence port; it never loads an
@@ -1791,7 +1810,13 @@ parents in one statement. Selected identifiers and labels have 1 KiB limits,
 optional text fields 64 KiB limits, and source identity and outputs each a
 1 MiB JSON limit, all checked before transfer. It rejects overflow and malformed
 JSON shapes instead of truncating, selects no parent names, and normalizes times
-to UTC. Transaction reads acquire the projection fence before share-locking all
+to UTC. The selected PostgreSQL row decoder now preserves exact JSON numbers
+and rejects null records with no partial result. Memory build insert, commit,
+snapshot and reopened reads preserve the same recorded numbers. The Evidence
+capability detaches source identity without floating-point conversion before
+hashing and storage; existing normalized hash profiles and historical records
+are unchanged. Pure decoder and memory regressions are not SQL shape, locking
+or durability proof. Transaction reads acquire the projection fence before share-locking all
 four rows. The Evidence-owned `BuildAttestationEvidenceWriter` now supplies the
 fixed-shape ADR 0003 capability: it rechecks parent scope and artifact grants,
 validates staged lifecycle identity, and prepares the existing evidence and

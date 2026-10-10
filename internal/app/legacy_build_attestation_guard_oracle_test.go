@@ -1,5 +1,8 @@
 package app
 
+// Historical aggregate guards compile only for characterization tests. HTTP
+// fixtures and native runtime commands use current repository-owned facts.
+
 import (
 	"context"
 	"errors"

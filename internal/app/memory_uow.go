@@ -1063,7 +1063,7 @@ func (r memoryEvidenceRepository) GetEvidence(ctx context.Context, tenantID, id 
 	if !ok || value.TenantID != tenantID {
 		return domain.EvidenceItem{}, ErrNotFound
 	}
-	return cloneMemoryEvidenceRecord(value)
+	return cloneMemoryCanonicalRecord(value)
 }
 
 func (r memoryEvidenceRepository) GetSBOM(ctx context.Context, tenantID, id string) (domain.SBOM, error) {
@@ -1149,7 +1149,7 @@ func validateMemoryEvidenceScope(state MemoryUnitOfWorkSnapshot, tenantID, produ
 }
 
 func (r memoryEvidenceRepository) InsertEvidence(ctx context.Context, evidence domain.EvidenceItem) error {
-	cloned, err := cloneMemoryEvidenceRecord(evidence)
+	cloned, err := cloneMemoryCanonicalRecord(evidence)
 	if err != nil {
 		return err
 	}
@@ -1178,11 +1178,11 @@ func (r memoryEvidenceRepository) InsertEvidence(ctx context.Context, evidence d
 }
 
 func (r memoryEvidenceRepository) CompareAndSwapEvidenceLinks(ctx context.Context, expected, replacement domain.EvidenceItem) error {
-	expectedClone, err := cloneMemoryEvidenceRecord(expected)
+	expectedClone, err := cloneMemoryCanonicalRecord(expected)
 	if err != nil {
 		return err
 	}
-	cloned, err := cloneMemoryEvidenceRecord(replacement)
+	cloned, err := cloneMemoryCanonicalRecord(replacement)
 	if err != nil {
 		return err
 	}
@@ -1227,11 +1227,11 @@ func sameEvidenceLinkState(left, right domain.EvidenceItem) bool {
 }
 
 func (r memoryEvidenceRepository) RecordSupersession(ctx context.Context, superseded, replacement domain.EvidenceItem) error {
-	clonedSuperseded, err := cloneMemoryEvidenceRecord(superseded)
+	clonedSuperseded, err := cloneMemoryCanonicalRecord(superseded)
 	if err != nil {
 		return err
 	}
-	clonedReplacement, err := cloneMemoryEvidenceRecord(replacement)
+	clonedReplacement, err := cloneMemoryCanonicalRecord(replacement)
 	if err != nil {
 		return err
 	}
@@ -1260,7 +1260,7 @@ func (r memoryEvidenceRepository) RecordSupersession(ctx context.Context, supers
 }
 
 func (r memoryEvidenceRepository) AppendLifecycle(ctx context.Context, event domain.EvidenceLifecycleEvent) error {
-	cloned, err := cloneMemoryEvidenceRecord(event)
+	cloned, err := cloneMemoryCanonicalRecord(event)
 	if err != nil {
 		return err
 	}
@@ -2034,7 +2034,7 @@ func (r memoryBuildRepository) InsertCollectorRelease(ctx context.Context, relea
 }
 
 func (r memoryBuildRepository) InsertBuildRun(ctx context.Context, build domain.BuildRun) error {
-	cloned, err := cloneMemoryJSON(build)
+	cloned, err := cloneMemoryCanonicalRecord(build)
 	if err != nil {
 		return err
 	}
@@ -3941,14 +3941,14 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	}
 	cloned.Evidence = make(map[string]domain.EvidenceItem, len(snapshot.Evidence))
 	for id, value := range snapshot.Evidence {
-		cloned.Evidence[id], err = cloneMemoryEvidenceRecord(value)
+		cloned.Evidence[id], err = cloneMemoryCanonicalRecord(value)
 		if err != nil {
 			return MemoryUnitOfWorkSnapshot{}, err
 		}
 	}
 	cloned.EvidenceLifecycle = make(map[string]domain.EvidenceLifecycleEvent, len(snapshot.EvidenceLifecycle))
 	for id, value := range snapshot.EvidenceLifecycle {
-		cloned.EvidenceLifecycle[id], err = cloneMemoryEvidenceRecord(value)
+		cloned.EvidenceLifecycle[id], err = cloneMemoryCanonicalRecord(value)
 		if err != nil {
 			return MemoryUnitOfWorkSnapshot{}, err
 		}
@@ -3979,8 +3979,12 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	if cloned.Exceptions, err = cloneMemoryMap(snapshot.Exceptions); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err
 	}
-	if cloned.BuildRuns, err = cloneMemoryMap(snapshot.BuildRuns); err != nil {
-		return MemoryUnitOfWorkSnapshot{}, err
+	cloned.BuildRuns = make(map[string]domain.BuildRun, len(snapshot.BuildRuns))
+	for id, value := range snapshot.BuildRuns {
+		cloned.BuildRuns[id], err = cloneMemoryCanonicalRecord(value)
+		if err != nil {
+			return MemoryUnitOfWorkSnapshot{}, err
+		}
 	}
 	if cloned.BuildAttestations, err = cloneMemoryMap(snapshot.BuildAttestations); err != nil {
 		return MemoryUnitOfWorkSnapshot{}, err

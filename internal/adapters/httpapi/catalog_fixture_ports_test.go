@@ -30,33 +30,54 @@ func (f catalogFixtureCommands) commandLedger(ctx context.Context) *app.Ledger {
 }
 
 func (f catalogFixtureCommands) AuthorizeProductCreation(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateProductInput) error {
-	return f.commandLedger(ctx).AuthorizeProductCreation(ctx, actor, input)
+	c, err := f.nativeProduct(true)
+	if err != nil {
+		return err
+	}
+	return mapBuildAttestationCommandError(c.AuthorizeProductCreation(ctx, actor, input))
 }
 
 func (f catalogFixtureCommands) CreateProduct(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateProductInput) (releasedomain.Product, error) {
-	value, err := f.commandLedger(ctx).CreateProduct(ctx, actor, input.Name, input.Slug)
-	return releasedomain.Product{ID: value.ID, TenantID: value.TenantID, Name: value.Name, Slug: value.Slug, CreatedAt: value.CreatedAt}, err
+	c, err := f.nativeProduct(false)
+	if err != nil {
+		return releasedomain.Product{}, err
+	}
+	value, err := c.CreateProduct(ctx, actor, input)
+	return value, mapBuildAttestationCommandError(err)
 }
 
 func (f catalogFixtureCommands) AuthorizeProjectCreation(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateProjectInput) error {
-	return f.commandLedger(ctx).AuthorizeProjectCreation(ctx, actor, input)
+	c, err := f.nativeProject(true)
+	if err != nil {
+		return err
+	}
+	return mapBuildAttestationCommandError(c.AuthorizeProjectCreation(ctx, actor, input))
 }
 
 func (f catalogFixtureCommands) CreateProject(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateProjectInput) (releasedomain.Project, error) {
-	value, err := f.commandLedger(ctx).CreateProject(ctx, actor, input.ProductID, input.Name)
-	return releasedomain.Project{ID: value.ID, TenantID: value.TenantID, ProductID: value.ProductID, Name: value.Name, CreatedAt: value.CreatedAt}, err
+	c, err := f.nativeProject(false)
+	if err != nil {
+		return releasedomain.Project{}, err
+	}
+	value, err := c.CreateProject(ctx, actor, input)
+	return value, mapBuildAttestationCommandError(err)
 }
 
 func (f catalogFixtureCommands) AuthorizeReleaseCreation(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateReleaseInput) error {
-	return f.commandLedger(ctx).AuthorizeReleaseCreation(ctx, actor, input)
+	c, err := f.nativeRelease(true)
+	if err != nil {
+		return err
+	}
+	return mapBuildAttestationCommandError(c.AuthorizeReleaseCreation(ctx, actor, input))
 }
 
 func (f catalogFixtureCommands) CreateRelease(ctx context.Context, actor identitydomain.Actor, input releaseapp.CreateReleaseInput) (releasedomain.Release, error) {
-	value, err := f.commandLedger(ctx).CreateRelease(ctx, actor, input.ProductID, input.Version)
+	c, err := f.nativeRelease(false)
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	return releaseFixtureModel(value)
+	value, err := c.CreateRelease(ctx, actor, input)
+	return value, mapBuildAttestationCommandError(err)
 }
 
 type catalogFixtureReplayExecutor struct{ ledger *app.Ledger }

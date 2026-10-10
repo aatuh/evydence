@@ -8,7 +8,7 @@ import (
 )
 
 func TestProductSlugLimitCountsTrimmedUTF8Bytes(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	for i, tc := range []struct {
 		slug   string
 		status int

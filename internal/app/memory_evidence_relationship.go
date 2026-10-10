@@ -81,7 +81,7 @@ func (r memoryEvidenceRepository) ReadRelationshipOrigins(ctx context.Context, t
 				return ErrConflict
 			}
 			remaining -= len(raw)
-			detached, err := cloneMemoryEvidenceRecord(selected)
+			detached, err := cloneMemoryCanonicalRecord(selected)
 			if err != nil {
 				return ErrConflict
 			}

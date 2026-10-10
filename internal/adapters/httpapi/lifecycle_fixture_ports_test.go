@@ -13,44 +13,63 @@ import (
 type lifecycleFixtureCommands struct{ catalogFixtureCommands }
 
 func (f lifecycleFixtureCommands) AuthorizeReleaseTransition(ctx context.Context, actor identitydomain.Actor, id string) error {
-	return f.commandLedger(ctx).AuthorizeReleaseTransition(ctx, actor, id)
+	c, err := f.nativeReleaseState(true)
+	if err != nil {
+		return err
+	}
+	return mapReleaseStateCommandError(c.AuthorizeReleaseTransition(ctx, actor, id))
 }
 
 func (f lifecycleFixtureCommands) FreezeRelease(ctx context.Context, actor identitydomain.Actor, id string, revision int64) (releasedomain.Release, error) {
-	value, err := f.commandLedger(ctx).FreezeRelease(ctx, actor, id, revision)
+	c, err := f.nativeReleaseState(false)
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	return releaseFixtureModel(value)
+	value, err := c.FreezeRelease(ctx, actor, id, revision)
+	return value, mapReleaseStateCommandError(err)
 }
 
 func (f lifecycleFixtureCommands) ApproveRelease(ctx context.Context, actor identitydomain.Actor, id string, revision int64) (releasedomain.Release, error) {
-	value, err := f.commandLedger(ctx).ApproveRelease(ctx, actor, id, revision)
+	c, err := f.nativeReleaseState(false)
 	if err != nil {
 		return releasedomain.Release{}, err
 	}
-	return releaseFixtureModel(value)
+	value, err := c.ApproveRelease(ctx, actor, id, revision)
+	return value, mapReleaseStateCommandError(err)
 }
 
 func (f lifecycleFixtureCommands) AuthorizeCandidateTransition(ctx context.Context, actor identitydomain.Actor, id string) error {
-	return f.commandLedger(ctx).AuthorizeCandidateTransition(ctx, actor, id)
+	c, err := f.nativeCandidateState(true)
+	if err != nil {
+		return err
+	}
+	return mapReleaseStateCommandError(c.AuthorizeCandidateTransition(ctx, actor, id))
 }
 
 func (f lifecycleFixtureCommands) UpdateReleaseCandidateState(ctx context.Context, actor identitydomain.Actor, id, state, reason string, revision int64) (releasedomain.ReleaseCandidate, error) {
-	value, err := f.commandLedger(ctx).UpdateReleaseCandidateState(ctx, actor, id, state, reason, revision)
+	c, err := f.nativeCandidateState(false)
 	if err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	return candidateFixtureModel(value)
+	value, err := c.UpdateReleaseCandidateState(ctx, actor, id, state, reason, revision)
+	return value, mapReleaseStateCommandError(err)
 }
 
 func (f lifecycleFixtureCommands) AuthorizeBuildAttestationCreation(ctx context.Context, actor identitydomain.Actor, id string) error {
-	return f.commandLedger(ctx).AuthorizeBuildAttestationCreation(ctx, actor, id)
+	c, err := f.nativeAttestation(true)
+	if err != nil {
+		return err
+	}
+	return mapBuildAttestationCommandError(c.AuthorizeBuildAttestationCreation(ctx, actor, id))
 }
 
 func (f lifecycleFixtureCommands) UploadBuildAttestation(ctx context.Context, actor identitydomain.Actor, id string, raw []byte) (releasedomain.BuildAttestation, error) {
-	value, err := f.commandLedger(ctx).UploadBuildAttestation(ctx, actor, id, raw)
-	return releasedomain.BuildAttestation{ID: value.ID, TenantID: value.TenantID, BuildID: value.BuildID, EvidenceID: value.EvidenceID, PayloadRef: value.PayloadRef, PayloadHash: value.PayloadHash, PayloadSize: value.PayloadSize, PayloadType: value.PayloadType, PredicateType: value.PredicateType, SubjectDigests: value.SubjectDigests, BuilderID: value.BuilderID, BuildType: value.BuildType, MaterialsCount: value.MaterialsCount, SignatureCount: value.SignatureCount, VerificationStatus: value.VerificationStatus, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt}, err
+	c, err := f.nativeAttestation(false)
+	if err != nil {
+		return releasedomain.BuildAttestation{}, err
+	}
+	value, err := c.UploadBuildAttestation(ctx, actor, id, raw)
+	return value, mapBuildAttestationCommandError(err)
 }
 
 func (s *Server) bindLifecycleFixturePorts(ledger *app.Ledger) {

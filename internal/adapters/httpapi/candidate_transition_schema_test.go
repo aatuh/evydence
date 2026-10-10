@@ -7,7 +7,7 @@ import (
 )
 
 func TestCandidateTransitionSchemaRequiresReasonMatchingHTTP(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	p := postJSON(t, server, secret, "/v1/products", "reason-product", map[string]any{"name": "Product", "slug": "product"}, 201)
 	r := postJSON(t, server, secret, "/v1/releases", "reason-release", map[string]any{"product_id": dataField(t, p, "id"), "version": "1"}, 201)
 	c := postJSON(t, server, secret, "/v1/release-candidates", "reason-candidate", map[string]any{"release_id": dataField(t, r, "id"), "name": "Candidate"}, 201)

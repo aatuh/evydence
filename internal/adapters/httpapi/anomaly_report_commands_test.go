@@ -125,7 +125,7 @@ func TestAnomalyHTTPCookieOriginAndBearerPrecedenceBothProfiles(t *testing.T) {
 }
 
 func TestAnomalyHTTPLocalRejectsAmbiguousJSON(t *testing.T) {
-	s, secret := testServer(t)
+	s, secret := governanceTestServer(t)
 	p := postRaw(t, s, secret, "/v1/products", "product", []byte(`{"name":"Product","slug":"product"}`), 201)
 	id := dataField(t, p, "id")
 	for i, body := range []string{

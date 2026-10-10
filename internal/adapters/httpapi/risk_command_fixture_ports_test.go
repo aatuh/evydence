@@ -78,14 +78,15 @@ func (f vexDecisionPointFixture) AuthorizeVulnerabilityDecision(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	release, err := ledger.GetRelease(ctx, reader, scan.ReleaseID)
+	query := catalogQueryFixture{catalogFixtureCommands{ledger: ledger}}
+	release, err := query.GetRelease(ctx, reader, scan.ReleaseID)
 	if err != nil {
 		return err
 	}
 	if evidence.TenantID != actor.TenantID || evidence.Type != "vulnerability_scan" || evidence.ReleaseID != "" && evidence.ReleaseID != release.ID || evidence.ProductID != "" && evidence.ProductID != release.ProductID {
 		return app.ErrNotFound
 	}
-	product, err := ledger.GetProduct(ctx, reader, release.ProductID)
+	product, err := query.GetProduct(ctx, reader, release.ProductID)
 	if err != nil {
 		return err
 	}
