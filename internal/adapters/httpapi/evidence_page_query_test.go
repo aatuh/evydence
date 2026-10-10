@@ -30,7 +30,7 @@ func (f *evidencePageHTTPStub) ListPage(_ context.Context, a identitydomain.Acto
 func TestEvidenceCollectionsUseNativePageQueryWithoutAggregate(t *testing.T) {
 	base, secret := testServer(t)
 	f := &evidencePageHTTPStub{}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidencePageQuery: f})
+	s, err := derivedServerFixture(base, ServerOptions{EvidencePageQuery: f})
 	if err != nil {
 		t.Fatal(err)
 	}

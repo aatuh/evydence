@@ -94,10 +94,10 @@ func TestSigningKeyHandlersUseFocusedCommandsAndReplay(t *testing.T) {
 func TestSigningKeyHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &signingKeyHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SigningKeyCommands: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{SigningKeyCommands: f}); err == nil {
 		t.Fatal("focused signing keys accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SigningKeyCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{SigningKeyCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestSigningKeyHTTPFixtureAndNativeCookieAndReplayAuthority(t *testing.T) {
 			opts.SigningKeyCommands = f
 			opts.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
+		s, err := derivedServerFixtureWithContext(t.Context(), base, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -197,7 +197,7 @@ func TestSigningKeyHTTPFixtureAndNativeCookieAndReplayAuthority(t *testing.T) {
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

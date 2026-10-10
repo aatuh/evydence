@@ -13,6 +13,16 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Moved the common repository-backed HTTP fixture bootstrap and authentication
+onto focused Identity/initial-signing-key commands and current rows. Credentials
+and clocks are explicit; derived servers inherit configured authenticators
+without changing cookie, origin, bearer-precedence or error assertions.
+Regressions cover cold-instance authentication, wrong peppers, secret-safe
+public metadata and atomic bootstrap failure. Retired two unused cached API-key
+creation helpers from production. This is a prerequisite for the remaining
+Identity/Verification aggregate retirement under EVY-906, not its completion or
+new live PostgreSQL evidence; production startup and wire contracts are unchanged.
+
 Retired 25 cached readiness, control-report, VEX decision/finding and build-policy
 authority routines, the old control-report DTOs, and unused OpenVEX wrappers
 from production source. Historical behavior remains characterized in test-only

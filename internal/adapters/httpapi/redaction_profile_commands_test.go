@@ -35,10 +35,10 @@ func (f *redactionHTTPFake) CreateRedactionProfile(_ context.Context, a identity
 func TestRedactionHTTPRejectsMalformedInputBeforeCommand(t *testing.T) {
 	base, secret := testServer(t)
 	f := &redactionHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{RedactionProfileCommands: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{RedactionProfileCommands: f}); err == nil {
 		t.Fatal("redaction command lacks atomic replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{RedactionProfileCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{RedactionProfileCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestRedactionHTTPBothProfilesRequireSafeCookieMutation(t *testing.T) {
 			opts.RedactionProfileCommands = f
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
+		s, err := derivedServerFixtureWithContext(t.Context(), base, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestRedactionHTTPLocalReplayRechecksTenantGrant(t *testing.T) {
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"*"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -43,10 +43,10 @@ func TestDecodeDSSEVerificationRequestBoundsRawIDs(t *testing.T) {
 func TestDSSEHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &dsseVerificationHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{DSSEVerification: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{DSSEVerification: f}); err == nil {
 		t.Fatal("focused DSSE accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{DSSEVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{DSSEVerification: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

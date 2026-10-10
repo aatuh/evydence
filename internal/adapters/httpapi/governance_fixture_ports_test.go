@@ -24,16 +24,7 @@ type governanceFixtureCommands struct {
 // unrelated legacy fixtures retain their previous backend/serialization.
 func governanceTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
-	ledger := newLegacyLedgerFixture(app.Config{APIKeyPepper: "test", UnitOfWork: app.NewMemoryUnitOfWorkFactory()})
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Tenant", "admin", []string{"*"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	server, err := newLegacyServerFixture(ledger)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return server, secret
+	return repositoryBootstrapTestServer(t)
 }
 
 type governanceFixtureTransactions struct {

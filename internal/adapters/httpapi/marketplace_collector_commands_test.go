@@ -51,10 +51,10 @@ func marketplaceHTTPFixture(t *testing.T) (*Server, string, string) {
 func TestMarketplaceCollectorHTTPFocusedStrictInputsAndPrivateFailures(t *testing.T) {
 	base, secret, body := marketplaceHTTPFixture(t)
 	f := &marketplaceHTTPCommands{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{MarketplaceCollectorCommands: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{MarketplaceCollectorCommands: f}); err == nil {
 		t.Fatal("focused registration bypasses durable replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{MarketplaceCollectorCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{MarketplaceCollectorCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestMarketplaceCollectorHTTPLocalReplayRequiresCurrentTenantGrant(t *testin
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"collector:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestMarketplaceCollectorHTTPCookieOriginAndBearerPrecedence(t *testing.T) {
 			opts.MarketplaceCollectorCommands = &marketplaceHTTPCommands{}
 			opts.DurableCommandExecutor = &decisionHTTPExecutorFake{}
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
+		s, err := derivedServerFixtureWithContext(t.Context(), base, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

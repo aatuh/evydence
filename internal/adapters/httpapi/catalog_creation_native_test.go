@@ -39,11 +39,11 @@ func TestCatalogCreationRequiresNativeReplayAndChecksCurrentAuthority(t *testing
 				counts = func() (int, int) { return r.calls, r.guards }
 				deny = func() { r.guardErr = application.ErrForbidden }
 			}
-			if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o); err == nil || s != nil {
+			if s, err := derivedServerFixture(base, o); err == nil || s != nil {
 				t.Error("focused catalog creation accepted aggregate replay")
 			}
 			o.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
-			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
+			s, err := derivedServerFixture(base, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -65,7 +65,7 @@ func TestCatalogCreationRejectsMalformedJSONBeforeGuard(t *testing.T) {
 			base, secret := testServer(t)
 			p, j, r := &productHTTPFake{}, &projectHTTPFake{}, &releaseCreationHTTPFake{}
 			o := ServerOptions{ProductCommands: p, ProjectCommands: j, ReleaseCreationCommands: r, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
-			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
+			s, err := derivedServerFixture(base, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -93,7 +93,7 @@ func TestCatalogCreationRejectsMalformedJSONBeforeGuard(t *testing.T) {
 func TestCatalogCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	base, secret := testServer(t)
 	p, j, r := &productHTTPFake{}, &projectHTTPFake{}, &releaseCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ProductCommands: p, ProjectCommands: j, ReleaseCreationCommands: r, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := derivedServerFixture(base, ServerOptions{ProductCommands: p, ProjectCommands: j, ReleaseCreationCommands: r, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

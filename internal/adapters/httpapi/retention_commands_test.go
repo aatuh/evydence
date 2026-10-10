@@ -106,10 +106,10 @@ func TestRetentionHandlersRejectMalformedBodiesBeforeCommandsForFixtureAndNative
 func TestRetentionHTTPNativeReplayRequiredAndLegacyDependenciesUnused(t *testing.T) {
 	base, secret := testServer(t)
 	f := &retentionHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{RetentionCommands: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{RetentionCommands: f}); err == nil {
 		t.Fatal("retention accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{RetentionCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{RetentionCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestRetentionHTTPFixtureAndNativeCookieGuardAndFixtureReplayAuthority(t *te
 			opts.RetentionCommands = f
 			opts.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
+		s, err := derivedServerFixtureWithContext(t.Context(), base, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -233,7 +233,7 @@ func TestRetentionHTTPFixtureAndNativeCookieGuardAndFixtureReplayAuthority(t *te
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"admin", "verify:read"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

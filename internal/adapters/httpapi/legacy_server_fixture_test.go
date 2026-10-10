@@ -19,6 +19,18 @@ func newLegacyServerFixtureWithOptions(ledger *app.Ledger, opts ServerOptions) (
 	return newLegacyServerFixtureWithOptionsContext(context.Background(), ledger, opts)
 }
 
+// Derived transport fixtures inherit the explicitly configured authentication
+// port, not a credential cache inferred from their shared transaction locator.
+func derivedServerFixture(base *Server, opts ServerOptions) (*Server, error) {
+	return derivedServerFixtureWithContext(context.Background(), base, opts)
+}
+func derivedServerFixtureWithContext(ctx context.Context, base *Server, opts ServerOptions) (*Server, error) {
+	if opts.Authenticator == nil {
+		opts.Authenticator = base.authn
+	}
+	return newLegacyServerFixtureWithOptionsContext(ctx, legacyFixtureLedger(base), opts)
+}
+
 func newLegacyServerFixtureWithOptionsContext(ctx context.Context, ledger *app.Ledger, opts ServerOptions) (*Server, error) {
 	if ctx == nil {
 		return nil, errors.New("server context is required")

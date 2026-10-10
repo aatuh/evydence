@@ -40,10 +40,10 @@ func (f *transparencyFetchHTTPFake) FetchAndVerifyPublicTransparencyLogEntry(_ c
 func TestPublicTransparencyFetchHTTPStrictBodyPrivateErrorsAndCookiePolicy(t *testing.T) {
 	base, secret, _ := marketplaceHTTPFixture(t)
 	f := &transparencyFetchHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{PublicTransparencyFetchCommands: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{PublicTransparencyFetchCommands: f}); err == nil {
 		t.Fatal("fetch bypassed durable replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{PublicTransparencyFetchCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{PublicTransparencyFetchCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

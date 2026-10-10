@@ -52,7 +52,7 @@ func (f *environmentCommandHTTPFake) CreateDeploymentEnvironment(_ context.Conte
 func TestDeploymentEnvironmentHTTPUsesFocusedCommandAndSafeReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &environmentCommandHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{DeploymentEnvironmentCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := derivedServerFixture(local, ServerOptions{DeploymentEnvironmentCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

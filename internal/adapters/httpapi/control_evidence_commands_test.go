@@ -37,7 +37,7 @@ func (f *controlEvidenceCommandFake) AuthorizeControlEvidenceLink(context.Contex
 
 func TestControlEvidenceHTTPRequiresDurableReplay(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{ControlEvidenceCommands: &controlEvidenceCommandFake{}}); err == nil || v != nil {
+	if v, err := derivedServerFixture(s, ServerOptions{ControlEvidenceCommands: &controlEvidenceCommandFake{}}); err == nil || v != nil {
 		t.Fatal("focused control linking accepted Ledger replay")
 	}
 }
@@ -74,7 +74,7 @@ func TestControlEvidencePathBoundsRawBeforeTrim(t *testing.T) {
 func TestControlEvidenceNativeHTTPRunsWithoutLedgerAndRejectsBadBodyBeforeGuard(t *testing.T) {
 	base, secret := testServer(t)
 	f := &controlEvidenceCommandFake{value: riskdomain.ControlEvidence{ID: "link", ControlID: "control", SubjectType: "product", SubjectID: "product", EvidenceType: "sbom", Confidence: "high", SchemaVersion: riskdomain.ControlEvidenceSchemaVersion}}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ControlEvidenceCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := derivedServerFixture(base, ServerOptions{ControlEvidenceCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

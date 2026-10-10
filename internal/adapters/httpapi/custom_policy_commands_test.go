@@ -36,11 +36,11 @@ func (f *policyHTTPFake) EvaluateCustomPolicy(context.Context, identitydomain.Ac
 func TestCustomPolicyHTTPRejectsIncompleteCompositionAndSafeProblems(t *testing.T) {
 	base, secret := testServer(t)
 	f := &policyHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{CustomPolicyCommands: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{CustomPolicyCommands: f}); err == nil {
 		t.Fatal("policy commands silently use Ledger idempotency")
 	}
 	executor := &decisionHTTPExecutorFake{}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{CustomPolicyCommands: f, DurableCommandExecutor: executor})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{CustomPolicyCommands: f, DurableCommandExecutor: executor})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -117,7 +117,7 @@ func TestNativeCycloneDXSBOMIdempotencyIncludesReleaseHeader(t *testing.T) {
 
 func TestNativeStreamedUploadReplaysLegacyBodyOnlyFingerprint(t *testing.T) {
 	server, secret := operationsTestServer(t)
-	actor, err := legacyFixtureLedger(server).Authenticate(t.Context(), secret)
+	actor, err := server.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}

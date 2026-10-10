@@ -24,11 +24,11 @@ func TestDeploymentWritesRequireNativeReplayAndCurrentAuthority(t *testing.T) {
 			} else {
 				o.DeploymentEnvironmentCommands = e
 			}
-			if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o); err == nil || s != nil {
+			if s, err := derivedServerFixture(base, o); err == nil || s != nil {
 				t.Error("deployment write accepted aggregate replay")
 			}
 			o.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
-			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
+			s, err := derivedServerFixture(base, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -49,7 +49,7 @@ func TestDeploymentCreationRejectsMalformedInputBeforeNativeGuard(t *testing.T) 
 		t.Run(map[bool]string{false: "environment", true: "event"}[event], func(t *testing.T) {
 			base, secret := testServer(t)
 			e, d := &environmentCommandHTTPFake{}, &deploymentHTTPFake{}
-			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{DeploymentEnvironmentCommands: e, DeploymentCommands: d, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+			s, err := derivedServerFixture(base, ServerOptions{DeploymentEnvironmentCommands: e, DeploymentCommands: d, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -88,7 +88,7 @@ func TestDeploymentCreationCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *
 				s := base
 				if native {
 					var err error
-					s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{DeploymentEnvironmentCommands: e, DeploymentCommands: d, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+					s, err = derivedServerFixture(base, ServerOptions{DeploymentEnvironmentCommands: e, DeploymentCommands: d, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 					if err != nil {
 						t.Fatal(err)
 					}

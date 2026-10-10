@@ -34,7 +34,7 @@ func (f *merkleCreationHTTPFake) CreateMerkleBatch(_ context.Context, a identity
 func TestMerkleCreationHTTPUsesFocusedCommandAndPreservesSafeReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &merkleCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{MerkleCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := derivedServerFixture(local, ServerOptions{MerkleCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,10 +68,10 @@ func TestMerkleCreationHTTPUsesFocusedCommandAndPreservesSafeReplay(t *testing.T
 func TestMerkleCreationHTTPRequiresNativeReplayAndNoLedgerDependencies(t *testing.T) {
 	base, secret := testServer(t)
 	f := &merkleCreationHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{MerkleCreationCommands: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{MerkleCreationCommands: f}); err == nil {
 		t.Fatal("focused Merkle creation accepted Ledger replay")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{MerkleCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{MerkleCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestMerkleCreationHTTPFixtureAndNativeCookieAndFixtureReplayAuthority(t *te
 			opts.MerkleCreationCommands = f
 			opts.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
 		}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), opts)
+		s, err := derivedServerFixtureWithContext(t.Context(), base, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -153,7 +153,7 @@ func TestMerkleCreationHTTPFixtureAndNativeCookieAndFixtureReplayAuthority(t *te
 	a.KeyID, a.UserID = "", "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: a.TenantID, Scopes: []string{"keys:admin"}}}
 	auth := &configuredAuthenticator{actor: a}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{Authenticator: auth})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{Authenticator: auth})
 	if err != nil {
 		t.Fatal(err)
 	}

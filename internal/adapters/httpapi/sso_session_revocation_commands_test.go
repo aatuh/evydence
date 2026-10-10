@@ -64,12 +64,12 @@ func TestSSOSessionRevocationHTTPFocusedCommandsStrictBodiesAndPostCommitCookies
 	base, secret := testServer(t)
 	for _, path := range []string{"/v1/sso/sessions/session/revoke", "/v1/sso/logout"} {
 		f := &sessionRevocationHTTPFake{}
-		if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SSOSessionRevocationCommands: f}); err == nil {
+		if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{SSOSessionRevocationCommands: f}); err == nil {
 			t.Fatal("revocation retained Ledger replay")
 		}
 		request := func(body string, commitErr error, want int) *httptest.ResponseRecorder {
 			t.Helper()
-			s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SSOSessionRevocationCommands: f, DurableCommandExecutor: sessionRevocationHTTPExecutor{commitErr: commitErr}})
+			s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{SSOSessionRevocationCommands: f, DurableCommandExecutor: sessionRevocationHTTPExecutor{commitErr: commitErr}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -125,7 +125,7 @@ func TestSSOSessionRevocationHTTPCookieMutationsRequireSameHTTPSOrigin(t *testin
 	base, secret := testServer(t)
 	for _, path := range []string{"/v1/sso/sessions/session/revoke", "/v1/sso/logout"} {
 		f := &sessionRevocationHTTPFake{}
-		s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{SSOSessionRevocationCommands: f, DurableCommandExecutor: sessionRevocationHTTPExecutor{}})
+		s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{SSOSessionRevocationCommands: f, DurableCommandExecutor: sessionRevocationHTTPExecutor{}})
 		if err != nil {
 			t.Fatal(err)
 		}

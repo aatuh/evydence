@@ -12,7 +12,7 @@ import (
 func TestGenericEvidenceCreationStrictPreflightAndExactNumbers(t *testing.T) {
 	base, secret := testServer(t)
 	f := &evidenceCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := derivedServerFixture(base, ServerOptions{EvidenceCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestGenericEvidenceCreationCookieOriginAndBearerPrecedenceAcrossFixturePort
 			s := base
 			if native {
 				var err error
-				s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{EvidenceCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = derivedServerFixture(base, ServerOptions{EvidenceCreationCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}

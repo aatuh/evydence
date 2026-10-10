@@ -31,7 +31,7 @@ func (f *artifactSignatureCommandHTTPFake) AuthorizeArtifactSignatureCreation(co
 
 func TestArtifactSignatureCreationRequiresDurableExecutor(t *testing.T) {
 	s, _ := testServer(t)
-	if server, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{ArtifactSignatureCommands: &artifactSignatureCommandHTTPFake{}}); err == nil || server != nil {
+	if server, err := derivedServerFixture(s, ServerOptions{ArtifactSignatureCommands: &artifactSignatureCommandHTTPFake{}}); err == nil || server != nil {
 		t.Fatal("artifact signature creation accepted Ledger replay")
 	}
 }
@@ -62,7 +62,7 @@ func (f *artifactSignatureCommandHTTPFake) CreateArtifactSignature(_ context.Con
 func TestArtifactSignatureCreationHTTPUsesFocusedCommandAndReplay(t *testing.T) {
 	local, secret := testServer(t)
 	f := &artifactSignatureCommandHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{ArtifactSignatureCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := derivedServerFixture(local, ServerOptions{ArtifactSignatureCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

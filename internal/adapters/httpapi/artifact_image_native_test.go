@@ -24,11 +24,11 @@ func TestArtifactImageRegistrationRequiresNativeReplayAndCurrentGuard(t *testing
 				path = "/v1/container-images"
 				body = `{"repository":"registry.example.test/api","digest":"sha256:` + strings.Repeat("a", 64) + `"}`
 			}
-			if s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o); err == nil || s != nil {
+			if s, err := derivedServerFixture(base, o); err == nil || s != nil {
 				t.Error("registration accepted aggregate replay")
 			}
 			o.DurableCommandExecutor = newTrustHTTPReplayExecutor(t, base, secret)
-			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
+			s, err := derivedServerFixture(base, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,7 +59,7 @@ func TestArtifactImageRegistrationPreflightRejectsMalformedInputBeforeCommands(t
 				path, field = "/v1/container-images", "repository"
 				body = `{"repository":"registry.example.test/api","digest":"sha256:` + strings.Repeat("a", 64) + `"}`
 			}
-			s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), o)
+			s, err := derivedServerFixture(base, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -94,7 +94,7 @@ func TestArtifactImageRegistrationCookieOriginAndBearerPrecedence(t *testing.T) 
 			s := base
 			if native {
 				var err error
-				s, err = newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{ArtifactCommands: a, ContainerImageCommands: i, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+				s, err = derivedServerFixture(base, ServerOptions{ArtifactCommands: a, ContainerImageCommands: i, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 				if err != nil {
 					t.Fatal(err)
 				}

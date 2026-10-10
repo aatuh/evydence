@@ -31,7 +31,7 @@ func (f *sourceCreationHTTPFake) AuthorizeSourceRepositoryCreation(context.Conte
 
 func TestSourceRepositoryCreationRequiresNativeDurableReplay(t *testing.T) {
 	s, _ := testServer(t)
-	if v, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(s), ServerOptions{SourceRepositoryCommands: &sourceCreationHTTPFake{}}); err == nil || v != nil {
+	if v, err := derivedServerFixture(s, ServerOptions{SourceRepositoryCommands: &sourceCreationHTTPFake{}}); err == nil || v != nil {
 		t.Fatal("focused repository creation accepted aggregate replay")
 	}
 }
@@ -92,7 +92,7 @@ func TestSourceRepositoryCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 func TestSourceRepositoryCreationNativeDoesNotUseLedger(t *testing.T) {
 	base, secret := testServer(t)
 	f := &sourceCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(base), ServerOptions{SourceRepositoryCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
+	s, err := derivedServerFixture(base, ServerOptions{SourceRepositoryCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func (f *sourceCreationHTTPFake) CreateSourceRepository(_ context.Context, a ide
 func TestSourceRepositoryHTTPUsesFocusedCommandAndRejectsMalformedEnvelopes(t *testing.T) {
 	local, secret := testServer(t)
 	f := &sourceCreationHTTPFake{}
-	s, err := newLegacyServerFixtureWithOptions(legacyFixtureLedger(local), ServerOptions{SourceRepositoryCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
+	s, err := derivedServerFixture(local, ServerOptions{SourceRepositoryCommands: f, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, local, secret)})
 	if err != nil {
 		t.Fatal(err)
 	}

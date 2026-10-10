@@ -58,10 +58,10 @@ func (f *collectorHTTPFake) CreateCommercialCollectorDefinition(_ context.Contex
 func TestCollectorHTTPFocusedCommandsPreserveContractAndRejectInvalidEnvelopes(t *testing.T) {
 	base, secret := testServer(t)
 	f := &collectorHTTPFake{}
-	if _, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{CollectorCommands: f}); err == nil {
+	if _, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{CollectorCommands: f}); err == nil {
 		t.Fatal("focused collectors retained Ledger idempotency")
 	}
-	s, err := newLegacyServerFixtureWithOptionsContext(t.Context(), legacyFixtureLedger(base), ServerOptions{CollectorCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
+	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{CollectorCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}

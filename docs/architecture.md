@@ -23,6 +23,19 @@ database path. The [bootstrap configuration reference](reference/configuration.m
 owns the input bounds, lock timing, secret-output policy, and local signing-key
 storage limitations.
 
+Repository-backed governance, operations and identity HTTP test fixtures now
+bootstrap through the same focused Identity and initial-signing-key commands,
+with explicit HMAC credentials and clocks. Tenant, credential hash, bootstrap
+audit and local signing material commit in one unit of work; failed commits
+return no public identity or bearer secret. Their authenticator reads current
+rows, including across cold instances, rather than the setup Ledger's caches.
+Derived transport fixtures inherit the configured authentication port and retain
+explicit overrides, cookie-origin checks and bearer precedence. Cache-only
+negative fixtures remain separate and do not gain repository dependencies.
+Two unused cached API-key creation helpers are historical test-only oracles.
+These fixture checks do not prove PostgreSQL locks or durability, and the
+remaining aggregate bootstrap/authentication adapters still require retirement.
+
 ## Current runtime composition
 
 The PostgreSQL API entry point binds
