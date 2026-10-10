@@ -69,15 +69,18 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
+	identity := postgresIdentitySetup(sourceStore, "paired-restore-test-pepper")
+	_, _, secret, err := identity.BootstrapTenant(ctx, "Paired Restore Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := identity.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The remaining historical backup/replay fixture loads genuine committed
+	// bootstrap rows; native identity setup never publishes aggregate caches.
 	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "paired-restore-test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _, secret, err := ledger.BootstrapTenant(ctx, "Paired Restore Tenant", "admin", []string{"*"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	actor, err := ledger.Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,11 +211,7 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err := targetStore.RequireNoPendingMigrations(ctx, "../../../migrations"); err != nil {
 		t.Fatalf("restored database migration identity: %v", err)
 	}
-	restored, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "paired-restore-test-pepper", Store: targetStore, ObjectStore: targetObjects})
-	if err != nil {
-		t.Fatal(err)
-	}
-	restoredActor, err := restored.Authenticate(ctx, secret)
+	restoredActor, err := postgresIdentitySetup(targetStore, "paired-restore-test-pepper").Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatal(err)
 	}

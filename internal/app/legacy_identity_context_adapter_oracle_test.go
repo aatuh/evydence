@@ -14,10 +14,12 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-func (l *Ledger) configureIdentityCommands() error {
+// Historical characterization constructs the aggregate adapter on demand.
+// Production has no Identity Service field, bootstrap or authentication facade.
+func (l *Ledger) legacyIdentityCommands() *identityapp.Service {
 	credentials, err := identityapp.NewHMACAuthenticationCredentials(string(l.pepper))
 	if err != nil {
-		return fromIdentityContextError(err)
+		panic(fromIdentityContextError(err))
 	}
 	var discovery identityapp.OIDCDiscovery
 	if l.oidc != nil {
@@ -33,10 +35,9 @@ func (l *Ledger) configureIdentityCommands() error {
 		Clock: application.ClockFunc(l.now), IDs: application.IDGeneratorFunc(newID),
 	})
 	if err != nil {
-		return err
+		panic(err)
 	}
-	l.identityCommands = service
-	return nil
+	return service
 }
 
 type ledgerIdentityGrantPolicy struct{}
@@ -84,43 +85,6 @@ func (d ledgerIdentityOIDCDiscovery) FetchOIDCTrustMaterial(ctx context.Context,
 		return identityapp.OIDCDiscoveryResult{}, err
 	}
 	return identityapp.OIDCDiscoveryResult{Issuer: result.Issuer, JWKS: cloneMap(result.JWKS)}, nil
-}
-
-// LocalSSOCredentialVerifier uses configured public trust material only. It
-// owns no Ledger state and makes no provider/network calls.
-type LocalSSOCredentialVerifier struct{}
-
-func (LocalSSOCredentialVerifier) Verify(_ context.Context, request identityapp.CredentialVerificationRequest) (identityapp.CredentialVerificationResult, error) {
-	provider := ssoProviderFromIdentityContext(request.Provider)
-	var checks []domain.VerifyCheck
-	var groups []string
-	var err error
-	switch provider.Type {
-	case "oidc":
-		checks, err = verifyOIDCIDToken(provider, request.Subject, request.IDToken, request.Now)
-		if err == nil {
-			groups = oidcGroupsFromVerifiedToken(provider, request.IDToken)
-		}
-	case "saml":
-		checks, err = verifySAMLAssertion(provider, request.Subject, request.SAMLAssertion, request.Now)
-	default:
-		return identityapp.CredentialVerificationResult{}, identityapp.ErrValidation
-	}
-	return identityapp.CredentialVerificationResult{Checks: verificationChecksToIdentityContext(checks), Groups: append([]string(nil), groups...)}, err
-}
-
-// LocalSSOVerificationPolicy applies the existing versioned assurance profile
-// without depending on a Ledger or storage adapter.
-type LocalSSOVerificationPolicy struct{}
-
-func (LocalSSOVerificationPolicy) Assess(record identitydomain.ProviderVerification, provider identitydomain.SSOProvider, tokenSupplied bool) identitydomain.ProviderVerification {
-	legacy := providerVerificationFromIdentityContext(record)
-	reassessProviderVerification(&legacy, ssoProviderFromIdentityContext(provider), tokenSupplied)
-	return providerVerificationToIdentityContext(legacy)
-}
-
-func (LocalSSOVerificationPolicy) ReturnsFailure(result string) bool {
-	return verificationReturnsFailure(result)
 }
 
 type ledgerIdentityReader struct{ ledger *Ledger }
@@ -404,6 +368,7 @@ func newLedgerIdentityTransaction(ledger *Ledger) *ledgerIdentityTransaction {
 }
 
 func (t *ledgerIdentityTransaction) Identity() identityapp.Repository { return t }
+
 func (t *ledgerIdentityTransaction) Audit() application.AuditAppender { return t }
 
 func (t *ledgerIdentityTransaction) InsertTenant(ctx context.Context, tenant identitydomain.Tenant) error {
@@ -646,25 +611,6 @@ func (t *ledgerIdentityTransaction) CompareAndSwapSSOProviderTrustMaterial(ctx c
 	}
 	t.ssoProviders[legacy.ID] = legacy
 	return nil
-}
-
-func sameSSOProviderTrustState(left, right domain.SSOProvider) bool {
-	return left.ID == right.ID &&
-		left.TenantID == right.TenantID &&
-		left.Type == right.Type &&
-		left.Issuer == right.Issuer &&
-		left.ClientID == right.ClientID &&
-		left.Status == right.Status &&
-		reflect.DeepEqual(left.JWKS, right.JWKS) &&
-		reflect.DeepEqual(left.SAMLSigningCertificates, right.SAMLSigningCertificates) &&
-		equalOptionalTime(left.TrustMaterialUpdatedAt, right.TrustMaterialUpdatedAt)
-}
-
-func equalOptionalTime(left, right *time.Time) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return left.Equal(*right)
 }
 
 func (t *ledgerIdentityTransaction) InsertUserIdentityLink(ctx context.Context, link identitydomain.UserIdentityLink) error {
@@ -1007,26 +953,6 @@ func roleBindingFromIdentityContext(value identitydomain.RoleBinding) domain.Rol
 	}
 }
 
-func ssoProviderToIdentityContext(value domain.SSOProvider) identitydomain.SSOProvider {
-	return identitydomain.SSOProvider{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Type: value.Type, Issuer: value.Issuer,
-		ClientID: value.ClientID, GroupsClaim: value.GroupsClaim, RoleMapping: cloneStringMap(value.RoleMapping),
-		JWKS: cloneIdentityAnyMap(value.JWKS), SAMLSigningCertificates: append([]string(nil), value.SAMLSigningCertificates...),
-		TrustMaterialUpdatedAt: cloneTimePtr(value.TrustMaterialUpdatedAt), Status: value.Status,
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func ssoProviderFromIdentityContext(value identitydomain.SSOProvider) domain.SSOProvider {
-	return domain.SSOProvider{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, Type: value.Type, Issuer: value.Issuer,
-		ClientID: value.ClientID, GroupsClaim: value.GroupsClaim, RoleMapping: cloneStringMap(value.RoleMapping),
-		JWKS: cloneIdentityAnyMap(value.JWKS), SAMLSigningCertificates: append([]string(nil), value.SAMLSigningCertificates...),
-		TrustMaterialUpdatedAt: cloneTimePtr(value.TrustMaterialUpdatedAt), Status: value.Status,
-		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
 func userIdentityLinkToIdentityContext(value domain.UserIdentityLink) identitydomain.UserIdentityLink {
 	return identitydomain.UserIdentityLink{
 		ID: value.ID, TenantID: value.TenantID, UserID: value.UserID, ProviderID: value.ProviderID,
@@ -1040,59 +966,6 @@ func userIdentityLinkFromIdentityContext(value identitydomain.UserIdentityLink) 
 		ID: value.ID, TenantID: value.TenantID, UserID: value.UserID, ProviderID: value.ProviderID,
 		Subject: value.Subject, Email: value.Email, Verified: value.Verified,
 		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func verificationChecksToIdentityContext(values []domain.VerifyCheck) []identitydomain.VerificationCheck {
-	result := make([]identitydomain.VerificationCheck, 0, len(values))
-	for _, value := range values {
-		result = append(result, identitydomain.VerificationCheck{Name: value.Name, Result: value.Result, Detail: value.Detail})
-	}
-	return result
-}
-
-func verificationChecksFromIdentityContext(values []identitydomain.VerificationCheck) []domain.VerifyCheck {
-	result := make([]domain.VerifyCheck, 0, len(values))
-	for _, value := range values {
-		result = append(result, domain.VerifyCheck{Name: value.Name, Result: value.Result, Detail: value.Detail})
-	}
-	return result
-}
-
-func providerVerificationToIdentityContext(value domain.ProviderVerification) identitydomain.ProviderVerification {
-	return identitydomain.ProviderVerification{
-		ID: value.ID, TenantID: value.TenantID, ProviderType: value.ProviderType, ProviderID: value.ProviderID,
-		Subject: value.Subject, Result: value.Result, Checks: verificationChecksToIdentityContext(value.Checks),
-		Profile: identitydomain.VerificationProfileSnapshot{
-			ID: value.Profile.ID, Version: value.Profile.Version,
-			RequiredChecks: append([]string(nil), value.Profile.RequiredChecks...),
-			TrustMaterial:  append([]string(nil), value.Profile.TrustMaterial...), IdentityPolicy: value.Profile.IdentityPolicy,
-			TransparencyProof: value.Profile.TransparencyProof, PayloadScope: value.Profile.PayloadScope,
-			PayloadDigest: value.Profile.PayloadDigest, Limitations: append([]string(nil), value.Profile.Limitations...),
-		},
-		Limitations: append([]string(nil), value.Limitations...), SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func providerVerificationFromIdentityContext(value identitydomain.ProviderVerification) domain.ProviderVerification {
-	return ProviderVerificationFromIdentity(value)
-}
-
-// ProviderVerificationFromIdentity maps the context-owned record to the
-// existing public/persistence DTO, including its JSON names and assurance
-// profile. It copies slices and has no Ledger or repository dependency.
-func ProviderVerificationFromIdentity(value identitydomain.ProviderVerification) domain.ProviderVerification {
-	return domain.ProviderVerification{
-		ID: value.ID, TenantID: value.TenantID, ProviderType: value.ProviderType, ProviderID: value.ProviderID,
-		Subject: value.Subject, Result: value.Result, Checks: verificationChecksFromIdentityContext(value.Checks),
-		Profile: domain.VerificationProfile{
-			ID: value.Profile.ID, Version: value.Profile.Version,
-			RequiredChecks: append([]string(nil), value.Profile.RequiredChecks...),
-			TrustMaterial:  append([]string(nil), value.Profile.TrustMaterial...), IdentityPolicy: value.Profile.IdentityPolicy,
-			TransparencyProof: value.Profile.TransparencyProof, PayloadScope: value.Profile.PayloadScope,
-			PayloadDigest: value.Profile.PayloadDigest, Limitations: append([]string(nil), value.Profile.Limitations...),
-		},
-		Limitations: append([]string(nil), value.Limitations...), SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
 	}
 }
 
@@ -1160,28 +1033,6 @@ func toIdentityContextError(err error) error {
 	}
 }
 
-func fromIdentityContextError(err error) error {
-	if err == nil {
-		return nil
-	}
-	switch {
-	case errors.Is(err, identityapp.ErrValidation):
-		return ErrValidation
-	case errors.Is(err, identityapp.ErrUnauthorized), errors.Is(err, application.ErrUnauthorized):
-		return ErrUnauthorized
-	case errors.Is(err, identityapp.ErrForbidden):
-		return ErrForbidden
-	case errors.Is(err, identityapp.ErrNotFound):
-		return ErrNotFound
-	case errors.Is(err, identityapp.ErrConflict):
-		return ErrConflict
-	case errors.Is(err, identityapp.ErrVerificationFailed):
-		return ErrVerificationFailed
-	default:
-		return err
-	}
-}
-
 func cloneAPIKeyMap(values map[string]domain.APIKey) map[string]domain.APIKey {
 	result := make(map[string]domain.APIKey, len(values))
 	for key, value := range values {
@@ -1194,18 +1045,6 @@ func cloneTenantMap(values map[string]domain.Tenant) map[string]domain.Tenant {
 	result := make(map[string]domain.Tenant, len(values))
 	for key, value := range values {
 		result[key] = tenantFromIdentityContext(tenantToIdentityContext(value))
-	}
-	return result
-}
-
-func cloneSigningKeyMap(values map[string]domain.SigningKey) map[string]domain.SigningKey {
-	result := make(map[string]domain.SigningKey, len(values))
-	for id, value := range values {
-		value.Private = append([]byte(nil), value.Private...)
-		value.ValidUntil = cloneTimePtr(value.ValidUntil)
-		value.RevokedAt = cloneTimePtr(value.RevokedAt)
-		value.CompromisedAt = cloneTimePtr(value.CompromisedAt)
-		result[id] = value
 	}
 	return result
 }
@@ -1274,34 +1113,6 @@ func cloneSSOSessionMap(values map[string]domain.SSOSession) map[string]domain.S
 		result[key] = ssoSessionFromIdentityContext(ssoSessionToIdentityContext(value))
 	}
 	return result
-}
-
-func cloneIdentityAnyMap(values map[string]any) map[string]any {
-	if len(values) == 0 {
-		return nil
-	}
-	result := make(map[string]any, len(values))
-	for key, value := range values {
-		result[key] = cloneIdentityAny(value)
-	}
-	return result
-}
-
-func cloneIdentityAny(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		return cloneIdentityAnyMap(typed)
-	case []any:
-		result := make([]any, len(typed))
-		for index, item := range typed {
-			result[index] = cloneIdentityAny(item)
-		}
-		return result
-	case []string:
-		return append([]string(nil), typed...)
-	default:
-		return typed
-	}
 }
 
 func identityGrantSet(values []domain.ResourceGrant) map[string]struct{} {

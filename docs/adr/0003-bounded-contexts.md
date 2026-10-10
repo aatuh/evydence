@@ -14,11 +14,13 @@ pending EVY-905 startup/query/wrapper claims are superseded by the
 [current runtime composition](../architecture.md#current-runtime-composition).
 
 Credential generation and hash comparison belong to Identity's stateless
-`HMACAuthenticationCredentials`. The remaining legacy Identity adapter consumes
-that capability directly; Ledger-backed credential/session adapters and its
-hash method are test-only compatibility oracles. Common HTTP fixtures now use
-native bootstrap and current-row authentication; see the architecture summary
-above for the remaining aggregate-retirement and memory-test limitations.
+`HMACAuthenticationCredentials`. The broad Identity aggregate adapter, Service
+field, constructor wiring and bootstrap/authentication facades are retired from
+production source. Historical behavior remains characterized by test-only
+oracles, constructed on demand; stateless SSO verification/assurance adapters
+and necessary detached value mappings remain runtime dependencies. HTTP and
+PostgreSQL fixtures use native bootstrap and current-row authentication; see
+the architecture summary above for remaining aggregate and validation limits.
 
 ## Context
 
@@ -737,7 +739,7 @@ Current non-HTTP commands and queries are assigned by the same owner rule:
 
 | Current source surface | Owner | Required split outcome |
 | --- | --- | --- |
-| `internal/identity/app` with remaining adapters in `internal/app/identity_context_adapter.go` | Identity and access | Focused services own production commands. The membership/provider/session facade file is retired; remaining bootstrap/API-key/authentication adapters and DTO mapping still need retirement. |
+| `internal/identity/app` with stateless runtime adapters in `internal/app/identity_policy_adapter.go` and shared mappings in `internal/app/identity_context_values.go` | Identity and access | Focused services own production commands. The broad aggregate adapter, its Service field/constructor wiring, and bootstrap/authentication facades are test-only historical oracles. Stateless SSO verification, assurance policy and necessary detached mappings remain runtime dependencies. |
 | `internal/release/app`, `internal/release/query`, native platform wiring, and pure `internal/app/release_context_values.go` translations | Release catalog | Focused commands/queries own production behavior. The broad adapter, fourteen facades and three workflow input DTOs are historical test-only oracles; the service field and constructor wiring are removed. Remaining aggregate state and other context adapters still require retirement. |
 | `internal/evidence/app`, native parser adapters, and pure `internal/app/evidence_context_values.go` translations | Evidence ingestion, with decision effects emitted after commit | Focused commands own evidence/document behavior and normalization; the broad aggregate adapter and local VEX processor are test-only. Decision creation remains a separate decision command. |
 | `internal/risk/app`, `internal/risk/query`, native Package report queries and repository adapters | Vulnerability decisions and governance | Focused commands/queries own production behavior. Cached readiness, control coverage/CRA report and VEX decision/finding authority, old input DTOs, and OpenVEX wrappers are historical test-only oracles. Shared domain policies and the two detached copies in `internal/app/vex_context_values.go` remain; other aggregate retirement is incomplete. |

@@ -13,6 +13,19 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired the broad Identity aggregate adapter, its Service field and constructor
+wiring, and Ledger bootstrap/authentication facades from production source.
+Historical behavior remains in test-only oracles, constructed on demand; real
+stateless SSO verification/assurance adapters and shared detached value mappings
+remain unchanged runtime dependencies. PostgreSQL setup now uses focused
+Identity/initial-signing commands and native Store authentication. Memory-backed
+regressions cover real identity/audit/signing commits, current tenant ownership,
+activity writes, wrong peppers, cancellation, secret-safe metadata and final
+commit rollback. Existing assertions, API, storage and credential contracts are
+preserved. Remaining Verification, worker/state and aggregate cleanup plus
+required full/live validation keep EVY-906 open; compilation is not SQL restore
+or durability evidence.
+
 HTTP fixture setup no longer calls aggregate bootstrap/authentication facades.
 Shared scope seeds and direct setup callers use focused Identity/initial-signing
 commands and current-row authentication with explicit credentials and time.

@@ -11,12 +11,12 @@ import (
 // Unchanged historical declarations retained for package-local regression
 // oracles. Production API-key issuance and pages belong to focused services.
 func (l *Ledger) CreateAPIKey(ctx context.Context, actor domain.Actor, name string, scopes []string, expiresAt *time.Time) (domain.APIKey, string, error) {
-	key, secret, err := l.identityCommands.CreateAPIKey(ctx, actor, identityapp.CreateAPIKeyInput{Name: name, Scopes: scopes, ExpiresAt: expiresAt})
+	key, secret, err := l.legacyIdentityCommands().CreateAPIKey(ctx, actor, identityapp.CreateAPIKeyInput{Name: name, Scopes: scopes, ExpiresAt: expiresAt})
 	return apiKeyFromIdentityContext(key), secret, fromIdentityContextError(err)
 }
 
 func (l *Ledger) ListAPIKeys(ctx context.Context, actor domain.Actor) ([]domain.APIKey, error) {
-	keys, err := l.identityCommands.ListAPIKeys(ctx, actor)
+	keys, err := l.legacyIdentityCommands().ListAPIKeys(ctx, actor)
 	if err != nil {
 		return nil, fromIdentityContextError(err)
 	}

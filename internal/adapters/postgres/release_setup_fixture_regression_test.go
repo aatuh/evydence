@@ -21,11 +21,12 @@ func TestPostgresReleaseSetupFixtureUsesCurrentRowsAndCallerReplayTransaction(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, secret, err := ledger.BootstrapTenant(t.Context(), "Owner", "admin", []string{"*"})
+	identity := postgresIdentitySetup(base, "fixture")
+	_, _, secret, err := identity.BootstrapTenant(t.Context(), "Owner", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := ledger.Authenticate(t.Context(), secret)
+	actor, err := identity.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
 	}

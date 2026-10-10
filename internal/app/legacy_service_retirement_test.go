@@ -11,6 +11,12 @@ import (
 
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
+		"configureIdentityCommands": true, "legacyIdentityCommands": true,
+		"ledgerIdentityGrantPolicy": true, "ledgerIdentityGrantTargets": true, "ledgerIdentitySessionGrants": true,
+		"ledgerIdentityCanonicalHasher": true, "ledgerIdentityOIDCDiscovery": true,
+		"ledgerIdentityReader": true, "ledgerIdentityTransactions": true, "ledgerIdentityTransaction": true,
+		"newLedgerIdentityTransaction": true, "BootstrapTenant": true, "Authenticate": true,
+		"bootstrapTenant": true, "executeTenantBootstrap": true, "commitTenantBootstrapCompatibility": true, "bootstrapContextError": true,
 		"ledgerCredentialManager": true, "ledgerSessionCredentialManager": true, "hashSecret": true,
 		"createAPIKeyLocked": true, "newAPIKey": true,
 		"openVEXDocument": true, "openVEXStatement": true, "openVEXVulnerability": true, "openVEXProduct": true,
@@ -382,7 +388,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					if fields, ok := value.Type.(*ast.StructType); ok {
 						for _, field := range fields.Fields.List {
 							for _, fieldName := range field.Names {
-								if fieldName.Name == "packageCommands" || fieldName.Name == "evidenceCommands" {
+								if fieldName.Name == "packageCommands" || fieldName.Name == "evidenceCommands" || fieldName.Name == "identityCommands" {
 									t.Errorf("%s retains retired aggregate service field", name)
 								}
 							}

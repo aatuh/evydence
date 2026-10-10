@@ -100,8 +100,6 @@ func (s *Server) bindCollectorFixtureResources(pepper string, clock application.
 		s.authn = fixtureIdentityAuthenticator(f.ledger, pepper, clock)
 	case ssoFixtureAuthenticator:
 		s.authn = fixtureIdentityAuthenticator(f.ledger, pepper, clock)
-	case *app.Ledger:
-		s.authn = fixtureIdentityAuthenticator(f, pepper, clock)
 	}
 }
 

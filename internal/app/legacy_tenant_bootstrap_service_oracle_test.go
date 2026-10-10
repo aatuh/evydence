@@ -13,7 +13,7 @@ import (
 // Verification-owned signing-key preparation inside one durable unit of work.
 // Neither context receives mutation authority over the other's repository.
 func (l *Ledger) bootstrapTenant(ctx context.Context, input identityapp.BootstrapTenantInput) (domain.Tenant, domain.APIKey, string, error) {
-	preparedIdentity, err := l.identityCommands.PrepareTenantBootstrap(ctx, input)
+	preparedIdentity, err := l.legacyIdentityCommands().PrepareTenantBootstrap(ctx, input)
 	if err != nil {
 		return domain.Tenant{}, domain.APIKey{}, "", fromIdentityContextError(err)
 	}
@@ -40,7 +40,7 @@ func (l *Ledger) executeTenantBootstrap(ctx context.Context, identity identityap
 	identityTx := newLedgerIdentityTransaction(l)
 	verificationTx := newLedgerVerificationTransaction(l)
 	command := func(ctx context.Context) error {
-		if err := l.identityCommands.CommitTenantBootstrap(ctx, identityTx, identity); err != nil {
+		if err := l.legacyIdentityCommands().CommitTenantBootstrap(ctx, identityTx, identity); err != nil {
 			return err
 		}
 		return l.verificationCommands.CommitInitialSigningKey(ctx, verificationTx.Verification(), identity.Tenant.ID, signing)

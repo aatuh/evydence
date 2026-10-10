@@ -17,18 +17,18 @@ type CreateSSOSessionInput struct {
 }
 
 func (l *Ledger) CreateSSOSession(ctx context.Context, actor domain.Actor, in CreateSSOSessionInput) (domain.SSOSession, string, error) {
-	session, secret, err := l.identityCommands.CreateSSOSession(ctx, actor, identityapp.CreateSSOSessionInput{
+	session, secret, err := l.legacyIdentityCommands().CreateSSOSession(ctx, actor, identityapp.CreateSSOSessionInput{
 		UserID: in.UserID, ProviderID: in.ProviderID, ExpiresAt: in.ExpiresAt,
 	})
 	return ssoSessionFromIdentityContext(session), secret, fromIdentityContextError(err)
 }
 
 func (l *Ledger) RevokeSSOSession(ctx context.Context, actor domain.Actor, id string) (domain.SSOSession, error) {
-	session, err := l.identityCommands.RevokeSSOSession(ctx, actor, id)
+	session, err := l.legacyIdentityCommands().RevokeSSOSession(ctx, actor, id)
 	return ssoSessionFromIdentityContext(session), fromIdentityContextError(err)
 }
 
 func (l *Ledger) RevokeCurrentSSOSession(ctx context.Context, actor domain.Actor) (domain.SSOSession, error) {
-	session, err := l.identityCommands.RevokeCurrentSSOSession(ctx, actor)
+	session, err := l.legacyIdentityCommands().RevokeCurrentSSOSession(ctx, actor)
 	return ssoSessionFromIdentityContext(session), fromIdentityContextError(err)
 }

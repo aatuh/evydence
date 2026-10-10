@@ -19,7 +19,7 @@ import (
 // Supported API/worker paths use focused services, not these legacy oracles.
 
 func (l *Ledger) HasTenants(ctx context.Context) bool {
-	hasTenants, _ := l.identityCommands.HasTenants(ctx)
+	hasTenants, _ := l.legacyIdentityCommands().HasTenants(ctx)
 	return hasTenants
 }
 

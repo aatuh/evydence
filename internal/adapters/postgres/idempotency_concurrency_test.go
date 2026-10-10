@@ -52,17 +52,18 @@ func TestStoreConcurrentIdempotencyAcrossLedgerInstances(t *testing.T) {
 		t.Fatalf("apply migrations: %v", err)
 	}
 
-	owner, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
-	if err != nil {
-		t.Fatalf("create owner ledger: %v", err)
-	}
-	_, _, secret, err := owner.BootstrapTenant(ctx, "PostgreSQL concurrency", "admin", []string{"*"})
+	identity := postgresIdentitySetup(store, "test-pepper")
+	_, _, secret, err := identity.BootstrapTenant(ctx, "PostgreSQL concurrency", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
 	}
-	actor, err := owner.Authenticate(ctx, secret)
+	actor, err := identity.Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatalf("authenticate actor: %v", err)
+	}
+	owner, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
+	if err != nil {
+		t.Fatalf("create owner ledger: %v", err)
 	}
 	product, err := postgresReleaseSetup(owner).CreateProduct(ctx, actor, "PostgreSQL payments", "postgres-payments")
 	if err != nil {

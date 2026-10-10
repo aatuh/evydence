@@ -33,14 +33,17 @@ Derived transport fixtures inherit the configured authentication port and retain
 explicit overrides, cookie-origin checks and bearer precedence. Cache-only
 negative fixtures remain separate and do not gain repository dependencies.
 Two unused cached API-key creation helpers are historical test-only oracles.
-The remaining Identity adapter now uses context-owned HMAC credentials, not
-Ledger-backed credential/session managers or its hash method; those historical
-implementations are test-only format oracles. API-key and SSO token prefixes,
+The broad Identity aggregate adapter, its Service field and constructor wiring,
+and Ledger bootstrap/authentication facades are historical test-only oracles.
+Stateless SSO verification/assurance adapters and necessary detached value
+mappings remain in production source, with unchanged algorithms. Ledger-backed
+credential/session managers and its hash method are also test-only format
+oracles. API-key and SSO token prefixes,
 32-byte URL-safe entropy, prefix selection and persisted hashes are unchanged.
 The session fixture's API-key branch also reads current repositories and commits
 credential activity before returning a principal; it has no cached fallback.
-These fixture checks do not prove PostgreSQL locks or durability, and the
-remaining aggregate bootstrap/authentication adapters still require retirement.
+These fixture checks do not prove PostgreSQL locks or durability; Verification,
+worker, state, snapshot and remaining aggregate cleanup keep EVY-906 open.
 
 HTTP fixture setup no longer calls Ledger bootstrap or authentication facades.
 Shared evidence, membership, integration and operations seeds compose the real
@@ -54,6 +57,14 @@ checks retain zero results and full rollback. Explicit authenticators survive
 fixture rebinding. Cache-only negative fixtures copy genuine native bootstrap
 rows into their selected historical cache and still have no repository; this
 selected cache is not a complete backup or another supported runtime profile.
+
+PostgreSQL test setup likewise uses focused tenant/initial-signing commands and
+the native Store authenticator instead of Ledger identity facades. Its memory
+regression backend uses current transaction-owned rows and real activity writes,
+not an aggregate fallback. Retained historical backup/replay setup loads genuine
+committed bootstrap rows; unused restored-instance Ledger constructions are
+removed. This does not retire the remaining backup-generation aggregate adapter
+or establish live PostgreSQL restore/concurrency evidence by compilation alone.
 
 ## Current runtime composition
 

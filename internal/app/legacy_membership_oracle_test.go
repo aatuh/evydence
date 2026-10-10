@@ -29,24 +29,24 @@ type CreateRoleBindingInput struct {
 }
 
 func (l *Ledger) CreateOrganization(ctx context.Context, actor domain.Actor, in CreateOrganizationInput) (domain.Organization, error) {
-	organization, err := l.identityCommands.CreateOrganization(ctx, actor, identityapp.CreateOrganizationInput{Name: in.Name, Slug: in.Slug})
+	organization, err := l.legacyIdentityCommands().CreateOrganization(ctx, actor, identityapp.CreateOrganizationInput{Name: in.Name, Slug: in.Slug})
 	return organizationFromIdentityContext(organization), fromIdentityContextError(err)
 }
 
 func (l *Ledger) CreateUser(ctx context.Context, actor domain.Actor, in CreateUserInput) (domain.HumanUser, error) {
-	user, err := l.identityCommands.CreateUser(ctx, actor, identityapp.CreateUserInput{
+	user, err := l.legacyIdentityCommands().CreateUser(ctx, actor, identityapp.CreateUserInput{
 		OrganizationID: in.OrganizationID, Email: in.Email, DisplayName: in.DisplayName,
 	})
 	return humanUserFromIdentityContext(user), fromIdentityContextError(err)
 }
 
 func (l *Ledger) DeactivateUser(ctx context.Context, actor domain.Actor, id string) (domain.HumanUser, error) {
-	user, err := l.identityCommands.DeactivateUser(ctx, actor, id)
+	user, err := l.legacyIdentityCommands().DeactivateUser(ctx, actor, id)
 	return humanUserFromIdentityContext(user), fromIdentityContextError(err)
 }
 
 func (l *Ledger) CreateRoleBinding(ctx context.Context, actor domain.Actor, in CreateRoleBindingInput) (domain.RoleBinding, error) {
-	binding, err := l.identityCommands.CreateRoleBinding(ctx, actor, identityapp.CreateRoleBindingInput{
+	binding, err := l.legacyIdentityCommands().CreateRoleBinding(ctx, actor, identityapp.CreateRoleBindingInput{
 		SubjectType: in.SubjectType, SubjectID: in.SubjectID, Role: in.Role,
 		ResourceType: in.ResourceType, ResourceID: in.ResourceID,
 	})
@@ -54,7 +54,7 @@ func (l *Ledger) CreateRoleBinding(ctx context.Context, actor domain.Actor, in C
 }
 
 func (l *Ledger) ListRoleBindings(ctx context.Context, actor domain.Actor) ([]domain.RoleBinding, error) {
-	bindings, err := l.identityCommands.ListRoleBindings(ctx, actor)
+	bindings, err := l.legacyIdentityCommands().ListRoleBindings(ctx, actor)
 	if err != nil {
 		return nil, fromIdentityContextError(err)
 	}

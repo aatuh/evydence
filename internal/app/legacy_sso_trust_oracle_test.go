@@ -15,13 +15,13 @@ type UpdateSSOProviderTrustMaterialInput struct {
 }
 
 func (l *Ledger) UpdateSSOProviderTrustMaterial(ctx context.Context, actor domain.Actor, id string, in UpdateSSOProviderTrustMaterialInput) (domain.SSOProvider, error) {
-	provider, err := l.identityCommands.UpdateSSOProviderTrustMaterial(ctx, actor, id, identityapp.UpdateSSOProviderTrustMaterialInput{
+	provider, err := l.legacyIdentityCommands().UpdateSSOProviderTrustMaterial(ctx, actor, id, identityapp.UpdateSSOProviderTrustMaterialInput{
 		JWKS: cloneIdentityAnyMap(in.JWKS), SAMLSigningCertificates: append([]string(nil), in.SAMLSigningCertificates...),
 	})
 	return ssoProviderFromIdentityContext(provider), fromIdentityContextError(err)
 }
 
 func (l *Ledger) RefreshSSOProviderOIDCTrustMaterial(ctx context.Context, actor domain.Actor, id string) (domain.SSOProvider, error) {
-	provider, err := l.identityCommands.RefreshSSOProviderOIDCTrustMaterial(ctx, actor, id)
+	provider, err := l.legacyIdentityCommands().RefreshSSOProviderOIDCTrustMaterial(ctx, actor, id)
 	return ssoProviderFromIdentityContext(provider), fromIdentityContextError(err)
 }

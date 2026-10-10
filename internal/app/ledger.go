@@ -108,7 +108,6 @@ type Ledger struct {
 	workerOwnedParsers     bool
 	buildAttestationParser releaseapp.BuildAttestationParser
 	dssePolicyVerifier     verificationapp.DSSEPolicyVerifier
-	identityCommands       *identityapp.Service
 	verificationCommands   *verificationapp.Service
 
 	tenants               map[string]domain.Tenant
@@ -368,9 +367,6 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 			}
 		}
 	}
-	if err := ledger.configureIdentityCommands(); err != nil {
-		return nil, err
-	}
 	if err := ledger.configureVerificationCommands(); err != nil {
 		return nil, err
 	}
@@ -385,17 +381,6 @@ func evidencePageStore(store Store) EvidencePageStore {
 func workerProjectionStore(store Store) WorkerProjectionStore {
 	projections, _ := store.(WorkerProjectionStore)
 	return projections
-}
-
-func (l *Ledger) BootstrapTenant(ctx context.Context, name, keyName string, scopes []string) (domain.Tenant, domain.APIKey, string, error) {
-	return l.bootstrapTenant(ctx, identityapp.BootstrapTenantInput{
-		TenantName: name, APIKeyName: keyName, Scopes: scopes,
-	})
-}
-
-func (l *Ledger) Authenticate(ctx context.Context, secret string) (domain.Actor, error) {
-	actor, err := l.identityCommands.Authenticate(ctx, secret)
-	return actor, fromIdentityContextError(err)
 }
 
 type CreateEvidenceInput struct {

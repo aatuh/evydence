@@ -283,17 +283,18 @@ func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
 	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _, secret, err := ledger.BootstrapTenant(ctx, "Atomic idempotency", "admin", []string{"*"})
+	identity := postgresIdentitySetup(store, "test-pepper")
+	_, _, secret, err := identity.BootstrapTenant(ctx, "Atomic idempotency", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
 	}
-	actor, err := ledger.Authenticate(ctx, secret)
+	actor, err := identity.Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatalf("authenticate actor: %v", err)
+	}
+	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	commandErr := errors.New("force transactional rollback")
@@ -1692,15 +1693,17 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	identity := postgresIdentitySetup(sourceStore, "test-pepper")
+	_, _, secret, err := identity.BootstrapTenant(ctx, "Restore Tenant", "admin", []string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := identity.Authenticate(ctx, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Retained backup/replay setup reads the actual committed root records.
 	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _, secret, err := ledger.BootstrapTenant(ctx, "Restore Tenant", "admin", []string{"*"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	actor, err := ledger.Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1759,11 +1762,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := newLegacyLedgerFixtureWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: targetStore, ObjectStore: targetObjects})
-	if err != nil {
-		t.Fatal(err)
-	}
-	restoredActor, err := restored.Authenticate(ctx, secret)
+	restoredActor, err := postgresIdentitySetup(targetStore, "test-pepper").Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
