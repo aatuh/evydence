@@ -96,7 +96,7 @@ func TestStoreConcurrentIdempotencyAcrossLedgerInstances(t *testing.T) {
 			ready <- struct{}{}
 			<-start
 			status, response, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/release-bundles", "postgres-concurrent-release-bundle", body, func(commandCtx context.Context, commandLedger *app.Ledger) (int, any, error) {
-				bundle, err := commandLedger.CreateReleaseBundle(commandCtx, actor, release.ID)
+				bundle, err := createReleaseBundleFixture(commandCtx, store, actor, release.ID)
 				return 201, bundle, err
 			})
 			results <- postgresConcurrentIdempotencyResult{status: status, response: response, err: err}

@@ -35,6 +35,13 @@ preserving inert metadata reports, target-tenant import receipts and atomic
 audit/rollback behavior. Native API and persisted contracts are unchanged;
 remaining aggregate retirement is still EVY-906 work.
 
+Retired Ledger release-bundle creation and replay-guard facades from production
+source. Creation/verification fixtures now use current repository snapshots,
+local signing keys and scoped public verification material, with atomic
+signature/bundle/audit/job and receipt/audit/job effects. Recovery and concurrency
+seeds also use focused creation. Native API and persisted contracts are unchanged;
+memory fixtures remain test-only, and broader Ledger retirement is unfinished.
+
 Customer-visible vulnerability-decision summaries now fail closed above 4,096
 selected decisions or an 8 MiB selected text/encoded-container budget, before
 PostgreSQL transfers decision metadata. Oversized summaries return no partial

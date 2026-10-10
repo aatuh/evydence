@@ -18,6 +18,18 @@ func readMemoryCustomerPackageRetention(ctx context.Context, s *MemoryUnitOfWork
 	if err := validateMemoryCustomerSnapshotRead(ctx, s, tenant, product, release, budget); err != nil {
 		return nil, err
 	}
+	return readMemoryPublicRetention(ctx, s, tenant, at, budget, packageapp.MaxBundleSnapshotRows)
+}
+
+// Public retention observations shared by customer and bundle snapshots. The
+// caller validates its own roots in the same typed transaction view.
+func readMemoryPublicRetention(ctx context.Context, s *MemoryUnitOfWorkSnapshot, tenant string, at time.Time, budget *memoryCustomerSnapshotBudget, rowLimit int) ([]map[string]any, error) {
+	if ctx == nil || s == nil || budget == nil || rowLimit < 0 || rowLimit > packageapp.MaxBundleSnapshotRows {
+		return nil, ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	at = at.UTC()
 	if at.IsZero() || at.Year() < 1 || at.Year() > 9999 {
 		return nil, ErrValidation
@@ -32,7 +44,7 @@ func readMemoryCustomerPackageRetention(ctx context.Context, s *MemoryUnitOfWork
 		if p.TenantID != tenant {
 			continue
 		}
-		if p.ID != key || !memoryCustomerSnapshotID(key, false) || len(policies) == packageapp.MaxBundleSnapshotRows || p.RetentionDays < 0 || p.VerificationRetentionDays < 0 || len(p.VerificationChecks) > 4096-details || len(p.VerificationLimitations) > 4096-details-len(p.VerificationChecks) {
+		if p.ID != key || !memoryCustomerSnapshotID(key, false) || len(policies) == rowLimit || p.RetentionDays < 0 || p.VerificationRetentionDays < 0 || len(p.VerificationChecks) > 4096-details || len(p.VerificationLimitations) > 4096-details-len(p.VerificationChecks) {
 			return nil, ErrConflict
 		}
 		details += len(p.VerificationChecks) + len(p.VerificationLimitations)

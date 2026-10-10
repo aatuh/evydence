@@ -1108,7 +1108,7 @@ func TestOutboxOperatorHTTPRequiresInstanceAdminAndOmitsPayloads(t *testing.T) {
 }
 
 func TestReleaseBundleVerifyFlow(t *testing.T) {
-	server, secret := testServer(t)
+	server, secret := governanceTestServer(t)
 	productBody := postJSON(t, server, secret, "/v1/products", "prod", map[string]any{"name": "Payments", "slug": "payments"}, http.StatusCreated)
 	productID := dataField(t, productBody, "id")
 	releaseBody := postJSON(t, server, secret, "/v1/releases", "rel", map[string]any{"product_id": productID, "version": "1.0.0"}, http.StatusCreated)
@@ -1128,6 +1128,10 @@ func TestReleaseBundleVerifyFlow(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"result":"passed"`) {
 		t.Fatalf("verify did not pass: %s", rec.Body.String())
+	}
+	verified := postJSON(t, server, secret, "/v1/verify", "bundle-verify", map[string]any{"subject_type": "release_bundle", "subject_id": bundleID}, http.StatusOK)
+	if !strings.Contains(verified, `"result":"passed"`) {
+		t.Fatalf("POST verification did not pass: %s", verified)
 	}
 }
 

@@ -45,14 +45,10 @@ func (f packageFixtureCommands) ExportEvidenceBundle(ctx context.Context, actor 
 }
 
 func (f packageFixtureCommands) AuthorizeReleaseBundleCreation(ctx context.Context, actor domain.Actor, release string) error {
-	return f.commandLedger(ctx).AuthorizeReleaseBundleCreation(ctx, actor, release)
+	return (releaseBundleFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeReleaseBundleCreation(ctx, actor, release)
 }
 func (f packageFixtureCommands) CreateReleaseBundle(ctx context.Context, actor domain.Actor, release string) (packagedomain.ReleaseBundle, error) {
-	value, err := f.commandLedger(ctx).CreateReleaseBundle(ctx, actor, release)
-	if err != nil {
-		return packagedomain.ReleaseBundle{}, err
-	}
-	return domain.ReleaseBundleToContextModel(value)
+	return (releaseBundleFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateReleaseBundle(ctx, actor, release)
 }
 
 func (f packageFixtureCommands) AuthorizeCreateCustomerSecurityPackage(ctx context.Context, actor domain.Actor, input packageapp.CreateCustomerPackageInput) error {
@@ -134,8 +130,11 @@ func (s *Server) bindPackageFixturePorts(ledger *app.Ledger) {
 	if _, fixture := s.evidenceBundleCommands.(packageFixtureCommands); s.evidenceBundleCommands == nil || fixture {
 		s.evidenceBundleCommands = commands
 	}
-	if _, fixture := s.releaseBundleCommands.(packageFixtureCommands); s.releaseBundleCommands == nil || fixture {
-		s.releaseBundleCommands = commands
+	if old, fixture := s.releaseBundleCommands.(releaseBundleFixtureCommands); fixture {
+		old.ledger = ledger
+		s.releaseBundleCommands = old
+	} else if _, legacy := s.releaseBundleCommands.(packageFixtureCommands); s.releaseBundleCommands == nil || legacy {
+		s.releaseBundleCommands = releaseBundleFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
 	if old, ok := s.customerPackageCreationCommands.(customerPackageFixtureCommands); ok {
 		old.ledger = ledger

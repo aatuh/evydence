@@ -73,7 +73,7 @@ func seedPackageReportFixtureScope(t *testing.T, ledger *app.Ledger, name string
 		t.Fatal("report remediation task:", err)
 	}
 	f.task = domain.RemediationTask(task)
-	f.bundle, err = ledger.CreateReleaseBundle(t.Context(), f.actor, f.release.ID)
+	f.bundle, err = createReleaseBundleFixture(t.Context(), ledger, f.actor, f.release.ID, f.release.CreatedAt)
 	if err != nil {
 		t.Fatal("report bundle:", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -18,10 +19,16 @@ import (
 type verificationCommandFixture struct{ catalogFixtureCommands }
 
 func (f verificationCommandFixture) AuthorizeSubjectVerification(ctx context.Context, actor domain.Actor, kind, id string) error {
+	if strings.TrimSpace(kind) == "release_bundle" {
+		return f.authorizeCurrentReleaseBundle(ctx, actor, id)
+	}
 	return f.commandLedger(ctx).AuthorizeSubjectVerification(ctx, actor, kind, id)
 }
 
 func (f verificationCommandFixture) VerifySubject(ctx context.Context, actor domain.Actor, kind, id string) (verificationdomain.VerificationResult, error) {
+	if strings.TrimSpace(kind) == "release_bundle" {
+		return f.verifyCurrentReleaseBundle(ctx, actor, id)
+	}
 	value, err := f.commandLedger(ctx).VerifySubject(ctx, actor, kind, id)
 	return fixtureVerificationResult(value, err)
 }

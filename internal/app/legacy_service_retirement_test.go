@@ -203,6 +203,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"AccessCustomerSecurityPackage": true, "SecurityReviewPackageReport": true, "ExportCustomerSecurityPackageArchive": true,
 		"CreateCustomReportTemplate": true, "RenderCustomReport": true, "ImportEvidenceBundle": true,
 		"AuthorizeReportTemplateCreation": true, "AuthorizeReportRendering": true, "AuthorizeBundleImport": true,
+		"CreateReleaseBundle": true, "AuthorizeReleaseBundleCreation": true,
 		"CreateSBOMDiff": true, "CreateContractDiff": true,
 		"AuthorizeControlFrameworkCreation": true, "AuthorizeSecurityControlCreation": true,
 		"authorizeLocalControlCreationScope": true, "AuthorizeControlTemplateInstallation": true,

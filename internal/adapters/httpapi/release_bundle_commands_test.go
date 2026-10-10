@@ -22,7 +22,7 @@ type releaseBundleHTTPFake struct {
 
 func TestReleaseBundleHTTPBothProfilesCookiesAndLocalReplayGrant(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		base, secret := testServer(t)
+		base, secret := governanceTestServer(t)
 		product := postJSON(t, base, secret, "/v1/products", "bundle-product", map[string]any{"name": "Product", "slug": "bundle-product"}, 201)
 		p := dataField(t, product, "id")
 		release := postJSON(t, base, secret, "/v1/releases", "bundle-release", map[string]any{"product_id": p, "version": "1"}, 201)

@@ -107,7 +107,7 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err := app.FinalizeStagedObjectPayload(ctx, sourceStore, sourceObjects, actor.TenantID, "sha256:"+hex.EncodeToString(sum[:])); err != nil {
 		t.Fatalf("finalize paired source payload: %v", err)
 	}
-	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
+	bundle, err := createReleaseBundleFixture(ctx, sourceStore, actor, release.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

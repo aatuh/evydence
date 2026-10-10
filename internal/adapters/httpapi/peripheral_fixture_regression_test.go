@@ -39,7 +39,7 @@ func seedPeripheralFixtureScope(t *testing.T, ledger *app.Ledger, name string) p
 	if err != nil {
 		t.Fatal(err)
 	}
-	bundle, err := ledger.CreateReleaseBundle(t.Context(), f.actor, f.release.ID)
+	bundle, err := createReleaseBundleFixture(t.Context(), ledger, f.actor, f.release.ID, f.release.CreatedAt)
 	if err != nil || len(bundle.SignatureRefs) != 1 {
 		t.Fatal("seed signed bundle", err)
 	}
