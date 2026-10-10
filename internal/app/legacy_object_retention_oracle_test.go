@@ -19,7 +19,7 @@ type CreateObjectRetentionPolicyInput struct {
 }
 
 func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.Actor, in CreateObjectRetentionPolicyInput) (domain.ObjectRetentionPolicy, error) {
-	value, err := l.verificationCommands.CreateObjectRetentionPolicy(ctx, actor, verificationapp.CreateObjectRetentionPolicyInput{
+	value, err := l.legacyVerificationCommands().CreateObjectRetentionPolicy(ctx, actor, verificationapp.CreateObjectRetentionPolicyInput{
 		Name: in.Name, ObjectPrefix: in.ObjectPrefix, ObjectKey: in.ObjectKey, Mode: in.Mode,
 		RetentionDays: in.RetentionDays, MaxVerificationAgeHours: in.MaxVerificationAgeHours,
 		RequireLegalHold: in.RequireLegalHold,
@@ -28,6 +28,6 @@ func (l *Ledger) CreateObjectRetentionPolicy(ctx context.Context, actor domain.A
 }
 
 func (l *Ledger) VerifyObjectRetentionPolicy(ctx context.Context, actor domain.Actor, id string) (domain.ObjectRetentionPolicy, error) {
-	value, err := l.verificationCommands.VerifyObjectRetentionPolicy(ctx, actor, id)
+	value, err := l.legacyVerificationCommands().VerifyObjectRetentionPolicy(ctx, actor, id)
 	return objectRetentionPolicyFromVerificationContext(value), fromVerificationContextError(err)
 }

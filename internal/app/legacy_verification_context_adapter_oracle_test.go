@@ -17,7 +17,8 @@ import (
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
-func (l *Ledger) configureVerificationCommands() error {
+// Historical characterization only; no production Service field or constructor wiring.
+func (l *Ledger) legacyVerificationCommands() *verificationapp.Service {
 	service, err := verificationapp.NewService(verificationapp.Config{
 		Subjects: ledgerVerificationSubjects{ledger: l}, Inspector: ledgerVerificationInspector{ledger: l},
 		CosignSubjects: ledgerVerificationCosign{ledger: l}, CosignInspector: ledgerVerificationCosign{ledger: l},
@@ -28,10 +29,9 @@ func (l *Ledger) configureVerificationCommands() error {
 		Clock: application.ClockFunc(l.now), IDs: application.IDGeneratorFunc(newID),
 	})
 	if err != nil {
-		return err
+		panic(err)
 	}
-	l.verificationCommands = service
-	return nil
+	return service
 }
 
 type ledgerVerificationSubjects struct{ ledger *Ledger }
@@ -1223,15 +1223,6 @@ func transparencyCheckpointFromVerificationContext(value verificationdomain.Tran
 		ID: value.ID, TenantID: value.TenantID, BatchID: value.BatchID, Provider: value.Provider,
 		ExternalURL: value.ExternalURL, ExternalID: value.ExternalID, TimestampHash: value.TimestampHash,
 		State: value.State, SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt,
-	}
-}
-
-func verificationProfileFromContext(value verificationdomain.VerificationProfile) domain.VerificationProfile {
-	return domain.VerificationProfile{
-		ID: value.ID, Version: value.Version, RequiredChecks: append([]string(nil), value.RequiredChecks...),
-		TrustMaterial: append([]string(nil), value.TrustMaterial...), IdentityPolicy: value.IdentityPolicy,
-		TransparencyProof: value.TransparencyProof, PayloadScope: value.PayloadScope, PayloadDigest: value.PayloadDigest,
-		Limitations: append([]string(nil), value.Limitations...),
 	}
 }
 

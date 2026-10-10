@@ -7,7 +7,7 @@ import (
 )
 
 func (l *Ledger) ListSigningKeys(ctx context.Context, actor domain.Actor) ([]domain.SigningKey, error) {
-	values, err := l.verificationCommands.ListSigningKeys(ctx, actor)
+	values, err := l.legacyVerificationCommands().ListSigningKeys(ctx, actor)
 	if err != nil {
 		return nil, fromVerificationContextError(err)
 	}

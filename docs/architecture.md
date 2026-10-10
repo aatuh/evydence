@@ -42,8 +42,8 @@ oracles. API-key and SSO token prefixes,
 32-byte URL-safe entropy, prefix selection and persisted hashes are unchanged.
 The session fixture's API-key branch also reads current repositories and commits
 credential activity before returning a principal; it has no cached fallback.
-These fixture checks do not prove PostgreSQL locks or durability; Verification,
-worker, state, snapshot and remaining aggregate cleanup keep EVY-906 open.
+These fixture checks do not prove PostgreSQL locks or durability; worker,
+state, snapshot and remaining aggregate cleanup keep EVY-906 open.
 
 HTTP fixture setup no longer calls Ledger bootstrap or authentication facades.
 Shared evidence, membership, integration and operations seeds compose the real
@@ -69,9 +69,22 @@ closed when a backend lacks the complete commitment capability; the memory
 backend cannot manufacture a v2 profile from its partial snapshot. Existing
 restore assertions remain, with additional native schema/tenant/count checks.
 Historical replay setup elsewhere still loads genuine committed bootstrap rows.
-The HTTP fixture's legacy backup generator and broad Verification adapter remain
-open retirement work. Compilation and memory tests do not establish live
-PostgreSQL restore/concurrency evidence.
+Compilation and memory tests do not establish live PostgreSQL restore/concurrency
+evidence.
+
+The broad Verification aggregate adapter, its Service field and constructor
+wiring, and Ledger backup-generation facade are now historical test-only
+oracles, constructed on demand. Stateless audit canonicalization and detached
+profile translation remain runtime dependencies, with unchanged algorithms.
+HTTP backup fixtures compose the actual v2 generator and current audit reader,
+authority checks and transactional manifest/audit writes. Their commitment port
+is an explicit test double with a fixed synthetic digest, not a digest of a
+partial memory snapshot or proof of the PostgreSQL profile. Guards and saved
+replays do not read that commitment. Foreign, malformed and inconsistent
+commitments, cancellation and final commit failure return no manifest or partial
+effects. The complete 98-resource reader and SQL recovery behavior require live
+PostgreSQL validation; physical worker/state/snapshot retirement and ticket-wide
+gates still keep EVY-906 open.
 
 ## Current runtime composition
 

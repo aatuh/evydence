@@ -54,19 +54,19 @@ func (l *Ledger) AuthorizeSigningKeyRevocation(ctx context.Context, a domain.Act
 }
 
 func (l *Ledger) RotateSigningKey(ctx context.Context, actor domain.Actor, reason string) (domain.SigningKey, error) {
-	value, err := l.verificationCommands.RotateSigningKey(ctx, actor, reason)
+	value, err := l.legacyVerificationCommands().RotateSigningKey(ctx, actor, reason)
 	return signingKeyFromVerificationContext(value, nil), fromVerificationContextError(err)
 }
 
 func (l *Ledger) RevokeSigningKeyWithPolicy(ctx context.Context, actor domain.Actor, keyID string, in SigningKeyRevocationInput) (domain.SigningKey, error) {
-	value, err := l.verificationCommands.RevokeSigningKey(ctx, actor, keyID, verificationapp.SigningKeyRevocationInput{
+	value, err := l.legacyVerificationCommands().RevokeSigningKey(ctx, actor, keyID, verificationapp.SigningKeyRevocationInput{
 		Reason: in.Reason, Semantics: in.Semantics, HistoricalValidityPolicy: in.HistoricalValidityPolicy,
 	})
 	return signingKeyFromVerificationContext(value, nil), fromVerificationContextError(err)
 }
 
 func (l *Ledger) CreateSigningProvider(ctx context.Context, actor domain.Actor, in CreateSigningProviderInput) (domain.SigningProvider, error) {
-	value, err := l.verificationCommands.CreateSigningProvider(ctx, actor, verificationapp.CreateSigningProviderInput{
+	value, err := l.legacyVerificationCommands().CreateSigningProvider(ctx, actor, verificationapp.CreateSigningProviderInput{
 		Name: in.Name, Type: in.Type, KeyRef: in.KeyRef, Encrypted: in.Encrypted,
 	})
 	return signingProviderFromVerificationService(value), fromVerificationContextError(err)
@@ -76,7 +76,7 @@ func signingProviderFromVerificationService(value verificationdomain.SigningProv
 	return domain.SigningProviderFromContextModel(value)
 }
 func (l *Ledger) CreateDSSETrustRoot(ctx context.Context, actor domain.Actor, in CreateDSSETrustRootInput) (domain.DSSETrustRoot, error) {
-	value, err := l.verificationCommands.CreateDSSETrustRoot(ctx, actor, verificationapp.CreateDSSETrustRootInput{
+	value, err := l.legacyVerificationCommands().CreateDSSETrustRoot(ctx, actor, verificationapp.CreateDSSETrustRootInput{
 		Name: in.Name, KeyID: in.KeyID, Algorithm: in.Algorithm, PublicKey: in.PublicKey,
 		AllowedPredicateTypes: append([]string(nil), in.AllowedPredicateTypes...),
 		ExpectedBuilderIDs:    append([]string(nil), in.ExpectedBuilderIDs...), RequiredClaims: append([]string(nil), in.RequiredClaims...),

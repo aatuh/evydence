@@ -8,12 +8,17 @@ import (
 
 const auditChainEntryLegacySchemaVersion = verificationapp.AuditChainEntryLegacySchemaVersion
 
+// Stateless canonicalization shared by repository-backed audit checks.
+type auditCanonicalHasher struct{}
+
+func (auditCanonicalHasher) Hash(value any) (string, error) { return canonicalAnyHash(value) }
+
 func canonicalAuditChainEntryHash(entry domain.AuditChainEntry) (string, error) {
-	return verificationapp.CanonicalAuditChainEntryHash(verificationdomain.AuditChainEntry(entry), ledgerVerificationHasher{})
+	return verificationapp.CanonicalAuditChainEntryHash(verificationdomain.AuditChainEntry(entry), auditCanonicalHasher{})
 }
 
 func verifiedAuditChainCanonicalHash(entry domain.AuditChainEntry) (string, bool, error) {
-	return verificationapp.VerifiedAuditChainCanonicalHash(verificationdomain.AuditChainEntry(entry), ledgerVerificationHasher{})
+	return verificationapp.VerifiedAuditChainCanonicalHash(verificationdomain.AuditChainEntry(entry), auditCanonicalHasher{})
 }
 
 // VerifyAuditChainEntryHash validates one immutable fact, not chain coverage,

@@ -8,7 +8,7 @@ import (
 )
 
 func (l *Ledger) SigningCustodyReviewReport(ctx context.Context, actor domain.Actor) (domain.SigningCustodyReviewReport, error) {
-	value, err := l.verificationCommands.SigningCustodyReviewReport(ctx, actor)
+	value, err := l.legacyVerificationCommands().SigningCustodyReviewReport(ctx, actor)
 	return signingCustodyReviewReportFromVerificationContext(value), fromVerificationContextError(err)
 }
 

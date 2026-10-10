@@ -17,7 +17,7 @@ func (l *Ledger) bootstrapTenant(ctx context.Context, input identityapp.Bootstra
 	if err != nil {
 		return domain.Tenant{}, domain.APIKey{}, "", fromIdentityContextError(err)
 	}
-	preparedSigning, err := l.verificationCommands.PrepareInitialSigningKey(ctx, preparedIdentity.Tenant.ID)
+	preparedSigning, err := l.legacyVerificationCommands().PrepareInitialSigningKey(ctx, preparedIdentity.Tenant.ID)
 	if err != nil {
 		return domain.Tenant{}, domain.APIKey{}, "", fromVerificationContextError(err)
 	}
@@ -43,7 +43,7 @@ func (l *Ledger) executeTenantBootstrap(ctx context.Context, identity identityap
 		if err := l.legacyIdentityCommands().CommitTenantBootstrap(ctx, identityTx, identity); err != nil {
 			return err
 		}
-		return l.verificationCommands.CommitInitialSigningKey(ctx, verificationTx.Verification(), identity.Tenant.ID, signing)
+		return l.legacyVerificationCommands().CommitInitialSigningKey(ctx, verificationTx.Verification(), identity.Tenant.ID, signing)
 	}
 
 	if l.unitOfWork != nil {

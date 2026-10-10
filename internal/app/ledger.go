@@ -108,7 +108,6 @@ type Ledger struct {
 	workerOwnedParsers     bool
 	buildAttestationParser releaseapp.BuildAttestationParser
 	dssePolicyVerifier     verificationapp.DSSEPolicyVerifier
-	verificationCommands   *verificationapp.Service
 
 	tenants               map[string]domain.Tenant
 	organizations         map[string]domain.Organization
@@ -366,9 +365,6 @@ func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
 				return nil, err
 			}
 		}
-	}
-	if err := ledger.configureVerificationCommands(); err != nil {
-		return nil, err
 	}
 	return ledger, nil
 }

@@ -23,7 +23,7 @@ func TestLocalSubjectVerificationReplayUsesCurrentScopeWithoutInspection(t *test
 	l.artifacts["artifact"] = domain.Artifact{ID: "artifact", TenantID: a.TenantID}
 	l.artifactSigs["signature"] = domain.ArtifactSignature{ID: "signature", TenantID: a.TenantID, ArtifactID: "artifact"}
 	before := len(l.chain[a.TenantID])
-	l.verificationCommands = nil
+	assertNoLegacyVerificationServiceField(t, l)
 	l.now = func() time.Time { panic("guard used clock/inspector") }
 	guard, ok := any(l).(interface {
 		AuthorizeSubjectVerification(context.Context, domain.Actor, string, string) error

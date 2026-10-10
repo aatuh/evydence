@@ -18,7 +18,8 @@ import (
 // They do not emulate PostgreSQL ownership locks or its v2 backup commitment.
 type verificationCommandFixture struct {
 	catalogFixtureCommands
-	dsseObjects app.BoundedObjectReader
+	dsseObjects      app.BoundedObjectReader
+	backupCommitment backupGenerationContractCommitment
 }
 
 func (f verificationCommandFixture) AuthorizeSubjectVerification(ctx context.Context, actor domain.Actor, kind, id string) error {
@@ -135,7 +136,14 @@ func (f verificationCommandFixture) VerifyCosign(ctx context.Context, actor doma
 }
 
 func (f verificationCommandFixture) AuthorizeBackupGeneration(ctx context.Context, actor domain.Actor) error {
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopeAdmin)
+	if err := application.AuthorizeTenantWideScope(ctx, actor, app.ScopeAdmin); err != nil {
+		return err
+	}
+	c, err := f.nativeBackupGeneration()
+	if err != nil {
+		return mapVerificationCommandError(err)
+	}
+	return mapVerificationCommandError(c.AuthorizeBackupGeneration(ctx, actor))
 }
 
 func fixtureBackupManifest(value domain.BackupManifest) verificationdomain.BackupManifest {
@@ -151,11 +159,12 @@ func fixtureBackupManifest(value domain.BackupManifest) verificationdomain.Backu
 }
 
 func (f verificationCommandFixture) GenerateBackupManifest(ctx context.Context, actor domain.Actor) (verificationdomain.BackupManifest, error) {
-	value, err := f.commandLedger(ctx).GenerateBackupManifest(ctx, actor)
+	c, err := f.nativeBackupGeneration()
 	if err != nil {
-		return verificationdomain.BackupManifest{}, err
+		return verificationdomain.BackupManifest{}, mapVerificationCommandError(err)
 	}
-	return fixtureBackupManifest(value), nil
+	value, err := c.GenerateBackupManifest(ctx, actor)
+	return value, mapVerificationCommandError(err)
 }
 
 func (f verificationCommandFixture) AuthorizeMerkleCreation(ctx context.Context, actor domain.Actor) error {

@@ -23,7 +23,6 @@ Purpose: keep the production persistence story inspectable while Evydence contin
 | identity and idempotency | `internal/app/idempotency.go` | `failInMemoryIdempotency` | `persistCriticalStateLocked` |
 | identity and idempotency | `internal/app/idempotency.go` | `reserveInMemoryIdempotency` | `persistCriticalStateLocked` |
 | identity and idempotency | `internal/app/idempotency.go` | `reserveInMemoryIdempotency` | `persistCriticalStateLocked` |
-| verification and signing | `internal/app/verification_context_adapter.go` | `commitCompatibility` | `persistCriticalLocked` |
 
 ## Focused Release And Evidence Mutations
 

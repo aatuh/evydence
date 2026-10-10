@@ -18,7 +18,7 @@ func TestLocalDSSEReplayGuardPreservesScopedGrantsWithoutInspection(t *testing.T
 	l.attestations["attestation"] = domain.BuildAttestation{ID: "attestation", TenantID: a.TenantID, BuildID: "build", EvidenceID: "evidence", PayloadRef: strings.Repeat("private-location", 700000)}
 	l.evidence["evidence"] = domain.EvidenceItem{ID: "evidence", TenantID: a.TenantID, ProductID: release.ProductID, ProjectID: "project", ReleaseID: release.ID, BuildID: "build"}
 	beforeAudits := len(l.chain[a.TenantID])
-	l.verificationCommands = nil
+	assertNoLegacyVerificationServiceField(t, l)
 	l.now = func() time.Time { panic("replay guard consulted clock") }
 	guard, ok := any(l).(interface {
 		AuthorizeDSSEVerification(context.Context, domain.Actor, string) error

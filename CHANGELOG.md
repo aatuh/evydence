@@ -13,6 +13,19 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Retired the broad Verification aggregate adapter, its Service field and
+constructor wiring, and Ledger backup-generation facade from production source.
+Historical characterization remains test-only and constructs the adapter on
+demand; stateless audit hashing and profile translation retain their algorithms.
+HTTP backup fixtures now exercise the native v2 generator with real current
+audit/authority/writes and an explicitly synthetic commitment-port test double.
+They do not claim a complete memory commitment. Additional regressions cover
+read-only guards, replay without regeneration, detached stored results,
+foreign/invalid commitments, cancellation and commit rollback. Production API,
+storage, immutable hash and recovery contracts are unchanged. Remaining
+worker/state/snapshot retirement and required full/race/live gates keep EVY-906
+open; no SQL durability or restore claim follows from these fixture tests.
+
 PostgreSQL recovery fixtures now generate backup manifests with the focused v2
 command and actual complete commitment/audit readers, not the Ledger facade.
 Their release setup uses the transaction factory directly; two unused Ledger
@@ -20,9 +33,8 @@ constructions are removed. Existing restore assertions remain unchanged, with
 additional v2 schema, tenant and evidence/bundle count checks. A regression
 rejects incomplete memory commitment capabilities without returning a manifest
 or writing state; no partial snapshot is labeled a full backup profile.
-Production contracts are unchanged. The remaining HTTP backup fixture,
-Verification adapter and aggregate cleanup keep EVY-906 open; live recovery
-validation is still required.
+Production contracts are unchanged. Remaining aggregate cleanup keeps EVY-906
+open; live recovery validation is still required.
 
 Retired the broad Identity aggregate adapter, its Service field and constructor
 wiring, and Ledger bootstrap/authentication facades from production source.

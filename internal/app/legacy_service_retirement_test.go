@@ -5,13 +5,29 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
 
+func assertNoLegacyVerificationServiceField(t *testing.T, ledger *Ledger) {
+	t.Helper()
+	if _, exists := reflect.TypeOf(ledger).Elem().FieldByName("verificationCommands"); exists {
+		t.Fatal("guard can still consult the aggregate Verification service")
+	}
+}
+
 func TestLegacyPackageGeneratorsAreAbsentFromProduction(t *testing.T) {
 	retired := map[string]bool{
 		"configureIdentityCommands": true, "legacyIdentityCommands": true,
+		"configureVerificationCommands": true, "legacyVerificationCommands": true,
+		"ledgerVerificationSubjects": true, "ledgerVerificationInspector": true,
+		"ledgerVerificationReader": true, "ledgerVerificationSigner": true, "ledgerVerificationHasher": true,
+		"ledgerVerificationCosign": true, "ledgerVerificationRetentionVerifier": true,
+		"ledgerVerificationKeyFactory": true, "ledgerVerificationTransactions": true,
+		"ledgerVerificationTransaction": true, "newLedgerVerificationTransaction": true,
+		"resolveCosignSubjectLocked": true, "resolveVerificationSubjectLocked": true,
+		"inspectVerificationSubjectLocked": true, "verificationInspectionFromLegacy": true,
 		"ledgerIdentityGrantPolicy": true, "ledgerIdentityGrantTargets": true, "ledgerIdentitySessionGrants": true,
 		"ledgerIdentityCanonicalHasher": true, "ledgerIdentityOIDCDiscovery": true,
 		"ledgerIdentityReader": true, "ledgerIdentityTransactions": true, "ledgerIdentityTransaction": true,
@@ -270,6 +286,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"AuthorizeSubjectVerification":   true, "AuthorizeDSSEVerification": true, "VerifyDSSEAttestationSignature": true,
 		"AuthorizeEvidenceCreation": true, "authorizeArtifactSignatureCreationLocked": true,
 		"VerifyBackupManifest":        true,
+		"GenerateBackupManifest":      true,
 		"CreateObjectRetentionPolicy": true, "VerifyObjectRetentionPolicy": true,
 		"CreateMerkleBatch": true, "CreateTransparencyCheckpoint": true, "VerifyMerkleBatch": true,
 		"RotateSigningKey": true, "RevokeSigningKeyWithPolicy": true, "AuthorizeSigningKeyRevocation": true,
@@ -388,7 +405,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 					if fields, ok := value.Type.(*ast.StructType); ok {
 						for _, field := range fields.Fields.List {
 							for _, fieldName := range field.Names {
-								if fieldName.Name == "packageCommands" || fieldName.Name == "evidenceCommands" || fieldName.Name == "identityCommands" {
+								if fieldName.Name == "packageCommands" || fieldName.Name == "evidenceCommands" || fieldName.Name == "identityCommands" || fieldName.Name == "verificationCommands" {
 									t.Errorf("%s retains retired aggregate service field", name)
 								}
 							}
