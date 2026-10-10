@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+PostgreSQL recovery fixtures now generate backup manifests with the focused v2
+command and actual complete commitment/audit readers, not the Ledger facade.
+Their release setup uses the transaction factory directly; two unused Ledger
+constructions are removed. Existing restore assertions remain unchanged, with
+additional v2 schema, tenant and evidence/bundle count checks. A regression
+rejects incomplete memory commitment capabilities without returning a manifest
+or writing state; no partial snapshot is labeled a full backup profile.
+Production contracts are unchanged. The remaining HTTP backup fixture,
+Verification adapter and aggregate cleanup keep EVY-906 open; live recovery
+validation is still required.
+
 Retired the broad Identity aggregate adapter, its Service field and constructor
 wiring, and Ledger bootstrap/authentication facades from production source.
 Historical behavior remains in test-only oracles, constructed on demand; real

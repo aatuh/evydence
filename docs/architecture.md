@@ -61,10 +61,17 @@ selected cache is not a complete backup or another supported runtime profile.
 PostgreSQL test setup likewise uses focused tenant/initial-signing commands and
 the native Store authenticator instead of Ledger identity facades. Its memory
 regression backend uses current transaction-owned rows and real activity writes,
-not an aggregate fallback. Retained historical backup/replay setup loads genuine
-committed bootstrap rows; unused restored-instance Ledger constructions are
-removed. This does not retire the remaining backup-generation aggregate adapter
-or establish live PostgreSQL restore/concurrency evidence by compilation alone.
+not an aggregate fallback. The two PostgreSQL recovery rehearsals generate
+manifests through the native v2 command, complete 98-resource commitment reader
+and current audit-chain pages. Their release setup uses the transaction factory
+directly, with no Ledger construction or cache publication. The fixture fails
+closed when a backend lacks the complete commitment capability; the memory
+backend cannot manufacture a v2 profile from its partial snapshot. Existing
+restore assertions remain, with additional native schema/tenant/count checks.
+Historical replay setup elsewhere still loads genuine committed bootstrap rows.
+The HTTP fixture's legacy backup generator and broad Verification adapter remain
+open retirement work. Compilation and memory tests do not establish live
+PostgreSQL restore/concurrency evidence.
 
 ## Current runtime composition
 

@@ -19,6 +19,7 @@ import (
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
 func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *testing.T) {
@@ -78,21 +79,18 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The remaining historical backup/replay fixture loads genuine committed
-	// bootstrap rows; native identity setup never publishes aggregate caches.
-	ledger, err := newLegacyLedgerFixtureWithContext(ctx, app.Config{APIKeyPepper: "paired-restore-test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
+	setup := postgresReleaseSetupFixture{execute: func(ctx context.Context, command app.UnitOfWorkCommand) error {
+		return app.ExecuteUnitOfWork(ctx, sourceStore, command)
+	}}
+	product, err := setup.CreateProduct(ctx, actor, "Paired Restore API", "paired-restore-api")
 	if err != nil {
 		t.Fatal(err)
 	}
-	product, err := postgresReleaseSetup(ledger).CreateProduct(ctx, actor, "Paired Restore API", "paired-restore-api")
+	release, err := setup.CreateRelease(ctx, actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := postgresReleaseSetup(ledger).CreateRelease(ctx, actor, product.ID, "1.0.0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	artifact, err := postgresReleaseSetup(ledger).RegisterArtifact(ctx, actor, "paired.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
+	artifact, err := setup.RegisterArtifact(ctx, actor, "paired.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,9 +147,12 @@ func TestPostgresPairedBackupRestoreUsesNativeDumpAndFilesystemGeneration(t *tes
 	if err := sourceStore.Enqueue(ctx, pendingJob); err != nil {
 		t.Fatalf("seed pending outbox job: %v", err)
 	}
-	checkpoint, err := ledger.GenerateBackupManifest(ctx, actor)
+	checkpoint, err := generateBackupManifestFixture(ctx, sourceStore, actor)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if checkpoint.SchemaVersion != verificationdomain.BackupManifestTenantSchemaVersion || checkpoint.TenantID != actor.TenantID || !strings.HasPrefix(checkpoint.StateHash, "sha256:") || len(checkpoint.ResourceCounts) != 8 || checkpoint.ResourceCounts["evidence"] < 1 || checkpoint.ResourceCounts["release_bundles"] < 1 {
+		t.Fatal("paired recovery setup did not generate the native tenant-scoped v2 commitment")
 	}
 
 	backupRoot := t.TempDir()

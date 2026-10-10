@@ -18,6 +18,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
 func TestResolveLoadMode(t *testing.T) {
@@ -1702,20 +1703,18 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Retained backup/replay setup reads the actual committed root records.
-	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
+	setup := postgresReleaseSetupFixture{execute: func(ctx context.Context, command app.UnitOfWorkCommand) error {
+		return app.ExecuteUnitOfWork(ctx, sourceStore, command)
+	}}
+	product, err := setup.CreateProduct(ctx, actor, "Payments API", "payments-restore")
 	if err != nil {
 		t.Fatal(err)
 	}
-	product, err := postgresReleaseSetup(ledger).CreateProduct(ctx, actor, "Payments API", "payments-restore")
+	release, err := setup.CreateRelease(ctx, actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := postgresReleaseSetup(ledger).CreateRelease(ctx, actor, product.ID, "1.0.0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	artifact, err := postgresReleaseSetup(ledger).RegisterArtifact(ctx, actor, "payments.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
+	artifact, err := setup.RegisterArtifact(ctx, actor, "payments.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1736,9 +1735,12 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := ledger.GenerateBackupManifest(ctx, actor)
+	manifest, err := generateBackupManifestFixture(ctx, sourceStore, actor)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if manifest.SchemaVersion != verificationdomain.BackupManifestTenantSchemaVersion || manifest.TenantID != actor.TenantID || !strings.HasPrefix(manifest.StateHash, "sha256:") || len(manifest.ResourceCounts) != 8 || manifest.ResourceCounts["evidence"] < 1 || manifest.ResourceCounts["release_bundles"] < 1 {
+		t.Fatal("recovery setup did not generate the native tenant-scoped v2 commitment")
 	}
 	dbBackup, ok, err := sourceStore.LoadState(ctx)
 	if err != nil || !ok {
