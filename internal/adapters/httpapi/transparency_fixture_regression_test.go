@@ -15,6 +15,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	e "github.com/aatuh/evydence/internal/experimental/app"
 	d "github.com/aatuh/evydence/internal/experimental/domain"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
 type countingTransparencyFixtureFetcher struct {
@@ -58,11 +59,11 @@ func seedTransparencyFixtureScope(t *testing.T, ledger *app.Ledger, name string)
 		t.Fatal(err)
 	}
 	f.log = app.PublicTransparencyLogLegacyRecord(log)
-	f.batch, err = ledger.CreateMerkleBatch(t.Context(), f.actor, app.CreateMerkleBatchInput{})
+	f.batch, err = createMerkleBatchFixture(t.Context(), ledger, f.actor, f.release.CreatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.checkpoint, err = ledger.CreateTransparencyCheckpoint(t.Context(), f.actor, app.CreateTransparencyCheckpointInput{BatchID: f.batch.ID, Provider: "internal", ExternalID: "checkpoint-" + name})
+	f.checkpoint, err = createTransparencyCheckpointFixture(t.Context(), ledger, f.actor, verificationapp.CreateTransparencyCheckpointInput{BatchID: f.batch.ID, Provider: "internal", ExternalID: "checkpoint-" + name}, f.release.CreatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}

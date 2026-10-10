@@ -73,6 +73,18 @@ Existing routes, JSON fields and key policy/storage formats are unchanged.
 Memory fixtures remain test-only, not SQL locking or external custody evidence;
 other aggregate retirement remains EVY-906 work.
 
+Retired Ledger Merkle-batch creation/verification and recorded-checkpoint
+creation facades and their input types from production source. HTTP fixtures
+now use focused commands over current sequence/hash views, batch ownership/roots and local signing
+rows, with private-material validation/cleanup and atomic signature/batch/audit
+or checkpoint/audit effects. Existing ranges, hashes, Ed25519 format, JSON
+contracts and creation no-outbox behavior are unchanged. Merkle verification
+uses the current stored batch and selected public material, with receipt/audit/job
+atomicity; the create-and-verify flow no longer depends on a stale aggregate cache.
+Malformed stored ranges still reach negative inspection, not a validation-only
+abort. Memory fixtures remain test-only, not SQL locking, external custody or
+publication evidence; EVY-906 remains open.
+
 Customer-visible vulnerability-decision summaries now fail closed above 4,096
 selected decisions or an 8 MiB selected text/encoded-container budget, before
 PostgreSQL transfers decision metadata. Oversized summaries return no partial

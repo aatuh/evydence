@@ -33,8 +33,7 @@ func (f verificationReadFixtureCommands) VerifyAuditChain(ctx context.Context, a
 	return fixtureVerificationResult(value, err)
 }
 func (f verificationReadFixtureCommands) VerifyMerkleBatch(ctx context.Context, actor domain.Actor, id string) (verificationdomain.VerificationResult, error) {
-	value, err := f.commandLedger(ctx).VerifyMerkleBatch(ctx, actor, id)
-	return fixtureVerificationResult(value, err)
+	return verificationCommandFixture(f).verifyCurrentMerkle(ctx, actor, id)
 }
 func (f verificationReadFixtureCommands) VerifyBackupManifest(ctx context.Context, actor domain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	value, err := f.commandLedger(ctx).VerifyBackupManifest(ctx, actor, id)

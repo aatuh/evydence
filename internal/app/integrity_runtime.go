@@ -9,18 +9,6 @@ import (
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
-type CreateMerkleBatchInput struct {
-	FromSequence int64
-	ToSequence   int64
-}
-
-type CreateTransparencyCheckpointInput struct {
-	BatchID     string
-	Provider    string
-	ExternalURL string
-	ExternalID  string
-}
-
 type CreateObjectRetentionPolicyInput struct {
 	Name                    string
 	ObjectPrefix            string

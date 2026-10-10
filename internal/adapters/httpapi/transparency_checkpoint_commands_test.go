@@ -83,7 +83,7 @@ func TestRecordedCheckpointHTTPStrictInputBeforeGuardForFixtureAndNativeCommands
 
 func TestRecordedCheckpointHTTPCookieProtectionForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		base, secret := testServer(t)
+		base, secret := governanceTestServer(t)
 		f := &recordedCheckpointHTTPFake{}
 		batchID := "batch"
 		if native {
@@ -115,7 +115,7 @@ func TestRecordedCheckpointHTTPCookieProtectionForFixtureAndNativeCommands(t *te
 }
 
 func TestRecordedCheckpointHTTPLocalReplayRechecksCurrentTenantGrant(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	batchID := dataField(t, postJSON(t, base, secret, "/v1/merkle-batches", "source", map[string]any{}, 201), "id")
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {

@@ -423,10 +423,15 @@ func assertServerContextDependencies(t *testing.T, server *Server, ledger *app.L
 	for name, dependency := range map[string]any{
 		"subject": server.subjectVerification, "release-bundle-verification": server.releaseBundleVerification,
 		"DSSE": server.dsseVerification, "Cosign": server.cosignVerification,
-		"backup-generation": server.backupGenerationCommands, "merkle-creation": server.merkleCreationCommands,
-		"checkpoint-creation": server.transparencyCheckpointCommands, "object-retention": server.retentionCommands,
+		"backup-generation": server.backupGenerationCommands, "object-retention": server.retentionCommands,
 	} {
 		commands, ok := dependency.(verificationCommandFixture)
+		if !ok || commands.ledger != ledger {
+			t.Fatalf("focused %s fixture command was not rebound", name)
+		}
+	}
+	for name, dependency := range map[string]any{"merkle-creation": server.merkleCreationCommands, "checkpoint-creation": server.transparencyCheckpointCommands} {
+		commands, ok := dependency.(merkleCreationFixtureCommands)
 		if !ok || commands.ledger != ledger {
 			t.Fatalf("focused %s fixture command was not rebound", name)
 		}

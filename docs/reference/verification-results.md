@@ -113,14 +113,19 @@ created, and successful idempotent replay signs nothing again.
 Creation signs **stored hashes**, not freshly recomputed canonical audit
 contents. It does not assert chain integrity, provider verification or external
 anchoring. Use the distinct verification profiles below for those local checks.
-Historical batches are not rewritten. Explicit local-memory mode retains its
-compatibility command; startup Ledger retirement remains EVY-905 work.
+Historical batches are not rewritten. HTTP memory fixtures now compose the
+focused command over current typed sequence/hash and local-key rows, including
+prepared replacement keys; they do not establish SQL locks or custody. Ledger
+creation and verification facades and the creation input type are test-only.
+Remaining aggregate retirement is EVY-906 work.
 
 Source/test evidence: `internal/verification/app/merkle_creation.go`,
 `internal/adapters/postgres/repositories/merkle_creation.go`,
 `internal/adapters/postgres/repositories/merkle_signer.go`,
 `internal/platform/wiring/merkle_creation_test.go` and
-`internal/adapters/httpapi/merkle_creation_test.go`.
+`internal/adapters/httpapi/merkle_creation_test.go`,
+`internal/app/memory_merkle_creation_test.go` and
+`internal/adapters/httpapi/merkle_creation_native_fixture_regression_test.go`.
 
 ## Recorded External Transparency Checkpoints
 
@@ -144,9 +149,11 @@ Inputs are trimmed, valid UTF-8 without NUL bytes, with a 1 KiB batch-ID limit
 and a combined 1 MiB text budget. At least one external ID or URL is required;
 either may be omitted or empty, but explicit JSON nulls are rejected in the
 PostgreSQL path according to the non-nullable request schema. Selected stored
-roots above 1 KiB or malformed text fail closed without partial writes. Local
-memory shares input and hash construction policy through its compatibility
-adapter. Historical checkpoint records and schema remain unchanged.
+roots above 1 KiB or malformed text fail closed without partial writes. HTTP
+memory fixtures use the same focused command and current batch identity/root
+ports; replay checks only ownership. They are not an API backend or proof of
+SQL locks/durability. The Ledger creation facade/input type are test-only.
+Historical checkpoint records and schema remain unchanged.
 
 Source/test evidence: `internal/verification/app/transparency_checkpoint_commands.go`,
 `internal/adapters/postgres/repositories/transparency_checkpoint.go`,
@@ -445,14 +452,19 @@ formats remain unchanged; no historical records or schemas are rewritten.
 Direct and dedicated GET verification persist completed failed receipts and
 return their checks. Failed generic idempotent POST verification rolls back its
 enclosing transaction; successful POST replay returns the original result without
-duplicate effects. The selected-range limit also applies to the shared inspector
-used by explicit local-memory mode. Larger existing batches need a smaller
-checkpoint for this profile; they are not silently assessed as partial ranges.
+duplicate effects. HTTP memory fixtures use the same focused inspector over
+current typed batch/hash rows and detached public material, not the aggregate
+cache. Malformed stored ranges still reach failed coverage inspection; they do
+not become validation-only aborts. Memory tests do not prove SQL locks or
+durability. Larger existing batches need a smaller checkpoint for this profile;
+they are not silently assessed as partial ranges.
 
 Source/test evidence: `internal/verification/app/merkle_verification.go`,
 `internal/adapters/postgres/repositories/merkle_verification.go`,
 `internal/platform/wiring/merkle_verification_test.go` and
-`internal/adapters/httpapi/merkle_verification_test.go`.
+`internal/adapters/httpapi/merkle_verification_test.go`,
+`internal/app/memory_merkle_creation_test.go` and
+`internal/adapters/httpapi/merkle_creation_native_fixture_regression_test.go`.
 
 ## Artifact Signature Recording
 

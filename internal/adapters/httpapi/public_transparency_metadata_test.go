@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	e "github.com/aatuh/evydence/internal/experimental/app"
 	d "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
 type transparencyMetadataHTTPFake struct {
@@ -107,11 +107,11 @@ func TestPublicTransparencyMetadataHTTPLocalReplayRequiresCurrentTenantGrant(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch, err := legacyFixtureLedger(base).CreateMerkleBatch(t.Context(), a, app.CreateMerkleBatchInput{})
+	batch, err := createMerkleBatchFixture(t.Context(), legacyFixtureLedger(base), a, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkpoint, err := legacyFixtureLedger(base).CreateTransparencyCheckpoint(t.Context(), a, app.CreateTransparencyCheckpointInput{BatchID: batch.ID, Provider: "internal", ExternalID: "fixture"})
+	checkpoint, err := createTransparencyCheckpointFixture(t.Context(), legacyFixtureLedger(base), a, verificationapp.CreateTransparencyCheckpointInput{BatchID: batch.ID, Provider: "internal", ExternalID: "fixture"}, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}

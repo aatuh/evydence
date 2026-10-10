@@ -82,7 +82,7 @@ func TestVerificationCommandFixturesRollBackAllEffectsAfterWriteFailure(t *testi
 			case "merkle":
 				path, body = "/v1/merkle-batches", `{}`
 			case "checkpoint":
-				batch, err := ledger.CreateMerkleBatch(t.Context(), scope.actor, app.CreateMerkleBatchInput{})
+				batch, err := createMerkleBatchFixture(t.Context(), ledger, scope.actor, time.Time{})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -141,6 +141,10 @@ func TestVerificationCommandFixtureGuardsPreserveAuthorityAndReadOnlyState(t *te
 	owner := seedEvidenceFixtureScope(t, ledger, "Owner")
 	foreign := seedEvidenceFixtureScope(t, ledger, "Foreign")
 	commands := verificationCommandFixture{catalogFixtureCommands{ledger: ledger}}
+	batch, err := commands.CreateMerkleBatch(t.Context(), owner.actor, verificationapp.CreateMerkleBatchInput{})
+	if err != nil {
+		t.Fatal("missing owned checkpoint guard fixture", err)
+	}
 	checks := []struct {
 		name, scope string
 		run         func(context.Context, domain.Actor) error
@@ -148,7 +152,7 @@ func TestVerificationCommandFixtureGuardsPreserveAuthorityAndReadOnlyState(t *te
 		{"backup", "admin", commands.AuthorizeBackupGeneration},
 		{"merkle", "keys:admin", commands.AuthorizeMerkleCreation},
 		{"checkpoint", "keys:admin", func(ctx context.Context, actor domain.Actor) error {
-			return commands.AuthorizeTransparencyCheckpoint(ctx, actor, "batch")
+			return commands.AuthorizeTransparencyCheckpoint(ctx, actor, batch.ID)
 		}},
 		{"retention-create", "admin", func(ctx context.Context, actor domain.Actor) error {
 			return commands.AuthorizeCreateObjectRetentionPolicy(ctx, actor, verificationapp.CreateObjectRetentionPolicyInput{})

@@ -1262,7 +1262,11 @@ command and reads only the tenant-owned batch root, not Ledger state or batch
 leaves/signatures. The selected root stays locked until checkpoint and audit
 commit; replay does not add duplicate records. Provider/URL metadata remains an
 operator assertion with state `recorded`, not proof of external anchoring.
-Local memory shares the normalized-JSON hash policy. See
+HTTP fixtures now use the same focused checkpoint command over current typed
+batch identities/roots, with ownership-only replay rather than Ledger maps.
+Checkpoint/audit write and commit failures leave no partial effects; clocks and
+hashes are not allocated during guards. The Ledger creation facade and input
+type are test-only. Memory fixtures do not prove SQL locks or durability. See
 [recorded external checkpoints](reference/verification-results.md#recorded-external-transparency-checkpoints)
 for authorization, bounds and explicit non-claims.
 
@@ -1379,8 +1383,16 @@ PostgreSQL-profile `POST /v1/merkle-batches` uses bounded sequence/hash reads
 and transactional local signing without Ledger state. Tenant-wide `keys:admin`
 authorization precedes reads; tenant, projection and audit fences stabilize the
 range and signing-key selection. An initial local key, signature, batch and
-audit commit atomically, with no outbox job. Creation signs stored hashes,
-not canonical audit contents or external transparency proof. See
+audit commit atomically, with no outbox job. HTTP fixtures now compose the same
+command over current sequence/hash views and transaction-local key rows. They
+preserve bounded sorted leaves, active local-key selection, private-material
+validation/cleanup and prepared replacement keys at the next local version.
+Creation/replay and signature/batch/audit commit rollback have focused tests;
+their Ledger creation/verification facades and creation input type are
+test-only. Memory fixtures are not an API profile or proof of PostgreSQL locks,
+custody or encryption.
+Creation signs stored hashes, not canonical audit contents or external
+transparency proof. See
 [Merkle batch creation](reference/verification-results.md#merkle-batch-creation)
 for bounds, key lifecycle and compatibility limits.
 
@@ -1400,8 +1412,13 @@ profile. Tenant-wide `verify:read` authorization precedes reading the selected
 batch, its covered sequence hashes and referenced public signing material.
 These rows and the tenant stay share-locked through atomic receipt, audit and
 outbox insertion. No raw audit metadata, canonical entry bodies or private key
-ciphertext is loaded. The core inspector is shared with explicit local-memory
-mode. It preserves the three-check `merkle-checkpoint.v1` profile and historical
+ciphertext is loaded. HTTP fixtures now compose this same focused verifier over
+current typed batch, sequence/hash and selected public signature/key rows;
+GET and generic POST no longer consult the aggregate batch cache. Its bounded,
+detached public-material decoder is shared with release-bundle fixture
+verification. The Ledger Merkle verification facade is test-only. These memory
+fixtures do not prove PostgreSQL locks or durability. The core inspector retains
+the three-check `merkle-checkpoint.v1` profile and historical
 key validity. This verifies recorded hashes, not canonical audit contents or
 external anchoring; `audit_chain_checkpoint` remains a distinct profile. See
 [Merkle verification bounds](reference/verification-results.md#merkle-batch-verification).

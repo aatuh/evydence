@@ -578,7 +578,11 @@ The common writer fence now precedes tenant/chain/leaf/key locks, including the
 repository view entry point. Bounded selected hashes retain their existing
 Merkle root and Ed25519 format; initial key, signature, batch, audit and replay
 commit together. Completed retries preserve the original range without signing
-again. This is a stored-hash commitment, not verification of every audit record
+again. HTTP fixtures now use the same command with current typed sequence/hash
+views and local-key signing, including prepared replacement keys and atomic
+signature/batch/audit writes. The Ledger facade/input type are test-only;
+memory models do not establish SQL locking, transfer bounds or key custody.
+This is a stored-hash commitment, not verification of every audit record
 or proof of external publication. See
 [Merkle creation](../api.md#merkle-batch-creation).
 Recorded transparency-checkpoint creation also bypasses Ledger replay. Its
@@ -587,7 +591,10 @@ the mutable root, leaves or signature arrays. The common fence precedes tenant
 and batch locks, and checkpoint/audit/replay commit atomically. Fresh creation
 keeps the existing five-field canonical assertion hash; completed retries keep
 the original assertion without rehashing a later root. State remains `recorded`,
-not verified external publication, and no provider call is made. See
+not verified external publication, and no provider call is made. HTTP fixtures
+now use current typed batch identity/root ports and ownership-only replay;
+the Ledger facade/input type are test-only. Neither memory fixture behavior
+nor this recorded assertion proves SQL durability or external publication. See
 [recorded checkpoints](../api.md#recorded-transparency-checkpoints).
 Backup-manifest generation now uses native durable HTTP execution as well.
 Its current tenant-admin replay guard reads only the tenant root; it does not

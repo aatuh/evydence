@@ -22,12 +22,18 @@ func (f verificationCommandFixture) AuthorizeSubjectVerification(ctx context.Con
 	if strings.TrimSpace(kind) == "release_bundle" {
 		return f.authorizeCurrentReleaseBundle(ctx, actor, id)
 	}
+	if strings.TrimSpace(kind) == "merkle_batch" {
+		return f.authorizeCurrentMerkle(ctx, actor, id)
+	}
 	return f.commandLedger(ctx).AuthorizeSubjectVerification(ctx, actor, kind, id)
 }
 
 func (f verificationCommandFixture) VerifySubject(ctx context.Context, actor domain.Actor, kind, id string) (verificationdomain.VerificationResult, error) {
 	if strings.TrimSpace(kind) == "release_bundle" {
 		return f.verifyCurrentReleaseBundle(ctx, actor, id)
+	}
+	if strings.TrimSpace(kind) == "merkle_batch" {
+		return f.verifyCurrentMerkle(ctx, actor, id)
 	}
 	value, err := f.commandLedger(ctx).VerifySubject(ctx, actor, kind, id)
 	return fixtureVerificationResult(value, err)
@@ -99,21 +105,19 @@ func (f verificationCommandFixture) GenerateBackupManifest(ctx context.Context, 
 }
 
 func (f verificationCommandFixture) AuthorizeMerkleCreation(ctx context.Context, actor domain.Actor) error {
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopeKeysAdmin)
+	return (merkleCreationFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeMerkleCreation(ctx, actor)
 }
 
 func (f verificationCommandFixture) CreateMerkleBatch(ctx context.Context, actor domain.Actor, input verificationapp.CreateMerkleBatchInput) (verificationdomain.MerkleBatch, error) {
-	value, err := f.commandLedger(ctx).CreateMerkleBatch(ctx, actor, app.CreateMerkleBatchInput(input))
-	return verificationdomain.MerkleBatch(value), err
+	return (merkleCreationFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateMerkleBatch(ctx, actor, input)
 }
 
-func (f verificationCommandFixture) AuthorizeTransparencyCheckpoint(ctx context.Context, actor domain.Actor, _ string) error {
-	return application.AuthorizeTenantWideScope(ctx, actor, app.ScopeKeysAdmin)
+func (f verificationCommandFixture) AuthorizeTransparencyCheckpoint(ctx context.Context, actor domain.Actor, id string) error {
+	return (merkleCreationFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeTransparencyCheckpoint(ctx, actor, id)
 }
 
 func (f verificationCommandFixture) CreateTransparencyCheckpoint(ctx context.Context, actor domain.Actor, input verificationapp.CreateTransparencyCheckpointInput) (verificationdomain.TransparencyCheckpoint, error) {
-	value, err := f.commandLedger(ctx).CreateTransparencyCheckpoint(ctx, actor, app.CreateTransparencyCheckpointInput(input))
-	return verificationdomain.TransparencyCheckpoint(value), err
+	return (merkleCreationFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).CreateTransparencyCheckpoint(ctx, actor, input)
 }
 
 func (f verificationCommandFixture) AuthorizeCreateObjectRetentionPolicy(ctx context.Context, actor domain.Actor, _ verificationapp.CreateObjectRetentionPolicyInput) error {
@@ -151,11 +155,17 @@ func (s *Server) bindVerificationCommandFixturePorts(ledger *app.Ledger) {
 	if _, fixture := s.backupGenerationCommands.(verificationCommandFixture); s.backupGenerationCommands == nil || fixture {
 		s.backupGenerationCommands = commands
 	}
-	if _, fixture := s.merkleCreationCommands.(verificationCommandFixture); s.merkleCreationCommands == nil || fixture {
-		s.merkleCreationCommands = commands
+	if old, fixture := s.merkleCreationCommands.(merkleCreationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.merkleCreationCommands = old
+	} else if _, legacy := s.merkleCreationCommands.(verificationCommandFixture); s.merkleCreationCommands == nil || legacy {
+		s.merkleCreationCommands = merkleCreationFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
-	if _, fixture := s.transparencyCheckpointCommands.(verificationCommandFixture); s.transparencyCheckpointCommands == nil || fixture {
-		s.transparencyCheckpointCommands = commands
+	if old, fixture := s.transparencyCheckpointCommands.(merkleCreationFixtureCommands); fixture {
+		old.ledger = ledger
+		s.transparencyCheckpointCommands = old
+	} else if _, legacy := s.transparencyCheckpointCommands.(verificationCommandFixture); s.transparencyCheckpointCommands == nil || legacy {
+		s.transparencyCheckpointCommands = merkleCreationFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
 	if _, fixture := s.retentionCommands.(verificationCommandFixture); s.retentionCommands == nil || fixture {
 		s.retentionCommands = commands

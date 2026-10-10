@@ -15,6 +15,7 @@ import (
 	e "github.com/aatuh/evydence/internal/experimental/app"
 	d "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
 type transparencyFetchHTTPFake struct {
@@ -112,11 +113,11 @@ func TestPublicTransparencyFetchHTTPLocalReplayDoesNotRefetchOrKeepRevokedAuthor
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := l.CreateMerkleBatch(t.Context(), a, app.CreateMerkleBatchInput{})
+	b, err := createMerkleBatchFixture(t.Context(), l, a, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	cp, err := l.CreateTransparencyCheckpoint(t.Context(), a, app.CreateTransparencyCheckpointInput{BatchID: b.ID, Provider: "internal", ExternalID: "fixture"})
+	cp, err := createTransparencyCheckpointFixture(t.Context(), l, a, verificationapp.CreateTransparencyCheckpointInput{BatchID: b.ID, Provider: "internal", ExternalID: "fixture"}, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -114,7 +114,7 @@ func TestMerkleCreationHTTPRejectsStrictInvalidFieldsForFixtureAndNativeCommands
 
 func TestMerkleCreationHTTPFixtureAndNativeCookieAndFixtureReplayAuthority(t *testing.T) {
 	for _, native := range []bool{false, true} {
-		base, secret := testServer(t)
+		base, secret := governanceTestServer(t)
 		f := &merkleCreationHTTPFake{}
 		opts := ServerOptions{}
 		if native {
@@ -145,7 +145,7 @@ func TestMerkleCreationHTTPFixtureAndNativeCookieAndFixtureReplayAuthority(t *te
 			}
 		}
 	}
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	a, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)
