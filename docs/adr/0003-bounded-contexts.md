@@ -939,9 +939,13 @@ server-selected IDs inside the same outer transaction. It takes the shared
 writer fence before tenant/selected-parent locks and never reruns snapshot,
 hashing or signing work on replay. Fresh work retains committed snapshots and
 commit-time coordinate/signature lifecycle validation. HTTP callbacks cannot
-bind a Ledger. The local-memory compatibility path explicitly guards the actual
-response before disclosure and is not a durable ownership transaction. These
-changes do not finish startup retirement or the remaining EVY-905 final gates.
+bind a Ledger. HTTP test fixtures now compose the focused command over current
+repository snapshots, scoped ownership guards and local signing rows. They
+check the original response selection on replay without aggregate evidence/key
+caches, clock allocation or additional write effects. The two aggregate export
+and guard facades remain only as unchanged test characterization code. Memory
+fixtures are not an API profile or proof of PostgreSQL locking/durability;
+remaining aggregate retirement and closure gates are EVY-906 work.
 
 Go dependency cycles are prohibited. A context domain package may depend only
 on standard library and small shared value/event packages. An application

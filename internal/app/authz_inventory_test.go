@@ -8,7 +8,7 @@ import (
 
 func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 	files := map[string][]string{
-		"evidence_bundle_replay_guard.go":             {"AuthorizeEvidenceBundleExport"},
+		"legacy_evidence_bundle_guard_oracle_test.go": {"AuthorizeEvidenceBundleExport"},
 		"legacy_bundle_import_guard_oracle_test.go":   {"AuthorizeBundleImport"},
 		"legacy_report_template_guard_oracle_test.go": {"AuthorizeReportTemplateCreation", "AuthorizeReportRendering"},
 		"evidence_creation_replay_guard.go":           {"AuthorizeEvidenceCreation"},

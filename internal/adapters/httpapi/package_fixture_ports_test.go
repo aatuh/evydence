@@ -34,14 +34,13 @@ func (f packageFixtureCommands) ImportEvidenceBundle(ctx context.Context, actor 
 	return (bundleImportFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).ImportEvidenceBundle(ctx, actor, bundle)
 }
 func (f packageFixtureCommands) AuthorizeEvidenceBundleExport(ctx context.Context, actor domain.Actor, release string, ids []string) error {
-	return f.commandLedger(ctx).AuthorizeEvidenceBundleExport(ctx, actor, release, ids)
+	return (evidenceBundleFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeEvidenceBundleExport(ctx, actor, release, ids)
 }
 func (f packageFixtureCommands) AuthorizeEvidenceBundleReplay(ctx context.Context, actor domain.Actor, release string, ids []string) error {
-	return f.commandLedger(ctx).AuthorizeEvidenceBundleExport(ctx, actor, release, ids)
+	return (evidenceBundleFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).AuthorizeEvidenceBundleReplay(ctx, actor, release, ids)
 }
 func (f packageFixtureCommands) ExportEvidenceBundle(ctx context.Context, actor domain.Actor, release string, ids []string) (packagedomain.EvidenceBundle, error) {
-	value, err := f.commandLedger(ctx).ExportEvidenceBundle(ctx, actor, release, ids)
-	return evidenceBundleForImport(value), err
+	return (evidenceBundleFixtureCommands{catalogFixtureCommands: f.catalogFixtureCommands}).ExportEvidenceBundle(ctx, actor, release, ids)
 }
 
 func (f packageFixtureCommands) AuthorizeReleaseBundleCreation(ctx context.Context, actor domain.Actor, release string) error {
@@ -127,8 +126,11 @@ func (s *Server) bindPackageFixturePorts(ledger *app.Ledger) {
 	} else if _, legacy := s.bundleImportCommand.(packageFixtureCommands); s.bundleImportCommand == nil || legacy {
 		s.bundleImportCommand = bundleImportFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
-	if _, fixture := s.evidenceBundleCommands.(packageFixtureCommands); s.evidenceBundleCommands == nil || fixture {
-		s.evidenceBundleCommands = commands
+	if old, fixture := s.evidenceBundleCommands.(evidenceBundleFixtureCommands); fixture {
+		old.ledger = ledger
+		s.evidenceBundleCommands = old
+	} else if _, legacy := s.evidenceBundleCommands.(packageFixtureCommands); s.evidenceBundleCommands == nil || legacy {
+		s.evidenceBundleCommands = evidenceBundleFixtureCommands{catalogFixtureCommands: commands.catalogFixtureCommands}
 	}
 	if old, fixture := s.releaseBundleCommands.(releaseBundleFixtureCommands); fixture {
 		old.ledger = ledger

@@ -204,6 +204,7 @@ func TestLegacyLedgerLeafFacadesAreAbsentFromProduction(t *testing.T) {
 		"CreateCustomReportTemplate": true, "RenderCustomReport": true, "ImportEvidenceBundle": true,
 		"AuthorizeReportTemplateCreation": true, "AuthorizeReportRendering": true, "AuthorizeBundleImport": true,
 		"CreateReleaseBundle": true, "AuthorizeReleaseBundleCreation": true,
+		"ExportEvidenceBundle": true, "AuthorizeEvidenceBundleExport": true,
 		"CreateSBOMDiff": true, "CreateContractDiff": true,
 		"AuthorizeControlFrameworkCreation": true, "AuthorizeSecurityControlCreation": true,
 		"authorizeLocalControlCreationScope": true, "AuthorizeControlTemplateInstallation": true,

@@ -42,6 +42,13 @@ signature/bundle/audit/job and receipt/audit/job effects. Recovery and concurren
 seeds also use focused creation. Native API and persisted contracts are unchanged;
 memory fixtures remain test-only, and broader Ledger retirement is unfinished.
 
+Retired Ledger evidence-bundle export and its cache-based replay guard from
+production source. HTTP fixtures use focused commands over current repositories,
+preserving grant-filtered selection, original-selection replay authorization,
+local signature validation and atomic bundle/signature/audit effects. Existing
+API and persisted contracts are unchanged. Memory fixtures remain test-only;
+broader aggregate retirement remains unfinished under EVY-906.
+
 Customer-visible vulnerability-decision summaries now fail closed above 4,096
 selected decisions or an 8 MiB selected text/encoded-container budget, before
 PostgreSQL transfers decision metadata. Oversized summaries return no partial

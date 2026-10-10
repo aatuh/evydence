@@ -28,7 +28,7 @@ func TestEvidenceBundleExportStrictPreflightAndFixturePortCookies(t *testing.T) 
 	}
 	for _, native := range []bool{false, true} {
 		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) {
-			base, secret := testServer(t)
+			base, secret := governanceTestServer(t)
 			server := base
 			if native {
 				var err error
@@ -60,7 +60,7 @@ func TestEvidenceBundleExportStrictPreflightAndFixturePortCookies(t *testing.T) 
 }
 
 func TestEvidenceBundleLocalReplayAuthorizesOriginalSelectionUnderChangedGrants(t *testing.T) {
-	base, secret := testServer(t)
+	base, secret := governanceTestServer(t)
 	owner, err := base.authn.Authenticate(t.Context(), secret)
 	if err != nil {
 		t.Fatal(err)

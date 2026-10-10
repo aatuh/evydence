@@ -11,8 +11,8 @@ import (
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
 
-// AuthorizeEvidenceBundleExport is an explicit local-memory guard. Native
-// PostgreSQL handlers use Package transaction ports instead of these maps.
+// Unchanged aggregate behavior is retained only as a characterization oracle.
+// Native PostgreSQL handlers use Package transaction ports instead of these maps.
 func (l *Ledger) AuthorizeEvidenceBundleExport(ctx context.Context, a domain.Actor, release string, ids []string) error {
 	if err := packagequery.NewEvidenceBundleAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBundleRead, ScopeOnly: true}); err != nil {
 		return fromPackageContextError(err)
