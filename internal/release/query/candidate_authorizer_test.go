@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
@@ -16,11 +18,11 @@ func TestCandidateAuthorizerChecksCurrentArtifactGrantsForReleaseWrites(t *testi
 		t.Fatal(err)
 	}
 	actor := catalogActor("release:write", "release", "release", "release:write")
-	parent := application.AuthorizationRequest{Scope: "release:write", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
+	parent := application.AuthorizationRequest{Action: authz.ActionReleaseCandidatesCreate, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
 	if err := auth.Authorize(t.Context(), actor, parent); err != nil {
 		t.Fatal("matching parent grant denied", err)
 	}
-	artifact := application.AuthorizationRequest{Scope: "release:write", Resources: application.ResourceReferences{ArtifactID: "artifact"}}
+	artifact := application.AuthorizationRequest{Action: authz.ActionReleaseCandidatesCreate, Resources: application.ResourceReferences{ArtifactID: "artifact"}}
 	if err := auth.Authorize(t.Context(), actor, artifact); err != nil {
 		t.Fatal("linked artifact denied", err)
 	}

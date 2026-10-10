@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -210,7 +212,7 @@ func (s *Service) ListProducts(ctx context.Context, actor identitydomain.Actor) 
 	if err := contextError(ctx); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(ctx, actor, ScopeProductRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionProductsRead, application.ResourceReferences{}, true); err != nil {
 		return nil, err
 	}
 	products, err := s.reader.ListProducts(ctx, actor.TenantID)
@@ -222,7 +224,7 @@ func (s *Service) ListProducts(ctx context.Context, actor identitydomain.Actor) 
 		if product.TenantID != actor.TenantID {
 			continue
 		}
-		if err := s.authorize(ctx, actor, ScopeProductRead, application.ResourceReferences{ProductID: product.ID}, false); err != nil {
+		if err := s.authorizeCatalog(ctx, actor, authz.ActionProductsRead, application.ResourceReferences{ProductID: product.ID}, false); err != nil {
 			if errors.Is(err, ErrForbidden) {
 				continue
 			}
@@ -238,7 +240,7 @@ func (s *Service) GetProduct(ctx context.Context, actor identitydomain.Actor, id
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Product{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeProductRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionProductsRead, application.ResourceReferences{}, true); err != nil {
 		return releasedomain.Product{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -252,7 +254,7 @@ func (s *Service) GetProduct(ctx context.Context, actor identitydomain.Actor, id
 	if !productBelongsToTenant(product, actor.TenantID, id) {
 		return releasedomain.Product{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeProductRead, application.ResourceReferences{ProductID: product.ID}, false); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionProductsRead, application.ResourceReferences{ProductID: product.ID}, false); err != nil {
 		return releasedomain.Product{}, err
 	}
 	return product, nil
@@ -279,7 +281,7 @@ func (s *Service) GetProject(ctx context.Context, actor identitydomain.Actor, id
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Project{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeProjectRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionProjectsRead, application.ResourceReferences{}, true); err != nil {
 		return releasedomain.Project{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -300,7 +302,7 @@ func (s *Service) GetProject(ctx context.Context, actor identitydomain.Actor, id
 	if !productBelongsToTenant(product, actor.TenantID, project.ProductID) {
 		return releasedomain.Project{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeProjectRead, application.ResourceReferences{ProductID: project.ProductID, ProjectID: project.ID}, false); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionProjectsRead, application.ResourceReferences{ProductID: project.ProductID, ProjectID: project.ID}, false); err != nil {
 		return releasedomain.Project{}, err
 	}
 	return project, nil
@@ -327,7 +329,7 @@ func (s *Service) GetRelease(ctx context.Context, actor identitydomain.Actor, id
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Release{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleasesRead, application.ResourceReferences{}, true); err != nil {
 		return releasedomain.Release{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -348,7 +350,7 @@ func (s *Service) GetRelease(ctx context.Context, actor identitydomain.Actor, id
 	if !productBelongsToTenant(product, actor.TenantID, release.ProductID) {
 		return releasedomain.Release{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleasesRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
 		return releasedomain.Release{}, err
 	}
 	return release, nil
@@ -426,6 +428,10 @@ func (s *Service) GetArtifact(ctx context.Context, actor identitydomain.Actor, i
 
 func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, scope string, resources application.ResourceReferences, scopeOnly bool) error {
 	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly})
+}
+
+func (s *Service) authorizeCatalog(ctx context.Context, actor identitydomain.Actor, action authz.Action, resources application.ResourceReferences, scopeOnly bool) error {
+	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: action, Resources: resources, ScopeOnly: scopeOnly})
 }
 
 func (s *Service) auditEvent(actor identitydomain.Actor, occurredAt time.Time, entryType, subjectType, subjectID, payloadHash string) application.AuditEvent {

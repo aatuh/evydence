@@ -4,15 +4,14 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-const (
-	scopeProjectRead = "project:read"
-	scopeReleaseRead = "release:read"
-)
+const scopeReleaseRead = "release:read"
 
 // CatalogPointReader must scope every lookup by tenant and join its product
 // under that same tenant. The service validates the returned coordinates too.
@@ -42,7 +41,7 @@ func (s *CatalogPoints) GetProject(ctx context.Context, actor identitydomain.Act
 	if err := ctx.Err(); err != nil {
 		return releasedomain.Project{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeProjectRead, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProjectsRead, ScopeOnly: true}); err != nil {
 		return releasedomain.Project{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -57,7 +56,7 @@ func (s *CatalogPoints) GetProject(ctx context.Context, actor identitydomain.Act
 		return releasedomain.Project{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: scopeProjectRead,
+		Action: authz.ActionProjectsRead,
 		Resources: application.ResourceReferences{
 			ProductID: project.ProductID,
 			ProjectID: project.ID,
@@ -75,7 +74,7 @@ func (s *CatalogPoints) GetRelease(ctx context.Context, actor identitydomain.Act
 	if err := ctx.Err(); err != nil {
 		return releasedomain.Release{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeReleaseRead, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesRead, ScopeOnly: true}); err != nil {
 		return releasedomain.Release{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -90,7 +89,7 @@ func (s *CatalogPoints) GetRelease(ctx context.Context, actor identitydomain.Act
 		return releasedomain.Release{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: scopeReleaseRead,
+		Action: authz.ActionReleasesRead,
 		Resources: application.ResourceReferences{
 			ProductID: release.ProductID,
 			ReleaseID: release.ID,

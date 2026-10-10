@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -57,7 +59,7 @@ func (s *ReleaseCommands) CreateRelease(ctx context.Context, actor identitydomai
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Release{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesManage, ScopeOnly: true}); err != nil {
 		return releasedomain.Release{}, err
 	}
 	var err error
@@ -73,7 +75,7 @@ func (s *ReleaseCommands) CreateRelease(ctx context.Context, actor identitydomai
 		return releasedomain.Release{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: product.ID},
+		Action: authz.ActionReleasesManage, Resources: application.ResourceReferences{ProductID: product.ID},
 	}); err != nil {
 		return releasedomain.Release{}, err
 	}
@@ -83,7 +85,7 @@ func (s *ReleaseCommands) CreateRelease(ctx context.Context, actor identitydomai
 	}
 	err = s.transactions.ExecuteReleaseCreation(ctx, func(ctx context.Context, tx ReleaseCreationTransaction) error {
 		if guard, ok := tx.(catalogCreationGuardTransaction); ok {
-			if err := authorizeCatalogCreationScope(ctx, guard, actor, ScopeReleaseWrite, input.ProductID); err != nil {
+			if err := authorizeCatalogCreationScope(ctx, guard, actor, authz.ActionReleasesManage, input.ProductID); err != nil {
 				return err
 			}
 		}

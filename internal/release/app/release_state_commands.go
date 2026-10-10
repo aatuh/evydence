@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -69,7 +71,7 @@ func (s *ReleaseStateCommands) transitionRelease(ctx context.Context, actor iden
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Release{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesManage, ScopeOnly: true}); err != nil {
 		return releasedomain.Release{}, err
 	}
 	if expectedRevision < 1 {
@@ -95,7 +97,7 @@ func (s *ReleaseStateCommands) transitionRelease(ctx context.Context, actor iden
 		return releasedomain.Release{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID},
+		Action: authz.ActionReleasesManage, Resources: application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID},
 	}); err != nil {
 		return releasedomain.Release{}, err
 	}
@@ -129,7 +131,7 @@ func (s *ReleaseStateCommands) transitionRelease(ctx context.Context, actor iden
 			return ErrConflict
 		}
 		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{
-			Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: current.ProductID, ReleaseID: current.ID},
+			Action: authz.ActionReleasesManage, Resources: application.ResourceReferences{ProductID: current.ProductID, ReleaseID: current.ID},
 		}); err != nil {
 			return err
 		}

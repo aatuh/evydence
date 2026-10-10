@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
@@ -58,11 +60,11 @@ func TestCreateBuildRunPreservesLegacyInputAndCommitsAtomically(t *testing.T) {
 		t.Fatalf("authorization requests = %#v", fixture.authorizer.requests)
 	}
 	wantResources := application.ResourceReferences{ProductID: product.ID, ProjectID: project.ID, ReleaseID: release.ID}
-	if request := fixture.authorizer.requests[1]; request.Scope != ScopeBuildWrite || request.Resources != wantResources || request.ScopeOnly {
+	if request := fixture.authorizer.requests[1]; request.Action != authz.ActionBuildsCreate || request.Resources != wantResources || request.ScopeOnly {
 		t.Fatalf("resource authorization = %#v", request)
 	}
 	wantArtifactResources := application.ResourceReferences{ArtifactID: artifact.ID}
-	if request := fixture.authorizer.requests[2]; request.Scope != ScopeBuildWrite || request.Resources != wantArtifactResources || request.ScopeOnly {
+	if request := fixture.authorizer.requests[2]; request.Action != authz.ActionBuildsCreate || request.Resources != wantArtifactResources || request.ScopeOnly {
 		t.Fatalf("artifact authorization = %#v", request)
 	}
 	if fixture.authorizer.requests[3] != fixture.authorizer.requests[1] || fixture.authorizer.requests[4] != fixture.authorizer.requests[2] {
@@ -214,7 +216,7 @@ func TestGetBuildRunUsesTenantScopedStableAuthorizationCoordinates(t *testing.T)
 		t.Fatalf("GetBuildRun = (%#v, %v)", got, err)
 	}
 	want := application.ResourceReferences{ProductID: product.ID, ProjectID: project.ID, ReleaseID: release.ID, BuildID: build.ID}
-	if len(fixture.authorizer.requests) != 2 || fixture.authorizer.requests[1].Scope != ScopeBuildRead || fixture.authorizer.requests[1].Resources != want {
+	if len(fixture.authorizer.requests) != 2 || fixture.authorizer.requests[1].Action != authz.ActionBuildsRead || fixture.authorizer.requests[1].Resources != want {
 		t.Fatalf("authorization = %#v", fixture.authorizer.requests)
 	}
 
@@ -419,6 +421,14 @@ func TestUpdateReleaseCandidateStateUsesOneTimestampForStateAndAudit(t *testing.
 	}
 	if !updated.PromotedAt.Equal(fixture.transactions.state.audit[0].OccurredAt) {
 		t.Fatalf("candidate=%#v audit=%#v", updated, fixture.transactions.state.audit)
+	}
+	if len(fixture.authorizer.requests) != 2 {
+		t.Fatalf("candidate state authorization phases=%#v", fixture.authorizer.requests)
+	}
+	for _, request := range fixture.authorizer.requests {
+		if request.Action != authz.ActionReleasesManage || request.Scope != "" {
+			t.Fatalf("state transition selected creation authority: %#v", request)
+		}
 	}
 }
 

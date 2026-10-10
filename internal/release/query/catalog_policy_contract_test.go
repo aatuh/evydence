@@ -6,19 +6,20 @@ import (
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
 func TestCatalogPreflightAndTenantInventoryCannotIgnoreResourceClaims(t *testing.T) {
 	actor := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"*"}}
-	for _, scope := range []string{"product:read", "project:read", "project:write", "release:read", "release:write", "build:read", "build:write"} {
+	for _, action := range []authz.Action{authz.ActionProductsRead, authz.ActionProjectsRead, authz.ActionProjectsCreate, authz.ActionReleasesRead, authz.ActionReleasesManage, authz.ActionBuildsRead, authz.ActionBuildsCreate} {
 		for _, request := range []application.AuthorizationRequest{
-			{Scope: scope, ScopeOnly: true, Resources: application.ResourceReferences{ProductID: "product"}},
-			{Scope: scope, TenantWide: true, Resources: application.ResourceReferences{ReleaseID: "release"}},
+			{Action: action, ScopeOnly: true, Resources: application.ResourceReferences{ProductID: "product"}},
+			{Action: action, TenantWide: true, Resources: application.ResourceReferences{ReleaseID: "release"}},
 		} {
 			if err := NewCatalogAuthorizer().Authorize(t.Context(), actor, request); !errors.Is(err, application.ErrForbidden) {
-				t.Errorf("%s discarded a resource claim: %#v error=%v", scope, request, err)
+				t.Errorf("%s discarded a resource claim: %#v error=%v", action, request, err)
 			}
 		}
 	}

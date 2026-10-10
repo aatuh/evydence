@@ -4,6 +4,7 @@ import (
 	"context"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -13,48 +14,38 @@ func NewBuildAuthorizer(artifacts ArtifactPointReader) (application.Authorizer, 
 	if artifacts == nil {
 		return nil, ErrValidation
 	}
-	return buildAuthorizer{catalog: NewCatalogAuthorizer(), artifacts: artifacts}, nil
+	return buildAuthorizer{artifacts: artifacts, action: authz.ActionBuildsCreate}, nil
 }
 
 type buildAuthorizer struct {
-	catalog   application.Authorizer
 	artifacts ArtifactPointReader
+	action    authz.Action
 }
 
 // NewBuildAttestationAuthorizer accepts the build identity resolved and checked
 // by the attestation command, while retaining parent and current artifact-grant
 // policy. A build ID alone never conveys authority.
 func NewBuildAttestationAuthorizer(artifacts ArtifactPointReader) (application.Authorizer, error) {
-	base, err := NewBuildAuthorizer(artifacts)
-	if err != nil {
-		return nil, err
+	if artifacts == nil {
+		return nil, ErrValidation
 	}
-	return buildAttestationAuthorizer{base}, nil
-}
-
-type buildAttestationAuthorizer struct{ base application.Authorizer }
-
-func (a buildAttestationAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	refs := request.Resources
-	if refs.BuildID != "" {
-		if refs.ProductID == "" || refs.ProjectID == "" || refs.ReleaseID == "" || refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID}) {
-			return application.ErrForbidden
-		}
-		request.Resources.BuildID = ""
-	}
-	return a.base.Authorize(ctx, actor, request)
+	return buildAuthorizer{artifacts: artifacts, action: authz.ActionBuildAttestationsCreate}, nil
 }
 
 func (a buildAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if request.Scope != "build:write" {
+	if request.Scope != "" || request.Action != a.action {
 		return application.ErrForbidden
 	}
 	refs := request.Resources
 	if request.ScopeOnly || request.TenantWide || refs.ArtifactID == "" || refs != (application.ResourceReferences{ArtifactID: refs.ArtifactID}) {
-		return a.catalog.Authorize(ctx, actor, request)
+		return (catalogAuthorizer{}).Authorize(ctx, actor, request)
 	}
-	if err := a.catalog.Authorize(ctx, actor, application.AuthorizationRequest{Scope: request.Scope, ScopeOnly: true}); err != nil {
+	if err := (catalogAuthorizer{}).Authorize(ctx, actor, application.AuthorizationRequest{Action: request.Action, ScopeOnly: true}); err != nil {
 		return err
 	}
-	return authorizeArtifactGrant(ctx, actor, request.Scope, refs.ArtifactID, a.artifacts)
+	definition, ok := authz.DefinitionFor(a.action)
+	if !ok {
+		return application.ErrForbidden
+	}
+	return authorizeArtifactGrant(ctx, actor, definition.Scope, refs.ArtifactID, a.artifacts)
 }

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -87,7 +89,7 @@ func TestCandidateCreationUsesCurrentCoordinatesAndAtomicSnapshot(t *testing.T) 
 	if !reflect.DeepEqual(f.refs, want) || f.runs != 1 || f.reads != 1 || f.refCalls != 1 || len(f.candidates) != 1 || len(f.audit) != 1 || !reflect.DeepEqual(f.candidates[0], v) {
 		t.Fatal("transaction/reference effects changed", f)
 	}
-	if len(scope.requests) != 1 || scope.requests[0] != (application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}) || !reflect.DeepEqual(f.requests, []application.AuthorizationRequest{{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}, {Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ArtifactID: "artifact"}}}) {
+	if len(scope.requests) != 1 || scope.requests[0] != (application.AuthorizationRequest{Action: authz.ActionReleaseCandidatesCreate, ScopeOnly: true}) || !reflect.DeepEqual(f.requests, []application.AuthorizationRequest{{Action: authz.ActionReleaseCandidatesCreate, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}, {Action: authz.ActionReleaseCandidatesCreate, Resources: application.ResourceReferences{ArtifactID: "artifact"}}}) {
 		t.Fatal("authorization skipped current parent or artifact", scope, f.requests)
 	}
 	hashed := v

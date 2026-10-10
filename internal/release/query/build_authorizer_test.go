@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -29,13 +31,13 @@ func TestBuildAuthorizerChecksOutputArtifactAgainstCurrentGrantAssociations(t *t
 		t.Fatal(err)
 	}
 	productActor := catalogActor("build:write", "product", "prod_1", "build:write")
-	parent := application.AuthorizationRequest{Scope: "build:write", Resources: application.ResourceReferences{
+	parent := application.AuthorizationRequest{Action: authz.ActionBuildsCreate, Resources: application.ResourceReferences{
 		ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1",
 	}}
 	if err := authorizer.Authorize(t.Context(), productActor, parent); err != nil {
 		t.Fatalf("product grant denied build parent: %v", err)
 	}
-	artifact := application.AuthorizationRequest{Scope: "build:write", Resources: application.ResourceReferences{ArtifactID: "art_1"}}
+	artifact := application.AuthorizationRequest{Action: authz.ActionBuildsCreate, Resources: application.ResourceReferences{ArtifactID: "art_1"}}
 	if err := authorizer.Authorize(t.Context(), productActor, artifact); err != nil {
 		t.Fatalf("linked artifact denied: %v", err)
 	}
@@ -72,7 +74,7 @@ func TestBuildAttestationAuthorizerRequiresResolvedParentGrants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := application.AuthorizationRequest{Scope: "build:write", Resources: application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1", BuildID: "build_1"}}
+	r := application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, Resources: application.ResourceReferences{ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1", BuildID: "build_1"}}
 	actor := catalogActor("build:write", "project", "proj_1", "build:write")
 	if err := auth.Authorize(t.Context(), actor, r); err != nil {
 		t.Fatal("resolved build denied", err)

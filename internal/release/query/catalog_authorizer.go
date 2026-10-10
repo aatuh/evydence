@@ -26,8 +26,10 @@ func (catalogAuthorizer) Authorize(ctx context.Context, actor identitydomain.Act
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	action := catalogAction(request.Scope)
-	if action == authz.ActionProductsCreate && (!request.TenantWide || request.ScopeOnly) {
+	if request.Scope != "" || !isCatalogAction(request.Action) {
+		return application.ErrForbidden
+	}
+	if request.Action == authz.ActionProductsCreate && (!request.TenantWide || request.ScopeOnly) {
 		return application.ErrForbidden
 	}
 	evaluation := authz.ResolvedEvaluation
@@ -36,31 +38,20 @@ func (catalogAuthorizer) Authorize(ctx context.Context, actor identitydomain.Act
 	} else if request.ScopeOnly {
 		evaluation = authz.ScopeEvaluation
 	}
-	return authz.Authorize(ctx, actor, authz.Request{Action: action, Resources: request.Resources, Evaluation: evaluation})
+	return authz.Authorize(ctx, actor, authz.Request{Action: request.Action, Resources: request.Resources, Evaluation: evaluation})
 }
 
-// This fixed binding preserves the existing context-port request contract
-// during migration; arbitrary capabilities cannot select a catalog policy.
-func catalogAction(scope string) authz.Action {
-	switch scope {
-	case ScopeProductRead:
-		return authz.ActionProductsRead
-	case "product:write":
-		return authz.ActionProductsCreate
-	case scopeProjectRead:
-		return authz.ActionProjectsRead
-	case "project:write":
-		return authz.ActionProjectsCreate
-	case scopeReleaseRead:
-		return authz.ActionReleasesRead
-	case "release:write":
-		return authz.ActionReleasesManage
-	case scopeBuildRead:
-		return authz.ActionBuildsRead
-	case "build:write":
-		return authz.ActionBuildsCreate
+// An authorizer for one context cannot select a foreign context's operation.
+func isCatalogAction(action authz.Action) bool {
+	switch action {
+	case authz.ActionProductsRead, authz.ActionProductsCreate,
+		authz.ActionProjectsRead, authz.ActionProjectsCreate,
+		authz.ActionReleasesRead, authz.ActionReleasesManage,
+		authz.ActionBuildsRead, authz.ActionBuildsCreate,
+		authz.ActionBuildAttestationsCreate, authz.ActionReleaseCandidatesCreate:
+		return true
 	default:
-		return ""
+		return false
 	}
 }
 

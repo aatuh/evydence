@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -246,7 +248,7 @@ func TestPostgresCatalogCommandsCommitProductProjectReleaseArtifactBuildAuditAnd
 		TenantID: actor.TenantID, UserID: "usr_product", Scopes: []string{"build:write"},
 		ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: product.ID, Scopes: []string{"build:write"}}},
 	}
-	artifactWrite := application.AuthorizationRequest{Scope: "build:write", Resources: application.ResourceReferences{ArtifactID: artifact.ID}}
+	artifactWrite := application.AuthorizationRequest{Action: authz.ActionBuildsCreate, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}
 	if err := buildAuthorizer.Authorize(ctx, human, artifactWrite); !errors.Is(err, application.ErrForbidden) {
 		t.Fatalf("unlinked output artifact authorized: %v", err)
 	}

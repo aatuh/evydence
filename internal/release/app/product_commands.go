@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -54,7 +56,7 @@ func (s *ProductCommands) CreateProduct(ctx context.Context, actor identitydomai
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Product{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductWrite, TenantWide: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsCreate, TenantWide: true}); err != nil {
 		return releasedomain.Product{}, err
 	}
 	var err error
@@ -65,11 +67,11 @@ func (s *ProductCommands) CreateProduct(ctx context.Context, actor identitydomai
 	product := releasedomain.Product{ID: s.ids.NewID("prod"), TenantID: actor.TenantID, Name: input.Name, Slug: input.Slug, CreatedAt: s.clock.Now().UTC()}
 	err = s.transactions.ExecuteProduct(ctx, func(ctx context.Context, tx ProductTransaction) error {
 		if guard, ok := tx.(catalogCreationGuardTransaction); ok {
-			if err := authorizeCatalogCreationScope(ctx, guard, actor, ScopeProductWrite, ""); err != nil {
+			if err := authorizeCatalogCreationScope(ctx, guard, actor, authz.ActionProductsCreate, ""); err != nil {
 				return err
 			}
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductWrite, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsCreate, TenantWide: true}); err != nil {
 			return err
 		}
 		if exists, err := tx.ProductSlugExists(ctx, actor.TenantID, input.Slug); err != nil {

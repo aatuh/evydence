@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -185,7 +187,7 @@ func (f *attestationEvidenceFake) HashEvidence(_ context.Context, v evidencedoma
 	return "sha256:" + strings.Repeat("b", 64), nil
 }
 func (f *attestationEvidenceFake) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != "build:write" || f.failure == "grant" || f.failure == "artifact grant" && r.Resources.ArtifactID != "" {
+	if r.Action != authz.ActionBuildAttestationsCreate || r.Scope != "" || f.failure == "grant" || f.failure == "artifact grant" && r.Resources.ArtifactID != "" {
 		return application.ErrForbidden
 	}
 	return nil

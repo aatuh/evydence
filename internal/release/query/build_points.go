@@ -4,12 +4,12 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
-
-const scopeBuildRead = "build:read"
 
 // BuildPoint carries only the tenant-verified coordinates needed to authorize
 // one build read. The reader must get them from one consistent database view.
@@ -41,7 +41,7 @@ func (s *BuildPoints) GetBuildRun(ctx context.Context, actor identitydomain.Acto
 	if err := ctx.Err(); err != nil {
 		return releasedomain.BuildRun{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeBuildRead, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBuildsRead, ScopeOnly: true}); err != nil {
 		return releasedomain.BuildRun{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -57,7 +57,7 @@ func (s *BuildPoints) GetBuildRun(ctx context.Context, actor identitydomain.Acto
 		return releasedomain.BuildRun{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: scopeBuildRead,
+		Action: authz.ActionBuildsRead,
 		Resources: application.ResourceReferences{
 			ProductID: point.ProductID, ProjectID: build.ProjectID,
 			ReleaseID: build.ReleaseID, BuildID: build.ID,

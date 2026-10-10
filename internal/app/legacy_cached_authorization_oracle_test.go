@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -14,6 +15,13 @@ type ledgerContextAuthorizer struct{ ledger *Ledger }
 func (a ledgerContextAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if request.Action != "" {
+		definition, ok := authz.DefinitionFor(request.Action)
+		if !ok || request.Scope != "" || definition.Boundary == authz.InstanceBoundary {
+			return application.ErrForbidden
+		}
+		request.Scope = definition.Scope // Test-only bridge to the historical grant oracle.
 	}
 	if err := require(actor, request.Scope); err != nil {
 		return toApplicationAuthorizationError(err)
@@ -53,6 +61,13 @@ type ledgerLockedContextAuthorizer struct{ ledger *Ledger }
 func (a ledgerLockedContextAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if request.Action != "" {
+		definition, ok := authz.DefinitionFor(request.Action)
+		if !ok || request.Scope != "" || definition.Boundary == authz.InstanceBoundary {
+			return application.ErrForbidden
+		}
+		request.Scope = definition.Scope // Test-only bridge to the historical grant oracle.
 	}
 	if err := require(actor, request.Scope); err != nil {
 		return toApplicationAuthorizationError(err)

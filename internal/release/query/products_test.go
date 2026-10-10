@@ -8,6 +8,7 @@ import (
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
@@ -44,7 +45,7 @@ func (f productAuthorizerFake) Authorize(_ context.Context, _ identitydomain.Act
 	if f.err != nil {
 		return f.err
 	}
-	if request.Scope != "product:read" {
+	if request.Action != authz.ActionProductsRead || request.Scope != "" {
 		return application.ErrForbidden
 	}
 	if request.ScopeOnly {

@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -56,7 +58,7 @@ func (s *Products) GetProduct(ctx context.Context, actor identitydomain.Actor, i
 	if err := ctx.Err(); err != nil {
 		return releasedomain.Product{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductRead, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, ScopeOnly: true}); err != nil {
 		return releasedomain.Product{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -70,7 +72,7 @@ func (s *Products) GetProduct(ctx context.Context, actor identitydomain.Actor, i
 	if product.TenantID != actor.TenantID || product.ID != id {
 		return releasedomain.Product{}, ErrNotFound
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductRead, Resources: application.ResourceReferences{ProductID: id}}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, Resources: application.ResourceReferences{ProductID: id}}); err != nil {
 		return releasedomain.Product{}, err
 	}
 	return product, nil
@@ -86,11 +88,11 @@ func (s *Products) ListProductsPage(ctx context.Context, actor identitydomain.Ac
 	if err := appquery.Validate(page, after); err != nil {
 		return appquery.Result[releasedomain.Product]{}, ErrValidation
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductRead, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, ScopeOnly: true}); err != nil {
 		return appquery.Result[releasedomain.Product]{}, err
 	}
 	request := ProductPageRequest{TenantID: actor.TenantID, Page: page, After: after}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductRead, TenantWide: true}); err == nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, TenantWide: true}); err == nil {
 		request.TenantWide = true
 	} else if !errors.Is(err, application.ErrForbidden) {
 		return appquery.Result[releasedomain.Product]{}, err
@@ -104,7 +106,7 @@ func (s *Products) ListProductsPage(ctx context.Context, actor identitydomain.Ac
 			if _, exists := seen[id]; exists {
 				continue
 			}
-			if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductRead, Resources: application.ResourceReferences{ProductID: id}}); err != nil {
+			if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, Resources: application.ResourceReferences{ProductID: id}}); err != nil {
 				if errors.Is(err, application.ErrForbidden) {
 					continue
 				}
@@ -138,7 +140,7 @@ func (s *Products) ListProductsPage(ctx context.Context, actor identitydomain.Ac
 				return appquery.Result[releasedomain.Product]{}, ErrInvalidProjection
 			}
 		}
-		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProductRead, Resources: application.ResourceReferences{ProductID: product.ID}}); err != nil {
+		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, Resources: application.ResourceReferences{ProductID: product.ID}}); err != nil {
 			return appquery.Result[releasedomain.Product]{}, err
 		}
 	}

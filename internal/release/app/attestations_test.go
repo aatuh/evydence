@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -52,11 +54,11 @@ func TestUploadBuildAttestationPayloadValidatesScopeBeforePayloadAndCommitsOneTr
 		t.Fatalf("authorization requests = %#v", fixture.authorizer.requests)
 	}
 	wantBuildResources := application.ResourceReferences{ProductID: "prod_1", ProjectID: build.ProjectID, ReleaseID: build.ReleaseID, BuildID: build.ID}
-	if fixture.authorizer.requests[1].Scope != ScopeBuildWrite || fixture.authorizer.requests[1].Resources != wantBuildResources {
+	if fixture.authorizer.requests[1].Action != authz.ActionBuildAttestationsCreate || fixture.authorizer.requests[1].Resources != wantBuildResources {
 		t.Fatalf("build authorization = %#v, want %#v", fixture.authorizer.requests[1], wantBuildResources)
 	}
 	wantArtifactResources := application.ResourceReferences{ArtifactID: artifact.ID}
-	if fixture.authorizer.requests[2].Scope != ScopeBuildWrite || fixture.authorizer.requests[2].Resources != wantArtifactResources {
+	if fixture.authorizer.requests[2].Action != authz.ActionBuildAttestationsCreate || fixture.authorizer.requests[2].Resources != wantArtifactResources {
 		t.Fatalf("artifact authorization = %#v, want %#v", fixture.authorizer.requests[2], wantArtifactResources)
 	}
 	if fixture.transactions.calls != 1 || fixture.transactions.commits != 1 || fixture.transactions.rollbacks != 0 {

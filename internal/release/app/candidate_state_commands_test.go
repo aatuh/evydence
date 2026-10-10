@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -96,10 +98,10 @@ func TestCandidateStateCommandsAuthorizeLockedCoordinatesAndPreserveSnapshot(t *
 			if !reflect.DeepEqual(v, want) || !reflect.DeepEqual(f.row.Candidate, want) || f.runs != 1 || f.reads != 1 || f.writes != 1 || len(f.audit) != 1 {
 				t.Fatal("transition changed snapshot or effects", v, f)
 			}
-			if len(f.requests) != 1 || f.requests[0] != (application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}) {
+			if len(f.requests) != 1 || f.requests[0] != (application.AuthorizationRequest{Action: authz.ActionReleasesManage, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}) {
 				t.Fatal("wrong locked authorization", f.requests)
 			}
-			if len(scope.requests) != 1 || scope.requests[0] != (application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}) {
+			if len(scope.requests) != 1 || scope.requests[0] != (application.AuthorizationRequest{Action: authz.ActionReleasesManage, ScopeOnly: true}) {
 				t.Fatal("wrong preflight scope check", scope.requests)
 			}
 			e := f.audit[0]

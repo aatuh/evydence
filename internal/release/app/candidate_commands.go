@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -51,7 +53,7 @@ func (s *CandidateCommands) CreateReleaseCandidate(ctx context.Context, actor id
 	if err := contextError(ctx); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleaseCandidatesCreate, ScopeOnly: true}); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	var err error

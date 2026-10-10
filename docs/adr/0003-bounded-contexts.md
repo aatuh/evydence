@@ -1011,9 +1011,10 @@ See [current enforcement scope](../architecture.md#architecture-enforcement).
 
 `internal/authz` owns registered action/capability definitions and the migrated
 tenant-wide, instance, and catalog resource decisions. Migrated privileged
-callers select typed application actions. Catalog's fixed scope-to-action
-binding preserves its existing context-port shape while caller migration is
-unfinished; it no longer evaluates grants locally. `internal/application`
+callers and catalog commands/queries select typed application actions.
+Catalog's scope-to-action fallback is removed: legacy scope strings, mixed
+action/scope requests, and foreign action families are rejected even for
+wildcard credentials. `internal/application`
 retains the shared authorization port and aliases the policy-owned resource
 references and safe denial errors; its former tenant-wide and instance
 scope-string gate functions are removed.
@@ -1034,8 +1035,16 @@ claims. Product lists filter current human grants before reads, and foreign
 points retain the missing-resource result. Empty new tenant/organization
 coordinates are omitted from internal reference JSON, preserving prior bytes.
 
+Candidate creation and build-attestation creation have distinct actions while
+retaining their existing public credential scopes. Their factory-bound policies
+accept only the intended operation and still check current artifact associations
+through tenant-bound readers. Attestation policy validates the full resolved
+build coordinates centrally rather than stripping the build identifier in a
+local wrapper. Syntax-aware regressions reject catalog scope-string callers;
+historical aggregate scope translation exists only in test oracles.
+
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
-typed caller contracts, collector binding, and the complete route-to-action
+other contexts' typed caller contracts, collector binding, and the complete route-to-action
 positive/negative coverage matrix still need migration and validation.
 These scoped policy checks are not ticket closure or live
 PostgreSQL, hosted CI, or external-provider evidence.

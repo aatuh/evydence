@@ -12,6 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -66,7 +68,7 @@ func (s *Service) GetBuildRun(ctx context.Context, actor identitydomain.Actor, i
 	if err := contextError(ctx); err != nil {
 		return releasedomain.BuildRun{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeBuildRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionBuildsRead, application.ResourceReferences{}, true); err != nil {
 		return releasedomain.BuildRun{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -92,7 +94,7 @@ func (s *Service) GetBuildRun(ctx context.Context, actor identitydomain.Actor, i
 		return releasedomain.BuildRun{}, ErrNotFound
 	}
 	resources := application.ResourceReferences{ProductID: project.ProductID, ProjectID: project.ID, ReleaseID: release.ID, BuildID: build.ID}
-	if err := s.authorize(ctx, actor, ScopeBuildRead, resources, false); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionBuildsRead, resources, false); err != nil {
 		return releasedomain.BuildRun{}, err
 	}
 	return build, nil
@@ -114,7 +116,7 @@ func (s *Service) CreateReleaseCandidate(ctx context.Context, actor identitydoma
 	if err := contextError(ctx); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleaseCandidatesCreate, application.ResourceReferences{}, true); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	input.ReleaseID = strings.TrimSpace(input.ReleaseID)
@@ -126,7 +128,7 @@ func (s *Service) CreateReleaseCandidate(ctx context.Context, actor identitydoma
 		return releasedomain.ReleaseCandidate{}, ErrNotFound
 	}
 	resources := application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, resources, false); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleaseCandidatesCreate, resources, false); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	input.Name = strings.TrimSpace(input.Name)
@@ -138,7 +140,7 @@ func (s *Service) CreateReleaseCandidate(ctx context.Context, actor identitydoma
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	for _, artifactID := range references.ArtifactIDs {
-		if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{ArtifactID: artifactID}, false); err != nil {
+		if err := s.authorizeCatalog(ctx, actor, authz.ActionReleaseCandidatesCreate, application.ResourceReferences{ArtifactID: artifactID}, false); err != nil {
 			return releasedomain.ReleaseCandidate{}, err
 		}
 	}
@@ -208,7 +210,7 @@ func (s *Service) GetReleaseCandidate(ctx context.Context, actor identitydomain.
 	if err := contextError(ctx); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleasesRead, application.ResourceReferences{}, true); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -230,7 +232,7 @@ func (s *Service) GetReleaseCandidate(ctx context.Context, actor identitydomain.
 		return releasedomain.ReleaseCandidate{}, ErrNotFound
 	}
 	resources := application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}
-	if err := s.authorize(ctx, actor, ScopeReleaseRead, resources, false); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleasesRead, resources, false); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	return candidate, nil
@@ -240,7 +242,7 @@ func (s *Service) ListReleaseCandidates(ctx context.Context, actor identitydomai
 	if err := contextError(ctx); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleasesRead, application.ResourceReferences{}, true); err != nil {
 		return nil, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -264,7 +266,7 @@ func (s *Service) ListReleaseCandidates(ctx context.Context, actor identitydomai
 			continue
 		}
 		resources := application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}
-		if err := s.authorize(ctx, actor, ScopeReleaseRead, resources, false); err != nil {
+		if err := s.authorizeCatalog(ctx, actor, authz.ActionReleasesRead, resources, false); err != nil {
 			if errors.Is(err, ErrForbidden) {
 				continue
 			}
@@ -285,7 +287,7 @@ func (s *Service) UpdateReleaseCandidateState(ctx context.Context, actor identit
 	if err := contextError(ctx); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleasesManage, application.ResourceReferences{}, true); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	state = strings.TrimSpace(state)
@@ -309,7 +311,7 @@ func (s *Service) UpdateReleaseCandidateState(ctx context.Context, actor identit
 		return releasedomain.ReleaseCandidate{}, ErrNotFound
 	}
 	resources := application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, resources, false); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionReleasesManage, resources, false); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	if candidate.Revision != expectedRevision {

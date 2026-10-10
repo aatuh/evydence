@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -22,15 +23,19 @@ type candidateAuthorizer struct {
 }
 
 func (a candidateAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if request.Scope != "release:write" {
+	if request.Scope != "" || request.Action != authz.ActionReleaseCandidatesCreate {
 		return application.ErrForbidden
 	}
 	refs := request.Resources
 	if request.ScopeOnly || request.TenantWide || refs.ArtifactID == "" || refs != (application.ResourceReferences{ArtifactID: refs.ArtifactID}) {
 		return a.catalog.Authorize(ctx, actor, request)
 	}
-	if err := a.catalog.Authorize(ctx, actor, application.AuthorizationRequest{Scope: request.Scope, ScopeOnly: true}); err != nil {
+	if err := a.catalog.Authorize(ctx, actor, application.AuthorizationRequest{Action: request.Action, ScopeOnly: true}); err != nil {
 		return err
 	}
-	return authorizeArtifactGrant(ctx, actor, request.Scope, refs.ArtifactID, a.artifacts)
+	definition, ok := authz.DefinitionFor(request.Action)
+	if !ok {
+		return application.ErrForbidden
+	}
+	return authorizeArtifactGrant(ctx, actor, definition.Scope, refs.ArtifactID, a.artifacts)
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"math"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -56,7 +58,7 @@ func (s *CandidateStateCommands) UpdateReleaseCandidateState(ctx context.Context
 	if err := contextError(ctx); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesManage, ScopeOnly: true}); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	in, err := NormalizeCandidateTransitionInput(CandidateTransitionInput{ID: id, State: state, Reason: reason, ExpectedRevision: expectedRevision})
@@ -74,7 +76,7 @@ func (s *CandidateStateCommands) UpdateReleaseCandidateState(ctx context.Context
 		if current.ID != id || current.TenantID != actor.TenantID || current.ReleaseID == "" || row.ProductID == "" {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: row.ProductID, ReleaseID: current.ReleaseID}}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesManage, Resources: application.ResourceReferences{ProductID: row.ProductID, ReleaseID: current.ReleaseID}}); err != nil {
 			return err
 		}
 		if current.Revision != expectedRevision {

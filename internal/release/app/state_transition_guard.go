@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -57,7 +59,7 @@ func (s *ReleaseStateCommands) AuthorizeReleaseTransition(ctx context.Context, a
 	if err := validateCatalogCreationActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleasesManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	id, err := NormalizeTransitionID(id)
@@ -79,7 +81,7 @@ func (s *ReleaseStateCommands) AuthorizeReleaseTransition(ctx context.Context, a
 		if !validCandidateText(v.ProductID, 1024) {
 			return ErrConflict
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: v.ProductID, ReleaseID: id}})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleasesManage, Resources: application.ResourceReferences{ProductID: v.ProductID, ReleaseID: id}})
 	})
 }
 func (s *CandidateStateCommands) AuthorizeCandidateTransition(ctx context.Context, a identitydomain.Actor, id string) error {
@@ -89,7 +91,7 @@ func (s *CandidateStateCommands) AuthorizeCandidateTransition(ctx context.Contex
 	if err := validateCatalogCreationActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleasesManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	id, err := NormalizeTransitionID(id)
@@ -111,6 +113,6 @@ func (s *CandidateStateCommands) AuthorizeCandidateTransition(ctx context.Contex
 		if !validCandidateText(v.ReleaseID, 1024) || !validCandidateText(v.ProductID, 1024) {
 			return ErrConflict
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: v.ProductID, ReleaseID: v.ReleaseID}})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleasesManage, Resources: application.ResourceReferences{ProductID: v.ProductID, ReleaseID: v.ReleaseID}})
 	})
 }

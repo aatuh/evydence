@@ -39,10 +39,12 @@ func (f IDGeneratorFunc) NewID(prefix string) string { return f(prefix) }
 // supplied to authorization policy. Blank fields are intentionally absent.
 type ResourceReferences = authz.ResourceReferences
 
-// AuthorizationRequest keeps scope and resource decisions visible at each
-// service entry point. ScopeOnly preserves operations that have no resource
-// association at command time, such as registering a detached artifact.
+// AuthorizationRequest keeps the action and resource decision visible at each
+// service entry point. Scope is retained only for contexts not yet migrated;
+// a typed context rejects scope strings and action/scope ambiguity. ScopeOnly
+// distinguishes preflight from resolved resource authority.
 type AuthorizationRequest struct {
+	Action     authz.Action `json:",omitempty"`
 	Scope      string
 	Resources  ResourceReferences
 	ScopeOnly  bool

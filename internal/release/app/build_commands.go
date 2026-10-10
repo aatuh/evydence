@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -72,7 +74,7 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 	if err := contextError(ctx); err != nil {
 		return releasedomain.BuildRun{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBuildsCreate, ScopeOnly: true}); err != nil {
 		return releasedomain.BuildRun{}, err
 	}
 	build, err := normalizeBuildInput(input)
@@ -97,7 +99,7 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 		return releasedomain.BuildRun{}, ErrValidation
 	}
 	resources := application.ResourceReferences{ProductID: project.ProductID, ProjectID: project.ID, ReleaseID: release.ID}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: resources}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBuildsCreate, Resources: resources}); err != nil {
 		return releasedomain.BuildRun{}, err
 	}
 	artifacts := make(map[string]releasedomain.Artifact)
@@ -117,7 +119,7 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 		}
 		if _, authorized := artifacts[artifact.ID]; !authorized {
 			if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-				Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ArtifactID: artifact.ID},
+				Action: authz.ActionBuildsCreate, Resources: application.ResourceReferences{ArtifactID: artifact.ID},
 			}); err != nil {
 				return releasedomain.BuildRun{}, err
 			}
@@ -160,7 +162,7 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 		if !sameReleaseCoordinates(currentRelease, release) || currentProject.ProductID != currentRelease.ProductID {
 			return ErrConflict
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: resources}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBuildsCreate, Resources: resources}); err != nil {
 			return err
 		}
 		for id, artifact := range artifacts {
@@ -174,7 +176,7 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 			if !sameArtifactCoordinates(current, artifact) {
 				return ErrConflict
 			}
-			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ArtifactID: id}}); err != nil {
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBuildsCreate, Resources: application.ResourceReferences{ArtifactID: id}}); err != nil {
 				return err
 			}
 		}

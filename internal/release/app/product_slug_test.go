@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -54,7 +56,7 @@ func TestProductCommandsNeedOnlySlugExistenceAndTransactionAuthorization(t *test
 	if err != nil || !reflect.DeepEqual(p, want) || !reflect.DeepEqual(tx.product, want) || tx.tenant != fixture.actor.TenantID || tx.slug != "product" || len(tx.audit) != 1 || tx.audit[0].SubjectID != p.ID || tx.audit[0].EntryType != "product.created" || !tx.audit[0].OccurredAt.Equal(p.CreatedAt) {
 		t.Fatal("narrow product command changed metadata/audit", p, tx, err)
 	}
-	if tx.request.Scope != ScopeProductWrite || !tx.request.TenantWide || tx.request.ScopeOnly || tx.request.Resources != (application.ResourceReferences{}) {
+	if tx.request.Action != authz.ActionProductsCreate || !tx.request.TenantWide || tx.request.ScopeOnly || tx.request.Resources != (application.ResourceReferences{}) {
 		t.Fatal("product transaction authorization widened", tx.request)
 	}
 	tx.exists = true

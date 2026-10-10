@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -44,7 +46,7 @@ func (s *BuildAttestationCommands) AuthorizeBuildAttestationCreation(ctx context
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBuildWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if a.TenantID == "" || len(a.TenantID) > 1024 || !validBuildText(a.TenantID) || strings.TrimSpace(a.TenantID) != a.TenantID {
@@ -59,7 +61,7 @@ func (s *BuildAttestationCommands) AuthorizeBuildAttestationCreation(ctx context
 		if !ok {
 			return ErrValidation
 		}
-		if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBuildWrite, ScopeOnly: true}); err != nil {
+		if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, ScopeOnly: true}); err != nil {
 			return err
 		}
 		p, err := guard.ReadBuildAttestationCreationScope(ctx, a.TenantID, id)
@@ -77,7 +79,7 @@ func (s *BuildAttestationCommands) AuthorizeBuildAttestationCreation(ctx context
 		if len(p.ArtifactIDs) > MaxBuildOutputs {
 			return ErrConflict
 		}
-		if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ProductID: p.ProductID, ProjectID: p.ProjectID, ReleaseID: p.ReleaseID, BuildID: id}}); err != nil {
+		if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, Resources: application.ResourceReferences{ProductID: p.ProductID, ProjectID: p.ProjectID, ReleaseID: p.ReleaseID, BuildID: id}}); err != nil {
 			return err
 		}
 		seen := map[string]bool{}
@@ -97,7 +99,7 @@ func (s *BuildAttestationCommands) AuthorizeBuildAttestationCreation(ctx context
 			if artifact.ID != artifactID || artifact.TenantID != a.TenantID {
 				return ErrNotFound
 			}
-			if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
+			if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
 				return err
 			}
 		}

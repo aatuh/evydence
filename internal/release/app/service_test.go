@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -29,7 +31,7 @@ func TestCreateProductAuthorizesBeforeAndInsideOneAtomicTransaction(t *testing.T
 		t.Fatalf("authorization calls=%d transaction_started_at_calls=%v", fixture.authorizer.calls, fixture.authorizer.startedCalls)
 	}
 	for _, request := range fixture.authorizer.requests {
-		if request.Scope != ScopeProductWrite || !request.TenantWide || request.ScopeOnly || request.Resources != (application.ResourceReferences{}) {
+		if request.Action != authz.ActionProductsCreate || !request.TenantWide || request.ScopeOnly || request.Resources != (application.ResourceReferences{}) {
 			t.Fatalf("product authorization no longer tenant-wide: %#v", request)
 		}
 	}

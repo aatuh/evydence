@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -52,7 +54,7 @@ func authorizeCandidateCreationScope(ctx context.Context, tx CandidateCreationTr
 	if !validCandidateText(p.ProductID, 1024) {
 		return CandidateReleaseCoordinates{}, ErrConflict
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: p.ProductID, ReleaseID: p.ID}}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleaseCandidatesCreate, Resources: application.ResourceReferences{ProductID: p.ProductID, ReleaseID: p.ID}}); err != nil {
 		return CandidateReleaseCoordinates{}, err
 	}
 	refs := ReleaseCandidateReferences{BuildIDs: in.BuildIDs, ArtifactIDs: in.ArtifactIDs, SBOMIDs: in.SBOMIDs, ScanIDs: in.ScanIDs, VEXIDs: in.VEXIDs, ContractIDs: in.ContractIDs, BundleIDs: in.BundleIDs}
@@ -65,7 +67,7 @@ func authorizeCandidateCreationScope(ctx context.Context, tx CandidateCreationTr
 			continue
 		}
 		seen[id] = true
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ArtifactID: id}}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleaseCandidatesCreate, Resources: application.ResourceReferences{ArtifactID: id}}); err != nil {
 			return CandidateReleaseCoordinates{}, err
 		}
 	}
@@ -81,7 +83,7 @@ func (s *CandidateCommands) AuthorizeCandidateCreation(ctx context.Context, a id
 	if err := validateCatalogCreationActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleaseCandidatesCreate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	in, err := NormalizeCandidateCreationInput(in)

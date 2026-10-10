@@ -22,6 +22,8 @@ var catalogCases = []struct {
 	{ActionReleasesManage, "release:write", ResourceBoundary, ResourceReferences{ProductID: "product", ReleaseID: "release"}},
 	{ActionBuildsRead, "build:read", ResourceBoundary, ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release", BuildID: "build"}},
 	{ActionBuildsCreate, "build:write", ResourceBoundary, ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release"}},
+	{ActionBuildAttestationsCreate, "build:write", ResourceBoundary, ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release", BuildID: "build"}},
+	{ActionReleaseCandidatesCreate, "release:write", ResourceBoundary, ResourceReferences{ProductID: "product", ReleaseID: "release"}},
 }
 
 func TestCatalogPolicyIssuedActorsAndEffectiveCapabilities(t *testing.T) {

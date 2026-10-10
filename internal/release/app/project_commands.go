@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -51,7 +53,7 @@ func (s *ProjectCommands) CreateProject(ctx context.Context, actor identitydomai
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Project{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeProjectWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProjectsCreate, ScopeOnly: true}); err != nil {
 		return releasedomain.Project{}, err
 	}
 	var err error
@@ -67,14 +69,14 @@ func (s *ProjectCommands) CreateProject(ctx context.Context, actor identitydomai
 		return releasedomain.Project{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: ScopeProjectWrite, Resources: application.ResourceReferences{ProductID: product.ID},
+		Action: authz.ActionProjectsCreate, Resources: application.ResourceReferences{ProductID: product.ID},
 	}); err != nil {
 		return releasedomain.Project{}, err
 	}
 	project := releasedomain.Project{ID: s.ids.NewID("proj"), TenantID: actor.TenantID, ProductID: product.ID, Name: input.Name, CreatedAt: s.clock.Now().UTC()}
 	err = s.transactions.ExecuteProject(ctx, func(ctx context.Context, tx ProjectTransaction) error {
 		if guard, ok := tx.(catalogCreationGuardTransaction); ok {
-			if err := authorizeCatalogCreationScope(ctx, guard, actor, ScopeProjectWrite, input.ProductID); err != nil {
+			if err := authorizeCatalogCreationScope(ctx, guard, actor, authz.ActionProjectsCreate, input.ProductID); err != nil {
 				return err
 			}
 		}

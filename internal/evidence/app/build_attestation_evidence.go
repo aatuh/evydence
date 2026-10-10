@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -105,7 +107,7 @@ func (w *BuildAttestationEvidenceWriter) WriteBuildAttestationEvidence(ctx conte
 		sourceIdentity = nil
 	}
 	scope := EvidenceScope{ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, BuildID: in.BuildID}
-	if err := w.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "build:write", Resources: resourceReferences(scope)}); err != nil {
+	if err := w.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, Resources: resourceReferences(scope)}); err != nil {
 		return "", err
 	}
 	if in.StagedPayload.Present() {
@@ -118,7 +120,7 @@ func (w *BuildAttestationEvidenceWriter) WriteBuildAttestationEvidence(ctx conte
 	}
 	for _, ref := range refs {
 		if ref.ID != "" {
-			if err := w.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "build:write", Resources: application.ResourceReferences{ArtifactID: ref.ID}}); err != nil {
+			if err := w.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, Resources: application.ResourceReferences{ArtifactID: ref.ID}}); err != nil {
 				return "", err
 			}
 			if err := w.config.Repository.ValidateArtifactReference(ctx, a.TenantID, ref.ID, ref.Digest); err != nil {

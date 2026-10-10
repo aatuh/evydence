@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -23,7 +25,7 @@ func authorizeBuildCreationScope(ctx context.Context, tx BuildTransaction, a ide
 	if !ok {
 		return ErrValidation
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBuildWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildsCreate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	p, err := reader.ReadBuildCreationScope(ctx, a.TenantID, b.ProjectID, b.ReleaseID)
@@ -41,7 +43,7 @@ func authorizeBuildCreationScope(ctx context.Context, tx BuildTransaction, a ide
 	if p.ProductID != p.ReleaseProductID {
 		return ErrValidation
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ProductID: p.ProductID, ProjectID: p.ProjectID, ReleaseID: p.ReleaseID}}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildsCreate, Resources: application.ResourceReferences{ProductID: p.ProductID, ProjectID: p.ProjectID, ReleaseID: p.ReleaseID}}); err != nil {
 		return err
 	}
 	seen := map[string]bool{}
@@ -57,7 +59,7 @@ func authorizeBuildCreationScope(ctx context.Context, tx BuildTransaction, a ide
 		if artifact.ID != out.ArtifactID || artifact.TenantID != a.TenantID {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildsCreate, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
 			return err
 		}
 	}
@@ -71,7 +73,7 @@ func (s *BuildCommands) AuthorizeBuildCreation(ctx context.Context, a identitydo
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBuildWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBuildsCreate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if a.TenantID == "" || len(a.TenantID) > 1024 || !validBuildText(a.TenantID) || strings.TrimSpace(a.TenantID) != a.TenantID {

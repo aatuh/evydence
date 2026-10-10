@@ -7,6 +7,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
@@ -56,12 +57,12 @@ func TestCatalogPointQueriesAuthorizeTenantBoundProjectAndRelease(t *testing.T) 
 		t.Fatal(err)
 	}
 	for _, test := range []struct {
-		name  string
-		scope string
-		id    string
+		name   string
+		action authz.Action
+		id     string
 	}{
-		{name: "project", scope: "project:read", id: "proj_allowed"},
-		{name: "release", scope: "release:read", id: "rel_allowed"},
+		{name: "project", action: authz.ActionProjectsRead, id: "proj_allowed"},
+		{name: "release", action: authz.ActionReleasesRead, id: "rel_allowed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			reader := &catalogPointReaderFake{
@@ -88,7 +89,7 @@ func TestCatalogPointQueriesAuthorizeTenantBoundProjectAndRelease(t *testing.T) 
 			if reader.tenant != actor.TenantID || reader.id != test.id || reader.calls != 1 || len(authorizer.seen) != 2 {
 				t.Fatalf("query scope reader=%#v authorizations=%#v", reader, authorizer.seen)
 			}
-			if first, last := authorizer.seen[0], authorizer.seen[1]; first.Scope != test.scope || !first.ScopeOnly || last.Scope != test.scope || last.ScopeOnly || last.Resources.ProductID != "prod_1" {
+			if first, last := authorizer.seen[0], authorizer.seen[1]; first.Action != test.action || first.Scope != "" || !first.ScopeOnly || last.Action != test.action || last.Scope != "" || last.ScopeOnly || last.Resources.ProductID != "prod_1" {
 				t.Fatalf("authorization sequence=%#v", authorizer.seen)
 			}
 			if last := authorizer.seen[1]; (test.name == "project" && (last.Resources.ProjectID != test.id || last.Resources.ReleaseID != "")) || (test.name == "release" && (last.Resources.ReleaseID != test.id || last.Resources.ProjectID != "")) {

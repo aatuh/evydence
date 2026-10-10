@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -153,7 +155,7 @@ func (s *BuildAttestationCommands) UploadBuildAttestationPayload(ctx context.Con
 	if err := contextError(ctx); err != nil {
 		return releasedomain.BuildAttestation{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, ScopeOnly: true}); err != nil {
 		return releasedomain.BuildAttestation{}, err
 	}
 	var err error
@@ -184,7 +186,7 @@ func (s *BuildAttestationCommands) UploadBuildAttestationPayload(ctx context.Con
 		return releasedomain.BuildAttestation{}, ErrNotFound
 	}
 	resources := application.ResourceReferences{ProductID: project.ProductID, ProjectID: project.ID, ReleaseID: release.ID, BuildID: build.ID}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: resources}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, Resources: resources}); err != nil {
 		return releasedomain.BuildAttestation{}, err
 	}
 
@@ -206,7 +208,7 @@ func (s *BuildAttestationCommands) UploadBuildAttestationPayload(ctx context.Con
 		if artifact.Digest != output.Digest {
 			return releasedomain.BuildAttestation{}, ErrValidation
 		}
-		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeBuildWrite, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
+		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBuildAttestationsCreate, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
 			return releasedomain.BuildAttestation{}, err
 		}
 		artifacts[artifact.ID] = artifact

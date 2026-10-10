@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -43,7 +45,7 @@ func (s *EvidenceFlows) Plan(ctx context.Context, actor identitydomain.Actor, re
 	if err := ctx.Err(); err != nil {
 		return releasedomain.ReleaseEvidenceFlow{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeReleaseRead, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesRead, ScopeOnly: true}); err != nil {
 		return releasedomain.ReleaseEvidenceFlow{}, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -58,7 +60,7 @@ func (s *EvidenceFlows) Plan(ctx context.Context, actor identitydomain.Actor, re
 		return releasedomain.ReleaseEvidenceFlow{}, ErrNotFound
 	}
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: scopeReleaseRead, Resources: application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: releaseID},
+		Action: authz.ActionReleasesRead, Resources: application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: releaseID},
 	}); err != nil {
 		return releasedomain.ReleaseEvidenceFlow{}, err
 	}

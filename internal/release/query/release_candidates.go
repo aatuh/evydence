@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -55,7 +57,7 @@ func (s *ReleaseCandidates) GetReleaseCandidate(ctx context.Context, actor ident
 	if err := ctx.Err(); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeReleaseRead, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesRead, ScopeOnly: true}); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -70,7 +72,7 @@ func (s *ReleaseCandidates) GetReleaseCandidate(ctx context.Context, actor ident
 	if candidate.ID != id || candidate.TenantID != actor.TenantID || candidate.ReleaseID == "" || point.ProductID == "" {
 		return releasedomain.ReleaseCandidate{}, ErrNotFound
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeReleaseRead, Resources: application.ResourceReferences{ProductID: point.ProductID, ReleaseID: candidate.ReleaseID}}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesRead, Resources: application.ResourceReferences{ProductID: point.ProductID, ReleaseID: candidate.ReleaseID}}); err != nil {
 		return releasedomain.ReleaseCandidate{}, err
 	}
 	return candidate, nil
@@ -86,11 +88,11 @@ func (s *ReleaseCandidates) ListPage(ctx context.Context, actor identitydomain.A
 	if err := appquery.Validate(page, after); err != nil {
 		return appquery.Result[releasedomain.ReleaseCandidate]{}, ErrValidation
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeReleaseRead, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesRead, ScopeOnly: true}); err != nil {
 		return appquery.Result[releasedomain.ReleaseCandidate]{}, err
 	}
 	request := ReleaseCandidatePageRequest{TenantID: actor.TenantID, ReleaseID: strings.TrimSpace(releaseID), Page: page, After: after}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeReleaseRead, TenantWide: true}); err == nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesRead, TenantWide: true}); err == nil {
 		request.TenantWide = true
 	} else if !errors.Is(err, application.ErrForbidden) {
 		return appquery.Result[releasedomain.ReleaseCandidate]{}, err
@@ -134,7 +136,7 @@ func (s *ReleaseCandidates) ListPage(ctx context.Context, actor identitydomain.A
 		if candidate.ID == "" || candidate.TenantID != actor.TenantID || candidate.ReleaseID == "" || point.ProductID == "" || request.ReleaseID != "" && candidate.ReleaseID != request.ReleaseID {
 			return appquery.Result[releasedomain.ReleaseCandidate]{}, ErrInvalidProjection
 		}
-		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scopeReleaseRead, Resources: application.ResourceReferences{ProductID: point.ProductID, ReleaseID: candidate.ReleaseID}}); err != nil {
+		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleasesRead, Resources: application.ResourceReferences{ProductID: point.ProductID, ReleaseID: candidate.ReleaseID}}); err != nil {
 			return appquery.Result[releasedomain.ReleaseCandidate]{}, ErrInvalidProjection
 		}
 		items = append(items, candidate)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -76,8 +78,8 @@ func validateCatalogCreationActor(ctx context.Context, a identitydomain.Actor) e
 	return nil
 }
 
-func authorizeCatalogCreationScope(ctx context.Context, tx catalogCreationGuardTransaction, a identitydomain.Actor, scope, productID string) error {
-	request := application.AuthorizationRequest{Scope: scope, ScopeOnly: productID != "", TenantWide: productID == ""}
+func authorizeCatalogCreationScope(ctx context.Context, tx catalogCreationGuardTransaction, a identitydomain.Actor, action authz.Action, productID string) error {
+	request := application.AuthorizationRequest{Action: action, ScopeOnly: productID != "", TenantWide: productID == ""}
 	if err := tx.Authorize(ctx, a, request); err != nil {
 		return err
 	}
@@ -94,7 +96,7 @@ func authorizeCatalogCreationScope(ctx context.Context, tx catalogCreationGuardT
 	if p.TenantID != a.TenantID || p.ID != productID {
 		return ErrNotFound
 	}
-	return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: scope, Resources: application.ResourceReferences{ProductID: p.ID}})
+	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: action, Resources: application.ResourceReferences{ProductID: p.ID}})
 }
 
 func (s *ProductCommands) AuthorizeProductCreation(ctx context.Context, a identitydomain.Actor, in CreateProductInput) error {
@@ -104,7 +106,7 @@ func (s *ProductCommands) AuthorizeProductCreation(ctx context.Context, a identi
 	if err := validateCatalogCreationActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeProductWrite, TenantWide: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionProductsCreate, TenantWide: true}); err != nil {
 		return err
 	}
 	if _, err := NormalizeProductCreationInput(in); err != nil {
@@ -115,7 +117,7 @@ func (s *ProductCommands) AuthorizeProductCreation(ctx context.Context, a identi
 		if !ok {
 			return ErrValidation
 		}
-		return authorizeCatalogCreationScope(ctx, g, a, ScopeProductWrite, "")
+		return authorizeCatalogCreationScope(ctx, g, a, authz.ActionProductsCreate, "")
 	})
 }
 func (s *ProjectCommands) AuthorizeProjectCreation(ctx context.Context, a identitydomain.Actor, in CreateProjectInput) error {
@@ -125,7 +127,7 @@ func (s *ProjectCommands) AuthorizeProjectCreation(ctx context.Context, a identi
 	if err := validateCatalogCreationActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeProjectWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionProjectsCreate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	input, err := NormalizeProjectCreationInput(in)
@@ -137,7 +139,7 @@ func (s *ProjectCommands) AuthorizeProjectCreation(ctx context.Context, a identi
 		if !ok {
 			return ErrValidation
 		}
-		return authorizeCatalogCreationScope(ctx, g, a, ScopeProjectWrite, input.ProductID)
+		return authorizeCatalogCreationScope(ctx, g, a, authz.ActionProjectsCreate, input.ProductID)
 	})
 }
 func (s *ReleaseCommands) AuthorizeReleaseCreation(ctx context.Context, a identitydomain.Actor, in CreateReleaseInput) error {
@@ -147,7 +149,7 @@ func (s *ReleaseCommands) AuthorizeReleaseCreation(ctx context.Context, a identi
 	if err := validateCatalogCreationActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReleaseWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleasesManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	input, err := NormalizeReleaseCreationInput(in)
@@ -159,6 +161,6 @@ func (s *ReleaseCommands) AuthorizeReleaseCreation(ctx context.Context, a identi
 		if !ok {
 			return ErrValidation
 		}
-		return authorizeCatalogCreationScope(ctx, g, a, ScopeReleaseWrite, input.ProductID)
+		return authorizeCatalogCreationScope(ctx, g, a, authz.ActionReleasesManage, input.ProductID)
 	})
 }
