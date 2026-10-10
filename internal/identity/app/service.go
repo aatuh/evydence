@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -239,7 +241,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, actor identitydomain.Actor, 
 	if err := contextError(ctx); err != nil {
 		return identitydomain.APIKey{}, "", err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, ScopeOnly: true, TenantWide: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionAPIKeysManage, ScopeOnly: true, TenantWide: true}); err != nil {
 		return identitydomain.APIKey{}, "", err
 	}
 	input, err := normalizeAPIKeyCreateInput(input)
@@ -283,7 +285,7 @@ func (s *Service) ListAPIKeys(ctx context.Context, actor identitydomain.Actor) (
 	if err := contextError(ctx); err != nil {
 		return nil, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, ScopeOnly: true, TenantWide: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionAPIKeysRead, ScopeOnly: true, TenantWide: true}); err != nil {
 		return nil, err
 	}
 	keys, err := s.reader.ListAPIKeys(ctx, actor.TenantID)

@@ -73,13 +73,13 @@ type collectorWriteAuthorizer struct{}
 
 func NewCollectorWriteAuthorizer() application.Authorizer { return collectorWriteAuthorizer{} }
 func (collectorWriteAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopeCollectorAdmin || r.ScopeOnly || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
+	if r != collectorAuthorization() {
 		return application.ErrForbidden
 	}
-	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionCollectorsManage})
+	return authz.Authorize(ctx, a, authz.Request{Action: r.Action, Resources: r.Resources, Evaluation: authz.TenantEvaluation})
 }
 func collectorAuthorization() application.AuthorizationRequest {
-	return application.AuthorizationRequest{Scope: ScopeCollectorAdmin, TenantWide: true}
+	return application.AuthorizationRequest{Action: authz.ActionCollectorsManage, TenantWide: true}
 }
 func collectorActor(a identitydomain.Actor) (string, string) {
 	if a.CollectorID != "" {

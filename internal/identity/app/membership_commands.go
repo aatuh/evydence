@@ -51,13 +51,13 @@ type membershipWriteAuthorizer struct{}
 
 func NewMembershipWriteAuthorizer() application.Authorizer { return membershipWriteAuthorizer{} }
 func (membershipWriteAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopeIdentityAdmin || r.ScopeOnly || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
+	if r != membershipAuthorization() {
 		return application.ErrForbidden
 	}
-	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionMembershipsManage})
+	return authz.Authorize(ctx, a, authz.Request{Action: r.Action, Resources: r.Resources, Evaluation: authz.TenantEvaluation})
 }
 func membershipAuthorization() application.AuthorizationRequest {
-	return application.AuthorizationRequest{Scope: ScopeIdentityAdmin, TenantWide: true}
+	return application.AuthorizationRequest{Action: authz.ActionMembershipsManage, TenantWide: true}
 }
 func normalizeMembershipOrganization(tenant string, in CreateOrganizationInput) (CreateOrganizationInput, error) {
 	if !validAPIKeyText(in.Name, 65536) || !validAPIKeyText(in.Slug, 65536) {

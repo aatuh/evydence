@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -618,7 +620,7 @@ func (s *Service) appendAudit(ctx context.Context, tx Transaction, now time.Time
 }
 
 func (s *Service) authorizeIdentityAdmin(ctx context.Context, actor identitydomain.Actor) error {
-	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeIdentityAdmin, ScopeOnly: true, TenantWide: true})
+	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionMembershipsManage, ScopeOnly: true, TenantWide: true})
 }
 
 func actorType(actor identitydomain.Actor) string {

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -26,7 +28,7 @@ func TestCreateOrganizationAuthorizesBeforeReadingAndCommitsAudit(t *testing.T) 
 	if len(fixture.transactions.state.audit) != 1 || fixture.transactions.state.audit[0].EntryType != "organization.created" {
 		t.Fatalf("audit = %#v", fixture.transactions.state.audit)
 	}
-	if request := fixture.authorizer.requests[0]; request.Scope != ScopeIdentityAdmin || !request.ScopeOnly || !request.TenantWide {
+	if request := fixture.authorizer.requests[0]; request.Action != authz.ActionMembershipsManage || request.Scope != "" || !request.ScopeOnly || !request.TenantWide {
 		t.Fatalf("authorization request = %#v", request)
 	}
 

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -94,7 +96,7 @@ func TestCreateAPIKeyCommitsSecretHashAndAuditBeforeReturningSecret(t *testing.T
 	if fixture.grants.calls != 1 || fixture.authorizer.calls != 1 {
 		t.Fatalf("grant calls=%d authorization calls=%d", fixture.grants.calls, fixture.authorizer.calls)
 	}
-	if request := fixture.authorizer.requests[0]; request.Scope != ScopeAdmin || !request.ScopeOnly || !request.TenantWide {
+	if request := fixture.authorizer.requests[0]; request.Action != authz.ActionAPIKeysManage || request.Scope != "" || !request.ScopeOnly || !request.TenantWide {
 		t.Fatalf("authorization request = %#v", request)
 	}
 }

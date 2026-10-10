@@ -47,13 +47,13 @@ type apiKeyWriteAuthorizer struct{}
 
 func NewAPIKeyWriteAuthorizer() application.Authorizer { return apiKeyWriteAuthorizer{} }
 func (apiKeyWriteAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopeAdmin || r.ScopeOnly || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
+	if r != apiKeyAuthorization() {
 		return application.ErrForbidden
 	}
-	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionAPIKeysManage})
+	return authz.Authorize(ctx, a, authz.Request{Action: r.Action, Resources: r.Resources, Evaluation: authz.TenantEvaluation})
 }
 func apiKeyAuthorization() application.AuthorizationRequest {
-	return application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}
+	return application.AuthorizationRequest{Action: authz.ActionAPIKeysManage, TenantWide: true}
 }
 
 // AuthorizeAPIKeyScopes preserves the explicit instance authority rule.

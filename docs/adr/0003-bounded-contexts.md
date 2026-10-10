@@ -1043,9 +1043,17 @@ build coordinates centrally rather than stripping the build identifier in a
 local wrapper. Syntax-aware regressions reject catalog scope-string callers;
 historical aggregate scope translation exists only in test oracles.
 
+API-key, membership/identity administration, and collector-management commands
+also construct typed action requests. Their factory-bound policies require the
+exact tenant-wide operation envelope and reject legacy scopes, mixed requests,
+scope-only promotion, foreign targets, and another action family. Current human
+tenant grants remain required. Credential generation, public scopes, session
+protocols, and transactional audit/replay behavior are unchanged; this does not
+complete collector-to-resource binding or remaining policy migration.
+
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
-other contexts' typed caller contracts, collector binding, and the complete route-to-action
-positive/negative coverage matrix still need migration and validation.
+other contexts' typed caller contracts, collector binding, and the complete
+route-to-action positive/negative coverage matrix still need migration and validation.
 These scoped policy checks are not ticket closure or live
 PostgreSQL, hosted CI, or external-provider evidence.
 
