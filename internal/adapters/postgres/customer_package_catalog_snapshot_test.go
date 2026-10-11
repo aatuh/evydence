@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres/coordination"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -20,6 +21,16 @@ import (
 func customerCatalogFixture(t *testing.T) *Store {
 	t.Helper()
 	s := isolatedRelationalTestStore(t)
+	// Reproduce the default pool size on small CI runners on every machine.
+	// Snapshot cases must own their transactions, not rely on a CPU-sized pool.
+	config := s.pool.Config()
+	config.MaxConns = min(config.MaxConns, 4)
+	pool, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.pool.Close()
+	s.pool = pool
 	for _, sql := range []string{
 		`INSERT INTO tenants(id,name) VALUES('tenant','Customer'),('foreign_tenant','Foreign')`,
 		`INSERT INTO products(id,tenant_id,name,slug) VALUES('product','tenant','Product','product'),('sibling','tenant','Sibling','sibling'),('foreign_product','foreign_tenant','Foreign','foreign')`,
@@ -48,7 +59,9 @@ func customerCatalogFixture(t *testing.T) *Store {
 
 func customerCatalogReadTx(t *testing.T, s *Store) pgx.Tx {
 	t.Helper()
-	tx, err := s.pool.BeginTx(t.Context(), pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		t.Fatal(err)
 	}

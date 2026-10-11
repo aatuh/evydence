@@ -86,10 +86,16 @@ func TestCustomerPackageEvidenceSnapshotSelectsOnlyPublicScopedFields(t *testing
 	if err != nil || len(product.SBOMs) != 1 || product.SBOMs[0]["id"] != "sbom_unreleased" || len(product.Scans) != 1 || product.Scans[0]["id"] != "vulnerability_scan_unreleased" || len(product.VEX) != 1 || product.VEX[0]["id"] != "vex_unreleased" {
 		t.Fatalf("product-only documents crossed product or release: %#v err=%v", product, err)
 	}
+	retained := s.pool.Stat().AcquiredConns()
 	for _, scope := range [][3]string{{"tenant", "foreign_product", ""}, {"tenant", "product", "sibling_release"}, {"foreign_tenant", "product", "release"}} {
-		value, err := readCustomerPackageEvidenceTx(t.Context(), customerCatalogReadTx(t, s), scope[0], scope[1], scope[2], &customerSnapshotBudget{remainingBytes: packageapp.MaxCustomerPackageManifestBytes})
-		if !errors.Is(err, packageapp.ErrNotFound) || !reflect.DeepEqual(value, customerPackageEvidenceSnapshot{}) {
-			t.Fatalf("foreign root snapshot=%#v err=%v", value, err)
+		t.Run(strings.Join(scope[:], "/"), func(t *testing.T) {
+			value, err := readCustomerPackageEvidenceTx(t.Context(), customerCatalogReadTx(t, s), scope[0], scope[1], scope[2], &customerSnapshotBudget{remainingBytes: packageapp.MaxCustomerPackageManifestBytes})
+			if !errors.Is(err, packageapp.ErrNotFound) || !reflect.DeepEqual(value, customerPackageEvidenceSnapshot{}) {
+				t.Fatalf("foreign root snapshot=%#v err=%v", value, err)
+			}
+		})
+		if acquired := s.pool.Stat().AcquiredConns(); acquired != retained {
+			t.Fatalf("scope case retained a transaction: acquired=%d baseline=%d", acquired, retained)
 		}
 	}
 }
