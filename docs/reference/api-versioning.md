@@ -649,6 +649,20 @@ requirements, eight-hour default/twelve-hour maximum lifetime, and secure cookie
 attributes. Secret/cookie release follows the verification/session/audit commit;
 stale identity snapshots conflict and failed assessments retain safe receipts.
 
+Exchange now uses the central `sso_credentials.exchange` verified-identity
+boundary. Assessment must be `passed`, with completed nonempty fully passed
+credential checks; pending/skipped/unknown/absent proof cannot issue sessions.
+Provider/link/user identity and capability constraints are independent of the
+assessment port and are rechecked after snapshot validation. Invalid link proof
+does not reach user/grant reads. Denials retain the existing safe receipt/audit
+and `422` verification-failure or `403` missing-capability response contracts.
+Session expiry is rechecked after snapshot locks; expired-in-flight requested
+sessions return `400` with no exchange writes. Post-commit cancellation withholds
+results/secrets without undoing committed effects. Crypto verification, token/
+cookie formats, schema versions, hashes and historical rows are unchanged.
+These unreleased enforcement changes require release compatibility review;
+they are not an approved exception or live-provider/SQL durability proof.
+
 Both profiles now reject explicit null fields, invalid UTF-8/NUL text, provider
 IDs above 1 KiB, subject/credential text above 64 KiB, and timestamps outside
 years 1–9999. Stored link/user fields and grants are bounded, and more than 256

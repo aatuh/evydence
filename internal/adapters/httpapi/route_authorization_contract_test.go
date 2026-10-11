@@ -59,6 +59,13 @@ func TestSignedIncidentRouteDeclaresItsConcreteReceiverAction(t *testing.T) {
 	}
 }
 
+func TestSSOExchangeRouteDeclaresItsConcreteVerifiedIdentityAction(t *testing.T) {
+	p, ok := authorizationPolicyForOperation("exchangeSSOCredential")
+	if !ok || p.Mode != "verified-sso-credential" || p.TenantRule != "verified-identity-tenant" || !slices.Equal(p.Actions, []authz.Action{authz.ActionSSOCredentialsExchange}) {
+		t.Fatal("SSO exchange route lacks its concrete central action", p)
+	}
+}
+
 func TestRouteAuthorizationContractsRejectDriftAndCannotBeMutatedThroughOtherRoutes(t *testing.T) {
 	for _, route := range (&Server{}).routeDefinitions() {
 		t.Run(route.op.OperationID, func(t *testing.T) {

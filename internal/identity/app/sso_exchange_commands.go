@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -90,8 +91,12 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if err != nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
-	if provider.ID != input.ProviderID || provider.TenantID == "" || provider.Status != "active" {
-		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrNotFound
+	providerBinding := authz.SSOExchangeProvider{ID: provider.ID, TenantID: provider.TenantID, Status: provider.Status}
+	if err := authz.CheckSSOExchangeProvider(ctx, providerBinding, input.ProviderID); err != nil {
+		if errors.Is(err, authz.ErrNotFound) {
+			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrNotFound
+		}
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
 	if (provider.Type == "oidc" && input.SAMLAssertion != "") || (provider.Type == "saml" && input.IDToken != "") {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
@@ -106,6 +111,10 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
 	checks := redactedCredentialChecks(credentialResult.Checks, input.IDToken, input.SAMLAssertion)
+	credentialChecks := make([]string, len(checks))
+	for i, check := range checks {
+		credentialChecks[i] = check.Result
+	}
 	if verificationErr != nil {
 		checks = append(checks, identitydomain.VerificationCheck{Name: "credential_verification", Result: "failed", Detail: "credential verification did not complete"})
 	}
@@ -113,7 +122,12 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if err != nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
-	if !found || link.TenantID != provider.TenantID || link.ProviderID != provider.ID || link.Subject != input.Subject || !link.Verified {
+	linkBinding := authz.SSOExchangeLink{ID: link.ID, TenantID: link.TenantID, ProviderID: link.ProviderID, UserID: link.UserID, Subject: link.Subject, Verified: link.Verified}
+	linkAuthority := authz.CheckSSOExchangeLink(ctx, providerBinding, input.Subject, linkBinding, found)
+	if linkAuthority != nil {
+		if !errors.Is(linkAuthority, authz.ErrUnauthorized) {
+			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", linkAuthority
+		}
 		checks = append(checks, identitydomain.VerificationCheck{Name: "verified_identity_link", Result: "failed"})
 	} else {
 		checks = append(checks, identitydomain.VerificationCheck{Name: "verified_identity_link", Result: "passed"})
@@ -129,7 +143,15 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 		SchemaVersion: identitydomain.ProviderVerificationVersion, CreatedAt: now,
 	}
 	verification = s.assess(verification, provider)
-	if s.config.VerificationPolicy.ReturnsFailure(verification.Result) {
+	credentialAuthority := authz.CheckSSOCredentialVerification(ctx, verification.Result, verificationErr == nil, credentialChecks)
+	if credentialAuthority != nil && !errors.Is(credentialAuthority, authz.ErrUnauthorized) {
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", credentialAuthority
+	}
+	if s.config.VerificationPolicy.ReturnsFailure(verification.Result) || credentialAuthority != nil || linkAuthority != nil {
+		if !s.config.VerificationPolicy.ReturnsFailure(verification.Result) {
+			verification.Checks = append(verification.Checks, identitydomain.VerificationCheck{Name: "credential_authority", Result: "failed"})
+			verification = s.assess(verification, provider)
+		}
 		return s.persistDenied(ctx, verification, snapshot, ErrVerificationFailed)
 	}
 	user, err := s.config.Reader.User(ctx, provider.TenantID, link.UserID)
@@ -141,7 +163,11 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 		snapshot.UserFound = true
 		snapshot.User = cloneHumanUser(user)
 	}
-	if err != nil || user.ID != link.UserID || user.TenantID != provider.TenantID || user.Status != "active" {
+	userBinding := authz.SSOExchangeUser{ID: user.ID, TenantID: user.TenantID, Status: user.Status}
+	if authorityErr := authz.CheckSSOExchangeUser(ctx, providerBinding, linkBinding, userBinding, err == nil); authorityErr != nil {
+		if !errors.Is(authorityErr, authz.ErrUnauthorized) {
+			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", authorityErr
+		}
 		verification.Checks = append(verification.Checks, identitydomain.VerificationCheck{Name: "active_user", Result: "failed"})
 		verification = s.assess(verification, provider)
 		return s.persistDenied(ctx, verification, snapshot, ErrVerificationFailed)
@@ -157,7 +183,14 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	groups := credentialSafeStrings(credentialResult.Groups, input.IDToken, input.SAMLAssertion)
 	mappedGroupGrants := cloneGrants(s.config.SessionGrants.GrantsForProviderGroups(cloneSSOProvider(provider), append([]string(nil), groups...)))
 	grants := append(cloneGrants(userGrants), mappedGroupGrants...)
-	if len(scopesFromGrants(grants)) == 0 {
+	policy := authz.SSOExchangeRequest{Action: authz.ActionSSOCredentialsExchange, ProviderID: input.ProviderID, Subject: input.Subject, Provider: providerBinding, Link: linkBinding, User: userBinding, LinkFound: found, UserFound: snapshot.UserFound, VerificationResult: verification.Result, CredentialChecks: credentialChecks, VerifierCompleted: verificationErr == nil, HasCapabilities: len(scopesFromGrants(grants)) != 0}
+	if authorityErr := authz.AuthorizeSSOExchange(ctx, policy); authorityErr != nil {
+		if !errors.Is(authorityErr, authz.ErrForbidden) {
+			if errors.Is(authorityErr, authz.ErrUnauthorized) || errors.Is(authorityErr, authz.ErrNotFound) {
+				return s.persistDenied(ctx, verification, snapshot, ErrVerificationFailed)
+			}
+			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", authorityErr
+		}
 		verification.Checks = append(verification.Checks, identitydomain.VerificationCheck{Name: "authorization_grant", Result: "failed"})
 		verification = s.assess(verification, provider)
 		return s.persistDenied(ctx, verification, snapshot, ErrForbidden)
@@ -185,6 +218,20 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 		SchemaVersion: identitydomain.SSOSessionSchemaVersion, CreatedAt: now, Hash: credential.Hash,
 	}
 	if err := s.execute(ctx, snapshot, func(ctx context.Context, tx SSOExchangeTransaction) error {
+		policy.VerificationResult = verification.Result
+		if err := authz.AuthorizeSSOExchange(ctx, policy); err != nil {
+			return err
+		}
+		at := s.config.Clock.Now().UTC()
+		if !validAPIKeyTime(at) {
+			return ErrValidation
+		}
+		if err := authz.CheckSSOExchangeSessionLifetime(ctx, now, expiresAt, at); err != nil {
+			if errors.Is(err, authz.ErrUnauthorized) {
+				return ErrValidation
+			}
+			return err
+		}
 		if err := s.writeVerification(ctx, tx, verification); err != nil {
 			return err
 		}
@@ -205,7 +252,7 @@ func (s *SSOExchangeCommands) execute(ctx context.Context, snapshot SSOExchangeS
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return s.config.Transactions.ExecuteSSOExchange(ctx, func(ctx context.Context, tx SSOExchangeTransaction) error {
+	err := s.config.Transactions.ExecuteSSOExchange(ctx, func(ctx context.Context, tx SSOExchangeTransaction) error {
 		if ctx == nil || tx == nil {
 			return ErrValidation
 		}
@@ -220,6 +267,10 @@ func (s *SSOExchangeCommands) execute(ctx context.Context, snapshot SSOExchangeS
 		}
 		return ctx.Err()
 	})
+	if err != nil {
+		return err
+	}
+	return ctx.Err()
 }
 func (s *SSOExchangeCommands) persistDenied(ctx context.Context, v identitydomain.ProviderVerification, snapshot SSOExchangeSnapshot, denial error) (identitydomain.ProviderVerification, identitydomain.SSOSession, string, error) {
 	if err := s.execute(ctx, snapshot, func(ctx context.Context, tx SSOExchangeTransaction) error { return s.writeVerification(ctx, tx, v) }); err != nil {

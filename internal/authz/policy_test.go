@@ -82,6 +82,16 @@ func TestEveryDeclaredActionHasPolicyAndBehaviorCases(t *testing.T) {
 		return false
 	})
 	seen := map[Action]bool{}
+	for _, action := range ssoExchangeCases {
+		if seen[action] {
+			t.Fatal("duplicate verified-identity action", action)
+		}
+		seen[action] = true
+		definition, ok := DefinitionFor(action)
+		if !ok || definition.Scope != "" || definition.Boundary != VerifiedIdentityBoundary {
+			t.Fatal("SSO exchange action requires its own boundary", definition, ok)
+		}
+	}
 	for _, action := range signedWebhookCases {
 		if seen[action] {
 			t.Fatal("duplicate signed-webhook action", action)

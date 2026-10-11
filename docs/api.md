@@ -810,6 +810,8 @@ Token consumers name `portal_packages.read` or `portal_packages.download`;
 the static portal form declares `public-form` and exposes no tenant package.
 Signed incident ingress names `incident_webhooks.record` on a separate receiver
 signature boundary; API scopes cannot substitute for that authority.
+SSO credential exchange names `sso_credentials.exchange` on a verified-identity
+boundary, not bearer-admin authority.
 The registry rejects missing or inconsistent contracts at startup. This
 inventory describes required policy; it is not evidence that every route's
 positive/negative authorization cases have been executed. That coverage remains
@@ -1184,6 +1186,14 @@ fallback. PostgreSQL is required for local evaluation.
 and exactly one nonempty `id_token` or `saml_assertion`. It verifies credentials
 against configured local public trust, requires a verified tenant-owned identity
 link and active user, and requires current user or mapped provider-group grants.
+The central `internal/authz` verified-identity policy requires a `passed`
+assessment, a completed verifier with nonempty fully passed credential checks,
+exact current provider/tenant/subject/link/user bindings, and available
+capabilities. Pending, skipped, unknown or absent proof cannot issue a session;
+neither API scopes nor an existing human session substitutes for that proof.
+Cryptographic OIDC/SAML validation and versioned assurance assessment remain
+in their existing ports. Raw credentials, trust material and issued secrets
+do not enter policy.
 It does not perform live provider verification, redirect/callback orchestration,
 or external group synchronization.
 
@@ -1205,17 +1215,27 @@ bindings produces `409`, without truncation, session creation, or a cookie.
 Verification happens outside the write transaction. The transaction rechecks
 provider trust, link presence, user state and loaded grants before atomically
 committing verification, session and both audits. A failed assessment persists
-only a safe verification receipt and audit. A storage/audit/commit failure
+only a safe verification receipt and audit. Nonpassing credential/link proof
+is rejected before user/grant reads. The existing verification-failure response
+is `422`; missing current capabilities returns `403`. Requested session lifetime
+is rechecked after snapshot locks; a session that expires while waiting fails
+with `400` without committing exchange records. A storage/audit/commit failure
 returns no session secret or cookie. Successful exchange returns the existing
 verification/session/secret envelope and sets a Secure, HttpOnly,
 SameSite=Strict cookie scoped to `/v1`.
+Cancellation observed after a successful commit withholds verification/session/
+secret results without undoing committed records or audits.
 
 This route does not create idempotency receipts. Repeated valid requests may
 issue fresh sessions; no one-time consumption of provider tokens/assertions is
 claimed. Only session hashes are stored. Test-only adapters retain the actual
 local verification/transaction algorithm and map the complete detached public
-verification profile; they do not establish SQL locking or durability. Remaining
-aggregate deletion is EVY-906 work, not a supported local-memory runtime.
+verification profile; they do not establish SQL locking or durability. Scoped
+policy, issuance/denial, lifetime/cancellation and signed HTTP coverage live in
+`internal/authz/sso_exchange_policy_test.go`,
+`internal/identity/app/sso_exchange_policy_test.go`, and
+`internal/adapters/httpapi/sso_exchange_authorization_matrix_test.go`.
+EVY-1002's full route matrix and required final gates remain incomplete.
 
 #### Provider Identity Verification Receipts
 

@@ -175,6 +175,8 @@ const (
 
 const ActionSignedIncidentWebhookRecord Action = "incident_webhooks.record"
 
+const ActionSSOCredentialsExchange Action = "sso_credentials.exchange"
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -193,6 +195,9 @@ const (
 	// SignedWebhookBoundary requires a separately verified receiver signature;
 	// an API actor or issued scope cannot mint receiver authority.
 	SignedWebhookBoundary
+	// VerifiedIdentityBoundary requires a separately verified provider
+	// credential and current linked user, not an API actor or scope.
+	VerifiedIdentityBoundary
 )
 
 // Definition is the immutable capability and ownership boundary of an action.
@@ -204,6 +209,8 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionSSOCredentialsExchange:
+		return Definition{Boundary: VerifiedIdentityBoundary}, true
 	case ActionSignedIncidentWebhookRecord:
 		return Definition{Boundary: SignedWebhookBoundary}, true
 	case ActionPortalPackagesRead, ActionPortalPackagesDownload:

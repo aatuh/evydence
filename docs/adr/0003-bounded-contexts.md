@@ -1353,10 +1353,21 @@ shape, inclusive time bounds, storage-wait expiry and post-commit cancellation.
 These checks do not establish current SQL locking/durability or external-provider
 identity; required final gates remain outstanding.
 
-This is partial EVY-1002 implementation. Remaining public boundaries, including
-SSO credential exchange, broader caller-provenance
-proof, and the complete route-to-action positive/negative coverage matrix still
-need migration and validation.
+SSO credential exchange now has a central verified-identity action that API
+scopes/human grants cannot substitute for. It requires completed positive
+credential-check evidence and a passed assessment, exact current provider/link/
+user bindings and available capabilities; nonpassing link proof does not reach
+user/grant reads. Identity retains configured-local cryptography/assessment,
+bounded snapshots, group mapping, credential issuance and atomic receipt/session/
+audit writes. Policy is re-evaluated after snapshot validation, along with
+requested session lifetime. Post-commit cancellation withholds results/secrets
+without claiming already committed effects rolled back. Pure/application and
+signed HTTP fixtures cover nonpassing proof, isolation, cookie attributes,
+repeat issuance, denial-only receipts and lifetime/cancellation. This is not
+live-provider, token single-use, current SQL locking or final-gate evidence.
+
+This is partial EVY-1002 implementation. Broader caller-provenance proof and the
+complete route-to-action positive/negative coverage matrix still need validation.
 These scoped policy checks are not ticket closure, full production-gate,
 hosted CI, or external-provider evidence.
 

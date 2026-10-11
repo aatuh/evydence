@@ -13,6 +13,15 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Centralized SSO credential-exchange authority as a verified-identity action.
+Session issuance now requires a passed assessment, completed fully passed
+credential checks, bound active identity and capabilities; pending, skipped or
+missing proof no longer acquires session authority. Requested session expiry
+is rechecked after snapshot locks. Post-commit cancellation withholds results
+and secrets without undoing committed records/audits. Local OIDC/SAML crypto,
+safe denial receipts, repeat valid issuance, token/cookie/schema/hash formats
+and historical rows are unchanged. This remains partial EVY-1002 work.
+
 Centralized signed incident-webhook authority as a receiver-signature action,
 with bound current incident/evidence scope. API scopes cannot replace a receiver
 signature. Deliveries that age outside the existing five-minute window during

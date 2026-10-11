@@ -290,7 +290,7 @@ func authorizationPolicyForOperation(id string) (routeAuthorizationPolicy, bool)
 	case "customerPortalPackageViewForm":
 		return routeAuthorizationPolicy{Mode: "public-form", TenantRule: "no-tenant-data"}, true
 	case "exchangeSSOCredential":
-		return routeAuthorizationPolicy{Mode: "verified-sso-credential", TenantRule: "verified-identity-tenant"}, true
+		return routeAuthorizationPolicy{Mode: "verified-sso-credential", Actions: []authz.Action{authz.ActionSSOCredentialsExchange}, TenantRule: "verified-identity-tenant"}, true
 	case "metrics":
 		p := actionRoutePolicy(authz.ActionTenantMetricsRead, authz.ActionInstanceMetricsRead)
 		p.TenantRule = "tenant-metrics-or-explicit-instance"
@@ -320,10 +320,13 @@ func validateRouteAuthorizationPolicy(op specs.Operation, p routeAuthorizationPo
 		if len(op.Security) != 0 || len(op.Scopes) != 0 {
 			return errors.New("non-bearer route declares bearer authority")
 		}
-		if p.Mode == "package-token" || p.Mode == "signed-webhook" {
+		if p.Mode == "package-token" || p.Mode == "signed-webhook" || p.Mode == "verified-sso-credential" {
 			boundary := authz.PackageTokenBoundary
-			if p.Mode == "signed-webhook" {
+			switch p.Mode {
+			case "signed-webhook":
 				boundary = authz.SignedWebhookBoundary
+			case "verified-sso-credential":
+				boundary = authz.VerifiedIdentityBoundary
 			}
 			if len(p.Actions) != 1 {
 				return errors.New("public credential route lacks its concrete action")
@@ -338,7 +341,7 @@ func validateRouteAuthorizationPolicy(op specs.Operation, p routeAuthorizationPo
 			return errors.New("public route borrows an unrelated action")
 		}
 		switch p.Mode {
-		case "public-probe", "public-form", "verified-sso-credential":
+		case "public-probe", "public-form":
 			return nil
 		default:
 			return errors.New("unknown route authentication boundary")
