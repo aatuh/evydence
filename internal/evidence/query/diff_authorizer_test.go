@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -16,7 +18,7 @@ func TestDiffAuthorizerUsesEvidenceReadGrantsAndArtifactPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"evidence:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "release", ResourceID: "release", Scopes: []string{"evidence:read"}}}}
-	r := application.AuthorizationRequest{Scope: "evidence:read", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
+	r := application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
 	if err := auth.Authorize(t.Context(), a, r); err != nil || artifacts.calls != 0 {
 		t.Fatal(err)
 	}
@@ -39,7 +41,7 @@ func TestDiffAuthorizerUsesEvidenceReadGrantsAndArtifactPolicy(t *testing.T) {
 	if err := auth.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) || artifacts.calls != 1 {
 		t.Fatal("artifact grant not checked", err)
 	}
-	for _, bad := range []application.AuthorizationRequest{{Scope: "evidence:write"}, {Scope: "evidence:read", TenantWide: true}, {Scope: "evidence:read", ScopeOnly: true, Resources: application.ResourceReferences{ProductID: "product"}}, {Scope: "evidence:read", Resources: application.ResourceReferences{ArtifactID: "artifact", ReleaseID: "release"}}, {Scope: "evidence:read", Resources: application.ResourceReferences{BuildID: "build"}}} {
+	for _, bad := range []application.AuthorizationRequest{{Scope: "evidence:write"}, {Action: authz.ActionEvidenceDiffsCreate, TenantWide: true}, {Action: authz.ActionEvidenceDiffsCreate, ScopeOnly: true, Resources: application.ResourceReferences{ProductID: "product"}}, {Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ArtifactID: "artifact", ReleaseID: "release"}}, {Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{BuildID: "build"}}} {
 		if err := auth.Authorize(t.Context(), a, bad); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal("invalid auth request accepted", bad, err)
 		}

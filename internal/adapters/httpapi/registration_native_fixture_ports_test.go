@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
@@ -49,7 +51,7 @@ func (f registrationNativeFixture) Authorize(ctx context.Context, a domain.Actor
 	return auth.Authorize(ctx, a, request)
 }
 func (f registrationNativeFixture) AuthorizeExisting(ctx context.Context, a domain.Actor, id string) error {
-	return f.Authorize(ctx, a, application.AuthorizationRequest{Scope: releaseapp.ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: id}})
+	return f.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: id}})
 }
 func (f registrationNativeFixture) GetArtifactPoint(ctx context.Context, request releasequery.ArtifactReadRequest) (releasequery.ArtifactPoint, error) {
 	var out releasequery.ArtifactPoint

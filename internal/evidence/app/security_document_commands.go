@@ -8,6 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -50,7 +52,7 @@ func (c *SecurityDocumentCommands) prepareActor(ctx context.Context, a identityd
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if err := c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeSecurityWrite, ScopeOnly: true}); err != nil {
+	if err := c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSecurityEvidenceWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if !validDiffText(a.TenantID, 1024, true) || !validDiffText(auditActorID(a), 1024, true) {
@@ -101,20 +103,20 @@ func (c *SecurityDocumentCommands) prepareManual(ctx context.Context, a identity
 	return in, nil
 }
 func authorizeSecurityDocument(ctx context.Context, tx SecurityDocumentTransaction, a identitydomain.Actor, scope EvidenceScope, artifact string) error {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeSecurityWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSecurityEvidenceWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if err := tx.ValidateScope(ctx, a.TenantID, scope); err != nil {
 		return err
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeSecurityWrite, Resources: resourceReferences(scope)}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSecurityEvidenceWrite, Resources: resourceReferences(scope)}); err != nil {
 		return err
 	}
 	if artifact != "" {
 		if err := tx.ValidateArtifactReference(ctx, a.TenantID, artifact, ""); err != nil {
 			return err
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeSecurityWrite, Resources: application.ResourceReferences{ArtifactID: artifact}})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSecurityEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: artifact}})
 	}
 	return nil
 }
@@ -215,7 +217,7 @@ func (c *SecurityDocumentCommands) UploadSecurityScan(ctx context.Context, a ide
 			return err
 		}
 		p := c.preparer(tx, now)
-		prepared, err := p.prepareEvidenceForScope(ctx, a, ScopeSecurityWrite, CreateEvidenceInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID, Type: in.Category, Subtype: parsed.Format, Title: in.Category + " scan", SourceSystem: in.Scanner, ObservedAt: now, PayloadRef: staged.Reference(), PayloadHash: digest, PayloadMediaType: "application/json", PayloadSize: int64(len(in.Raw)), StagedPayload: staged, SubjectRefs: subjectForArtifact(in.ArtifactID), Metadata: map[string]any{"scanner": in.Scanner, "target_ref": in.TargetRef, "finding_count": parsed.FindingCount}, Limitations: []string{"Scanner output is recorded as technical evidence; Evydence does not treat scanner findings as authoritative."}})
+		prepared, err := p.prepareEvidenceForAction(ctx, a, authz.ActionSecurityEvidenceWrite, CreateEvidenceInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID, Type: in.Category, Subtype: parsed.Format, Title: in.Category + " scan", SourceSystem: in.Scanner, ObservedAt: now, PayloadRef: staged.Reference(), PayloadHash: digest, PayloadMediaType: "application/json", PayloadSize: int64(len(in.Raw)), StagedPayload: staged, SubjectRefs: subjectForArtifact(in.ArtifactID), Metadata: map[string]any{"scanner": in.Scanner, "target_ref": in.TargetRef, "finding_count": parsed.FindingCount}, Limitations: []string{"Scanner output is recorded as technical evidence; Evydence does not treat scanner findings as authoritative."}})
 		if err != nil {
 			return err
 		}
@@ -257,7 +259,7 @@ func (c *SecurityDocumentCommands) UploadManualSecurityDocument(ctx context.Cont
 			return err
 		}
 		p := c.preparer(tx, now)
-		prepared, err := p.prepareEvidenceForScope(ctx, a, ScopeSecurityWrite, CreateEvidenceInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID, Type: in.DocumentType, Subtype: "manual", Title: in.Title, SourceSystem: "manual", ObservedAt: now, PayloadRef: staged.Reference(), PayloadHash: digest, PayloadMediaType: in.MediaType, PayloadSize: int64(len(in.Raw)), StagedPayload: staged, Metadata: map[string]any{"sensitivity": in.Sensitivity}, Limitations: []string{"Manual security evidence is lower default trust and requires human review."}})
+		prepared, err := p.prepareEvidenceForAction(ctx, a, authz.ActionSecurityEvidenceWrite, CreateEvidenceInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID, Type: in.DocumentType, Subtype: "manual", Title: in.Title, SourceSystem: "manual", ObservedAt: now, PayloadRef: staged.Reference(), PayloadHash: digest, PayloadMediaType: in.MediaType, PayloadSize: int64(len(in.Raw)), StagedPayload: staged, Metadata: map[string]any{"sensitivity": in.Sensitivity}, Limitations: []string{"Manual security evidence is lower default trust and requires human review."}})
 		if err != nil {
 			return err
 		}

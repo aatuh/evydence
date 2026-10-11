@@ -1108,18 +1108,31 @@ the existing tenant-bound port, then evaluates evidence/security-write grants
 centrally. Keys still cannot bypass parent existence or coherence. Detached
 evidence requires current tenant authority for human sessions; resolved build
 and deployment coordinates constrain the applicable product/project/release
-grants. These write adapters deliberately retain the old incoming scope
-protocol until their command and artifact delegates migrate together; ambiguous
-action/scope requests are rejected. This is not complete typed write-caller or
-artifact-association policy migration.
+grants. Focused creation, parser ingestion, security-document, and relationship commands
+now send typed evidence/security actions, including transaction-time subject
+rechecks. Their factory-bound adapters reject legacy scope requests, mixed
+action/scope envelopes, and other operation families.
 
 Evidence point/page, SBOM/component, VEX, OpenAPI, scanner, lifecycle, preview,
 and diff resource reads select registered actions and use central grants.
 Evidence and SBOM component lists derive product/project/release visibility
 centrally before candidate selection. Ownership, worker-provenance checks,
 metadata guards, page/text budgets, cursor semantics, privacy exclusions,
-canonical hashes, and replay/storage formats are unchanged. Artifact delegates
-and diff command request protocols remain to migrate.
+canonical hashes, and replay/storage formats are unchanged. Diff commands and
+preview artifact delegates also send their own typed actions.
+
+Artifact registration, image registration, signature recording, and their
+read-only replay guards select `artifacts.write` while retaining the public
+`evidence:write` capability. Artifact references from evidence, security uploads,
+diffs, previews, builds, attestations, and candidates use the central association
+policy. The release-owned adapter supplies only a transaction-bound tenant/ID
+visibility proof with policy-derived product/project/release filters. Human
+references require a current visible artifact even with a tenant-wide grant;
+control links retain their distinct tenant-authority rule. Issued credentials
+retain their capability behavior, with ownership/digest checks performed by the
+commands. Missing or foreign artifact proofs deny without returning metadata;
+storage failures and cancellation propagate. Other artifact read/list policies
+and broader service contracts remain to migrate.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete

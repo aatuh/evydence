@@ -89,7 +89,7 @@ func (s *VEXPreviews) PreviewVEXImport(ctx context.Context, a identitydomain.Act
 			if artifacts == nil {
 				return nil, ErrConflict
 			}
-			if err := artifacts.Authorize(ctx, a, application.AuthorizationRequest{Scope: scopeEvidenceRead, Resources: application.ResourceReferences{ArtifactID: in.ArtifactID}}); err != nil {
+			if err := artifacts.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionVEXPreviewRead, Resources: application.ResourceReferences{ArtifactID: in.ArtifactID}}); err != nil {
 				return nil, err
 			}
 		}

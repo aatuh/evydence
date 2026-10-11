@@ -71,3 +71,59 @@ func TestEvidenceReadCallersSelectOwnRegisteredAction(t *testing.T) {
 		}
 	}
 }
+
+func TestEvidenceAndArtifactCommandCallersUseTypedPolicyRequests(t *testing.T) {
+	for _, tc := range []struct{ path, action string }{
+		{"../evidence/app/creation_commands.go", "ActionEvidenceWrite"},
+		{"../evidence/app/creation_guard.go", "ActionEvidenceWrite"},
+		{"../evidence/app/relationship_commands.go", "ActionEvidenceWrite"},
+		{"../evidence/app/relationship_guard.go", "ActionEvidenceWrite"},
+		{"../evidence/app/sbom_ingestion_commands.go", "ActionEvidenceWrite"},
+		{"../evidence/app/vex_ingestion_commands.go", "ActionEvidenceWrite"},
+		{"../evidence/app/openapi_ingestion_commands.go", "ActionEvidenceWrite"},
+		{"../evidence/app/vulnerability_scan_ingestion_commands.go", "ActionEvidenceWrite"},
+		{"../evidence/app/security_document_commands.go", "ActionSecurityEvidenceWrite"},
+		{"../evidence/app/sbom_diff_commands.go", "ActionEvidenceDiffsCreate"},
+		{"../evidence/app/contract_diff_commands.go", "ActionEvidenceDiffsCreate"},
+		{"../evidence/query/vex_preview.go", "ActionVEXPreviewRead"},
+		{"../release/app/artifact_commands.go", "ActionArtifactsWrite"},
+		{"../release/app/artifact_image_registration_guard.go", "ActionArtifactsWrite"},
+		{"../release/app/container_image_commands.go", "ActionArtifactsWrite"},
+		{"../verification/app/artifact_signature_commands.go", "ActionArtifactsWrite"},
+		{"../platform/wiring/artifact_commands.go", "ActionArtifactsWrite"},
+	} {
+		file, err := parser.ParseFile(token.NewFileSet(), tc.path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actions := 0
+		ast.Inspect(file, func(node ast.Node) bool {
+			if selector, ok := node.(*ast.SelectorExpr); ok {
+				if qualifier, ok := selector.X.(*ast.Ident); ok && qualifier.Name == "authz" && selector.Sel.Name == tc.action {
+					actions++
+				}
+			}
+			literal, ok := node.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			typ, ok := literal.Type.(*ast.SelectorExpr)
+			if !ok || typ.Sel.Name != "AuthorizationRequest" {
+				return true
+			}
+			for _, element := range literal.Elts {
+				field, ok := element.(*ast.KeyValueExpr)
+				if !ok {
+					continue
+				}
+				if name, ok := field.Key.(*ast.Ident); ok && name.Name == "Scope" {
+					t.Errorf("%s still selects policy by a scope string", tc.path)
+				}
+			}
+			return true
+		})
+		if actions == 0 {
+			t.Errorf("%s lacks its typed action %s", tc.path, tc.action)
+		}
+	}
+}

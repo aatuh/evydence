@@ -8,6 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
@@ -119,7 +121,7 @@ func (c *EvidenceCreationCommands) AuthorizeEvidenceCreation(ctx context.Context
 	if !validGenericEvidenceText(a.TenantID, 1024) || a.TenantID == "" || strings.TrimSpace(a.TenantID) != a.TenantID {
 		return ErrValidation
 	}
-	if err := c.preparer.authorize(ctx, a, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := c.preparer.authorize(ctx, a, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return err
 	}
 	var err error
@@ -136,7 +138,7 @@ func (c *EvidenceCreationCommands) AuthorizeEvidenceCreation(ctx context.Context
 		if err := guard.ValidateScope(ctx, a.TenantID, scope); err != nil {
 			return err
 		}
-		if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: resourceReferences(scope)}); err != nil {
+		if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: resourceReferences(scope)}); err != nil {
 			return err
 		}
 		for _, ref := range in.SubjectRefs {
@@ -147,7 +149,7 @@ func (c *EvidenceCreationCommands) AuthorizeEvidenceCreation(ctx context.Context
 				if err := guard.ValidateArtifactIdentity(ctx, a.TenantID, ref.ID); err != nil {
 					return err
 				}
-				if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: ref.ID}}); err != nil {
+				if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: ref.ID}}); err != nil {
 					return err
 				}
 				continue
@@ -159,7 +161,7 @@ func (c *EvidenceCreationCommands) AuthorizeEvidenceCreation(ctx context.Context
 			if err := guard.ValidateScope(ctx, a.TenantID, s); err != nil {
 				return err
 			}
-			if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: refs}); err != nil {
+			if err := guard.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: refs}); err != nil {
 				return err
 			}
 		}

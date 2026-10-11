@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -88,7 +90,7 @@ func TestCreateEvidenceUsesHumanAuditIdentityAndAuthorizesBuildDeploymentScope(t
 	wantResources := application.ResourceReferences{
 		ProductID: "prod_1", ProjectID: "proj_1", ReleaseID: "rel_1", BuildID: "build_1", DeploymentID: "dep_1",
 	}
-	if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeEvidenceWrite, wantResources) {
+	if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceWrite, wantResources) {
 		t.Fatalf("complete resource authorization missing: %#v", fixture.authorizer.requests)
 	}
 }
@@ -116,7 +118,7 @@ func TestCreateEvidenceRejectsUnauthorizedArtifactSubjectBeforeCanonicalizationO
 	if fixture.canonicalizer.calls != 0 || fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 0 {
 		t.Fatalf("denied artifact reached canonicalization or transaction: canonicalizer=%d transactions=%#v", fixture.canonicalizer.calls, fixture.transactions)
 	}
-	if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
+	if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
 		t.Fatalf("artifact-only authorization missing: %#v", fixture.authorizer.requests)
 	}
 }
@@ -161,7 +163,7 @@ func TestCreateEvidenceCanonicalizesAndSeparatelyAuthorizesRecognizedSubjectRefs
 		{BuildID: "build_1"},
 		{DeploymentID: "dep_1"},
 	} {
-		if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeEvidenceWrite, resources) {
+		if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceWrite, resources) {
 			t.Fatalf("separate subject authorization %v missing: %#v", resources, fixture.authorizer.requests)
 		}
 	}
@@ -182,7 +184,7 @@ func TestCreateEvidenceRejectsMismatchedArtifactSubjectDigest(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("CreateEvidence error = %v, want not found", err)
 	}
-	if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) || fixture.canonicalizer.calls != 0 || fixture.transactions.commits != 0 {
+	if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) || fixture.canonicalizer.calls != 0 || fixture.transactions.commits != 0 {
 		t.Fatalf("mismatched artifact digest bypassed authorization or reached effects: authorizer=%#v canonicalizer=%d transactions=%#v", fixture.authorizer.requests, fixture.canonicalizer.calls, fixture.transactions)
 	}
 }

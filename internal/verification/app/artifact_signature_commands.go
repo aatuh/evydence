@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -72,7 +74,7 @@ func (s *ArtifactSignatureCommands) CreateArtifactSignature(ctx context.Context,
 	if err := validateSigningKeyActor(a); err != nil {
 		return verificationdomain.ArtifactSignature{}, err
 	}
-	request := application.AuthorizationRequest{Scope: "evidence:write", ScopeOnly: true}
+	request := application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, request); err != nil {
 		return verificationdomain.ArtifactSignature{}, err
 	}
@@ -93,7 +95,7 @@ func (s *ArtifactSignatureCommands) CreateArtifactSignature(ctx context.Context,
 		if artifact.TenantID != a.TenantID || artifact.ID != in.ArtifactID {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "evidence:write", Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
 			return err
 		}
 		if !validRetentionText(artifact.Digest, 1024) {
@@ -172,7 +174,7 @@ func (s *ArtifactSignatureCommands) AuthorizeArtifactSignatureCreation(ctx conte
 	if err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "evidence:write", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	return s.config.Transactions.ExecuteArtifactSignature(ctx, func(ctx context.Context, tx ArtifactSignatureTransaction) error {
@@ -183,6 +185,6 @@ func (s *ArtifactSignatureCommands) AuthorizeArtifactSignatureCreation(ctx conte
 		if refs != (application.ResourceReferences{ArtifactID: in.ArtifactID}) {
 			return ErrNotFound
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "evidence:write", Resources: refs})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: refs})
 	})
 }

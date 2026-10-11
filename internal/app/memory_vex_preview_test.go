@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
@@ -143,7 +145,7 @@ func TestMemoryVEXPreviewReadsCurrentSortedCoordinatesAndArtifactGrants(t *testi
 		if refs != (application.ResourceReferences{ProductID: "tenant-product", ReleaseID: "tenant-release"}) {
 			t.Fatal("preview preparation lost owned release coordinates", refs)
 		}
-		if err := auth.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: ScopeEvidenceRead, Resources: application.ResourceReferences{ArtifactID: "artifact"}}); err != nil {
+		if err := auth.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionVEXPreviewRead, Resources: application.ResourceReferences{ArtifactID: "artifact"}}); err != nil {
 			return nil, err
 		}
 		return []string{"CVE-fixture"}, nil

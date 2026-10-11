@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/app"
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
@@ -90,7 +92,7 @@ func (t artifactTransaction) InsertArtifact(ctx context.Context, artifact releas
 
 func (t artifactTransaction) AuthorizeExisting(ctx context.Context, actor identitydomain.Actor, id string) error {
 	return t.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: releaseapp.ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: id},
+		Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: id},
 	})
 }
 

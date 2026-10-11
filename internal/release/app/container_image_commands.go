@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -64,7 +66,7 @@ func (s *ContainerImageCommands) RegisterContainerImage(ctx context.Context, act
 	if err := contextError(ctx); err != nil {
 		return releasedomain.ContainerImage{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.ContainerImage{}, err
 	}
 	var err error
@@ -82,7 +84,7 @@ func (s *ContainerImageCommands) RegisterContainerImage(ctx context.Context, act
 		if !artifactBelongsToTenant(artifact, actor.TenantID, input.ArtifactID) || artifact.Digest != input.Digest {
 			return releasedomain.ContainerImage{}, ErrNotFound
 		}
-		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
+		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: artifact.ID}}); err != nil {
 			return releasedomain.ContainerImage{}, err
 		}
 	}
@@ -104,7 +106,7 @@ func (s *ContainerImageCommands) RegisterContainerImage(ctx context.Context, act
 			if !sameArtifactCoordinates(current, artifact) {
 				return ErrConflict
 			}
-			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: current.ID}}); err != nil {
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: current.ID}}); err != nil {
 				return err
 			}
 		}
@@ -127,7 +129,7 @@ func (s *ContainerImageCommands) RegisterContainerImage(ctx context.Context, act
 				if !artifactBelongsToTenant(current, actor.TenantID, existing.ArtifactID) {
 					return ErrNotFound
 				}
-				if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: current.ID}}); err != nil {
+				if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: current.ID}}); err != nil {
 					return err
 				}
 				if current.Digest != existing.Digest {

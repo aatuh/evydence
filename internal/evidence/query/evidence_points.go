@@ -13,8 +13,6 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-const scopeEvidenceRead = "evidence:read"
-
 var (
 	ErrValidation = errors.New("invalid evidence query")
 	ErrNotFound   = errors.New("evidence not found")

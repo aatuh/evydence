@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 )
@@ -108,7 +110,7 @@ func TestSecurityDocumentCommandsPreserveMetadataAtomicityAndReplayGuards(t *tes
 				}
 			}
 			for _, r := range f.authorizer.requests {
-				if r.Scope != ScopeSecurityWrite {
+				if r.Action != authz.ActionSecurityEvidenceWrite || r.Scope != "" {
 					t.Fatal("undocumented scope", r)
 				}
 			}

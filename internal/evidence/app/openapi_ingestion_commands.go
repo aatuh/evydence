@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -48,7 +50,7 @@ func (c *OpenAPIIngestionCommands) prepare(ctx context.Context, a identitydomain
 	if err := contextError(ctx); err != nil {
 		return in, err
 	}
-	if err := c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, ScopeOnly: true}); err != nil {
 		return in, err
 	}
 	if !validDiffText(a.TenantID, 1024, true) || !validDiffText(auditActorID(a), 1024, true) || !validDiffText(in.ProductID, 1024, true) || !validDiffText(in.ReleaseID, 1024, false) || !validDiffText(in.Version, 65536, true) {
@@ -60,14 +62,14 @@ func (c *OpenAPIIngestionCommands) prepare(ctx context.Context, a identitydomain
 	return in, nil
 }
 func authorizeOpenAPIIngestion(ctx context.Context, tx OpenAPIIngestionTransaction, a identitydomain.Actor, in OpenAPIIngestionInput) error {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	scope := EvidenceScope{ProductID: in.ProductID, ReleaseID: in.ReleaseID}
 	if err := tx.ValidateScope(ctx, a.TenantID, scope); err != nil {
 		return err
 	}
-	return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: resourceReferences(scope)})
+	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: resourceReferences(scope)})
 }
 
 // Replay checks current ownership and grants, never a parser or object store.
@@ -116,7 +118,7 @@ func (c *OpenAPIIngestionCommands) UploadOpenAPIContractPayload(ctx context.Cont
 			return ErrValidation
 		}
 		preparer := evidencePreparer{reader: tx, authorizer: tx, objects: c.config.Payloads, canonicalizer: c.config.Canonicalizer, canonicalizationProfile: strings.TrimSpace(c.config.CanonicalizationProfile), clock: application.ClockFunc(func() time.Time { return now }), ids: c.config.IDs}
-		prepared, err := preparer.prepareEvidenceForScope(ctx, a, ScopeEvidenceWrite, CreateEvidenceInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID, Type: "openapi_contract", Subtype: "openapi", Title: "OpenAPI contract", SourceSystem: "api", ObservedAt: now, PayloadRef: staged.Reference(), PayloadHash: source.Digest, PayloadMediaType: OpenAPIMediaType, PayloadSize: source.Size, StagedPayload: staged, Metadata: parsed.Metadata, Limitations: parsed.Limitations})
+		prepared, err := preparer.prepareEvidenceForAction(ctx, a, authz.ActionEvidenceWrite, CreateEvidenceInput{ProductID: in.ProductID, ReleaseID: in.ReleaseID, Type: "openapi_contract", Subtype: "openapi", Title: "OpenAPI contract", SourceSystem: "api", ObservedAt: now, PayloadRef: staged.Reference(), PayloadHash: source.Digest, PayloadMediaType: OpenAPIMediaType, PayloadSize: source.Size, StagedPayload: staged, Metadata: parsed.Metadata, Limitations: parsed.Limitations})
 		if err != nil {
 			return err
 		}

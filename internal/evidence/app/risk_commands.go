@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -85,7 +87,7 @@ func (s *Service) uploadSecurityScan(ctx context.Context, actor identitydomain.A
 		return evidencedomain.SecurityScan{}, err
 	}
 	if input.ArtifactID != "" {
-		if err := s.validateAndAuthorizeArtifactReference(ctx, actor, ScopeSecurityWrite, input.ArtifactID, ""); err != nil {
+		if err := s.validateAndAuthorizeArtifactReference(ctx, actor, authz.ActionSecurityEvidenceWrite, input.ArtifactID, ""); err != nil {
 			return evidencedomain.SecurityScan{}, err
 		}
 	}
@@ -105,7 +107,7 @@ func (s *Service) uploadSecurityScan(ctx context.Context, actor identitydomain.A
 	if input.ArtifactID != "" {
 		subjects = []evidencedomain.SubjectRef{{Type: "artifact", ID: input.ArtifactID}}
 	}
-	prepared, err := s.prepareEvidenceForScope(ctx, actor, ScopeSecurityWrite, CreateEvidenceInput{
+	prepared, err := s.prepareEvidenceForAction(ctx, actor, authz.ActionSecurityEvidenceWrite, CreateEvidenceInput{
 		ProductID: input.ProductID, ReleaseID: input.ReleaseID, Type: input.Category, Subtype: input.Format,
 		Title: input.Category + " scan", SourceSystem: input.Scanner, ObservedAt: s.clock.Now(),
 		PayloadRef: stagedPayload.Reference(), PayloadHash: payloadHash, PayloadMediaType: "application/json",
@@ -168,7 +170,7 @@ func (s *Service) UploadManualSecurityDocument(ctx context.Context, actor identi
 	if err != nil {
 		return evidencedomain.ManualSecurityDocument{}, err
 	}
-	prepared, err := s.prepareEvidenceForScope(ctx, actor, ScopeSecurityWrite, CreateEvidenceInput{
+	prepared, err := s.prepareEvidenceForAction(ctx, actor, authz.ActionSecurityEvidenceWrite, CreateEvidenceInput{
 		ProductID: input.ProductID, ReleaseID: input.ReleaseID, Type: input.DocumentType, Subtype: "manual", Title: input.Title,
 		SourceSystem: "manual", ObservedAt: s.clock.Now(), PayloadRef: stagedPayload.Reference(), PayloadHash: payloadHash,
 		PayloadMediaType: mediaType, PayloadSize: int64(len(input.Raw)), StagedPayload: stagedPayload,

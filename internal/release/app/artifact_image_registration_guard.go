@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
@@ -52,7 +53,7 @@ func (s *ArtifactCommands) AuthorizeArtifactRegistration(ctx context.Context, a 
 	if err := validateCatalogCreationActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	input, err := NormalizeArtifactRegistrationInput(in)
@@ -90,7 +91,7 @@ func authorizeContainerImageRegistrationScope(ctx context.Context, tx ContainerI
 	if !ok {
 		return ErrValidation
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	v, found, err := reader.ContainerImageRegistrationIdentityByKey(ctx, a.TenantID, in.Repository, in.Digest)
@@ -116,7 +117,7 @@ func authorizeContainerImageRegistrationScope(ctx context.Context, tx ContainerI
 		if artifact.TenantID != a.TenantID || artifact.ID != id {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: id}}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: id}}); err != nil {
 			return err
 		}
 	}
@@ -130,7 +131,7 @@ func (s *ContainerImageCommands) AuthorizeContainerImageRegistration(ctx context
 	if err := validateCatalogCreationActor(ctx, a); err != nil {
 		return err
 	}
-	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	input, err := NormalizeContainerImageRegistrationInput(in)

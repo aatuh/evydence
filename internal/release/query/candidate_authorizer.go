@@ -33,9 +33,5 @@ func (a candidateAuthorizer) Authorize(ctx context.Context, actor identitydomain
 	if err := a.catalog.Authorize(ctx, actor, application.AuthorizationRequest{Action: request.Action, ScopeOnly: true}); err != nil {
 		return err
 	}
-	definition, ok := authz.DefinitionFor(request.Action)
-	if !ok {
-		return application.ErrForbidden
-	}
-	return authorizeArtifactGrant(ctx, actor, definition.Scope, refs.ArtifactID, a.artifacts)
+	return authorizeArtifactGrant(ctx, actor, request.Action, refs.ArtifactID, a.artifacts)
 }

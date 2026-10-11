@@ -602,7 +602,7 @@ func TestRegisterContainerImageExistingArtifactAssociationMustMatchAndBeAuthoriz
 			t.Fatalf("RegisterContainerImage = (%#v, %v), want existing %#v", image, err, existingImage)
 		}
 		last := fixture.authorizer.requests[len(fixture.authorizer.requests)-1]
-		if last.Scope != ScopeEvidenceWrite || last.ScopeOnly || last.Resources != (application.ResourceReferences{ArtifactID: existingArtifact.ID}) {
+		if last.Action != authz.ActionArtifactsWrite || last.Scope != "" || last.ScopeOnly || last.Resources != (application.ResourceReferences{ArtifactID: existingArtifact.ID}) {
 			t.Fatalf("existing association authorization = %#v", fixture.authorizer.requests)
 		}
 	})

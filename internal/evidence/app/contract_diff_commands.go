@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -53,7 +55,7 @@ func (s *ContractDiffCommands) prepare(ctx context.Context, a identitydomain.Act
 	if err := contextError(ctx); err != nil {
 		return in, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, ScopeOnly: true}); err != nil {
 		return in, err
 	}
 	if !validDiffText(a.TenantID, 1024, true) || !validDiffText(auditActorID(a), 1024, true) {
@@ -74,7 +76,7 @@ func (s *ContractDiffCommands) prepare(ctx context.Context, a identitydomain.Act
 }
 func authorizeContractDiff(ctx context.Context, tx ContractDiffTransaction, a identitydomain.Actor, in CreateContractDiffInput) ([2]ContractDiffSubject, error) {
 	var subjects [2]ContractDiffSubject
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, ScopeOnly: true}); err != nil {
 		return subjects, err
 	}
 	for i, id := range []string{in.BaseContractID, in.TargetContractID} {
@@ -93,7 +95,7 @@ func authorizeContractDiff(ctx context.Context, tx ContractDiffTransaction, a id
 		if !validDiffText(v.ReleaseID, 1024, false) || strings.TrimSpace(v.ReleaseID) != v.ReleaseID {
 			return subjects, ErrNotFound
 		}
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, Resources: application.ResourceReferences{ProductID: v.ProductID, ReleaseID: v.ReleaseID}}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ProductID: v.ProductID, ReleaseID: v.ReleaseID}}); err != nil {
 			return subjects, err
 		}
 		subjects[i] = v
@@ -111,7 +113,7 @@ func authorizeContractDiff(ctx context.Context, tx ContractDiffTransaction, a id
 		if v.ID != in.ReleaseID || v.TenantID != a.TenantID || v.ProductID != subjects[0].ProductID {
 			return subjects, ErrNotFound
 		}
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, Resources: application.ResourceReferences{ProductID: v.ProductID, ReleaseID: v.ID}}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ProductID: v.ProductID, ReleaseID: v.ID}}); err != nil {
 			return subjects, err
 		}
 	}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -16,7 +18,7 @@ func TestArtifactSecurityWriteAuthorizerKeepsScopeAndAssociationPolicy(t *testin
 		t.Fatal(err)
 	}
 	a := catalogActor("security:write", "product", "product", "security:write")
-	r := application.AuthorizationRequest{Scope: "security:write", Resources: application.ResourceReferences{ArtifactID: "artifact"}}
+	r := application.AuthorizationRequest{Action: authz.ActionSecurityEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: "artifact"}}
 	if err := auth.Authorize(t.Context(), a, r); err != nil || len(reader.request.AllowedProductIDs) != 1 || reader.request.AllowedProductIDs[0] != "product" {
 		t.Fatal(reader.request, err)
 	}
@@ -48,10 +50,10 @@ func TestArtifactWriteAuthorizerRequiresCurrentDuplicateGrant(t *testing.T) {
 		t.Fatal(err)
 	}
 	actor := catalogActor("evidence:write", "product", "prod_1", "evidence:write")
-	if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: "evidence:write", ScopeOnly: true}); err != nil {
+	if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}); err != nil {
 		t.Fatalf("scope-only create denied: %v", err)
 	}
-	existing := application.AuthorizationRequest{Scope: "evidence:write", Resources: application.ResourceReferences{ArtifactID: "art_1"}}
+	existing := application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: "art_1"}}
 	if err := authorizer.Authorize(t.Context(), actor, existing); err != nil {
 		t.Fatalf("linked duplicate denied: %v", err)
 	}

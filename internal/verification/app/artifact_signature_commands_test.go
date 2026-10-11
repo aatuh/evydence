@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -29,7 +31,7 @@ func (f *signatureCreationFake) Authorize(_ context.Context, a identitydomain.Ac
 	if !a.HasScope("evidence:write") || f.failure == "authorize" || !r.ScopeOnly && f.failure == "grant" {
 		return ErrForbidden
 	}
-	if r.Scope != "evidence:write" || r.TenantWide || r.ScopeOnly && r.Resources != (application.ResourceReferences{}) || !r.ScopeOnly && r.Resources != (application.ResourceReferences{ArtifactID: "artifact"}) {
+	if r.Action != authz.ActionArtifactsWrite || r.Scope != "" || r.TenantWide || r.ScopeOnly && r.Resources != (application.ResourceReferences{}) || !r.ScopeOnly && r.Resources != (application.ResourceReferences{ArtifactID: "artifact"}) {
 		return ErrForbidden
 	}
 	return nil

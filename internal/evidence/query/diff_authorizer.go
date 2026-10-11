@@ -26,7 +26,7 @@ func (a diffAuthorizer) Authorize(ctx context.Context, actor identitydomain.Acto
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if r.Action != "" || r.Scope != scopeEvidenceRead || r.TenantWide {
+	if r.Action != authz.ActionEvidenceDiffsCreate || r.Scope != "" || r.TenantWide {
 		return application.ErrForbidden
 	}
 	if err := authorizeEvidenceRead(ctx, actor, authz.ActionEvidenceDiffsCreate, EvidencePoint{}, true); err != nil {

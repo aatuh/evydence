@@ -39,7 +39,7 @@ func TestSecurityDocumentAuthorizerKeepsSecurityScopeAndCurrentParents(t *testin
 		t.Fatal(err)
 	}
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"security:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "product", Scopes: []string{"security:write"}}}}
-	r := application.AuthorizationRequest{Scope: "security:write", Resources: application.ResourceReferences{ReleaseID: "release"}}
+	r := application.AuthorizationRequest{Action: authz.ActionSecurityEvidenceWrite, Resources: application.ResourceReferences{ReleaseID: "release"}}
 	if err := auth.Authorize(t.Context(), a, r); err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestSecurityDocumentAuthorizerKeepsSecurityScopeAndCurrentParents(t *testin
 	}
 	reader.err = nil
 	r.Resources = application.ResourceReferences{ArtifactID: "artifact"}
-	if err := auth.Authorize(t.Context(), a, r); err != nil || artifacts.request.Scope != "security:write" {
+	if err := auth.Authorize(t.Context(), a, r); err != nil || artifacts.request.Action != authz.ActionSecurityEvidenceWrite || artifacts.request.Scope != "" {
 		t.Fatal("artifact scope changed", err)
 	}
 	for _, scope := range []string{"evidence:write", "admin", "security:read"} {
@@ -80,7 +80,7 @@ func TestEvidenceCreationAuthorizerUsesOnlyCurrentCoherentParents(t *testing.T) 
 		t.Fatal(err)
 	}
 	actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"evidence:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "project", ResourceID: "project", Scopes: []string{"evidence:write"}}}}
-	r := application.AuthorizationRequest{Scope: "evidence:write", Resources: application.ResourceReferences{BuildID: "build"}}
+	r := application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: application.ResourceReferences{BuildID: "build"}}
 	if err := auth.Authorize(t.Context(), actor, r); err != nil {
 		t.Fatal(err)
 	}
@@ -122,22 +122,22 @@ func TestEvidenceCreationAuthorizerRejectsInvalidRequestsBeforeReads(t *testing.
 	for _, r := range []application.AuthorizationRequest{
 		{Action: authz.ActionEvidenceWrite, Scope: "evidence:write", ScopeOnly: true},
 		{Action: authz.ActionSecurityEvidenceWrite, Scope: "evidence:write", ScopeOnly: true},
-		{Scope: "security:write"},
-		{Scope: "evidence:write", TenantWide: true},
-		{Scope: "evidence:write", ScopeOnly: true, Resources: application.ResourceReferences{BuildID: "build"}},
-		{Scope: "evidence:write", Resources: application.ResourceReferences{EnvironmentID: "environment"}},
-		{Scope: "evidence:write", Resources: application.ResourceReferences{ArtifactID: "artifact", ProductID: "product"}},
+		{Action: authz.ActionSecurityEvidenceWrite},
+		{Action: authz.ActionEvidenceWrite, TenantWide: true},
+		{Action: authz.ActionEvidenceWrite, ScopeOnly: true, Resources: application.ResourceReferences{BuildID: "build"}},
+		{Action: authz.ActionEvidenceWrite, Resources: application.ResourceReferences{EnvironmentID: "environment"}},
+		{Action: authz.ActionEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: "artifact", ProductID: "product"}},
 	} {
 		if err := auth.Authorize(t.Context(), actor, r); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal(r, err)
 		}
 	}
 	for _, id := range []string{"\x00bad", strings.Repeat("x", 1025), " project ", string([]byte{255})} {
-		if err := auth.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: "evidence:write", Resources: application.ResourceReferences{ProjectID: id}}); !errors.Is(err, ErrValidation) {
+		if err := auth.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: application.ResourceReferences{ProjectID: id}}); !errors.Is(err, ErrValidation) {
 			t.Fatal(id, err)
 		}
 	}
-	if err := auth.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: "evidence:write", ScopeOnly: true}); err != nil {
+	if err := auth.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, ScopeOnly: true}); err != nil {
 		t.Fatal(err)
 	}
 	if reader.calls != 0 || artifacts.calls != 0 {
@@ -145,12 +145,12 @@ func TestEvidenceCreationAuthorizerRejectsInvalidRequestsBeforeReads(t *testing.
 	}
 	unauthenticated := actor
 	unauthenticated.KeyID = ""
-	if err := auth.Authorize(t.Context(), unauthenticated, application.AuthorizationRequest{Scope: "evidence:write"}); !errors.Is(err, application.ErrUnauthorized) {
+	if err := auth.Authorize(t.Context(), unauthenticated, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite}); !errors.Is(err, application.ErrUnauthorized) {
 		t.Fatal("missing identity accepted", err)
 	}
 	unscoped := actor
 	unscoped.Scopes = nil
-	if err := auth.Authorize(t.Context(), unscoped, application.AuthorizationRequest{Scope: "evidence:write"}); !errors.Is(err, application.ErrForbidden) {
+	if err := auth.Authorize(t.Context(), unscoped, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite}); !errors.Is(err, application.ErrForbidden) {
 		t.Fatal("missing scope accepted", err)
 	}
 	if reader.calls != 0 || artifacts.calls != 0 {
@@ -158,7 +158,7 @@ func TestEvidenceCreationAuthorizerRejectsInvalidRequestsBeforeReads(t *testing.
 	}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if err := auth.Authorize(cancelled, actor, application.AuthorizationRequest{Scope: "evidence:write"}); !errors.Is(err, context.Canceled) {
+	if err := auth.Authorize(cancelled, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	var nilContext context.Context
@@ -178,7 +178,7 @@ func TestEvidenceCreationAuthorizerDetachedAndArtifactPolicy(t *testing.T) {
 	artifacts := &creationArtifactAuthorizerFake{}
 	auth, _ := NewEvidenceCreationAuthorizer(reader, artifacts)
 	actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{"evidence:write"}}
-	r := application.AuthorizationRequest{Scope: "evidence:write"}
+	r := application.AuthorizationRequest{Action: authz.ActionEvidenceWrite}
 	if err := auth.Authorize(t.Context(), actor, r); !errors.Is(err, application.ErrForbidden) {
 		t.Fatal("detached evidence needs tenant grant", err)
 	}

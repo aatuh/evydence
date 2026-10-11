@@ -49,8 +49,7 @@ func (a evidenceCreationAuthorizer) Authorize(ctx context.Context, actor identit
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	definition, ok := authz.DefinitionFor(a.action)
-	if !ok || request.Action != "" || request.Scope != definition.Scope {
+	if request.Action != a.action || request.Scope != "" {
 		return application.ErrForbidden
 	}
 	if err := authz.Authorize(ctx, actor, authz.Request{Action: a.action, Evaluation: authz.ScopeEvaluation}); err != nil {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -253,11 +255,11 @@ func (s *Service) CreateEvidence(ctx context.Context, actor identitydomain.Actor
 }
 
 func (s *Service) prepareEvidence(ctx context.Context, actor identitydomain.Actor, input CreateEvidenceInput) (preparedEvidence, error) {
-	return s.prepareEvidenceForScope(ctx, actor, ScopeEvidenceWrite, input)
+	return s.prepareEvidenceForAction(ctx, actor, authz.ActionEvidenceWrite, input)
 }
 
-func (s *Service) prepareEvidenceForScope(ctx context.Context, actor identitydomain.Actor, authorizationScope string, input CreateEvidenceInput) (preparedEvidence, error) {
-	return s.creation.preparer.prepareEvidenceForScope(ctx, actor, authorizationScope, input)
+func (s *Service) prepareEvidenceForAction(ctx context.Context, actor identitydomain.Actor, authorizationAction authz.Action, input CreateEvidenceInput) (preparedEvidence, error) {
+	return s.creation.preparer.prepareEvidenceForAction(ctx, actor, authorizationAction, input)
 }
 
 func (s *Service) persistPreparedEvidence(ctx context.Context, tx Transaction, actor identitydomain.Actor, prepared *preparedEvidence) error {
@@ -391,8 +393,8 @@ func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, sco
 	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly})
 }
 
-func (s *Service) validateAndAuthorizeArtifactReference(ctx context.Context, actor identitydomain.Actor, scope, artifactID, digest string) error {
-	return s.creation.preparer.validateAndAuthorizeArtifactReference(ctx, actor, scope, artifactID, digest)
+func (s *Service) validateAndAuthorizeArtifactReference(ctx context.Context, actor identitydomain.Actor, action authz.Action, artifactID, digest string) error {
+	return s.creation.preparer.validateAndAuthorizeArtifactReference(ctx, actor, action, artifactID, digest)
 }
 
 func evidenceReferences(item evidencedomain.EvidenceItem) application.ResourceReferences {

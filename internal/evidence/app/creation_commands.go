@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -64,12 +66,12 @@ type evidencePreparer struct {
 }
 
 type preparedEvidence struct {
-	authorizationScope string
-	input              CreateEvidenceInput
-	scope              EvidenceScope
-	subjectRefs        []evidencedomain.SubjectRef
-	item               evidencedomain.EvidenceItem
-	at                 time.Time
+	authorizationAction authz.Action
+	input               CreateEvidenceInput
+	scope               EvidenceScope
+	subjectRefs         []evidencedomain.SubjectRef
+	item                evidencedomain.EvidenceItem
+	at                  time.Time
 }
 
 func NewEvidenceCreationCommands(c EvidenceCreationCommandConfig) (*EvidenceCreationCommands, error) {
@@ -86,7 +88,7 @@ func (c *EvidenceCreationCommands) CreateEvidence(ctx context.Context, actor ide
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := c.preparer.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := c.preparer.authorize(ctx, actor, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	var err error
@@ -94,7 +96,7 @@ func (c *EvidenceCreationCommands) CreateEvidence(ctx context.Context, actor ide
 	if err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	prepared, err := c.preparer.prepareEvidenceForScope(ctx, actor, ScopeEvidenceWrite, input)
+	prepared, err := c.preparer.prepareEvidenceForAction(ctx, actor, authz.ActionEvidenceWrite, input)
 	if err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
@@ -107,14 +109,14 @@ func (c *EvidenceCreationCommands) CreateEvidence(ctx context.Context, actor ide
 	return cloneEvidence(prepared.item), nil
 }
 
-func (s *evidencePreparer) prepareEvidenceForScope(ctx context.Context, actor identitydomain.Actor, authorizationScope string, input CreateEvidenceInput) (preparedEvidence, error) {
+func (s *evidencePreparer) prepareEvidenceForAction(ctx context.Context, actor identitydomain.Actor, authorizationAction authz.Action, input CreateEvidenceInput) (preparedEvidence, error) {
 	if err := contextError(ctx); err != nil {
 		return preparedEvidence{}, err
 	}
-	if authorizationScope != ScopeEvidenceWrite && authorizationScope != ScopeSecurityWrite {
+	if authorizationAction != authz.ActionEvidenceWrite && authorizationAction != authz.ActionSecurityEvidenceWrite {
 		return preparedEvidence{}, ErrValidation
 	}
-	if err := s.authorize(ctx, actor, authorizationScope, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authorizationAction, application.ResourceReferences{}, true); err != nil {
 		return preparedEvidence{}, err
 	}
 	input.ProductID = strings.TrimSpace(input.ProductID)
@@ -168,10 +170,10 @@ func (s *evidencePreparer) prepareEvidenceForScope(ctx context.Context, actor id
 	if err := s.reader.ValidateScope(ctx, actor.TenantID, scope); err != nil {
 		return preparedEvidence{}, err
 	}
-	if err := s.authorize(ctx, actor, authorizationScope, resourceReferences(scope), false); err != nil {
+	if err := s.authorize(ctx, actor, authorizationAction, resourceReferences(scope), false); err != nil {
 		return preparedEvidence{}, err
 	}
-	if err := s.validateAndAuthorizeSubjectRefs(ctx, actor, authorizationScope, subjectRefs); err != nil {
+	if err := s.validateAndAuthorizeSubjectRefs(ctx, actor, authorizationAction, subjectRefs); err != nil {
 		return preparedEvidence{}, err
 	}
 	input.SubjectRefs = withEvidenceOriginRefs(input.SubjectRefs, scope)
@@ -195,17 +197,17 @@ func (s *evidencePreparer) prepareEvidenceForScope(ctx context.Context, actor id
 		return preparedEvidence{}, ErrValidation
 	}
 	item.CanonicalHash = canonicalHash
-	return preparedEvidence{authorizationScope: authorizationScope, input: input, scope: scope, subjectRefs: subjectRefs, item: item, at: now}, nil
+	return preparedEvidence{authorizationAction: authorizationAction, input: input, scope: scope, subjectRefs: subjectRefs, item: item, at: now}, nil
 }
 
 func (s *evidencePreparer) persistPreparedEvidence(ctx context.Context, tx EvidenceCreationTransaction, actor identitydomain.Actor, prepared *preparedEvidence) error {
 	if err := tx.ValidateScope(ctx, actor.TenantID, prepared.scope); err != nil {
 		return err
 	}
-	if err := revalidateCreationSubjects(ctx, tx, actor, prepared.authorizationScope, prepared.subjectRefs); err != nil {
+	if err := revalidateCreationSubjects(ctx, tx, actor, prepared.authorizationAction, prepared.subjectRefs); err != nil {
 		return err
 	}
-	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: prepared.authorizationScope, Resources: resourceReferences(prepared.scope)}); err != nil {
+	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: prepared.authorizationAction, Resources: resourceReferences(prepared.scope)}); err != nil {
 		return err
 	}
 	if prepared.input.StagedPayload.Status == PayloadStatusStaged {
@@ -248,28 +250,28 @@ func (s *evidencePreparer) validatePayload(ctx context.Context, tenantID string,
 	return nil
 }
 
-func (s *evidencePreparer) authorize(ctx context.Context, actor identitydomain.Actor, scope string, resources application.ResourceReferences, scopeOnly bool) error {
-	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly})
+func (s *evidencePreparer) authorize(ctx context.Context, actor identitydomain.Actor, action authz.Action, resources application.ResourceReferences, scopeOnly bool) error {
+	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: action, Resources: resources, ScopeOnly: scopeOnly})
 }
 
-func (s *evidencePreparer) validateAndAuthorizeArtifactReference(ctx context.Context, actor identitydomain.Actor, scope, artifactID, digest string) error {
+func (s *evidencePreparer) validateAndAuthorizeArtifactReference(ctx context.Context, actor identitydomain.Actor, action authz.Action, artifactID, digest string) error {
 	if artifactID == "" {
 		return nil
 	}
-	if err := s.authorize(ctx, actor, scope, application.ResourceReferences{ArtifactID: artifactID}, false); err != nil {
+	if err := s.authorize(ctx, actor, action, application.ResourceReferences{ArtifactID: artifactID}, false); err != nil {
 		return err
 	}
 	return s.reader.ValidateArtifactReference(ctx, actor.TenantID, artifactID, digest)
 }
 
-func (s *evidencePreparer) validateAndAuthorizeSubjectRefs(ctx context.Context, actor identitydomain.Actor, scope string, refs []evidencedomain.SubjectRef) error {
+func (s *evidencePreparer) validateAndAuthorizeSubjectRefs(ctx context.Context, actor identitydomain.Actor, action authz.Action, refs []evidencedomain.SubjectRef) error {
 	for _, ref := range refs {
 		if ref.ID == "" {
 			continue
 		}
 		if ref.Type == "artifact" {
 			digest, _ := canonicalSupportedSubjectDigest(ref.Digest)
-			if err := s.validateAndAuthorizeArtifactReference(ctx, actor, scope, ref.ID, digest); err != nil {
+			if err := s.validateAndAuthorizeArtifactReference(ctx, actor, action, ref.ID, digest); err != nil {
 				return err
 			}
 			continue
@@ -278,7 +280,7 @@ func (s *evidencePreparer) validateAndAuthorizeSubjectRefs(ctx context.Context, 
 		if err != nil {
 			continue
 		}
-		if err := s.authorize(ctx, actor, scope, resources, false); err != nil {
+		if err := s.authorize(ctx, actor, action, resources, false); err != nil {
 			return err
 		}
 		if err := s.reader.ValidateScope(ctx, actor.TenantID, referenceScope); err != nil {
@@ -292,13 +294,13 @@ func (s *evidencePreparer) auditEvent(actor identitydomain.Actor, at time.Time, 
 	return application.AuditEvent{ID: s.ids.NewID("ace"), TenantID: actor.TenantID, EntryType: entryType, SubjectType: "evidence_item", SubjectID: evidenceID, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: at.UTC(), PayloadHash: payloadHash}
 }
 
-func revalidateCreationSubjects(ctx context.Context, tx EvidenceCreationTransaction, actor identitydomain.Actor, scope string, refs []evidencedomain.SubjectRef) error {
+func revalidateCreationSubjects(ctx context.Context, tx EvidenceCreationTransaction, actor identitydomain.Actor, action authz.Action, refs []evidencedomain.SubjectRef) error {
 	for _, ref := range refs {
 		if ref.ID == "" {
 			continue
 		}
 		if ref.Type == "artifact" {
-			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: application.ResourceReferences{ArtifactID: ref.ID}}); err != nil {
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: action, Resources: application.ResourceReferences{ArtifactID: ref.ID}}); err != nil {
 				return err
 			}
 			digest, _ := canonicalSupportedSubjectDigest(ref.Digest)
@@ -314,7 +316,7 @@ func revalidateCreationSubjects(ctx context.Context, tx EvidenceCreationTransact
 		if err := tx.ValidateScope(ctx, actor.TenantID, referenceScope); err != nil {
 			return err
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: action, Resources: resources}); err != nil {
 			return err
 		}
 	}

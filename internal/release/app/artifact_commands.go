@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
@@ -65,7 +67,7 @@ func (s *ArtifactCommands) RegisterArtifact(ctx context.Context, actor identityd
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Artifact{}, err
 	}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}); err != nil {
 		return releasedomain.Artifact{}, err
 	}
 	var err error
@@ -156,7 +158,7 @@ func (t releaseArtifactTransaction) InsertArtifact(ctx context.Context, artifact
 
 func (t releaseArtifactTransaction) AuthorizeExisting(ctx context.Context, actor identitydomain.Actor, id string) error {
 	return t.tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{
-		Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: id},
+		Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: id},
 	})
 }
 

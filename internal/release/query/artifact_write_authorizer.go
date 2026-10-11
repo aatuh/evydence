@@ -5,30 +5,31 @@ import (
 	"errors"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 // NewArtifactWriteAuthorizer permits creation with evidence:write scope, but
 // requires a current artifact association before a human can reuse a digest.
 func NewArtifactWriteAuthorizer(artifacts ArtifactPointReader) (application.Authorizer, error) {
-	return newArtifactWriteAuthorizer(artifacts, "evidence:write")
+	return newArtifactWriteAuthorizer(artifacts, false)
 }
 
 // Security scan uploads reuse the association policy with security:write.
 func NewArtifactSecurityWriteAuthorizer(artifacts ArtifactPointReader) (application.Authorizer, error) {
-	return newArtifactWriteAuthorizer(artifacts, "security:write")
+	return newArtifactWriteAuthorizer(artifacts, true)
 }
 
-func newArtifactWriteAuthorizer(artifacts ArtifactPointReader, scope string) (application.Authorizer, error) {
+func newArtifactWriteAuthorizer(artifacts ArtifactPointReader, security bool) (application.Authorizer, error) {
 	if artifacts == nil {
 		return nil, ErrValidation
 	}
-	return artifactWriteAuthorizer{artifacts: artifacts, scope: scope}, nil
+	return artifactWriteAuthorizer{artifacts: artifacts, security: security}, nil
 }
 
 type artifactWriteAuthorizer struct {
 	artifacts ArtifactPointReader
-	scope     string
+	security  bool
 }
 
 func (a artifactWriteAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
@@ -41,39 +42,33 @@ func (a artifactWriteAuthorizer) Authorize(ctx context.Context, actor identitydo
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if request.Scope != a.scope || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
+	if request.Scope != "" || a.security && request.Action != authz.ActionSecurityEvidenceWrite ||
+		!a.security && request.Action != authz.ActionArtifactsWrite && request.Action != authz.ActionEvidenceWrite {
 		return application.ErrForbidden
 	}
 	if request.ScopeOnly && !request.TenantWide && request.Resources == (application.ResourceReferences{}) {
-		return nil
+		return authz.Authorize(ctx, actor, authz.Request{Action: request.Action, Evaluation: authz.ScopeEvaluation})
 	}
 	refs := request.Resources
 	if request.TenantWide || request.ScopeOnly || refs.ArtifactID == "" || refs != (application.ResourceReferences{ArtifactID: refs.ArtifactID}) {
 		return application.ErrForbidden
 	}
-	return authorizeArtifactGrant(ctx, actor, request.Scope, refs.ArtifactID, a.artifacts)
+	return authorizeArtifactGrant(ctx, actor, request.Action, refs.ArtifactID, a.artifacts)
 }
 
-func authorizeArtifactGrant(ctx context.Context, actor identitydomain.Actor, scope, artifactID string, reader ArtifactPointReader) error {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	tenantWide, products, projects, releases := artifactVisibilityForScope(actor, scope)
-	if !tenantWide && len(products) == 0 && len(projects) == 0 && len(releases) == 0 {
-		return application.ErrForbidden
-	}
-	point, err := reader.GetArtifactPoint(ctx, ArtifactReadRequest{
-		TenantID: actor.TenantID, ID: artifactID, TenantWide: tenantWide,
-		AllowedProductIDs: products, AllowedProjectIDs: projects, AllowedReleaseIDs: releases,
+func authorizeArtifactGrant(ctx context.Context, actor identitydomain.Actor, action authz.Action, artifactID string, reader ArtifactPointReader) error {
+	visibility := authz.ArtifactVisibilityFunc(func(ctx context.Context, r authz.ArtifactVisibilityRequest) (bool, error) {
+		point, err := reader.GetArtifactPoint(ctx, ArtifactReadRequest{
+			TenantID: r.TenantID, ID: r.ArtifactID, TenantWide: r.TenantWide,
+			AllowedProductIDs: r.AllowedProductIDs, AllowedProjectIDs: r.AllowedProjectIDs, AllowedReleaseIDs: r.AllowedReleaseIDs,
+		})
+		if errors.Is(err, ErrNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return point.Artifact.ID == r.ArtifactID && point.Artifact.TenantID == r.TenantID && point.Visible, nil
 	})
-	if errors.Is(err, ErrNotFound) {
-		return application.ErrForbidden
-	}
-	if err != nil {
-		return err
-	}
-	if point.Artifact.ID != artifactID || point.Artifact.TenantID != actor.TenantID || !point.Visible {
-		return application.ErrForbidden
-	}
-	return nil
+	return authz.AuthorizeWithArtifactVisibility(ctx, actor, authz.Request{Action: action, Resources: authz.ResourceReferences{ArtifactID: artifactID}}, visibility)
 }

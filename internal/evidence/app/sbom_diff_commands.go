@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -58,7 +60,7 @@ func (s *SBOMDiffCommands) prepare(ctx context.Context, a identitydomain.Actor, 
 	if err := contextError(ctx); err != nil {
 		return in, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, ScopeOnly: true}); err != nil {
 		return in, err
 	}
 	if !validDiffText(a.TenantID, 1024, true) || !validDiffText(auditActorID(a), 1024, true) {
@@ -78,7 +80,7 @@ func (s *SBOMDiffCommands) prepare(ctx context.Context, a identitydomain.Actor, 
 	return in, nil
 }
 func authorizeSBOMDiff(ctx context.Context, tx SBOMDiffTransaction, a identitydomain.Actor, in CreateSBOMDiffInput) error {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	var subjects [2]SBOMDiffSubject
@@ -105,12 +107,12 @@ func authorizeSBOMDiff(ctx context.Context, tx SBOMDiffTransaction, a identitydo
 		parent := r
 		parent.ArtifactID = ""
 		if parent != (application.ResourceReferences{}) || r.ArtifactID == "" {
-			if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, Resources: parent}); err != nil {
+			if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: parent}); err != nil {
 				return err
 			}
 		}
 		if r.ArtifactID != "" {
-			if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, Resources: application.ResourceReferences{ArtifactID: r.ArtifactID}}); err != nil {
+			if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ArtifactID: r.ArtifactID}}); err != nil {
 				return err
 			}
 		}

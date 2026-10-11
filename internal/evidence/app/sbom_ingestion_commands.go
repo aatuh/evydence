@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -48,7 +50,7 @@ func (c *SBOMIngestionCommands) prepare(ctx context.Context, a identitydomain.Ac
 	if err := contextError(ctx); err != nil {
 		return in, err
 	}
-	if err := c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, ScopeOnly: true}); err != nil {
 		return in, err
 	}
 	if !validDiffText(a.TenantID, 1024, true) || !validDiffText(auditActorID(a), 1024, true) || !validDiffText(in.ReleaseID, 1024, true) || !validDiffText(in.ArtifactID, 1024, false) || !validDiffText(in.Format, 32, true) {
@@ -61,18 +63,18 @@ func (c *SBOMIngestionCommands) prepare(ctx context.Context, a identitydomain.Ac
 	return in, nil
 }
 func authorizeSBOMIngestion(ctx context.Context, tx SBOMIngestionTransaction, a identitydomain.Actor, in SBOMIngestionInput) error {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, ScopeOnly: true}); err != nil {
 		return err
 	}
 	scope := EvidenceScope{ReleaseID: in.ReleaseID}
 	if err := tx.ValidateScope(ctx, a.TenantID, scope); err != nil {
 		return err
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: resourceReferences(scope)}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: resourceReferences(scope)}); err != nil {
 		return err
 	}
 	if in.ArtifactID != "" {
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: in.ArtifactID}}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: in.ArtifactID}}); err != nil {
 			return err
 		}
 		return tx.ValidateArtifactReference(ctx, a.TenantID, in.ArtifactID, "")
@@ -124,7 +126,7 @@ func (c *SBOMIngestionCommands) UploadSBOMPayload(ctx context.Context, a identit
 			return ErrValidation
 		}
 		preparer := evidencePreparer{reader: tx, authorizer: tx, objects: c.config.Payloads, canonicalizer: c.config.Canonicalizer, canonicalizationProfile: strings.TrimSpace(c.config.CanonicalizationProfile), clock: application.ClockFunc(func() time.Time { return now }), ids: c.config.IDs}
-		prepared, err := preparer.prepareEvidenceForScope(ctx, a, ScopeEvidenceWrite, CreateEvidenceInput{ReleaseID: in.ReleaseID, Type: "sbom", Subtype: in.Format, Title: title, SourceSystem: "api", ObservedAt: now, PayloadRef: staged.Reference(), PayloadHash: source.Digest, PayloadMediaType: mediaType, PayloadSize: source.Size, StagedPayload: staged, SubjectRefs: subjectForArtifact(in.ArtifactID), Metadata: parsed.Metadata, Limitations: parsed.Limitations})
+		prepared, err := preparer.prepareEvidenceForAction(ctx, a, authz.ActionEvidenceWrite, CreateEvidenceInput{ReleaseID: in.ReleaseID, Type: "sbom", Subtype: in.Format, Title: title, SourceSystem: "api", ObservedAt: now, PayloadRef: staged.Reference(), PayloadHash: source.Digest, PayloadMediaType: mediaType, PayloadSize: source.Size, StagedPayload: staged, SubjectRefs: subjectForArtifact(in.ArtifactID), Metadata: parsed.Metadata, Limitations: parsed.Limitations})
 		if err != nil {
 			return err
 		}

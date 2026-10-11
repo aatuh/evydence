@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -93,7 +95,7 @@ func (s *RelationshipCommands) authorizeRelationship(ctx context.Context, a iden
 	if err := s.relationshipContext(ctx); err != nil {
 		return err
 	}
-	if err := s.authorize(ctx, a, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, a, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return err
 	}
 	if a.TenantID == "" || !validGenericEvidenceText(a.TenantID, 1024) || strings.TrimSpace(a.TenantID) != a.TenantID {
@@ -113,7 +115,7 @@ func (s *RelationshipCommands) authorizeRelationship(ctx context.Context, a iden
 			if err != nil {
 				return err
 			}
-			if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: refs}); err != nil {
+			if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: refs}); err != nil {
 				return err
 			}
 		}
@@ -122,7 +124,7 @@ func (s *RelationshipCommands) authorizeRelationship(ctx context.Context, a iden
 			if err != nil {
 				return err
 			}
-			return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: refs})
+			return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: refs})
 		}
 		return nil
 	})

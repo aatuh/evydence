@@ -90,8 +90,8 @@ func authorizeWithArtifactVisibility(ctx context.Context, actor identitydomain.A
 		}
 		return authorizeCurrentGrant(actor, definition.Scope, ResourceReferences{}, true)
 	case ResourceBoundary:
-		if request.Action == ActionControlEvidenceLink && request.Evaluation == ResolvedEvaluation && request.Resources.ArtifactID != "" {
-			return authorizeControlArtifact(ctx, actor, definition.Scope, request, artifacts)
+		if allowsArtifactVisibility(request.Action) && request.Evaluation == ResolvedEvaluation && request.Resources.ArtifactID != "" {
+			return authorizeArtifact(ctx, actor, definition.Scope, request, artifacts)
 		}
 		return authorizeResource(actor, definition.Scope, request)
 	case CredentialBoundary:

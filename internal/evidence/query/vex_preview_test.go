@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
@@ -20,7 +22,7 @@ type vexPreviewArtifactAuth struct {
 
 func (a *vexPreviewArtifactAuth) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
 	a.calls++
-	if r.Scope != "evidence:read" || r.Resources.ArtifactID != "artifact" {
+	if r.Action != authz.ActionVEXPreviewRead || r.Scope != "" || r.Resources.ArtifactID != "artifact" {
 		return ErrConflict
 	}
 	return a.err

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
@@ -180,7 +182,7 @@ func (f postgresReleaseSetupFixture) InsertArtifact(ctx context.Context, v relea
 	return postgresReleaseFixtureError(f.repos.ReleaseCatalog.InsertArtifact(ctx, domain.Artifact{ID: v.ID, TenantID: v.TenantID, Name: v.Name, MediaType: v.MediaType, Digest: v.Digest, Size: v.Size, CreatedAt: v.CreatedAt}))
 }
 func (f postgresReleaseSetupFixture) AuthorizeExisting(ctx context.Context, a domain.Actor, id string) error {
-	return f.Authorize(ctx, a, application.AuthorizationRequest{Scope: releaseapp.ScopeEvidenceWrite, Resources: application.ResourceReferences{ArtifactID: id}})
+	return f.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, Resources: application.ResourceReferences{ArtifactID: id}})
 }
 func (f postgresReleaseSetupFixture) AppendAudit(ctx context.Context, e application.AuditEvent) (application.AuditReceipt, error) {
 	v, err := (postgresRedactionFixtureTransaction{audit: f.repos.Audit}).AppendAudit(ctx, e)

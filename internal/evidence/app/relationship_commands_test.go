@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 )
@@ -24,11 +26,11 @@ func TestEvidenceRelationshipCommandsRequireFocusedDependencies(t *testing.T) {
 func assertRelationshipPairAuthorization(t *testing.T, got []application.AuthorizationRequest, first, replacement application.ResourceReferences) {
 	t.Helper()
 	want := []application.AuthorizationRequest{
-		{Scope: ScopeEvidenceWrite, ScopeOnly: true},
-		{Scope: ScopeEvidenceWrite, Resources: first},
-		{Scope: ScopeEvidenceWrite, Resources: replacement},
-		{Scope: ScopeEvidenceWrite, Resources: first},
-		{Scope: ScopeEvidenceWrite, Resources: replacement},
+		{Action: authz.ActionEvidenceWrite, ScopeOnly: true},
+		{Action: authz.ActionEvidenceWrite, Resources: first},
+		{Action: authz.ActionEvidenceWrite, Resources: replacement},
+		{Action: authz.ActionEvidenceWrite, Resources: first},
+		{Action: authz.ActionEvidenceWrite, Resources: replacement},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("initial and transactional authorization = %#v, want %#v", got, want)

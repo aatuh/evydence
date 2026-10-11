@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -60,8 +62,8 @@ func NewRelationshipCommands(c RelationshipCommandConfig) (*RelationshipCommands
 	}
 	return &RelationshipCommands{c.Reader, c.Transactions, c.Authorizer, c.Canonicalizer, c.LifecycleSanitizer, strings.TrimSpace(c.CanonicalizationProfile), c.Clock, c.IDs}, nil
 }
-func (s *RelationshipCommands) authorize(ctx context.Context, a identitydomain.Actor, scope string, refs application.ResourceReferences, only bool) error {
-	return s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: scope, Resources: refs, ScopeOnly: only})
+func (s *RelationshipCommands) authorize(ctx context.Context, a identitydomain.Actor, action authz.Action, refs application.ResourceReferences, only bool) error {
+	return s.authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: action, Resources: refs, ScopeOnly: only})
 }
 func (s *RelationshipCommands) auditEvent(a identitydomain.Actor, at time.Time, kind, id, hash string) application.AuditEvent {
 	return application.AuditEvent{ID: s.ids.NewID("ace"), TenantID: a.TenantID, EntryType: kind, SubjectType: "evidence_item", SubjectID: id, ActorType: auditActorType(a), ActorID: auditActorID(a), OccurredAt: at.UTC(), PayloadHash: hash}
@@ -70,7 +72,7 @@ func (s *RelationshipCommands) SupersedeEvidence(ctx context.Context, actor iden
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	var inputErr error
@@ -95,10 +97,10 @@ func (s *RelationshipCommands) SupersedeEvidence(ctx context.Context, actor iden
 	if !s.supportsMutableRelationships(item) || !s.supportsMutableRelationships(replacement) {
 		return evidencedomain.EvidenceItem{}, ErrConflict
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(item), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, evidenceReferences(item), false); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(replacement), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, evidenceReferences(replacement), false); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	itemOrigin, err := s.relationshipCanonicalOrigin(ctx, actor.TenantID, item)
@@ -165,7 +167,7 @@ func (s *RelationshipCommands) SupersedeEvidence(ctx context.Context, actor iden
 			return ErrConflict
 		}
 		for _, record := range []evidencedomain.EvidenceItem{current, currentReplacement} {
-			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: evidenceReferences(record)}); err != nil {
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: evidenceReferences(record)}); err != nil {
 				return err
 			}
 		}
@@ -204,7 +206,7 @@ func (s *RelationshipCommands) LinkEvidence(ctx context.Context, actor identityd
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	var inputErr error
@@ -222,7 +224,7 @@ func (s *RelationshipCommands) LinkEvidence(ctx context.Context, actor identityd
 	if !s.supportsMutableRelationships(item) {
 		return evidencedomain.EvidenceItem{}, ErrConflict
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(item), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, evidenceReferences(item), false); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	if err := s.reader.ValidateLinkTarget(ctx, actor.TenantID, targetType, targetID); err != nil {
@@ -234,7 +236,7 @@ func (s *RelationshipCommands) LinkEvidence(ctx context.Context, actor identityd
 	} else {
 		targetReferences.ProductID = targetID
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, targetReferences, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, targetReferences, false); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	itemOrigin, err := s.relationshipCanonicalOrigin(ctx, actor.TenantID, item)
@@ -275,10 +277,10 @@ func (s *RelationshipCommands) LinkEvidence(ctx context.Context, actor identityd
 		if evidenceReferences(current) != evidenceReferences(item) {
 			return ErrConflict
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: evidenceReferences(current)}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: evidenceReferences(current)}); err != nil {
 			return err
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: targetReferences}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: targetReferences}); err != nil {
 			return err
 		}
 		if !s.supportsMutableRelationships(current) {
@@ -326,7 +328,7 @@ func (s *RelationshipCommands) RecordLifecycleEvent(ctx context.Context, actor i
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.EvidenceLifecycleEvent{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.EvidenceLifecycleEvent{}, err
 	}
 	var inputErr error
@@ -342,7 +344,7 @@ func (s *RelationshipCommands) RecordLifecycleEvent(ctx context.Context, actor i
 	if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, evidenceID, item); err != nil {
 		return evidencedomain.EvidenceLifecycleEvent{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(item), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, evidenceReferences(item), false); err != nil {
 		return evidencedomain.EvidenceLifecycleEvent{}, err
 	}
 	var replacement evidencedomain.EvidenceItem
@@ -354,7 +356,7 @@ func (s *RelationshipCommands) RecordLifecycleEvent(ctx context.Context, actor i
 		if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, input.ReplacementID, replacement); err != nil {
 			return evidencedomain.EvidenceLifecycleEvent{}, err
 		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceWrite, evidenceReferences(replacement), false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, evidenceReferences(replacement), false); err != nil {
 			return evidencedomain.EvidenceLifecycleEvent{}, err
 		}
 	}
@@ -379,7 +381,7 @@ func (s *RelationshipCommands) RecordLifecycleEvent(ctx context.Context, actor i
 		if evidenceReferences(current) != evidenceReferences(item) {
 			return ErrConflict
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: evidenceReferences(current)}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: evidenceReferences(current)}); err != nil {
 			return err
 		}
 		if input.ReplacementID != "" {
@@ -393,7 +395,7 @@ func (s *RelationshipCommands) RecordLifecycleEvent(ctx context.Context, actor i
 			if evidenceReferences(currentReplacement) != evidenceReferences(replacement) {
 				return ErrConflict
 			}
-			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeEvidenceWrite, Resources: evidenceReferences(currentReplacement)}); err != nil {
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceWrite, Resources: evidenceReferences(currentReplacement)}); err != nil {
 				return err
 			}
 		}

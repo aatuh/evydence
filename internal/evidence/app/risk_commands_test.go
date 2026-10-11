@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -48,11 +50,11 @@ func TestUploadSecurityScanCommitsEvidencePayloadScanAndAuditsAtomically(t *test
 	if len(item.SubjectRefs) != 3 || item.SubjectRefs[0].ID != "art_1" || item.SubjectRefs[1].ID != "prod_1" || item.SubjectRefs[2].ID != "rel_1" {
 		t.Fatalf("trimmed artifact subject was not preserved: %#v", item.SubjectRefs)
 	}
-	if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeSecurityWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
+	if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionSecurityEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
 		t.Fatalf("artifact-only authorization missing: %#v", fixture.authorizer.requests)
 	}
 	for _, request := range fixture.authorizer.requests {
-		if request.Scope == ScopeEvidenceWrite {
+		if request.Scope == ScopeEvidenceWrite || request.Action == authz.ActionEvidenceWrite {
 			t.Fatalf("security-owned command requested undocumented evidence scope: %#v", fixture.authorizer.requests)
 		}
 	}
@@ -95,7 +97,7 @@ func TestUploadSecurityScanRejectsArtifactOnlyAuthorizationBeforeParserOrStager(
 	if fixture.objects.stageCalls != 0 || fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 0 {
 		t.Fatalf("denied artifact reached stager or transaction: objects=%#v transactions=%#v", fixture.objects, fixture.transactions)
 	}
-	if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeSecurityWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
+	if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionSecurityEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
 		t.Fatalf("artifact-only authorization missing: %#v", fixture.authorizer.requests)
 	}
 }
@@ -118,7 +120,7 @@ func TestUploadSecurityScanUsesDocumentedSecurityWriteForCompositeEvidence(t *te
 		t.Fatalf("security-owned composite result=%#v objects=%#v tx=%#v", scan, fixture.objects, fixture.transactions)
 	}
 	for _, request := range authorizer.requests {
-		if request.Scope == ScopeEvidenceWrite {
+		if request.Scope == ScopeEvidenceWrite || request.Action == authz.ActionEvidenceWrite {
 			t.Fatalf("undocumented evidence:write authorization requested: %#v", authorizer.requests)
 		}
 	}
@@ -130,7 +132,7 @@ type splitSecurityScanGrantAuthorizer struct {
 
 func (a *splitSecurityScanGrantAuthorizer) Authorize(_ context.Context, _ identitydomain.Actor, request application.AuthorizationRequest) error {
 	a.requests = append(a.requests, request)
-	if request.Scope == ScopeEvidenceWrite {
+	if request.Scope == ScopeEvidenceWrite || request.Action == authz.ActionEvidenceWrite {
 		return errUnexpectedEvidenceWrite
 	}
 	return nil
@@ -410,6 +412,15 @@ func TestCreateContractDiffRejectsRequestedReleaseOutsideBaseProduct(t *testing.
 	if fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 0 {
 		t.Fatalf("foreign release reached transaction: %#v", fixture.transactions)
 	}
+}
+
+func containsTypedAuthorizationRequest(requests []application.AuthorizationRequest, action authz.Action, resources application.ResourceReferences) bool {
+	for _, request := range requests {
+		if request.Action == action && request.Scope == "" && request.Resources == resources {
+			return true
+		}
+	}
+	return false
 }
 
 func containsAuthorizationRequest(requests []application.AuthorizationRequest, scope string, resources application.ResourceReferences) bool {

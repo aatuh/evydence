@@ -442,7 +442,7 @@ func TestRegisterArtifactExistingDigestRequiresExactArtifactAuthorization(t *tes
 			t.Fatalf("authorization requests = %#v", fixture.authorizer.requests)
 		}
 		request := fixture.authorizer.requests[1]
-		if request.Scope != ScopeEvidenceWrite || request.ScopeOnly || request.Resources != (application.ResourceReferences{ArtifactID: existing.ID}) {
+		if request.Action != authz.ActionArtifactsWrite || request.Scope != "" || request.ScopeOnly || request.Resources != (application.ResourceReferences{ArtifactID: existing.ID}) {
 			t.Fatalf("existing artifact authorization = %#v", request)
 		}
 		if fixture.transactions.commits != 1 || fixture.transactions.rollbacks != 0 || len(fixture.transactions.state.audit) != 0 {

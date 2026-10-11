@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -44,7 +46,7 @@ func TestUploadVEXPayloadRejectsArtifactOnlyAuthorizationBeforeParserOrStager(t 
 	if fixture.parser.vexCalls != 0 || fixture.objects.sourceStageCalls != 0 || fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 0 {
 		t.Fatalf("denied artifact reached parser, stager, or transaction: parser=%d stager=%d transactions=%#v", fixture.parser.vexCalls, fixture.objects.sourceStageCalls, fixture.transactions)
 	}
-	if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
+	if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
 		t.Fatalf("artifact-only authorization missing: %#v", fixture.authorizer.requests)
 	}
 }
@@ -99,7 +101,7 @@ func TestUploadVEXPayloadPersistsInitialRecordsAndReplayJobAtomically(t *testing
 	if got := fixture.transactions.validatedArtifacts; len(got) != 1 || got[0] != "art_1" {
 		t.Fatalf("transaction artifact rechecks = %#v", got)
 	}
-	if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
+	if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceWrite, application.ResourceReferences{ArtifactID: "art_1"}) {
 		t.Fatalf("artifact-only authorization missing: %#v", fixture.authorizer.requests)
 	}
 }

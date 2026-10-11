@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	application "github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -162,7 +164,7 @@ func (s *Service) uploadSBOMPayload(ctx context.Context, actor identitydomain.Ac
 	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, resourceReferences(scope), false); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
-	if err := s.validateAndAuthorizeArtifactReference(ctx, actor, ScopeEvidenceWrite, artifactID, ""); err != nil {
+	if err := s.validateAndAuthorizeArtifactReference(ctx, actor, authz.ActionEvidenceWrite, artifactID, ""); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
 

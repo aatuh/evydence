@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -24,7 +26,7 @@ type contractDiffFixture struct {
 }
 
 func (f *contractDiffFixture) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopeEvidenceRead || f.fail == "authorization" && !r.ScopeOnly {
+	if r.Action != authz.ActionEvidenceDiffsCreate || r.Scope != "" || f.fail == "authorization" && !r.ScopeOnly {
 		return application.ErrForbidden
 	}
 	return nil

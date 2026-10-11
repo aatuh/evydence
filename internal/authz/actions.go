@@ -76,6 +76,7 @@ const (
 )
 
 const (
+	ActionArtifactsWrite         Action = "artifacts.write"
 	ActionEvidenceWrite          Action = "evidence.write"
 	ActionSecurityEvidenceWrite  Action = "security_evidence.write"
 	ActionEvidenceRead           Action = "evidence.read"
@@ -185,7 +186,7 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
 	case ActionControlTemplatesRead:
 		return Definition{Scope: "controls:read", Boundary: CredentialBoundary}, true
-	case ActionEvidenceWrite:
+	case ActionArtifactsWrite, ActionEvidenceWrite:
 		return Definition{Scope: "evidence:write", Boundary: ResourceBoundary}, true
 	case ActionSecurityEvidenceWrite:
 		return Definition{Scope: "security:write", Boundary: ResourceBoundary}, true
