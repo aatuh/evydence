@@ -52,6 +52,13 @@ func TestPortalRoutesDeclareExactTokenActionOrPublicForm(t *testing.T) {
 	}
 }
 
+func TestSignedIncidentRouteDeclaresItsConcreteReceiverAction(t *testing.T) {
+	p, ok := authorizationPolicyForOperation("receiveIncidentWebhook")
+	if !ok || p.Mode != "signed-webhook" || p.TenantRule != "verified-receiver-tenant" || !slices.Equal(p.Actions, []authz.Action{authz.ActionSignedIncidentWebhookRecord}) {
+		t.Fatal("signed incident receiver lacks its concrete central action", p)
+	}
+}
+
 func TestRouteAuthorizationContractsRejectDriftAndCannotBeMutatedThroughOtherRoutes(t *testing.T) {
 	for _, route := range (&Server{}).routeDefinitions() {
 		t.Run(route.op.OperationID, func(t *testing.T) {

@@ -1340,8 +1340,21 @@ Cancellation after a successful commit withholds the package without claiming
 to roll back already committed counters or audit entries. These memory-backed
 checks are not current live PostgreSQL locking/durability or full-ticket evidence.
 
+Signed incident delivery now has a concrete central action and receiver-signature
+boundary. Current routed receiver status/identity, incident scope and optional
+evidence product/release scope are checked without passing keys, signatures or
+body bytes into policy. Operations retains Ed25519 verification before parsing,
+bounded locked reads and natural replay/event/audit orchestration. Timestamp
+freshness is re-evaluated after blocking reads before fresh writes or receipt
+replay. Scoped signed HTTP fixtures prove allowed delivery/re-signed replay and
+denial of stale/future signatures, foreign receiver/evidence bindings, borrowed
+API authority and changed-body replay. Pure/application tests cover resource
+shape, inclusive time bounds, storage-wait expiry and post-commit cancellation.
+These checks do not establish current SQL locking/durability or external-provider
+identity; required final gates remain outstanding.
+
 This is partial EVY-1002 implementation. Remaining public boundaries, including
-signed incident receivers and SSO credential exchange, broader caller-provenance
+SSO credential exchange, broader caller-provenance
 proof, and the complete route-to-action positive/negative coverage matrix still
 need migration and validation.
 These scoped policy checks are not ticket closure, full production-gate,

@@ -312,7 +312,7 @@ commands and bounded point reads. Route shapes, response fields, public
 no-bearer/no-HTTP-idempotency semantics, schema versions, Ed25519 framing, and
 natural event replay are retained. Re-signed retries return the original
 receipt. New timestamps and database replay normalize to UTC microseconds.
-Pure base64/signing helpers are shared with explicit local memory. No migration
+Pure base64/signing helpers are shared with historical test fixtures. No migration
 or historical-row rewrite is needed.
 
 The durable boundary rejects duplicate protocol headers, ambiguous/trailing
@@ -326,7 +326,20 @@ evidence is rejected. Use a properly incident-scoped evidence reference or
 omit the optional link. This closes the legacy stale-parent and broader-evidence
 authority gaps; it does not approve the outstanding compatibility change set
 or claim a release. The exact compatibility gate still applies before EVY-905
-closure. See [signed incident webhooks](../api.md#signed-incident-webhooks)
+closure.
+
+Receiver, incident, and evidence authorization now uses the central signed
+webhook action `incident_webhooks.record`; API actors/scopes cannot substitute
+for a verified receiver signature. The existing inclusive five-minute timestamp
+window is rechecked after blocking reads, including completed natural replay.
+Deliveries that expire while waiting now return `401` without new event/audit
+effects or receipt disclosure. Retry by freshly signing the same event ID and
+exact original body. Post-commit cancellation withholds receiver/receipt results
+but cannot undo already committed rows/audits. Signature framing, keys, receipt
+hashes, response/schema versions and natural replay identities are unchanged;
+no historical records are rewritten. This unreleased enforcement change is not
+an approved release exception or external-provider verification. See
+[signed incident webhooks](../api.md#signed-incident-webhooks)
 for byte limits and signing instructions.
 
 ## Unreleased Collector Write Boundary

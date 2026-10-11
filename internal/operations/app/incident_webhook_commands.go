@@ -21,7 +21,7 @@ import (
 )
 
 const IncidentWebhookBodyLimit = 2 << 20
-const IncidentWebhookTimestampTolerance = 5 * time.Minute
+const IncidentWebhookTimestampTolerance = authz.IncidentWebhookTimestampTolerance
 
 // Leave room below PostgreSQL's B-tree tuple limit for the natural replay key.
 const MaxIncidentWebhookReplayKeyBytes = 2304
@@ -68,8 +68,8 @@ func NewIncidentWebhookCommands(c IncidentWebhookCommandConfig) (*IncidentWebhoo
 	return &IncidentWebhookCommands{c}, nil
 }
 
-// These pure protocol functions are shared with the explicit local-memory
-// profile. RFC3339 UTC seconds and exact raw body bytes remain the signing
+// These pure protocol functions are shared with historical test fixtures.
+// RFC3339 UTC seconds and exact raw body bytes remain the signing
 // contract, including for timestamps supplied with fractional seconds.
 func IncidentWebhookSignedPayload(timestamp time.Time, eventID string, body []byte) []byte {
 	return append([]byte(timestamp.UTC().Format(time.RFC3339)+"\n"+strings.TrimSpace(eventID)+"\n"), body...)
@@ -129,7 +129,7 @@ func authorizeWebhookReceiver(ctx context.Context, tx IncidentWebhookTransaction
 	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionIncidentsManage, Resources: v.Resources})
 }
 func (c *IncidentWebhookCommands) execute(ctx context.Context, fn func(context.Context, IncidentWebhookTransaction) error) error {
-	return c.config.Transactions.ExecuteIncidentWebhook(ctx, func(ctx context.Context, tx IncidentWebhookTransaction) error {
+	err := c.config.Transactions.ExecuteIncidentWebhook(ctx, func(ctx context.Context, tx IncidentWebhookTransaction) error {
 		if err := incidentContextError(ctx); err != nil {
 			return err
 		}
@@ -141,6 +141,10 @@ func (c *IncidentWebhookCommands) execute(ctx context.Context, fn func(context.C
 		}
 		return incidentContextError(ctx)
 	})
+	if err != nil {
+		return err
+	}
+	return incidentContextError(ctx)
 }
 func (c *IncidentWebhookCommands) AuthorizeCreateIncidentWebhookReceiver(ctx context.Context, a identitydomain.Actor, in CreateIncidentWebhookReceiverInput) error {
 	in, err := c.prepareReceiver(ctx, a, in)
@@ -227,19 +231,30 @@ func parseIncidentWebhookPayload(body []byte) (incidentWebhookPayload, error) {
 	}
 	return p, nil
 }
-func validateWebhookEvidence(ctx context.Context, tx IncidentWebhookTransaction, incident IncidentSubject, id string) error {
-	if id == "" {
-		return nil
+func (c *IncidentWebhookCommands) authorizeWebhookIncident(ctx context.Context, binding authz.IncidentWebhookBinding, incident, evidence IncidentSubject, timestamp time.Time) error {
+	at := c.config.Clock.Now().UTC().Truncate(time.Microsecond)
+	if !incidentTime(at) {
+		return ErrValidation
 	}
-	v, err := tx.ReadIncidentSubject(ctx, incident.TenantID, "evidence", id)
-	if err != nil {
-		return err
-	}
-	// Receiver authority is incident-scoped, not a tenant-wide evidence grant.
-	if !validIncidentSubject(v, incident.TenantID, "evidence", id) || v.Resources.ProductID != incident.Resources.ProductID || v.Resources.ReleaseID != "" && v.Resources.ReleaseID != incident.Resources.ReleaseID {
+	err := authz.AuthorizeIncidentWebhook(ctx, binding, authz.IncidentWebhookRequest{Action: authz.ActionSignedIncidentWebhookRecord, Incident: authz.IncidentWebhookSubject{ID: incident.ID, TenantID: incident.TenantID, Kind: incident.Type, Resources: incident.Resources}, Evidence: authz.IncidentWebhookSubject{ID: evidence.ID, TenantID: evidence.TenantID, Kind: evidence.Type, Resources: evidence.Resources}, Timestamp: timestamp, Now: at})
+	if errors.Is(err, authz.ErrNotFound) {
 		return ErrNotFound
 	}
-	return nil
+	return err
+}
+func (c *IncidentWebhookCommands) validateWebhookEvidence(ctx context.Context, tx IncidentWebhookTransaction, binding authz.IncidentWebhookBinding, incident IncidentSubject, id string, timestamp time.Time) error {
+	var evidence IncidentSubject
+	if id != "" {
+		var err error
+		evidence, err = tx.ReadIncidentSubject(ctx, incident.TenantID, "evidence", id)
+		if err != nil {
+			return err
+		}
+		if !validIncidentSubject(evidence, incident.TenantID, "evidence", id) {
+			return ErrNotFound
+		}
+	}
+	return c.authorizeWebhookIncident(ctx, binding, incident, evidence, timestamp)
 }
 func validWebhookDigest(v string) bool {
 	b, err := hex.DecodeString(strings.TrimPrefix(v, "sha256:"))
@@ -271,8 +286,8 @@ func (c *IncidentWebhookCommands) HandleIncidentWebhook(ctx context.Context, in 
 	if !incidentTime(now) {
 		return zeroRecord, zeroEvent, ErrValidation
 	}
-	if in.Timestamp.Before(now.Add(-IncidentWebhookTimestampTolerance)) || in.Timestamp.After(now.Add(IncidentWebhookTimestampTolerance)) {
-		return zeroRecord, zeroEvent, application.ErrUnauthorized
+	if err := authz.CheckIncidentWebhookTimestamp(ctx, in.Timestamp, now); err != nil {
+		return zeroRecord, zeroEvent, err
 	}
 	signature, err := DecodeIncidentWebhookSignature(in.Signature)
 	if err != nil {
@@ -295,8 +310,12 @@ func (c *IncidentWebhookCommands) HandleIncidentWebhook(ctx context.Context, in 
 		if err != nil {
 			return err
 		}
-		if r.ID != in.ReceiverID || r.TenantID != tenant || !validIncidentID(r.IncidentID) || r.Status != "active" || !validEnvironmentText(r.Provider, 65536) || strings.TrimSpace(r.Provider) == "" {
-			return ErrNotFound
+		binding := authz.IncidentWebhookBinding{TenantID: r.TenantID, ReceiverID: r.ID, IncidentID: r.IncidentID, Status: r.Status, Provider: r.Provider}
+		if err := authz.CheckIncidentWebhookBinding(ctx, binding, tenant, in.ReceiverID); err != nil {
+			if errors.Is(err, authz.ErrNotFound) {
+				return ErrNotFound
+			}
+			return err
 		}
 		key, err := DecodeIncidentWebhookPublicKey(r.PublicKey)
 		if err != nil || !ed25519.Verify(ed25519.PublicKey(key), IncidentWebhookSignedPayload(in.Timestamp, in.EventID, in.Body), signature) {
@@ -309,25 +328,31 @@ func (c *IncidentWebhookCommands) HandleIncidentWebhook(ctx context.Context, in 
 		if !validIncidentSubject(incident, tenant, "incident", r.IncidentID) {
 			return ErrNotFound
 		}
+		if err := c.authorizeWebhookIncident(ctx, binding, incident, IncidentSubject{}, in.Timestamp); err != nil {
+			return err
+		}
 		old, timeline, err := tx.ReadIncidentWebhookReplay(ctx, tenant, r.ID, in.EventID)
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		if err := c.authorizeWebhookIncident(ctx, binding, incident, IncidentSubject{}, in.Timestamp); err != nil {
+			return err
+		}
 		if err == nil {
 			if old.PayloadHash != webhookDigest(in.Body) || !validateWebhookReplay(old, timeline, r, in.EventID) {
 				return ErrConflict
 			}
-			if err := validateWebhookEvidence(ctx, tx, incident, timeline.EvidenceID); err != nil {
+			if err := c.validateWebhookEvidence(ctx, tx, binding, incident, timeline.EvidenceID, in.Timestamp); err != nil {
 				return err
 			}
 			record, event = old, timeline
 			return nil
 		}
-		if !errors.Is(err, ErrNotFound) {
-			return err
-		}
 		p, err := parseIncidentWebhookPayload(in.Body)
 		if err != nil {
 			return err
 		}
-		if err := validateWebhookEvidence(ctx, tx, incident, p.EvidenceID); err != nil {
+		if err := c.validateWebhookEvidence(ctx, tx, binding, incident, p.EvidenceID, in.Timestamp); err != nil {
 			return err
 		}
 		if p.OccurredAt.IsZero() {

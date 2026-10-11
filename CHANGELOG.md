@@ -13,6 +13,16 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Centralized signed incident-webhook authority as a receiver-signature action,
+with bound current incident/evidence scope. API scopes cannot replace a receiver
+signature. Deliveries that age outside the existing five-minute window during
+blocking reads now fail before fresh writes or receipt replay; providers can
+re-sign the same event ID and exact body to retry. Post-commit cancellation
+withholds receiver/receipt results without undoing committed records or audits.
+Ed25519 framing, raw-body/hash formats, schemas and natural replay identities
+remain unchanged. This is partial EVY-1002 work, not live-storage, provider or
+release verification.
+
 Centralized customer-portal token authorization with separate read/download
 actions and exact current package ownership, expiry, and required acceptance.
 API scopes and human grants cannot stand in for a verified package token. The

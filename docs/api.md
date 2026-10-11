@@ -808,6 +808,8 @@ instead of implying bearer authority. Instance operations require explicit
 instance capability; static catalogs and self-session logout have separate rules.
 Token consumers name `portal_packages.read` or `portal_packages.download`;
 the static portal form declares `public-form` and exposes no tenant package.
+Signed incident ingress names `incident_webhooks.record` on a separate receiver
+signature boundary; API scopes cannot substitute for that authority.
 The registry rejects missing or inconsistent contracts at startup. This
 inventory describes required policy; it is not evidence that every route's
 positive/negative authorization cases have been executed. That coverage remains
@@ -1503,6 +1505,14 @@ reads lock the active receiver and coherent current incident/evidence parents
 through commit. Evidence must belong to the incident product and, when
 release-scoped, its release; tenant-only or different-product evidence is not
 within receiver authority. These checks also apply to natural event replay.
+The central `internal/authz` signed-webhook policy evaluates the concrete
+`incident_webhooks.record` action, active routed receiver, bound incident, and
+current evidence scope. Cryptographic verification remains in Operations and
+precedes payload parsing; policy receives no raw key, signature, or body bytes.
+The inclusive five-minute timestamp window is rechecked after blocking receiver,
+incident, replay, and evidence reads. A delivery that ages out while waiting
+returns `401` without fresh timeline/receipt/audit effects or a replay result.
+Re-sign the same event ID and exact body bytes with a fresh timestamp to retry.
 Same event ID and identical body bytes return the original receipt/timeline,
 even when freshly signed; changed bytes yield `409`. Signature/key failures
 yield `401`, missing/inactive/foreign references yield `404`, and malformed
@@ -1511,6 +1521,13 @@ commit together; failures leave no public replay reservation and are retryable
 with the same provider event ID after the cause is resolved. New timestamps
 and durable replay are UTC microsecond precision. Local evaluation requires
 PostgreSQL; memory fixtures remain test-only.
+Cancellation observed after a successful commit withholds receiver/receipt
+results without undoing already committed records or audits. Scoped pure policy,
+blocking-read/cancellation, and signed HTTP authorization regressions live in
+`internal/authz/incident_webhook_policy_test.go`,
+`internal/operations/app/incident_webhook_policy_test.go`, and
+`internal/adapters/httpapi/incident_webhook_authorization_matrix_test.go`.
+They are not current SQL-locking/durability or full-ticket gate evidence.
 Recorded timelines do not prove incident resolution or remediation completeness.
 
 ### SBOM Ingestion

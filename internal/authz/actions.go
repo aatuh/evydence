@@ -173,6 +173,8 @@ const (
 	ActionPortalPackagesDownload Action = "portal_packages.download"
 )
 
+const ActionSignedIncidentWebhookRecord Action = "incident_webhooks.record"
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -188,6 +190,9 @@ const (
 	// PackageTokenBoundary is evaluated by AuthorizePortalPackage, never by
 	// the API-key/human Actor policy or an issued bearer capability.
 	PackageTokenBoundary
+	// SignedWebhookBoundary requires a separately verified receiver signature;
+	// an API actor or issued scope cannot mint receiver authority.
+	SignedWebhookBoundary
 )
 
 // Definition is the immutable capability and ownership boundary of an action.
@@ -199,6 +204,8 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionSignedIncidentWebhookRecord:
+		return Definition{Boundary: SignedWebhookBoundary}, true
 	case ActionPortalPackagesRead, ActionPortalPackagesDownload:
 		return Definition{Boundary: PackageTokenBoundary}, true
 	case ActionSSOSessionsLogout:
