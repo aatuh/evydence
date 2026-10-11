@@ -18,5 +18,5 @@ func (controlAdminAuthorizer) Authorize(ctx context.Context, actor identitydomai
 	if request != controlAdminRequest() {
 		return application.ErrForbidden
 	}
-	return authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionControlsManage})
+	return authz.Authorize(ctx, actor, authz.Request{Action: request.Action, Resources: request.Resources, Evaluation: authz.TenantEvaluation})
 }

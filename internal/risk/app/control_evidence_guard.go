@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -21,7 +22,7 @@ func (s *ControlEvidenceCommands) AuthorizeControlEvidenceLink(ctx context.Conte
 }
 
 func authorizeControlEvidenceLinkScope(ctx context.Context, actor identitydomain.Actor, key ControlEvidenceLinkKey, tx ControlEvidenceTransaction) error {
-	credential := application.AuthorizationRequest{Scope: ScopeControlsWrite, ScopeOnly: true}
+	credential := application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, ScopeOnly: true}
 	if err := contextError(ctx); err != nil {
 		return err
 	}
@@ -61,7 +62,7 @@ func authorizeControlEvidenceLinkScope(ctx context.Context, actor identitydomain
 		// matching grants before selecting a bounded association.
 		refs = application.ResourceReferences{ArtifactID: key.SubjectID, ProductID: key.ProductID, ReleaseID: key.ReleaseID}
 	}
-	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeControlsWrite, Resources: refs}); err != nil {
+	if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, Resources: refs}); err != nil {
 		return err
 	}
 

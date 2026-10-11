@@ -40,7 +40,7 @@ func allowsTenantResourceEvaluation(action Action) bool {
 		ActionEnvironmentsRead, ActionDeploymentsRead, ActionIncidentsManage,
 		ActionApprovalsRecord, ActionWaiversManage, ActionVulnerabilityWorkflowsRecord, ActionCustomPoliciesCreate,
 		ActionVulnerabilityDecisionsRead, ActionExceptionsRead, ActionControlEvidenceRead,
-		ActionVulnerabilityDecisionSummaryRead, ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead:
+		ActionVulnerabilityDecisionSummaryRead, ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionControlEvidenceLink:
 		return true
 	default:
 		return false
@@ -69,6 +69,12 @@ func validResourceReferences(action Action, refs ResourceReferences) bool {
 		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
 	case ActionControlEvidenceRead:
 		return refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID})
+	case ActionControlEvidenceLink:
+		if refs.ArtifactID != "" {
+			return refs == (ResourceReferences{ArtifactID: refs.ArtifactID, ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+		}
+		return refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}) &&
+			(refs.ProductID != "" || refs.ProjectID == "" && refs.ReleaseID == "")
 	default:
 		return validCatalogResources(action, refs)
 	}

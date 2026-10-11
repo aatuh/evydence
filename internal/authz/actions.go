@@ -72,6 +72,7 @@ const (
 	ActionReleaseReadinessRead             Action = "release_readiness.read"
 	ActionReleaseSecuritySummaryRead       Action = "release_security_summary.read"
 	ActionControlTemplatesRead             Action = "control_templates.read"
+	ActionControlEvidenceLink              Action = "control_evidence.link"
 )
 
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
@@ -164,6 +165,8 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "verify:read", Boundary: ResourceBoundary}, true
 	case ActionControlEvidenceRead:
 		return Definition{Scope: "controls:read", Boundary: ResourceBoundary}, true
+	case ActionControlEvidenceLink:
+		return Definition{Scope: "controls:write", Boundary: ResourceBoundary}, true
 	case ActionVulnerabilityDecisionSummaryRead, ActionReleaseSecuritySummaryRead:
 		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
 	case ActionControlTemplatesRead:

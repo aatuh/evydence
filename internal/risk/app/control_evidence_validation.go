@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -54,7 +55,7 @@ func (s *ControlEvidenceCommands) prepareControlEvidenceLink(ctx context.Context
 	if err := contextError(ctx); err != nil {
 		return "", LinkControlEvidenceInput{}, empty, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeControlsWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, ScopeOnly: true}); err != nil {
 		return "", LinkControlEvidenceInput{}, empty, err
 	}
 	id, in, err := NormalizeControlEvidenceLinkInput(id, in)

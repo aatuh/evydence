@@ -2,9 +2,9 @@ package app
 
 import (
 	"context"
-	"sort"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -36,90 +36,26 @@ func (a controlEvidenceWriteAuthorizer) Authorize(ctx context.Context, actor ide
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if r.Scope != ScopeControlsWrite || !actor.HasScope(r.Scope) && !actor.HasScope("admin") {
+	if r.Action != authz.ActionControlEvidenceLink || r.Scope != "" || r.ScopeOnly && r.TenantWide {
 		return application.ErrForbidden
 	}
-	refs := r.Resources
+	evaluation := authz.ResolvedEvaluation
 	if r.ScopeOnly {
-		if r.TenantWide || refs != (application.ResourceReferences{}) {
-			return application.ErrForbidden
-		}
-		return nil
+		evaluation = authz.ScopeEvaluation
+	} else if r.TenantWide {
+		evaluation = authz.TenantEvaluation
 	}
-	if r.TenantWide && refs != (application.ResourceReferences{}) {
-		return application.ErrForbidden
-	}
-	if refs.ArtifactID != "" {
-		if refs != (application.ResourceReferences{ArtifactID: refs.ArtifactID, ProductID: refs.ProductID, ReleaseID: refs.ReleaseID}) {
-			return application.ErrForbidden
-		}
-	} else if refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}) || refs.ProductID == "" && (refs.ProjectID != "" || refs.ReleaseID != "") {
-		return application.ErrForbidden
-	}
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	products, projects, releases := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
-	for _, grant := range actor.ResourceGrants {
-		allowed := false
-		for _, scope := range grant.Scopes {
-			if scope == ScopeControlsWrite || scope == "admin" || scope == "*" {
-				allowed = true
-				break
+	return authz.AuthorizeWithArtifactVisibility(ctx, actor, authz.Request{Action: r.Action, Resources: r.Resources, Evaluation: evaluation},
+		authz.ArtifactVisibilityFunc(func(ctx context.Context, refs authz.ArtifactVisibilityRequest) (bool, error) {
+			request := ControlEvidenceArtifactGrantRequest{
+				TenantID: refs.TenantID, ArtifactID: refs.ArtifactID, ProductID: refs.ProductID, ReleaseID: refs.ReleaseID,
+				AllowedProductIDs: refs.AllowedProductIDs, AllowedProjectIDs: refs.AllowedProjectIDs, AllowedReleaseIDs: refs.AllowedReleaseIDs,
 			}
-		}
-		if !allowed {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return nil
+			if !ValidControlEvidenceArtifactGrantRequest(request) {
+				return false, ErrValidation
 			}
-		case "product":
-			if grant.ResourceID != "" {
-				products[grant.ResourceID] = struct{}{}
-			}
-		case "project":
-			if grant.ResourceID != "" {
-				projects[grant.ResourceID] = struct{}{}
-			}
-		case "release":
-			if grant.ResourceID != "" {
-				releases[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	if r.TenantWide {
-		return application.ErrForbidden
-	}
-	if refs.ArtifactID == "" {
-		if _, ok := products[refs.ProductID]; ok && refs.ProductID != "" {
-			return nil
-		}
-		if _, ok := projects[refs.ProjectID]; ok && refs.ProjectID != "" {
-			return nil
-		}
-		if _, ok := releases[refs.ReleaseID]; ok && refs.ReleaseID != "" {
-			return nil
-		}
-		return application.ErrForbidden
-	}
-	if len(products)+len(projects)+len(releases) == 0 {
-		return application.ErrForbidden
-	}
-	request := ControlEvidenceArtifactGrantRequest{TenantID: actor.TenantID, ArtifactID: refs.ArtifactID, ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, AllowedProductIDs: sortedControlGrantIDs(products), AllowedProjectIDs: sortedControlGrantIDs(projects), AllowedReleaseIDs: sortedControlGrantIDs(releases)}
-	if !ValidControlEvidenceArtifactGrantRequest(request) {
-		return ErrValidation
-	}
-	visible, err := a.artifacts.ControlEvidenceArtifactVisible(ctx, request)
-	if err != nil {
-		return err
-	}
-	if !visible {
-		return application.ErrForbidden
-	}
-	return nil
+			return a.artifacts.ControlEvidenceArtifactVisible(ctx, request)
+		}))
 }
 
 // ValidControlEvidenceArtifactGrantRequest also protects direct persistence
@@ -143,16 +79,4 @@ func ValidControlEvidenceArtifactGrantRequest(r ControlEvidenceArtifactGrantRequ
 		}
 	}
 	return count > 0
-}
-
-func sortedControlGrantIDs(set map[string]struct{}) []string {
-	if len(set) == 0 {
-		return nil
-	}
-	ids := make([]string, 0, len(set))
-	for id := range set {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	return ids
 }

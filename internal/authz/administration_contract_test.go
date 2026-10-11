@@ -13,6 +13,7 @@ import (
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
+	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
 func TestAdministrativeFactoriesRequireOwnTypedActionAndCurrentTenantAuthority(t *testing.T) {
@@ -24,6 +25,7 @@ func TestAdministrativeFactoriesRequireOwnTypedActionAndCurrentTenantAuthority(t
 		{authz.ActionAPIKeysManage, "admin", identityapp.NewAPIKeyWriteAuthorizer()},
 		{authz.ActionMembershipsManage, "identity:admin", identityapp.NewMembershipWriteAuthorizer()},
 		{authz.ActionCollectorsManage, "collector:admin", integrationapp.NewCollectorWriteAuthorizer()},
+		{authz.ActionControlsManage, "controls:admin", riskapp.NewControlAdminAuthorizer()},
 	} {
 		t.Run(string(tc.action), func(t *testing.T) {
 			request := application.AuthorizationRequest{Action: tc.action, TenantWide: true}
@@ -66,7 +68,7 @@ func TestAdministrativeFactoriesRequireOwnTypedActionAndCurrentTenantAuthority(t
 					t.Fatalf("unsupported administrative request authorized: %#v error=%v", bad, err)
 				}
 			}
-			for _, other := range []authz.Action{authz.ActionAPIKeysManage, authz.ActionMembershipsManage, authz.ActionCollectorsManage, authz.ActionProductsCreate, authz.ActionOutboxReplay} {
+			for _, other := range []authz.Action{authz.ActionAPIKeysManage, authz.ActionMembershipsManage, authz.ActionCollectorsManage, authz.ActionControlsManage, authz.ActionProductsCreate, authz.ActionOutboxReplay} {
 				if other == tc.action {
 					continue
 				}
@@ -84,7 +86,7 @@ func TestAdministrativeFactoriesRequireOwnTypedActionAndCurrentTenantAuthority(t
 }
 
 func TestAdministrativeRequestHelpersConstructActionsNotScopes(t *testing.T) {
-	for _, path := range []string{"../identity/app/api_key_commands.go", "../identity/app/membership_commands.go", "../integration/app/collector_commands.go"} {
+	for _, path := range []string{"../identity/app/api_key_commands.go", "../identity/app/membership_commands.go", "../integration/app/collector_commands.go", "../risk/app/control_commands.go"} {
 		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 		if err != nil {
 			t.Fatal(err)

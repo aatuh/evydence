@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -76,14 +78,14 @@ func TestControlEvidenceWriteAuthorizerUsesCurrentGrantsAndStrictRequestShapes(t
 		request application.AuthorizationRequest
 		want    error
 	}{
-		{"anonymous", identitydomain.Actor{}, application.AuthorizationRequest{Scope: ScopeControlsWrite, ScopeOnly: true}, application.ErrUnauthorized},
-		{"wrong credential scope", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"controls:read"}}, application.AuthorizationRequest{Scope: ScopeControlsWrite, ScopeOnly: true}, application.ErrForbidden},
-		{"key", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Scope: ScopeControlsWrite, Resources: application.ResourceReferences{ProductID: "product"}}, nil},
-		{"collector", identitydomain.Actor{TenantID: "tenant", CollectorID: "collector", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Scope: ScopeControlsWrite}, nil},
-		{"human preflight", identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Scope: ScopeControlsWrite, ScopeOnly: true}, nil},
-		{"removed human grant", identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Scope: ScopeControlsWrite, Resources: application.ResourceReferences{ProductID: "product"}}, application.ErrForbidden},
-		{"scope-only references", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Scope: ScopeControlsWrite, ScopeOnly: true, Resources: application.ResourceReferences{ProductID: "product"}}, application.ErrForbidden},
-		{"unrelated references", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Scope: ScopeControlsWrite, Resources: application.ResourceReferences{BuildID: "build"}}, application.ErrForbidden},
+		{"anonymous", identitydomain.Actor{}, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, ScopeOnly: true}, application.ErrUnauthorized},
+		{"wrong credential scope", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"controls:read"}}, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, ScopeOnly: true}, application.ErrForbidden},
+		{"key", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, Resources: application.ResourceReferences{ProductID: "product"}}, nil},
+		{"collector", identitydomain.Actor{TenantID: "tenant", CollectorID: "collector", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink}, nil},
+		{"human preflight", identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, ScopeOnly: true}, nil},
+		{"removed human grant", identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, Resources: application.ResourceReferences{ProductID: "product"}}, application.ErrForbidden},
+		{"scope-only references", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, ScopeOnly: true, Resources: application.ResourceReferences{ProductID: "product"}}, application.ErrForbidden},
+		{"unrelated references", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{ScopeControlsWrite}}, application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, Resources: application.ResourceReferences{BuildID: "build"}}, application.ErrForbidden},
 		{"unsupported action", identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"admin"}}, application.AuthorizationRequest{Scope: "controls:admin", ScopeOnly: true}, application.ErrForbidden},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -101,7 +103,7 @@ func TestControlEvidenceWriteAuthorizerUsesCurrentGrantsAndStrictRequestShapes(t
 	for _, kind := range []string{"tenant", "product", "project", "release"} {
 		actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{ScopeControlsWrite}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: kind, ResourceID: kind, Scopes: []string{ScopeControlsWrite}}}}
 		a, _ := NewControlEvidenceWriteAuthorizer(&controlArtifactGrantFake{})
-		request := application.AuthorizationRequest{Scope: ScopeControlsWrite, Resources: application.ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release"}}
+		request := application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, Resources: application.ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release"}}
 		if err := a.Authorize(t.Context(), actor, request); err != nil {
 			t.Fatal(kind, err)
 		}
@@ -124,7 +126,7 @@ func TestControlEvidenceArtifactAuthorizationCarriesScopeFiltersBeforeAssociatio
 		t.Fatal(err)
 	}
 	actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{ScopeControlsWrite}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "project", ResourceID: "project-b", Scopes: []string{ScopeControlsWrite}}, {ResourceType: "project", ResourceID: "project-a", Scopes: []string{ScopeControlsWrite}}, {ResourceType: "release", ResourceID: "foreign", Scopes: []string{"controls:read"}}}}
-	r := application.AuthorizationRequest{Scope: ScopeControlsWrite, Resources: application.ResourceReferences{ArtifactID: "artifact", ProductID: "product", ReleaseID: "release"}}
+	r := application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, Resources: application.ResourceReferences{ArtifactID: "artifact", ProductID: "product", ReleaseID: "release"}}
 	if err := a.Authorize(t.Context(), actor, r); err != nil {
 		t.Fatal(err)
 	}
@@ -147,5 +149,27 @@ func TestControlEvidenceArtifactAuthorizationCarriesScopeFiltersBeforeAssociatio
 	}
 	if _, err := NewControlEvidenceWriteAuthorizer(nil); !errors.Is(err, ErrValidation) {
 		t.Fatal("missing artifact reader accepted", err)
+	}
+}
+
+func TestControlArtifactAuthorizationRejectsExcessiveGrantQueriesBeforeStorage(t *testing.T) {
+	for _, count := range []int{65, 4097} {
+		reader := &controlArtifactGrantFake{visible: true}
+		policy, err := NewControlEvidenceWriteAuthorizer(reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", Scopes: []string{ScopeControlsWrite}}
+		for i := 0; i < count; i++ {
+			id := "project-" + strconv.Itoa(i)
+			if count == 65 {
+				id = strings.Repeat("x", 1020) + strconv.Itoa(i)
+			}
+			actor.ResourceGrants = append(actor.ResourceGrants, identitydomain.ResourceGrant{ResourceType: "project", ResourceID: id, Scopes: []string{ScopeControlsWrite}})
+		}
+		request := application.AuthorizationRequest{Action: authz.ActionControlEvidenceLink, Resources: application.ResourceReferences{ArtifactID: "artifact"}}
+		if err := policy.Authorize(t.Context(), actor, request); !errors.Is(err, ErrValidation) || len(reader.requests) != 0 {
+			t.Fatalf("excessive %d-grant query reached storage: calls=%d error=%v", count, len(reader.requests), err)
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -68,7 +69,7 @@ func (s *ControlCommands) preflight(ctx context.Context, actor identitydomain.Ac
 	return s.config.Authorizer.Authorize(ctx, actor, controlAdminRequest())
 }
 func controlAdminRequest() application.AuthorizationRequest {
-	return application.AuthorizationRequest{Scope: ScopeControlsAdmin, TenantWide: true}
+	return application.AuthorizationRequest{Action: authz.ActionControlsManage, TenantWide: true}
 }
 
 func (s *ControlCommands) CreateControlFramework(ctx context.Context, actor identitydomain.Actor, in CreateControlFrameworkInput) (riskdomain.ControlFramework, error) {

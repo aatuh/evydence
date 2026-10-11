@@ -48,7 +48,7 @@ func (f *controlCommandFixture) Authorize(_ context.Context, _ identitydomain.Ac
 	if f.authFailAt != 0 && f.authorizations == f.authFailAt {
 		return application.ErrForbidden
 	}
-	if request.Scope != "controls:admin" || !request.TenantWide || request.ScopeOnly || request.Resources != (application.ResourceReferences{}) {
+	if request.Action != "controls.manage" || request.Scope != "" || !request.TenantWide || request.ScopeOnly || request.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
 	return f.authError

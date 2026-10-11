@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -50,7 +51,7 @@ func (f *controlEvidenceFixture) Authorize(_ context.Context, _ identitydomain.A
 	if f.authorizations == f.authFailAt {
 		return application.ErrForbidden
 	}
-	if r.Scope != ScopeControlsWrite {
+	if r.Action != "control_evidence.link" || r.Scope != "" {
 		return application.ErrForbidden
 	}
 	return nil
@@ -175,7 +176,7 @@ func TestControlEvidenceCommandsPreserveLinkAndUseSubjectCoordinates(t *testing.
 	if f.transactions != 1 || f.reads != 2 || f.duplicateReads != 1 || len(f.audits) != 1 {
 		t.Fatal("unexpected transaction effects", f)
 	}
-	wantRequests := []application.AuthorizationRequest{{Scope: ScopeControlsWrite, ScopeOnly: true}, {Scope: ScopeControlsWrite, ScopeOnly: true}, {Scope: ScopeControlsWrite, Resources: application.ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release"}}}
+	wantRequests := []application.AuthorizationRequest{{Action: authz.ActionControlEvidenceLink, ScopeOnly: true}, {Action: authz.ActionControlEvidenceLink, ScopeOnly: true}, {Action: authz.ActionControlEvidenceLink, Resources: application.ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release"}}}
 	if !reflect.DeepEqual(f.requests, wantRequests) {
 		t.Fatal("authorization did not use current coordinates", f.requests)
 	}

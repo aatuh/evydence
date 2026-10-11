@@ -50,6 +50,10 @@ const (
 // Authorize evaluates current actor grants on every call. It does not cache
 // authority, access storage, or replace tenant-filtered repository lookups.
 func Authorize(ctx context.Context, actor identitydomain.Actor, request Request) error {
+	return authorizeWithArtifactVisibility(ctx, actor, request, nil)
+}
+
+func authorizeWithArtifactVisibility(ctx context.Context, actor identitydomain.Actor, request Request, artifacts ArtifactVisibilityReader) error {
 	if ctx == nil {
 		return ErrUnauthorized
 	}
@@ -86,6 +90,9 @@ func Authorize(ctx context.Context, actor identitydomain.Actor, request Request)
 		}
 		return authorizeCurrentGrant(actor, definition.Scope, ResourceReferences{}, true)
 	case ResourceBoundary:
+		if request.Action == ActionControlEvidenceLink && request.Evaluation == ResolvedEvaluation && request.Resources.ArtifactID != "" {
+			return authorizeControlArtifact(ctx, actor, definition.Scope, request, artifacts)
+		}
 		return authorizeResource(actor, definition.Scope, request)
 	case CredentialBoundary:
 		if request.Evaluation != ResolvedEvaluation || request.Resources != (ResourceReferences{}) || !actor.HasScope(definition.Scope) && !actor.HasScope("admin") {

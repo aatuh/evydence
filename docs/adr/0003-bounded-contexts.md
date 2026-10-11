@@ -1073,8 +1073,8 @@ Current product/project/release grants and the permitted tenant-wide phases are
 evaluated centrally, without local scope-string fallback or cached authority.
 Focused command guards still resolve tenant-owned current subjects before
 reservation/replay; append-only decisions, supersession, approvals, audits,
-policy hashes, and response replay formats are unchanged. Control-evidence
-write policies and broader service contracts remain to migrate.
+policy hashes, and response replay formats are unchanged. Broader service
+contracts remain to migrate.
 
 Risk queries select distinct read actions for decision/exception lists,
 control-evidence links, decision summaries, release readiness, and security
@@ -1083,6 +1083,19 @@ reads also accept project grants. Tenant-bound readers retain filtering before
 pagination, coherent ownership projections, privacy exclusions, and capacity
 limits. Services authorize resolved rows and release coordinates centrally and
 reject widened or malformed projections without returning partial data.
+
+Control administration and control-evidence link commands also use typed action
+requests. Their policies reject scope-string fallback, another action family,
+and ambiguous evaluation phases. Artifact links use the explicit
+`AuthorizeWithArtifactVisibility` policy path: scoped human grants require a
+current matching association, filtered before bounded selection. Product or
+release filter coordinates do not themselves prove artifact ownership.
+The application supplies its transaction-owned boolean visibility port and
+retains the 4096-identity/64-KiB request bounds. The central policy derives grants
+and evaluates the result; it does not load artifact metadata or an association
+inventory. Ordinary `Authorize` remains storage-free and cannot bypass a
+missing association proof. Tenant ownership guards, append-only links,
+transactional audits, duplicate/replay behavior, and public scopes are unchanged.
 
 Static control-template packs use a separate credential-only boundary. This
 catalog exposes no tenant records and needs an effective read capability, not a

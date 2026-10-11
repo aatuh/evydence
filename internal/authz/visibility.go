@@ -32,27 +32,31 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 		return Visibility{}, ErrForbidden
 	}
 	definition, _ := DefinitionFor(action) // Authorize already rejected unknown actions.
+	return visibilityForGrants(actor, definition.Scope, action == ActionControlEvidenceRead, action != ActionEnvironmentsRead), nil
+}
+
+func visibilityForGrants(actor identitydomain.Actor, scope string, allowProjects, allowReleases bool) Visibility {
 	visibility := Visibility{TenantID: actor.TenantID}
-	if authorizeCurrentGrant(actor, definition.Scope, ResourceReferences{}, true) == nil {
+	if authorizeCurrentGrant(actor, scope, ResourceReferences{}, true) == nil {
 		visibility.TenantWide = true
-		return visibility, nil
+		return visibility
 	}
 	products := make(map[string]struct{})
 	projects := make(map[string]struct{})
 	releases := make(map[string]struct{})
 	for _, grant := range actor.ResourceGrants {
-		if grant.ResourceID == "" || !grantHasCapability(grant, definition.Scope) {
+		if grant.ResourceID == "" || !grantHasCapability(grant, scope) {
 			continue
 		}
 		switch grant.ResourceType {
 		case "product":
 			products[grant.ResourceID] = struct{}{}
 		case "release":
-			if action != ActionEnvironmentsRead {
+			if allowReleases {
 				releases[grant.ResourceID] = struct{}{}
 			}
 		case "project":
-			if action == ActionControlEvidenceRead {
+			if allowProjects {
 				projects[grant.ResourceID] = struct{}{}
 			}
 		}
@@ -69,5 +73,5 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 	sort.Strings(visibility.ProductIDs)
 	sort.Strings(visibility.ProjectIDs)
 	sort.Strings(visibility.ReleaseIDs)
-	return visibility, nil
+	return visibility
 }
