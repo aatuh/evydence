@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -57,7 +58,7 @@ func (s *EvidencePoints) GetEvidence(ctx context.Context, actor identitydomain.A
 	if err := ctx.Err(); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionEvidenceRead, EvidencePoint{}, true); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -74,7 +75,7 @@ func (s *EvidencePoints) GetEvidence(ctx context.Context, actor identitydomain.A
 	if !validEvidencePoint(point, actor.TenantID, id) {
 		return evidencedomain.EvidenceItem{}, ErrConflict
 	}
-	if err := authorizeEvidenceRead(actor, point, false); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionEvidenceRead, point, false); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	return point.Item, nil
@@ -130,51 +131,14 @@ func evidenceReadGuard(ctx context.Context, actor identitydomain.Actor) Evidence
 		if refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID}) {
 			return ErrConflict
 		}
-		return authorizeEvidenceRead(actor, EvidencePoint{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}, false)
+		return authorizeEvidenceRead(ctx, actor, authz.ActionEvidenceRead, EvidencePoint{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}, false)
 	}
 }
 
-func authorizeEvidenceRead(actor identitydomain.Actor, point EvidencePoint, scopeOnly bool) error {
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return application.ErrUnauthorized
+func authorizeEvidenceRead(ctx context.Context, actor identitydomain.Actor, action authz.Action, point EvidencePoint, scopeOnly bool) error {
+	evaluation := authz.ResolvedEvaluation
+	if scopeOnly {
+		evaluation = authz.ScopeEvaluation
 	}
-	if !actor.HasScope(scopeEvidenceRead) && !actor.HasScope("admin") {
-		return application.ErrForbidden
-	}
-	if scopeOnly || actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	for _, grant := range actor.ResourceGrants {
-		if !evidenceGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return nil
-			}
-		case "product":
-			if point.ProductID != "" && grant.ResourceID == point.ProductID {
-				return nil
-			}
-		case "project":
-			if point.ProjectID != "" && grant.ResourceID == point.ProjectID {
-				return nil
-			}
-		case "release":
-			if point.ReleaseID != "" && grant.ResourceID == point.ReleaseID {
-				return nil
-			}
-		}
-	}
-	return application.ErrForbidden
-}
-
-func evidenceGrantHasScope(grant identitydomain.ResourceGrant) bool {
-	for _, scope := range grant.Scopes {
-		if scope == scopeEvidenceRead || scope == "admin" || scope == "*" {
-			return true
-		}
-	}
-	return false
+	return authz.Authorize(ctx, actor, authz.Request{Action: action, Evaluation: evaluation, Resources: authz.ResourceReferences{ProductID: point.ProductID, ProjectID: point.ProjectID, ReleaseID: point.ReleaseID}})
 }

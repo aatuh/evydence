@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -35,7 +36,7 @@ func (s *SBOMPoints) GetSBOM(ctx context.Context, actor identitydomain.Actor, id
 	if err := ctx.Err(); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionSBOMsRead, EvidencePoint{}, true); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -49,7 +50,7 @@ func (s *SBOMPoints) GetSBOM(ctx context.Context, actor identitydomain.Actor, id
 	if !validSBOMPoint(point, actor.TenantID, id) {
 		return evidencedomain.SBOM{}, ErrConflict
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{ProductID: point.ProductID, ReleaseID: point.SBOM.ReleaseID}, false); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionSBOMsRead, EvidencePoint{ProductID: point.ProductID, ReleaseID: point.SBOM.ReleaseID}, false); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
 	return point.SBOM, nil

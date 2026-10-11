@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"errors"
-	"sort"
 	"strconv"
 	"strings"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -59,7 +59,7 @@ func (s *SBOMComponents) ListPage(ctx context.Context, actor identitydomain.Acto
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionSBOMComponentsRead, EvidencePoint{}, true); err != nil {
 		return empty, err
 	}
 	if err := appquery.Validate(page, after); err != nil || page.Sort != appquery.SortID || after != nil && after.Value != after.ID {
@@ -70,12 +70,16 @@ func (s *SBOMComponents) ListPage(ctx context.Context, actor identitydomain.Acto
 	filter.ArtifactID = strings.TrimSpace(filter.ArtifactID)
 	filter.Query = strings.ToLower(strings.TrimSpace(filter.Query))
 	filter.PURL = strings.TrimSpace(filter.PURL)
-	tenantWide, products, projects, releases := sbomComponentVisibility(actor)
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionSBOMComponentsRead)
+	if err != nil {
+		return empty, err
+	}
+	tenantWide, products, projects, releases := visibility.TenantWide, visibility.ProductIDs, visibility.ProjectIDs, visibility.ReleaseIDs
 	if !tenantWide && len(products) == 0 && len(projects) == 0 && len(releases) == 0 {
 		return empty, application.ErrForbidden
 	}
 	result, err := s.reader.PageSBOMComponents(ctx, SBOMComponentPageRequest{
-		TenantID: actor.TenantID, Filter: filter, TenantWide: tenantWide,
+		TenantID: visibility.TenantID, Filter: filter, TenantWide: tenantWide,
 		AllowedProductIDs: products, AllowedProjectIDs: projects, AllowedReleaseIDs: releases,
 		Page: page, After: after,
 	})
@@ -93,7 +97,7 @@ func (s *SBOMComponents) ListPage(ctx context.Context, actor identitydomain.Acto
 		if !validSBOMComponentPoint(point, actor.TenantID, filter) {
 			return empty, ErrConflict
 		}
-		if err := authorizeEvidenceRead(actor, EvidencePoint{ProductID: point.ProductID, ProjectID: point.ProjectID, ReleaseID: point.ReleaseID}, false); err != nil {
+		if err := authorizeEvidenceRead(ctx, actor, authz.ActionSBOMComponentsRead, EvidencePoint{ProductID: point.ProductID, ProjectID: point.ProjectID, ReleaseID: point.ReleaseID}, false); err != nil {
 			return empty, ErrConflict
 		}
 		items = append(items, point.Record)
@@ -118,44 +122,4 @@ func validSBOMComponentPoint(point SBOMComponentPoint, tenantID string, filter S
 		return false
 	}
 	return true
-}
-
-func sbomComponentVisibility(actor identitydomain.Actor) (bool, []string, []string, []string) {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true, nil, nil, nil
-	}
-	products, projects, releases := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
-	for _, grant := range actor.ResourceGrants {
-		if !evidenceGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true, nil, nil, nil
-			}
-		case "product":
-			if grant.ResourceID != "" {
-				products[grant.ResourceID] = struct{}{}
-			}
-		case "project":
-			if grant.ResourceID != "" {
-				projects[grant.ResourceID] = struct{}{}
-			}
-		case "release":
-			if grant.ResourceID != "" {
-				releases[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	return false, sortedSBOMGrantIDs(products), sortedSBOMGrantIDs(projects), sortedSBOMGrantIDs(releases)
-}
-
-func sortedSBOMGrantIDs(values map[string]struct{}) []string {
-	result := make([]string, 0, len(values))
-	for value := range values {
-		result = append(result, value)
-	}
-	sort.Strings(result)
-	return result
 }

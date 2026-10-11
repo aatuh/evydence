@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -25,10 +26,10 @@ func (a diffAuthorizer) Authorize(ctx context.Context, actor identitydomain.Acto
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if r.Scope != scopeEvidenceRead || r.TenantWide {
+	if r.Action != "" || r.Scope != scopeEvidenceRead || r.TenantWide {
 		return application.ErrForbidden
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionEvidenceDiffsCreate, EvidencePoint{}, true); err != nil {
 		return err
 	}
 	refs := r.Resources
@@ -47,5 +48,5 @@ func (a diffAuthorizer) Authorize(ctx context.Context, actor identitydomain.Acto
 	if refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}) {
 		return application.ErrForbidden
 	}
-	return authorizeEvidenceRead(actor, EvidencePoint{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}, false)
+	return authorizeEvidenceRead(ctx, actor, authz.ActionEvidenceDiffsCreate, EvidencePoint{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}, false)
 }

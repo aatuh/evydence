@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
+	"github.com/aatuh/evydence/internal/authz"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -55,7 +56,7 @@ func (s *EvidencePages) ListPage(ctx context.Context, a identitydomain.Actor, fi
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if err := authorizeEvidenceRead(a, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, a, authz.ActionEvidenceRead, EvidencePoint{}, true); err != nil {
 		return empty, err
 	}
 	if !validEvidenceReadID(a.TenantID) || strings.TrimSpace(a.TenantID) != a.TenantID || !validEvidencePageFilter(filter) {
@@ -67,7 +68,11 @@ func (s *EvidencePages) ListPage(ctx context.Context, a identitydomain.Actor, fi
 	if after != nil && !validEvidencePageKey(*after, page.Sort) {
 		return empty, ErrValidation
 	}
-	tenantWide, products, projects, releases := sbomComponentVisibility(a)
+	visibility, err := authz.ReadVisibility(ctx, a, authz.ActionEvidenceRead)
+	if err != nil {
+		return empty, err
+	}
+	tenantWide, products, projects, releases := visibility.TenantWide, visibility.ProductIDs, visibility.ProjectIDs, visibility.ReleaseIDs
 	if !tenantWide && len(products)+len(projects)+len(releases) == 0 {
 		return appquery.Result[evidencedomain.EvidenceItem]{Items: []evidencedomain.EvidenceItem{}}, nil
 	}
@@ -78,7 +83,7 @@ func (s *EvidencePages) ListPage(ctx context.Context, a identitydomain.Actor, fi
 			}
 		}
 	}
-	result, err := s.reader.PageEvidence(ctx, EvidencePageRequest{TenantID: a.TenantID, Filter: filter, Page: page, After: after, TenantWide: tenantWide, AllowedProductIDs: products, AllowedProjectIDs: projects, AllowedReleaseIDs: releases}, evidenceReadGuard(ctx, a))
+	result, err := s.reader.PageEvidence(ctx, EvidencePageRequest{TenantID: visibility.TenantID, Filter: filter, Page: page, After: after, TenantWide: tenantWide, AllowedProductIDs: products, AllowedProjectIDs: projects, AllowedReleaseIDs: releases}, evidenceReadGuard(ctx, a))
 	if err != nil {
 		if errors.Is(err, appquery.ErrInvalidPage) || errors.Is(err, appquery.ErrInvalidCursor) {
 			return empty, ErrValidation
@@ -99,7 +104,7 @@ func (s *EvidencePages) ListPage(ctx context.Context, a identitydomain.Actor, fi
 		if !validEvidencePoint(point, a.TenantID, item.ID) || !matchesEvidencePageFilter(item, filter) {
 			return empty, ErrConflict
 		}
-		if err := authorizeEvidenceRead(a, point, false); err != nil {
+		if err := authorizeEvidenceRead(ctx, a, authz.ActionEvidenceRead, point, false); err != nil {
 			return empty, ErrConflict
 		}
 		key := appquery.RecordSortKey(item.ID, item.CreatedAt, page.Sort)

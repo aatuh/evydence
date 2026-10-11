@@ -38,7 +38,7 @@ func TestSBOMComponentQueryAppliesScopeFilterAndPageBounds(t *testing.T) {
 	filter := SBOMComponentFilter{SBOMID: " sbom_1 ", ReleaseID: " rel_1 ", Query: " OPEN ", PURL: " pkg:generic/lib@3.0 "}
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
 	result, err := service.ListPage(t.Context(), actor, filter, page, nil)
-	if err != nil || len(result.Items) != 1 || result.Items[0].ID != "sbom_1:0" || result.Next == nil || reader.request.TenantID != "ten_1" || reader.request.Filter.Query != "open" || reader.request.TenantWide || len(reader.request.AllowedProductIDs) != 1 {
+	if err != nil || len(result.Items) != 1 || result.Items[0].ID != "sbom_1:0" || result.Next == nil || reader.request.TenantID != "ten_1" || reader.request.Filter.Query != "open" || reader.request.TenantWide || len(reader.request.AllowedProductIDs) != 1 || reader.request.AllowedProductIDs[0] != "prod_1" {
 		t.Fatalf("result=%#v request=%#v error=%v", result, reader.request, err)
 	}
 	reader.result.Items[0].TenantID = "ten_other"

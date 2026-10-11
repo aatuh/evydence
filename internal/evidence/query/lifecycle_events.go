@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
+	"github.com/aatuh/evydence/internal/authz"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -43,7 +44,7 @@ func (s *LifecycleEvents) ListPage(ctx context.Context, actor identitydomain.Act
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionEvidenceLifecycleRead, EvidencePoint{}, true); err != nil {
 		return empty, err
 	}
 	id = strings.TrimSpace(id)
@@ -66,7 +67,7 @@ func (s *LifecycleEvents) ListPage(ctx context.Context, actor identitydomain.Act
 	if !validEvidencePoint(result.Point, actor.TenantID, id) || len(result.Page.Items) > page.PageSize {
 		return empty, ErrConflict
 	}
-	if err := authorizeEvidenceRead(actor, result.Point, false); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionEvidenceLifecycleRead, result.Point, false); err != nil {
 		return empty, err
 	}
 	for _, event := range result.Page.Items {

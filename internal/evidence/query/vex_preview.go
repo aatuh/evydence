@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -63,7 +64,7 @@ func (s *VEXPreviews) PreviewVEXImport(ctx context.Context, a identitydomain.Act
 	if err := ctx.Err(); err != nil {
 		return evidencedomain.VEXImportPreview{}, err
 	}
-	if err := authorizeEvidenceRead(a, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, a, authz.ActionVEXPreviewRead, EvidencePoint{}, true); err != nil {
 		return evidencedomain.VEXImportPreview{}, err
 	}
 	if !validEvidenceReadID(a.TenantID) || !validEvidenceReadID(in.ReleaseID) || in.ArtifactID != "" && !validEvidenceReadID(in.ArtifactID) || len(in.Payload) == 0 || int64(len(in.Payload)) > evidenceapp.EvidenceDocumentLimit {
@@ -81,7 +82,7 @@ func (s *VEXPreviews) PreviewVEXImport(ctx context.Context, a identitydomain.Act
 			return nil, ErrConflict
 		}
 		called, prepared = true, refs
-		if err := authorizeEvidenceRead(a, EvidencePoint{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID}, false); err != nil {
+		if err := authorizeEvidenceRead(ctx, a, authz.ActionVEXPreviewRead, EvidencePoint{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID}, false); err != nil {
 			return nil, err
 		}
 		if in.ArtifactID != "" {

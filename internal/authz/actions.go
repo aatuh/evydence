@@ -75,6 +75,20 @@ const (
 	ActionControlEvidenceLink              Action = "control_evidence.link"
 )
 
+const (
+	ActionEvidenceWrite          Action = "evidence.write"
+	ActionSecurityEvidenceWrite  Action = "security_evidence.write"
+	ActionEvidenceRead           Action = "evidence.read"
+	ActionSBOMsRead              Action = "sboms.read"
+	ActionVEXDocumentsRead       Action = "vex_documents.read"
+	ActionOpenAPIContractsRead   Action = "openapi_contracts.read"
+	ActionVulnerabilityScansRead Action = "vulnerability_scans.read"
+	ActionEvidenceLifecycleRead  Action = "evidence_lifecycle.read"
+	ActionSBOMComponentsRead     Action = "sbom_components.read"
+	ActionVEXPreviewRead         Action = "vex_preview.read"
+	ActionEvidenceDiffsCreate    Action = "evidence_diffs.create"
+)
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -171,6 +185,14 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
 	case ActionControlTemplatesRead:
 		return Definition{Scope: "controls:read", Boundary: CredentialBoundary}, true
+	case ActionEvidenceWrite:
+		return Definition{Scope: "evidence:write", Boundary: ResourceBoundary}, true
+	case ActionSecurityEvidenceWrite:
+		return Definition{Scope: "security:write", Boundary: ResourceBoundary}, true
+	case ActionEvidenceRead, ActionSBOMsRead, ActionVEXDocumentsRead, ActionOpenAPIContractsRead,
+		ActionVulnerabilityScansRead, ActionEvidenceLifecycleRead, ActionSBOMComponentsRead,
+		ActionVEXPreviewRead, ActionEvidenceDiffsCreate:
+		return Definition{Scope: "evidence:read", Boundary: ResourceBoundary}, true
 	default:
 		return Definition{}, false
 	}

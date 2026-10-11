@@ -1011,8 +1011,8 @@ See [current enforcement scope](../architecture.md#architecture-enforcement).
 
 `internal/authz` owns registered action/capability definitions and the migrated
 tenant-wide, instance, catalog resource, deployment/environment, incident-write,
-and migrated risk-workflow decisions. Migrated privileged callers and those
-commands/queries select typed application actions.
+and migrated risk/evidence resource decisions. Registered policy decisions take
+typed application actions; caller migration is scoped below.
 Catalog's scope-to-action fallback is removed: legacy scope strings, mixed
 action/scope requests, and foreign action families are rejected even for
 wildcard credentials. `internal/application`
@@ -1102,6 +1102,24 @@ catalog exposes no tenant records and needs an effective read capability, not a
 tenant resource grant. Its policy rejects resource coordinates and preflight or
 tenant-inventory promotion. Access to static definitions does not authorize
 tenant-owned controls, instance diagnostics, or writes.
+
+Evidence parent authorization now resolves current coherent ownership through
+the existing tenant-bound port, then evaluates evidence/security-write grants
+centrally. Keys still cannot bypass parent existence or coherence. Detached
+evidence requires current tenant authority for human sessions; resolved build
+and deployment coordinates constrain the applicable product/project/release
+grants. These write adapters deliberately retain the old incoming scope
+protocol until their command and artifact delegates migrate together; ambiguous
+action/scope requests are rejected. This is not complete typed write-caller or
+artifact-association policy migration.
+
+Evidence point/page, SBOM/component, VEX, OpenAPI, scanner, lifecycle, preview,
+and diff resource reads select registered actions and use central grants.
+Evidence and SBOM component lists derive product/project/release visibility
+centrally before candidate selection. Ownership, worker-provenance checks,
+metadata guards, page/text budgets, cursor semantics, privacy exclusions,
+canonical hashes, and replay/storage formats are unchanged. Artifact delegates
+and diff command request protocols remain to migrate.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete

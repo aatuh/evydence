@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -119,6 +120,8 @@ func TestEvidenceCreationAuthorizerRejectsInvalidRequestsBeforeReads(t *testing.
 	auth, _ := NewEvidenceCreationAuthorizer(reader, artifacts)
 	actor := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"evidence:write"}}
 	for _, r := range []application.AuthorizationRequest{
+		{Action: authz.ActionEvidenceWrite, Scope: "evidence:write", ScopeOnly: true},
+		{Action: authz.ActionSecurityEvidenceWrite, Scope: "evidence:write", ScopeOnly: true},
 		{Scope: "security:write"},
 		{Scope: "evidence:write", TenantWide: true},
 		{Scope: "evidence:write", ScopeOnly: true, Resources: application.ResourceReferences{BuildID: "build"}},

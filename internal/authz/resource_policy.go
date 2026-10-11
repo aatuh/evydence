@@ -40,7 +40,9 @@ func allowsTenantResourceEvaluation(action Action) bool {
 		ActionEnvironmentsRead, ActionDeploymentsRead, ActionIncidentsManage,
 		ActionApprovalsRecord, ActionWaiversManage, ActionVulnerabilityWorkflowsRecord, ActionCustomPoliciesCreate,
 		ActionVulnerabilityDecisionsRead, ActionExceptionsRead, ActionControlEvidenceRead,
-		ActionVulnerabilityDecisionSummaryRead, ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionControlEvidenceLink:
+		ActionVulnerabilityDecisionSummaryRead, ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionControlEvidenceLink,
+		ActionEvidenceRead, ActionSBOMsRead, ActionVEXDocumentsRead, ActionOpenAPIContractsRead,
+		ActionVulnerabilityScansRead, ActionEvidenceLifecycleRead, ActionSBOMComponentsRead, ActionVEXPreviewRead:
 		return true
 	default:
 		return false
@@ -75,6 +77,18 @@ func validResourceReferences(action Action, refs ResourceReferences) bool {
 		}
 		return refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID}) &&
 			(refs.ProductID != "" || refs.ProjectID == "" && refs.ReleaseID == "")
+	case ActionEvidenceWrite, ActionSecurityEvidenceWrite:
+		if refs != (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID}) {
+			return false
+		}
+		if refs == (ResourceReferences{}) {
+			return true
+		}
+		return refs.ProductID != "" && (refs.BuildID == "" || refs.ProjectID != "" && refs.ReleaseID != "") && (refs.DeploymentID == "" || refs.ReleaseID != "")
+	case ActionEvidenceRead, ActionSBOMsRead, ActionVEXDocumentsRead, ActionOpenAPIContractsRead,
+		ActionVulnerabilityScansRead, ActionEvidenceLifecycleRead, ActionSBOMComponentsRead,
+		ActionVEXPreviewRead, ActionEvidenceDiffsCreate:
+		return refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID})
 	default:
 		return validCatalogResources(action, refs)
 	}

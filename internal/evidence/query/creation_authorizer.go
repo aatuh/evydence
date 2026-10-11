@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -16,26 +17,26 @@ type EvidenceCreationScopeReader interface {
 }
 
 func NewEvidenceCreationAuthorizer(reader EvidenceCreationScopeReader, artifactPolicy application.Authorizer) (application.Authorizer, error) {
-	return newEvidenceCreationAuthorizer(reader, artifactPolicy, "evidence:write")
+	return newEvidenceCreationAuthorizer(reader, artifactPolicy, authz.ActionEvidenceWrite)
 }
 
 // Security-owned uploads use the same coherent-parent policy without requiring
 // the unrelated evidence:write grant.
 func NewSecurityDocumentAuthorizer(reader EvidenceCreationScopeReader, artifactPolicy application.Authorizer) (application.Authorizer, error) {
-	return newEvidenceCreationAuthorizer(reader, artifactPolicy, "security:write")
+	return newEvidenceCreationAuthorizer(reader, artifactPolicy, authz.ActionSecurityEvidenceWrite)
 }
 
-func newEvidenceCreationAuthorizer(reader EvidenceCreationScopeReader, artifactPolicy application.Authorizer, scope string) (application.Authorizer, error) {
+func newEvidenceCreationAuthorizer(reader EvidenceCreationScopeReader, artifactPolicy application.Authorizer, action authz.Action) (application.Authorizer, error) {
 	if reader == nil || artifactPolicy == nil {
 		return nil, ErrValidation
 	}
-	return evidenceCreationAuthorizer{reader, artifactPolicy, scope}, nil
+	return evidenceCreationAuthorizer{reader, artifactPolicy, action}, nil
 }
 
 type evidenceCreationAuthorizer struct {
 	reader    EvidenceCreationScopeReader
 	artifacts application.Authorizer
-	scope     string
+	action    authz.Action
 }
 
 func (a evidenceCreationAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
@@ -48,8 +49,12 @@ func (a evidenceCreationAuthorizer) Authorize(ctx context.Context, actor identit
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if request.Scope != a.scope || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
+	definition, ok := authz.DefinitionFor(a.action)
+	if !ok || request.Action != "" || request.Scope != definition.Scope {
 		return application.ErrForbidden
+	}
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: a.action, Evaluation: authz.ScopeEvaluation}); err != nil {
+		return err
 	}
 	if request.TenantWide {
 		return application.ErrForbidden
@@ -83,40 +88,7 @@ func (a evidenceCreationAuthorizer) Authorize(ctx context.Context, actor identit
 	if !validCreationResolution(refs, resolved) {
 		return ErrConflict
 	}
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	for _, grant := range actor.ResourceGrants {
-		allowed := false
-		for _, scope := range grant.Scopes {
-			if scope == request.Scope || scope == "admin" || scope == "*" {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return nil
-			}
-		case "product":
-			if resolved.ProductID != "" && grant.ResourceID == resolved.ProductID {
-				return nil
-			}
-		case "project":
-			if resolved.ProjectID != "" && grant.ResourceID == resolved.ProjectID {
-				return nil
-			}
-		case "release":
-			if resolved.ReleaseID != "" && grant.ResourceID == resolved.ReleaseID {
-				return nil
-			}
-		}
-	}
-	return application.ErrForbidden
+	return authz.Authorize(ctx, actor, authz.Request{Action: a.action, Resources: resolved})
 }
 
 func creationParentReferences(r application.ResourceReferences) bool {

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -35,7 +36,7 @@ func (s *OpenAPIContractPoints) GetOpenAPIContract(ctx context.Context, actor id
 	if err := ctx.Err(); err != nil {
 		return evidencedomain.OpenAPIContract{}, err
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionOpenAPIContractsRead, EvidencePoint{}, true); err != nil {
 		return evidencedomain.OpenAPIContract{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -50,7 +51,7 @@ func (s *OpenAPIContractPoints) GetOpenAPIContract(ctx context.Context, actor id
 	if !validOpenAPIContractPoint(contract, actor.TenantID, id) {
 		return evidencedomain.OpenAPIContract{}, ErrConflict
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{ProductID: contract.ProductID, ReleaseID: contract.ReleaseID}, false); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionOpenAPIContractsRead, EvidencePoint{ProductID: contract.ProductID, ReleaseID: contract.ReleaseID}, false); err != nil {
 		return evidencedomain.OpenAPIContract{}, err
 	}
 	return contract, nil

@@ -27,12 +27,13 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 	switch action {
 	case ActionEnvironmentsRead, ActionDeploymentsRead, ActionVulnerabilityDecisionsRead,
 		ActionExceptionsRead, ActionControlEvidenceRead, ActionVulnerabilityDecisionSummaryRead,
-		ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead:
+		ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionEvidenceRead, ActionSBOMComponentsRead:
 	default:
 		return Visibility{}, ErrForbidden
 	}
 	definition, _ := DefinitionFor(action) // Authorize already rejected unknown actions.
-	return visibilityForGrants(actor, definition.Scope, action == ActionControlEvidenceRead, action != ActionEnvironmentsRead), nil
+	allowProjects := action == ActionControlEvidenceRead || action == ActionEvidenceRead || action == ActionSBOMComponentsRead
+	return visibilityForGrants(actor, definition.Scope, allowProjects, action != ActionEnvironmentsRead), nil
 }
 
 func visibilityForGrants(actor identitydomain.Actor, scope string, allowProjects, allowReleases bool) Visibility {

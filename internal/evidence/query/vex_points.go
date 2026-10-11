@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -42,7 +43,7 @@ func (s *VEXPoints) GetVEXDocument(ctx context.Context, actor identitydomain.Act
 	if err := ctx.Err(); err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionVEXDocumentsRead, EvidencePoint{}, true); err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -56,7 +57,7 @@ func (s *VEXPoints) GetVEXDocument(ctx context.Context, actor identitydomain.Act
 	if !validVEXDocumentPoint(point, actor.TenantID, id) {
 		return evidencedomain.VEXDocument{}, ErrConflict
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{ProductID: point.ProductID, ReleaseID: point.Document.ReleaseID}, false); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionVEXDocumentsRead, EvidencePoint{ProductID: point.ProductID, ReleaseID: point.Document.ReleaseID}, false); err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
 	return point.Document, nil
@@ -69,7 +70,7 @@ func (s *VEXPoints) GetVEXImportReport(ctx context.Context, actor identitydomain
 	if err := ctx.Err(); err != nil {
 		return evidencedomain.VEXImportReport{}, err
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{}, true); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionVEXDocumentsRead, EvidencePoint{}, true); err != nil {
 		return evidencedomain.VEXImportReport{}, err
 	}
 	vexID = strings.TrimSpace(vexID)
@@ -83,7 +84,7 @@ func (s *VEXPoints) GetVEXImportReport(ctx context.Context, actor identitydomain
 	if !validVEXDocumentPoint(point.Document, actor.TenantID, vexID) || !validVEXImportReportPoint(point, actor.TenantID) {
 		return evidencedomain.VEXImportReport{}, ErrConflict
 	}
-	if err := authorizeEvidenceRead(actor, EvidencePoint{ProductID: point.Document.ProductID, ReleaseID: point.Document.Document.ReleaseID}, false); err != nil {
+	if err := authorizeEvidenceRead(ctx, actor, authz.ActionVEXDocumentsRead, EvidencePoint{ProductID: point.Document.ProductID, ReleaseID: point.Document.Document.ReleaseID}, false); err != nil {
 		return evidencedomain.VEXImportReport{}, err
 	}
 	return point.Report, nil
