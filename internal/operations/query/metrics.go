@@ -58,16 +58,16 @@ func (s *Metrics) Snapshot(ctx context.Context, actor identitydomain.Actor) (map
 	if s == nil || ctx == nil {
 		return nil, ErrValidation
 	}
-	instanceAdmin := actor.HasExplicitScope("instance:admin")
-	if instanceAdmin {
-		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionInstanceMetricsRead}); err != nil {
-			return nil, err
-		}
-	} else if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionTenantMetricsRead}); err != nil {
+	action, err := authz.AuthorizeMetrics(ctx, actor)
+	if err != nil {
 		return nil, err
 	}
+	instanceAdmin := action == authz.ActionInstanceMetricsRead
 	snapshot, err := s.reader.ReadMetricsSnapshot(ctx, actor.TenantID, instanceAdmin)
 	if err != nil {
+		return nil, err
+	}
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: action}); err != nil {
 		return nil, err
 	}
 	if len(snapshot.ResourceCounts) != len(metricResourceNames) ||

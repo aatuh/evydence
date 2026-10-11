@@ -1261,6 +1261,24 @@ release/package grant profile. Its heuristic facts, output, private-field
 exclusions, and no-verification-authority limitations are unchanged; it cannot
 borrow the evidence-summary action despite sharing `report:read`.
 
+Self-session logout now selects `sso_sessions.logout`, a central boundary that
+requires an authenticated human session but no role scope or resource grant.
+It rejects key/collector and mixed credentials, policy preflight promotion,
+and caller-selected resource coordinates. The command still validates current
+tenant/user/session ownership in storage, so a role downgrade does not prevent
+the owner from logging out and does not authorize revoking somebody else's
+session. Cookie/origin guards, revocation audits, and token-hash exclusion are
+unchanged.
+API-key issuance retains its primary `api_keys.manage` policy and adds a
+central explicit-instance delegation constraint before credential generation
+and during fresh/replay transaction admission. Tenant admin, wildcard, and
+resource grants cannot delegate `instance:admin`. Metrics selection likewise
+uses the central tenant/explicit-instance policy, then rechecks the originally
+selected action after the bounded storage read. Cancellation or authority loss
+withholds the entire result; switching to tenant authority cannot release
+global outbox counts. These scoped regressions do not prove live-storage or
+complete route coverage.
+
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete
 route-to-action positive/negative coverage matrix still need migration and validation.

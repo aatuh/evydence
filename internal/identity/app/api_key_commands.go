@@ -60,12 +60,7 @@ func apiKeyAuthorization() application.AuthorizationRequest {
 // Tenant wildcard/admin authority is not instance-administration authority.
 // Unknown, blank and duplicate scopes keep their historical inert semantics.
 func AuthorizeAPIKeyScopes(a identitydomain.Actor, scopes []string) error {
-	for _, scope := range scopes {
-		if strings.TrimSpace(scope) == "instance:admin" && !a.HasExplicitScope("instance:admin") {
-			return application.ErrForbidden
-		}
-	}
-	return nil
+	return authz.CheckAPIKeyScopeDelegation(a, scopes)
 }
 func validAPIKeyText(v string, limit int) bool {
 	return len(v) <= limit && utf8.ValidString(v) && !strings.ContainsRune(v, 0)
@@ -137,10 +132,11 @@ func (s *APIKeyCommands) execute(ctx context.Context, a identitydomain.Actor, fn
 // The replay guard checks current authority without generating credentials or
 // reading tenant inventories. It joins an existing idempotency transaction.
 func (s *APIKeyCommands) AuthorizeCreateAPIKey(ctx context.Context, a identitydomain.Actor, in CreateAPIKeyInput) error {
-	if _, err := s.prepare(ctx, a, in); err != nil {
+	in, err := s.prepare(ctx, a, in)
+	if err != nil {
 		return err
 	}
-	return s.execute(ctx, a, func(context.Context, APIKeyTransaction) error { return nil })
+	return s.execute(ctx, a, func(context.Context, APIKeyTransaction) error { return authz.CheckAPIKeyScopeDelegation(a, in.Scopes) })
 }
 func (s *APIKeyCommands) CreateAPIKey(ctx context.Context, a identitydomain.Actor, in CreateAPIKeyInput) (identitydomain.APIKey, string, error) {
 	in, err := s.prepare(ctx, a, in)
@@ -150,6 +146,9 @@ func (s *APIKeyCommands) CreateAPIKey(ctx context.Context, a identitydomain.Acto
 	var key identitydomain.APIKey
 	var secret string
 	err = s.execute(ctx, a, func(ctx context.Context, tx APIKeyTransaction) error {
+		if err := authz.CheckAPIKeyScopeDelegation(a, in.Scopes); err != nil {
+			return err
+		}
 		now := s.config.Clock.Now().UTC().Truncate(time.Microsecond)
 		if now.IsZero() || !validAPIKeyTime(now) {
 			return ErrValidation

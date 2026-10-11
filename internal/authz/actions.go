@@ -164,6 +164,8 @@ const (
 
 const ActionAnomalyReportsGenerate Action = "anomaly_reports.generate"
 
+const ActionSSOSessionsLogout Action = "sso_sessions.logout"
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -173,6 +175,9 @@ const (
 	ResourceBoundary
 	// CredentialBoundary is for static catalogs that expose no tenant records.
 	CredentialBoundary
+	// SelfSessionBoundary uses an authenticated human's own session, not a
+	// credential capability, resource grant, or caller-selected target.
+	SelfSessionBoundary
 )
 
 // Definition is the immutable capability and ownership boundary of an action.
@@ -184,6 +189,8 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionSSOSessionsLogout:
+		return Definition{Boundary: SelfSessionBoundary}, true
 	case ActionAnomalyReportsGenerate:
 		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
 	case ActionTrustConfigurationsManage, ActionSigningOperationsCreate, ActionMerkleBatchesCreate, ActionTransparencyCheckpointsRecord:

@@ -3,6 +3,7 @@ package authz
 import (
 	"context"
 	"errors"
+	"strings"
 
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -68,6 +69,11 @@ func authorizeWithArtifactVisibility(ctx context.Context, actor identitydomain.A
 		return ErrForbidden
 	}
 	switch definition.Boundary {
+	case SelfSessionBoundary:
+		if request.Evaluation != ResolvedEvaluation || request.Resources != (ResourceReferences{}) || strings.TrimSpace(actor.UserID) == "" || strings.TrimSpace(actor.SessionID) == "" || actor.KeyID != "" || actor.CollectorID != "" {
+			return ErrForbidden
+		}
+		return nil
 	case InstanceBoundary:
 		if request.Evaluation != ResolvedEvaluation || request.Resources != (ResourceReferences{}) || !actor.HasExplicitScope(definition.Scope) {
 			return ErrForbidden

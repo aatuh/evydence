@@ -13,6 +13,7 @@ import (
 )
 
 type apiKeyCommandFixture struct {
+	onAuthorize             func()
 	keys                    []identitydomain.APIKey
 	audits                  []application.AuditEvent
 	phase                   string
@@ -27,7 +28,7 @@ func (f *apiKeyCommandFixture) ExecuteAPIKey(ctx context.Context, tenant string,
 	if f.phase == "lock" {
 		return errors.New("storage failure")
 	}
-	staged := &apiKeyCommandFixture{phase: f.phase}
+	staged := &apiKeyCommandFixture{phase: f.phase, onAuthorize: f.onAuthorize}
 	if err := fn(ctx, staged); err != nil {
 		return err
 	}
@@ -39,10 +40,38 @@ func (f *apiKeyCommandFixture) ExecuteAPIKey(ctx context.Context, tenant string,
 	return nil
 }
 func (f *apiKeyCommandFixture) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
+	if f.onAuthorize != nil {
+		f.onAuthorize()
+	}
 	if f.phase == "authorization" {
 		return application.ErrForbidden
 	}
 	return NewAPIKeyWriteAuthorizer().Authorize(ctx, a, r)
+}
+
+func TestAPIKeyInstanceDelegationIsRecheckedInsideTransaction(t *testing.T) {
+	for _, replay := range []bool{false, true} {
+		t.Run(map[bool]string{false: "fresh", true: "replay"}[replay], func(t *testing.T) {
+			f := &apiKeyCommandFixture{}
+			s, a := apiKeyCommandsForTest(t, f)
+			a.Scopes = []string{"admin", "instance:admin"}
+			f.onAuthorize = func() { a.Scopes[1] = "revoked-instance-authority" }
+			input := CreateAPIKeyInput{Name: "Instance", Scopes: []string{"instance:admin"}}
+			var err error
+			if replay {
+				err = s.AuthorizeCreateAPIKey(t.Context(), a, input)
+			} else {
+				key, secret, runErr := s.CreateAPIKey(t.Context(), a, input)
+				err = runErr
+				if key.ID != "" || secret != "" {
+					t.Error("changed instance authority returned a credential")
+				}
+			}
+			if !errors.Is(err, application.ErrForbidden) || f.generated != 0 || len(f.keys)+len(f.audits) != 0 {
+				t.Error("changed instance authority authorized issuance/replay", err, f.generated, len(f.keys), len(f.audits))
+			}
+		})
+	}
 }
 func (f *apiKeyCommandFixture) InsertAPIKey(_ context.Context, k identitydomain.APIKey) error {
 	if f.phase == "key" {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -37,8 +38,6 @@ func NewSSOSessionRevocationCommands(c SSOSessionRevocationConfig) (*SSOSessionR
 	return &SSOSessionRevocationCommands{c}, nil
 }
 
-const sessionLogoutScope = "identity:logout"
-
 type sessionRevocationAuthorizer struct{}
 
 func NewSSOSessionRevocationAuthorizer() application.Authorizer { return sessionRevocationAuthorizer{} }
@@ -46,23 +45,17 @@ func (sessionRevocationAuthorizer) Authorize(ctx context.Context, a identitydoma
 	if r == membershipAuthorization() {
 		return NewMembershipWriteAuthorizer().Authorize(ctx, a, r)
 	}
-	if r != (application.AuthorizationRequest{Scope: sessionLogoutScope}) {
+	if r != (application.AuthorizationRequest{Action: authz.ActionSSOSessionsLogout}) {
 		return application.ErrForbidden
 	}
 	if ctx == nil {
 		return ErrValidation
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if strings.TrimSpace(a.UserID) == "" || strings.TrimSpace(a.SessionID) == "" || a.KeyID != "" || a.CollectorID != "" {
-		return application.ErrForbidden
-	}
-	return nil
+	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionSSOSessionsLogout})
 }
 func revocationAuthorization(self bool) application.AuthorizationRequest {
 	if self {
-		return application.AuthorizationRequest{Scope: sessionLogoutScope}
+		return application.AuthorizationRequest{Action: authz.ActionSSOSessionsLogout}
 	}
 	return membershipAuthorization()
 }
