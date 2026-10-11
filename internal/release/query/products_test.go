@@ -100,6 +100,24 @@ func TestListProductsPageFiltersHumanGrantBeforeDatabaseQuery(t *testing.T) {
 	}
 }
 
+func TestListProductsPageCannotMintVisibilityThroughAdditionalAuthorizer(t *testing.T) {
+	reader := &productPageReaderFake{}
+	service, err := NewProducts(reader, productAuthorizerFake{tenantWide: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", SessionID: "sso", Scopes: []string{"product:read"}}
+	page, err := service.ListProductsPage(t.Context(), actor, productPageRequest(), nil)
+	if err != nil || len(page.Items) != 0 || reader.calls != 0 {
+		t.Fatal("additional authorizer invented current grant visibility", page, err, reader.calls)
+	}
+	actor = identitydomain.Actor{TenantID: "tenant", KeyID: "key"}
+	page, err = service.ListProductsPage(t.Context(), actor, productPageRequest(), nil)
+	if !errors.Is(err, application.ErrForbidden) || len(page.Items) != 0 || reader.calls != 0 {
+		t.Fatal("additional authorizer minted issued capability", page, err, reader.calls)
+	}
+}
+
 func TestListProductsPageFailsClosedOnForeignOrUnauthorizedProjection(t *testing.T) {
 	for _, product := range []releasedomain.Product{
 		{ID: "prod_foreign", TenantID: "ten_2"},
@@ -130,7 +148,7 @@ func TestListProductsPageRejectsCursorNotBoundToLastVisibleProduct(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	page, err := service.ListProductsPage(t.Context(), identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1"}, productPageRequest(), nil)
+	page, err := service.ListProductsPage(t.Context(), identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"product:read"}}, productPageRequest(), nil)
 	if !errors.Is(err, ErrInvalidProjection) || len(page.Items) != 0 {
 		t.Fatalf("foreign continuation leaked: page=%#v error=%v", page, err)
 	}
@@ -142,7 +160,7 @@ func TestListProductsPageRejectsInvalidInputsAndPropagatesBackendFailure(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor := identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1"}
+	actor := identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"product:read"}}
 	if _, err := service.ListProductsPage(t.Context(), actor, appquery.PageRequest{PageSize: 501, Sort: appquery.SortID, Direction: appquery.Ascending}, nil); err == nil || reader.calls != 0 {
 		t.Fatalf("invalid page reached backend: calls=%d error=%v", reader.calls, err)
 	}

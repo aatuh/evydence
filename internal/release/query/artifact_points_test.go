@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,12 +16,49 @@ type artifactPointReaderStub struct {
 	point   ArtifactPoint
 	request ArtifactReadRequest
 	calls   int
+	before  func()
 }
 
 func (s *artifactPointReaderStub) GetArtifactPoint(_ context.Context, request ArtifactReadRequest) (ArtifactPoint, error) {
 	s.calls++
 	s.request = request
+	if s.before != nil {
+		s.before()
+	}
 	return s.point, nil
+}
+
+func TestArtifactPointReadRejectsCancellationAfterFilteredRead(t *testing.T) {
+	reader := &artifactPointReaderStub{point: ArtifactPoint{Artifact: releasedomain.Artifact{
+		ID: "artifact", TenantID: "tenant", Name: "private artifact", MediaType: "text/plain", Digest: "sha256:" + strings.Repeat("a", 64), CreatedAt: time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC),
+	}, Visible: true}}
+	service, err := NewArtifactPoints(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	reader.before = cancel
+	actor := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"evidence:read"}}
+	artifact, err := service.GetArtifact(ctx, actor, "artifact")
+	if !errors.Is(err, context.Canceled) || artifact.ID != "" || reader.calls != 1 {
+		t.Fatal("canceled read returned private metadata", artifact, err, reader.calls)
+	}
+}
+
+func TestArtifactPointAssociationProofIsBoundToExactReadFilters(t *testing.T) {
+	reader := &artifactPointReaderStub{point: ArtifactPoint{Artifact: releasedomain.Artifact{
+		ID: "artifact", TenantID: "tenant", Name: "private artifact", MediaType: "text/plain", Digest: "sha256:" + strings.Repeat("a", 64), CreatedAt: time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC),
+	}, Visible: true}}
+	service, err := NewArtifactPoints(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", SessionID: "sso", Scopes: []string{"evidence:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "original", Scopes: []string{"evidence:read"}}}}
+	reader.before = func() { actor.ResourceGrants[0].ResourceID = "different" }
+	artifact, err := service.GetArtifact(t.Context(), actor, "artifact")
+	if !errors.Is(err, application.ErrForbidden) || artifact.ID != "" || reader.calls != 1 || len(reader.request.AllowedProductIDs) != 1 || reader.request.AllowedProductIDs[0] != "original" {
+		t.Fatal("association proof reused for different grants", artifact, reader.request, err)
+	}
 }
 
 func TestArtifactPointReadChecksScopeGrantAndTenant(t *testing.T) {

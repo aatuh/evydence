@@ -14,6 +14,7 @@ var artifactCases = []struct {
 	scope  string
 }{
 	{"artifacts.write", "evidence:write"},
+	{"artifacts.read", "evidence:read"},
 }
 
 func TestArtifactReferenceActionsRequireCurrentHumanVisibility(t *testing.T) {
@@ -113,7 +114,7 @@ func TestArtifactWriteActionHasNoUnresolvedAuthority(t *testing.T) {
 }
 
 func TestArtifactReferenceFailuresAndCancellationNeverConferAuthority(t *testing.T) {
-	for _, action := range []Action{ActionArtifactsWrite, ActionEvidenceWrite, ActionSecurityEvidenceWrite,
+	for _, action := range []Action{ActionArtifactsRead, ActionArtifactsWrite, ActionEvidenceWrite, ActionSecurityEvidenceWrite,
 		ActionEvidenceDiffsCreate, ActionVEXPreviewRead, ActionBuildsCreate, ActionBuildAttestationsCreate, ActionReleaseCandidatesCreate} {
 		t.Run(string(action), func(t *testing.T) {
 			definition, _ := DefinitionFor(action)

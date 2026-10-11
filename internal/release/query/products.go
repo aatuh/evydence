@@ -4,7 +4,6 @@ package query
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	"github.com/aatuh/evydence/internal/authz"
@@ -91,34 +90,28 @@ func (s *Products) ListProductsPage(ctx context.Context, actor identitydomain.Ac
 	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, ScopeOnly: true}); err != nil {
 		return appquery.Result[releasedomain.Product]{}, err
 	}
-	request := ProductPageRequest{TenantID: actor.TenantID, Page: page, After: after}
-	if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, TenantWide: true}); err == nil {
-		request.TenantWide = true
-	} else if !errors.Is(err, application.ErrForbidden) {
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionProductsRead)
+	if err != nil {
 		return appquery.Result[releasedomain.Product]{}, err
+	}
+	request := ProductPageRequest{TenantID: visibility.TenantID, TenantWide: visibility.TenantWide, Page: page, After: after}
+	if visibility.TenantWide {
+		if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, TenantWide: true}); err != nil {
+			return appquery.Result[releasedomain.Product]{}, err
+		}
 	} else {
-		seen := make(map[string]struct{}, len(actor.ResourceGrants))
-		for _, grant := range actor.ResourceGrants {
-			id := strings.TrimSpace(grant.ResourceID)
-			if grant.ResourceType != "product" || id == "" {
-				continue
-			}
-			if _, exists := seen[id]; exists {
-				continue
-			}
+		for _, id := range visibility.ProductIDs {
 			if err := s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionProductsRead, Resources: application.ResourceReferences{ProductID: id}}); err != nil {
 				if errors.Is(err, application.ErrForbidden) {
 					continue
 				}
 				return appquery.Result[releasedomain.Product]{}, err
 			}
-			seen[id] = struct{}{}
 			request.AllowedProductIDs = append(request.AllowedProductIDs, id)
 		}
 		if len(request.AllowedProductIDs) == 0 {
 			return appquery.Result[releasedomain.Product]{Items: []releasedomain.Product{}}, nil
 		}
-		sort.Strings(request.AllowedProductIDs)
 	}
 	result, err := s.reader.PageProducts(ctx, request)
 	if err != nil {

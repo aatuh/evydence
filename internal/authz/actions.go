@@ -52,6 +52,7 @@ const (
 	ActionBuildsCreate                     Action = "builds.create"
 	ActionBuildAttestationsCreate          Action = "build_attestations.create"
 	ActionReleaseCandidatesCreate          Action = "release_candidates.create"
+	ActionReleaseCandidatesRead            Action = "release_candidates.read"
 	ActionEnvironmentsRead                 Action = "environments.read"
 	ActionEnvironmentsCreate               Action = "environments.create"
 	ActionDeploymentsRead                  Action = "deployments.read"
@@ -77,6 +78,7 @@ const (
 
 const (
 	ActionArtifactsWrite         Action = "artifacts.write"
+	ActionArtifactsRead          Action = "artifacts.read"
 	ActionEvidenceWrite          Action = "evidence.write"
 	ActionSecurityEvidenceWrite  Action = "security_evidence.write"
 	ActionEvidenceRead           Action = "evidence.read"
@@ -144,7 +146,7 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "project:read", Boundary: ResourceBoundary}, true
 	case ActionProjectsCreate:
 		return Definition{Scope: "project:write", Boundary: ResourceBoundary}, true
-	case ActionReleasesRead:
+	case ActionReleasesRead, ActionReleaseCandidatesRead:
 		return Definition{Scope: "release:read", Boundary: ResourceBoundary}, true
 	case ActionReleasesManage:
 		return Definition{Scope: "release:write", Boundary: ResourceBoundary}, true
@@ -190,7 +192,7 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "evidence:write", Boundary: ResourceBoundary}, true
 	case ActionSecurityEvidenceWrite:
 		return Definition{Scope: "security:write", Boundary: ResourceBoundary}, true
-	case ActionEvidenceRead, ActionSBOMsRead, ActionVEXDocumentsRead, ActionOpenAPIContractsRead,
+	case ActionArtifactsRead, ActionEvidenceRead, ActionSBOMsRead, ActionVEXDocumentsRead, ActionOpenAPIContractsRead,
 		ActionVulnerabilityScansRead, ActionEvidenceLifecycleRead, ActionSBOMComponentsRead,
 		ActionVEXPreviewRead, ActionEvidenceDiffsCreate:
 		return Definition{Scope: "evidence:read", Boundary: ResourceBoundary}, true

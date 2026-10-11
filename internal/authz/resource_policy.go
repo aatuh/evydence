@@ -36,7 +36,7 @@ func allowsTenantResourceEvaluation(action Action) bool {
 	switch action {
 	case ActionProductsRead, ActionProjectsRead, ActionProjectsCreate,
 		ActionReleasesRead, ActionReleasesManage, ActionBuildsRead, ActionBuildsCreate,
-		ActionBuildAttestationsCreate, ActionReleaseCandidatesCreate,
+		ActionBuildAttestationsCreate, ActionReleaseCandidatesCreate, ActionReleaseCandidatesRead, ActionArtifactsRead,
 		ActionEnvironmentsRead, ActionDeploymentsRead, ActionIncidentsManage,
 		ActionApprovalsRecord, ActionWaiversManage, ActionVulnerabilityWorkflowsRecord, ActionCustomPoliciesCreate,
 		ActionVulnerabilityDecisionsRead, ActionExceptionsRead, ActionControlEvidenceRead,

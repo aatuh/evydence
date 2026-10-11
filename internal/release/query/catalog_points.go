@@ -11,8 +11,6 @@ import (
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
 
-const scopeReleaseRead = "release:read"
-
 // CatalogPointReader must scope every lookup by tenant and join its product
 // under that same tenant. The service validates the returned coordinates too.
 type CatalogPointReader interface {

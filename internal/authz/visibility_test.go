@@ -68,7 +68,7 @@ func TestOperationsReadVisibilityIssuedActorsAndFailClosedActions(t *testing.T) 
 		}
 	}
 	actor := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"*"}}
-	for _, action := range []Action{"", "unknown", ActionDeploymentsRecord, ActionIncidentsManage, ActionProductsRead, ActionOutboxReplay} {
+	for _, action := range []Action{"", "unknown", ActionDeploymentsRecord, ActionIncidentsManage, ActionProductsCreate, ActionOutboxReplay} {
 		visibility, err := ReadVisibility(t.Context(), actor, action)
 		if !errors.Is(err, ErrForbidden) || !reflect.DeepEqual(visibility, Visibility{}) {
 			t.Fatalf("unsupported action %s visibility=%#v: %v", action, visibility, err)

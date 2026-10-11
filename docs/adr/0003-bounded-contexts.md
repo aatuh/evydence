@@ -1036,6 +1036,14 @@ claims. Product lists filter current human grants before reads, and foreign
 points retain the missing-resource result. Empty new tenant/organization
 coordinates are omitted from internal reference JSON, preserving prior bytes.
 
+Product pages now obtain sorted, deduplicated product filters from the central
+visibility policy before storage selection, retaining the application port's
+additional per-product checks. Release-candidate points/pages select
+`release_candidates.read`, not generic release-read policy, and use central
+product/release filters before the keyset limit. Project-only grants do not
+expose those inventories. Returned ownership, row authorization, and cursor
+checks remain in the query services; empty current visibility avoids storage.
+
 Candidate creation and build-attestation creation have distinct actions while
 retaining their existing public credential scopes. Their factory-bound policies
 accept only the intended operation and still check current artifact associations
@@ -1131,8 +1139,17 @@ references require a current visible artifact even with a tenant-wide grant;
 control links retain their distinct tenant-authority rule. Issued credentials
 retain their capability behavior, with ownership/digest checks performed by the
 commands. Missing or foreign artifact proofs deny without returning metadata;
-storage failures and cancellation propagate. Other artifact read/list policies
-and broader service contracts remain to migrate.
+storage failures and cancellation propagate.
+
+Artifact points select `artifacts.read` and central product/project/release
+visibility before the tenant-bound read. Scoped human association proofs are
+bound to the exact filters used for that read; a proof cannot be reused under
+different grant coordinates. Tenant-wide point-read authority retains its
+existing behavior after tenant/ID ownership checks, distinct from human artifact
+reuse. Cancellation after the reader returns now rejects the result instead of
+returning artifact metadata. Digest/projection validation and safe foreign
+misses are unchanged. Release queries no longer contain local actor-scope or
+resource-grant predicates. Broader service contracts remain to migrate.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete

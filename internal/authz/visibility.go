@@ -2,7 +2,9 @@ package authz
 
 import (
 	"context"
+	"slices"
 	"sort"
+	"strings"
 
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -27,13 +29,25 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 	switch action {
 	case ActionEnvironmentsRead, ActionDeploymentsRead, ActionVulnerabilityDecisionsRead,
 		ActionExceptionsRead, ActionControlEvidenceRead, ActionVulnerabilityDecisionSummaryRead,
-		ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionEvidenceRead, ActionSBOMComponentsRead:
+		ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionEvidenceRead, ActionSBOMComponentsRead,
+		ActionProductsRead, ActionReleaseCandidatesRead, ActionArtifactsRead:
 	default:
 		return Visibility{}, ErrForbidden
 	}
 	definition, _ := DefinitionFor(action) // Authorize already rejected unknown actions.
-	allowProjects := action == ActionControlEvidenceRead || action == ActionEvidenceRead || action == ActionSBOMComponentsRead
-	return visibilityForGrants(actor, definition.Scope, allowProjects, action != ActionEnvironmentsRead), nil
+	allowProjects := action == ActionControlEvidenceRead || action == ActionEvidenceRead || action == ActionSBOMComponentsRead || action == ActionArtifactsRead
+	visibility := visibilityForGrants(actor, definition.Scope, allowProjects, action != ActionEnvironmentsRead && action != ActionProductsRead)
+	if action == ActionProductsRead {
+		// Product points normalize request IDs; a padded grant must not create
+		// authority for that normalized product. Preserve exact grant identity.
+		visibility.ProductIDs = slices.DeleteFunc(visibility.ProductIDs, func(id string) bool { return strings.TrimSpace(id) != id })
+	}
+	if action == ActionReleaseCandidatesRead {
+		// Candidate filtering retains literal IDs but ignores blank claims.
+		visibility.ProductIDs = slices.DeleteFunc(visibility.ProductIDs, func(id string) bool { return strings.TrimSpace(id) == "" })
+		visibility.ReleaseIDs = slices.DeleteFunc(visibility.ReleaseIDs, func(id string) bool { return strings.TrimSpace(id) == "" })
+	}
+	return visibility, nil
 }
 
 func visibilityForGrants(actor identitydomain.Actor, scope string, allowProjects, allowReleases bool) Visibility {

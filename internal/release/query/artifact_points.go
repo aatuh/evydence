@@ -3,10 +3,11 @@ package query
 import (
 	"context"
 	"encoding/hex"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	releasedomain "github.com/aatuh/evydence/internal/release/domain"
 )
@@ -50,21 +51,22 @@ func (s *ArtifactPoints) GetArtifact(ctx context.Context, actor identitydomain.A
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return releasedomain.Artifact{}, application.ErrUnauthorized
 	}
-	if !actor.HasScope("evidence:read") && !actor.HasScope("admin") {
-		return releasedomain.Artifact{}, application.ErrForbidden
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionArtifactsRead)
+	if err != nil {
+		return releasedomain.Artifact{}, err
 	}
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return releasedomain.Artifact{}, ErrNotFound
 	}
-	tenantWide, products, projects, releases := artifactVisibility(actor)
-	if !tenantWide && len(products) == 0 && len(projects) == 0 && len(releases) == 0 {
+	if !visibility.TenantWide && len(visibility.ProductIDs)+len(visibility.ProjectIDs)+len(visibility.ReleaseIDs) == 0 {
 		return releasedomain.Artifact{}, application.ErrForbidden
 	}
-	point, err := s.reader.GetArtifactPoint(ctx, ArtifactReadRequest{
-		TenantID: actor.TenantID, ID: id, TenantWide: tenantWide,
-		AllowedProductIDs: products, AllowedProjectIDs: projects, AllowedReleaseIDs: releases,
-	})
+	request := ArtifactReadRequest{
+		TenantID: visibility.TenantID, ID: id, TenantWide: visibility.TenantWide,
+		AllowedProductIDs: visibility.ProductIDs, AllowedProjectIDs: visibility.ProjectIDs, AllowedReleaseIDs: visibility.ReleaseIDs,
+	}
+	point, err := s.reader.GetArtifactPoint(ctx, request)
 	if err != nil {
 		return releasedomain.Artifact{}, err
 	}
@@ -75,8 +77,17 @@ func (s *ArtifactPoints) GetArtifact(ctx context.Context, actor identitydomain.A
 	if !validArtifactPoint(artifact) {
 		return releasedomain.Artifact{}, ErrInvalidProjection
 	}
-	if !tenantWide && !point.Visible {
-		return releasedomain.Artifact{}, application.ErrForbidden
+	proof := authz.ArtifactVisibilityFunc(func(_ context.Context, r authz.ArtifactVisibilityRequest) (bool, error) {
+		// A proof is valid only for the exact filters applied by this read, not
+		// a later or differently scoped policy evaluation.
+		return point.Visible && !r.TenantWide && r.TenantID == request.TenantID && r.ArtifactID == request.ID &&
+			r.ProductID == "" && r.ReleaseID == "" &&
+			slices.Equal(r.AllowedProductIDs, request.AllowedProductIDs) &&
+			slices.Equal(r.AllowedProjectIDs, request.AllowedProjectIDs) &&
+			slices.Equal(r.AllowedReleaseIDs, request.AllowedReleaseIDs), nil
+	})
+	if err := authz.AuthorizeWithArtifactVisibility(ctx, actor, authz.Request{Action: authz.ActionArtifactsRead, Resources: authz.ResourceReferences{ArtifactID: id}}, proof); err != nil {
+		return releasedomain.Artifact{}, err
 	}
 	return artifact, nil
 }
@@ -88,48 +99,4 @@ func validArtifactPoint(artifact releasedomain.Artifact) bool {
 	}
 	_, err := hex.DecodeString(strings.TrimPrefix(artifact.Digest, "sha256:"))
 	return err == nil
-}
-
-func artifactVisibility(actor identitydomain.Actor) (bool, []string, []string, []string) {
-	return artifactVisibilityForScope(actor, "evidence:read")
-}
-
-func artifactVisibilityForScope(actor identitydomain.Actor, scope string) (bool, []string, []string, []string) {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true, nil, nil, nil
-	}
-	products, projects, releases := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
-	for _, grant := range actor.ResourceGrants {
-		if !catalogGrantHasScope(grant, scope) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true, nil, nil, nil
-			}
-		case "product":
-			if grant.ResourceID != "" {
-				products[grant.ResourceID] = struct{}{}
-			}
-		case "project":
-			if grant.ResourceID != "" {
-				projects[grant.ResourceID] = struct{}{}
-			}
-		case "release":
-			if grant.ResourceID != "" {
-				releases[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	return false, sortedArtifactGrantIDs(products), sortedArtifactGrantIDs(projects), sortedArtifactGrantIDs(releases)
-}
-
-func sortedArtifactGrantIDs(set map[string]struct{}) []string {
-	ids := make([]string, 0, len(set))
-	for id := range set {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	return ids
 }

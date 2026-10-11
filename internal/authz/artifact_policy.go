@@ -42,7 +42,7 @@ func AuthorizeWithArtifactVisibility(ctx context.Context, actor identitydomain.A
 
 func allowsArtifactVisibility(action Action) bool {
 	switch action {
-	case ActionControlEvidenceLink, ActionArtifactsWrite, ActionEvidenceWrite, ActionSecurityEvidenceWrite,
+	case ActionControlEvidenceLink, ActionArtifactsRead, ActionArtifactsWrite, ActionEvidenceWrite, ActionSecurityEvidenceWrite,
 		ActionEvidenceDiffsCreate, ActionVEXPreviewRead, ActionBuildsCreate,
 		ActionBuildAttestationsCreate, ActionReleaseCandidatesCreate:
 		return true
@@ -63,10 +63,11 @@ func authorizeArtifact(ctx context.Context, actor identitydomain.Actor, scope st
 	}
 	visibility := visibilityForGrants(actor, scope, true, true)
 	// Issued credentials retain their capability check; commands independently
-	// validate the tenant-owned artifact and digest. Control links also retain
-	// their tenant-grant behavior. Other human references require a current
-	// artifact existence/visibility proof even with a tenant-wide grant.
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" || request.Action == ActionControlEvidenceLink && visibility.TenantWide {
+	// validate the tenant-owned artifact and digest. Control links and filtered
+	// artifact point reads retain their tenant-grant behavior. Other human
+	// references require a current artifact existence/visibility proof even
+	// with a tenant-wide grant.
+	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" || (request.Action == ActionControlEvidenceLink || request.Action == ActionArtifactsRead) && visibility.TenantWide {
 		return nil
 	}
 	if reader == nil || !visibility.TenantWide && len(visibility.ProductIDs)+len(visibility.ProjectIDs)+len(visibility.ReleaseIDs) == 0 {

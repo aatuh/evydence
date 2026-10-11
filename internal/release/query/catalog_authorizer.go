@@ -48,20 +48,9 @@ func isCatalogAction(action authz.Action) bool {
 		authz.ActionProjectsRead, authz.ActionProjectsCreate,
 		authz.ActionReleasesRead, authz.ActionReleasesManage,
 		authz.ActionBuildsRead, authz.ActionBuildsCreate,
-		authz.ActionBuildAttestationsCreate, authz.ActionReleaseCandidatesCreate:
+		authz.ActionBuildAttestationsCreate, authz.ActionReleaseCandidatesCreate, authz.ActionReleaseCandidatesRead:
 		return true
 	default:
 		return false
 	}
-}
-
-// This capability predicate is also used by bounded artifact/candidate read
-// filters; it does not authorize an operation or replace the central policy.
-func catalogGrantHasScope(grant identitydomain.ResourceGrant, scope string) bool {
-	for _, got := range grant.Scopes {
-		if got == scope || got == "admin" || got == "*" {
-			return true
-		}
-	}
-	return false
 }
