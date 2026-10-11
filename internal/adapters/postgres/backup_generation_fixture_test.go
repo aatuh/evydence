@@ -33,7 +33,7 @@ func newBackupGenerationFixture(factory app.UnitOfWorkFactory) (*verificationapp
 	if factory == nil {
 		return nil, verificationapp.ErrValidation
 	}
-	return verificationapp.NewBackupGenerationCommands(verificationapp.BackupGenerationConfig{Transactions: postgresBackupGenerationTransactions{factory}, Authorizer: verificationquery.NewRetentionAuthorizer(), Hasher: postgresCustomerFixtureHasher{}, Verifier: localed25519.PayloadVerifier{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return verificationapp.NewBackupGenerationCommands(verificationapp.BackupGenerationConfig{Transactions: postgresBackupGenerationTransactions{factory}, Authorizer: verificationquery.NewBackupGenerationAuthorizer(), Hasher: postgresCustomerFixtureHasher{}, Verifier: localed25519.PayloadVerifier{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type postgresBackupGenerationTransactions struct{ factory app.UnitOfWorkFactory }
@@ -70,7 +70,7 @@ func (t postgresBackupGenerationTransaction) ReadAuditChainVerificationPage(ctx 
 	return v, postgresBackupGenerationError(err)
 }
 func (t postgresBackupGenerationTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if err := verificationquery.NewRetentionAuthorizer().Authorize(ctx, actor, request); err != nil {
+	if err := verificationquery.NewBackupGenerationAuthorizer().Authorize(ctx, actor, request); err != nil {
 		return err
 	}
 	return postgresBackupGenerationError(t.guard.LockAPIKeyCreation(ctx, actor.TenantID))

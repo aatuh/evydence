@@ -10,9 +10,51 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
+
+func TestPostgresBackupGenerationFixtureUsesOwnTypedPolicy(t *testing.T) {
+	factory := app.NewMemoryUnitOfWorkFactory()
+	identity := postgresIdentitySetup(factory, "fixture")
+	_, _, secret, err := identity.BootstrapTenant(t.Context(), "Owner", "admin", []string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := identity.Authenticate(t.Context(), secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor.Scopes = []string{"admin"}
+	uow, err := factory.BeginUnitOfWork(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = uow.Rollback(t.Context()) }()
+	guard, ok := uow.Repositories().Identity.(postgresBundleFence)
+	if !ok {
+		t.Fatal("fixture lacks tenant fence")
+	}
+	tx := postgresBackupGenerationTransaction{guard: guard}
+	for _, tc := range []struct {
+		name    string
+		request application.AuthorizationRequest
+		allowed bool
+	}{
+		{"backup action", application.AuthorizationRequest{Action: authz.ActionBackupGenerate, TenantWide: true}, true},
+		{"retention action with same admin capability", application.AuthorizationRequest{Action: authz.ActionRetentionPoliciesManage, TenantWide: true}, false},
+		{"legacy admin scope without action", application.AuthorizationRequest{Scope: "admin", TenantWide: true}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tx.Authorize(t.Context(), actor, tc.request)
+			if tc.allowed && err != nil || !tc.allowed && !errors.Is(err, application.ErrForbidden) {
+				t.Fatal("fixture accepted an unrelated or untyped backup policy", err)
+			}
+		})
+	}
+}
 
 func TestPostgresBackupGenerationFixtureRejectsIncompleteMemoryCommitmentWithoutEffects(t *testing.T) {
 	factory := app.NewMemoryUnitOfWorkFactory()

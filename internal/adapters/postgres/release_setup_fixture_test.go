@@ -63,7 +63,7 @@ func (f postgresReleaseSetupFixture) read(ctx context.Context, run func(context.
 	return postgresReleaseFixtureError(f.execute(ctx, use))
 }
 func (f postgresReleaseSetupFixture) Authorize(ctx context.Context, a domain.Actor, request application.AuthorizationRequest) error {
-	if request.Scope != releaseapp.ScopeEvidenceWrite {
+	if request.Action != authz.ActionArtifactsWrite {
 		return releasequery.NewCatalogAuthorizer().Authorize(ctx, a, request)
 	}
 	auth, err := releasequery.NewArtifactWriteAuthorizer(f)

@@ -10,9 +10,41 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	releaseapp "github.com/aatuh/evydence/internal/release/app"
 )
+
+func TestPostgresReleaseSetupFixtureSelectsTypedAuthorizationDelegate(t *testing.T) {
+	factory := app.NewMemoryUnitOfWorkFactory()
+	identity := postgresIdentitySetup(factory, "fixture")
+	_, _, secret, err := identity.BootstrapTenant(t.Context(), "Owner", "admin", []string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := identity.Authenticate(t.Context(), secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := postgresReleaseSetup(factory)
+	actor.Scopes = []string{releaseapp.ScopeEvidenceWrite}
+	for _, tc := range []struct {
+		name    string
+		request application.AuthorizationRequest
+		allowed bool
+	}{
+		{"artifact action", application.AuthorizationRequest{Action: authz.ActionArtifactsWrite, ScopeOnly: true}, true},
+		{"catalog action with unrelated capability", application.AuthorizationRequest{Action: authz.ActionProductsCreate, ScopeOnly: true}, false},
+		{"legacy scope without action", application.AuthorizationRequest{Scope: releaseapp.ScopeEvidenceWrite, ScopeOnly: true}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := f.Authorize(t.Context(), actor, tc.request)
+			if tc.allowed && err != nil || !tc.allowed && !errors.Is(err, application.ErrForbidden) {
+				t.Fatal("fixture selected the wrong typed delegate", err)
+			}
+		})
+	}
+}
 
 // This proves the outer fixture's transaction composition with the real memory
 // test backend, not PostgreSQL locks, durability or backup/restore behavior.
