@@ -556,6 +556,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@grep -F 'evydence.app' docs/how-to/publish-marketing-site.md >/dev/null
 
 deploy-check: ## Validate deployment and air-gap skeletons exist
+	@python3 scripts/test_local_dependency_images.py
 	@test -f compose.production-like.yml
 	@test -f deploy/helm/evydence/Chart.yaml
 	@test -f deploy/helm/evydence/values.yaml
@@ -568,8 +569,6 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@grep -F 'postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229' compose.production-like.yml >/dev/null
 	@grep -F 'shm_size: 256m' docker-compose.yml >/dev/null
 	@grep -F 'shm_size: 256m' compose.production-like.yml >/dev/null
-	@grep -F 'minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e' compose.production-like.yml >/dev/null
-	@grep -F 'minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727' compose.production-like.yml >/dev/null
 	@! grep -E 'image:[[:space:]]+[^$$]*:latest' compose.production-like.yml >/dev/null
 	@grep -F 'tag: ""' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'replicas: 1' deploy/helm/evydence/values.yaml >/dev/null
@@ -826,7 +825,17 @@ release-check-local-postgres: ## Start Compose Postgres, load .test.env or .test
 	set -a; . "./$$env_file"; set +a; \
 	$(MAKE) release-check
 
-compose-up: ## Start local dependencies
+.PHONY: local-minio-image local-mc-image local-dependency-images
+
+local-minio-image: ## Build the pinned source-only local MinIO fixture
+	@docker build --target minio --tag evydence-local-minio:20251015-9e49d5e7a648 deploy/local-dependencies
+
+local-mc-image: ## Build the pinned source-only local MinIO client fixture
+	@docker build --target mc --tag evydence-local-mc:20250813-7394ce0dd2a8 deploy/local-dependencies
+
+local-dependency-images: local-minio-image local-mc-image ## Build both pinned local S3 fixture images
+
+compose-up: ## Build and start local dependencies
 	@docker compose up -d
 
 compose-down: ## Stop local dependencies
