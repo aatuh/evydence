@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
@@ -89,7 +90,7 @@ func (s *ImportCommands) AuthorizeBundleImport(ctx context.Context, a identitydo
 	if err := validateActor(a); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "bundle:write", TenantWide: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBundleImport, TenantWide: true}); err != nil {
 		return err
 	}
 	if err := validateReportTemplateTenant(a); err != nil {
@@ -99,7 +100,7 @@ func (s *ImportCommands) AuthorizeBundleImport(ctx context.Context, a identitydo
 		return err
 	}
 	return s.config.Transactions.ExecuteBundleImport(ctx, func(ctx context.Context, tx ImportTransaction) error {
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "bundle:write", TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBundleImport, TenantWide: true}); err != nil {
 			return err
 		}
 		guard, ok := tx.(BundleImportScopeLocker)

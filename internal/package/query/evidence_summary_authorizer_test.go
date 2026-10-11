@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -15,7 +16,7 @@ func TestSummaryAuthorizerRequiresCurrentMatchingGrants(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			id := map[string]string{"tenant": "tenant", "product": "product", "project": "project", "release": "release", "customer_security_package": "package"}[kind]
 			a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"report:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: kind, ResourceID: id, Scopes: []string{"report:read"}}}}
-			r := application.AuthorizationRequest{Scope: "report:read", Resources: refs}
+			r := application.AuthorizationRequest{Action: authz.ActionEvidenceSummariesCreate, Resources: refs}
 			if err := policy.Authorize(t.Context(), a, r); err != nil {
 				t.Fatal(err)
 			}
@@ -30,10 +31,10 @@ func TestSummaryAuthorizerRequiresCurrentMatchingGrants(t *testing.T) {
 		})
 	}
 	a := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"report:read"}}
-	if err := policy.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "report:read", ScopeOnly: true}); err != nil {
+	if err := policy.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionEvidenceSummariesCreate, ScopeOnly: true}); err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range []application.AuthorizationRequest{{Scope: "other", Resources: refs}, {Scope: "report:read", ScopeOnly: true, Resources: refs}, {Scope: "report:read", TenantWide: true, Resources: refs}, {Scope: "report:read", Resources: application.ResourceReferences{ArtifactID: "artifact"}}, {Scope: "report:read", Resources: application.ResourceReferences{ReleaseID: "release"}}} {
+	for _, r := range []application.AuthorizationRequest{{Scope: "other", Resources: refs}, {Action: authz.ActionEvidenceSummariesCreate, ScopeOnly: true, Resources: refs}, {Action: authz.ActionEvidenceSummariesCreate, TenantWide: true, Resources: refs}, {Action: authz.ActionEvidenceSummariesCreate, Resources: application.ResourceReferences{ArtifactID: "artifact"}}, {Action: authz.ActionEvidenceSummariesCreate, Resources: application.ResourceReferences{ReleaseID: "release"}}} {
 		if err := policy.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal("invalid authority coordinates", r, err)
 		}
@@ -41,11 +42,11 @@ func TestSummaryAuthorizerRequiresCurrentMatchingGrants(t *testing.T) {
 	a.KeyID = ""
 	a.UserID = "user"
 	a.ResourceGrants = []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "product", Scopes: []string{"report:read"}}}
-	if err := policy.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "report:read", TenantWide: true}); !errors.Is(err, application.ErrForbidden) {
+	if err := policy.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionEvidenceSummariesCreate, TenantWide: true}); !errors.Is(err, application.ErrForbidden) {
 		t.Fatal("product grant permits tenant summary", err)
 	}
 	a.ResourceGrants[0] = identitydomain.ResourceGrant{ResourceType: "tenant", ResourceID: "tenant", Scopes: []string{"report:read"}}
-	if err := policy.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "report:read", TenantWide: true}); err != nil {
+	if err := policy.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionEvidenceSummariesCreate, TenantWide: true}); err != nil {
 		t.Fatal(err)
 	}
 }

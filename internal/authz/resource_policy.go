@@ -37,6 +37,8 @@ func authorizeResource(actor identitydomain.Actor, scope string, request Request
 
 func allowsTenantResourceEvaluation(action Action) bool {
 	switch action {
+	case ActionAnswerLibraryEntriesRead, ActionPortalAccessRead, ActionEvidenceSummariesCreate:
+		return true
 	case ActionPDFReportsGenerate, ActionGraphSnapshotsCreate, ActionQuestionnaireDraftsCreate, ActionAnswerLibraryEntriesCreate, ActionQuestionnairePackagesCreate:
 		return true
 	case ActionControlCoverageReportRead:
@@ -64,6 +66,16 @@ func allowsTenantResourceEvaluation(action Action) bool {
 
 func validResourceReferences(action Action, refs ResourceReferences) bool {
 	switch action {
+	case ActionAnswerLibraryEntriesRead:
+		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case ActionPortalAccessRead:
+		return refs.ProductID != "" && refs.CustomerPackageID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, CustomerPackageID: refs.CustomerPackageID})
+	case ActionReleaseBundlesRead, ActionReleaseBundlesCreate:
+		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case ActionEvidenceSummariesCreate:
+		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID, CustomerPackageID: refs.CustomerPackageID})
+	case ActionEvidenceBundlesExport:
+		return refs == (ResourceReferences{}) || refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID})
 	case ActionCRAReadinessHTMLGenerate, ActionPDFReportsGenerate, ActionGraphSnapshotsCreate, ActionQuestionnaireDraftsCreate, ActionAnswerLibraryEntriesCreate, ActionCustomerPackagesCreate:
 		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
 	case ActionQuestionnairePackagesCreate:

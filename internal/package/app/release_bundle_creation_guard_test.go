@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 )
 
 type bundleGuardUnusedReader struct{ ReleaseBundleSnapshotReader }
@@ -44,7 +45,7 @@ func TestReleaseBundleCreationGuardIsReadOnlyAndNormalizesBeforeStorage(t *testi
 		t.Fatal(err)
 	}
 	state.authorize = func(r application.AuthorizationRequest) error {
-		if r.Scope != "bundle:write" || r.TenantWide || !r.ScopeOnly && r.Resources != (application.ResourceReferences{ProductID: "prod_1", ReleaseID: "rel_1"}) {
+		if r.Action != authz.ActionReleaseBundlesCreate || r.Scope != "" || r.TenantWide || !r.ScopeOnly && r.Resources != (application.ResourceReferences{ProductID: "prod_1", ReleaseID: "rel_1"}) {
 			t.Fatal("unexpected bundle scope", r)
 		}
 		return nil

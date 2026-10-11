@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -84,7 +85,7 @@ func (s *EvidenceSummaryCommands) prepare(ctx context.Context, actor identitydom
 	if err != nil {
 		return in, err
 	}
-	return in, s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, ScopeOnly: true})
+	return in, s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceSummariesCreate, ScopeOnly: true})
 }
 
 // NormalizeEvidenceSummaryInput is shared by transport and command boundaries.
@@ -132,7 +133,7 @@ func readAuthorizedSummaryScope(ctx context.Context, tx EvidenceSummaryTransacti
 	if scope.TenantID != actor.TenantID || scope.SubjectType != in.SubjectType || scope.SubjectID != in.SubjectID {
 		return EvidenceSummaryScope{}, ErrNotFound
 	}
-	err = tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, Resources: scope.Resources, TenantWide: scope.Resources == (application.ResourceReferences{})})
+	err = tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceSummariesCreate, Resources: scope.Resources, TenantWide: scope.Resources == (application.ResourceReferences{})})
 	return scope, err
 }
 

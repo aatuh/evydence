@@ -61,7 +61,7 @@ func authorizeArtifact(ctx context.Context, actor identitydomain.Actor, scope st
 		request.Action != ActionControlEvidenceLink && refs != (ResourceReferences{ArtifactID: refs.ArtifactID}) {
 		return ErrForbidden
 	}
-	visibility := visibilityForGrants(actor, scope, true, true)
+	visibility := visibilityForGrants(actor, scope, true, true, false)
 	// Issued credentials retain their capability check; commands independently
 	// validate the tenant-owned artifact and digest. Control links and filtered
 	// artifact point reads retain their tenant-grant behavior. Other human

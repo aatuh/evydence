@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -75,7 +76,7 @@ func (s *TemplateCommands) AuthorizeReportTemplateCreation(ctx context.Context, 
 	if err := validateActor(a); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReportRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if err := validateReportTemplateTenant(a); err != nil {
@@ -102,7 +103,7 @@ func (s *TemplateCommands) AuthorizeReportRendering(ctx context.Context, a ident
 	if err := validateActor(a); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReportRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if err := validateReportTemplateTenant(a); err != nil {
@@ -118,7 +119,7 @@ func (s *TemplateCommands) AuthorizeReportRendering(ctx context.Context, a ident
 
 func (s *TemplateCommands) authorizeReportTemplateScope(ctx context.Context, a identitydomain.Actor, id string) error {
 	return s.config.Transactions.ExecuteReportTemplate(ctx, func(ctx context.Context, tx TemplateTransaction) error {
-		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReportRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, TenantWide: true}); err != nil {
 			return err
 		}
 		guard, ok := tx.(ReportTemplateScopeLocker)

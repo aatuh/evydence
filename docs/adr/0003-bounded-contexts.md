@@ -1209,15 +1209,37 @@ management now bind their native preflight, resolved and replay checks to
 distinct typed actions. The shared release/package grant helpers are removed;
 their delegates translate envelopes into central policy without selecting a
 policy from a scope string or caller-provided resource kind. Direct
-`customer_security_package` grants authorize only audited package access,
-portal management, and a questionnaire's package association. They do not
-authorize the questionnaire's unassociated evidence/answer selection, tenant
-inventories, other report generation, graph snapshots, or new customer packages.
+`customer_security_package` grants, with the operation's credential capability,
+authorize audited package access, portal metadata/management, a questionnaire's
+package association, and package-root citation summaries. They do not authorize
+the questionnaire's unassociated evidence/answer selection, tenant inventories,
+other report generation, graph snapshots, or new customer packages.
 Root tenant/product/release grants and credential capabilities retain their
 existing behavior. Frozen hashes, redaction profiles, private answer retrieval,
 expiry, credential issuance, and transaction/audit effects are unchanged.
-Other package policies, including evidence summaries, bundles, query catalogs,
-and token consumption, remain separate migration work.
+Answer-library and portal-access pages now derive sorted, deduplicated current
+grant filters from central visibility before SQL pagination and authorize each
+resolved row before returning it. Portal package grants cannot expose private
+answer-library entries; project grants do not authorize either catalog. Existing
+empty-list and invalid-projection behavior, question/product/release filters,
+cursor validation, and portal token-hash exclusion remain intact. Release-bundle
+points select their own read action and authorize the current tenant-owned
+product/release parent. All three readers reject cancellation at the successful
+read boundary without returning contents or a cursor.
+
+Evidence-summary creation, evidence-bundle export, and release-bundle creation
+also select distinct central actions, preserving citation-only summaries,
+evidence-level export selection (including detached evidence), and current
+product/release bundle creation. Package-root summary authority remains scoped
+to its citation-only operation.
+Template definitions, metadata-only report rendering, bundle-import receipts,
+questionnaire definitions, and redaction profiles send typed tenant actions on
+fresh work and replay rather than selecting a policy from a scope string.
+Package application/query source guards reject local actor-grant predicates and
+scope-based authorization envelopes. These guards are not a complete API route
+coverage proof. Token-consumption policy remains a separate boundary; no token
+format, issuance, expiry, NDA, download, failure-limit, or redaction behavior is
+changed by this migration.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete

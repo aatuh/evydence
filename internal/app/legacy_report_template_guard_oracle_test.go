@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
@@ -12,7 +13,7 @@ import (
 
 // Unchanged cache-based guards remain only as characterization oracles.
 func (l *Ledger) AuthorizeReportTemplateCreation(ctx context.Context, a domain.Actor, in packageapp.CreateReportTemplateInput) error {
-	if err := packagequery.NewTemplateAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReportRead, TenantWide: true}); err != nil {
+	if err := packagequery.NewTemplateAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, TenantWide: true}); err != nil {
 		return fromPackageContextError(err)
 	}
 	if !validPublicMembershipText(a.TenantID, 1024) || a.TenantID == "" || strings.TrimSpace(a.TenantID) != a.TenantID {
@@ -30,7 +31,7 @@ func (l *Ledger) AuthorizeReportTemplateCreation(ctx context.Context, a domain.A
 	return nil
 }
 func (l *Ledger) AuthorizeReportRendering(ctx context.Context, a domain.Actor, in packageapp.RenderReportInput) error {
-	if err := packagequery.NewTemplateAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReportRead, TenantWide: true}); err != nil {
+	if err := packagequery.NewTemplateAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, TenantWide: true}); err != nil {
 		return fromPackageContextError(err)
 	}
 	if !validPublicMembershipText(a.TenantID, 1024) || a.TenantID == "" || strings.TrimSpace(a.TenantID) != a.TenantID {

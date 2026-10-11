@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -40,7 +41,7 @@ func (s *ExportCommands) ExportEvidenceBundle(ctx context.Context, actor identit
 	if err := validateActor(actor); err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, ScopeOnly: true}); err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
 	if err := validateReportTemplateTenant(actor); err != nil {
@@ -67,7 +68,7 @@ func (s *ExportCommands) ExportEvidenceBundle(ctx context.Context, actor identit
 	}
 	rootResources := application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: releaseID}
 	if releaseID != "" {
-		if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: rootResources}); err != nil {
+		if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: rootResources}); err != nil {
 			return packagedomain.EvidenceBundle{}, err
 		}
 	}
@@ -94,14 +95,14 @@ func (s *ExportCommands) ExportEvidenceBundle(ctx context.Context, actor identit
 			if !ok {
 				return packagedomain.EvidenceBundle{}, ErrNotFound
 			}
-			if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: item.Resources}); err != nil {
+			if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: item.Resources}); err != nil {
 				return packagedomain.EvidenceBundle{}, err
 			}
 			selected = append(selected, id)
 		}
 	} else {
 		for id, item := range byID {
-			if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: item.Resources}); err != nil {
+			if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: item.Resources}); err != nil {
 				if errors.Is(err, ErrForbidden) {
 					continue
 				}
@@ -171,7 +172,7 @@ func (s *ImportCommands) ImportEvidenceBundle(ctx context.Context, actor identit
 	if err := validateActor(actor); err != nil {
 		return packagedomain.EvidenceBundleImport{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBundleImport, ScopeOnly: true}); err != nil {
 		return packagedomain.EvidenceBundleImport{}, err
 	}
 	if err := validateReportTemplateTenant(actor); err != nil {
@@ -205,7 +206,7 @@ func (s *ImportCommands) ImportEvidenceBundle(ctx context.Context, actor identit
 	}
 	var record packagedomain.EvidenceBundleImport
 	err = s.config.Transactions.ExecuteBundleImport(ctx, func(ctx context.Context, tx ImportTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBundleImport, TenantWide: true}); err != nil {
 			return err
 		}
 		if guard, ok := tx.(BundleImportScopeLocker); ok {

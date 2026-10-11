@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -84,7 +85,7 @@ func (s *RedactionProfileCommands) prepare(ctx context.Context, a identitydomain
 	if !redactionID(a.TenantID) || !redactionID(auditActorID(a)) {
 		return CreateRedactionProfileInput{}, ErrForbidden
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionRedactionProfilesManage, ScopeOnly: true}); err != nil {
 		return CreateRedactionProfileInput{}, err
 	}
 	return NormalizeRedactionProfileInput(in)

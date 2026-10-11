@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -23,7 +24,7 @@ func (f *exportGuardFixture) ExecuteEvidenceBundleExport(ctx context.Context, fn
 	return fn(ctx, f)
 }
 func (f *exportGuardFixture) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != "bundle:read" || f.denied && !r.ScopeOnly {
+	if r.Action != authz.ActionEvidenceBundlesExport || r.Scope != "" || f.denied && !r.ScopeOnly {
 		return application.ErrForbidden
 	}
 	return nil

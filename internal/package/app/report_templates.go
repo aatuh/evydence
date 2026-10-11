@@ -6,6 +6,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -71,7 +72,7 @@ func (s *TemplateCommands) CreateCustomReportTemplate(ctx context.Context, actor
 	if err := validateActor(actor); err != nil {
 		return packagedomain.CustomReportTemplate{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, ScopeOnly: true}); err != nil {
 		return packagedomain.CustomReportTemplate{}, err
 	}
 	if err := validateReportTemplateTenant(actor); err != nil {
@@ -84,7 +85,7 @@ func (s *TemplateCommands) CreateCustomReportTemplate(ctx context.Context, actor
 	}
 	var template packagedomain.CustomReportTemplate
 	err = s.config.Transactions.ExecuteReportTemplate(ctx, func(ctx context.Context, tx TemplateTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, TenantWide: true}); err != nil {
 			return err
 		}
 		if guard, ok := tx.(ReportTemplateScopeLocker); ok {
@@ -115,7 +116,7 @@ func (s *TemplateCommands) RenderCustomReport(ctx context.Context, actor identit
 	if err := validateActor(actor); err != nil {
 		return packagedomain.RenderedCustomReport{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, ScopeOnly: true}); err != nil {
 		return packagedomain.RenderedCustomReport{}, err
 	}
 	if err := validateReportTemplateTenant(actor); err != nil {
@@ -128,7 +129,7 @@ func (s *TemplateCommands) RenderCustomReport(ctx context.Context, actor identit
 	}
 	var report packagedomain.RenderedCustomReport
 	err = s.config.Transactions.ExecuteReportTemplate(ctx, func(ctx context.Context, tx TemplateTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReportRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReportTemplatesManage, TenantWide: true}); err != nil {
 			return err
 		}
 		if guard, ok := tx.(ReportTemplateScopeLocker); ok {

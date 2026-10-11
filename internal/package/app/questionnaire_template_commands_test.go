@@ -28,7 +28,7 @@ type qTemplateFixture struct {
 }
 
 func (f *qTemplateFixture) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopePackageWrite || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
+	if r.Action != authz.ActionQuestionnaireTemplatesManage || r.Scope != "" || !r.TenantWide || r.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
 	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionQuestionnaireTemplatesManage})

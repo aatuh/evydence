@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -70,12 +71,12 @@ type serviceExportTransaction struct{ Transaction }
 
 func (t serviceExportTransaction) AuthorizeEvidenceBundleSelection(ctx context.Context, actor identitydomain.Actor, root application.ResourceReferences, selected []EvidenceBundleEvidence) error {
 	if root.ReleaseID != "" {
-		if err := t.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: root}); err != nil {
+		if err := t.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: root}); err != nil {
 			return err
 		}
 	}
 	for _, item := range selected {
-		if err := t.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:read", Resources: item.Resources}); err != nil {
+		if err := t.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: item.Resources}); err != nil {
 			return err
 		}
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -94,7 +95,7 @@ func (t evidenceBundleFixtureTransaction) AuthorizeEvidenceBundleSelection(ctx c
 		if product != root.ProductID {
 			return packageapp.ErrConflict
 		}
-		if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeBundleRead, Resources: root}); err != nil {
+		if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: root}); err != nil {
 			return err
 		}
 	}
@@ -106,7 +107,7 @@ func (t evidenceBundleFixtureTransaction) AuthorizeEvidenceBundleSelection(ctx c
 		if refs != item.Resources {
 			return packageapp.ErrConflict
 		}
-		if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeBundleRead, Resources: refs}); err != nil {
+		if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: refs}); err != nil {
 			return err
 		}
 	}

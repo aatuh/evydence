@@ -36,7 +36,7 @@ type tenantWideCommandAuthorizer struct{ action authz.Action }
 
 func (a tenantWideCommandAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	definition, ok := authz.DefinitionFor(a.action)
-	if !ok || definition.Boundary != authz.TenantBoundary || request.Scope != definition.Scope || request.Resources != (application.ResourceReferences{}) || request.ScopeOnly == request.TenantWide {
+	if !ok || definition.Boundary != authz.TenantBoundary || request.Action != a.action || request.Scope != "" || request.Resources != (application.ResourceReferences{}) || request.ScopeOnly == request.TenantWide {
 		return application.ErrForbidden
 	}
 	return authz.Authorize(ctx, actor, authz.Request{Action: a.action})

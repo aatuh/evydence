@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -42,11 +42,8 @@ func (s *ReleaseBundles) GetReleaseBundle(ctx context.Context, actor identitydom
 	if err := ctx.Err(); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return packagedomain.ReleaseBundle{}, application.ErrUnauthorized
-	}
-	if !actor.HasScope("bundle:read") && !actor.HasScope("admin") {
-		return packagedomain.ReleaseBundle{}, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionReleaseBundlesRead, Evaluation: authz.ScopeEvaluation}); err != nil {
+		return packagedomain.ReleaseBundle{}, err
 	}
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -56,48 +53,16 @@ func (s *ReleaseBundles) GetReleaseBundle(ctx context.Context, actor identitydom
 	if err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return packagedomain.ReleaseBundle{}, err
+	}
 	bundle := point.Bundle
 	if bundle.ID != id || bundle.TenantID != actor.TenantID || bundle.ReleaseID == "" || point.ProductID == "" ||
 		bundle.State.IsZero() || bundle.Manifest == nil || bundle.ManifestHash == "" || bundle.CreatedAt.IsZero() {
 		return packagedomain.ReleaseBundle{}, ErrReleaseBundleProjection
 	}
-	if !releaseBundleAllowed(actor, point.ProductID, bundle.ReleaseID) {
-		return packagedomain.ReleaseBundle{}, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionReleaseBundlesRead, Resources: authz.ResourceReferences{ProductID: point.ProductID, ReleaseID: bundle.ReleaseID}}); err != nil {
+		return packagedomain.ReleaseBundle{}, err
 	}
 	return bundle, nil
-}
-
-func releaseBundleAllowed(actor identitydomain.Actor, productID, releaseID string) bool {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true
-	}
-	for _, grant := range actor.ResourceGrants {
-		if !releaseBundleGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true
-			}
-		case "product":
-			if grant.ResourceID == productID {
-				return true
-			}
-		case "release":
-			if grant.ResourceID == releaseID {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func releaseBundleGrantHasScope(grant identitydomain.ResourceGrant) bool {
-	for _, scope := range grant.Scopes {
-		if scope == "bundle:read" || scope == "admin" || scope == "*" {
-			return true
-		}
-	}
-	return false
 }

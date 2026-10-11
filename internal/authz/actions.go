@@ -142,6 +142,17 @@ const (
 	ActionPortalAccessManage          Action = "portal_access.manage"
 )
 
+// Package catalog/export actions keep metadata, selection and publication
+// capabilities distinct; a read capability does not imply a write action.
+const (
+	ActionAnswerLibraryEntriesRead Action = "answer_library_entries.read"
+	ActionPortalAccessRead         Action = "portal_access.read"
+	ActionReleaseBundlesRead       Action = "release_bundles.read"
+	ActionEvidenceSummariesCreate  Action = "evidence_summaries.create"
+	ActionEvidenceBundlesExport    Action = "evidence_bundles.export"
+	ActionReleaseBundlesCreate     Action = "release_bundles.create"
+)
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -162,6 +173,14 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionAnswerLibraryEntriesRead, ActionPortalAccessRead:
+		return Definition{Scope: "package:read", Boundary: ResourceBoundary}, true
+	case ActionReleaseBundlesRead, ActionEvidenceBundlesExport:
+		return Definition{Scope: "bundle:read", Boundary: ResourceBoundary}, true
+	case ActionEvidenceSummariesCreate:
+		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
+	case ActionReleaseBundlesCreate:
+		return Definition{Scope: "bundle:write", Boundary: ResourceBoundary}, true
 	case ActionCRAReadinessHTMLGenerate, ActionPDFReportsGenerate:
 		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
 	case ActionGraphSnapshotsCreate:

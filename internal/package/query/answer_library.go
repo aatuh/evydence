@@ -4,16 +4,14 @@ package query
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
-
-const scopePackageRead = "package:read"
 
 var (
 	ErrValidation        = errors.New("invalid answer library query")
@@ -64,11 +62,9 @@ func (s *AnswerLibrary) ListPage(ctx context.Context, actor identitydomain.Actor
 	if err := ctx.Err(); err != nil {
 		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, application.ErrUnauthorized
-	}
-	if !actor.HasScope(scopePackageRead) && !actor.HasScope("admin") {
-		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, application.ErrForbidden
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionAnswerLibraryEntriesRead)
+	if err != nil {
+		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, err
 	}
 	if err := appquery.Validate(page, after); err != nil {
 		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, ErrValidation
@@ -76,7 +72,7 @@ func (s *AnswerLibrary) ListPage(ctx context.Context, actor identitydomain.Actor
 	filter.QuestionID = strings.TrimSpace(filter.QuestionID)
 	filter.ProductID = strings.TrimSpace(filter.ProductID)
 	filter.ReleaseID = strings.TrimSpace(filter.ReleaseID)
-	tenantWide, products, releases := answerLibraryVisibility(actor)
+	tenantWide, products, releases := visibility.TenantWide, visibility.ProductIDs, visibility.ReleaseIDs
 	if !tenantWide && len(products) == 0 && len(releases) == 0 {
 		if filter.ProductID != "" || filter.ReleaseID != "" {
 			return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, application.ErrForbidden
@@ -86,6 +82,9 @@ func (s *AnswerLibrary) ListPage(ctx context.Context, actor identitydomain.Actor
 	request := AnswerLibraryPageRequest{TenantID: actor.TenantID, Filter: filter, TenantWide: tenantWide, AllowedProductIDs: products, AllowedReleaseIDs: releases, Page: page, After: after}
 	result, err := s.reader.PageAnswerLibrary(ctx, request)
 	if err != nil {
+		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, err
 	}
 	if len(result.Items) > page.PageSize || result.Next != nil && (len(result.Items) == 0 || *result.Next != appquery.RecordSortKey(result.Items[len(result.Items)-1].Entry.ID, result.Items[len(result.Items)-1].Entry.CreatedAt, page.Sort)) {
@@ -99,69 +98,22 @@ func (s *AnswerLibrary) ListPage(ctx context.Context, actor identitydomain.Actor
 			entry.ProductID == "" && entry.ReleaseID == "" && point.EffectiveProductID != "" ||
 			filter.QuestionID != "" && entry.QuestionID != filter.QuestionID ||
 			filter.ProductID != "" && entry.ProductID != "" && entry.ProductID != filter.ProductID ||
-			filter.ReleaseID != "" && entry.ReleaseID != "" && entry.ReleaseID != filter.ReleaseID ||
-			!tenantWide && !contains(products, point.EffectiveProductID) && !contains(releases, entry.ReleaseID) {
+			filter.ReleaseID != "" && entry.ReleaseID != "" && entry.ReleaseID != filter.ReleaseID {
 			return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, ErrInvalidProjection
+		}
+		row := authz.Request{Action: authz.ActionAnswerLibraryEntriesRead, Resources: authz.ResourceReferences{ProductID: point.EffectiveProductID, ReleaseID: entry.ReleaseID}}
+		if row.Resources == (authz.ResourceReferences{}) {
+			row.Evaluation = authz.TenantEvaluation
+		}
+		if err := authz.Authorize(ctx, actor, row); err != nil {
+			if errors.Is(err, authz.ErrForbidden) {
+				return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, ErrInvalidProjection
+			}
+			return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{}, err
 		}
 		entry.EvidenceIDs = append([]string(nil), entry.EvidenceIDs...)
 		entry.Limitations = append([]string(nil), entry.Limitations...)
 		items = append(items, entry)
 	}
 	return appquery.Result[packagedomain.QuestionnaireAnswerLibraryEntry]{Items: items, Next: result.Next}, nil
-}
-
-func answerLibraryVisibility(actor identitydomain.Actor) (bool, []string, []string) {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true, nil, nil
-	}
-	productSet := map[string]struct{}{}
-	releaseSet := map[string]struct{}{}
-	for _, grant := range actor.ResourceGrants {
-		if !answerLibraryGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true, nil, nil
-			}
-		case "product":
-			if grant.ResourceID != "" {
-				productSet[grant.ResourceID] = struct{}{}
-			}
-		case "release":
-			if grant.ResourceID != "" {
-				releaseSet[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	products := make([]string, 0, len(productSet))
-	for id := range productSet {
-		products = append(products, id)
-	}
-	sort.Strings(products)
-	releases := make([]string, 0, len(releaseSet))
-	for id := range releaseSet {
-		releases = append(releases, id)
-	}
-	sort.Strings(releases)
-	return false, products, releases
-}
-
-func answerLibraryGrantHasScope(grant identitydomain.ResourceGrant) bool {
-	for _, scope := range grant.Scopes {
-		if scope == scopePackageRead || scope == "admin" || scope == "*" {
-			return true
-		}
-	}
-	return false
-}
-
-func contains(values []string, value string) bool {
-	for _, item := range values {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }

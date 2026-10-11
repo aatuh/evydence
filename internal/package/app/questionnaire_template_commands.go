@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -109,7 +110,7 @@ func (s *QuestionnaireTemplateCommands) prepare(ctx context.Context, a identityd
 	if err := contextError(ctx); err != nil {
 		return in, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, TenantWide: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnaireTemplatesManage, TenantWide: true}); err != nil {
 		return in, err
 	}
 	return NormalizeQuestionnaireTemplateInput(in)

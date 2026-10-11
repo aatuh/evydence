@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -22,7 +23,7 @@ func (f *importGuardFixture) ExecuteBundleImport(ctx context.Context, fn func(co
 	return fn(ctx, f)
 }
 func (f *importGuardFixture) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != "bundle:write" || !r.TenantWide || r.ScopeOnly || f.deny {
+	if r.Action != authz.ActionBundleImport || r.Scope != "" || !r.TenantWide || r.ScopeOnly || f.deny {
 		return application.ErrForbidden
 	}
 	return nil

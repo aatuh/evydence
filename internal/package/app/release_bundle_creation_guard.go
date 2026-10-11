@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -29,7 +30,7 @@ func (s *ReleaseBundleCommands) AuthorizeReleaseBundleCreation(ctx context.Conte
 	if err != nil || !graphID(a.TenantID) {
 		return ErrValidation
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "bundle:write", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleaseBundlesCreate, ScopeOnly: true}); err != nil {
 		return err
 	}
 	return s.config.Transactions.ExecuteReleaseBundle(ctx, func(ctx context.Context, tx ReleaseBundleTransaction) error {
@@ -44,7 +45,7 @@ func (s *ReleaseBundleCommands) AuthorizeReleaseBundleCreation(ctx context.Conte
 		if !graphID(product) {
 			return ErrConflict
 		}
-		request := application.AuthorizationRequest{Scope: "bundle:write", Resources: application.ResourceReferences{ProductID: product, ReleaseID: id}}
+		request := application.AuthorizationRequest{Action: authz.ActionReleaseBundlesCreate, Resources: application.ResourceReferences{ProductID: product, ReleaseID: id}}
 		if err := s.config.Authorizer.Authorize(ctx, a, request); err != nil {
 			return err
 		}

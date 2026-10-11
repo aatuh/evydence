@@ -13,11 +13,12 @@ import (
 // Repositories apply these coordinates before pagination; services still verify
 // returned row ownership and authorize each resolved resource.
 type Visibility struct {
-	TenantID   string
-	TenantWide bool
-	ProductIDs []string
-	ProjectIDs []string
-	ReleaseIDs []string
+	TenantID           string
+	TenantWide         bool
+	ProductIDs         []string
+	ProjectIDs         []string
+	ReleaseIDs         []string
+	CustomerPackageIDs []string
 }
 
 // ReadVisibility supports only registered read actions with explicit filtering
@@ -30,13 +31,13 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 	case ActionEnvironmentsRead, ActionDeploymentsRead, ActionVulnerabilityDecisionsRead,
 		ActionExceptionsRead, ActionControlEvidenceRead, ActionVulnerabilityDecisionSummaryRead,
 		ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionEvidenceRead, ActionSBOMComponentsRead,
-		ActionProductsRead, ActionReleaseCandidatesRead, ActionArtifactsRead, ActionSourceRepositoriesRead, ActionArtifactSignaturesRead, ActionReleaseReadinessReportRead:
+		ActionProductsRead, ActionReleaseCandidatesRead, ActionArtifactsRead, ActionSourceRepositoriesRead, ActionArtifactSignaturesRead, ActionReleaseReadinessReportRead, ActionAnswerLibraryEntriesRead, ActionPortalAccessRead:
 	default:
 		return Visibility{}, ErrForbidden
 	}
 	definition, _ := DefinitionFor(action) // Authorize already rejected unknown actions.
 	allowProjects := action == ActionControlEvidenceRead || action == ActionEvidenceRead || action == ActionSBOMComponentsRead || action == ActionArtifactsRead || action == ActionSourceRepositoriesRead || action == ActionArtifactSignaturesRead
-	visibility := visibilityForGrants(actor, definition.Scope, allowProjects, action != ActionEnvironmentsRead && action != ActionProductsRead && action != ActionSourceRepositoriesRead)
+	visibility := visibilityForGrants(actor, definition.Scope, allowProjects, action != ActionEnvironmentsRead && action != ActionProductsRead && action != ActionSourceRepositoriesRead, action == ActionPortalAccessRead)
 	if action == ActionProductsRead {
 		// Product points normalize request IDs; a padded grant must not create
 		// authority for that normalized product. Preserve exact grant identity.
@@ -50,7 +51,7 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 	return visibility, nil
 }
 
-func visibilityForGrants(actor identitydomain.Actor, scope string, allowProjects, allowReleases bool) Visibility {
+func visibilityForGrants(actor identitydomain.Actor, scope string, allowProjects, allowReleases, allowPackages bool) Visibility {
 	visibility := Visibility{TenantID: actor.TenantID}
 	if authorizeCurrentGrant(actor, scope, ResourceReferences{}, true) == nil {
 		visibility.TenantWide = true
@@ -59,6 +60,7 @@ func visibilityForGrants(actor identitydomain.Actor, scope string, allowProjects
 	products := make(map[string]struct{})
 	projects := make(map[string]struct{})
 	releases := make(map[string]struct{})
+	packages := make(map[string]struct{})
 	for _, grant := range actor.ResourceGrants {
 		if grant.ResourceID == "" || !grantHasCapability(grant, scope) {
 			continue
@@ -74,6 +76,10 @@ func visibilityForGrants(actor identitydomain.Actor, scope string, allowProjects
 			if allowProjects {
 				projects[grant.ResourceID] = struct{}{}
 			}
+		case "customer_security_package":
+			if allowPackages {
+				packages[grant.ResourceID] = struct{}{}
+			}
 		}
 	}
 	for id := range products {
@@ -85,8 +91,12 @@ func visibilityForGrants(actor identitydomain.Actor, scope string, allowProjects
 	for id := range projects {
 		visibility.ProjectIDs = append(visibility.ProjectIDs, id)
 	}
+	for id := range packages {
+		visibility.CustomerPackageIDs = append(visibility.CustomerPackageIDs, id)
+	}
 	sort.Strings(visibility.ProductIDs)
 	sort.Strings(visibility.ProjectIDs)
 	sort.Strings(visibility.ReleaseIDs)
+	sort.Strings(visibility.CustomerPackageIDs)
 	return visibility
 }

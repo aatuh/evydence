@@ -6,6 +6,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -71,7 +72,7 @@ func (s *ReleaseBundleCommands) CreateReleaseBundle(ctx context.Context, actor i
 	if err := validateActor(actor); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleaseBundlesCreate, ScopeOnly: true}); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
 	var normalizeErr error
@@ -92,7 +93,7 @@ func (s *ReleaseBundleCommands) CreateReleaseBundle(ctx context.Context, actor i
 		return packagedomain.ReleaseBundle{}, ErrConflict
 	}
 	resources := application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: snapshot.ReleaseID}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", Resources: resources}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleaseBundlesCreate, Resources: resources}); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
 
@@ -137,7 +138,7 @@ func (s *ReleaseBundleCommands) CreateReleaseBundle(ctx context.Context, actor i
 		Manifest: manifest, ManifestHash: manifestHash, SignatureRefs: []string{signature.ID}, CreatedAt: now,
 	}
 	err = s.config.Transactions.ExecuteReleaseBundle(ctx, func(ctx context.Context, tx ReleaseBundleTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: "bundle:write", Resources: resources}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleaseBundlesCreate, Resources: resources}); err != nil {
 			return err
 		}
 		if err := tx.InsertReleaseBundleSignature(ctx, signature, manifestHash); err != nil {

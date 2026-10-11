@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -21,6 +22,9 @@ func (f *templateGuardFixture) ExecuteReportTemplate(ctx context.Context, fn fun
 	return fn(ctx, f)
 }
 func (f *templateGuardFixture) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
+	if r.Action != authz.ActionReportTemplatesManage || r.Scope != "" {
+		return application.ErrForbidden
+	}
 	if f.denied && r.TenantWide {
 		return application.ErrForbidden
 	}

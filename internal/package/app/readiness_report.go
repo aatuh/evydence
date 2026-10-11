@@ -8,6 +8,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -42,7 +43,7 @@ func (s *Service) ReleaseReadinessReport(ctx context.Context, actor identitydoma
 	if err := validateActor(actor); err != nil {
 		return packagedomain.ReleaseReadinessReport{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReadinessRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionReleaseReadinessReportRead, application.ResourceReferences{}, true); err != nil {
 		return packagedomain.ReleaseReadinessReport{}, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -66,7 +67,7 @@ func (s *Service) ReleaseReadinessReport(ctx context.Context, actor identitydoma
 		return packagedomain.ReleaseReadinessReport{}, ErrConflict
 	}
 	resources := application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: snapshot.ReleaseID}
-	if err := s.authorize(ctx, actor, ScopeReadinessRead, resources, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionReleaseReadinessReportRead, resources, false); err != nil {
 		return packagedomain.ReleaseReadinessReport{}, err
 	}
 	return RenderReleaseReadinessReport(snapshot, s.clock.Now())

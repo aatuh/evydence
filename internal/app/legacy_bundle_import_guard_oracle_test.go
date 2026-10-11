@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -13,7 +14,7 @@ import (
 
 // Unchanged cache-based guard remains only as a characterization oracle.
 func (l *Ledger) AuthorizeBundleImport(ctx context.Context, a domain.Actor, b packagedomain.EvidenceBundle) error {
-	if err := packagequery.NewBundleImportAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBundleWrite, TenantWide: true}); err != nil {
+	if err := packagequery.NewBundleImportAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBundleImport, TenantWide: true}); err != nil {
 		return fromPackageContextError(err)
 	}
 	if a.TenantID == "" || !validPublicMembershipText(a.TenantID, 1024) || strings.TrimSpace(a.TenantID) != a.TenantID {

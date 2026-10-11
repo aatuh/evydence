@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -35,7 +36,7 @@ func (f *summaryCommandFixture) Authorize(ctx context.Context, a identitydomain.
 	if a.TenantID == "" || a.KeyID == "" && a.UserID == "" {
 		return application.ErrUnauthorized
 	}
-	if r.Scope != ScopeReportRead || !a.HasScope(r.Scope) || f.phase == "authorization" || f.phase == "root authorization" && !r.ScopeOnly {
+	if r.Action != authz.ActionEvidenceSummariesCreate || r.Scope != "" || !a.HasScope(ScopeReportRead) || f.phase == "authorization" || f.phase == "root authorization" && !r.ScopeOnly {
 		return application.ErrForbidden
 	}
 	return nil

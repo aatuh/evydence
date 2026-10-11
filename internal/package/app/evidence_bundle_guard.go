@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -43,7 +44,7 @@ func (s *ExportCommands) AuthorizeEvidenceBundleExport(ctx context.Context, a id
 	if err := validateActor(a); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "bundle:read", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if err := validateReportTemplateTenant(a); err != nil {
@@ -66,7 +67,7 @@ func (s *ExportCommands) AuthorizeEvidenceBundleExport(ctx context.Context, a id
 			if err != nil {
 				return err
 			}
-			if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "bundle:read", Resources: application.ResourceReferences{ProductID: product, ReleaseID: release}}); err != nil {
+			if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: application.ResourceReferences{ProductID: product, ReleaseID: release}}); err != nil {
 				return err
 			}
 		}
@@ -78,7 +79,7 @@ func (s *ExportCommands) AuthorizeEvidenceBundleExport(ctx context.Context, a id
 			if release != "" && refs.ReleaseID != release {
 				return ErrNotFound
 			}
-			if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "bundle:read", Resources: refs}); err != nil {
+			if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, Resources: refs}); err != nil {
 				return err
 			}
 		}

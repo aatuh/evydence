@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
@@ -14,7 +15,7 @@ import (
 // Unchanged aggregate behavior is retained only as a characterization oracle.
 // Native PostgreSQL handlers use Package transaction ports instead of these maps.
 func (l *Ledger) AuthorizeEvidenceBundleExport(ctx context.Context, a domain.Actor, release string, ids []string) error {
-	if err := packagequery.NewEvidenceBundleAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeBundleRead, ScopeOnly: true}); err != nil {
+	if err := packagequery.NewEvidenceBundleAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceBundlesExport, ScopeOnly: true}); err != nil {
 		return fromPackageContextError(err)
 	}
 	if a.TenantID == "" || !validPublicMembershipText(a.TenantID, 1024) || strings.TrimSpace(a.TenantID) != a.TenantID {

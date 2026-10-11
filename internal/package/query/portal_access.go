@@ -3,11 +3,11 @@ package query
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -58,17 +58,15 @@ func (s *PortalAccess) ListPage(ctx context.Context, actor identitydomain.Actor,
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return empty, application.ErrUnauthorized
-	}
-	if !actor.HasScope(scopePackageRead) && !actor.HasScope("admin") {
-		return empty, application.ErrForbidden
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionPortalAccessRead)
+	if err != nil {
+		return empty, err
 	}
 	if err := appquery.Validate(page, after); err != nil {
 		return empty, ErrPortalAccessValidation
 	}
 	packageID = strings.TrimSpace(packageID)
-	tenantWide, packages, products, releases := portalAccessVisibility(actor)
+	tenantWide, packages, products, releases := visibility.TenantWide, visibility.CustomerPackageIDs, visibility.ProductIDs, visibility.ReleaseIDs
 	if !tenantWide && len(packages) == 0 && len(products) == 0 && len(releases) == 0 {
 		if packageID != "" {
 			return empty, application.ErrForbidden
@@ -81,6 +79,9 @@ func (s *PortalAccess) ListPage(ctx context.Context, actor identitydomain.Actor,
 	if err != nil {
 		return empty, err
 	}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
 	if len(result.Items) > page.PageSize || result.Next != nil && (len(result.Items) == 0 || *result.Next != appquery.RecordSortKey(result.Items[len(result.Items)-1].Access.ID, result.Items[len(result.Items)-1].Access.CreatedAt, page.Sort)) {
 		return empty, ErrPortalAccessProjection
 	}
@@ -90,51 +91,16 @@ func (s *PortalAccess) ListPage(ctx context.Context, actor identitydomain.Actor,
 		if access.ID == "" || access.TenantID != actor.TenantID || access.PackageID == "" || point.ProductID == "" ||
 			access.Hash != "" || access.CustomerName == "" || access.Prefix == "" || access.ExpiresAt.IsZero() ||
 			access.SchemaVersion == "" || access.CreatedAt.IsZero() ||
-			packageID != "" && access.PackageID != packageID ||
-			!tenantWide && !contains(packages, access.PackageID) && !contains(products, point.ProductID) && !contains(releases, point.ReleaseID) {
+			packageID != "" && access.PackageID != packageID {
 			return empty, ErrPortalAccessProjection
+		}
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionPortalAccessRead, Resources: authz.ResourceReferences{ProductID: point.ProductID, ReleaseID: point.ReleaseID, CustomerPackageID: access.PackageID}}); err != nil {
+			if errors.Is(err, authz.ErrForbidden) {
+				return empty, ErrPortalAccessProjection
+			}
+			return empty, err
 		}
 		items = append(items, access)
 	}
 	return appquery.Result[packagedomain.CustomerPortalAccess]{Items: items, Next: result.Next}, nil
-}
-
-func portalAccessVisibility(actor identitydomain.Actor) (bool, []string, []string, []string) {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true, nil, nil, nil
-	}
-	packages, products, releases := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
-	for _, grant := range actor.ResourceGrants {
-		if !answerLibraryGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true, nil, nil, nil
-			}
-		case "customer_security_package":
-			if grant.ResourceID != "" {
-				packages[grant.ResourceID] = struct{}{}
-			}
-		case "product":
-			if grant.ResourceID != "" {
-				products[grant.ResourceID] = struct{}{}
-			}
-		case "release":
-			if grant.ResourceID != "" {
-				releases[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	return false, sortedPortalGrantIDs(packages), sortedPortalGrantIDs(products), sortedPortalGrantIDs(releases)
-}
-
-func sortedPortalGrantIDs(values map[string]struct{}) []string {
-	ids := make([]string, 0, len(values))
-	for id := range values {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	return ids
 }
