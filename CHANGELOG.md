@@ -13,6 +13,20 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Recorded EVY-1002's exact repository-controlled prerelease API compatibility
+review: the unchanged `v0.1.0-rc.7` artifact is compared with 205 selected
+differences, retaining all 135 previously reviewed entries and adding 70
+explicit schema/idempotency corrections and input constraints. Clients must
+regenerate from current OpenAPI, use the supported security-upload enum names,
+supply nonblank required fields and candidate-transition reasons, and stop
+requiring catalog fields that were never returned by the runtime. The read-only
+evidence-flow query no longer advertises mandatory idempotency. See the
+[exact review and migration record](docs/reference/api-versioning.md#evy-1002-prerelease-contract-reconciliation).
+The exception is digest/count/rule/baseline bound and rejects any altered set;
+no runtime behavior, stored schema, immutable hash, or historical record is
+changed by this reconciliation. This is not blanket approval of other transport
+or authorization restrictions, a stable release, or independent review.
+
 Added centralized typed action/resource authorization across focused application
 services, with distinct tenant, resolved-resource, instance, static-catalog,
 self-session and verified public-credential boundaries. Tenant wildcard or

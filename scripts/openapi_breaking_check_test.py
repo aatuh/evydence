@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-import sys
+import copy
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -139,6 +140,56 @@ class CompatibilityPolicyTests(unittest.TestCase):
 
 
 class RepositoryBaselineTests(unittest.TestCase):
+    def test_reviewed_prerelease_snapshot_is_exact_and_rejects_other_change_sets(self) -> None:
+        review = checker.read_json(
+            checker.ROOT / "docs/reference/openapi-compatibility-reviews/evy-1002.json",
+            "reviewed prerelease changes",
+        )
+        changes = checker.normalized_changes([
+            checker.ContractChange(**item) for item in review["changes"]
+        ])
+        self.assertEqual(len(changes), 205)
+        digest = checker.changes_digest(changes)
+        self.assertEqual(digest, review["changes_sha256"])
+        extra = set(review["additional_fingerprints"])
+        self.assertEqual(len(extra), 70)
+        self.assertTrue(extra.issubset({item.fingerprint for item in changes}))
+        prior = tuple(item for item in changes if item.fingerprint not in extra)
+        self.assertEqual(len(prior), 135)
+        self.assertEqual(checker.changes_digest(prior), review["prior_changes_sha256"])
+
+        baseline, _, _ = checker.load_baseline(
+            checker.ROOT / "docs/reference/openapi-baseline.json"
+        )
+        self.assertEqual(review["baseline_sha256"], baseline["artifact_sha256"])
+        exceptions = checker.read_json(
+            checker.ROOT / ".github/openapi-breaking-exceptions.json", "exceptions"
+        )
+
+        def match(candidate, candidate_baseline=baseline):
+            return checker.matching_exception(
+                exceptions, candidate_baseline, candidate_baseline["artifact_sha256"],
+                candidate, checker.changes_digest(candidate),
+            )
+
+        self.assertEqual(match(prior),
+                         "evy-905-prerelease-source-snapshot-schema-reconciliation")
+        self.assertEqual(match(changes),
+                         "evy-1002-prerelease-contract-reconciliation")
+        # A reviewed snapshot must not authorize a later added, removed, or
+        # modified change, even when its count or rule summary stays the same.
+        additional = checker.policy_change("scope-contract-changed", "GET /v1/example", "new scope")
+        self.assertIsNone(match(checker.normalized_changes(list(changes) + [additional])))
+        self.assertIsNone(match(changes[:-1]))
+        altered = copy.deepcopy([item.as_dict() for item in changes])
+        altered[0]["detail"] += " altered"
+        self.assertIsNone(match(checker.normalized_changes([
+            checker.ContractChange(**item) for item in altered
+        ])))
+        changed_baseline = dict(baseline, artifact_sha256="b" * 64)
+        self.assertIsNone(match(changes, changed_baseline))
+        self.assertIsNone(match(changes, dict(baseline, channel="stable")))
+
     def test_release_artifact_is_tracked_and_digest_verified_for_clean_checkouts(self) -> None:
         path = checker.ROOT / "docs/reference/openapi-baseline.json"
         baseline = checker.read_json(path, "baseline manifest")

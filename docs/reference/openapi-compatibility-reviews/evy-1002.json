@@ -1,0 +1,1516 @@
+{
+  "schema_version": 1,
+  "reviewed_source": "75b7f0844ecc3d0f529f5fe8bd7fc52d779c5736",
+  "baseline_sha256": "4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364",
+  "prior_changes_sha256": "c9bf7cc92a54def6cb3bff2dc5bf0329fcec93fd3f51d479a82096e59f5d19d9",
+  "changes_sha256": "c46ba2dc78fab6fbcd3b5a3a5366815589fbfa694fbc05ba364a2435cc961a94",
+  "additional_fingerprints": [
+    "eccb1f8a90b8bc60",
+    "b9c324c18a94",
+    "37d4066df231",
+    "e7fdacbbf719",
+    "cc233acd82db",
+    "5266c661772d",
+    "c85f25d90ec8",
+    "279e1506ebc5",
+    "01f290ceb372",
+    "5e5abda05c70",
+    "6da4e6949012",
+    "098c1d44fd48",
+    "17ef25ca03b7",
+    "3699a189484f",
+    "1edb36055f3f",
+    "2716b75a15f2",
+    "9d19e42b0fc8",
+    "c25f6978d7fd",
+    "93a849557b7b",
+    "e1ccb1339315",
+    "b7f105a53459",
+    "d066856a793e",
+    "5e9f0ef84b75",
+    "92767eda95a8",
+    "29f539406d7e",
+    "88e509f2fdaa",
+    "e3e9eaac12cf",
+    "2c2e378a7821",
+    "410e5f75427d",
+    "59cfb1ad3a99",
+    "7334b20eb9f0",
+    "68a21237b4ae",
+    "45f0c9b5f6fc",
+    "a601b378e994",
+    "dcefce6ff98d",
+    "2785f8a092de",
+    "3d8bfe1b32e6",
+    "dc335f47d7ad",
+    "10e6ac896579",
+    "455b73d7c516",
+    "d208b89fc72a",
+    "e661330ff892",
+    "011106d3397a",
+    "5b08f04b141d",
+    "5e25d374455b",
+    "687be6dcb866",
+    "d365681656bf",
+    "586f889268f5",
+    "05fc207ceb21",
+    "8c901907e757",
+    "5abcce23d4da",
+    "d31c8ae6fdcf",
+    "ec43805307eb",
+    "5ad52c9e606c",
+    "916855a62ad8",
+    "9e016d13deeb",
+    "e22944429553",
+    "13893a24078d",
+    "d3db9f010924",
+    "4cb6db4ccc0d",
+    "7eb7c95a5877",
+    "10c5fc7b701f",
+    "319e071a1d77",
+    "347e72b8f37b",
+    "a0b0383c2a8f",
+    "18c306289060",
+    "b0bc004cc3f6",
+    "b3065fecba54",
+    "7650e2f258d4",
+    "81bb7e005e9d"
+  ],
+  "changes": [
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "DEPENDENCY_UNAVAILABLE",
+      "fingerprint": "00fef34ca67eb33d"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "VERIFICATION_FAILED",
+      "fingerprint": "1880e1502cbb7379"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "VALIDATION_FAILED",
+      "fingerprint": "1efb430909527986"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "IDEMPOTENCY_IN_PROGRESS",
+      "fingerprint": "2049dcd3f7043076"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "CONFLICT",
+      "fingerprint": "5abcf59a4a9fc81b"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "RATE_LIMITED",
+      "fingerprint": "64f10a49d1d85f5c"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "NOT_FOUND",
+      "fingerprint": "6e10143dfd522f65"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "FORBIDDEN",
+      "fingerprint": "6f1e9876ba6956ac"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "UNAUTHORIZED",
+      "fingerprint": "8ac71a3e77865563"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "INTERNAL_ERROR",
+      "fingerprint": "8b59a62aa5eb9d3b"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "IDEMPOTENCY_REQUEST_FAILED",
+      "fingerprint": "9677b82f2e422196"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "SIGNING_PROVIDER_UNAVAILABLE",
+      "fingerprint": "a53582d51c84b565"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "VERSION_CONFLICT",
+      "fingerprint": "b1cdf9c4a35917b3"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "COSIGN_FULL_VERIFICATION_UNAVAILABLE",
+      "fingerprint": "bdfdeacd83504d1c"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "EVIDENCE_IMMUTABLE",
+      "fingerprint": "dedc3d5fb74aa219"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "error-code-added",
+      "location": "components.schemas.ErrorCode",
+      "detail": "IDEMPOTENCY_KEY_REUSED",
+      "fingerprint": "f12ba5a02df42af8"
+    },
+    {
+      "source": "evydence-policy",
+      "rule": "idempotency-contract-changed",
+      "location": "POST /v1/releases/{id}/evidence-flow/start",
+      "detail": "x-idempotency-key changed",
+      "fingerprint": "eccb1f8a90b8bc60"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-parameter",
+      "location": "POST /v1/release-candidates/{id}/promote promoteReleaseCandidate",
+      "detail": "added the new required `header` request parameter `if-match`",
+      "fingerprint": "66711c32bcf8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-parameter",
+      "location": "POST /v1/release-candidates/{id}/reject rejectReleaseCandidate",
+      "detail": "added the new required `header` request parameter `if-match`",
+      "fingerprint": "26ed77d9d718"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-parameter",
+      "location": "POST /v1/releases/{id}/approve approveRelease",
+      "detail": "added the new required `header` request parameter `if-match`",
+      "fingerprint": "9c8209253a48"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-parameter",
+      "location": "POST /v1/releases/{id}/freeze freezeRelease",
+      "detail": "added the new required `header` request parameter `if-match`",
+      "fingerprint": "29a75b3654be"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-property",
+      "location": "POST /v1/artifact-signatures/{id}/verify-cosign verifyCosignSignature",
+      "detail": "added the new required request property `offline`",
+      "fingerprint": "8d3fd77e3517"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-property",
+      "location": "POST /v1/artifact-signatures/{id}/verify-cosign verifyCosignSignature",
+      "detail": "added the new required request property `mode`",
+      "fingerprint": "c872d32f99fc"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-property",
+      "location": "POST /v1/builds createBuild",
+      "detail": "added the new required request property `outputs/items/digest`",
+      "fingerprint": "0453b72b28c5"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-property",
+      "location": "POST /v1/dsse-trust-roots createDSSETrustRoot",
+      "detail": "added the new required request property `expected_builder_ids`",
+      "fingerprint": "3c888c63047d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-property",
+      "location": "POST /v1/dsse-trust-roots createDSSETrustRoot",
+      "detail": "added the new required request property `required_claims`",
+      "fingerprint": "d0c304cc9e67"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "new-required-request-property",
+      "location": "POST /v1/dsse-trust-roots createDSSETrustRoot",
+      "detail": "added the new required request property `allowed_predicate_types`",
+      "fingerprint": "ff5594622c3f"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-body-wrapped-in-one-of",
+      "location": "POST /v1/vulnerability-scans uploadVulnerabilityScan",
+      "detail": "the request body was restructured into a oneOf, so a payload that was previously valid may no longer be accepted",
+      "fingerprint": "49203e5da432"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-parameter-min-length-increased",
+      "location": "GET /v1/evidence/search searchEvidence",
+      "detail": "for the `query` request parameter `cursor`, the minLength was increased from `0` to `1`",
+      "fingerprint": "71d77a92e317"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-parameter-min-length-increased",
+      "location": "POST /v1/signing-keys/{id}/revoke revokeSigningKey",
+      "detail": "for the `path` request parameter `id`, the minLength was increased from `0` to `1`",
+      "fingerprint": "b9c324c18a94"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-enum",
+      "location": "POST /v1/evidence-summaries createEvidenceSummary",
+      "detail": "request property `subject_type` was restricted to a list of enum values",
+      "fingerprint": "37d4066df231"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-enum",
+      "location": "POST /v1/legal-holds createLegalHold",
+      "detail": "request property `scope_type` was restricted to a list of enum values",
+      "fingerprint": "e7fdacbbf719"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-enum",
+      "location": "POST /v1/reports/anomaly generateAnomalyReport",
+      "detail": "request property `subject_type` was restricted to a list of enum values",
+      "fingerprint": "cc233acd82db"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-enum",
+      "location": "POST /v1/retention-overrides createRetentionOverride",
+      "detail": "request property `scope_type` was restricted to a list of enum values",
+      "fingerprint": "5266c661772d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-enum",
+      "location": "POST /v1/signing-operations createSigningOperation",
+      "detail": "request property `subject_type` was restricted to a list of enum values",
+      "fingerprint": "c85f25d90ec8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-enum",
+      "location": "POST /v1/signing-providers createSigningProvider",
+      "detail": "request property `type` was restricted to a list of enum values",
+      "fingerprint": "279e1506ebc5"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-enum",
+      "location": "POST /v1/sso/identity-links linkSSOIdentity",
+      "detail": "request property `verified` was restricted to a list of enum values",
+      "fingerprint": "01f290ceb372"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-required",
+      "location": "POST /v1/artifacts registerArtifact",
+      "detail": "the request property `media_type` became required",
+      "fingerprint": "c0733c6328ce"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-required",
+      "location": "POST /v1/collectors/github/source-snapshots uploadGitHubSourceSnapshot",
+      "detail": "the request property `pull_request/title` became required",
+      "fingerprint": "c394e9382590"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-required",
+      "location": "POST /v1/collectors/gitlab/source-snapshots uploadGitLabSourceSnapshot",
+      "detail": "the request property `pull_request/title` became required",
+      "fingerprint": "37d15d06b055"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-required",
+      "location": "POST /v1/release-candidates/{id}/promote promoteReleaseCandidate",
+      "detail": "the request property `reason` became required",
+      "fingerprint": "5e5abda05c70"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-required",
+      "location": "POST /v1/release-candidates/{id}/reject rejectReleaseCandidate",
+      "detail": "the request property `reason` became required",
+      "fingerprint": "6da4e6949012"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-required",
+      "location": "POST /v1/signing-keys/rotate rotateSigningKey",
+      "detail": "the request property `reason` became required",
+      "fingerprint": "e7175188db81"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-became-required",
+      "location": "POST /v1/signing-keys/{id}/revoke revokeSigningKey",
+      "detail": "the request property `reason` became required",
+      "fingerprint": "673a9556c918"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-enum-value-removed",
+      "location": "POST /v1/security-documents uploadManualSecurityDocument",
+      "detail": "removed the enum value `pentest_report` of the request property `document_type`",
+      "fingerprint": "098c1d44fd48"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-enum-value-removed",
+      "location": "POST /v1/security-scans uploadSecurityScan",
+      "detail": "removed the enum value `license` of the request property `category`",
+      "fingerprint": "17ef25ca03b7"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-enum-value-removed",
+      "location": "POST /v1/security-scans uploadSecurityScan",
+      "detail": "removed the enum value `secret` of the request property `category`",
+      "fingerprint": "3699a189484f"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-items-increased",
+      "location": "POST /v1/questionnaire-templates createQuestionnaireTemplate",
+      "detail": "the `questions` request property's minItems was increased to `1`",
+      "fingerprint": "1edb36055f3f"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/customer-packages createCustomerPackage",
+      "detail": "the `title` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "2716b75a15f2"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/customer-packages createCustomerPackage",
+      "detail": "the `product_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "9d19e42b0fc8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/customer-packages createCustomerPackage",
+      "detail": "the `redaction_profile_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "c25f6978d7fd"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/customer-portal/access createCustomerPortalAccess",
+      "detail": "the `customer_name` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "93a849557b7b"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/customer-portal/access createCustomerPortalAccess",
+      "detail": "the `package_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "e1ccb1339315"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/dsse-trust-roots createDSSETrustRoot",
+      "detail": "the `name` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "b7f105a53459"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/dsse-trust-roots createDSSETrustRoot",
+      "detail": "the `key_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "d066856a793e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/evidence-summaries createEvidenceSummary",
+      "detail": "the `subject_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "5e9f0ef84b75"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/evidence-summaries createEvidenceSummary",
+      "detail": "the `evidence_ids/items/` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "92767eda95a8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/legal-holds createLegalHold",
+      "detail": "the `scope_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "29f539406d7e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/legal-holds createLegalHold",
+      "detail": "the `owner` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "88e509f2fdaa"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/legal-holds createLegalHold",
+      "detail": "the `reason` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "e3e9eaac12cf"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/marketplace-collectors createMarketplaceCollector",
+      "detail": "the `provider` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "2c2e378a7821"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/marketplace-collectors createMarketplaceCollector",
+      "detail": "the `version` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "410e5f75427d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/marketplace-collectors createMarketplaceCollector",
+      "detail": "the `name` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "59cfb1ad3a99"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/marketplace-collectors createMarketplaceCollector",
+      "detail": "the `publisher` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "7334b20eb9f0"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/object-retention-policies createObjectRetentionPolicy",
+      "detail": "the `name` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "68a21237b4ae"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/public-transparency-log-entries publishPublicTransparencyLogEntry",
+      "detail": "the `log_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "45f0c9b5f6fc"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/public-transparency-log-entries publishPublicTransparencyLogEntry",
+      "detail": "the `external_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "a601b378e994"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/public-transparency-log-entries publishPublicTransparencyLogEntry",
+      "detail": "the `checkpoint_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "dcefce6ff98d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/public-transparency-logs createPublicTransparencyLog",
+      "detail": "the `endpoint` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "2785f8a092de"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/public-transparency-logs createPublicTransparencyLog",
+      "detail": "the `public_key` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "3d8bfe1b32e6"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/public-transparency-logs createPublicTransparencyLog",
+      "detail": "the `name` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "dc335f47d7ad"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/questionnaire-answer-library createQuestionnaireAnswerLibraryEntry",
+      "detail": "the `evidence_ids/items/` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "10e6ac896579"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/questionnaire-answer-library createQuestionnaireAnswerLibraryEntry",
+      "detail": "the `answer` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "455b73d7c516"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/questionnaire-drafts createQuestionnaireDraft",
+      "detail": "the `template_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "d208b89fc72a"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/questionnaire-packages createQuestionnairePackage",
+      "detail": "the `template_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "e661330ff892"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/questionnaire-templates createQuestionnaireTemplate",
+      "detail": "the `questions/items/id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "011106d3397a"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/questionnaire-templates createQuestionnaireTemplate",
+      "detail": "the `questions/items/prompt` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "5b08f04b141d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/questionnaire-templates createQuestionnaireTemplate",
+      "detail": "the `version` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "5e25d374455b"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/questionnaire-templates createQuestionnaireTemplate",
+      "detail": "the `name` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "687be6dcb866"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/release-bundles createReleaseBundle",
+      "detail": "the `release_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "d365681656bf"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/reports/anomaly generateAnomalyReport",
+      "detail": "the `subject_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "586f889268f5"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/reports/pdf createPDFReportPackage",
+      "detail": "the `report_type` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "05fc207ceb21"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/reports/pdf createPDFReportPackage",
+      "detail": "the `title` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "8c901907e757"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/retention-overrides createRetentionOverride",
+      "detail": "the `reason` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "5abcce23d4da"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/retention-overrides createRetentionOverride",
+      "detail": "the `scope_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "d31c8ae6fdcf"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/retention-overrides createRetentionOverride",
+      "detail": "the `owner` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "ec43805307eb"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/saas/profiles createSaaSEditionProfile",
+      "detail": "the `region` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "5ad52c9e606c"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/saas/profiles createSaaSEditionProfile",
+      "detail": "the `isolation_model` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "916855a62ad8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/saas/profiles createSaaSEditionProfile",
+      "detail": "the `name` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "9e016d13deeb"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/saas/profiles createSaaSEditionProfile",
+      "detail": "the `admin_tenant_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "e22944429553"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/signing-keys/rotate rotateSigningKey",
+      "detail": "the `reason` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "c2f59feaf3db"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/signing-keys/{id}/revoke revokeSigningKey",
+      "detail": "the `reason` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "8fcaceddb1fe"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/signing-operations createSigningOperation",
+      "detail": "the `provider_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "13893a24078d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/signing-operations createSigningOperation",
+      "detail": "the `subject_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "d3db9f010924"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/signing-providers createSigningProvider",
+      "detail": "the `name` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "4cb6db4ccc0d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/signing-providers createSigningProvider",
+      "detail": "the `key_ref` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "7eb7c95a5877"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/transparency-checkpoints createTransparencyCheckpoint",
+      "detail": "the `batch_id` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "10c5fc7b701f"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "request-property-min-length-increased",
+      "location": "POST /v1/transparency-checkpoints createTransparencyCheckpoint",
+      "detail": "the `provider` request property's minLength was increased from `0` to `1`",
+      "fingerprint": "319e071a1d77"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-became-optional",
+      "location": "POST /v1/api-keys createAPIKey",
+      "detail": "the response property `data/secret` became optional for the status `201`",
+      "fingerprint": "c247e3f6cf6e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-became-optional",
+      "location": "POST /v1/collectors createCollector",
+      "detail": "the response property `data/secret` became optional for the status `201`",
+      "fingerprint": "1f81a31f2e6f"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-became-optional",
+      "location": "POST /v1/customer-portal/access createCustomerPortalAccess",
+      "detail": "the response property `data/secret` became optional for the status `201`",
+      "fingerprint": "8da7f0e09ead"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-became-optional",
+      "location": "POST /v1/sso/sessions createSSOSession",
+      "detail": "the response property `data/secret` became optional for the status `201`",
+      "fingerprint": "8cf2a0d22e3a"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/audit-chain/verify verifyAuditChain",
+      "detail": "added the new `error` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "4034b67df56a"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/audit-chain/verify verifyAuditChain",
+      "detail": "added the new `not_verified` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "79379e9d99a0"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/audit-chain/verify verifyAuditChain",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "7d93ef33b995"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/audit-chain/verify verifyAuditChain",
+      "detail": "added the new `limited` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "dc827fc83547"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/audit-chain/verify verifyAuditChain",
+      "detail": "added the new `skipped` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "eb4b0b516a1a"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/backup-manifests/{id}/verify verifyBackupManifest",
+      "detail": "added the new `not_verified` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "1e605f4b8d77"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/backup-manifests/{id}/verify verifyBackupManifest",
+      "detail": "added the new `limited` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "26be41cbc8bd"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/backup-manifests/{id}/verify verifyBackupManifest",
+      "detail": "added the new `error` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "54f49ab7cdf2"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/backup-manifests/{id}/verify verifyBackupManifest",
+      "detail": "added the new `skipped` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "b9747f17b841"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/backup-manifests/{id}/verify verifyBackupManifest",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "e5a6600a31cf"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/collectors/{id}/health collectorHealthReport",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "c09b34c8d2cd"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/marketplace-collectors/{id}/health marketplaceCollectorHealth",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "ed4d2d2a5521"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/merkle-batches/{id}/verify verifyMerkleBatch",
+      "detail": "added the new `error` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "466369d00268"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/merkle-batches/{id}/verify verifyMerkleBatch",
+      "detail": "added the new `limited` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "a00ef7598bc0"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/merkle-batches/{id}/verify verifyMerkleBatch",
+      "detail": "added the new `not_verified` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "a990c73e2f36"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/merkle-batches/{id}/verify verifyMerkleBatch",
+      "detail": "added the new `skipped` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "b9a52ee6e3a1"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/merkle-batches/{id}/verify verifyMerkleBatch",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "c5c05c133425"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/ready ready",
+      "detail": "added the new `ok` enum value to the `data/checks/items/status` response property for the response status `200`",
+      "fingerprint": "91e8a28286f3"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/ready ready",
+      "detail": "added the new `unavailable` enum value to the `data/checks/items/status` response property for the response status `200`",
+      "fingerprint": "a430c65a6b25"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/ready ready",
+      "detail": "added the new `unavailable` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "c6188f814082"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/ready ready",
+      "detail": "added the new `ok` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "d832056a91b5"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/release-bundles/{id}/verify verifyReleaseBundle",
+      "detail": "added the new `skipped` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "023587672067"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/release-bundles/{id}/verify verifyReleaseBundle",
+      "detail": "added the new `not_verified` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "8b7df4d9d065"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/release-bundles/{id}/verify verifyReleaseBundle",
+      "detail": "added the new `error` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "8fb3818cd025"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/release-bundles/{id}/verify verifyReleaseBundle",
+      "detail": "added the new `limited` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "cd3e9433d8fe"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/release-bundles/{id}/verify verifyReleaseBundle",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "f5a0f2ddb79b"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/reports/custody-review signingCustodyReviewReport",
+      "detail": "added the new `configured` enum value to the `data/object_retention_policies/items/status` response property for the response status `200`",
+      "fingerprint": "3c3dae144691"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/reports/custody-review signingCustodyReviewReport",
+      "detail": "added the new `error` enum value to the `data/object_retention_policies/items/verification_checks/items/result` response property for the response status `200`",
+      "fingerprint": "6215730fb20e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/reports/custody-review signingCustodyReviewReport",
+      "detail": "added the new `not_enforced` enum value to the `data/object_retention_policies/items/status` response property for the response status `200`",
+      "fingerprint": "76bea97240fb"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/reports/custody-review signingCustodyReviewReport",
+      "detail": "added the new `verified` enum value to the `data/object_retention_policies/items/status` response property for the response status `200`",
+      "fingerprint": "c1824244e751"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/reports/custody-review signingCustodyReviewReport",
+      "detail": "added the new `stale` enum value to the `data/object_retention_policies/items/status` response property for the response status `200`",
+      "fingerprint": "e9013d0cc78d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/reports/custody-review signingCustodyReviewReport",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "f5d2263588b2"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/reports/custody-review signingCustodyReviewReport",
+      "detail": "added the new `not_verified` enum value to the `data/object_retention_policies/items/status` response property for the response status `200`",
+      "fingerprint": "f71bdf846f62"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/signing-keys listSigningKeys",
+      "detail": "added the new `retiring` enum value to the `data/items/status` response property for the response status `200`",
+      "fingerprint": "48ed1cff463c"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/signing-keys listSigningKeys",
+      "detail": "added the new `revoked` enum value to the `data/items/status` response property for the response status `200`",
+      "fingerprint": "6bf42032c931"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "GET /v1/signing-keys listSigningKeys",
+      "detail": "added the new `active` enum value to the `data/items/status` response property for the response status `200`",
+      "fingerprint": "d548bb20c0c9"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/artifact-signatures/{id}/verify-cosign verifyCosignSignature",
+      "detail": "added the new `limited` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "25fda07c4e0f"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/artifact-signatures/{id}/verify-cosign verifyCosignSignature",
+      "detail": "added the new `error` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "7fbbb25492a3"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/artifact-signatures/{id}/verify-cosign verifyCosignSignature",
+      "detail": "added the new `not_verified` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "8e01f6c34099"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/artifact-signatures/{id}/verify-cosign verifyCosignSignature",
+      "detail": "added the new `skipped` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "a2b8e0854967"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/artifact-signatures/{id}/verify-cosign verifyCosignSignature",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "f0230e15a17d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/backup-manifests generateBackupManifest",
+      "detail": "added the new `error` enum value to the `data/consistency_checks/items/result` response property for the response status `201`",
+      "fingerprint": "1293156f881b"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/build-attestations/{id}/verify-signature verifyBuildAttestationSignature",
+      "detail": "added the new `error` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "5c9f24835ff4"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/build-attestations/{id}/verify-signature verifyBuildAttestationSignature",
+      "detail": "added the new `limited` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "a2bc9d9c124c"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/build-attestations/{id}/verify-signature verifyBuildAttestationSignature",
+      "detail": "added the new `skipped` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "af4aca1e71fd"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/build-attestations/{id}/verify-signature verifyBuildAttestationSignature",
+      "detail": "added the new `not_verified` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "e85b37cc5525"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/build-attestations/{id}/verify-signature verifyBuildAttestationSignature",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "eace5a8157ec"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies createObjectRetentionPolicy",
+      "detail": "added the new `not_enforced` enum value to the `data/status` response property for the response status `201`",
+      "fingerprint": "29c7156e3935"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies createObjectRetentionPolicy",
+      "detail": "added the new `stale` enum value to the `data/status` response property for the response status `201`",
+      "fingerprint": "29e793485e33"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies createObjectRetentionPolicy",
+      "detail": "added the new `configured` enum value to the `data/status` response property for the response status `201`",
+      "fingerprint": "3e95dc29f7ba"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies createObjectRetentionPolicy",
+      "detail": "added the new `not_verified` enum value to the `data/status` response property for the response status `201`",
+      "fingerprint": "974d63da49aa"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies createObjectRetentionPolicy",
+      "detail": "added the new `error` enum value to the `data/verification_checks/items/result` response property for the response status `201`",
+      "fingerprint": "a0f5494e2fc8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies createObjectRetentionPolicy",
+      "detail": "added the new `verified` enum value to the `data/status` response property for the response status `201`",
+      "fingerprint": "e416acf04601"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies/{id}/verify verifyObjectRetentionPolicy",
+      "detail": "added the new `verified` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "0adee35d5e5c"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies/{id}/verify verifyObjectRetentionPolicy",
+      "detail": "added the new `stale` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "77810dcb9554"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies/{id}/verify verifyObjectRetentionPolicy",
+      "detail": "added the new `error` enum value to the `data/verification_checks/items/result` response property for the response status `200`",
+      "fingerprint": "a4b0708c7dcf"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies/{id}/verify verifyObjectRetentionPolicy",
+      "detail": "added the new `not_verified` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "ab273de9c669"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies/{id}/verify verifyObjectRetentionPolicy",
+      "detail": "added the new `configured` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "b73b449ea949"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/object-retention-policies/{id}/verify verifyObjectRetentionPolicy",
+      "detail": "added the new `not_enforced` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "c1770a7f6e0e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/provider-verifications verifyProviderIdentity",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `201`",
+      "fingerprint": "2b8346249409"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/provider-verifications verifyProviderIdentity",
+      "detail": "added the new `error` enum value to the `data/result` response property for the response status `201`",
+      "fingerprint": "33d43a5627d9"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/provider-verifications verifyProviderIdentity",
+      "detail": "added the new `skipped` enum value to the `data/result` response property for the response status `201`",
+      "fingerprint": "986b7e677c41"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/provider-verifications verifyProviderIdentity",
+      "detail": "added the new `not_verified` enum value to the `data/result` response property for the response status `201`",
+      "fingerprint": "9fc4e428b27e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/provider-verifications verifyProviderIdentity",
+      "detail": "added the new `limited` enum value to the `data/result` response property for the response status `201`",
+      "fingerprint": "c0fc4ce8d022"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/public-transparency-log-entries publishPublicTransparencyLogEntry",
+      "detail": "added the new `error` enum value to the `data/verification_checks/items/result` response property for the response status `201`",
+      "fingerprint": "58d61a9ac5a0"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/public-transparency-log-entries/{id}/fetch-proof fetchPublicTransparencyLogEntryProof",
+      "detail": "added the new `error` enum value to the `data/verification_checks/items/result` response property for the response status `200`",
+      "fingerprint": "80002f8ce29f"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/public-transparency-log-entries/{id}/verify verifyPublicTransparencyLogEntry",
+      "detail": "added the new `error` enum value to the `data/verification_checks/items/result` response property for the response status `200`",
+      "fingerprint": "abe54a143686"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/signing-keys/rotate rotateSigningKey",
+      "detail": "added the new `retiring` enum value to the `data/status` response property for the response status `201`",
+      "fingerprint": "8aff4a2a04ee"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/signing-keys/rotate rotateSigningKey",
+      "detail": "added the new `revoked` enum value to the `data/status` response property for the response status `201`",
+      "fingerprint": "911721dab77b"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/signing-keys/rotate rotateSigningKey",
+      "detail": "added the new `active` enum value to the `data/status` response property for the response status `201`",
+      "fingerprint": "a169f044022a"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/signing-keys/{id}/revoke revokeSigningKey",
+      "detail": "added the new `revoked` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "6732c10e0e4e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/signing-keys/{id}/revoke revokeSigningKey",
+      "detail": "added the new `retiring` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "95dfeaf4ae66"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/signing-keys/{id}/revoke revokeSigningKey",
+      "detail": "added the new `active` enum value to the `data/status` response property for the response status `200`",
+      "fingerprint": "d4f13ac04153"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/signing-operations createSigningOperation",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `201`",
+      "fingerprint": "f09092faeb55"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/sso/session-exchanges exchangeSSOCredential",
+      "detail": "added the new `error` enum value to the `data/verification/result` response property for the response status `201`",
+      "fingerprint": "08c5a79013fa"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/sso/session-exchanges exchangeSSOCredential",
+      "detail": "added the new `error` enum value to the `data/verification/checks/items/result` response property for the response status `201`",
+      "fingerprint": "09c3add9bdb0"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/sso/session-exchanges exchangeSSOCredential",
+      "detail": "added the new `not_verified` enum value to the `data/verification/result` response property for the response status `201`",
+      "fingerprint": "3e5f7b411eca"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/sso/session-exchanges exchangeSSOCredential",
+      "detail": "added the new `skipped` enum value to the `data/verification/result` response property for the response status `201`",
+      "fingerprint": "8568a1fb57dd"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/sso/session-exchanges exchangeSSOCredential",
+      "detail": "added the new `limited` enum value to the `data/verification/result` response property for the response status `201`",
+      "fingerprint": "c0c5bf9b6500"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/verify verify",
+      "detail": "added the new `limited` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "417da7ba8fc8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/verify verify",
+      "detail": "added the new `skipped` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "66bf5561ac83"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/verify verify",
+      "detail": "added the new `error` enum value to the `data/checks/items/result` response property for the response status `200`",
+      "fingerprint": "9675396c750a"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/verify verify",
+      "detail": "added the new `not_verified` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "c52efcc567a1"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-enum-value-added",
+      "location": "POST /v1/verify verify",
+      "detail": "added the new `error` enum value to the `data/result` response property for the response status `200`",
+      "fingerprint": "f070695516a8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-property-type-changed",
+      "location": "GET /v1/evidence/search searchEvidence",
+      "detail": "the `data` response's property `type` changed from `object` to `array<object>` for status `200`",
+      "fingerprint": "769a3fe210d0"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "GET /v1/artifacts/{id} getArtifact",
+      "detail": "removed the required property `data/schema_version` from the response with the `200` status",
+      "fingerprint": "09b5952696be"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "GET /v1/evidence/search searchEvidence",
+      "detail": "removed the required property `data/items` from the response with the `200` status",
+      "fingerprint": "4fc0a6081fb7"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "GET /v1/products listProducts",
+      "detail": "removed the required property `data/items/schema_version` from the response with the `200` status",
+      "fingerprint": "347e72b8f37b"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "GET /v1/products/{id} getProduct",
+      "detail": "removed the required property `data/schema_version` from the response with the `200` status",
+      "fingerprint": "a0b0383c2a8f"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "GET /v1/projects/{id} getProject",
+      "detail": "removed the required property `data/slug` from the response with the `200` status",
+      "fingerprint": "18c306289060"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "GET /v1/projects/{id} getProject",
+      "detail": "removed the required property `data/schema_version` from the response with the `200` status",
+      "fingerprint": "b0bc004cc3f6"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "GET /v1/releases/{id} getRelease",
+      "detail": "removed the required property `data/schema_version` from the response with the `200` status",
+      "fingerprint": "3f8c11ecda47"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "GET /v1/releases/{id} getRelease",
+      "detail": "removed the required property `data/status` from the response with the `200` status",
+      "fingerprint": "5da3d91c0a0e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/artifacts registerArtifact",
+      "detail": "removed the required property `data/schema_version` from the response with the `201` status",
+      "fingerprint": "ef59c907aa3a"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/products createProduct",
+      "detail": "removed the required property `data/schema_version` from the response with the `201` status",
+      "fingerprint": "b3065fecba54"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/projects createProject",
+      "detail": "removed the required property `data/slug` from the response with the `201` status",
+      "fingerprint": "7650e2f258d4"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/projects createProject",
+      "detail": "removed the required property `data/schema_version` from the response with the `201` status",
+      "fingerprint": "81bb7e005e9d"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/releases createRelease",
+      "detail": "removed the required property `data/status` from the response with the `201` status",
+      "fingerprint": "4e07864205af"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/releases createRelease",
+      "detail": "removed the required property `data/schema_version` from the response with the `201` status",
+      "fingerprint": "c90ce3ec2c9e"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/releases/{id}/approve approveRelease",
+      "detail": "removed the required property `data/schema_version` from the response with the `200` status",
+      "fingerprint": "03a0c9ab78f8"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/releases/{id}/approve approveRelease",
+      "detail": "removed the required property `data/status` from the response with the `200` status",
+      "fingerprint": "914dce203677"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/releases/{id}/freeze freezeRelease",
+      "detail": "removed the required property `data/status` from the response with the `200` status",
+      "fingerprint": "57bef8254de0"
+    },
+    {
+      "source": "oasdiff",
+      "rule": "response-required-property-removed",
+      "location": "POST /v1/releases/{id}/freeze freezeRelease",
+      "detail": "removed the required property `data/schema_version` from the response with the `200` status",
+      "fingerprint": "cf14921a2f06"
+    }
+  ]
+}

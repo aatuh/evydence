@@ -233,12 +233,11 @@ entry are reviewed and committed together.
 On 2026-10-11, comparison of the current contract against this same published
 baseline selects 205 changes, with normalized change-set digest
 `c46ba2dc78fab6fbcd3b5a3a5366815589fbfa694fbc05ba364a2435cc961a94`.
-The existing 133/135-change exceptions do not authorize this newer set, and no
-new exception has been recorded. The additional selected changes include
-non-empty input bounds, enum restrictions, required transition reasons,
-questionnaire-list bounds, catalog response-field declarations and the
-evidence-flow idempotency contract. Compatibility remains a merge/release
-review gap even when local production validation passes.
+The 135 previously reviewed entries are an unchanged subset; exactly 70
+entries were added. The repository-controlled EVY-1002 record below authorizes
+only this complete, baseline-bound set. The earlier 133/135-change exceptions
+remain unchanged for their historical inputs. No wildcard exception, new
+baseline, stable-release approval, or external review is implied.
 
 The migration impact is already reflected in the Unreleased changelog: clients
 must use the current documented request fields and response envelopes, send
@@ -265,6 +264,45 @@ than sending null, and expect one transaction for all supplied components.
 These contracts are documented under
 [provider source snapshots](../api.md#provider-source-snapshots). No stored
 schema migration is required, and historical source rows remain unchanged.
+
+### EVY-1002 Prerelease Contract Reconciliation
+
+The [normalized review snapshot](openapi-compatibility-reviews/evy-1002.json)
+records all 205 selected entries and the fingerprints of the 70 additions
+reviewed against source `75b7f084`. A regression verifies the preceding
+135-entry digest and rejects added, removed, modified, foreign-baseline, and
+stable-channel change sets. The real compatibility gate independently compares
+the current generated OpenAPI with the unchanged published baseline.
+
+| Additional changes | Count | Disposition and client migration |
+| --- | ---: | --- |
+| Non-empty request strings and signing-key path ID | 49 | Match current validators. Supply nonblank names, IDs, reasons and required citation items; omit optional fields instead of supplying null. Continue observing the endpoint's documented byte/count budgets. |
+| Newly explicit request enums | 7 | Use the current supported subject/scope/provider types. Identity linking requires `verified: true`; that caller assertion is not external-provider verification proof. |
+| Unsupported security-upload enum aliases removed | 3 | Use `secret_scan`, `license_scan`, and `pen_test_report`, not `secret`, `license`, or `pentest_report`. These aliases were not supported by the parsers. |
+| Candidate promotion/rejection reason required | 2 | Supply a nonblank `reason` and the current strong `If-Match` revision. Both handlers already rejected an absent/blank reason. |
+| Questionnaire template minimum question count | 1 | Supply at least one question with nonblank, unique trimmed IDs and nonblank prompts. Empty templates are rejected by normalization. |
+| Inaccurate catalog response declarations removed | 7 | Regenerate clients without Product/Project `schema_version` or Project `slug`. These fields were already absent in the published release's runtime models and current HTTP responses; no wire field or historical row is removed by this correction. |
+| Read-only evidence-flow idempotency metadata | 1 | `POST /v1/releases/{id}/evidence-flow/start` reads a current workflow plan, creates no evidence, and does not require `Idempotency-Key`. Do not rely on a stored mutation replay for this query. |
+
+Evidence comes from the focused HTTP/application suites, including
+`product_schema_contract_test.go`, `project_schema_contract_test.go`,
+`security_document_contract_test.go`, `candidate_transition_schema_test.go`,
+`questionnaire_template_commands_test.go`, `sso_identity_link_commands_test.go`,
+`retention_marker_commands_test.go`, and the evidence-flow contract/query tests
+under `internal/adapters/httpapi/`. The catalog comparison also inspected
+`internal/domain/domain.go` in published source
+`2f759100e723554e4e68e3ada712c923e391a17a`. Subject/provider enums and non-empty
+rules were checked against the focused application normalizers, not inferred
+only from documentation.
+
+Before writing to an Unreleased build, regenerate clients from its OpenAPI and
+apply these request/response migrations. No database migration, immutable hash
+change, or historical rewrite is introduced by this reconciliation. Only the
+normalized entries in the snapshot are authorized: transport or authorization
+restrictions outside that set, including those discussed in other Unreleased
+notes, are not blanket-approved. The record is local engineering review, not
+maintainer-independent approval, a published release, or proof of compatibility
+for an arbitrary existing client. Required production/CI checks still apply.
 
 ## Unreleased Product Schema Correction
 
