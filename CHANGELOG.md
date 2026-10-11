@@ -13,6 +13,14 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Constrained collector attribution on generic evidence and build creation,
+including completed replay. Caller-supplied collector identity must match the
+authenticated binding; conflicting, malformed or unbound claims now return
+generic `403` before writes. Unrelated metadata, valid bound credentials,
+schema/hash formats and historical rows are unchanged. See the
+[unreleased collector attribution boundary](docs/reference/api-versioning.md#unreleased-collector-attribution-boundary)
+for client migration and compatibility limits. EVY-1002 remains incomplete.
+
 Completed EVY-906's production Ledger retirement and required local validation
 on 2026-10-10 for source commit `3c2f1037`. Architecture, full unit/race, live
 PostgreSQL/MinIO, migration compatibility, black-box restart/release-style

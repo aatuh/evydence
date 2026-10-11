@@ -83,6 +83,9 @@ func (s *BuildCommands) AuthorizeBuildCreation(ctx context.Context, a identitydo
 	if err != nil {
 		return err
 	}
+	if err := authz.CheckCollectorAttribution(ctx, a, "", b.SourceIdentity); err != nil {
+		return err
+	}
 	return s.transactions.ExecuteBuild(ctx, func(ctx context.Context, tx BuildTransaction) error {
 		return authorizeBuildCreationScope(ctx, tx, a, b)
 	})

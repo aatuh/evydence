@@ -129,6 +129,9 @@ func (c *EvidenceCreationCommands) AuthorizeEvidenceCreation(ctx context.Context
 	if err != nil {
 		return err
 	}
+	if err := authz.CheckCollectorAttribution(ctx, a, in.CollectorID, in.SourceIdentity); err != nil {
+		return err
+	}
 	scope := EvidenceScope{ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID, BuildID: in.BuildID, DeploymentID: in.DeploymentID}
 	return c.transactions.ExecuteEvidenceCreation(ctx, func(ctx context.Context, tx EvidenceCreationTransaction) error {
 		guard, ok := tx.(EvidenceCreationGuardTransaction)

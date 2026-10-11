@@ -119,6 +119,9 @@ func (s *evidencePreparer) prepareEvidenceForAction(ctx context.Context, actor i
 	if err := s.authorize(ctx, actor, authorizationAction, application.ResourceReferences{}, true); err != nil {
 		return preparedEvidence{}, err
 	}
+	if err := authz.CheckCollectorAttribution(ctx, actor, input.CollectorID, input.SourceIdentity); err != nil {
+		return preparedEvidence{}, err
+	}
 	input.ProductID = strings.TrimSpace(input.ProductID)
 	input.ProjectID = strings.TrimSpace(input.ProjectID)
 	input.ReleaseID = strings.TrimSpace(input.ReleaseID)

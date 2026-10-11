@@ -488,13 +488,18 @@ The guard does not read historical evidence/private parent metadata, inspect
 payloads, hash evidence, or allocate clocks/IDs. Changed original request bytes
 under the same key conflict; identical retries add no effects.
 
+[Collector attribution](#collector-attribution) must match the authenticated
+binding before fresh creation or completed replay; conflicting or unbound
+claims return `403` instead of being silently overwritten or recorded.
+
 Both profiles reject explicit null fields/items, duplicate/unknown fields,
 case aliases, invalid UTF-8 and NUL text. Raw parent/collector and subject IDs
 are limited to 1024 bytes before trimming; at most 1024 supplied subjects, tags
 or limitations are accepted. The existing 64 KiB body, 16 KiB-per-JSON-string,
 32-level nesting, 256-key object and 1024-item array limits remain. Source
 identity and metadata must be JSON-shaped objects; nested null values remain
-valid, unlike a null object field. `observed_at` is optional and defaults to
+valid except for the reserved `source_identity.collector_id` identity claim,
+unlike a null object field. `observed_at` is optional and defaults to
 command time; a supplied UTC-normalized timestamp must use years 1 through
 9999. New durable timestamps use UTC microsecond precision. Cookie writes
 require same-host HTTPS `Origin`; explicit Bearer authentication takes precedence.
@@ -507,8 +512,8 @@ Fresh responses retain supplied opaque payload references; the existing safe
 replay projection omits them. This route records metadata, not uploaded bytes or
 verified provenance, and its result remains `pending`. Internal staged-payload
 metadata/finalization jobs still commit atomically with evidence and audit;
-this HTTP route cannot submit the internal staging capability. Local memory
-retains explicit nondurable storage and current-map guards.
+this HTTP route cannot submit the internal staging capability. Local API
+evaluation also requires PostgreSQL; there is no local-memory API profile.
 
 Tests: `internal/platform/wiring/evidence_creation_native_test.go`,
 `internal/platform/wiring/evidence_creation_commands_test.go`,
@@ -1845,12 +1850,14 @@ are nonnegative. Submitted timestamps and their UTC representation must be
 within years 1 through 9999. Invalid input is rejected before ownership reads
 or writes, without exposing database errors.
 
-Collector attribution comes from the authenticated key. Submitted CI and OIDC
+Collector attribution comes from the authenticated key;
+[`provider_metadata.collector_id`](#collector-attribution), if supplied, must
+match that binding before fresh creation or completed replay. Submitted CI and OIDC
 identity remains unverified metadata; it cannot set `oidc_verified` to `true`
 or override derived source fields. No provider call or signature verification
 is performed. Cookie-authenticated mutations require same-host HTTPS Origin;
-Bearer authentication takes precedence. Local memory uses current map-based
-ownership guards and remains nondurable. See the
+Bearer authentication takes precedence. Local API evaluation also requires
+PostgreSQL. See the
 [unreleased compatibility boundary](reference/api-versioning.md#unreleased-build-creation-boundary).
 
 ### Build Attestation Upload
@@ -2054,6 +2061,26 @@ parts to 2304 bytes (`tenant + name`, or
 `tenant + provider + name + version`). Oversized direct inputs fail before
 storage. New timestamps use UTC microseconds. See the
 [unreleased compatibility note](reference/api-versioning.md#unreleased-collector-write-boundary).
+
+### Collector Attribution
+
+For `POST /v1/evidence` and `POST /v1/builds`, collector identity comes from the
+authenticated tenant/API-key binding, never from a caller-selected collector.
+Omit generic evidence's top-level `collector_id` or leave it empty to use that
+binding. A nonempty value must match it exactly. If
+`source_identity.collector_id` (evidence) or `provider_metadata.collector_id`
+(build) is present, it must be a nonempty string with the same exact identity.
+Conflicting or padded IDs, and null/non-string reserved metadata claims,
+return a generic `403` before
+parent lookups, writes, idempotency reservation, or completed replay. Ordinary
+API keys and human sessions, including tenant admins, must omit collector
+identity claims; unrelated metadata remains recorded and unverified.
+
+The binding covers tenant, API key, active status, and declared scopes. It does
+not add product-specific collector grants or replace the action/resource
+ownership checks. Stored historical evidence/builds and imports are not
+rewritten. See the
+[unreleased compatibility boundary](reference/api-versioning.md#unreleased-collector-attribution-boundary).
 
 ### Source Repository Creation
 

@@ -364,6 +364,29 @@ is required. See [collector writes](../api.md#collector-writes) for bounds.
 This note does not approve outstanding compatibility exceptions or claim a
 release; the exact compatibility gate still applies before EVY-905 closure.
 
+## Unreleased Collector Attribution Boundary
+
+Generic evidence creation and build creation now constrain supplied collector
+claims through the central authorization policy. A nonempty evidence
+`collector_id` must exactly match the authenticated collector binding. A
+supplied `source_identity.collector_id` or `provider_metadata.collector_id`
+must be a nonempty string with that same identity. Unbound API keys and human
+sessions cannot assert a collector, even with tenant-admin or wildcard scopes.
+Conflicting or padded IDs, and null/non-string reserved metadata claims,
+return generic `403` before
+parent reads, writes, reservation, or completed replay; they are no longer
+silently overwritten or retained as contradictory immutable metadata.
+
+Clients should omit these claims or send their exact bound identity; a changed
+request needs a new idempotency key. Unrelated metadata, correctly bound
+credentials, route/DTO/schema versions, request-byte fingerprints, and hash
+formats are unchanged. Historical rows and separate import verification paths
+are not rewritten. No product-specific collector ACL model is introduced and
+recorded provider/CI claims remain unverified. This prerelease restriction
+requires release compatibility review; it is not an approved baseline
+exception or a public-release/security/compliance claim. See
+[collector attribution](../api.md#collector-attribution).
+
 ## Unreleased API Key Write Boundary
 
 PostgreSQL `POST /v1/api-keys` now uses a focused Identity command and durable

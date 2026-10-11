@@ -81,6 +81,9 @@ func (s *BuildCommands) CreateBuildRun(ctx context.Context, actor identitydomain
 	if err != nil {
 		return releasedomain.BuildRun{}, err
 	}
+	if err := authz.CheckCollectorAttribution(ctx, actor, "", build.SourceIdentity); err != nil {
+		return releasedomain.BuildRun{}, err
+	}
 	project, err := s.reader.GetProject(ctx, actor.TenantID, build.ProjectID)
 	if err != nil {
 		return releasedomain.BuildRun{}, err

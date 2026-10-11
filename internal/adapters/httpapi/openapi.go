@@ -1947,7 +1947,7 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"finished_at":       map[string]any{"type": "string", "format": "date-time"},
 		"parameters_hash":   map[string]any{"type": "string"},
 		"environment_hash":  map[string]any{"type": "string"},
-		"provider_metadata": map[string]any{"type": "object"},
+		"provider_metadata": map[string]any{"type": "object", "description": "Unverified CI metadata. If collector_id is present, it must be a nonempty string exactly matching the authenticated collector binding; unbound or conflicting claims return 403 before writes or completed replay."},
 		"outputs":           map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/BuildOutput"}},
 	}, "project_id", "release_id", "provider", "commit_sha", "status", "started_at")
 	createBuildRequest["description"] = "Strict JSON accepts only exact declared field names, without unknown/duplicate fields, case aliases, explicit null fields or null output items. Scalar text must be NUL-free UTF-8. Before trimming, project/release/output-artifact IDs are bounded at 1024 bytes, other text at 64 KiB, and output digests at 128 bytes. Provider metadata must be JSON-serializable, NUL-free in keys and string values, and at most 64 KiB encoded; outputs are limited to 4096. The whole HTTP body is capped at 64 KiB including syntax/escapes. Run attempts must be nonnegative; timestamps must be representable in years 1 through 9999 both as submitted and in UTC. Commit SHA is 40 hexadecimal characters; nonempty hashes and output digests use SHA-256. GitHub Actions requires repository, workflow_ref, run_id and positive run_attempt; GitLab CI requires repository and run_id. Invalid input returns 400 before ownership reads or writes. Submitted CI identity is unverified metadata."
@@ -2593,8 +2593,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"subtype":            map[string]any{"type": "string"},
 		"title":              map[string]any{"type": "string"},
 		"source_system":      map[string]any{"type": "string"},
-		"source_identity":    map[string]any{"type": "object", "additionalProperties": true},
-		"collector_id":       map[string]any{"type": "string"},
+		"source_identity":    map[string]any{"type": "object", "additionalProperties": true, "description": "Recorded source claims, not verified provider provenance. If collector_id is present, it must be a nonempty string exactly matching the authenticated collector binding; unbound or conflicting claims return 403 before writes or completed replay."},
+		"collector_id":       map[string]any{"type": "string", "description": "Omit or leave empty to use the authenticated collector binding, if any. A nonempty claim must exactly match that binding; an ordinary API key or human session cannot assert a collector identity. Conflicting or unbound claims return 403."},
 		"observed_at":        map[string]any{"type": "string", "format": "date-time"},
 		"payload_ref":        map[string]any{"type": "string"},
 		"payload_hash":       map[string]any{"type": "string", "pattern": "^sha256:"},
