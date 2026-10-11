@@ -30,7 +30,7 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 	case ActionEnvironmentsRead, ActionDeploymentsRead, ActionVulnerabilityDecisionsRead,
 		ActionExceptionsRead, ActionControlEvidenceRead, ActionVulnerabilityDecisionSummaryRead,
 		ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionEvidenceRead, ActionSBOMComponentsRead,
-		ActionProductsRead, ActionReleaseCandidatesRead, ActionArtifactsRead, ActionSourceRepositoriesRead, ActionArtifactSignaturesRead:
+		ActionProductsRead, ActionReleaseCandidatesRead, ActionArtifactsRead, ActionSourceRepositoriesRead, ActionArtifactSignaturesRead, ActionReleaseReadinessReportRead:
 	default:
 		return Visibility{}, ErrForbidden
 	}

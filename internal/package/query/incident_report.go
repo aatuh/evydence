@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -52,11 +52,8 @@ func (s *IncidentReport) Report(ctx context.Context, actor identitydomain.Actor,
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return empty, application.ErrUnauthorized
-	}
-	if !actor.HasScope("incident:read") && !actor.HasScope("admin") {
-		return empty, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionIncidentReportRead, Evaluation: authz.ScopeEvaluation}); err != nil {
+		return empty, err
 	}
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -66,12 +63,15 @@ func (s *IncidentReport) Report(ctx context.Context, actor identitydomain.Actor,
 	if err != nil {
 		return empty, err
 	}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
 	incident := snapshot.Incident
 	if incident.ID != id || incident.TenantID != actor.TenantID || incident.ProductID == "" || incident.Status.IsZero() {
 		return empty, ErrIncidentReportNotFound
 	}
-	if !incidentReportAllowed(actor, incident.ProductID, incident.ReleaseID) {
-		return empty, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionIncidentReportRead, Resources: authz.ResourceReferences{ProductID: incident.ProductID, ReleaseID: incident.ReleaseID}}); err != nil {
+		return empty, err
 	}
 	timeline := make([]packagedomain.IncidentTimelineEventSnapshot, 0, len(snapshot.Timeline))
 	tasks := make([]packagedomain.RemediationTaskSnapshot, 0, len(snapshot.Tasks))
@@ -128,37 +128,4 @@ func (s *IncidentReport) Report(ctx context.Context, actor identitydomain.Actor,
 		Limitations:    []string{"This report organizes incident evidence and does not prove root cause completeness or remediation sufficiency."},
 		GeneratedAt:    s.now(),
 	}, nil
-}
-
-func incidentReportAllowed(actor identitydomain.Actor, productID, releaseID string) bool {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true
-	}
-	for _, grant := range actor.ResourceGrants {
-		allowedScope := false
-		for _, scope := range grant.Scopes {
-			if scope == "incident:read" || scope == "admin" || scope == "*" {
-				allowedScope = true
-				break
-			}
-		}
-		if !allowedScope {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true
-			}
-		case "product":
-			if grant.ResourceID == productID {
-				return true
-			}
-		case "release":
-			if releaseID != "" && grant.ResourceID == releaseID {
-				return true
-			}
-		}
-	}
-	return false
 }

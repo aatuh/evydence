@@ -1190,6 +1190,21 @@ returning artifact metadata. Digest/projection validation and safe foreign
 misses are unchanged. Release queries no longer contain local actor-scope or
 resource-grant predicates. Broader service contracts remain to migrate.
 
+Package report queries now select registered actions for release vulnerability
+posture, control coverage, CRA readiness, CRA vulnerability handling, release
+readiness, security-update evidence, and incident reports. Central policy
+preserves their existing capabilities and tenant/product/release grants; project
+and direct customer-package grants do not imply report authority. Tenant-wide
+posture and coverage still require tenant authority. Release-readiness admission
+uses central product/release visibility for its tenant-bound parent lookup and
+rechecks the resolved parent before returning data. All seven report operations
+reject cancellation after a successful reader return, and explicit-product
+reports recheck current actor grants after the read as well as before it.
+Report schemas, bounded projections, privacy exclusions, canonical rendering,
+and safe ownership misses remain unchanged. Package command authorizers and
+their shared legacy grant helpers remain separate migration work; these query
+policies do not claim to complete that work.
+
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete
 route-to-action positive/negative coverage matrix still need migration and validation.

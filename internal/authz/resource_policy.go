@@ -34,6 +34,8 @@ func authorizeResource(actor identitydomain.Actor, scope string, request Request
 
 func allowsTenantResourceEvaluation(action Action) bool {
 	switch action {
+	case ActionControlCoverageReportRead:
+		return true
 	case ActionEvidenceVerify, ActionDSSEVerify, ActionAuditChainVerify, ActionMerkleBatchVerify,
 		ActionMerkleCheckpointVerify, ActionReleaseManifestCheckpointVerify, ActionBackupManifestVerify, ActionArtifactSignaturesRead:
 		return true
@@ -57,6 +59,12 @@ func allowsTenantResourceEvaluation(action Action) bool {
 
 func validResourceReferences(action Action, refs ResourceReferences) bool {
 	switch action {
+	case ActionReleaseVulnerabilityPostureRead, ActionCRAVulnerabilityHandlingRead, ActionReleaseReadinessReportRead, ActionSecurityUpdateEvidenceRead:
+		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case ActionControlCoverageReportRead:
+		return refs == (ResourceReferences{}) || refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case ActionCRAReadinessReportRead, ActionIncidentReportRead:
+		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
 	case ActionEvidenceVerify, ActionDSSEVerify:
 		return refs != (ResourceReferences{}) && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID})
 	case ActionReleaseBundleVerify:

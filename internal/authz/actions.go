@@ -116,6 +116,18 @@ const (
 	ActionArtifactSignaturesRead          Action = "artifact_signatures.read"
 )
 
+// Package report actions retain each report's credential capability while
+// evaluating only its current tenant/product/release ownership coordinates.
+const (
+	ActionReleaseVulnerabilityPostureRead Action = "release_vulnerability_posture.read"
+	ActionControlCoverageReportRead       Action = "control_coverage_report.read"
+	ActionCRAReadinessReportRead          Action = "cra_readiness_report.read"
+	ActionCRAVulnerabilityHandlingRead    Action = "cra_vulnerability_handling.read"
+	ActionReleaseReadinessReportRead      Action = "release_readiness_report.read"
+	ActionSecurityUpdateEvidenceRead      Action = "security_update_evidence.read"
+	ActionIncidentReportRead              Action = "incident_report.read"
+)
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -136,6 +148,14 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionReleaseVulnerabilityPostureRead:
+		return Definition{Scope: "security:read", Boundary: ResourceBoundary}, true
+	case ActionControlCoverageReportRead, ActionCRAReadinessReportRead, ActionCRAVulnerabilityHandlingRead, ActionSecurityUpdateEvidenceRead:
+		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
+	case ActionReleaseReadinessReportRead:
+		return Definition{Scope: "verify:read", Boundary: ResourceBoundary}, true
+	case ActionIncidentReportRead:
+		return Definition{Scope: "incident:read", Boundary: ResourceBoundary}, true
 	case ActionEvidenceVerify, ActionDSSEVerify, ActionAuditChainVerify, ActionMerkleBatchVerify, ActionMerkleCheckpointVerify,
 		ActionReleaseManifestCheckpointVerify, ActionBackupManifestVerify, ActionReleaseBundleVerify, ActionCosignVerify,
 		ActionArtifactSignatureVerify, ActionSubjectVerificationDispatch:

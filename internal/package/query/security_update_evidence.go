@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -57,25 +57,29 @@ func (s *SecurityUpdateEvidence) Report(ctx context.Context, actor identitydomai
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return empty, application.ErrUnauthorized
-	}
-	if !actor.HasScope("report:read") && !actor.HasScope("admin") {
-		return empty, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionSecurityUpdateEvidenceRead, Evaluation: authz.ScopeEvaluation}); err != nil {
+		return empty, err
 	}
 	productID, releaseID = strings.TrimSpace(productID), strings.TrimSpace(releaseID)
 	if productID == "" || releaseID == "" {
 		return empty, ErrSecurityUpdateValidation
 	}
-	if !releaseReportAllowed(actor, productID, releaseID) {
-		return empty, application.ErrForbidden
+	request := authz.Request{Action: authz.ActionSecurityUpdateEvidenceRead, Resources: authz.ResourceReferences{ProductID: productID, ReleaseID: releaseID}}
+	if err := authz.Authorize(ctx, actor, request); err != nil {
+		return empty, err
 	}
 	snapshot, err := s.reader.ReadSecurityUpdateSnapshot(ctx, actor.TenantID, productID, releaseID)
 	if err != nil {
 		return empty, err
 	}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
 	if snapshot.TenantID != actor.TenantID || snapshot.ProductID != productID || snapshot.ReleaseID != releaseID {
 		return empty, ErrSecurityUpdateNotFound
+	}
+	if err := authz.Authorize(ctx, actor, request); err != nil {
+		return empty, err
 	}
 	if len(snapshot.ScanEvidenceIDs)+len(snapshot.Decisions)+len(snapshot.Incidents)+len(snapshot.Tasks) > MaxSecurityUpdateEntries {
 		return empty, ErrSecurityUpdateCapacity

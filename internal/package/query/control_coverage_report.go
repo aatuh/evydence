@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -59,6 +58,10 @@ func NewControlCoverageReport(reader ControlCoverageReader, now func() time.Time
 }
 
 func (s *ControlCoverageReport) Coverage(ctx context.Context, actor identitydomain.Actor, filter ControlCoverageFilter) (packagedomain.ControlCoverageReport, error) {
+	return s.coverage(ctx, actor, filter, authz.ActionControlCoverageReportRead)
+}
+
+func (s *ControlCoverageReport) coverage(ctx context.Context, actor identitydomain.Actor, filter ControlCoverageFilter, action authz.Action) (packagedomain.ControlCoverageReport, error) {
 	var empty packagedomain.ControlCoverageReport
 	if s == nil || ctx == nil {
 		return empty, ErrControlCoverageValidation
@@ -66,25 +69,27 @@ func (s *ControlCoverageReport) Coverage(ctx context.Context, actor identitydoma
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return empty, application.ErrUnauthorized
-	}
-	if !actor.HasScope("report:read") && !actor.HasScope("admin") {
-		return empty, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: action, Evaluation: authz.ScopeEvaluation}); err != nil {
+		return empty, err
 	}
 	filter.FrameworkID = strings.TrimSpace(filter.FrameworkID)
 	filter.ProductID = strings.TrimSpace(filter.ProductID)
 	filter.ReleaseID = strings.TrimSpace(filter.ReleaseID)
 	if filter.ProductID == "" && filter.ReleaseID == "" {
-		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionControlCoverageRead}); err != nil {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: action, Evaluation: authz.TenantEvaluation}); err != nil {
 			return empty, err
 		}
-	} else if filter.ProductID != "" && !releaseReportAllowed(actor, filter.ProductID, filter.ReleaseID) {
-		return empty, application.ErrForbidden
+	} else if filter.ProductID != "" {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: action, Resources: authz.ResourceReferences{ProductID: filter.ProductID, ReleaseID: filter.ReleaseID}}); err != nil {
+			return empty, err
+		}
 	}
 	now := s.now()
 	snapshot, err := s.reader.ReadControlCoverageSnapshot(ctx, actor.TenantID, filter.FrameworkID, filter.ProductID, filter.ReleaseID, now)
 	if err != nil {
+		return empty, err
+	}
+	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
 	if snapshot.TenantID != actor.TenantID || snapshot.FrameworkID == "" ||
@@ -95,8 +100,12 @@ func (s *ControlCoverageReport) Coverage(ctx context.Context, actor identitydoma
 		filter.ReleaseID != "" && snapshot.ScopeProductID == "" {
 		return empty, ErrControlCoverageNotFound
 	}
-	if !releaseReportAllowed(actor, snapshot.ScopeProductID, filter.ReleaseID) {
-		return empty, application.ErrForbidden
+	request := authz.Request{Action: action, Resources: authz.ResourceReferences{ProductID: snapshot.ScopeProductID, ReleaseID: filter.ReleaseID}}
+	if request.Resources == (authz.ResourceReferences{}) {
+		request.Evaluation = authz.TenantEvaluation
+	}
+	if err := authz.Authorize(ctx, actor, request); err != nil {
+		return empty, err
 	}
 	if len(snapshot.Controls)+len(snapshot.Links)+len(snapshot.Exceptions) > MaxControlCoverageEntries {
 		return empty, ErrControlCoverageCapacity
@@ -119,7 +128,7 @@ func (s *ControlCoverageReport) CRAReadiness(ctx context.Context, actor identity
 	if strings.TrimSpace(productID) == "" {
 		return packagedomain.CRAReadinessReport{}, ErrControlCoverageValidation
 	}
-	coverage, err := s.Coverage(ctx, actor, ControlCoverageFilter{ProductID: productID, ReleaseID: releaseID})
+	coverage, err := s.coverage(ctx, actor, ControlCoverageFilter{ProductID: productID, ReleaseID: releaseID}, authz.ActionCRAReadinessReportRead)
 	if err != nil {
 		return packagedomain.CRAReadinessReport{}, err
 	}

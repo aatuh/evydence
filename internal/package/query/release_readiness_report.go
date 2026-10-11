@@ -3,10 +3,12 @@ package query
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -55,25 +57,17 @@ func (s *ReleaseReadinessReport) Report(ctx context.Context, actor identitydomai
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if actor.TenantID == "" || actor.UserID == "" && actor.KeyID == "" && actor.CollectorID == "" {
-		return empty, application.ErrUnauthorized
-	}
-	if !actor.HasScope("verify:read") && !actor.HasScope("admin") {
-		return empty, application.ErrForbidden
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionReleaseReadinessReportRead)
+	if err != nil {
+		return empty, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
 	if releaseID == "" {
 		return empty, ErrReleaseReadinessValidation
 	}
-	mayRead := releaseScopeAllowed(actor, "verify:read", "", releaseID)
-	// A product grant needs one scoped lookup to resolve the current parent.
-	for _, grant := range actor.ResourceGrants {
-		if grant.ResourceType == "product" && grant.ResourceID != "" && releaseScopeAllowed(actor, "verify:read", grant.ResourceID, releaseID) {
-			mayRead = true
-			break
-		}
-	}
-	if !mayRead {
+	// A product grant permits one tenant-scoped lookup to resolve the current
+	// parent, not permission to return a report for an unrelated product.
+	if !visibility.TenantWide && len(visibility.ProductIDs) == 0 && !slices.Contains(visibility.ReleaseIDs, releaseID) {
 		return empty, application.ErrForbidden
 	}
 	now := s.now().UTC()
@@ -84,12 +78,15 @@ func (s *ReleaseReadinessReport) Report(ctx context.Context, actor identitydomai
 	if err != nil {
 		return empty, err
 	}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
 	facts := snapshot.Readiness
 	if facts.TenantID != actor.TenantID || facts.ReleaseID != releaseID || strings.TrimSpace(facts.ProductID) == "" {
 		return empty, ErrReleaseReadinessProjection
 	}
-	if !releaseScopeAllowed(actor, "verify:read", facts.ProductID, releaseID) {
-		return empty, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionReleaseReadinessReportRead, Resources: authz.ResourceReferences{ProductID: facts.ProductID, ReleaseID: releaseID}}); err != nil {
+		return empty, err
 	}
 	entries := len(snapshot.BlockingFindings) + len(snapshot.AcceptedExceptions) + len(facts.MissingCustomerStatementIDs) + len(facts.MissingNotAffectedReasonIDs) + len(facts.IncompleteExceptionIDs) + len(facts.InvalidPackageOrProfileIDs)
 	if entries > MaxReleaseReadinessEntries || snapshot.ActiveDecisionCount < 0 {
