@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/aatuh/api-toolkit/v3/routecontracts"
@@ -18,6 +19,13 @@ type routeDef struct {
 
 func (s *Server) registerRoutes() error {
 	for _, route := range s.routeDefinitions() {
+		policy, ok := authorizationPolicyForOperation(route.op.OperationID)
+		if !ok {
+			return errors.New("route lacks authorization policy contract")
+		}
+		if err := validateRouteAuthorizationPolicy(route.op, policy); err != nil {
+			return err
+		}
 		if err := s.routes.Register(routecontracts.Route{Method: route.method, Pattern: route.path, Handler: route.handler, Operation: route.op}); err != nil {
 			return err
 		}
@@ -44,6 +52,7 @@ func (s *Server) routeDefinitions() []routeDef {
 		routes = append(routes, group...)
 	}
 	for index := range routes {
+		routes[index].op = withRouteAuthorizationPolicy(routes[index].op)
 		routes[index].op.Extensions = withBoundedContextOperationOwner(
 			routes[index].op.OperationID,
 			routes[index].op.Extensions,

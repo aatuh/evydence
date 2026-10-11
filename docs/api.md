@@ -794,6 +794,18 @@ write semantics. PostgreSQL is required for local evaluation.
 
 API keys and collector keys are tenant-scoped bearer secrets. Human SSO session actors derive scopes from role bindings and enforce resource constraints where those resources are part of the request.
 
+Every generated operation includes `x-evydence-authorization`: its authentication
+`mode`, central policy `actions` where applicable, and `tenant_rule`. Authenticated
+principal routes retain the published bearer scheme and may also accept the
+documented SSO cookie flow. Public probes, signed webhooks, verified SSO
+credential exchange, and package-token routes declare their distinct boundaries
+instead of implying bearer authority. Instance operations require explicit
+instance capability; static catalogs and self-session logout have separate rules.
+The registry rejects missing or inconsistent contracts at startup. This
+inventory describes required policy; it is not evidence that every route's
+positive/negative authorization cases have been executed. That coverage remains
+part of EVY-1002 validation.
+
 Important scope boundaries:
 
 | Boundary | Behavior |
@@ -809,8 +821,9 @@ Important scope boundaries:
 It requires `admin`, an `Idempotency-Key`, and a current tenant-wide grant for
 human sessions. A tenant wildcard does not permit delegating `instance:admin`;
 that scope requires explicit instance authority. Current authority is checked
-before reservation and replay. Explicit local-memory mode retains its Ledger
-path; credential issuance does not load key or tenant inventories in PostgreSQL.
+before reservation and replay. Credential issuance does not load key or tenant
+inventories. Local API evaluation requires PostgreSQL; the former local-memory
+API profile is retired.
 
 The API key, audit event, and replay completion commit atomically. Keys use the
 same random `evy_` secret, twelve-character public prefix, configured pepper,

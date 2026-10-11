@@ -1316,6 +1316,18 @@ Collector product/resource ownership remains the existing tenant-scoped
 application/repository boundary, not a new product ACL model. The compatibility
 limits are recorded in [API versioning](../reference/api-versioning.md#unreleased-collector-write-boundary).
 
+All 189 registered API operations now declare an explicit authorization
+contract in generated OpenAPI under `x-evydence-authorization`. The closed
+operation inventory records action IDs and tenant/instance/static-catalog/
+self-session boundaries, including conditional metrics and subject dispatch.
+Public probes, signed incident receivers, SSO credential exchange, and package
+tokens declare separate trust modes. Registration rejects missing contracts,
+unknown actions, altered boundaries, authentication-scheme or scope drift;
+mutations and generated-document round trips are covered by scoped tests.
+This inventory does not grant authority or prove the handler's positive and
+negative authorization behavior. The complete behavioral route matrix and
+public/token policy centralization remain outstanding.
+
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 public/token-consumption boundaries, collector provenance constraints, and the complete
 route-to-action positive/negative coverage matrix still need migration and validation.
