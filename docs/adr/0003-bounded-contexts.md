@@ -1325,8 +1325,11 @@ tokens declare separate trust modes. Registration rejects missing contracts,
 unknown actions, altered boundaries, authentication-scheme or scope drift;
 mutations and generated-document round trips are covered by scoped tests.
 This inventory does not grant authority or prove the handler's positive and
-negative authorization behavior. The complete behavioral route matrix and
-remaining public boundary policies are still outstanding.
+negative authorization behavior. Executable behavior is covered separately by
+`TestRouteAuthorizationBehaviorMatrix` and
+`TestRouteAuthorizationBehaviorCoverage` in
+`internal/adapters/httpapi/route_authorization_behavior_matrix_test.go`.
+The completeness check rejects missing and unregistered operation scenarios.
 
 Portal token consumption now uses concrete central read/download actions over
 current tenant/product/release/package coordinates, credential/package lifetime
@@ -1366,10 +1369,24 @@ signed HTTP fixtures cover nonpassing proof, isolation, cookie attributes,
 repeat issuance, denial-only receipts and lifetime/cancellation. This is not
 live-provider, token single-use, current SQL locking or final-gate evidence.
 
-This is partial EVY-1002 implementation. Broader caller-provenance proof and the
-complete route-to-action positive/negative coverage matrix still need validation.
-These scoped policy checks are not ticket closure, full production-gate,
-hosted CI, or external-provider evidence.
+The complete 189-operation matrix exercises real focused application policy
+over typed memory repositories. Authenticated scenarios use explicit synthetic
+principals with the operation's documented capability; they assert allowed
+results and persisted effects, denied/no-credential requests, foreign ownership,
+and unchanged state on denial where applicable. Tenant wildcard authority does
+not grant instance administration. Public token, signed-receiver, and SSO
+scenarios reuse their dedicated token/cryptographic fixtures. Collector
+attribution is bound to the authenticated identity. Controlled object/provider
+I/O is not an alternative authorization implementation.
+
+This remains incomplete EVY-1002 validation. Memory transactions and controlled
+I/O do not prove SQL locking, durability, complete backup state commitments,
+provider identity, or provider custody. Focused live recovery checks cover the
+native backup fixtures separately; their policy delegates select typed artifact
+and backup actions rather than legacy scope-only or retention requests. The
+required full internal suite and production gate must pass before ticket
+closure. Neither committed tests nor scoped checks establish hosted CI,
+external-provider controls, or general production readiness.
 
 ### Migration and retirement sequence
 

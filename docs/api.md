@@ -813,9 +813,12 @@ signature boundary; API scopes cannot substitute for that authority.
 SSO credential exchange names `sso_credentials.exchange` on a verified-identity
 boundary, not bearer-admin authority.
 The registry rejects missing or inconsistent contracts at startup. This
-inventory describes required policy; it is not evidence that every route's
-positive/negative authorization cases have been executed. That coverage remains
-part of EVY-1002 validation.
+inventory describes required policy; it is not behavioral proof by itself.
+The separate `TestRouteAuthorizationBehaviorMatrix` and
+`TestRouteAuthorizationBehaviorCoverage` cover all 189 registered operations
+with native application-policy scenarios and reject gaps. Fixture limitations
+are documented in the [authorization policy boundary](adr/0003-bounded-contexts.md#authorization-policy).
+EVY-1002's required full validation remains pending.
 
 Important scope boundaries:
 
@@ -1235,7 +1238,8 @@ policy, issuance/denial, lifetime/cancellation and signed HTTP coverage live in
 `internal/authz/sso_exchange_policy_test.go`,
 `internal/identity/app/sso_exchange_policy_test.go`, and
 `internal/adapters/httpapi/sso_exchange_authorization_matrix_test.go`.
-EVY-1002's full route matrix and required final gates remain incomplete.
+This route participates in the complete authorization matrix; EVY-1002's
+required full-suite and production gates remain pending.
 
 #### Provider Identity Verification Receipts
 
@@ -2618,8 +2622,9 @@ not production configuration, SQL-locking or durability evidence. Scoped
 behavioral coverage for the four token routes and the data-free public form is
 in `internal/adapters/httpapi/portal_authorization_matrix_test.go`; policy,
 isolation and cancellation regressions are in `internal/authz/portal_policy_test.go`
-and `internal/package/app/portal_token_policy_test.go`. EVY-1002's complete
-route matrix and final required gates remain incomplete.
+and `internal/package/app/portal_token_policy_test.go`. These routes participate
+in the complete authorization matrix; EVY-1002's required full-suite and
+production gates remain pending.
 
 ### Built-in Policy Evaluation
 
