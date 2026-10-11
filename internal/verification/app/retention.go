@@ -256,11 +256,14 @@ func (s *Service) SigningCustodyReviewReport(ctx context.Context, actor identity
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.SigningCustodyReviewReport{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionSigningCustodyRead, application.ResourceReferences{}, false, true); err != nil {
 		return verificationdomain.SigningCustodyReviewReport{}, err
 	}
 	snapshot, err := s.integrity.ReadSigningCustodySnapshot(ctx, actor.TenantID)
 	if err != nil {
+		return verificationdomain.SigningCustodyReviewReport{}, err
+	}
+	if err := s.authorize(ctx, actor, authz.ActionSigningCustodyRead, application.ResourceReferences{}, false, true); err != nil {
 		return verificationdomain.SigningCustodyReviewReport{}, err
 	}
 	return BuildSigningCustodyReviewReport(snapshot, actor.TenantID, s.clock.Now().UTC())
@@ -328,7 +331,7 @@ func (s *Service) GenerateBackupManifest(ctx context.Context, actor identitydoma
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.BackupManifest{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeAdmin, application.ResourceReferences{}, false, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionBackupGenerate, application.ResourceReferences{}, false, true); err != nil {
 		return verificationdomain.BackupManifest{}, err
 	}
 	snapshot, err := s.integrity.ReadCommittedBackupSnapshot(ctx, actor.TenantID)

@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
@@ -12,6 +14,49 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationquery "github.com/aatuh/evydence/internal/verification/query"
 )
+
+func TestVerificationApplicationHasNoLocalActorPolicyOrScopeRequestFallback(t *testing.T) {
+	entries, err := os.ReadDir("../verification/app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || filepath.Ext(name) != ".go" || len(name) >= len("_test.go") && name[len(name)-len("_test.go"):] == "_test.go" {
+			continue
+		}
+		files++
+		file, err := parser.ParseFile(token.NewFileSet(), "../verification/app/"+name, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if selector, ok := node.(*ast.SelectorExpr); ok && (selector.Sel.Name == "HasScope" || selector.Sel.Name == "HasExplicitScope" || selector.Sel.Name == "ResourceGrants") {
+				t.Errorf("%s retains a local actor policy", name)
+			}
+			literal, ok := node.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			typ, ok := literal.Type.(*ast.SelectorExpr)
+			if !ok || typ.Sel.Name != "AuthorizationRequest" {
+				return true
+			}
+			for _, element := range literal.Elts {
+				if field, ok := element.(*ast.KeyValueExpr); ok {
+					if key, ok := field.Key.(*ast.Ident); ok && key.Name == "Scope" {
+						t.Errorf("%s retains a scope request fallback", name)
+					}
+				}
+			}
+			return true
+		})
+	}
+	if files == 0 {
+		t.Fatal("verification application source guard matched no files")
+	}
+}
 
 func TestVerificationDelegatesRequireTypedActionAndRejectSharedScopeSubstitution(t *testing.T) {
 	actor := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"verify:read"}}

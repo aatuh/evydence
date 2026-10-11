@@ -308,7 +308,7 @@ func TestVerifyCosignAuthorizesInspectsAndPersistsReceiptsAtomically(t *testing.
 }
 
 func TestVerifyCosignRejectsUnsafeModeAndInspectorResult(t *testing.T) {
-	base := CosignSubject{TenantID: "ten_1", ArtifactID: "art_1", ArtifactSignatureID: "asig_1", SubjectDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+	base := CosignSubject{TenantID: "ten_1", ArtifactID: "art_1", ArtifactSignatureID: "asig_1", SubjectDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Resources: application.ResourceReferences{ArtifactID: "art_1"}}
 	for _, tt := range []struct {
 		name       string
 		input      VerifyCosignInput
@@ -335,7 +335,7 @@ func TestVerifyCosignRejectsUnsafeModeAndInspectorResult(t *testing.T) {
 
 func TestVerifyCosignKeyModePersistsFailedReceiptWithoutTrustClaim(t *testing.T) {
 	state := newVerificationTestState()
-	state.cosignSubject = CosignSubject{TenantID: "ten_1", ArtifactID: "art_1", ArtifactSignatureID: "asig_1", SubjectDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+	state.cosignSubject = CosignSubject{TenantID: "ten_1", ArtifactID: "art_1", ArtifactSignatureID: "asig_1", SubjectDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Resources: application.ResourceReferences{ArtifactID: "art_1"}}
 	state.cosignInspection = CosignInspection{Profile: CosignFullProfile(CosignVerificationModeKey, state.cosignSubject.SubjectDigest), Checks: []verificationdomain.VerifyCheck{{Name: "cryptographic_signature", Result: "failed"}}, Outcome: CosignOutcomeVerificationFailed}
 	service := newVerificationTestService(t, state)
 	record, err := service.VerifyCosign(context.Background(), verificationTestActor(), VerifyCosignInput{ArtifactSignatureID: "asig_1", Mode: CosignVerificationModeKey, Offline: true})
@@ -668,6 +668,7 @@ func (verificationTestKeyFactory) GenerateSigningKey(_ context.Context, tenantID
 }
 
 type verificationTestState struct {
+	policy               application.Authorizer
 	subject              SubjectReference
 	inspection           SubjectInspection
 	results              map[string]verificationdomain.VerificationResult
@@ -722,6 +723,7 @@ func (s *verificationTestState) ListSigningKeys(_ context.Context, tenantID stri
 }
 func (s *verificationTestState) Execute(ctx context.Context, command TransactionCommand) error {
 	working := newVerificationTestState()
+	working.policy = s.policy
 	working.subject, working.inspection, working.auditErr, working.ids = s.subject, cloneSubjectInspection(s.inspection), s.auditErr, s.ids
 	working.cosignSubject, working.cosignInspection = s.cosignSubject, cloneCosignInspection(s.cosignInspection)
 	working.auditChain = append([]AuditChainLeaf(nil), s.auditChain...)
@@ -898,6 +900,9 @@ type verificationTestTransaction struct{ state *verificationTestState }
 
 func (t verificationTestTransaction) Verification() Repository { return t.state }
 func (t verificationTestTransaction) Authorization() application.Authorizer {
+	if t.state.policy != nil {
+		return t.state.policy
+	}
 	return allowVerificationAuthorizer{}
 }
 func (t verificationTestTransaction) Audit() application.AuditAppender   { return t.state }

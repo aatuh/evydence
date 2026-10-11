@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -54,7 +55,7 @@ func (s *Service) VerifyCosign(ctx context.Context, actor identitydomain.Actor, 
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{}, true, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionCosignVerify, application.ResourceReferences{}, true, false); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
 	input.ArtifactSignatureID = strings.TrimSpace(input.ArtifactSignatureID)
@@ -64,10 +65,10 @@ func (s *Service) VerifyCosign(ctx context.Context, actor identitydomain.Actor, 
 	if err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
-	if !validCosignSubject(subject, actor.TenantID, input.ArtifactSignatureID) {
+	if !validCosignSubject(subject, actor.TenantID, input.ArtifactSignatureID) || subject.Resources != (application.ResourceReferences{ArtifactID: subject.ArtifactID}) {
 		return verificationdomain.CosignVerification{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, subject.Resources, false, emptyResources(subject.Resources)); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionCosignVerify, subject.Resources, false, emptyResources(subject.Resources)); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
 	if !validCosignInput(input) {
@@ -79,7 +80,7 @@ func (s *Service) VerifyCosign(ctx context.Context, actor identitydomain.Actor, 
 	}
 	var record verificationdomain.CosignVerification
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionCosignVerify, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)}); err != nil {
 			return err
 		}
 		record, err = persistCosignReceipt(ctx, cosignServiceReceiptWriter{tx}, actor, subject, inspection, input.Mode, s.clock.Now().UTC(), s.ids)

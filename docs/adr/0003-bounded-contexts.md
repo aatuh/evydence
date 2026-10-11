@@ -1253,13 +1253,23 @@ tenant administration. Fresh work and replay recheck authority without changing
 provider receipt validation, private-key clearing, checkpoint nonclaims,
 cryptographic inputs, backup redaction, retention observations, or atomic audit
 and writer-fence behavior. Typed caller/operation guards cover these native
-surfaces, but older generic service utility contracts remain migration work.
+surfaces, but other contexts' generic service utility contracts remain migration work.
 The broader signing/report regressions exposed an anomaly-report composition
 dependency on the summary authorizer. Anomaly generation now owns its typed
 central action and delegate, retaining the previous tenant/product/project/
 release/package grant profile. Its heuristic facts, output, private-field
 exclusions, and no-verification-authority limitations are unchanged; it cannot
 borrow the evidence-summary action despite sharing `report:read`.
+
+Verification's generic `Service`, retained only for historical test oracles,
+now emits the same typed dispatch, subject-specific verification, signing-key
+read, custody-read, Merkle creation, checkpoint recording, and backup actions as
+the native services. Signing-key and custody reads recheck authority after
+storage; cancellation or grant revocation withholds diagnostics. Generic
+Cosign also rejects mismatched/stray artifact coordinates before inspection,
+matching the native command's ownership rule. An application-package source
+guard rejects local actor predicates and scope-request fallbacks. The historical
+cached grant adapter remains a test-only oracle, not runtime authorization.
 
 Self-session logout now selects `sso_sessions.logout`, a central boundary that
 requires an authenticated human session but no role scope or resource grant.

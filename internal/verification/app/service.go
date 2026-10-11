@@ -13,6 +13,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -210,12 +211,16 @@ func (s *Service) VerifySubject(ctx context.Context, actor identitydomain.Actor,
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{}, true, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionSubjectVerificationDispatch, application.ResourceReferences{}, true, false); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	subjectType = strings.TrimSpace(subjectType)
 	subjectID = strings.TrimSpace(subjectID)
 	if subjectType == "" || (subjectID == "" && subjectType != "audit_chain") {
+		return verificationdomain.VerificationResult{}, ErrValidation
+	}
+	action := subjectVerificationAction(subjectType)
+	if action == "" {
 		return verificationdomain.VerificationResult{}, ErrValidation
 	}
 	subject, err := s.subjects.ResolveVerificationSubject(ctx, actor.TenantID, subjectType, subjectID)
@@ -225,7 +230,7 @@ func (s *Service) VerifySubject(ctx context.Context, actor identitydomain.Actor,
 	if !validSubjectReference(subject, actor.TenantID, subjectType, subjectID) {
 		return verificationdomain.VerificationResult{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, subject.Resources, false, emptyResources(subject.Resources)); err != nil {
+	if err := s.authorize(ctx, actor, action, subject.Resources, false, emptyResources(subject.Resources)); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	inspection, err := s.inspector.InspectSubject(ctx, subject)
@@ -253,7 +258,7 @@ func (s *Service) VerifySubject(ctx context.Context, actor identitydomain.Actor,
 	}
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
 		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{
-			Scope: ScopeVerifyRead, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources),
+			Action: action, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources),
 		}); err != nil {
 			return err
 		}
@@ -285,11 +290,14 @@ func (s *Service) ListSigningKeys(ctx context.Context, actor identitydomain.Acto
 	if err := validateActor(actor); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{}, false, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionSigningKeysRead, application.ResourceReferences{}, false, true); err != nil {
 		return nil, err
 	}
 	values, err := s.reader.ListSigningKeys(ctx, actor.TenantID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.authorize(ctx, actor, authz.ActionSigningKeysRead, application.ResourceReferences{}, false, true); err != nil {
 		return nil, err
 	}
 	result := make([]verificationdomain.SigningKey, 0, len(values))
@@ -471,8 +479,8 @@ func validPreparedSigningKey(value PreparedSigningKey, tenantID, provider string
 	return key.ID != "" && key.TenantID == tenantID && key.KID != "" && key.Version == version && key.Provider == provider && key.Algorithm != "" && key.Status.String() == verificationdomain.SigningKeyStatusActive && key.PublicKey != "" && key.PublicKeyFingerprint != "" && !key.ValidFrom.After(now) && !key.CreatedAt.After(now) && len(value.PrivateMaterial) > 0
 }
 
-func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, scope string, resources application.ResourceReferences, scopeOnly, tenantWide bool) error {
-	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly, TenantWide: tenantWide})
+func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, action authz.Action, resources application.ResourceReferences, scopeOnly, tenantWide bool) error {
+	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: action, Resources: resources, ScopeOnly: scopeOnly, TenantWide: tenantWide})
 }
 
 func (s *Service) auditEvent(actor identitydomain.Actor, at time.Time, entryType, subjectType, subjectID string) application.AuditEvent {

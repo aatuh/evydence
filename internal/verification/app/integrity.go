@@ -9,6 +9,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -43,7 +44,7 @@ func (s *Service) CreateMerkleBatch(ctx context.Context, actor identitydomain.Ac
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.MerkleBatch{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionMerkleBatchesCreate, application.ResourceReferences{}, false, true); err != nil {
 		return verificationdomain.MerkleBatch{}, err
 	}
 	leaves, err := s.integrity.ReadAuditChain(ctx, actor.TenantID)
@@ -98,7 +99,7 @@ func (s *Service) CreateMerkleBatch(ctx context.Context, actor identitydomain.Ac
 		SchemaVersion: verificationdomain.MerkleBatchSchemaVersion, CreatedAt: now,
 	}
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionMerkleBatchesCreate, TenantWide: true}); err != nil {
 			return err
 		}
 		if signing.NewKey != nil {
@@ -138,7 +139,7 @@ func (s *Service) CreateTransparencyCheckpoint(ctx context.Context, actor identi
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeKeysAdmin, application.ResourceReferences{}, false, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionTransparencyCheckpointsRecord, application.ResourceReferences{}, false, true); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
 	input, err := NormalizeTransparencyCheckpointInput(input)
@@ -155,7 +156,7 @@ func (s *Service) CreateTransparencyCheckpoint(ctx context.Context, actor identi
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionTransparencyCheckpointsRecord, TenantWide: true}); err != nil {
 			return err
 		}
 		if err := tx.Verification().InsertTransparencyCheckpoint(ctx, checkpoint); err != nil {
