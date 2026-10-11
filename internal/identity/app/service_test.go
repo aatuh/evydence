@@ -143,7 +143,7 @@ func TestCreateAPIKeyPreservesNormalizedScopeCompatibility(t *testing.T) {
 func TestAuthenticateAPIKeyUpdatesActivityInOneTransaction(t *testing.T) {
 	fixture := newIdentityServiceFixture(t)
 	fixture.reader.apiKeys = []identitydomain.APIKey{{ID: "key_auth", TenantID: "ten_1", Name: "collector", Prefix: "evy_secret", Hash: "stored-hash", Scopes: []string{"evidence:write"}, CreatedAt: fixture.now}}
-	fixture.reader.collector = CollectorBinding{ID: "col_1", TenantID: "ten_1", APIKeyID: "key_auth"}
+	fixture.reader.collector = CollectorBinding{ID: "col_1", TenantID: "ten_1", APIKeyID: "key_auth", Status: "active", AllowedScopes: []string{"evidence:write"}}
 	fixture.transactions.state.apiKeys["key_auth"] = fixture.reader.apiKeys[0]
 
 	actor, err := fixture.service.Authenticate(context.Background(), "Bearer evy_secret")

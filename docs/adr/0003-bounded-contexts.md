@@ -1289,11 +1289,23 @@ withholds the entire result; switching to tenant authority cannot release
 global outbox counts. These scoped regressions do not prove live-storage or
 complete route coverage.
 
+Collector authentication now applies a central constraint to current
+tenant/key/collector identity, active status, and explicitly declared scopes.
+Bounded PostgreSQL and detached memory projections include disabled bindings,
+so their keys cannot become ordinary unbound credentials. The heartbeat
+transaction rechecks key scopes and collector status/scope snapshots before
+either lifecycle timestamp commits. Focused live PostgreSQL authentication
+tests passed, including inactive/over-scoped rejection and atomic rollback on
+capability/status drift; these are narrow storage evidence, not a full gate.
+Collector product/resource ownership remains the existing tenant-scoped
+application/repository boundary, not a new product ACL model. The compatibility
+limits are recorded in [API versioning](../reference/api-versioning.md#unreleased-collector-write-boundary).
+
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
-other contexts' typed caller contracts, collector binding, and the complete
+other contexts' typed caller contracts, collector provenance constraints, and the complete
 route-to-action positive/negative coverage matrix still need migration and validation.
-These scoped policy checks are not ticket closure or live
-PostgreSQL, hosted CI, or external-provider evidence.
+These scoped policy checks are not ticket closure, full production-gate,
+hosted CI, or external-provider evidence.
 
 ### Migration and retirement sequence
 

@@ -22,7 +22,7 @@ func TestStandaloneAuthenticatorUsesFocusedCredentialDependencies(t *testing.T) 
 			name: "API key with collector",
 			reader: &fakeIdentityReader{
 				apiKeys:   []identitydomain.APIKey{{ID: "key_1", TenantID: "ten_1", Prefix: "evy_secret", Hash: "stored-hash", Scopes: []string{"product:read"}}},
-				collector: CollectorBinding{ID: "col_1", TenantID: "ten_1", APIKeyID: "key_1"},
+				collector: CollectorBinding{ID: "col_1", TenantID: "ten_1", APIKeyID: "key_1", Status: "active", AllowedScopes: []string{"product:read"}},
 			},
 			wantKeyID: "key_1",
 		},

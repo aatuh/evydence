@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -94,26 +96,34 @@ func (a *Authenticator) Authenticate(ctx context.Context, secret string) (identi
 			return identitydomain.Actor{}, ErrUnauthorized
 		}
 		updated := cloneAPIKey(key)
+		// Preserve an empty JSON array versus null in the admission snapshot.
+		// The actor's published inert-scope semantics remain unchanged.
+		updated.Scopes = slices.Clone(key.Scopes)
 		lastUsedAt := now
 		if key.LastUsedAt != nil && key.LastUsedAt.UTC().After(lastUsedAt) {
 			lastUsedAt = key.LastUsedAt.UTC()
 		}
 		updated.LastUsedAt = &lastUsedAt
 		collector := CollectorActivity{}
+		actor := identitydomain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...)}
 		binding, found, err := a.reader.CollectorByAPIKey(ctx, key.TenantID, key.ID)
 		if err != nil {
 			return identitydomain.Actor{}, authenticationError(ctx)
 		}
 		if found {
-			if binding.TenantID != key.TenantID || binding.APIKeyID != key.ID {
+			if err := authz.CheckCollectorCredentialBinding(actor, authz.CollectorCredentialBinding{ID: binding.ID, TenantID: binding.TenantID, APIKeyID: binding.APIKeyID, Status: binding.Status, AllowedScopes: binding.AllowedScopes}); err != nil {
 				return identitydomain.Actor{}, ErrUnauthorized
 			}
-			collector = CollectorActivity{ID: binding.ID, TenantID: binding.TenantID, LastSeenAt: now}
+			collector = CollectorActivity{ID: binding.ID, TenantID: binding.TenantID, LastSeenAt: now, AllowedScopes: append([]string(nil), binding.AllowedScopes...)}
+			actor.CollectorID = binding.ID
 		}
 		if err := a.activity.RecordAPIKeyUse(ctx, updated, collector); err != nil {
 			return identitydomain.Actor{}, authenticationError(ctx)
 		}
-		return identitydomain.Actor{TenantID: key.TenantID, KeyID: key.ID, Name: key.Name, Scopes: append([]string(nil), key.Scopes...), CollectorID: collector.ID}, nil
+		if err := ctx.Err(); err != nil {
+			return identitydomain.Actor{}, err
+		}
+		return actor, nil
 	}
 	sessions, err := a.reader.SessionsByPrefix(ctx, prefix)
 	if err != nil {

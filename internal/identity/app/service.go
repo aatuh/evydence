@@ -53,15 +53,18 @@ type GrantPolicy interface {
 }
 
 type CollectorBinding struct {
-	ID       string
-	TenantID string
-	APIKeyID string
+	ID            string
+	TenantID      string
+	APIKeyID      string
+	Status        string
+	AllowedScopes []string
 }
 
 type CollectorActivity struct {
-	ID         string
-	TenantID   string
-	LastSeenAt time.Time
+	ID            string
+	TenantID      string
+	LastSeenAt    time.Time
+	AllowedScopes []string
 }
 
 type SessionIdentity struct {

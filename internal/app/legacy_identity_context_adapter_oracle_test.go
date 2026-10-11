@@ -151,7 +151,7 @@ func (r ledgerIdentityReader) CollectorByAPIKey(ctx context.Context, tenantID, k
 	defer r.ledger.mu.Unlock()
 	for _, collector := range r.ledger.collectors {
 		if collector.TenantID == tenantID && collector.APIKeyID == keyID {
-			return identityapp.CollectorBinding{ID: collector.ID, TenantID: collector.TenantID, APIKeyID: collector.APIKeyID}, true, nil
+			return identityapp.CollectorBinding{ID: collector.ID, TenantID: collector.TenantID, APIKeyID: collector.APIKeyID, Status: collector.Status, AllowedScopes: append([]string(nil), collector.AllowedScopes...)}, true, nil
 		}
 	}
 	return identityapp.CollectorBinding{}, false, nil

@@ -26,7 +26,7 @@ func TestMemoryAPIKeyAuthenticationReadsBoundedCurrentCandidatesAndCollectorIden
 	expires := at.Add(time.Hour)
 	key := domain.APIKey{ID: "key", TenantID: "tenant", Name: "Collector", Prefix: "evy_test1234", Hash: strings.Repeat("a", 64), Scopes: []string{"evidence:write"}, ExpiresAt: &expires, CreatedAt: at}
 	tx.state.APIKeys[key.ID] = key
-	tx.state.Collectors["collector"] = domain.Collector{ID: "collector", TenantID: "tenant", APIKeyID: key.ID, Name: strings.Repeat("unselected-private", 10000)}
+	tx.state.Collectors["collector"] = domain.Collector{ID: "collector", TenantID: "tenant", APIKeyID: key.ID, Status: "active", AllowedScopes: []string{"evidence:write"}, Name: strings.Repeat("unselected-private", 10000)}
 	tx.state.Collectors["foreign"] = domain.Collector{ID: "foreign", TenantID: "foreign", APIKeyID: key.ID}
 	got, err := r.APIKeysByPrefix(t.Context(), key.Prefix)
 	if err != nil || len(got) != 1 || !reflect.DeepEqual(got[0], identitydomain.APIKey(key)) {
@@ -38,11 +38,15 @@ func TestMemoryAPIKeyAuthenticationReadsBoundedCurrentCandidatesAndCollectorIden
 		t.Fatal("candidate projection aliases mutable state")
 	}
 	binding, found, err := r.CollectorByAPIKey(t.Context(), "tenant", key.ID)
-	if err != nil || !found || binding != (identityapp.CollectorBinding{ID: "collector", TenantID: "tenant", APIKeyID: key.ID}) {
+	if err != nil || !found || !reflect.DeepEqual(binding, identityapp.CollectorBinding{ID: "collector", TenantID: "tenant", APIKeyID: key.ID, Status: "active", AllowedScopes: []string{"evidence:write"}}) {
 		t.Fatal("collector lookup leaked foreign or unrelated metadata", binding, found, err)
 	}
+	binding.AllowedScopes[0] = "mutated"
+	if tx.state.Collectors["collector"].AllowedScopes[0] != "evidence:write" {
+		t.Fatal("collector projection aliases capability metadata")
+	}
 	tx.state.Collectors["ambiguous"] = domain.Collector{ID: "ambiguous", TenantID: "tenant", APIKeyID: key.ID}
-	if v, found, err := r.CollectorByAPIKey(t.Context(), "tenant", key.ID); !errors.Is(err, ErrConflict) || found || v != (identityapp.CollectorBinding{}) {
+	if v, found, err := r.CollectorByAPIKey(t.Context(), "tenant", key.ID); !errors.Is(err, ErrConflict) || found || !reflect.DeepEqual(v, identityapp.CollectorBinding{}) {
 		t.Fatal("ambiguous collector returned a partial identity", v, found, err)
 	}
 	key.Scopes = make([]string, 257)
@@ -64,7 +68,7 @@ func TestMemoryAPIKeyAuthenticationReadsBoundedCurrentCandidatesAndCollectorIden
 }
 
 func TestMemoryAPIKeyActivityRechecksIdentityLifecycleAndCommitsBothHeartbeats(t *testing.T) {
-	for _, failure := range []string{"none", "collector", "expired", "revoked", "key-id"} {
+	for _, failure := range []string{"none", "collector", "expired", "revoked", "key-id", "collector-disabled", "collector-revoked", "collector-scopes", "collector-empty-scopes", "key-scopes"} {
 		t.Run(failure, func(t *testing.T) {
 			_, tx := memoryMembershipReadFixture(t)
 			r, ok := tx.Repositories().Identity.(interface {
@@ -77,14 +81,34 @@ func TestMemoryAPIKeyActivityRechecksIdentityLifecycleAndCommitsBothHeartbeats(t
 			expiry := at.Add(time.Hour)
 			key := domain.APIKey{ID: "key", TenantID: "tenant", Name: "Collector", Prefix: "evy_test1234", Hash: strings.Repeat("a", 64), Scopes: []string{"evidence:write"}, ExpiresAt: &expiry, CreatedAt: at}
 			tx.state.APIKeys[key.ID] = key
-			tx.state.Collectors["collector"] = domain.Collector{ID: "collector", TenantID: "tenant", APIKeyID: key.ID}
+			tx.state.Collectors["collector"] = domain.Collector{ID: "collector", TenantID: "tenant", APIKeyID: key.ID, Status: "active", AllowedScopes: []string{"evidence:write"}}
 			input := identitydomain.APIKey(key)
 			input.LastUsedAt = &at
-			activity := identityapp.CollectorActivity{ID: "collector", TenantID: "tenant", LastSeenAt: at}
+			activity := identityapp.CollectorActivity{ID: "collector", TenantID: "tenant", LastSeenAt: at, AllowedScopes: []string{"evidence:write"}}
 			switch failure {
 			case "collector":
 				v := tx.state.Collectors["collector"]
 				v.TenantID = "foreign"
+				tx.state.Collectors[v.ID] = v
+			case "collector-disabled", "collector-revoked", "collector-scopes":
+				v := tx.state.Collectors["collector"]
+				if failure == "collector-disabled" {
+					v.Status = "disabled"
+				}
+				if failure == "collector-revoked" {
+					v.Status = "revoked"
+				}
+				if failure == "collector-scopes" {
+					v.AllowedScopes = []string{"source:write"}
+				}
+				tx.state.Collectors[v.ID] = v
+			case "key-scopes":
+				v := key
+				v.Scopes = []string{"source:write"}
+				tx.state.APIKeys[key.ID] = v
+			case "collector-empty-scopes":
+				v := tx.state.Collectors["collector"]
+				v.AllowedScopes, activity.AllowedScopes = nil, nil
 				tx.state.Collectors[v.ID] = v
 			case "expired":
 				v := key

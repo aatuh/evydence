@@ -340,6 +340,17 @@ Public collector/key metadata now survives durable restart replay, correcting
 over-redaction of the key object and its public binding; the secret and hash
 are never retained. Generic log and customer-package redaction is unchanged.
 
+Collector authentication now requires an active, well-formed tenant/API-key
+binding whose declared scopes explicitly contain every issued key scope.
+Disabled, revoked, malformed, or over-scoped bindings return the same generic
+`401` as an invalid credential; they cannot fall through as ordinary API keys.
+API-key scope and collector status/scope snapshots are rechecked in the atomic
+heartbeat transaction. Existing correctly bound tokens, narrower keys,
+duplicate scopes, and inert unknown capabilities retain their formats and
+semantics. No stored record is rewritten and no product-specific collector
+grant model is introduced. Correct the binding or reissue the collector
+credential before retrying; do not broaden its privileges to mask a mismatch.
+
 Human writes now require a current tenant-wide `collector:admin` grant;
 resource-only grants cannot administer tenant credentials. Optional signature,
 SBOM and scan references must retain coherent current artifact/evidence parents

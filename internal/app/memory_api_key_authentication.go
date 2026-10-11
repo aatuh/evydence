@@ -3,8 +3,10 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sort"
 
+	"github.com/aatuh/evydence/internal/authz"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -54,10 +56,10 @@ func (r memoryIdentityRepository) CollectorByAPIKey(ctx context.Context, tenant,
 			if c.TenantID != tenant || c.APIKeyID != key {
 				continue
 			}
-			if found || c.ID != id || !memoryMembershipQueryText(c.ID, 1024) {
+			if found || c.ID != id || !memoryMembershipQueryText(c.ID, 1024) || len(c.AllowedScopes) > 1024 {
 				return ErrConflict
 			}
-			out, found = identityapp.CollectorBinding{ID: c.ID, TenantID: tenant, APIKeyID: key}, true
+			out, found = identityapp.CollectorBinding{ID: c.ID, TenantID: tenant, APIKeyID: key, Status: c.Status, AllowedScopes: slices.Clone(c.AllowedScopes)}, true
 		}
 		return nil
 	})
@@ -74,15 +76,21 @@ func (r memoryIdentityRepository) RecordAPIKeyUse(ctx context.Context, key ident
 	if !memoryMembershipQueryText(key.ID, 1024) || key.LastUsedAt == nil || key.Hash == "" || key.Prefix == "" {
 		return ErrValidation
 	}
+	if activity.ID != "" {
+		actor := identitydomain.Actor{TenantID: key.TenantID, KeyID: key.ID, CollectorID: activity.ID, Scopes: key.Scopes}
+		if err := authz.CheckCollectorCredentialBinding(actor, authz.CollectorCredentialBinding{ID: activity.ID, TenantID: activity.TenantID, APIKeyID: key.ID, Status: "active", AllowedScopes: activity.AllowedScopes}); err != nil {
+			return ErrUnauthorized
+		}
+	}
 	return r.membershipRead(ctx, key.TenantID, func(state *MemoryUnitOfWorkSnapshot) error {
 		stored, ok := state.APIKeys[key.ID]
 		at := key.LastUsedAt.UTC()
-		if !ok || stored.ID != key.ID || stored.TenantID != key.TenantID || stored.Prefix != key.Prefix || !secretHashEqual(stored.Hash, key.Hash) || stored.RevokedAt != nil || stored.ExpiresAt != nil && !stored.ExpiresAt.After(at) {
+		if !ok || stored.ID != key.ID || stored.TenantID != key.TenantID || stored.Prefix != key.Prefix || !secretHashEqual(stored.Hash, key.Hash) || !slices.Equal(stored.Scopes, key.Scopes) || stored.RevokedAt != nil || stored.ExpiresAt != nil && !stored.ExpiresAt.After(at) {
 			return ErrUnauthorized
 		}
 		if activity.ID != "" {
 			c, ok := state.Collectors[activity.ID]
-			if !ok || c.ID != activity.ID || activity.TenantID != key.TenantID || c.TenantID != key.TenantID || c.APIKeyID != key.ID || activity.LastSeenAt.IsZero() {
+			if !ok || c.ID != activity.ID || activity.TenantID != key.TenantID || c.TenantID != key.TenantID || c.APIKeyID != key.ID || c.Status != "active" || !slices.Equal(c.AllowedScopes, activity.AllowedScopes) || activity.LastSeenAt.IsZero() {
 				return ErrUnauthorized
 			}
 		}

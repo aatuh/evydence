@@ -62,10 +62,10 @@ func TestPostgresAuthenticationAPIKeyRevocationAndAtomicActivity(t *testing.T) {
 	if !lastUsed.Valid || !lastUsed.Time.Equal(now) || !lastSeen.Valid || !lastSeen.Time.Equal(now) {
 		t.Fatalf("activity key=%v collector=%v", lastUsed, lastSeen)
 	}
-	key := identitydomain.APIKey{ID: "key_auth", TenantID: "ten_auth", Prefix: credentials.Prefix("evy_secret"), Hash: credentials.Hash("evy_secret")}
+	key := identitydomain.APIKey{ID: "key_auth", TenantID: "ten_auth", Prefix: credentials.Prefix("evy_secret"), Hash: credentials.Hash("evy_secret"), Scopes: []string{"product:read"}}
 	later := now.Add(time.Minute)
 	key.LastUsedAt = &later
-	if err := store.RecordAPIKeyUse(ctx, key, identityapp.CollectorActivity{ID: "col_missing", TenantID: "ten_auth", LastSeenAt: later}); err == nil {
+	if err := store.RecordAPIKeyUse(ctx, key, identityapp.CollectorActivity{ID: "col_missing", TenantID: "ten_auth", LastSeenAt: later, AllowedScopes: []string{"product:read"}}); err == nil {
 		t.Fatal("missing collector activity was accepted")
 	}
 	if err := store.pool.QueryRow(ctx, `SELECT last_used_at FROM api_keys WHERE id = 'key_auth'`).Scan(&lastUsed); err != nil || !lastUsed.Time.Equal(now) {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/aatuh/evydence/internal/authz"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -117,8 +118,10 @@ func (s *Store) CollectorByAPIKey(ctx context.Context, tenantID, keyID string) (
 		return identityapp.CollectorBinding{}, false, identityapp.ErrValidation
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, tenant_id, api_key_id FROM collectors
-		WHERE tenant_id = $1 AND api_key_id = $2 ORDER BY id LIMIT 2`, tenantID, keyID)
+		SELECT id, tenant_id, api_key_id, status,
+		  CASE WHEN octet_length(allowed_scopes::text) <= $3 THEN allowed_scopes ELSE NULL END
+		FROM collectors
+		WHERE tenant_id = $1 AND api_key_id = $2 ORDER BY id LIMIT 2`, tenantID, keyID, maxStoredAuthJSONBytes)
 	if err != nil {
 		return identityapp.CollectorBinding{}, false, fmt.Errorf("read collector binding: %w", err)
 	}
@@ -130,8 +133,12 @@ func (s *Store) CollectorByAPIKey(ctx context.Context, tenantID, keyID string) (
 		if count > 1 {
 			return identityapp.CollectorBinding{}, false, errors.New("multiple collector bindings for API key")
 		}
-		if err := rows.Scan(&binding.ID, &binding.TenantID, &binding.APIKeyID); err != nil {
+		var scopes []byte
+		if err := rows.Scan(&binding.ID, &binding.TenantID, &binding.APIKeyID, &binding.Status, &scopes); err != nil {
 			return identityapp.CollectorBinding{}, false, fmt.Errorf("scan collector binding: %w", err)
+		}
+		if err := json.Unmarshal(scopes, &binding.AllowedScopes); err != nil || len(binding.AllowedScopes) > 1024 {
+			return identityapp.CollectorBinding{}, false, identityapp.ErrValidation
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -225,6 +232,20 @@ func (s *Store) RecordAPIKeyUse(ctx context.Context, key identitydomain.APIKey, 
 	if collector.ID != "" && (collector.TenantID != key.TenantID || collector.LastSeenAt.IsZero()) {
 		return identityapp.ErrUnauthorized
 	}
+	if collector.ID != "" {
+		actor := identitydomain.Actor{TenantID: key.TenantID, KeyID: key.ID, CollectorID: collector.ID, Scopes: key.Scopes}
+		if err := authz.CheckCollectorCredentialBinding(actor, authz.CollectorCredentialBinding{ID: collector.ID, TenantID: collector.TenantID, APIKeyID: key.ID, Status: "active", AllowedScopes: collector.AllowedScopes}); err != nil {
+			return identityapp.ErrUnauthorized
+		}
+	}
+	keyScopes, err := json.Marshal(key.Scopes)
+	if err != nil {
+		return identityapp.ErrValidation
+	}
+	collectorScopes, err := json.Marshal(collector.AllowedScopes)
+	if err != nil {
+		return identityapp.ErrValidation
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin API-key activity: %w", err)
@@ -234,8 +255,9 @@ func (s *Store) RecordAPIKeyUse(ctx context.Context, key identitydomain.APIKey, 
 		UPDATE api_keys SET last_used_at = CASE
 			WHEN last_used_at IS NULL OR last_used_at < $5 THEN $5 ELSE last_used_at END
 		WHERE id = $1 AND tenant_id = $2 AND prefix = $3 AND hash = $4
-		  AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > $5)`,
-		key.ID, key.TenantID, key.Prefix, key.Hash, key.LastUsedAt.UTC())
+		  AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > $5)
+		  AND scopes = $6::jsonb`,
+		key.ID, key.TenantID, key.Prefix, key.Hash, key.LastUsedAt.UTC(), keyScopes)
 	if err != nil {
 		return fmt.Errorf("record API-key activity: %w", err)
 	}
@@ -246,8 +268,9 @@ func (s *Store) RecordAPIKeyUse(ctx context.Context, key identitydomain.APIKey, 
 		result, err = tx.Exec(ctx, `
 			UPDATE collectors SET last_seen_at = CASE
 				WHEN last_seen_at IS NULL OR last_seen_at < $4 THEN $4 ELSE last_seen_at END
-			WHERE id = $1 AND tenant_id = $2 AND api_key_id = $3`,
-			collector.ID, collector.TenantID, key.ID, collector.LastSeenAt.UTC())
+			WHERE id = $1 AND tenant_id = $2 AND api_key_id = $3
+			  AND status = 'active' AND allowed_scopes = $5::jsonb`,
+			collector.ID, collector.TenantID, key.ID, collector.LastSeenAt.UTC(), collectorScopes)
 		if err != nil {
 			return fmt.Errorf("record collector activity: %w", err)
 		}
