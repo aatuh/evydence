@@ -13,6 +13,16 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added centralized typed action/resource authorization across focused application
+services, with distinct tenant, resolved-resource, instance, static-catalog,
+self-session and verified public-credential boundaries. Tenant wildcard or
+resource grants do not imply instance administration. Generated policy contracts
+and an executable positive/negative matrix cover all 189 API operations; a
+separate check rejects missing or unregistered scenarios. Memory fixtures and
+controlled external I/O are not storage-durability or provider proof. Route
+methods, response schemas and immutable persistence formats are unchanged.
+EVY-1002's required full-suite and production validation remain pending.
+
 Centralized SSO credential-exchange authority as a verified-identity action.
 Session issuance now requires a passed assessment, completed fully passed
 credential checks, bound active identity and capabilities; pending, skipped or
@@ -39,7 +49,8 @@ data-free static form is separately labeled in generated authorization metadata.
 Post-commit request cancellation now withholds the package result while retaining
 already committed acceptance/counters/audits. Token and hash formats, redaction,
 response schemas, denial auditing and five-failure revocation are unchanged.
-EVY-1002's full route coverage and final gates remain incomplete.
+These routes participate in the complete authorization matrix; EVY-1002's
+required final gates remain pending.
 
 Constrained collector attribution on generic evidence and build creation,
 including completed replay. Caller-supplied collector identity must match the
