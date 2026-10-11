@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -63,7 +64,7 @@ func (s *TransparencyCheckpointCommands) AuthorizeTransparencyCheckpoint(ctx con
 	if err != nil {
 		return err
 	}
-	request := application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}
+	request := application.AuthorizationRequest{Action: authz.ActionTransparencyCheckpointsRecord, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, actor, request); err != nil {
 		return err
 	}
@@ -86,7 +87,7 @@ func (s *TransparencyCheckpointCommands) CreateTransparencyCheckpoint(ctx contex
 	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}
-	request := application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}
+	request := application.AuthorizationRequest{Action: authz.ActionTransparencyCheckpointsRecord, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, actor, request); err != nil {
 		return verificationdomain.TransparencyCheckpoint{}, err
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -97,12 +98,12 @@ func TestRetentionReplayGuardsAuthorizeBeforeLocksWithoutProviderReads(t *testin
 				if locks > 0 && (tx.tenant != "ten_1" || tx.id != "policy") {
 					t.Fatal("guard lost tenant/policy coordinate")
 				}
-				scope := ScopeAdmin
+				action := authz.ActionRetentionPoliciesManage
 				if verify {
-					scope = ScopeVerifyRead
+					action = authz.ActionRetentionPoliciesRead
 				}
 				for _, a := range []*trustGuardAuthorizer{policy, txPolicy} {
-					if a.calls > 0 && a.request != (application.AuthorizationRequest{Scope: scope, TenantWide: true}) {
+					if a.calls > 0 && a.request != (application.AuthorizationRequest{Action: action, TenantWide: true}) {
 						t.Fatal("guard broadened scope")
 					}
 				}

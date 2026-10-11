@@ -19,7 +19,7 @@ func BuildBackupGenerationCommands(factory app.UnitOfWorkFactory) (*verification
 	if factory == nil {
 		return nil, errors.New("backup generation transactions are required")
 	}
-	return verificationapp.NewBackupGenerationCommands(verificationapp.BackupGenerationConfig{Transactions: backupGenerationTransactions{factory}, Authorizer: verificationquery.NewRetentionAuthorizer(), Hasher: verificationCanonicalHasher{}, Verifier: localed25519.PayloadVerifier{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return verificationapp.NewBackupGenerationCommands(verificationapp.BackupGenerationConfig{Transactions: backupGenerationTransactions{factory}, Authorizer: verificationquery.NewBackupGenerationAuthorizer(), Hasher: verificationCanonicalHasher{}, Verifier: localed25519.PayloadVerifier{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type backupGenerationTransactions struct{ factory app.UnitOfWorkFactory }
@@ -57,7 +57,7 @@ func (t backupGenerationTransaction) ReadAuditChainVerificationPage(ctx context.
 	return p, mapSigningKeyWriteError(err)
 }
 func (t backupGenerationTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if err := verificationquery.NewRetentionAuthorizer().Authorize(ctx, a, r); err != nil {
+	if err := verificationquery.NewBackupGenerationAuthorizer().Authorize(ctx, a, r); err != nil {
 		return err
 	}
 	return mapSigningKeyWriteError(t.guard.LockAPIKeyCreation(ctx, a.TenantID))

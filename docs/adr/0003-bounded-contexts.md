@@ -1211,8 +1211,8 @@ their delegates translate envelopes into central policy without selecting a
 policy from a scope string or caller-provided resource kind. Direct
 `customer_security_package` grants, with the operation's credential capability,
 authorize audited package access, portal metadata/management, a questionnaire's
-package association, and package-root citation summaries. They do not authorize
-the questionnaire's unassociated evidence/answer selection, tenant inventories,
+package association, and package-root citation/anomaly summaries. They do not
+authorize the questionnaire's unassociated evidence/answer selection, tenant inventories,
 other report generation, graph snapshots, or new customer packages.
 Root tenant/product/release grants and credential capabilities retain their
 existing behavior. Frozen hashes, redaction profiles, private answer retrieval,
@@ -1240,6 +1240,26 @@ scope-based authorization envelopes. These guards are not a complete API route
 coverage proof. Token-consumption policy remains a separate boundary; no token
 format, issuance, expiry, NDA, download, failure-limit, or redaction behavior is
 changed by this migration.
+
+Native privileged verification commands now bind key lifecycle, trust
+configuration, provider signing, Merkle creation, recorded checkpoints, backup
+generation, object-retention policy creation/verification, and retention markers
+to explicit actions. Signing, trust, Merkle, checkpoint, and backup composition
+each installs its own action-bound delegate; sharing a credential capability
+does not let a caller substitute one workflow's policy for another. Retention
+accepts only its closed read/manage action pair. Current tenant-wide human
+grants are still required; product/project/release/package grants do not imply
+tenant administration. Fresh work and replay recheck authority without changing
+provider receipt validation, private-key clearing, checkpoint nonclaims,
+cryptographic inputs, backup redaction, retention observations, or atomic audit
+and writer-fence behavior. Typed caller/operation guards cover these native
+surfaces, but older generic service utility contracts remain migration work.
+The broader signing/report regressions exposed an anomaly-report composition
+dependency on the summary authorizer. Anomaly generation now owns its typed
+central action and delegate, retaining the previous tenant/product/project/
+release/package grant profile. Its heuristic facts, output, private-field
+exclusions, and no-verification-authority limitations are unchanged; it cannot
+borrow the evidence-summary action despite sharing `report:read`.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete

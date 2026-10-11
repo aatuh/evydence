@@ -11,6 +11,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/authz"
+	experimentalquery "github.com/aatuh/evydence/internal/experimental/query"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagequery "github.com/aatuh/evydence/internal/package/query"
 )
@@ -23,6 +24,7 @@ func TestPackageExportDelegatesRejectScopeAndOperationSubstitution(t *testing.T)
 		tenant bool
 	}{
 		{packagequery.NewEvidenceSummaryAuthorizer(), "evidence_summaries.create", false},
+		{experimentalquery.NewAnomalyAuthorizer(), "anomaly_reports.generate", false},
 		{packagequery.NewEvidenceBundleAuthorizer(), "evidence_bundles.export", false},
 		{packagequery.NewReleaseBundleAuthorizer(), "release_bundles.create", false},
 		{packagequery.NewTemplateAuthorizer(), "report_templates.manage", true},
@@ -38,6 +40,13 @@ func TestPackageExportDelegatesRejectScopeAndOperationSubstitution(t *testing.T)
 			}
 			if err := tc.policy.Authorize(t.Context(), a, request); err != nil {
 				t.Fatal("typed export denied", err)
+			}
+			peer := authz.ActionEvidenceSummariesCreate
+			if tc.action == peer {
+				peer = authz.ActionAnomalyReportsGenerate
+			}
+			if err := tc.policy.Authorize(t.Context(), a, application.AuthorizationRequest{Action: peer, Resources: request.Resources, TenantWide: request.TenantWide}); !errors.Is(err, application.ErrForbidden) {
+				t.Fatal("shared report capability selected a foreign action", peer, err)
 			}
 			for _, bad := range []application.AuthorizationRequest{{Scope: "report:read", Resources: request.Resources, TenantWide: request.TenantWide}, {Action: tc.action, Scope: "bundle:write", Resources: request.Resources, TenantWide: request.TenantWide}, {Action: "questionnaire_packages.create", Resources: request.Resources, TenantWide: request.TenantWide}, {Action: tc.action, ScopeOnly: true, TenantWide: true}} {
 				if err := tc.policy.Authorize(t.Context(), a, bad); !errors.Is(err, application.ErrForbidden) {
@@ -105,6 +114,7 @@ func TestPackageCatalogAndExportCallersUseCentralActionsWithoutLocalGrants(t *te
 	for _, tc := range []struct{ path, action string }{
 		{"../package/query/answer_library.go", "ActionAnswerLibraryEntriesRead"}, {"../package/query/portal_access.go", "ActionPortalAccessRead"}, {"../package/query/release_bundles.go", "ActionReleaseBundlesRead"},
 		{"../package/app/evidence_summary_commands.go", "ActionEvidenceSummariesCreate"}, {"../package/app/evidence_bundle.go", "ActionEvidenceBundlesExport"}, {"../package/app/evidence_bundle_guard.go", "ActionEvidenceBundlesExport"}, {"../package/app/evidence_bundle_commands.go", "ActionEvidenceBundlesExport"},
+		{"../experimental/app/anomaly_report_commands.go", "ActionAnomalyReportsGenerate"},
 		{"../platform/wiring/evidence_bundle_commands.go", "ActionEvidenceBundlesExport"},
 		{"../package/app/release_bundle.go", "ActionReleaseBundlesCreate"}, {"../package/app/release_bundle_creation_guard.go", "ActionReleaseBundlesCreate"},
 		{"../package/app/report_templates.go", "ActionReportTemplatesManage"}, {"../package/app/report_template_guard.go", "ActionReportTemplatesManage"}, {"../package/app/bundle_import_guard.go", "ActionBundleImport"}, {"../package/app/questionnaire_template_commands.go", "ActionQuestionnaireTemplatesManage"}, {"../package/app/redaction_profile_commands.go", "ActionRedactionProfilesManage"},

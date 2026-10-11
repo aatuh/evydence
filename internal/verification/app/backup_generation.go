@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -65,7 +66,7 @@ func (s *BackupGenerationCommands) AuthorizeBackupGeneration(ctx context.Context
 	if err := validateSigningKeyActor(a); err != nil {
 		return err
 	}
-	request := application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}
+	request := application.AuthorizationRequest{Action: authz.ActionBackupGenerate, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, request); err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func (s *BackupGenerationCommands) GenerateBackupManifest(ctx context.Context, a
 	if err := validateSigningKeyActor(a); err != nil {
 		return verificationdomain.BackupManifest{}, err
 	}
-	request := application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}
+	request := application.AuthorizationRequest{Action: authz.ActionBackupGenerate, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, request); err != nil {
 		return verificationdomain.BackupManifest{}, err
 	}

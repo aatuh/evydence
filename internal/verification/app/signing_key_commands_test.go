@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -145,7 +146,7 @@ type signingGuardOnlyTransaction struct {
 
 func (t *signingGuardOnlyTransaction) Authorize(_ context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
 	t.authorizations++
-	if a.TenantID != "ten_1" || r != (application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}) {
+	if a.TenantID != "ten_1" || r != (application.AuthorizationRequest{Action: authz.ActionSigningKeysManage, TenantWide: true}) {
 		return ErrForbidden
 	}
 	return t.err

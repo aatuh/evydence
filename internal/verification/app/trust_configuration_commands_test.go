@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -69,7 +70,7 @@ func TestTrustConfigurationReplayGuardHasNoMetadataOrAuditEffects(t *testing.T) 
 				t.Fatal("guard bypassed current authorization", err, policy.calls, tx.calls, txPolicy.calls)
 			}
 			for _, a := range []*trustGuardAuthorizer{policy, txPolicy} {
-				if a.calls > 0 && (a.actor.TenantID != actor.TenantID || a.request != (application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true})) {
+				if a.calls > 0 && (a.actor.TenantID != actor.TenantID || a.request != (application.AuthorizationRequest{Action: authz.ActionTrustConfigurationsManage, TenantWide: true})) {
 					t.Fatal("guard widened admin policy")
 				}
 			}

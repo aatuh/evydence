@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -109,7 +110,7 @@ func (c *AnomalyCommands) prepare(ctx context.Context, a identitydomain.Actor, i
 	if !anomalyID(a.TenantID) || !anomalyID(id) {
 		return in, application.ErrUnauthorized
 	}
-	return in, c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "report:read", ScopeOnly: true})
+	return in, c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionAnomalyReportsGenerate, ScopeOnly: true})
 }
 func authorizedAnomalyScope(ctx context.Context, tx AnomalyTransaction, a identitydomain.Actor, in AnomalyReportInput) error {
 	s, err := tx.ReadAnomalyScope(ctx, a.TenantID, in.SubjectType, in.SubjectID)
@@ -128,7 +129,7 @@ func authorizedAnomalyScope(ctx context.Context, tx AnomalyTransaction, a identi
 	if in.SubjectType == "tenant" && (in.SubjectID != a.TenantID || r != (application.ResourceReferences{})) || in.SubjectType == "product" && r.ProductID != in.SubjectID || in.SubjectType == "release" && (r.ReleaseID != in.SubjectID || r.ProductID == "") || in.SubjectType == "customer_package" && r.CustomerPackageID != in.SubjectID {
 		return ErrNotFound
 	}
-	return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "report:read", Resources: r, TenantWide: r == (application.ResourceReferences{})})
+	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionAnomalyReportsGenerate, Resources: r, TenantWide: r == (application.ResourceReferences{})})
 }
 func (c *AnomalyCommands) AuthorizeGenerateAnomalyReport(ctx context.Context, a identitydomain.Actor, in AnomalyReportInput) error {
 	in, err := c.prepare(ctx, a, in)

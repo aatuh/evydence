@@ -18,6 +18,7 @@ var packageExportCases = []struct {
 	{"portal_access.read", "package:read", ResourceReferences{ProductID: "product", ReleaseID: "release", CustomerPackageID: "package"}, true, false, true, false},
 	{"release_bundles.read", "bundle:read", ResourceReferences{ProductID: "product", ReleaseID: "release"}, false, false, false, false},
 	{"evidence_summaries.create", "report:read", ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release", BuildID: "build", DeploymentID: "deployment", CustomerPackageID: "package"}, true, true, true, false},
+	{"anomaly_reports.generate", "report:read", ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release", BuildID: "build", DeploymentID: "deployment", CustomerPackageID: "package"}, true, true, true, false},
 	{"evidence_bundles.export", "bundle:read", ResourceReferences{ProductID: "product", ProjectID: "project", ReleaseID: "release", BuildID: "build", DeploymentID: "deployment"}, false, true, false, true},
 	{"release_bundles.create", "bundle:write", ResourceReferences{ProductID: "product", ReleaseID: "release"}, false, false, false, false},
 }

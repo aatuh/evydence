@@ -153,6 +153,17 @@ const (
 	ActionReleaseBundlesCreate     Action = "release_bundles.create"
 )
 
+// Signing administration has distinct use-case actions while retaining the
+// tenant-wide keys:admin credential and current-grant boundary.
+const (
+	ActionTrustConfigurationsManage     Action = "trust_configurations.manage"
+	ActionSigningOperationsCreate       Action = "signing_operations.create"
+	ActionMerkleBatchesCreate           Action = "merkle_batches.create"
+	ActionTransparencyCheckpointsRecord Action = "transparency_checkpoints.record"
+)
+
+const ActionAnomalyReportsGenerate Action = "anomaly_reports.generate"
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -173,6 +184,10 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionAnomalyReportsGenerate:
+		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
+	case ActionTrustConfigurationsManage, ActionSigningOperationsCreate, ActionMerkleBatchesCreate, ActionTransparencyCheckpointsRecord:
+		return Definition{Scope: "keys:admin", Boundary: TenantBoundary}, true
 	case ActionAnswerLibraryEntriesRead, ActionPortalAccessRead:
 		return Definition{Scope: "package:read", Boundary: ResourceBoundary}, true
 	case ActionReleaseBundlesRead, ActionEvidenceBundlesExport:

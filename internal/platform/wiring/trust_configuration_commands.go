@@ -18,7 +18,7 @@ func BuildTrustConfigurationCommands(factory app.UnitOfWorkFactory) (*verificati
 	if factory == nil {
 		return nil, errors.New("trust configuration transactions are required")
 	}
-	return verificationapp.NewTrustConfigurationCommands(verificationapp.TrustConfigurationConfig{Transactions: trustConfigurationTransactions{factory}, Authorizer: verificationquery.NewSigningKeyAdminAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return verificationapp.NewTrustConfigurationCommands(verificationapp.TrustConfigurationConfig{Transactions: trustConfigurationTransactions{factory}, Authorizer: verificationquery.NewTrustConfigurationAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type trustConfigurationTransactions struct{ factory app.UnitOfWorkFactory }
@@ -50,7 +50,7 @@ func (t trustConfigurationTransaction) InsertDSSETrustRoot(ctx context.Context, 
 	return mapSigningKeyWriteError(t.integrity.InsertDSSETrustRoot(ctx, domain.DSSETrustRootFromContextModel(root)))
 }
 func (t trustConfigurationTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if err := verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, actor, request); err != nil {
+	if err := verificationquery.NewTrustConfigurationAuthorizer().Authorize(ctx, actor, request); err != nil {
 		return err
 	}
 	// Reuse only Identity's tenant-existence/mutation guard, not credential

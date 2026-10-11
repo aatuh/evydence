@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -61,7 +62,7 @@ func (s *SigningKeyCommands) authorizeSigningKeyReplay(ctx context.Context, acto
 		return err
 	}
 	return s.config.Transactions.ExecuteSigningKeyCommand(ctx, func(ctx context.Context, tx SigningKeyTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionSigningKeysManage, TenantWide: true}); err != nil {
 			return err
 		}
 		if id == "" {

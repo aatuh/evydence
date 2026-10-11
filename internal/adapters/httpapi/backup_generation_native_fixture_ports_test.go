@@ -56,7 +56,7 @@ func (t backupGenerationFixtureTransaction) ReadAuditChainVerificationPage(ctx c
 	return v, signingAdminFixtureError(err)
 }
 func (t backupGenerationFixtureTransaction) Authorize(ctx context.Context, actor domain.Actor, request application.AuthorizationRequest) error {
-	if err := verificationquery.NewRetentionAuthorizer().Authorize(ctx, actor, request); err != nil {
+	if err := verificationquery.NewBackupGenerationAuthorizer().Authorize(ctx, actor, request); err != nil {
 		return err
 	}
 	return signingAdminFixtureError(t.guard.LockAPIKeyCreation(ctx, actor.TenantID))
@@ -90,5 +90,5 @@ func (f verificationCommandFixture) nativeBackupGeneration() (*verificationapp.B
 	if commitment == nil {
 		commitment = scriptedHTTPBackupCommitment
 	}
-	return verificationapp.NewBackupGenerationCommands(verificationapp.BackupGenerationConfig{Transactions: backupGenerationFixtureTransactions{f.catalogFixtureCommands, commitment}, Authorizer: verificationquery.NewRetentionAuthorizer(), Hasher: releaseBundleVerificationFixtureHasher{}, Verifier: localed25519.PayloadVerifier{}, Clock: clock, IDs: ids})
+	return verificationapp.NewBackupGenerationCommands(verificationapp.BackupGenerationConfig{Transactions: backupGenerationFixtureTransactions{f.catalogFixtureCommands, commitment}, Authorizer: verificationquery.NewBackupGenerationAuthorizer(), Hasher: releaseBundleVerificationFixtureHasher{}, Verifier: localed25519.PayloadVerifier{}, Clock: clock, IDs: ids})
 }

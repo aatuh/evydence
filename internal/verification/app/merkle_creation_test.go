@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -47,6 +48,13 @@ type merkleCreationFake struct {
 	prepared *PreparedSigningKey
 	private  []byte
 	signs    int
+}
+
+func (f *merkleCreationFake) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
+	if r != (application.AuthorizationRequest{Action: authz.ActionMerkleBatchesCreate, TenantWide: true}) || f.fail == "scope" || f.fail == "auth" && f.inside {
+		return ErrForbidden
+	}
+	return nil
 }
 
 func (f *merkleCreationFake) ExecuteMerkleCreation(ctx context.Context, fn func(context.Context, MerkleCreationTransaction) error) error {

@@ -10,7 +10,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
-	packagequery "github.com/aatuh/evydence/internal/package/query"
+	experimentalquery "github.com/aatuh/evydence/internal/experimental/query"
 )
 
 type anomalyNativeRepository interface {
@@ -44,7 +44,7 @@ func (f anomalyNativeTransactions) ExecuteAnomalyReport(ctx context.Context, ten
 	}))
 }
 func (tx anomalyNativeTransaction) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
-	return packagequery.NewEvidenceSummaryAuthorizer().Authorize(ctx, a, r)
+	return experimentalquery.NewAnomalyAuthorizer().Authorize(ctx, a, r)
 }
 func (tx anomalyNativeTransaction) ReadAnomalyReleaseFacts(ctx context.Context, tenant, release string, at time.Time) (experimentalapp.AnomalyReleaseFacts, error) {
 	if tx.readOnly {
@@ -66,7 +66,7 @@ func (tx anomalyNativeTransaction) AppendAudit(ctx context.Context, e applicatio
 }
 func (f reportSigningFixtureCommands) nativeAnomaly(readOnly bool) (*experimentalapp.AnomalyCommands, error) {
 	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
-	return experimentalapp.NewAnomalyCommands(experimentalapp.AnomalyCommandConfig{Transactions: anomalyNativeTransactions{f.catalogFixtureCommands, readOnly}, Authorizer: packagequery.NewEvidenceSummaryAuthorizer(), Clock: clock, IDs: ids})
+	return experimentalapp.NewAnomalyCommands(experimentalapp.AnomalyCommandConfig{Transactions: anomalyNativeTransactions{f.catalogFixtureCommands, readOnly}, Authorizer: experimentalquery.NewAnomalyAuthorizer(), Clock: clock, IDs: ids})
 }
 func anomalyFixtureError(err error) error {
 	switch {

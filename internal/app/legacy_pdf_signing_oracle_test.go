@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
@@ -263,7 +264,7 @@ func cloneLocalSigningOperation(v domain.SigningOperation) domain.SigningOperati
 }
 
 func (l *Ledger) AuthorizeCreateSigningOperation(ctx context.Context, a domain.Actor, in CreateSigningOperationInput) error {
-	if err := verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+	if err := verificationquery.NewSigningOperationAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSigningOperationsCreate, TenantWide: true}); err != nil {
 		return mapSigningOperationContextError(err)
 	}
 	v, err := verificationapp.NormalizeSigningOperationInput(verificationapp.SigningOperationInput{ProviderID: in.ProviderID, SubjectType: in.SubjectType, SubjectID: in.SubjectID, PayloadHash: in.PayloadHash})

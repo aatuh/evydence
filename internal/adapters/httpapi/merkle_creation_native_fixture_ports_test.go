@@ -66,10 +66,10 @@ func (f merkleCreationFixtureTransactions) ExecuteTransparencyCheckpoint(ctx con
 	}))
 }
 func (t merkleCreationFixtureTransaction) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
-	return signingAdminFixtureAuthorize(ctx, a, r, t.guard)
+	return signingAdminFixtureAuthorize(ctx, a, r, t.guard, verificationquery.NewMerkleCreationAuthorizer())
 }
 func (t checkpointCreationFixtureTransaction) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
-	return signingAdminFixtureAuthorize(ctx, a, r, t.guard)
+	return signingAdminFixtureAuthorize(ctx, a, r, t.guard, verificationquery.NewTransparencyCheckpointAuthorizer())
 }
 func (t merkleCreationFixtureTransaction) LockMerkleCreationView(ctx context.Context, tenant string) (verificationapp.MerkleCreationView, error) {
 	v, err := t.reader.LockMerkleCreationView(ctx, tenant)
@@ -115,14 +115,14 @@ func (f merkleCreationFixtureCommands) merkleCommands() (*verificationapp.Merkle
 	if f.clock != nil {
 		clock = f.clock
 	}
-	return verificationapp.NewMerkleCreationCommands(verificationapp.MerkleCreationConfig{Transactions: merkleCreationFixtureTransactions{f.catalogFixtureCommands}, Authorizer: verificationquery.NewSigningKeyAdminAuthorizer(), Clock: clock, IDs: ids})
+	return verificationapp.NewMerkleCreationCommands(verificationapp.MerkleCreationConfig{Transactions: merkleCreationFixtureTransactions{f.catalogFixtureCommands}, Authorizer: verificationquery.NewMerkleCreationAuthorizer(), Clock: clock, IDs: ids})
 }
 func (f merkleCreationFixtureCommands) checkpointCommands() (*verificationapp.TransparencyCheckpointCommands, error) {
 	clock, ids := questionnaireNativeFixtureClockIDs(false)
 	if f.clock != nil {
 		clock = f.clock
 	}
-	return verificationapp.NewTransparencyCheckpointCommands(verificationapp.TransparencyCheckpointConfig{Transactions: merkleCreationFixtureTransactions{f.catalogFixtureCommands}, Authorizer: verificationquery.NewSigningKeyAdminAuthorizer(), Hasher: releaseBundleVerificationFixtureHasher{}, Clock: clock, IDs: ids})
+	return verificationapp.NewTransparencyCheckpointCommands(verificationapp.TransparencyCheckpointConfig{Transactions: merkleCreationFixtureTransactions{f.catalogFixtureCommands}, Authorizer: verificationquery.NewTransparencyCheckpointAuthorizer(), Hasher: releaseBundleVerificationFixtureHasher{}, Clock: clock, IDs: ids})
 }
 func (f merkleCreationFixtureCommands) AuthorizeMerkleCreation(ctx context.Context, a domain.Actor) error {
 	c, err := f.merkleCommands()

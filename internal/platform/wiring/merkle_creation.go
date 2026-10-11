@@ -18,7 +18,7 @@ func BuildMerkleCreationCommands(factory app.UnitOfWorkFactory) (*verificationap
 	if factory == nil {
 		return nil, errors.New("merkle creation transactions are required")
 	}
-	return verificationapp.NewMerkleCreationCommands(verificationapp.MerkleCreationConfig{Transactions: merkleCreationTransactions{factory}, Authorizer: verificationquery.NewSigningKeyAdminAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return verificationapp.NewMerkleCreationCommands(verificationapp.MerkleCreationConfig{Transactions: merkleCreationTransactions{factory}, Authorizer: verificationquery.NewMerkleCreationAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type merkleRootSigner interface {
@@ -71,7 +71,7 @@ func (t merkleCreationTransaction) InsertMerkleBatch(ctx context.Context, b veri
 	return mapSigningKeyWriteError(t.integrity.InsertMerkleBatch(ctx, domain.MerkleBatch(b)))
 }
 func (t merkleCreationTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if err := verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, a, r); err != nil {
+	if err := verificationquery.NewMerkleCreationAuthorizer().Authorize(ctx, a, r); err != nil {
 		return err
 	}
 	return mapSigningKeyWriteError(t.guard.LockAPIKeyCreation(ctx, a.TenantID))

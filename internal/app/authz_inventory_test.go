@@ -95,7 +95,7 @@ func TestResourceScopedAuthorizationCoverageInventory(t *testing.T) {
 				!strings.Contains(fn, "authorizeLocalSourceWriteLocked") &&
 				!strings.Contains(fn, "l.authorizeCatalogCreation(") &&
 				!strings.Contains(fn, "l.authorizeStateTransition(") &&
-				!strings.Contains(fn, "verificationquery.NewSigningKeyAdminAuthorizer().Authorize") && !strings.Contains(fn, "l.AuthorizeCreateSigningOperation(") &&
+				!strings.Contains(fn, "verificationquery.NewSigningKeyAdminAuthorizer().Authorize") && !strings.Contains(fn, "verificationquery.NewSigningOperationAuthorizer().Authorize") && !strings.Contains(fn, "l.AuthorizeCreateSigningOperation(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeSaaSProfileActor(") && !strings.Contains(fn, "l.AuthorizeCreateSaaSEditionProfile(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizeMarketplaceCollectorActor(") && !strings.Contains(fn, "l.AuthorizeCreateMarketplaceCollector(") &&
 				!strings.Contains(fn, "experimentalapp.AuthorizePublicTransparencyMetadataActor(") && !strings.Contains(fn, "e.AuthorizePublicTransparencyMetadataActor(") && !strings.Contains(fn, "l.AuthorizeFetchPublicTransparencyLogEntryProof(") && !strings.Contains(fn, "l.AuthorizeVerifyPublicTransparencyLogEntry(") && !strings.Contains(fn, "l.AuthorizeCreatePublicTransparencyLog(") && !strings.Contains(fn, "l.AuthorizePublishPublicTransparencyLogEntry(") {

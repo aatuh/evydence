@@ -37,7 +37,7 @@ func authorizeResource(actor identitydomain.Actor, scope string, request Request
 
 func allowsTenantResourceEvaluation(action Action) bool {
 	switch action {
-	case ActionAnswerLibraryEntriesRead, ActionPortalAccessRead, ActionEvidenceSummariesCreate:
+	case ActionAnswerLibraryEntriesRead, ActionPortalAccessRead, ActionEvidenceSummariesCreate, ActionAnomalyReportsGenerate:
 		return true
 	case ActionPDFReportsGenerate, ActionGraphSnapshotsCreate, ActionQuestionnaireDraftsCreate, ActionAnswerLibraryEntriesCreate, ActionQuestionnairePackagesCreate:
 		return true
@@ -72,7 +72,7 @@ func validResourceReferences(action Action, refs ResourceReferences) bool {
 		return refs.ProductID != "" && refs.CustomerPackageID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, CustomerPackageID: refs.CustomerPackageID})
 	case ActionReleaseBundlesRead, ActionReleaseBundlesCreate:
 		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
-	case ActionEvidenceSummariesCreate:
+	case ActionEvidenceSummariesCreate, ActionAnomalyReportsGenerate:
 		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID, CustomerPackageID: refs.CustomerPackageID})
 	case ActionEvidenceBundlesExport:
 		return refs == (ResourceReferences{}) || refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID})

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -81,7 +82,7 @@ func (f *backupGenerationFake) ExecuteBackupGeneration(ctx context.Context, fn f
 	return nil
 }
 func (f *backupGenerationFake) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopeAdmin || !r.TenantWide || r.ScopeOnly || !emptyResources(r.Resources) || f.fail == "scope" || f.fail == "auth" && f.inside {
+	if r.Action != authz.ActionBackupGenerate || r.Scope != "" || !r.TenantWide || r.ScopeOnly || !emptyResources(r.Resources) || f.fail == "scope" || f.fail == "auth" && f.inside {
 		return ErrForbidden
 	}
 	return nil

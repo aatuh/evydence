@@ -21,7 +21,7 @@ func BuildSigningOperationCommands(factory app.UnitOfWorkFactory, executor app.S
 	if executor != nil {
 		signer = providerSigningExecutor{executor}
 	}
-	return verificationapp.NewSigningOperationCommands(verificationapp.SigningOperationConfig{Transactions: signingOperationTransactions{factory}, Signer: signer, Authorizer: verificationquery.NewSigningKeyAdminAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return verificationapp.NewSigningOperationCommands(verificationapp.SigningOperationConfig{Transactions: signingOperationTransactions{factory}, Signer: signer, Authorizer: verificationquery.NewSigningOperationAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type providerSigningExecutor struct{ client app.SigningExecutor }
@@ -78,7 +78,7 @@ func (t signingOperationTransaction) InsertFocusedSigningOperation(ctx context.C
 	return mapSigningOperationWriteError(t.signingOperationRepository.InsertFocusedSigningOperation(ctx, s, v))
 }
 func (t signingOperationTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	return verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, a, r)
+	return verificationquery.NewSigningOperationAuthorizer().Authorize(ctx, a, r)
 }
 func (t signingOperationTransaction) AppendAudit(ctx context.Context, e application.AuditEvent) (application.AuditReceipt, error) {
 	v, err := appendAuditEvent(ctx, t.audit, e)

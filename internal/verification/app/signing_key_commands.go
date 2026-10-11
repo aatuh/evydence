@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -46,7 +47,7 @@ func NewSigningKeyCommands(config SigningKeyCommandConfig) (*SigningKeyCommands,
 	return &SigningKeyCommands{config}, nil
 }
 func (s *SigningKeyCommands) authorize(ctx context.Context, actor identitydomain.Actor) error {
-	return s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true})
+	return s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionSigningKeysManage, TenantWide: true})
 }
 func (s *SigningKeyCommands) auditEvent(actor identitydomain.Actor, at time.Time, kind, id string) application.AuditEvent {
 	return application.AuditEvent{ID: s.config.IDs.NewID("ace"), TenantID: actor.TenantID, EntryType: kind, SubjectType: "signing_key", SubjectID: id, ActorType: auditActorType(actor), ActorID: auditActorID(actor), OccurredAt: at.UTC()}

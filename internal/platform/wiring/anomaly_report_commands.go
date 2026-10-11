@@ -9,8 +9,8 @@ import (
 	"github.com/aatuh/evydence/internal/application"
 	experimentalapp "github.com/aatuh/evydence/internal/experimental/app"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
+	experimentalquery "github.com/aatuh/evydence/internal/experimental/query"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
-	packagequery "github.com/aatuh/evydence/internal/package/query"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 )
 
@@ -18,9 +18,9 @@ func BuildAnomalyReportCommands(factory app.UnitOfWorkFactory) (*experimentalapp
 	if factory == nil {
 		return nil, errors.New("anomaly report transactions are required")
 	}
-	// The composition root supplies the existing resolved report-grant policy.
+	// The composition root supplies the action-bound anomaly report policy.
 	// Experimental core code depends only on the transport-neutral authorizer.
-	return experimentalapp.NewAnomalyCommands(experimentalapp.AnomalyCommandConfig{Transactions: anomalyTransactions{factory}, Authorizer: packagequery.NewEvidenceSummaryAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return experimentalapp.NewAnomalyCommands(experimentalapp.AnomalyCommandConfig{Transactions: anomalyTransactions{factory}, Authorizer: experimentalquery.NewAnomalyAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type anomalyRepository interface {
@@ -64,7 +64,7 @@ func (t anomalyTransaction) InsertAnomalyReport(ctx context.Context, v experimen
 	return mapAnomalyWriteError(t.InsertFocusedAnomalyReport(ctx, v))
 }
 func (t anomalyTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	return packagequery.NewEvidenceSummaryAuthorizer().Authorize(ctx, a, r)
+	return experimentalquery.NewAnomalyAuthorizer().Authorize(ctx, a, r)
 }
 func (t anomalyTransaction) AppendAudit(ctx context.Context, e application.AuditEvent) (application.AuditReceipt, error) {
 	v, err := appendAuditEvent(ctx, t.audit, e)

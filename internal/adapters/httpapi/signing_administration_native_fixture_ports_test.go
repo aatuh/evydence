@@ -57,17 +57,17 @@ func (f signingAdminFixtureTransactions) ExecuteTrustConfigurationCommand(ctx co
 		return run(ctx, trustAdminFixtureTransaction{r.Integrity, guard, r.Audit})
 	}))
 }
-func signingAdminFixtureAuthorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest, guard releaseBundleFixtureFence) error {
-	if err := verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, a, r); err != nil {
+func signingAdminFixtureAuthorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest, guard releaseBundleFixtureFence, policy application.Authorizer) error {
+	if err := policy.Authorize(ctx, a, r); err != nil {
 		return err
 	}
 	return signingAdminFixtureError(guard.LockAPIKeyCreation(ctx, a.TenantID))
 }
 func (t signingAdminFixtureTransaction) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
-	return signingAdminFixtureAuthorize(ctx, a, r, t.guard)
+	return signingAdminFixtureAuthorize(ctx, a, r, t.guard, verificationquery.NewSigningKeyAdminAuthorizer())
 }
 func (t trustAdminFixtureTransaction) Authorize(ctx context.Context, a domain.Actor, r application.AuthorizationRequest) error {
-	return signingAdminFixtureAuthorize(ctx, a, r, t.guard)
+	return signingAdminFixtureAuthorize(ctx, a, r, t.guard, verificationquery.NewTrustConfigurationAuthorizer())
 }
 func (t signingAdminFixtureTransaction) LockSigningKeyScope(ctx context.Context, tenant, id string) error {
 	return signingAdminFixtureError(t.locker.LockSigningKeyScope(ctx, tenant, id))
@@ -116,7 +116,7 @@ func (f signingAdministrationFixtureCommands) trustCommands() (*verificationapp.
 	if f.clock != nil {
 		clock = f.clock
 	}
-	return verificationapp.NewTrustConfigurationCommands(verificationapp.TrustConfigurationConfig{Transactions: signingAdminFixtureTransactions{f.catalogFixtureCommands}, Authorizer: verificationquery.NewSigningKeyAdminAuthorizer(), Clock: clock, IDs: ids})
+	return verificationapp.NewTrustConfigurationCommands(verificationapp.TrustConfigurationConfig{Transactions: signingAdminFixtureTransactions{f.catalogFixtureCommands}, Authorizer: verificationquery.NewTrustConfigurationAuthorizer(), Clock: clock, IDs: ids})
 }
 func signingAdminFixtureError(err error) error {
 	switch {

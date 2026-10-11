@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -50,7 +51,7 @@ func (f *recordedCheckpointFake) LockTransparencyCheckpointScope(_ context.Conte
 	return nil
 }
 func (f *recordedCheckpointFake) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopeKeysAdmin || !r.TenantWide || r.ScopeOnly || !emptyResources(r.Resources) {
+	if r.Action != authz.ActionTransparencyCheckpointsRecord || r.Scope != "" || !r.TenantWide || r.ScopeOnly || !emptyResources(r.Resources) {
 		return ErrForbidden
 	}
 	if f.fail == "scope" || f.fail == "auth" && f.inside {

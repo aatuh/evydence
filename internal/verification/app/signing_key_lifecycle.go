@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -25,7 +26,7 @@ func (s *SigningKeyCommands) RotateSigningKey(ctx context.Context, actor identit
 	}
 	var rotated verificationdomain.SigningKey
 	err := s.config.Transactions.ExecuteSigningKeyCommand(ctx, func(ctx context.Context, tx SigningKeyTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionSigningKeysManage, TenantWide: true}); err != nil {
 			return err
 		}
 		keys, err := tx.ListLocalSigningKeysForUpdate(ctx, actor.TenantID)
@@ -115,7 +116,7 @@ func (s *SigningKeyCommands) RevokeSigningKey(ctx context.Context, actor identit
 	}
 	var revoked verificationdomain.SigningKey
 	err = s.config.Transactions.ExecuteSigningKeyCommand(ctx, func(ctx context.Context, tx SigningKeyTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionSigningKeysManage, TenantWide: true}); err != nil {
 			return err
 		}
 		key, err := tx.GetSigningKeyForUpdate(ctx, actor.TenantID, keyID)

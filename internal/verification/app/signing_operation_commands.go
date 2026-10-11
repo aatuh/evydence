@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -116,11 +117,11 @@ func (c *SigningOperationCommands) prepare(ctx context.Context, a identitydomain
 	if err != nil {
 		return in, err
 	}
-	return in, c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true})
+	return in, c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSigningOperationsCreate, TenantWide: true})
 }
 func readAuthorizedSigningOperation(ctx context.Context, tx SigningOperationTransaction, a identitydomain.Actor, in SigningOperationInput) (SigningOperationProvider, error) {
 	var empty SigningOperationProvider
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSigningOperationsCreate, TenantWide: true}); err != nil {
 		return empty, err
 	}
 	p, err := tx.ReadSigningOperationProvider(ctx, a.TenantID, in.ProviderID)

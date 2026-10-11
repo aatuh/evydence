@@ -54,6 +54,10 @@ var actionCases = []struct {
 	{ActionSaaSProfilesManage, "instance:admin", InstanceBoundary},
 	{ActionTenantSubjectVerify, "verify:read", TenantBoundary},
 	{ActionBackupGenerate, "admin", TenantBoundary},
+	{"trust_configurations.manage", "keys:admin", TenantBoundary},
+	{"signing_operations.create", "keys:admin", TenantBoundary},
+	{"merkle_batches.create", "keys:admin", TenantBoundary},
+	{"transparency_checkpoints.record", "keys:admin", TenantBoundary},
 }
 
 func TestEveryDeclaredActionHasPolicyAndBehaviorCases(t *testing.T) {

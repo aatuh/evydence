@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -48,7 +49,7 @@ func NewTrustConfigurationCommands(config TrustConfigurationConfig) (*TrustConfi
 	return &TrustConfigurationCommands{config.Transactions, config.Authorizer, config.Clock, config.IDs}, nil
 }
 func (s *TrustConfigurationCommands) authorize(ctx context.Context, actor identitydomain.Actor) error {
-	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true})
+	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionTrustConfigurationsManage, TenantWide: true})
 }
 
 // AuthorizeTrustConfiguration checks current tenant-wide authority before
@@ -65,7 +66,7 @@ func (s *TrustConfigurationCommands) AuthorizeTrustConfiguration(ctx context.Con
 		return err
 	}
 	return s.transactions.ExecuteTrustConfigurationCommand(ctx, func(ctx context.Context, tx TrustConfigurationTransaction) error {
-		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true})
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionTrustConfigurationsManage, TenantWide: true})
 	})
 }
 func (s *TrustConfigurationCommands) auditEvent(actor identitydomain.Actor, at time.Time, kind, subject, id string) application.AuditEvent {
@@ -150,7 +151,7 @@ func (s *TrustConfigurationCommands) CreateSigningProvider(ctx context.Context, 
 		SchemaVersion: verificationdomain.SigningProviderSchemaVersion, CreatedAt: now,
 	}
 	err = s.transactions.ExecuteTrustConfigurationCommand(ctx, func(ctx context.Context, tx TrustConfigurationTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionTrustConfigurationsManage, TenantWide: true}); err != nil {
 			return err
 		}
 		if err := tx.InsertSigningProvider(ctx, provider); err != nil {
@@ -217,7 +218,7 @@ func (s *TrustConfigurationCommands) CreateDSSETrustRoot(ctx context.Context, ac
 		Status: "active", SchemaVersion: verificationdomain.DSSETrustRootSchemaVersion, CreatedAt: now,
 	}
 	err = s.transactions.ExecuteTrustConfigurationCommand(ctx, func(ctx context.Context, tx TrustConfigurationTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionTrustConfigurationsManage, TenantWide: true}); err != nil {
 			return err
 		}
 		if err := tx.InsertDSSETrustRoot(ctx, root); err != nil {

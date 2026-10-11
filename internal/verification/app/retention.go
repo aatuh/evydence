@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -106,7 +107,7 @@ func (s *RetentionCommands) CreateObjectRetentionPolicy(ctx context.Context, act
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeAdmin); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionRetentionPoliciesManage); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	input, err := NormalizeObjectRetentionPolicyInput(actor.TenantID, input)
@@ -121,7 +122,7 @@ func (s *RetentionCommands) CreateObjectRetentionPolicy(ctx context.Context, act
 		SchemaVersion: verificationdomain.ObjectRetentionPolicyVersion, CreatedAt: now,
 	}
 	err = s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionRetentionPoliciesManage, TenantWide: true}); err != nil {
 			return err
 		}
 		if err := tx.InsertObjectRetentionPolicy(ctx, policy); err != nil {
@@ -143,7 +144,7 @@ func (s *RetentionCommands) VerifyObjectRetentionPolicy(ctx context.Context, act
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionRetentionPoliciesRead); err != nil {
 		return verificationdomain.ObjectRetentionPolicy{}, err
 	}
 	id, err := NormalizeObjectRetentionPolicyID(id)
@@ -221,7 +222,7 @@ func (s *RetentionCommands) VerifyObjectRetentionPolicy(ctx context.Context, act
 		entryType = "object_retention_policy.verification_failed"
 	}
 	err = s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionRetentionPoliciesRead, TenantWide: true}); err != nil {
 			return err
 		}
 		current, err := tx.GetObjectRetentionPolicyForUpdate(ctx, actor.TenantID, policy.ID)
@@ -345,7 +346,7 @@ func (s *Service) GenerateBackupManifest(ctx context.Context, actor identitydoma
 		SchemaVersion: verificationdomain.BackupManifestSchemaVersion, CreatedAt: now,
 	}
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBackupGenerate, TenantWide: true}); err != nil {
 			return err
 		}
 		if err := tx.Verification().InsertBackupManifest(ctx, manifest); err != nil {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	experimentaldomain "github.com/aatuh/evydence/internal/experimental/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -27,7 +28,7 @@ type anomalyFixture struct {
 }
 
 func (f *anomalyFixture) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
-	if f.phase == "scope authorization" || !r.ScopeOnly && f.phase == "root authorization" {
+	if r.Action != authz.ActionAnomalyReportsGenerate || r.Scope != "" || f.phase == "scope authorization" || !r.ScopeOnly && f.phase == "root authorization" {
 		return application.ErrForbidden
 	}
 	return nil

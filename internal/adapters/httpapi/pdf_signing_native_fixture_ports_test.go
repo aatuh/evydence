@@ -137,7 +137,7 @@ func (f reportSigningFixtureCommands) nativePDF(readOnly bool) (*packageapp.PDFR
 	return packageapp.NewPDFReportCommands(packageapp.PDFReportCommandConfig{Transactions: pdfSigningNativeTransactions{f, readOnly, a}, Authorizer: a, Hasher: pdfFixtureNativeHasher{readOnly}, Clock: clock, IDs: ids})
 }
 func (f reportSigningFixtureCommands) nativeSigning(readOnly bool) (*verificationapp.SigningOperationCommands, error) {
-	a := verificationquery.NewSigningKeyAdminAuthorizer()
+	a := verificationquery.NewSigningOperationAuthorizer()
 	clock, ids := questionnaireNativeFixtureClockIDs(readOnly)
 	var signer verificationapp.ProviderSigningExecutor
 	if f.signer != nil {

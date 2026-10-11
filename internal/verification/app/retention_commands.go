@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -58,8 +59,8 @@ func NewRetentionCommands(config RetentionCommandConfig) (*RetentionCommands, er
 	}
 	return &RetentionCommands{reader: config.Reader, transactions: config.Transactions, retentionVerifier: config.Verifier, canonicalHasher: config.Hasher, authorizer: config.Authorizer, clock: config.Clock, ids: config.IDs}, nil
 }
-func (s *RetentionCommands) authorize(ctx context.Context, actor identitydomain.Actor, scope string) error {
-	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, TenantWide: true})
+func (s *RetentionCommands) authorize(ctx context.Context, actor identitydomain.Actor, action authz.Action) error {
+	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: action, TenantWide: true})
 }
 
 func (s *RetentionCommands) AuthorizeCreateObjectRetentionPolicy(ctx context.Context, actor identitydomain.Actor, input CreateObjectRetentionPolicyInput) error {
@@ -72,11 +73,11 @@ func (s *RetentionCommands) AuthorizeCreateObjectRetentionPolicy(ctx context.Con
 	if _, err := NormalizeObjectRetentionPolicyInput(actor.TenantID, input); err != nil {
 		return err
 	}
-	if err := s.authorize(ctx, actor, ScopeAdmin); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionRetentionPoliciesManage); err != nil {
 		return err
 	}
 	return s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
-		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeAdmin, TenantWide: true})
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionRetentionPoliciesManage, TenantWide: true})
 	})
 }
 
@@ -94,11 +95,11 @@ func (s *RetentionCommands) AuthorizeVerifyObjectRetentionPolicy(ctx context.Con
 	if err != nil {
 		return err
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionRetentionPoliciesRead); err != nil {
 		return err
 	}
 	return s.transactions.ExecuteRetentionCommand(ctx, func(ctx context.Context, tx RetentionTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionRetentionPoliciesRead, TenantWide: true}); err != nil {
 			return err
 		}
 		return tx.LockObjectRetentionPolicy(ctx, actor.TenantID, id)

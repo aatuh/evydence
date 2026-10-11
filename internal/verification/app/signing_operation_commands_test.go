@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -31,7 +32,7 @@ type signingOperationFixture struct {
 }
 
 func (f *signingOperationFixture) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
-	if f.phase == "authorization" || r.Scope != ScopeKeysAdmin || !r.TenantWide {
+	if f.phase == "authorization" || r.Action != authz.ActionSigningOperationsCreate || r.Scope != "" || !r.TenantWide {
 		return application.ErrForbidden
 	}
 	return nil

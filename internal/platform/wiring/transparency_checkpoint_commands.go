@@ -18,7 +18,7 @@ func BuildTransparencyCheckpointCommands(factory app.UnitOfWorkFactory) (*verifi
 	if factory == nil {
 		return nil, errors.New("transparency checkpoint transactions are required")
 	}
-	return verificationapp.NewTransparencyCheckpointCommands(verificationapp.TransparencyCheckpointConfig{Transactions: transparencyCheckpointTransactions{factory}, Authorizer: verificationquery.NewSigningKeyAdminAuthorizer(), Hasher: verificationCanonicalHasher{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return verificationapp.NewTransparencyCheckpointCommands(verificationapp.TransparencyCheckpointConfig{Transactions: transparencyCheckpointTransactions{factory}, Authorizer: verificationquery.NewTransparencyCheckpointAuthorizer(), Hasher: verificationCanonicalHasher{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
 }
 
 type transparencyCheckpointTransactions struct{ factory app.UnitOfWorkFactory }
@@ -55,7 +55,7 @@ func (t transparencyCheckpointTransaction) InsertTransparencyCheckpoint(ctx cont
 	return mapSigningKeyWriteError(t.integrity.InsertTransparencyCheckpoint(ctx, domain.TransparencyCheckpoint{ID: c.ID, TenantID: c.TenantID, BatchID: c.BatchID, Provider: c.Provider, ExternalURL: c.ExternalURL, ExternalID: c.ExternalID, TimestampHash: c.TimestampHash, State: c.State, SchemaVersion: c.SchemaVersion, CreatedAt: c.CreatedAt}))
 }
 func (t transparencyCheckpointTransaction) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if err := verificationquery.NewSigningKeyAdminAuthorizer().Authorize(ctx, a, r); err != nil {
+	if err := verificationquery.NewTransparencyCheckpointAuthorizer().Authorize(ctx, a, r); err != nil {
 		return err
 	}
 	return mapSigningKeyWriteError(t.guard.LockAPIKeyCreation(ctx, a.TenantID))

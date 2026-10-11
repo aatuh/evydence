@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -64,7 +65,7 @@ func (s *MerkleCreationCommands) AuthorizeMerkleCreation(ctx context.Context, a 
 	if err := validateSigningKeyActor(a); err != nil {
 		return err
 	}
-	r := application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}
+	r := application.AuthorizationRequest{Action: authz.ActionMerkleBatchesCreate, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, r); err != nil {
 		return err
 	}
@@ -77,7 +78,7 @@ func (s *MerkleCreationCommands) CreateMerkleBatch(ctx context.Context, a identi
 	if err := validateSigningKeyActor(a); err != nil {
 		return verificationdomain.MerkleBatch{}, err
 	}
-	request := application.AuthorizationRequest{Scope: ScopeKeysAdmin, TenantWide: true}
+	request := application.AuthorizationRequest{Action: authz.ActionMerkleBatchesCreate, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, request); err != nil {
 		return verificationdomain.MerkleBatch{}, err
 	}

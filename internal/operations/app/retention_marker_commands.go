@@ -88,7 +88,7 @@ type retentionMarkerAuthorizer struct{}
 
 func NewRetentionMarkerAuthorizer() application.Authorizer { return retentionMarkerAuthorizer{} }
 func (retentionMarkerAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != "admin" || !r.TenantWide || r.ScopeOnly || r.Resources != (application.ResourceReferences{}) {
+	if r.Action != authz.ActionRetentionMarkersManage || r.Scope != "" || !r.TenantWide || r.ScopeOnly || r.Resources != (application.ResourceReferences{}) {
 		return application.ErrForbidden
 	}
 	return authz.Authorize(ctx, a, authz.Request{Action: authz.ActionRetentionMarkersManage})
@@ -104,7 +104,7 @@ func (s *RetentionMarkerCommands) execute(ctx context.Context, a identitydomain.
 	if !markerText(a.TenantID, 1024) || strings.TrimSpace(a.TenantID) != a.TenantID {
 		return ErrValidation
 	}
-	r := application.AuthorizationRequest{Scope: "admin", TenantWide: true}
+	r := application.AuthorizationRequest{Action: authz.ActionRetentionMarkersManage, TenantWide: true}
 	if err := s.config.Authorizer.Authorize(ctx, a, r); err != nil {
 		return err
 	}
