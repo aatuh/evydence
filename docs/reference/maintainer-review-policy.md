@@ -9,19 +9,29 @@ certification, complete vulnerability coverage, or a secure-release guarantee.
 
 ## Current Enforcement Status
 
-`CODEOWNERS` is committed at the repository root and names the expected
-maintainer owner for high-risk paths. GitHub branch protection or repository
-rules must enforce CODEOWNERS and required checks before it becomes a merge
-gate. Until those GitHub settings are enabled, this file is a public review
-policy and not a technical enforcement guarantee.
+The live GitHub API settings for `master` were verified on 2026-10-11:
+
+- `Production Check` and `CodeQL Analyze` remain required, bound to GitHub
+  Actions (app ID `15368`), with the branch required to be up to date;
+- pull-request approvals and CODEOWNERS approvals are not required;
+- linear history and conversation resolution are not required;
+- force pushes and branch deletion remain disabled;
+- administrator enforcement remains disabled, so administrators can bypass
+  these protections.
+
+`CODEOWNERS` remains committed at the repository root as an ownership reference
+for high-risk paths, not an enforced approval gate. This solo-maintainer setup
+does not require an independent reviewer. The settings snapshot is not proof
+that CI passed on any particular commit, and settings can change after the
+verification date.
 
 ## Maintainer Bypass Posture
 
-The repository may allow maintainers or administrators to bypass branch
-protection depending on the live GitHub repository settings. Evydence therefore
-does not claim that every change is technically forced through pull-request
-review, even though pull-request review is the expected path for high-risk
-changes.
+The verified configuration does not enforce branch protection for
+administrators. Required checks apply to non-bypass updates, but Evydence does
+not claim that every change is technically forced through CI or pull-request
+review. Maintainer self-review remains expected for high-risk changes; a second
+person's approval is not a prerequisite in this solo-maintainer workflow.
 
 When a maintainer bypass is used for an urgent or operational change, the
 maintainer should record the reason in the pull request, release evidence, or a
@@ -35,7 +45,7 @@ follow-up audit note as appropriate. The compensating controls are:
   and release evidence manifests before candidate tags are treated as operator
   evaluation inputs;
 - `CODEOWNERS` coverage for high-risk paths, which states expected maintainer
-  ownership even when repository settings are not public proof of enforcement;
+  ownership without requiring a CODEOWNERS approval;
 - public release evidence and audit visibility for candidate releases.
 
 These controls support review and reproducibility. They do not prove that a
@@ -45,7 +55,8 @@ secure-release guarantee.
 
 ## High-Risk Paths
 
-Changes in these areas require maintainer review before merge or release:
+Changes in these areas require maintainer self-review before merge or release,
+without a mandatory second-person approval:
 
 - `internal/app/`, `internal/domain/`, and `internal/adapters/httpapi/` for
   tenant isolation, authorization, idempotency, evidence immutability, report
@@ -109,10 +120,11 @@ commit SHA and service/container images pinned by digest. If an Action or image
 pin is updated, reviewers should verify the upstream tag or digest source and
 record the reason in the pull request or release evidence.
 
-Branch protection requires the live `Production Check` and `CodeQL Analyze`
-checks because they run on pushes and pull requests and directly gate runtime
-correctness and security analysis. OpenSSF Scorecard and Scorecard SARIF remain
-scheduled/manual advisory checks for the current release-candidate line. Do not
-make them required branch-protection checks unless their workflows also run on
-the same pull request events without introducing circular or non-deterministic
-merge blocking.
+Branch protection retains the live `Production Check` and `CodeQL Analyze`
+checks for runtime correctness and security analysis on non-bypass updates;
+their workflows run on pushes and pull requests.
+
+OpenSSF Scorecard and Scorecard SARIF remain scheduled/manual advisory checks for
+the current release-candidate line. Do not make them required branch-protection
+checks unless their workflows also run on the same pull request events without
+introducing circular or non-deterministic merge blocking.

@@ -26,7 +26,7 @@ product-boundary language across the docs.
 | Release evidence artifact map | `docs/reference/release-evidence-index.md` | Maps each release artifact to generation and verification commands. |
 | Production profiles and exit criteria | `docs/reference/production-readiness.md`, `docs/reference/production-exit-review.md`, and `docs/reference/stable-v0.1.0-exit-criteria.md` | Do not broaden status elsewhere without updating these. |
 | Design-partner pilot checklist | `docs/how-to/pilot-deployment-checklist.md` | Narrow copy-paste checklist for one controlled self-hosted pilot profile. |
-| Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | Branch protection or repository rules must enforce this before it is a merge gate. |
+| Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | CODEOWNERS is an ownership reference; the policy records the verified solo-maintainer CI gates and administrator bypass. |
 | Roadmap and cadence | `docs/reference/roadmap.md` | Public roadmap, supported release line, and cadence expectations. |
 | Agent execution policy | `AGENTS.md` | Canonical repository-local execution contract for agents, including backlog status, commit, validation, evidence, and safety rules. |
 | 9/10 implementation tracking | `docs/reference/world-class-backlog.md` and `.EVYDENCE_CODEX_BACKLOG.md` | The reference page explains tracking; the root backlog holds ticket state. Neither is a production claim or evidence of external completion. |
