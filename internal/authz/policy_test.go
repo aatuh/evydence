@@ -82,6 +82,16 @@ func TestEveryDeclaredActionHasPolicyAndBehaviorCases(t *testing.T) {
 		return false
 	})
 	seen := map[Action]bool{}
+	for _, action := range portalTokenCases {
+		if seen[action] {
+			t.Fatal("duplicate package-token action", action)
+		}
+		seen[action] = true
+		definition, ok := DefinitionFor(action)
+		if !ok || definition.Scope != "" || definition.Boundary != PackageTokenBoundary {
+			t.Fatal("package-token action requires its own boundary", definition, ok)
+		}
+	}
 	for _, action := range selfSessionCases {
 		if seen[action] {
 			t.Fatal("duplicate self-session action", action)

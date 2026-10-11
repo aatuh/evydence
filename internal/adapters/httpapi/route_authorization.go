@@ -283,8 +283,12 @@ func authorizationPolicyForOperation(id string) (routeAuthorizationPolicy, bool)
 		return routeAuthorizationPolicy{Mode: "public-probe", TenantRule: "no-tenant-data"}, true
 	case "receiveIncidentWebhook":
 		return routeAuthorizationPolicy{Mode: "signed-webhook", TenantRule: "verified-receiver-tenant"}, true
-	case "accessCustomerPortalPackage", "downloadCustomerPortalPackage", "customerPortalPackageViewForm", "customerPortalPackageView", "downloadCustomerPortalPackageView":
-		return routeAuthorizationPolicy{Mode: "package-token", TenantRule: "token-bound-package"}, true
+	case "accessCustomerPortalPackage", "customerPortalPackageView":
+		return routeAuthorizationPolicy{Mode: "package-token", Actions: []authz.Action{authz.ActionPortalPackagesRead}, TenantRule: "token-bound-package"}, true
+	case "downloadCustomerPortalPackage", "downloadCustomerPortalPackageView":
+		return routeAuthorizationPolicy{Mode: "package-token", Actions: []authz.Action{authz.ActionPortalPackagesDownload}, TenantRule: "token-bound-package"}, true
+	case "customerPortalPackageViewForm":
+		return routeAuthorizationPolicy{Mode: "public-form", TenantRule: "no-tenant-data"}, true
 	case "exchangeSSOCredential":
 		return routeAuthorizationPolicy{Mode: "verified-sso-credential", TenantRule: "verified-identity-tenant"}, true
 	case "metrics":
@@ -313,11 +317,24 @@ func validateRouteAuthorizationPolicy(op specs.Operation, p routeAuthorizationPo
 		return errors.New("missing route authorization boundary")
 	}
 	if p.Mode != "authenticated-principal" {
-		if len(p.Actions) != 0 || len(op.Security) != 0 || len(op.Scopes) != 0 {
+		if len(op.Security) != 0 || len(op.Scopes) != 0 {
 			return errors.New("non-bearer route declares bearer authority")
 		}
+		if p.Mode == "package-token" {
+			if len(p.Actions) != 1 {
+				return errors.New("package-token route lacks its concrete action")
+			}
+			definition, ok := authz.DefinitionFor(p.Actions[0])
+			if !ok || definition.Scope != "" || definition.Boundary != authz.PackageTokenBoundary {
+				return errors.New("package-token route substitutes another credential boundary")
+			}
+			return nil
+		}
+		if len(p.Actions) != 0 {
+			return errors.New("public route borrows an unrelated action")
+		}
 		switch p.Mode {
-		case "public-probe", "signed-webhook", "package-token", "verified-sso-credential":
+		case "public-probe", "public-form", "signed-webhook", "verified-sso-credential":
 			return nil
 		default:
 			return errors.New("unknown route authentication boundary")

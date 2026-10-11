@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
 
@@ -120,7 +121,11 @@ func (s *PortalTokenCommands) AccessPortalPackage(ctx context.Context, token str
 		if !portalTime(now) {
 			return ErrValidation
 		}
-		if v.RevokedAt != nil || !v.ExpiresAt.After(now) {
+		grant := authz.PortalTokenGrant{TenantID: v.TenantID, AccessID: v.ID, PackageID: v.PackageID, ExpiresAt: v.ExpiresAt, Revoked: v.RevokedAt != nil, RequireNDA: v.RequireNDA, NDAAccepted: v.NDAAcceptedAt != nil}
+		if err := authz.CheckPortalTokenValidity(ctx, grant, now); err != nil {
+			if !errors.Is(err, authz.ErrUnauthorized) {
+				return err
+			}
 			outcome = application.ErrUnauthorized
 			return nil
 		}
@@ -159,26 +164,32 @@ func (s *PortalTokenCommands) AccessPortalPackage(ctx context.Context, token str
 		if err != nil {
 			return err
 		}
-		if pkg.ID != v.PackageID || pkg.TenantID != v.TenantID || pkg.ProductID != scope.Resources.ProductID || pkg.ReleaseID != scope.Resources.ReleaseID {
-			return ErrNotFound
-		}
 		now = s.config.Clock.Now().UTC().Truncate(time.Microsecond)
 		if !portalTime(now) {
 			return ErrValidation
 		}
-		if !v.ExpiresAt.After(now) {
+		action := authz.ActionPortalPackagesRead
+		if download {
+			action = authz.ActionPortalPackagesDownload
+		}
+		resources := authz.ResourceReferences{TenantID: scope.TenantID, ProductID: scope.Resources.ProductID, ReleaseID: scope.Resources.ReleaseID, CustomerPackageID: scope.PackageID}
+		err = authz.AuthorizePortalPackage(ctx, grant, authz.PortalPackageRequest{Action: action, Scope: resources, Target: authz.ResourceReferences{TenantID: pkg.TenantID, ProductID: pkg.ProductID, ReleaseID: pkg.ReleaseID, CustomerPackageID: pkg.ID}, ExpiresAt: pkg.ExpiresAt, Now: now, NDAAccepted: in.NDAAccepted, NDAAcceptedBy: in.NDAAcceptedBy})
+		if errors.Is(err, authz.ErrUnauthorized) {
 			outcome = application.ErrUnauthorized
 			return nil
 		}
-		if !pkg.ExpiresAt.After(now) {
+		if errors.Is(err, authz.ErrNotFound) {
 			return ErrNotFound
 		}
-		if v.RequireNDA && v.NDAAcceptedAt == nil && (!in.NDAAccepted || in.NDAAcceptedBy == "") {
+		if errors.Is(err, authz.ErrForbidden) {
 			if err := s.audit(ctx, tx, v, "customer_portal_package.nda_required", "customer_portal_access", v.ID, v.ID, pkg.ManifestHash, now); err != nil {
 				return err
 			}
 			outcome = application.ErrForbidden
 			return ctx.Err()
+		}
+		if err != nil {
+			return err
 		}
 		if v.AccessCount >= math.MaxInt32 {
 			return ErrConflict
@@ -215,6 +226,9 @@ func (s *PortalTokenCommands) AccessPortalPackage(ctx context.Context, token str
 		return ctx.Err()
 	})
 	if err != nil {
+		return empty, err
+	}
+	if err := contextError(ctx); err != nil {
 		return empty, err
 	}
 	if outcome != nil {

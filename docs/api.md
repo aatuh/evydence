@@ -802,10 +802,12 @@ API keys and collector keys are tenant-scoped bearer secrets. Human SSO session 
 Every generated operation includes `x-evydence-authorization`: its authentication
 `mode`, central policy `actions` where applicable, and `tenant_rule`. Authenticated
 principal routes retain the published bearer scheme and may also accept the
-documented SSO cookie flow. Public probes, signed webhooks, verified SSO
+documented SSO cookie flow. Public probes/forms, signed webhooks, verified SSO
 credential exchange, and package-token routes declare their distinct boundaries
 instead of implying bearer authority. Instance operations require explicit
 instance capability; static catalogs and self-session logout have separate rules.
+Token consumers name `portal_packages.read` or `portal_packages.download`;
+the static portal form declares `public-form` and exposes no tenant package.
 The registry rejects missing or inconsistent contracts at startup. This
 inventory describes required policy; it is not evidence that every route's
 positive/negative authorization cases have been executed. That coverage remains
@@ -2552,11 +2554,18 @@ closed. Raw token input is limited to 1024 UTF-8 bytes.
 Tokens and hashes are never returned in package, HTML, ZIP, audit, or replay
 outputs. Access checks token revocation/expiry and current package ownership/
 expiry, and reads only the selected package's bounded manifest (at most 8 MiB).
+The central `internal/authz` package-token policy enforces the concrete read or
+download action, exact current tenant/product/release/package coordinates,
+token/package lifetime, and required acceptance. API-key capabilities and human
+grants cannot substitute for a verified package token. Cryptographic token
+verification stays in the credential port; no raw token or hash enters policy.
 NDA acceptance, portal counters and access/download audit entries commit
 together. NDA-required denials commit an audit event; wrong tokens sharing a
 live prefix commit a failed-access counter/audit and revoke access on the fifth
 failure. Storage/audit/commit failure rolls back every effect. This records
 acceptance as evidence; it does not establish legal NDA sufficiency.
+Cancellation observed after a successful commit withholds the package result;
+it cannot undo the already committed acceptance, count, or audit entries.
 
 HTML keeps escaping, restrictive CSP and no-store/no-referrer headers. ZIP
 rendering keeps its existing size limits and sensitive-content guard: an
@@ -2568,8 +2577,12 @@ PostgreSQL is required for local evaluation. Test-only adapters compose the
 actual focused services with transaction-owned memory repositories, including
 hash-free administrative reads, detached metadata, monotonic counters and
 commit-before-denial behavior. Synthetic credentials and memory checks are
-not production configuration, SQL-locking or durability evidence. Physical
-aggregate deletion and other extension handlers remain EVY-906 work.
+not production configuration, SQL-locking or durability evidence. Scoped
+behavioral coverage for the four token routes and the data-free public form is
+in `internal/adapters/httpapi/portal_authorization_matrix_test.go`; policy,
+isolation and cancellation regressions are in `internal/authz/portal_policy_test.go`
+and `internal/package/app/portal_token_policy_test.go`. EVY-1002's complete
+route matrix and final required gates remain incomplete.
 
 ### Built-in Policy Evaluation
 

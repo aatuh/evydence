@@ -34,6 +34,24 @@ func TestEveryRegisteredRouteDeclaresAuthorizationPolicyContract(t *testing.T) {
 	}
 }
 
+func TestPortalRoutesDeclareExactTokenActionOrPublicForm(t *testing.T) {
+	for _, tc := range []struct {
+		operation, mode string
+		actions         []authz.Action
+	}{
+		{"accessCustomerPortalPackage", "package-token", []authz.Action{authz.ActionPortalPackagesRead}},
+		{"customerPortalPackageView", "package-token", []authz.Action{authz.ActionPortalPackagesRead}},
+		{"downloadCustomerPortalPackage", "package-token", []authz.Action{authz.ActionPortalPackagesDownload}},
+		{"downloadCustomerPortalPackageView", "package-token", []authz.Action{authz.ActionPortalPackagesDownload}},
+		{"customerPortalPackageViewForm", "public-form", nil},
+	} {
+		p, ok := authorizationPolicyForOperation(tc.operation)
+		if !ok || p.Mode != tc.mode || !slices.Equal(p.Actions, tc.actions) {
+			t.Errorf("%s does not identify its actual public/token boundary: %#v", tc.operation, p)
+		}
+	}
+}
+
 func TestRouteAuthorizationContractsRejectDriftAndCannotBeMutatedThroughOtherRoutes(t *testing.T) {
 	for _, route := range (&Server{}).routeDefinitions() {
 		t.Run(route.op.OperationID, func(t *testing.T) {

@@ -1009,6 +1009,15 @@ use UTC microseconds. Revocation bodies remain ignored. Existing email-bearing
 watermarks can still be rejected by ZIP privacy validation; use an explicit
 customer-safe watermark. See [portal lifecycle](../api.md#customer-portal-lifecycle).
 
+Token consumers now use the central package-token authorization boundary with
+distinct read/download actions. The generated authorization extension labels
+the static form `public-form`, not token consumption. Token formats, scopes,
+response schemas, redaction, NDA-required audit, failed-secret counters and
+five-failure revocation semantics are unchanged. A request canceled immediately
+after a successful access transaction no longer returns the package result;
+already committed acceptance/counters/audits remain committed. No historical
+record rewrite, migration, or stronger legal/provider claim is introduced.
+
 These authorization/input restrictions need release compatibility review and
 the exact project-owned breaking-change gate before ticket closure. No
 exception, external review, or production Ledger retirement is claimed here.

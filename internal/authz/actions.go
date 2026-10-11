@@ -166,6 +166,13 @@ const ActionAnomalyReportsGenerate Action = "anomaly_reports.generate"
 
 const ActionSSOSessionsLogout Action = "sso_sessions.logout"
 
+// Public package actions require a separately verified package-token grant.
+// An API scope or human grant cannot substitute for that credential boundary.
+const (
+	ActionPortalPackagesRead     Action = "portal_packages.read"
+	ActionPortalPackagesDownload Action = "portal_packages.download"
+)
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -178,6 +185,9 @@ const (
 	// SelfSessionBoundary uses an authenticated human's own session, not a
 	// credential capability, resource grant, or caller-selected target.
 	SelfSessionBoundary
+	// PackageTokenBoundary is evaluated by AuthorizePortalPackage, never by
+	// the API-key/human Actor policy or an issued bearer capability.
+	PackageTokenBoundary
 )
 
 // Definition is the immutable capability and ownership boundary of an action.
@@ -189,6 +199,8 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionPortalPackagesRead, ActionPortalPackagesDownload:
+		return Definition{Boundary: PackageTokenBoundary}, true
 	case ActionSSOSessionsLogout:
 		return Definition{Boundary: SelfSessionBoundary}, true
 	case ActionAnomalyReportsGenerate:

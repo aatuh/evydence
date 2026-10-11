@@ -1319,18 +1319,31 @@ limits are recorded in [API versioning](../reference/api-versioning.md#unrelease
 All 189 registered API operations now declare an explicit authorization
 contract in generated OpenAPI under `x-evydence-authorization`. The closed
 operation inventory records action IDs and tenant/instance/static-catalog/
-self-session boundaries, including conditional metrics and subject dispatch.
-Public probes, signed incident receivers, SSO credential exchange, and package
+self-session/package-token boundaries, including conditional metrics and subject dispatch.
+Public probes/forms, signed incident receivers, SSO credential exchange, and package
 tokens declare separate trust modes. Registration rejects missing contracts,
 unknown actions, altered boundaries, authentication-scheme or scope drift;
 mutations and generated-document round trips are covered by scoped tests.
 This inventory does not grant authority or prove the handler's positive and
 negative authorization behavior. The complete behavioral route matrix and
-public/token policy centralization remain outstanding.
+remaining public boundary policies are still outstanding.
 
-This is partial EVY-1002 implementation. Remaining resource-specific policies,
-public/token-consumption boundaries, collector provenance constraints, and the complete
-route-to-action positive/negative coverage matrix still need migration and validation.
+Portal token consumption now uses concrete central read/download actions over
+current tenant/product/release/package coordinates, credential/package lifetime
+and required acceptance. Its boundary cannot be substituted by API scopes or
+human grants. The static public form has no token action or package data. The
+credential port retains HMAC comparison and the application retains transactional
+counters, revocation and audits. Scoped HTTP tests cover all four token-consumer
+routes, decoded ZIP output, consent denials, wrong-token counters and revocation;
+pure policy and application tests cover isolation and late cancellation.
+Cancellation after a successful commit withholds the package without claiming
+to roll back already committed counters or audit entries. These memory-backed
+checks are not current live PostgreSQL locking/durability or full-ticket evidence.
+
+This is partial EVY-1002 implementation. Remaining public boundaries, including
+signed incident receivers and SSO credential exchange, broader caller-provenance
+proof, and the complete route-to-action positive/negative coverage matrix still
+need migration and validation.
 These scoped policy checks are not ticket closure, full production-gate,
 hosted CI, or external-provider evidence.
 

@@ -13,6 +13,15 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Centralized customer-portal token authorization with separate read/download
+actions and exact current package ownership, expiry, and required acceptance.
+API scopes and human grants cannot stand in for a verified package token. The
+data-free static form is separately labeled in generated authorization metadata.
+Post-commit request cancellation now withholds the package result while retaining
+already committed acceptance/counters/audits. Token and hash formats, redaction,
+response schemas, denial auditing and five-failure revocation are unchanged.
+EVY-1002's full route coverage and final gates remain incomplete.
+
 Constrained collector attribution on generic evidence and build creation,
 including completed replay. Caller-supplied collector identity must match the
 authenticated binding; conflicting, malformed or unbound claims now return
