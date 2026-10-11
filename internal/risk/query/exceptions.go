@@ -3,16 +3,13 @@ package query
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
-
-const scopeVerifyRead = "verify:read"
 
 type ReleaseScope struct {
 	ID        string
@@ -62,14 +59,15 @@ func (s *Exceptions) ListPage(ctx context.Context, actor identitydomain.Actor, r
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if err := authorizeExceptionScope(actor); err != nil {
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionExceptionsRead)
+	if err != nil {
 		return empty, err
 	}
 	if err := appquery.Validate(page, after); err != nil {
 		return empty, ErrValidation
 	}
-	request := ExceptionPageRequest{TenantID: actor.TenantID, ReleaseID: strings.TrimSpace(releaseID), Page: page, After: after}
-	request.TenantWide, request.AllowedProductIDs, request.AllowedReleaseIDs = exceptionVisibility(actor)
+	request := ExceptionPageRequest{TenantID: visibility.TenantID, ReleaseID: strings.TrimSpace(releaseID), Page: page, After: after,
+		TenantWide: visibility.TenantWide, AllowedProductIDs: visibility.ProductIDs, AllowedReleaseIDs: visibility.ReleaseIDs}
 	result, err := s.reader.PageExceptions(ctx, request)
 	if errors.Is(err, appquery.ErrInvalidCursor) || errors.Is(err, appquery.ErrInvalidPage) {
 		return empty, ErrValidation
@@ -81,7 +79,7 @@ func (s *Exceptions) ListPage(ctx context.Context, actor identitydomain.Actor, r
 		if result.FilterRelease.ID != request.ReleaseID || result.FilterRelease.ProductID == "" {
 			return empty, ErrInvalidProjection
 		}
-		if err := authorizeExceptionRead(actor, result.FilterRelease.ProductID, result.FilterRelease.ID); err != nil {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionExceptionsRead, Resources: authz.ResourceReferences{ProductID: result.FilterRelease.ProductID, ReleaseID: result.FilterRelease.ID}}); err != nil {
 			return empty, err
 		}
 	}
@@ -95,7 +93,7 @@ func (s *Exceptions) ListPage(ctx context.Context, actor identitydomain.Actor, r
 			request.ReleaseID != "" && value.ReleaseID != request.ReleaseID || value.CreatedAt.IsZero() || value.ExpiresAt.IsZero() {
 			return empty, ErrInvalidProjection
 		}
-		if err := authorizeExceptionRead(actor, point.ProductID, value.ReleaseID); err != nil {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionExceptionsRead, Resources: authz.ResourceReferences{TenantID: value.TenantID, ProductID: point.ProductID, ReleaseID: value.ReleaseID}}); err != nil {
 			return empty, ErrInvalidProjection
 		}
 		items = append(items, value)
@@ -106,86 +104,4 @@ func (s *Exceptions) ListPage(ctx context.Context, actor identitydomain.Actor, r
 		}
 	}
 	return appquery.Result[riskdomain.Exception]{Items: items, Next: result.Page.Next}, nil
-}
-
-func authorizeExceptionScope(actor identitydomain.Actor) error {
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return application.ErrUnauthorized
-	}
-	if !actor.HasScope(scopeVerifyRead) && !actor.HasScope("admin") {
-		return application.ErrForbidden
-	}
-	return nil
-}
-
-func authorizeExceptionRead(actor identitydomain.Actor, productID, releaseID string) error {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	for _, grant := range actor.ResourceGrants {
-		if !exceptionGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return nil
-			}
-		case "product":
-			if grant.ResourceID == productID {
-				return nil
-			}
-		case "release":
-			if grant.ResourceID == releaseID {
-				return nil
-			}
-		}
-	}
-	return application.ErrForbidden
-}
-
-func exceptionVisibility(actor identitydomain.Actor) (bool, []string, []string) {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true, nil, nil
-	}
-	products, releases := map[string]struct{}{}, map[string]struct{}{}
-	for _, grant := range actor.ResourceGrants {
-		if !exceptionGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true, nil, nil
-			}
-		case "product":
-			if grant.ResourceID != "" {
-				products[grant.ResourceID] = struct{}{}
-			}
-		case "release":
-			if grant.ResourceID != "" {
-				releases[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	allowedProducts := make([]string, 0, len(products))
-	for id := range products {
-		allowedProducts = append(allowedProducts, id)
-	}
-	allowedReleases := make([]string, 0, len(releases))
-	for id := range releases {
-		allowedReleases = append(allowedReleases, id)
-	}
-	sort.Strings(allowedProducts)
-	sort.Strings(allowedReleases)
-	return false, allowedProducts, allowedReleases
-}
-
-func exceptionGrantHasScope(grant identitydomain.ResourceGrant) bool {
-	for _, scope := range grant.Scopes {
-		if scope == scopeVerifyRead || scope == "admin" || scope == "*" {
-			return true
-		}
-	}
-	return false
 }

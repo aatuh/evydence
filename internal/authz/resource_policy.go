@@ -38,7 +38,9 @@ func allowsTenantResourceEvaluation(action Action) bool {
 		ActionReleasesRead, ActionReleasesManage, ActionBuildsRead, ActionBuildsCreate,
 		ActionBuildAttestationsCreate, ActionReleaseCandidatesCreate,
 		ActionEnvironmentsRead, ActionDeploymentsRead, ActionIncidentsManage,
-		ActionApprovalsRecord, ActionWaiversManage, ActionVulnerabilityWorkflowsRecord, ActionCustomPoliciesCreate:
+		ActionApprovalsRecord, ActionWaiversManage, ActionVulnerabilityWorkflowsRecord, ActionCustomPoliciesCreate,
+		ActionVulnerabilityDecisionsRead, ActionExceptionsRead, ActionControlEvidenceRead,
+		ActionVulnerabilityDecisionSummaryRead, ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead:
 		return true
 	default:
 		return false
@@ -61,6 +63,12 @@ func validResourceReferences(action Action, refs ResourceReferences) bool {
 		ActionExceptionsManage, ActionVulnerabilityWorkflowsRecord, ActionPolicyEvaluationsCreate,
 		ActionCustomPoliciesCreate, ActionCustomPoliciesEvaluate:
 		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID})
+	case ActionVulnerabilityDecisionsRead:
+		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case ActionExceptionsRead, ActionVulnerabilityDecisionSummaryRead, ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead:
+		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case ActionControlEvidenceRead:
+		return refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID})
 	default:
 		return validCatalogResources(action, refs)
 	}

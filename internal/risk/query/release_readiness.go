@@ -2,10 +2,12 @@ package query
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -37,29 +39,27 @@ func (q *ReleaseReadinessQuery) Preview(ctx context.Context, actor identitydomai
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return empty, application.ErrUnauthorized
-	}
-	if !actor.HasScope("verify:read") && !actor.HasScope("admin") {
-		return empty, application.ErrForbidden
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionReleaseReadinessRead)
+	if err != nil {
+		return empty, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
 	if releaseID == "" {
 		return empty, ErrValidation
 	}
-	tenantWide, products, releases := decisionVisibility(actor, "verify:read")
-	if !tenantWide && !decisionAllowed(false, products, releases, "", releaseID) && len(products) == 0 {
+	tenantWide, products, releases := visibility.TenantWide, visibility.ProductIDs, visibility.ReleaseIDs
+	if !tenantWide && !slices.Contains(releases, releaseID) && len(products) == 0 {
 		return empty, application.ErrForbidden
 	}
-	snapshot, err := q.reader.ReadReleaseReadinessSnapshot(ctx, actor.TenantID, releaseID)
+	snapshot, err := q.reader.ReadReleaseReadinessSnapshot(ctx, visibility.TenantID, releaseID)
 	if err != nil {
 		return empty, err
 	}
 	if snapshot.SnapshotVersion != riskapp.ReadinessSnapshotVersion || snapshot.TenantID != actor.TenantID || snapshot.ProductID == "" || snapshot.ReleaseID != releaseID || snapshot.PackageCount < 0 {
 		return empty, ErrInvalidProjection
 	}
-	if !decisionAllowed(tenantWide, products, releases, snapshot.ProductID, releaseID) {
-		return empty, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionReleaseReadinessRead, Resources: authz.ResourceReferences{TenantID: snapshot.TenantID, ProductID: snapshot.ProductID, ReleaseID: releaseID}}); err != nil {
+		return empty, err
 	}
 	evaluation, err := riskapp.EvaluateReadinessSnapshot(snapshot, q.now().UTC())
 	if err != nil {

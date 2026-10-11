@@ -118,6 +118,16 @@ func TestEveryDeclaredActionHasPolicyAndBehaviorCases(t *testing.T) {
 			t.Fatalf("%s definition = %#v, registered=%v", tc.action, definition, ok)
 		}
 	}
+	for _, tc := range riskReadCases {
+		if seen[tc.action] {
+			t.Fatalf("duplicate risk read action case: %s", tc.action)
+		}
+		seen[tc.action] = true
+		definition, ok := DefinitionFor(tc.action)
+		if !ok || definition.Scope != tc.scope || definition.Boundary != tc.boundary {
+			t.Fatalf("%s definition = %#v, registered=%v", tc.action, definition, ok)
+		}
+	}
 	if declared != len(seen) {
 		t.Fatalf("%d declared actions but %d positive/negative behavior cases", declared, len(seen))
 	}

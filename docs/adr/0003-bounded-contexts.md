@@ -1073,8 +1073,22 @@ Current product/project/release grants and the permitted tenant-wide phases are
 evaluated centrally, without local scope-string fallback or cached authority.
 Focused command guards still resolve tenant-owned current subjects before
 reservation/replay; append-only decisions, supersession, approvals, audits,
-policy hashes, and response replay formats are unchanged. Risk query and
-control-evidence policies, and broader service contracts, remain to migrate.
+policy hashes, and response replay formats are unchanged. Control-evidence
+write policies and broader service contracts remain to migrate.
+
+Risk queries select distinct read actions for decision/exception lists,
+control-evidence links, decision summaries, release readiness, and security
+summaries. Product/release visibility is derived centrally; only control-evidence
+reads also accept project grants. Tenant-bound readers retain filtering before
+pagination, coherent ownership projections, privacy exclusions, and capacity
+limits. Services authorize resolved rows and release coordinates centrally and
+reject widened or malformed projections without returning partial data.
+
+Static control-template packs use a separate credential-only boundary. This
+catalog exposes no tenant records and needs an effective read capability, not a
+tenant resource grant. Its policy rejects resource coordinates and preflight or
+tenant-inventory promotion. Access to static definitions does not authorize
+tenant-owned controls, instance diagnostics, or writes.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete

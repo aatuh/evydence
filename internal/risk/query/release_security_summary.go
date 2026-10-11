@@ -2,10 +2,12 @@ package query
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -50,21 +52,19 @@ func (s *ReleaseSecuritySummary) Summary(ctx context.Context, actor identitydoma
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return empty, application.ErrUnauthorized
-	}
-	if !actor.HasScope("report:read") && !actor.HasScope("admin") {
-		return empty, application.ErrForbidden
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionReleaseSecuritySummaryRead)
+	if err != nil {
+		return empty, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
 	if releaseID == "" {
 		return empty, ErrValidation
 	}
-	tenantWide, products, releases := decisionVisibility(actor, "report:read")
-	if !tenantWide && len(products) == 0 && !decisionAllowed(false, nil, releases, "", releaseID) {
+	tenantWide, products, releases := visibility.TenantWide, visibility.ProductIDs, visibility.ReleaseIDs
+	if !tenantWide && len(products) == 0 && !slices.Contains(releases, releaseID) {
 		return empty, application.ErrForbidden
 	}
-	snapshot, err := s.reader.ReadReleaseSecuritySummarySnapshot(ctx, actor.TenantID, releaseID)
+	snapshot, err := s.reader.ReadReleaseSecuritySummarySnapshot(ctx, visibility.TenantID, releaseID)
 	if err != nil {
 		return empty, err
 	}
@@ -73,8 +73,8 @@ func (s *ReleaseSecuritySummary) Summary(ctx context.Context, actor identitydoma
 		len(snapshot.MissingRequiredDecisions) > MaxSecuritySummaryFindings {
 		return empty, ErrInvalidProjection
 	}
-	if !decisionAllowed(tenantWide, products, releases, snapshot.Product.ID, releaseID) {
-		return empty, application.ErrForbidden
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionReleaseSecuritySummaryRead, Resources: authz.ResourceReferences{TenantID: snapshot.TenantID, ProductID: snapshot.Product.ID, ReleaseID: releaseID}}); err != nil {
+		return empty, err
 	}
 	for _, item := range snapshot.MissingRequiredDecisions {
 		if item.FindingID == "" || item.ScanID == "" || item.Severity == "" || item.State == "" {

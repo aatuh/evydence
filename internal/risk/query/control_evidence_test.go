@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func TestControlEvidenceQueryDerivesGrantsAndRejectsWidenedProjection(t *testing
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}
 	actor := identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{"controls:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_1", Scopes: []string{"controls:read"}}}}
 	result, err := service.ListPage(t.Context(), actor, ControlEvidenceFilter{ProductID: "prod_1"}, page, nil)
-	if err != nil || len(result.Items) != 1 || reader.request.TenantWide || len(reader.request.AllowedProductIDs) != 1 {
+	if err != nil || len(result.Items) != 1 || reader.request.TenantID != actor.TenantID || reader.request.TenantWide || len(reader.request.AllowedProductIDs) != 1 || reader.request.AllowedProductIDs[0] != "prod_1" {
 		t.Fatalf("scoped list=%#v request=%#v error=%v", result, reader.request, err)
 	}
 	actor.ResourceGrants[0].ResourceID = "prod_other"
@@ -50,6 +51,31 @@ func TestControlEvidenceQueryDerivesGrantsAndRejectsWidenedProjection(t *testing
 	actor = identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"controls:read"}}
 	if _, err := service.ListPage(t.Context(), actor, ControlEvidenceFilter{}, page, nil); err != nil || !reader.request.TenantWide {
 		t.Fatalf("credential list request=%#v error=%v", reader.request, err)
+	}
+}
+
+func TestControlEvidenceProjectVisibilityIsAppliedBeforeReadsAndRevokedWithoutReads(t *testing.T) {
+	now := time.Date(2026, 10, 11, 1, 0, 0, 0, time.UTC)
+	link := riskdomain.ControlEvidence{ID: "link", TenantID: "tenant", ControlID: "control", EvidenceType: "build", SubjectType: "build", SubjectID: "build", Confidence: "high", SchemaVersion: "control-evidence.v1.0.0", CreatedAt: now}
+	reader := &controlEvidenceReaderStub{result: appquery.Result[ControlEvidencePoint]{Items: []ControlEvidencePoint{{Link: link, ProductID: "product", ProjectID: "project", ReleaseID: "release"}}}}
+	service, err := NewControlEvidence(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := identitydomain.Actor{TenantID: "tenant", UserID: "human", SessionID: "session", Scopes: []string{"controls:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "project", ResourceID: "project", Scopes: []string{"controls:read"}}}}
+	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortID, Direction: appquery.Ascending}
+	out, err := service.ListPage(t.Context(), actor, ControlEvidenceFilter{}, page, nil)
+	if err != nil || len(out.Items) != 1 || !reflect.DeepEqual(out.Items[0], link) || reader.calls != 1 || reader.request.TenantID != actor.TenantID || reader.request.TenantWide || !reflect.DeepEqual(reader.request.AllowedProjectIDs, []string{"project"}) || len(reader.request.AllowedProductIDs) != 0 || len(reader.request.AllowedReleaseIDs) != 0 {
+		t.Fatalf("project projection=%#v request=%#v: %v", out, reader.request, err)
+	}
+	reader.result.Items[0].ProjectID = "foreign"
+	if out, err := service.ListPage(t.Context(), actor, ControlEvidenceFilter{}, page, nil); !errors.Is(err, ErrInvalidProjection) || len(out.Items) != 0 {
+		t.Fatalf("foreign project returned data=%#v: %v", out, err)
+	}
+	actor.ResourceGrants = nil
+	before := reader.calls
+	if out, err := service.ListPage(t.Context(), actor, ControlEvidenceFilter{}, page, nil); err != nil || len(out.Items) != 0 || reader.calls != before {
+		t.Fatalf("revoked project retained read: %#v calls=%d: %v", out, reader.calls, err)
 	}
 }
 

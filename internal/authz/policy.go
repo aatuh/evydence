@@ -87,6 +87,11 @@ func Authorize(ctx context.Context, actor identitydomain.Actor, request Request)
 		return authorizeCurrentGrant(actor, definition.Scope, ResourceReferences{}, true)
 	case ResourceBoundary:
 		return authorizeResource(actor, definition.Scope, request)
+	case CredentialBoundary:
+		if request.Evaluation != ResolvedEvaluation || request.Resources != (ResourceReferences{}) || !actor.HasScope(definition.Scope) && !actor.HasScope("admin") {
+			return ErrForbidden
+		}
+		return nil
 	default:
 		return ErrForbidden
 	}

@@ -6,65 +6,72 @@ package authz
 type Action string
 
 const (
-	ActionAPIKeysRead                  Action = "api_keys.read" // #nosec G101 -- Public policy action identifier, not credential material.
-	ActionAPIKeysManage                Action = "api_keys.manage"
-	ActionMembershipsManage            Action = "memberships.manage"
-	ActionRoleBindingsRead             Action = "role_bindings.read"
-	ActionControlsRead                 Action = "controls.read"
-	ActionControlsManage               Action = "controls.manage"
-	ActionVulnerabilityPostureRead     Action = "vulnerability_posture.read"
-	ActionControlCoverageRead          Action = "control_coverage.read"
-	ActionCollectorsRead               Action = "collectors.read"
-	ActionCommercialCollectorsRead     Action = "commercial_collectors.read"
-	ActionCollectorHealthRead          Action = "collector_health.read"
-	ActionCollectorsManage             Action = "collectors.manage"
-	ActionMarketplaceCollectorsRead    Action = "marketplace_collectors.read"
-	ActionMarketplaceCollectorsManage  Action = "marketplace_collectors.manage"
-	ActionSigningCustodyRead           Action = "signing_custody.read"
-	ActionSigningKeysManage            Action = "signing_keys.manage"
-	ActionTransparencyMetadataPublish  Action = "transparency_metadata.publish"
-	ActionSigningKeysRead              Action = "signing_keys.read"
-	ActionRetentionPoliciesRead        Action = "retention_policies.read"
-	ActionRetentionPoliciesManage      Action = "retention_policies.manage"
-	ActionRetentionReportRead          Action = "retention_report.read"
-	ActionRetentionMarkersManage       Action = "retention_markers.manage"
-	ActionAuditLogRead                 Action = "audit_log.read"
-	ActionTenantMetricsRead            Action = "tenant_metrics.read"
-	ActionReportTemplatesManage        Action = "report_templates.manage"
-	ActionBundleImport                 Action = "bundle.import"
-	ActionQuestionnaireTemplatesManage Action = "questionnaire_templates.manage"
-	ActionRedactionProfilesManage      Action = "redaction_profiles.manage"
-	ActionInstanceSnapshotRead         Action = "instance_snapshot.read"
-	ActionInstanceReadinessRead        Action = "instance_readiness.read"
-	ActionInstanceMetricsRead          Action = "instance_metrics.read"
-	ActionOutboxDiagnosticsRead        Action = "outbox_diagnostics.read"
-	ActionOutboxReplay                 Action = "outbox.replay"
-	ActionSaaSProfilesManage           Action = "saas_profiles.manage"
-	ActionTenantSubjectVerify          Action = "tenant_subject.verify"
-	ActionBackupGenerate               Action = "backup.generate"
-	ActionProductsRead                 Action = "products.read"
-	ActionProductsCreate               Action = "products.create"
-	ActionProjectsRead                 Action = "projects.read"
-	ActionProjectsCreate               Action = "projects.create"
-	ActionReleasesRead                 Action = "releases.read"
-	ActionReleasesManage               Action = "releases.manage"
-	ActionBuildsRead                   Action = "builds.read"
-	ActionBuildsCreate                 Action = "builds.create"
-	ActionBuildAttestationsCreate      Action = "build_attestations.create"
-	ActionReleaseCandidatesCreate      Action = "release_candidates.create"
-	ActionEnvironmentsRead             Action = "environments.read"
-	ActionEnvironmentsCreate           Action = "environments.create"
-	ActionDeploymentsRead              Action = "deployments.read"
-	ActionDeploymentsRecord            Action = "deployments.record"
-	ActionIncidentsManage              Action = "incidents.manage"
-	ActionVulnerabilityDecisionsRecord Action = "vulnerability_decisions.record"
-	ActionApprovalsRecord              Action = "approvals.record"
-	ActionWaiversManage                Action = "waivers.manage"
-	ActionExceptionsManage             Action = "exceptions.manage"
-	ActionVulnerabilityWorkflowsRecord Action = "vulnerability_workflows.record"
-	ActionPolicyEvaluationsCreate      Action = "policy_evaluations.create"
-	ActionCustomPoliciesCreate         Action = "custom_policies.create"
-	ActionCustomPoliciesEvaluate       Action = "custom_policies.evaluate"
+	ActionAPIKeysRead                      Action = "api_keys.read" // #nosec G101 -- Public policy action identifier, not credential material.
+	ActionAPIKeysManage                    Action = "api_keys.manage"
+	ActionMembershipsManage                Action = "memberships.manage"
+	ActionRoleBindingsRead                 Action = "role_bindings.read"
+	ActionControlsRead                     Action = "controls.read"
+	ActionControlsManage                   Action = "controls.manage"
+	ActionVulnerabilityPostureRead         Action = "vulnerability_posture.read"
+	ActionControlCoverageRead              Action = "control_coverage.read"
+	ActionCollectorsRead                   Action = "collectors.read"
+	ActionCommercialCollectorsRead         Action = "commercial_collectors.read"
+	ActionCollectorHealthRead              Action = "collector_health.read"
+	ActionCollectorsManage                 Action = "collectors.manage"
+	ActionMarketplaceCollectorsRead        Action = "marketplace_collectors.read"
+	ActionMarketplaceCollectorsManage      Action = "marketplace_collectors.manage"
+	ActionSigningCustodyRead               Action = "signing_custody.read"
+	ActionSigningKeysManage                Action = "signing_keys.manage"
+	ActionTransparencyMetadataPublish      Action = "transparency_metadata.publish"
+	ActionSigningKeysRead                  Action = "signing_keys.read"
+	ActionRetentionPoliciesRead            Action = "retention_policies.read"
+	ActionRetentionPoliciesManage          Action = "retention_policies.manage"
+	ActionRetentionReportRead              Action = "retention_report.read"
+	ActionRetentionMarkersManage           Action = "retention_markers.manage"
+	ActionAuditLogRead                     Action = "audit_log.read"
+	ActionTenantMetricsRead                Action = "tenant_metrics.read"
+	ActionReportTemplatesManage            Action = "report_templates.manage"
+	ActionBundleImport                     Action = "bundle.import"
+	ActionQuestionnaireTemplatesManage     Action = "questionnaire_templates.manage"
+	ActionRedactionProfilesManage          Action = "redaction_profiles.manage"
+	ActionInstanceSnapshotRead             Action = "instance_snapshot.read"
+	ActionInstanceReadinessRead            Action = "instance_readiness.read"
+	ActionInstanceMetricsRead              Action = "instance_metrics.read"
+	ActionOutboxDiagnosticsRead            Action = "outbox_diagnostics.read"
+	ActionOutboxReplay                     Action = "outbox.replay"
+	ActionSaaSProfilesManage               Action = "saas_profiles.manage"
+	ActionTenantSubjectVerify              Action = "tenant_subject.verify"
+	ActionBackupGenerate                   Action = "backup.generate"
+	ActionProductsRead                     Action = "products.read"
+	ActionProductsCreate                   Action = "products.create"
+	ActionProjectsRead                     Action = "projects.read"
+	ActionProjectsCreate                   Action = "projects.create"
+	ActionReleasesRead                     Action = "releases.read"
+	ActionReleasesManage                   Action = "releases.manage"
+	ActionBuildsRead                       Action = "builds.read"
+	ActionBuildsCreate                     Action = "builds.create"
+	ActionBuildAttestationsCreate          Action = "build_attestations.create"
+	ActionReleaseCandidatesCreate          Action = "release_candidates.create"
+	ActionEnvironmentsRead                 Action = "environments.read"
+	ActionEnvironmentsCreate               Action = "environments.create"
+	ActionDeploymentsRead                  Action = "deployments.read"
+	ActionDeploymentsRecord                Action = "deployments.record"
+	ActionIncidentsManage                  Action = "incidents.manage"
+	ActionVulnerabilityDecisionsRecord     Action = "vulnerability_decisions.record"
+	ActionApprovalsRecord                  Action = "approvals.record"
+	ActionWaiversManage                    Action = "waivers.manage"
+	ActionExceptionsManage                 Action = "exceptions.manage"
+	ActionVulnerabilityWorkflowsRecord     Action = "vulnerability_workflows.record"
+	ActionPolicyEvaluationsCreate          Action = "policy_evaluations.create"
+	ActionCustomPoliciesCreate             Action = "custom_policies.create"
+	ActionCustomPoliciesEvaluate           Action = "custom_policies.evaluate"
+	ActionVulnerabilityDecisionsRead       Action = "vulnerability_decisions.read"
+	ActionExceptionsRead                   Action = "exceptions.read"
+	ActionControlEvidenceRead              Action = "control_evidence.read"
+	ActionVulnerabilityDecisionSummaryRead Action = "vulnerability_decision_summary.read"
+	ActionReleaseReadinessRead             Action = "release_readiness.read"
+	ActionReleaseSecuritySummaryRead       Action = "release_security_summary.read"
+	ActionControlTemplatesRead             Action = "control_templates.read"
 )
 
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
@@ -74,6 +81,8 @@ const (
 	TenantBoundary Boundary = iota + 1
 	InstanceBoundary
 	ResourceBoundary
+	// CredentialBoundary is for static catalogs that expose no tenant records.
+	CredentialBoundary
 )
 
 // Definition is the immutable capability and ownership boundary of an action.
@@ -149,6 +158,16 @@ func DefinitionFor(action Action) (Definition, bool) {
 		return Definition{Scope: "verify:read", Boundary: ResourceBoundary}, true
 	case ActionCustomPoliciesEvaluate:
 		return Definition{Scope: "policy:read", Boundary: ResourceBoundary}, true
+	case ActionVulnerabilityDecisionsRead:
+		return Definition{Scope: "evidence:read", Boundary: ResourceBoundary}, true
+	case ActionExceptionsRead, ActionReleaseReadinessRead:
+		return Definition{Scope: "verify:read", Boundary: ResourceBoundary}, true
+	case ActionControlEvidenceRead:
+		return Definition{Scope: "controls:read", Boundary: ResourceBoundary}, true
+	case ActionVulnerabilityDecisionSummaryRead, ActionReleaseSecuritySummaryRead:
+		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
+	case ActionControlTemplatesRead:
+		return Definition{Scope: "controls:read", Boundary: CredentialBoundary}, true
 	default:
 		return Definition{}, false
 	}

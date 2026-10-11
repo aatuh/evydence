@@ -7,13 +7,10 @@ import (
 	"strings"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
-
-const scopeControlsRead = "controls:read"
 
 var (
 	ErrValidation        = errors.New("invalid controls query")
@@ -99,14 +96,8 @@ func (s *Controls) ListTemplatePacks(ctx context.Context, actor identitydomain.A
 	if s == nil || ctx == nil {
 		return nil, ErrValidation
 	}
-	if err := ctx.Err(); err != nil {
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionControlTemplatesRead}); err != nil {
 		return nil, err
-	}
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return nil, application.ErrUnauthorized
-	}
-	if !actor.HasScope(scopeControlsRead) && !actor.HasScope("admin") {
-		return nil, application.ErrForbidden
 	}
 	return riskdomain.BuiltinTemplatePacks(), nil
 }

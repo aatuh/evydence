@@ -37,7 +37,7 @@ func TestExceptionPageScopesFilteredReleaseAndValidatesRows(t *testing.T) {
 	actor := identitydomain.Actor{TenantID: "ten_1", UserID: "usr_1", Scopes: []string{"verify:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "prod_1", Scopes: []string{"verify:read"}}}}
 	page := appquery.PageRequest{PageSize: 1, Sort: appquery.SortCreatedAt, Direction: appquery.Ascending}
 	result, err := service.ListPage(context.Background(), actor, "rel_1", page, nil)
-	if err != nil || len(result.Items) != 1 || result.Items[0].ID != "ex_1" || result.Next == nil || reader.request.TenantWide || len(reader.request.AllowedProductIDs) != 1 {
+	if err != nil || len(result.Items) != 1 || result.Items[0].ID != "ex_1" || result.Next == nil || reader.request.TenantID != actor.TenantID || reader.request.ReleaseID != "rel_1" || reader.request.TenantWide || len(reader.request.AllowedProductIDs) != 1 || reader.request.AllowedProductIDs[0] != "prod_1" {
 		t.Fatalf("authorized page=%#v request=%#v error=%v", result, reader.request, err)
 	}
 	actor.ResourceGrants[0].ResourceID = "prod_2"

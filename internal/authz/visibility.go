@@ -14,6 +14,7 @@ type Visibility struct {
 	TenantID   string
 	TenantWide bool
 	ProductIDs []string
+	ProjectIDs []string
 	ReleaseIDs []string
 }
 
@@ -24,7 +25,9 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 		return Visibility{}, err
 	}
 	switch action {
-	case ActionEnvironmentsRead, ActionDeploymentsRead:
+	case ActionEnvironmentsRead, ActionDeploymentsRead, ActionVulnerabilityDecisionsRead,
+		ActionExceptionsRead, ActionControlEvidenceRead, ActionVulnerabilityDecisionSummaryRead,
+		ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead:
 	default:
 		return Visibility{}, ErrForbidden
 	}
@@ -35,6 +38,7 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 		return visibility, nil
 	}
 	products := make(map[string]struct{})
+	projects := make(map[string]struct{})
 	releases := make(map[string]struct{})
 	for _, grant := range actor.ResourceGrants {
 		if grant.ResourceID == "" || !grantHasCapability(grant, definition.Scope) {
@@ -44,8 +48,12 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 		case "product":
 			products[grant.ResourceID] = struct{}{}
 		case "release":
-			if action == ActionDeploymentsRead {
+			if action != ActionEnvironmentsRead {
 				releases[grant.ResourceID] = struct{}{}
+			}
+		case "project":
+			if action == ActionControlEvidenceRead {
+				projects[grant.ResourceID] = struct{}{}
 			}
 		}
 	}
@@ -55,7 +63,11 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 	for id := range releases {
 		visibility.ReleaseIDs = append(visibility.ReleaseIDs, id)
 	}
+	for id := range projects {
+		visibility.ProjectIDs = append(visibility.ProjectIDs, id)
+	}
 	sort.Strings(visibility.ProductIDs)
+	sort.Strings(visibility.ProjectIDs)
 	sort.Strings(visibility.ReleaseIDs)
 	return visibility, nil
 }
