@@ -1253,7 +1253,8 @@ tenant administration. Fresh work and replay recheck authority without changing
 provider receipt validation, private-key clearing, checkpoint nonclaims,
 cryptographic inputs, backup redaction, retention observations, or atomic audit
 and writer-fence behavior. Typed caller/operation guards cover these native
-surfaces, but other contexts' generic service utility contracts remain migration work.
+surfaces; older utility services remain historical test surfaces, not runtime
+composition paths.
 The broader signing/report regressions exposed an anomaly-report composition
 dependency on the summary authorizer. Anomaly generation now owns its typed
 central action and delegate, retaining the previous tenant/product/project/
@@ -1270,6 +1271,20 @@ Cosign also rejects mismatched/stray artifact coordinates before inspection,
 matching the native command's ownership rule. An application-package source
 guard rejects local actor predicates and scope-request fallbacks. The historical
 cached grant adapter remains a test-only oracle, not runtime authorization.
+
+Release, Evidence, and Risk application source guards now also reject scope
+request fallbacks and scope constants implicitly converted to action values.
+Their generic artifact/evidence/lifecycle reads, parser/VEX/security ingestion,
+diffs, decisions, summaries, exceptions, governance, and readiness methods use
+the native action vocabulary. Read policy receives product/project/release
+ownership while full build/deployment validation and output remain intact.
+Diffs check parent and artifact authority separately and recheck it before
+transactional persistence. Preview readiness selects its read action; durable
+evaluation selects its creation action. Tenant-level control waivers retain
+tenant-wide authority, not narrower product authority. These changes retain
+the historical services only as test oracles; native production wiring, immutable
+hashes, customer-visible summary exclusions, and approval input contracts are
+unchanged.
 
 Self-session logout now selects `sso_sessions.logout`, a central boundary that
 requires an authenticated human session but no role scope or resource grant.
@@ -1302,7 +1317,7 @@ application/repository boundary, not a new product ACL model. The compatibility
 limits are recorded in [API versioning](../reference/api-versioning.md#unreleased-collector-write-boundary).
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
-other contexts' typed caller contracts, collector provenance constraints, and the complete
+public/token-consumption boundaries, collector provenance constraints, and the complete
 route-to-action positive/negative coverage matrix still need migration and validation.
 These scoped policy checks are not ticket closure, full production-gate,
 hosted CI, or external-provider evidence.

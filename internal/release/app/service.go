@@ -403,7 +403,7 @@ func (s *Service) GetArtifact(ctx context.Context, actor identitydomain.Actor, i
 	if err := contextError(ctx); err != nil {
 		return releasedomain.Artifact{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionArtifactsRead, application.ResourceReferences{}, true); err != nil {
 		return releasedomain.Artifact{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -420,14 +420,10 @@ func (s *Service) GetArtifact(ctx context.Context, actor identitydomain.Actor, i
 	if !validDigest(artifact.Digest) || artifact.Size < 0 {
 		return releasedomain.Artifact{}, ErrConflict
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ArtifactID: artifact.ID}, false); err != nil {
+	if err := s.authorizeCatalog(ctx, actor, authz.ActionArtifactsRead, application.ResourceReferences{ArtifactID: artifact.ID}, false); err != nil {
 		return releasedomain.Artifact{}, err
 	}
 	return artifact, nil
-}
-
-func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, scope string, resources application.ResourceReferences, scopeOnly bool) error {
-	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly})
 }
 
 func (s *Service) authorizeCatalog(ctx context.Context, actor identitydomain.Actor, action authz.Action, resources application.ResourceReferences, scopeOnly bool) error {

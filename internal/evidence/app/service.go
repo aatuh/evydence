@@ -270,7 +270,7 @@ func (s *Service) GetEvidence(ctx context.Context, actor identitydomain.Actor, i
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceRead, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -284,7 +284,7 @@ func (s *Service) GetEvidence(ctx context.Context, actor identitydomain.Actor, i
 	if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, id, item); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, evidenceReferences(item), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceRead, evidenceReadReferences(item), false); err != nil {
 		return evidencedomain.EvidenceItem{}, err
 	}
 	return cloneEvidence(item), nil
@@ -294,7 +294,7 @@ func (s *Service) ListEvidence(ctx context.Context, actor identitydomain.Actor, 
 	if err := contextError(ctx); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceRead, application.ResourceReferences{}, true); err != nil {
 		return nil, err
 	}
 	items, err := s.reader.ListEvidence(ctx, actor.TenantID, strings.TrimSpace(releaseID), strings.TrimSpace(evidenceType))
@@ -306,7 +306,7 @@ func (s *Service) ListEvidence(ctx context.Context, actor identitydomain.Actor, 
 		if item.TenantID != actor.TenantID {
 			continue
 		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceRead, evidenceReferences(item), false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionEvidenceRead, evidenceReadReferences(item), false); err != nil {
 			if errors.Is(err, ErrForbidden) {
 				continue
 			}
@@ -344,7 +344,7 @@ func (s *Service) ListLifecycleEvents(ctx context.Context, actor identitydomain.
 	if err := contextError(ctx); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceLifecycleRead, application.ResourceReferences{}, true); err != nil {
 		return nil, err
 	}
 	evidenceID = strings.TrimSpace(evidenceID)
@@ -358,7 +358,7 @@ func (s *Service) ListLifecycleEvents(ctx context.Context, actor identitydomain.
 	if err := validateReturnedEvidence(ctx, s.reader, actor.TenantID, evidenceID, item); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, evidenceReferences(item), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceLifecycleRead, evidenceReadReferences(item), false); err != nil {
 		return nil, err
 	}
 	events, err := s.reader.ListLifecycleEvents(ctx, actor.TenantID, item.ID)
@@ -389,8 +389,14 @@ func (s *Service) ListLifecycleEvents(ctx context.Context, actor identitydomain.
 	return result, nil
 }
 
-func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, scope string, resources application.ResourceReferences, scopeOnly bool) error {
-	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly})
+func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, action authz.Action, resources application.ResourceReferences, scopeOnly bool) error {
+	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: action, Resources: resources, ScopeOnly: scopeOnly})
+}
+
+// Read policy carries ownership coordinates only. Build/deployment provenance
+// still undergoes full storage validation and remains in the returned record.
+func evidenceReadReferences(item evidencedomain.EvidenceItem) application.ResourceReferences {
+	return application.ResourceReferences{ProductID: item.ProductID, ProjectID: item.ProjectID, ReleaseID: item.ReleaseID}
 }
 
 func (s *Service) validateAndAuthorizeArtifactReference(ctx context.Context, actor identitydomain.Actor, action authz.Action, artifactID, digest string) error {

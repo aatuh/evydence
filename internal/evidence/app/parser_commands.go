@@ -149,7 +149,7 @@ func (s *Service) uploadSBOMPayload(ctx context.Context, actor identitydomain.Ac
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -161,7 +161,7 @@ func (s *Service) uploadSBOMPayload(ctx context.Context, actor identitydomain.Ac
 	if err := s.reader.ValidateScope(ctx, actor.TenantID, scope); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, resourceReferences(scope), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, resourceReferences(scope), false); err != nil {
 		return evidencedomain.SBOM{}, err
 	}
 	if err := s.validateAndAuthorizeArtifactReference(ctx, actor, authz.ActionEvidenceWrite, artifactID, ""); err != nil {
@@ -224,7 +224,7 @@ func (s *Service) UploadVulnerabilityScanPayload(ctx context.Context, actor iden
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.VulnerabilityScan{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.VulnerabilityScan{}, err
 	}
 	if err := validatePayloadSource(source); err != nil {
@@ -242,7 +242,7 @@ func (s *Service) UploadVulnerabilityScanPayload(ctx context.Context, actor iden
 	if err := s.reader.ValidateScope(ctx, actor.TenantID, scope); err != nil {
 		return evidencedomain.VulnerabilityScan{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, resourceReferences(scope), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, resourceReferences(scope), false); err != nil {
 		return evidencedomain.VulnerabilityScan{}, err
 	}
 	parsed, err := s.parser.ParseVulnerabilityScan(ctx, source)
@@ -310,7 +310,7 @@ func (s *Service) UploadOpenAPIContractPayload(ctx context.Context, actor identi
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.OpenAPIContract{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.OpenAPIContract{}, err
 	}
 	productID = strings.TrimSpace(productID)
@@ -326,7 +326,7 @@ func (s *Service) UploadOpenAPIContractPayload(ctx context.Context, actor identi
 	if err := s.reader.ValidateScope(ctx, actor.TenantID, scope); err != nil {
 		return evidencedomain.OpenAPIContract{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, resourceReferences(scope), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, resourceReferences(scope), false); err != nil {
 		return evidencedomain.OpenAPIContract{}, err
 	}
 	parsed, err := s.parser.ParseOpenAPIContract(ctx, source)

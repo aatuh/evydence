@@ -235,12 +235,14 @@ func TestCreateSBOMDiffUsesTransactionSnapshotAndCommitsAudit(t *testing.T) {
 	if len(fixture.transactions.state.sbomDiffs) != 1 || len(fixture.transactions.state.audit) != 1 || fixture.transactions.state.audit[0].EntryType != "sbom.diffed" || fixture.transactions.commits != 1 {
 		t.Fatalf("state=%#v tx=%#v", fixture.transactions.state, fixture.transactions)
 	}
-	if !containsAuthorizationRequest(fixture.authorizer.requests, ScopeEvidenceRead, application.ResourceReferences{ReleaseID: base.ReleaseID, ArtifactID: base.ArtifactID}) ||
-		!containsAuthorizationRequest(fixture.authorizer.requests, ScopeEvidenceRead, application.ResourceReferences{ReleaseID: target.ReleaseID, ArtifactID: target.ArtifactID}) {
+	if !containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{ReleaseID: base.ReleaseID}) ||
+		!containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{ArtifactID: base.ArtifactID}) ||
+		!containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{ReleaseID: target.ReleaseID}) ||
+		!containsTypedAuthorizationRequest(fixture.authorizer.requests, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{ArtifactID: target.ArtifactID}) {
 		t.Fatalf("diff read authorization missing: %#v", fixture.authorizer.requests)
 	}
 	for _, request := range fixture.authorizer.requests {
-		if request.Scope != ScopeEvidenceRead {
+		if request.Action != authz.ActionEvidenceDiffsCreate || request.Scope != "" {
 			t.Fatalf("read-derived diff requested incompatible scope: %#v", fixture.authorizer.requests)
 		}
 	}
@@ -268,7 +270,7 @@ func TestDiffCommandsRequireEvidenceReadBeforeRepositoryReads(t *testing.T) {
 			if err := test.run(fixture.service, fixture.actor); !errors.Is(err, errAuthorizationFailure) {
 				t.Fatalf("diff error = %v, want evidence read denial", err)
 			}
-			if fixture.authorizer.calls != 1 || fixture.authorizer.requests[0].Scope != ScopeEvidenceRead || !fixture.authorizer.requests[0].ScopeOnly {
+			if fixture.authorizer.calls != 1 || fixture.authorizer.requests[0].Action != authz.ActionEvidenceDiffsCreate || fixture.authorizer.requests[0].Scope != "" || !fixture.authorizer.requests[0].ScopeOnly {
 				t.Fatalf("authorization order = %#v", fixture.authorizer.requests)
 			}
 			if fixture.transactions.commits != 0 || fixture.transactions.rollbacks != 0 {
@@ -389,7 +391,7 @@ func TestCreateContractDiffPreservesBreakingChangeSemanticsAndAtomicAudit(t *tes
 		t.Fatalf("audit actor = %#v", audit)
 	}
 	for _, request := range fixture.authorizer.requests {
-		if request.Scope != ScopeEvidenceRead {
+		if request.Action != authz.ActionEvidenceDiffsCreate || request.Scope != "" {
 			t.Fatalf("read-derived diff requested incompatible scope: %#v", fixture.authorizer.requests)
 		}
 	}
@@ -417,15 +419,6 @@ func TestCreateContractDiffRejectsRequestedReleaseOutsideBaseProduct(t *testing.
 func containsTypedAuthorizationRequest(requests []application.AuthorizationRequest, action authz.Action, resources application.ResourceReferences) bool {
 	for _, request := range requests {
 		if request.Action == action && request.Scope == "" && request.Resources == resources {
-			return true
-		}
-	}
-	return false
-}
-
-func containsAuthorizationRequest(requests []application.AuthorizationRequest, scope string, resources application.ResourceReferences) bool {
-	for _, request := range requests {
-		if request.Scope == scope && request.Resources == resources {
 			return true
 		}
 	}

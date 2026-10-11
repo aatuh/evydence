@@ -9,6 +9,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -190,7 +191,7 @@ func (s *Service) CreateVulnerabilityDecision(ctx context.Context, actor identit
 	if err := validateActor(actor); err != nil {
 		return riskdomain.VulnerabilityDecision{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionVulnerabilityDecisionsRecord, application.ResourceReferences{}, true); err != nil {
 		return riskdomain.VulnerabilityDecision{}, err
 	}
 	findingID = strings.TrimSpace(findingID)
@@ -208,7 +209,7 @@ func (s *Service) CreateVulnerabilityDecision(ctx context.Context, actor identit
 	if !validFindingReference(preflight, actor.TenantID, findingID) {
 		return riskdomain.VulnerabilityDecision{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{ProductID: preflight.ProductID, ReleaseID: preflight.ReleaseID}, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionVulnerabilityDecisionsRecord, application.ResourceReferences{ProductID: preflight.ProductID, ReleaseID: preflight.ReleaseID}, false); err != nil {
 		return riskdomain.VulnerabilityDecision{}, err
 	}
 
@@ -222,7 +223,7 @@ func (s *Service) CreateVulnerabilityDecision(ctx context.Context, actor identit
 			return ErrConflict
 		}
 		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{
-			Scope: ScopeEvidenceWrite, Resources: application.ResourceReferences{ProductID: finding.ProductID, ReleaseID: finding.ReleaseID},
+			Action: authz.ActionVulnerabilityDecisionsRecord, Resources: application.ResourceReferences{ProductID: finding.ProductID, ReleaseID: finding.ReleaseID},
 		}); err != nil {
 			return err
 		}
@@ -262,7 +263,7 @@ func (s *Service) ListVulnerabilityDecisions(ctx context.Context, actor identity
 	if err := validateActor(actor); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionVulnerabilityDecisionsRead, application.ResourceReferences{}, true); err != nil {
 		return nil, err
 	}
 	input.ProductID = strings.TrimSpace(input.ProductID)
@@ -286,7 +287,7 @@ func (s *Service) ListVulnerabilityDecisions(ctx context.Context, actor identity
 		if product.ID != input.ProductID || product.TenantID != actor.TenantID {
 			return nil, ErrNotFound
 		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ProductID: product.ID}, false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionVulnerabilityDecisionsRead, application.ResourceReferences{ProductID: product.ID}, false); err != nil {
 			return nil, err
 		}
 	}
@@ -301,7 +302,7 @@ func (s *Service) ListVulnerabilityDecisions(ctx context.Context, actor identity
 		if input.ProductID == "" {
 			input.ProductID = release.ProductID
 		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionVulnerabilityDecisionsRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
 			return nil, err
 		}
 	}
@@ -324,7 +325,7 @@ func (s *Service) ListVulnerabilityDecisions(ctx context.Context, actor identity
 		if !validReleaseReference(release, actor.TenantID, value.ReleaseID) || (input.ProductID != "" && release.ProductID != input.ProductID) {
 			continue
 		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionVulnerabilityDecisionsRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
 			if errors.Is(err, ErrForbidden) {
 				continue
 			}
@@ -348,7 +349,7 @@ func (s *Service) VulnerabilityDecisionSummaryReport(ctx context.Context, actor 
 	if err := validateActor(actor); err != nil {
 		return riskdomain.VulnerabilityDecisionSummaryReport{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReportRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionVulnerabilityDecisionSummaryRead, application.ResourceReferences{}, true); err != nil {
 		return riskdomain.VulnerabilityDecisionSummaryReport{}, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -365,7 +366,7 @@ func (s *Service) VulnerabilityDecisionSummaryReport(ctx context.Context, actor 
 	if !validReleaseReference(release, actor.TenantID, releaseID) {
 		return riskdomain.VulnerabilityDecisionSummaryReport{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeReportRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionVulnerabilityDecisionSummaryRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
 		return riskdomain.VulnerabilityDecisionSummaryReport{}, err
 	}
 	values, err := s.reader.ListVulnerabilityDecisions(ctx, actor.TenantID)
@@ -404,7 +405,7 @@ func (s *Service) CreateException(ctx context.Context, actor identitydomain.Acto
 	if err := validateActor(actor); err != nil {
 		return riskdomain.Exception{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionExceptionsManage, application.ResourceReferences{}, true); err != nil {
 		return riskdomain.Exception{}, err
 	}
 	input.ReleaseID = strings.TrimSpace(input.ReleaseID)
@@ -428,7 +429,7 @@ func (s *Service) CreateException(ctx context.Context, actor identitydomain.Acto
 	if !validReleaseReference(release, actor.TenantID, input.ReleaseID) {
 		return riskdomain.Exception{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionExceptionsManage, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
 		return riskdomain.Exception{}, err
 	}
 
@@ -444,7 +445,7 @@ func (s *Service) CreateException(ctx context.Context, actor identitydomain.Acto
 		if currentRelease != release {
 			return ErrConflict
 		}
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionExceptionsManage, Resources: application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}}); err != nil {
 			return err
 		}
 		if input.FindingID != "" {
@@ -484,7 +485,7 @@ func (s *Service) ListExceptions(ctx context.Context, actor identitydomain.Actor
 	if err := validateActor(actor); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionExceptionsRead, application.ResourceReferences{}, true); err != nil {
 		return nil, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -496,7 +497,7 @@ func (s *Service) ListExceptions(ctx context.Context, actor identitydomain.Actor
 		if !validReleaseReference(release, actor.TenantID, releaseID) {
 			return nil, ErrNotFound
 		}
-		if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionExceptionsRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
 			return nil, err
 		}
 	}
@@ -516,7 +517,7 @@ func (s *Service) ListExceptions(ctx context.Context, actor identitydomain.Actor
 			}
 			return nil, err
 		}
-		if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionExceptionsRead, application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}, false); err != nil {
 			if errors.Is(err, ErrForbidden) {
 				continue
 			}
@@ -540,7 +541,7 @@ func (s *Service) ApproveException(ctx context.Context, actor identitydomain.Act
 	if err := validateActor(actor); err != nil {
 		return riskdomain.Exception{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionExceptionsManage, application.ResourceReferences{}, true); err != nil {
 		return riskdomain.Exception{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -567,7 +568,7 @@ func (s *Service) ApproveException(ctx context.Context, actor identitydomain.Act
 		if !validReleaseReference(release, actor.TenantID, value.ReleaseID) {
 			return ErrNotFound
 		}
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionExceptionsManage, Resources: application.ResourceReferences{ProductID: release.ProductID, ReleaseID: release.ID}}); err != nil {
 			return err
 		}
 		if value.Approved {
@@ -748,8 +749,8 @@ func buildVulnerabilityDecision(ids application.IDGenerator, clock application.C
 	return created, superseded, nil
 }
 
-func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, scope string, resources application.ResourceReferences, scopeOnly bool) error {
-	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: scope, Resources: resources, ScopeOnly: scopeOnly})
+func (s *Service) authorize(ctx context.Context, actor identitydomain.Actor, action authz.Action, resources application.ResourceReferences, scopeOnly bool) error {
+	return s.authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: action, Resources: resources, ScopeOnly: scopeOnly})
 }
 
 func (s *Service) refresh(ctx context.Context, tenantID string) error {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -28,7 +29,7 @@ func TestCreateWaiverAuthorizesSubjectAndSupersedesAtomically(t *testing.T) {
 	if waiver.ID != "wv_1" || waiver.Supersedes != "wv_old" || state.waivers["wv_old"].SupersededBy != waiver.ID {
 		t.Fatalf("unexpected waiver state: new=%#v old=%#v", waiver, state.waivers["wv_old"])
 	}
-	if !authorizer.sawResource("policy:write", "prod_1", "rel_1") {
+	if !authorizer.sawResource(authz.ActionWaiversManage, "prod_1", "rel_1") {
 		t.Fatalf("resource authorization requests = %#v", authorizer.requests)
 	}
 }
@@ -160,9 +161,9 @@ func (a *recordingRiskAuthorizer) Authorize(_ context.Context, _ identitydomain.
 	return nil
 }
 
-func (a *recordingRiskAuthorizer) sawResource(scope, productID, releaseID string) bool {
+func (a *recordingRiskAuthorizer) sawResource(action authz.Action, productID, releaseID string) bool {
 	for _, request := range a.requests {
-		if request.Scope == scope && request.Resources.ProductID == productID && request.Resources.ReleaseID == releaseID && !request.ScopeOnly {
+		if request.Action == action && request.Scope == "" && request.Resources.ProductID == productID && request.Resources.ReleaseID == releaseID && !request.ScopeOnly {
 			return true
 		}
 	}

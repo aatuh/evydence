@@ -6,6 +6,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -39,7 +40,7 @@ func (s *Service) CreateWaiver(ctx context.Context, actor identitydomain.Actor, 
 	if err := validateActor(actor); err != nil {
 		return riskdomain.Waiver{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopePolicyWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionWaiversManage, application.ResourceReferences{}, true); err != nil {
 		return riskdomain.Waiver{}, err
 	}
 	input.ScopeType = strings.TrimSpace(input.ScopeType)
@@ -66,7 +67,7 @@ func (s *Service) CreateWaiver(ctx context.Context, actor identitydomain.Actor, 
 	if !validGovernanceSubject(subject, actor.TenantID, input.ScopeType, input.ScopeID) {
 		return riskdomain.Waiver{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopePolicyWrite, subjectResources(subject), false); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, governanceAuthorization(authz.ActionWaiversManage, subject)); err != nil {
 		return riskdomain.Waiver{}, err
 	}
 	if input.ControlID != "" {
@@ -102,7 +103,7 @@ func (s *Service) CreateWaiver(ctx context.Context, actor identitydomain.Actor, 
 		if current != subject {
 			return ErrConflict
 		}
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePolicyWrite, Resources: subjectResources(current)}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, governanceAuthorization(authz.ActionWaiversManage, current)); err != nil {
 			return err
 		}
 		if input.ControlID != "" {
@@ -143,7 +144,7 @@ func (s *Service) ApproveWaiver(ctx context.Context, actor identitydomain.Actor,
 	if err := validateActor(actor); err != nil {
 		return riskdomain.Waiver{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopePolicyWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionWaiversManage, application.ResourceReferences{}, true); err != nil {
 		return riskdomain.Waiver{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -170,7 +171,7 @@ func (s *Service) ApproveWaiver(ctx context.Context, actor identitydomain.Actor,
 		if !validGovernanceSubject(subject, actor.TenantID, waiver.ScopeType, waiver.ScopeID) {
 			return ErrNotFound
 		}
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePolicyWrite, Resources: subjectResources(subject)}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, governanceAuthorization(authz.ActionWaiversManage, subject)); err != nil {
 			return err
 		}
 		waiver.Approved = true
@@ -206,7 +207,7 @@ func (s *Service) CreateApprovalRecord(ctx context.Context, actor identitydomain
 	if err := validateActor(actor); err != nil {
 		return riskdomain.ApprovalRecord{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionApprovalsRecord, application.ResourceReferences{}, true); err != nil {
 		return riskdomain.ApprovalRecord{}, err
 	}
 	input.SubjectType = strings.TrimSpace(input.SubjectType)
@@ -224,7 +225,7 @@ func (s *Service) CreateApprovalRecord(ctx context.Context, actor identitydomain
 	if !validGovernanceSubject(subject, actor.TenantID, input.SubjectType, input.SubjectID) {
 		return riskdomain.ApprovalRecord{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeReleaseWrite, subjectResources(subject), false); err != nil {
+	if err := s.authorizer.Authorize(ctx, actor, governanceAuthorization(authz.ActionApprovalsRecord, subject)); err != nil {
 		return riskdomain.ApprovalRecord{}, err
 	}
 	if input.EvidenceID != "" {
@@ -250,7 +251,7 @@ func (s *Service) CreateApprovalRecord(ctx context.Context, actor identitydomain
 		if current != subject {
 			return ErrConflict
 		}
-		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeReleaseWrite, Resources: subjectResources(current)}); err != nil {
+		if err := tx.Authorization().Authorize(ctx, actor, governanceAuthorization(authz.ActionApprovalsRecord, current)); err != nil {
 			return err
 		}
 		if input.EvidenceID != "" {
@@ -295,6 +296,10 @@ func validGovernanceSubject(value GovernanceSubjectReference, tenantID, subjectT
 
 func subjectResources(value GovernanceSubjectReference) application.ResourceReferences {
 	return application.ResourceReferences{ProductID: value.ProductID, ReleaseID: value.ReleaseID}
+}
+
+func governanceAuthorization(action authz.Action, subject GovernanceSubjectReference) application.AuthorizationRequest {
+	return application.AuthorizationRequest{Action: action, Resources: subjectResources(subject), TenantWide: subject.ProductID == ""}
 }
 
 func validWaiverScope(value string) bool {

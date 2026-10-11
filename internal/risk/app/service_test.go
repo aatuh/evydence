@@ -432,6 +432,7 @@ func (a riskTestAuthorizer) Authorize(_ context.Context, _ identitydomain.Actor,
 }
 
 type riskTestState struct {
+	policy       application.Authorizer
 	findings     map[string]FindingReference
 	products     map[string]ProductReference
 	releases     map[string]ReleaseReference
@@ -460,6 +461,7 @@ func newRiskTestState() *riskTestState {
 
 func (s *riskTestState) clone() *riskTestState {
 	clone := newRiskTestState()
+	clone.policy = s.policy
 	for key, value := range s.findings {
 		clone.findings[key] = value
 	}
@@ -663,7 +665,12 @@ func (s *riskTestState) AppendAudit(_ context.Context, event application.AuditEv
 
 type riskTestTransaction struct{ state *riskTestState }
 
-func (t riskTestTransaction) Decisions() Repository                 { return t.state }
-func (t riskTestTransaction) Governance() GovernanceRepository      { return t.state }
-func (t riskTestTransaction) Authorization() application.Authorizer { return allowRiskAuthorizer{} }
-func (t riskTestTransaction) Audit() application.AuditAppender      { return t.state }
+func (t riskTestTransaction) Decisions() Repository            { return t.state }
+func (t riskTestTransaction) Governance() GovernanceRepository { return t.state }
+func (t riskTestTransaction) Authorization() application.Authorizer {
+	if t.state.policy != nil {
+		return t.state.policy
+	}
+	return allowRiskAuthorizer{}
+}
+func (t riskTestTransaction) Audit() application.AuditAppender { return t.state }

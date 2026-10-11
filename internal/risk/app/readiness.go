@@ -6,6 +6,7 @@ import (
 	"time"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -17,7 +18,7 @@ const ReadinessSnapshotVersion = riskdomain.ReadinessSnapshotVersion
 type ReadinessSnapshot = riskdomain.ReadinessSnapshot
 
 func (s *Service) PreviewReleaseReadiness(ctx context.Context, actor identitydomain.Actor, releaseID string) (riskdomain.PolicyEvaluation, error) {
-	snapshot, err := s.readReadinessSnapshot(ctx, actor, releaseID)
+	snapshot, err := s.readReadinessSnapshot(ctx, actor, releaseID, authz.ActionReleaseReadinessRead)
 	if err != nil {
 		return riskdomain.PolicyEvaluation{}, err
 	}
@@ -25,7 +26,7 @@ func (s *Service) PreviewReleaseReadiness(ctx context.Context, actor identitydom
 }
 
 func (s *Service) EvaluateRelease(ctx context.Context, actor identitydomain.Actor, releaseID string) (riskdomain.PolicyEvaluation, error) {
-	snapshot, err := s.readReadinessSnapshot(ctx, actor, releaseID)
+	snapshot, err := s.readReadinessSnapshot(ctx, actor, releaseID, authz.ActionPolicyEvaluationsCreate)
 	if err != nil {
 		return riskdomain.PolicyEvaluation{}, err
 	}
@@ -37,7 +38,7 @@ func (s *Service) EvaluateRelease(ctx context.Context, actor identitydomain.Acto
 	evaluation.ID = s.ids.NewID("pe")
 	err = s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
 		if err := tx.Authorization().Authorize(ctx, actor, application.AuthorizationRequest{
-			Scope: ScopeVerifyRead, Resources: application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: snapshot.ReleaseID},
+			Action: authz.ActionPolicyEvaluationsCreate, Resources: application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: snapshot.ReleaseID},
 		}); err != nil {
 			return err
 		}
@@ -53,14 +54,14 @@ func (s *Service) EvaluateRelease(ctx context.Context, actor identitydomain.Acto
 	return clonePolicyEvaluation(evaluation), nil
 }
 
-func (s *Service) readReadinessSnapshot(ctx context.Context, actor identitydomain.Actor, releaseID string) (ReadinessSnapshot, error) {
+func (s *Service) readReadinessSnapshot(ctx context.Context, actor identitydomain.Actor, releaseID string, action authz.Action) (ReadinessSnapshot, error) {
 	if err := contextError(ctx); err != nil {
 		return ReadinessSnapshot{}, err
 	}
 	if err := validateActor(actor); err != nil {
 		return ReadinessSnapshot{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, action, application.ResourceReferences{}, true); err != nil {
 		return ReadinessSnapshot{}, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -78,7 +79,7 @@ func (s *Service) readReadinessSnapshot(ctx context.Context, actor identitydomai
 	if snapshot.SnapshotVersion != ReadinessSnapshotVersion || snapshot.TenantID != actor.TenantID || snapshot.ReleaseID != releaseID || strings.TrimSpace(snapshot.ProductID) == "" || snapshot.PackageCount < 0 {
 		return ReadinessSnapshot{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeVerifyRead, application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: snapshot.ReleaseID}, false); err != nil {
+	if err := s.authorize(ctx, actor, action, application.ResourceReferences{ProductID: snapshot.ProductID, ReleaseID: snapshot.ReleaseID}, false); err != nil {
 		return ReadinessSnapshot{}, err
 	}
 	return snapshot, nil

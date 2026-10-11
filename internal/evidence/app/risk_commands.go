@@ -65,7 +65,7 @@ func (s *Service) uploadSecurityScan(ctx context.Context, actor identitydomain.A
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.SecurityScan{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeSecurityWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionSecurityEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.SecurityScan{}, err
 	}
 	input.ProductID = strings.TrimSpace(input.ProductID)
@@ -83,7 +83,7 @@ func (s *Service) uploadSecurityScan(ctx context.Context, actor identitydomain.A
 		return evidencedomain.SecurityScan{}, err
 	}
 	resources := resourceReferences(scope)
-	if err := s.authorize(ctx, actor, ScopeSecurityWrite, resources, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionSecurityEvidenceWrite, resources, false); err != nil {
 		return evidencedomain.SecurityScan{}, err
 	}
 	if input.ArtifactID != "" {
@@ -146,7 +146,7 @@ func (s *Service) UploadManualSecurityDocument(ctx context.Context, actor identi
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.ManualSecurityDocument{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeSecurityWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionSecurityEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.ManualSecurityDocument{}, err
 	}
 	input.ProductID = strings.TrimSpace(input.ProductID)
@@ -161,7 +161,7 @@ func (s *Service) UploadManualSecurityDocument(ctx context.Context, actor identi
 	if err := s.reader.ValidateScope(ctx, actor.TenantID, scope); err != nil {
 		return evidencedomain.ManualSecurityDocument{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeSecurityWrite, resourceReferences(scope), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionSecurityEvidenceWrite, resourceReferences(scope), false); err != nil {
 		return evidencedomain.ManualSecurityDocument{}, err
 	}
 	mediaType := nonEmpty(input.MediaType, "application/octet-stream")
@@ -206,7 +206,7 @@ func (s *Service) CreateSBOMDiff(ctx context.Context, actor identitydomain.Actor
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.SBOMDiff{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.SBOMDiff{}, err
 	}
 	input.BaseSBOMID = strings.TrimSpace(input.BaseSBOMID)
@@ -231,10 +231,10 @@ func (s *Service) CreateSBOMDiff(ctx context.Context, actor identitydomain.Actor
 	if !returnedSBOMMatches(base, actor.TenantID, input.BaseSBOMID) || !returnedSBOMMatches(target, actor.TenantID, input.TargetSBOMID) {
 		return evidencedomain.SBOMDiff{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ReleaseID: base.ReleaseID, ArtifactID: base.ArtifactID}, false); err != nil {
+	if err := authorizeGenericSBOMDiffSubject(ctx, s.authorizer, actor, base); err != nil {
 		return evidencedomain.SBOMDiff{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ReleaseID: target.ReleaseID, ArtifactID: target.ArtifactID}, false); err != nil {
+	if err := authorizeGenericSBOMDiffSubject(ctx, s.authorizer, actor, target); err != nil {
 		return evidencedomain.SBOMDiff{}, err
 	}
 	if input.ReleaseID != "" {
@@ -244,7 +244,7 @@ func (s *Service) CreateSBOMDiff(ctx context.Context, actor identitydomain.Actor
 		if err := s.reader.ValidateScope(ctx, actor.TenantID, EvidenceScope{ReleaseID: input.ReleaseID}); err != nil {
 			return evidencedomain.SBOMDiff{}, err
 		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ReleaseID: input.ReleaseID}, false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{ReleaseID: input.ReleaseID}, false); err != nil {
 			return evidencedomain.SBOMDiff{}, err
 		}
 	}
@@ -287,6 +287,16 @@ func (s *Service) CreateSBOMDiff(ctx context.Context, actor identitydomain.Actor
 		if !reflect.DeepEqual(currentBase, base) || !reflect.DeepEqual(currentTarget, target) {
 			return ErrConflict
 		}
+		for _, subject := range []evidencedomain.SBOM{currentBase, currentTarget} {
+			if err := authorizeGenericSBOMDiffSubject(ctx, tx, actor, subject); err != nil {
+				return err
+			}
+		}
+		if input.ReleaseID != "" {
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ReleaseID: input.ReleaseID}}); err != nil {
+				return err
+			}
+		}
 		if err := tx.Ingestion().InsertSBOMDiff(ctx, diff); err != nil {
 			return err
 		}
@@ -303,7 +313,7 @@ func (s *Service) CreateContractDiff(ctx context.Context, actor identitydomain.A
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.ContractDiff{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.ContractDiff{}, err
 	}
 	input.BaseContractID = strings.TrimSpace(input.BaseContractID)
@@ -331,10 +341,10 @@ func (s *Service) CreateContractDiff(ctx context.Context, actor identitydomain.A
 	if base.ProductID != target.ProductID {
 		return evidencedomain.ContractDiff{}, ErrNotFound
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ProductID: base.ProductID, ReleaseID: base.ReleaseID}, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{ProductID: base.ProductID, ReleaseID: base.ReleaseID}, false); err != nil {
 		return evidencedomain.ContractDiff{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceRead, application.ResourceReferences{ProductID: target.ProductID, ReleaseID: target.ReleaseID}, false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceDiffsCreate, application.ResourceReferences{ProductID: target.ProductID, ReleaseID: target.ReleaseID}, false); err != nil {
 		return evidencedomain.ContractDiff{}, err
 	}
 	if input.ReleaseID != "" {
@@ -342,7 +352,7 @@ func (s *Service) CreateContractDiff(ctx context.Context, actor identitydomain.A
 		if err := s.reader.ValidateScope(ctx, actor.TenantID, requestedScope); err != nil {
 			return evidencedomain.ContractDiff{}, err
 		}
-		if err := s.authorize(ctx, actor, ScopeEvidenceRead, resourceReferences(requestedScope), false); err != nil {
+		if err := s.authorize(ctx, actor, authz.ActionEvidenceDiffsCreate, resourceReferences(requestedScope), false); err != nil {
 			return evidencedomain.ContractDiff{}, err
 		}
 	}
@@ -373,6 +383,16 @@ func (s *Service) CreateContractDiff(ctx context.Context, actor identitydomain.A
 		if !reflect.DeepEqual(currentBase, base) || !reflect.DeepEqual(currentTarget, target) {
 			return ErrConflict
 		}
+		for _, subject := range []evidencedomain.OpenAPIContract{currentBase, currentTarget} {
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ProductID: subject.ProductID, ReleaseID: subject.ReleaseID}}); err != nil {
+				return err
+			}
+		}
+		if input.ReleaseID != "" {
+			if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ProductID: base.ProductID, ReleaseID: input.ReleaseID}}); err != nil {
+				return err
+			}
+		}
 		if err := tx.Ingestion().InsertContractDiff(ctx, diff); err != nil {
 			return err
 		}
@@ -383,6 +403,20 @@ func (s *Service) CreateContractDiff(ctx context.Context, actor identitydomain.A
 		return evidencedomain.ContractDiff{}, err
 	}
 	return cloneContractDiff(diff), nil
+}
+
+// Parent and artifact authority are distinct policy coordinates, as in the
+// native diff command. The generic service remains a historical test surface.
+func authorizeGenericSBOMDiffSubject(ctx context.Context, policy application.Authorizer, actor identitydomain.Actor, subject evidencedomain.SBOM) error {
+	if subject.ReleaseID != "" || subject.ArtifactID == "" {
+		if err := policy.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ReleaseID: subject.ReleaseID}}); err != nil {
+			return err
+		}
+	}
+	if subject.ArtifactID != "" {
+		return policy.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceDiffsCreate, Resources: application.ResourceReferences{ArtifactID: subject.ArtifactID}})
+	}
+	return nil
 }
 
 func returnedSBOMMatches(value evidencedomain.SBOM, tenantID, id string) bool {

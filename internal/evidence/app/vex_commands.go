@@ -32,7 +32,7 @@ func (s *Service) uploadVEXPayload(ctx context.Context, actor identitydomain.Act
 	if err := contextError(ctx); err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, application.ResourceReferences{}, true); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, application.ResourceReferences{}, true); err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
 	releaseID = strings.TrimSpace(releaseID)
@@ -44,7 +44,7 @@ func (s *Service) uploadVEXPayload(ctx context.Context, actor identitydomain.Act
 	if err := s.reader.ValidateScope(ctx, actor.TenantID, scope); err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
-	if err := s.authorize(ctx, actor, ScopeEvidenceWrite, resourceReferences(scope), false); err != nil {
+	if err := s.authorize(ctx, actor, authz.ActionEvidenceWrite, resourceReferences(scope), false); err != nil {
 		return evidencedomain.VEXDocument{}, err
 	}
 	if err := s.validateAndAuthorizeArtifactReference(ctx, actor, authz.ActionEvidenceWrite, artifactID, ""); err != nil {
