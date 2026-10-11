@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -54,7 +55,7 @@ func (f *portalCommandFixture) ReadPortalAccessForRevocation(_ context.Context, 
 	return v, nil
 }
 func (f *portalCommandFixture) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if !a.HasScope(r.Scope) || r.Scope != ScopePackageWrite || !r.ScopeOnly && a.UserID != "" && len(a.ResourceGrants) == 0 {
+	if !a.HasScope(ScopePackageWrite) || r.Action != authz.ActionPortalAccessManage || r.Scope != "" || !r.ScopeOnly && a.UserID != "" && len(a.ResourceGrants) == 0 {
 		return application.ErrForbidden
 	}
 	return ctx.Err()

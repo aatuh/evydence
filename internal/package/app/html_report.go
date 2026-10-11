@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	application "github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -76,7 +77,7 @@ func (s *HTMLReportCommands) CRAReadinessHTMLPackage(ctx context.Context, actor 
 		return packagedomain.HTMLReportPackage{}, ErrValidation
 	}
 	resources := application.ResourceReferences{ProductID: productID, ReleaseID: releaseID}
-	request := application.AuthorizationRequest{Scope: ScopeReportRead, Resources: resources}
+	request := application.AuthorizationRequest{Action: authz.ActionCRAReadinessHTMLGenerate, Resources: resources}
 	if err := s.config.Authorizer.Authorize(ctx, actor, request); err != nil {
 		return packagedomain.HTMLReportPackage{}, err
 	}

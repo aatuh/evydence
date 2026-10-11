@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -97,7 +98,7 @@ func (s *GraphSnapshotCommands) prepare(ctx context.Context, a identitydomain.Ac
 	if !graphID(a.TenantID) || !graphID(auditActorID(a)) {
 		return in, application.ErrUnauthorized
 	}
-	return in, s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, ScopeOnly: true})
+	return in, s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionGraphSnapshotsCreate, ScopeOnly: true})
 }
 func readAuthorizedGraphScope(ctx context.Context, tx GraphSnapshotTransaction, a identitydomain.Actor, in CreateGraphSnapshotInput) (GraphSnapshotScope, error) {
 	if tx == nil {
@@ -110,7 +111,7 @@ func readAuthorizedGraphScope(ctx context.Context, tx GraphSnapshotTransaction, 
 	if err := ValidateGraphSnapshotScope(a.TenantID, in, scope); err != nil {
 		return GraphSnapshotScope{}, err
 	}
-	return scope, tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeEvidenceRead, Resources: scope.Resources})
+	return scope, tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionGraphSnapshotsCreate, Resources: scope.Resources})
 }
 func (s *GraphSnapshotCommands) AuthorizeCreateGraphSnapshot(ctx context.Context, a identitydomain.Actor, in CreateGraphSnapshotInput) error {
 	in, err := s.prepare(ctx, a, in)

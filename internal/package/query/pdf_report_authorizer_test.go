@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func TestPDFReportAuthorizerRequiresCurrentMatchingGrant(t *testing.T) {
 	p := NewPDFReportAuthorizer()
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"report:read"}}
-	r := application.AuthorizationRequest{Scope: "report:read", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
+	r := application.AuthorizationRequest{Action: authz.ActionPDFReportsGenerate, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
 	for _, test := range []struct {
 		kind, id, scope string
 		allow           bool

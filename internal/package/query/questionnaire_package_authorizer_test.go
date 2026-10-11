@@ -5,17 +5,18 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func TestQuestionnairePackageAuthorizerSeparatesAssociationAndSelection(t *testing.T) {
 	p := NewQuestionnairePackageAuthorizer()
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"package:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "customer_security_package", ResourceID: "package", Scopes: []string{"package:write"}}}}
-	r := application.AuthorizationRequest{Scope: "package:write", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release", CustomerPackageID: "package"}}
+	r := application.AuthorizationRequest{Action: authz.ActionQuestionnairePackagesCreate, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release", CustomerPackageID: "package"}}
 	if err := p.Authorize(t.Context(), a, r); err != nil {
 		t.Fatal("package grant rejected association", err)
 	}
-	for _, request := range []application.AuthorizationRequest{{Scope: "package:write", TenantWide: true}, {Scope: "package:write", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}, {Scope: "package:write", Resources: application.ResourceReferences{CustomerPackageID: "package"}}, {Scope: "package:read", Resources: r.Resources}, {Scope: "package:write", ScopeOnly: true, Resources: r.Resources}} {
+	for _, request := range []application.AuthorizationRequest{{Action: authz.ActionQuestionnairePackagesCreate, TenantWide: true}, {Action: authz.ActionQuestionnairePackagesCreate, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}, {Action: authz.ActionQuestionnairePackagesCreate, Resources: application.ResourceReferences{CustomerPackageID: "package"}}, {Scope: "package:read", Resources: r.Resources}, {Action: authz.ActionQuestionnairePackagesCreate, ScopeOnly: true, Resources: r.Resources}} {
 		if err := p.Authorize(t.Context(), a, request); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal("package grant broadened selection", err)
 		}
@@ -33,7 +34,7 @@ func TestQuestionnairePackageAuthorizerSeparatesAssociationAndSelection(t *testi
 		t.Fatal("removed grants retain access", err)
 	}
 	a.KeyID = "key"
-	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "package:write", TenantWide: true}); err != nil {
+	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionQuestionnairePackagesCreate, TenantWide: true}); err != nil {
 		t.Fatal("tenant key denied", err)
 	}
 	a.Scopes = []string{"package:read"}

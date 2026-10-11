@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -19,7 +20,7 @@ func TestReportAuthorizerRestrictsExactProductReleaseReferences(t *testing.T) {
 	} {
 		t.Run(tc.kind+tc.id+tc.scope, func(t *testing.T) {
 			actor := identitydomain.Actor{TenantID: "ten_1", UserID: "user_1", Scopes: []string{"report:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: tc.kind, ResourceID: tc.id, Scopes: []string{tc.scope}}}}
-			err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: "report:read", Resources: application.ResourceReferences{ProductID: "prod_1", ReleaseID: "rel_1"}})
+			err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionCRAReadinessHTMLGenerate, Resources: application.ResourceReferences{ProductID: "prod_1", ReleaseID: "rel_1"}})
 			if tc.allowed && err != nil || !tc.allowed && !errors.Is(err, application.ErrForbidden) {
 				t.Fatalf("err=%v", err)
 			}
@@ -27,7 +28,7 @@ func TestReportAuthorizerRestrictsExactProductReleaseReferences(t *testing.T) {
 	}
 	actor := identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"report:read"}}
 	for _, refs := range []application.ResourceReferences{{}, {ReleaseID: "rel_1"}, {ProductID: "prod_1", CustomerPackageID: "csp_1"}} {
-		if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: "report:read", Resources: refs}); !errors.Is(err, application.ErrForbidden) {
+		if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionCRAReadinessHTMLGenerate, Resources: refs}); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal(err)
 		}
 	}

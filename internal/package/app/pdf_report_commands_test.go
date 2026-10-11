@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -29,7 +30,7 @@ func (f *pdfCommandFixture) Authorize(ctx context.Context, _ identitydomain.Acto
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if f.phase == "authorization" || !r.ScopeOnly && f.phase == "root authorization" {
+	if r.Action != authz.ActionPDFReportsGenerate || r.Scope != "" || f.phase == "authorization" || !r.ScopeOnly && f.phase == "root authorization" {
 		return application.ErrForbidden
 	}
 	return nil

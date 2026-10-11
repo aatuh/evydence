@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -144,7 +145,7 @@ func (l *Ledger) ListQuestionnaireAnswerLibrary(ctx context.Context, actor domai
 }
 
 func prepareLocalAnswerLibraryInput(ctx context.Context, a domain.Actor, in CreateQuestionnaireAnswerLibraryEntryInput) (packageapp.CreateAnswerLibraryEntryInput, error) {
-	if err := packagequery.NewAnswerLibraryAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true}); err != nil {
+	if err := packagequery.NewAnswerLibraryAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionAnswerLibraryEntriesCreate, ScopeOnly: true}); err != nil {
 		return packageapp.CreateAnswerLibraryEntryInput{}, fromIdentityContextError(err)
 	}
 	v, err := packageapp.NormalizeAnswerLibraryInput(packageapp.CreateAnswerLibraryEntryInput{QuestionID: in.QuestionID, EvidenceType: in.EvidenceType, ControlID: in.ControlID, ProductID: in.ProductID, ReleaseID: in.ReleaseID, Answer: in.Answer, EvidenceIDs: in.EvidenceIDs, Limitations: in.Limitations})
@@ -181,7 +182,7 @@ func (l *Ledger) authorizeAnswerLibraryCreateLocked(ctx context.Context, a domai
 			return ErrNotFound
 		}
 	}
-	if err := packagequery.NewAnswerLibraryAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: refs, TenantWide: refs == (application.ResourceReferences{})}); err != nil {
+	if err := packagequery.NewAnswerLibraryAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionAnswerLibraryEntriesCreate, Resources: refs, TenantWide: refs == (application.ResourceReferences{})}); err != nil {
 		return fromIdentityContextError(err)
 	}
 	controls := []string{}

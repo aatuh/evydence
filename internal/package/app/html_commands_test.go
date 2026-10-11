@@ -7,10 +7,19 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 )
 
 func TestHTMLReportCommandsUseNarrowPortsAndAtomicWrites(t *testing.T) {
 	state := newPackageTestState()
+	checks := 0
+	state.authorize = func(request application.AuthorizationRequest) error {
+		checks++
+		if request != (application.AuthorizationRequest{Action: authz.ActionCRAReadinessHTMLGenerate, Resources: application.ResourceReferences{ProductID: "prod_1", ReleaseID: "rel_1"}}) {
+			t.Fatal("HTML command substituted its action or resolved boundary", request)
+		}
+		return nil
+	}
 	state.craHTMLSnapshot = CRAReadinessHTMLSnapshot{SnapshotVersion: CRAReadinessHTMLSnapshotVersion, TenantID: "ten_1", ProductID: "prod_1", ReleaseID: "rel_1", Result: "<script>alert('x')</script>", Limitations: []string{`<img src=x onerror="alert(1)">`}}
 	local := newPackageTestService(t, state)
 	commands, err := NewHTMLReportCommands(HTMLReportCommandConfig{Reader: serviceHTMLReportReader{reader: state}, Transactions: serviceHTMLReportTransactions{transactions: state}, Authorizer: local.authorizer, Hasher: packageTestCanonicalizer{}, Clock: local.clock, IDs: local.ids})
@@ -21,7 +30,7 @@ func TestHTMLReportCommandsUseNarrowPortsAndAtomicWrites(t *testing.T) {
 	if err != nil || strings.Contains(report.HTML, "<script>") || strings.Contains(report.HTML, "<img") || !strings.Contains(report.HTML, "&lt;script&gt;") || report.Hash == "" {
 		t.Fatalf("report=%#v err=%v", report, err)
 	}
-	if state.craHTMLSnapshotReads != 1 || len(state.htmlReports) != 1 || len(state.audit) != 1 || state.audit[0].PayloadHash != report.Hash {
+	if checks != 2 || state.craHTMLSnapshotReads != 1 || len(state.htmlReports) != 1 || len(state.audit) != 1 || state.audit[0].PayloadHash != report.Hash {
 		t.Fatal("report and matching audit were not committed together")
 	}
 	state.auditErr = errPackageTestFailure

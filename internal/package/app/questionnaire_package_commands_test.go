@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -68,7 +69,7 @@ func (f *questionnairePackageFixture) Authorize(ctx context.Context, a identityd
 	if a.TenantID == "" || a.KeyID == "" && a.UserID == "" {
 		return application.ErrUnauthorized
 	}
-	if r.Scope != ScopePackageWrite || !a.HasScope(r.Scope) || f.phase == "authorization" || f.phase == "root authorization" && !r.ScopeOnly {
+	if r.Action != authz.ActionQuestionnairePackagesCreate || r.Scope != "" || !a.HasScope(ScopePackageWrite) || f.phase == "authorization" || f.phase == "root authorization" && !r.ScopeOnly {
 		return application.ErrForbidden
 	}
 	if !r.ScopeOnly && r.Resources == (application.ResourceReferences{}) && f.deniedScope {

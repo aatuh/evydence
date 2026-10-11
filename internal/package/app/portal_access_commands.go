@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -135,7 +136,7 @@ func (s *PortalAccessCommands) prepare(ctx context.Context, a identitydomain.Act
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPortalAccessManage, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if !portalID(a.TenantID) || !portalID(auditActorID(a)) {
@@ -165,7 +166,7 @@ func authorizePortalPackage(ctx context.Context, tx PortalAccessTransaction, a i
 	if err = ValidatePortalPackageScope(a.TenantID, id, scope); err != nil {
 		return err
 	}
-	return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: scope.Resources})
+	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPortalAccessManage, Resources: scope.Resources})
 }
 func (s *PortalAccessCommands) AuthorizeCreatePortalAccess(ctx context.Context, a identitydomain.Actor, in CreatePortalAccessInput) error {
 	if err := s.prepare(ctx, a); err != nil {

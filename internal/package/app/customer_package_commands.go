@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
@@ -94,7 +95,7 @@ func (s *CustomerPackageCommands) prepare(ctx context.Context, a identitydomain.
 	if !redactionID(a.TenantID) || !redactionID(auditActorID(a)) {
 		return CreateCustomerPackageInput{}, ErrForbidden
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesCreate, ScopeOnly: true}); err != nil {
 		return CreateCustomerPackageInput{}, err
 	}
 	in, err := NormalizeCustomerPackageInput(in)
@@ -107,7 +108,7 @@ func (s *CustomerPackageCommands) prepare(ctx context.Context, a identitydomain.
 	return in, nil
 }
 func customerCreationAuthorization(in CreateCustomerPackageInput) application.AuthorizationRequest {
-	return application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: application.ResourceReferences{ProductID: in.ProductID, ReleaseID: in.ReleaseID}}
+	return application.AuthorizationRequest{Action: authz.ActionCustomerPackagesCreate, Resources: application.ResourceReferences{ProductID: in.ProductID, ReleaseID: in.ReleaseID}}
 }
 
 // Run before both fresh creation and replay. The adapter re-resolves and locks

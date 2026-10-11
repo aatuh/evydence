@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -108,7 +109,7 @@ func (s *QuestionnaireDraftCommands) prepare(ctx context.Context, a identitydoma
 	if err != nil {
 		return in, err
 	}
-	return in, s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageRead, ScopeOnly: true})
+	return in, s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnaireDraftsCreate, ScopeOnly: true})
 }
 func readAuthorizedDraftScope(ctx context.Context, tx QuestionnaireDraftTransaction, a identitydomain.Actor, in CreateQuestionnaireDraftInput) (QuestionnaireDraftScope, error) {
 	s, err := tx.ReadQuestionnaireDraftScope(ctx, a.TenantID, in)
@@ -122,7 +123,7 @@ func readAuthorizedDraftScope(ctx context.Context, tx QuestionnaireDraftTransact
 	if refs != (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID}) || refs.ReleaseID != in.ReleaseID || in.ProductID != "" && refs.ProductID != in.ProductID || refs.ReleaseID != "" && refs.ProductID == "" || in.ProductID == "" && in.ReleaseID == "" && refs.ProductID != "" {
 		return s, ErrConflict
 	}
-	return s, tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageRead, Resources: s.Resources, TenantWide: s.Resources == (application.ResourceReferences{})})
+	return s, tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnaireDraftsCreate, Resources: s.Resources, TenantWide: s.Resources == (application.ResourceReferences{})})
 }
 func (s *QuestionnaireDraftCommands) AuthorizeCreateQuestionnaireDraft(ctx context.Context, a identitydomain.Actor, in CreateQuestionnaireDraftInput) error {
 	in, err := s.prepare(ctx, a, in)
@@ -146,7 +147,7 @@ func (s *QuestionnaireDraftCommands) CreateQuestionnaireDraft(ctx context.Contex
 		if err != nil {
 			return err
 		}
-		responses, hash, err := assembleQuestionnaireResponses(ctx, tx, a, scope, ScopePackageRead)
+		responses, hash, err := assembleQuestionnaireResponses(ctx, tx, a, scope, authz.ActionQuestionnaireDraftsCreate)
 		if err != nil {
 			return err
 		}
@@ -173,7 +174,7 @@ func (s *QuestionnaireDraftCommands) CreateQuestionnaireDraft(ctx context.Contex
 	return cloneQuestionnaireDraft(result), nil
 }
 
-func assembleQuestionnaireResponses(ctx context.Context, tx questionnaireResponseTransaction, a identitydomain.Actor, scope QuestionnaireDraftScope, requiredScope string) ([]packagedomain.QuestionnaireResponse, string, error) {
+func assembleQuestionnaireResponses(ctx context.Context, tx questionnaireResponseTransaction, a identitydomain.Actor, scope QuestionnaireDraftScope, action authz.Action) ([]packagedomain.QuestionnaireResponse, string, error) {
 	questions, err := tx.ReadQuestionnaireDraftQuestions(ctx, scope)
 	if err != nil {
 		return nil, "", err
@@ -213,7 +214,7 @@ func assembleQuestionnaireResponses(ctx context.Context, tx questionnaireRespons
 				return nil, "", ErrValidation
 			}
 		}
-		winner, found, err := selectDraftAnswer(ctx, tx, a, scope, q, candidates, requiredScope)
+		winner, found, err := selectDraftAnswer(ctx, tx, a, scope, q, candidates, action)
 		if err != nil {
 			return nil, "", err
 		}
@@ -282,7 +283,7 @@ func assembleQuestionnaireResponses(ctx context.Context, tx questionnaireRespons
 	return responses, hash, nil
 }
 
-func selectDraftAnswer(ctx context.Context, tx application.Authorizer, a identitydomain.Actor, s QuestionnaireDraftScope, q DraftQuestion, candidates []DraftAnswerCandidate, requiredScope string) (DraftAnswerCandidate, bool, error) {
+func selectDraftAnswer(ctx context.Context, tx application.Authorizer, a identitydomain.Actor, s QuestionnaireDraftScope, q DraftQuestion, candidates []DraftAnswerCandidate, action authz.Action) (DraftAnswerCandidate, bool, error) {
 	var winner DraftAnswerCandidate
 	found := false
 	seen := make(map[string]bool, len(candidates))
@@ -307,7 +308,7 @@ func selectDraftAnswer(ctx context.Context, tx application.Authorizer, a identit
 		if !DraftAnswerMatchesQuestion(c, q) || c.ProductID != "" && c.ProductID != s.ProductID || c.ReleaseID != "" && c.ReleaseID != s.ReleaseID {
 			continue
 		}
-		err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: requiredScope, Resources: c.Resources, TenantWide: c.Resources == (application.ResourceReferences{})})
+		err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: action, Resources: c.Resources, TenantWide: c.Resources == (application.ResourceReferences{})})
 		if errors.Is(err, application.ErrForbidden) {
 			continue
 		}

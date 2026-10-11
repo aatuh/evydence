@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -61,10 +62,7 @@ func (s *AccessCommands) access(ctx context.Context, actor identitydomain.Actor,
 	if err := validateActor(actor); err != nil {
 		return empty, err
 	}
-	if !actor.HasScope(ScopePackageRead) && !actor.HasScope("admin") {
-		return empty, ErrForbidden
-	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePackageRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesAccess, ScopeOnly: true}); err != nil {
 		return empty, err
 	}
 	if len(id) > MaxCustomerPackageIDBytes || !utf8.ValidString(id) || strings.ContainsRune(id, 0) {
@@ -84,7 +82,7 @@ func (s *AccessCommands) access(ctx context.Context, actor identitydomain.Actor,
 			return ErrNotFound
 		}
 		refs := application.ResourceReferences{ProductID: current.ProductID, ReleaseID: current.ReleaseID, CustomerPackageID: current.ID}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopePackageRead, Resources: refs}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesAccess, Resources: refs}); err != nil {
 			return err
 		}
 		// Resolve time after the row lock, so a lock wait cannot resurrect an

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -82,7 +83,10 @@ func (f *customerCreationFake) GetRedactionProfile(_ context.Context, tenant, id
 	}
 	return f.view.Profile, nil
 }
-func (f *customerCreationFake) Authorize(_ context.Context, _ identitydomain.Actor, _ application.AuthorizationRequest) error {
+func (f *customerCreationFake) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
+	if r.Action != authz.ActionCustomerPackagesCreate || r.Scope != "" {
+		return application.ErrForbidden
+	}
 	return f.guardErr
 }
 func (f *customerCreationFake) InsertCustomerSecurityPackage(_ context.Context, v packagedomain.CustomerSecurityPackage) error {

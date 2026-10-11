@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -107,7 +108,7 @@ func (c *PDFReportCommands) prepare(ctx context.Context, a identitydomain.Actor,
 	if !graphID(a.TenantID) || !graphID(auditActorID(a)) {
 		return v, application.ErrUnauthorized
 	}
-	return v, c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReportRead, ScopeOnly: true})
+	return v, c.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPDFReportsGenerate, ScopeOnly: true})
 }
 func readAuthorizedPDFScope(ctx context.Context, tx PDFReportTransaction, a identitydomain.Actor, in CreatePDFReportInput) error {
 	if tx == nil {
@@ -120,7 +121,7 @@ func readAuthorizedPDFScope(ctx context.Context, tx PDFReportTransaction, a iden
 	if err := ValidateProductReleaseScope(a.TenantID, in.ProductID, in.ReleaseID, s.TenantID, s.Resources); err != nil {
 		return err
 	}
-	return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopeReportRead, Resources: s.Resources})
+	return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPDFReportsGenerate, Resources: s.Resources})
 }
 func (c *PDFReportCommands) AuthorizeCreatePDFReportPackage(ctx context.Context, a identitydomain.Actor, in CreatePDFReportInput) error {
 	in, err := c.prepare(ctx, a, in)

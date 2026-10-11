@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -19,7 +20,7 @@ func TestPortalAccessWriteAuthorizerUsesCurrentPackageGrant(t *testing.T) {
 	} {
 		t.Run(tc.kind+tc.id+tc.scope, func(t *testing.T) {
 			a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"package:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: tc.kind, ResourceID: tc.id, Scopes: []string{tc.scope}}}}
-			err := NewPortalAccessWriteAuthorizer().Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "package:write", Resources: refs})
+			err := NewPortalAccessWriteAuthorizer().Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionPortalAccessManage, Resources: refs})
 			if tc.allowed && err != nil || !tc.allowed && !errors.Is(err, application.ErrForbidden) {
 				t.Fatal("portal grant policy differs", err)
 			}

@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func TestGraphAuthorizerRequiresCurrentMatchingScope(t *testing.T) {
 	p := NewGraphSnapshotAuthorizer()
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"evidence:read"}}
-	r := application.AuthorizationRequest{Scope: "evidence:read", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
+	r := application.AuthorizationRequest{Action: authz.ActionGraphSnapshotsCreate, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
 	for _, test := range []struct {
 		kind, id, scope string
 		allow           bool

@@ -128,6 +128,20 @@ const (
 	ActionIncidentReportRead              Action = "incident_report.read"
 )
 
+// Package command actions bind report output, selection, and package access
+// independently even when their issued credential capabilities are shared.
+const (
+	ActionCRAReadinessHTMLGenerate    Action = "cra_readiness_html.generate"
+	ActionPDFReportsGenerate          Action = "pdf_reports.generate"
+	ActionGraphSnapshotsCreate        Action = "graph_snapshots.create"
+	ActionQuestionnaireDraftsCreate   Action = "questionnaire_drafts.create"
+	ActionAnswerLibraryEntriesCreate  Action = "answer_library_entries.create"
+	ActionQuestionnairePackagesCreate Action = "questionnaire_packages.create"
+	ActionCustomerPackagesCreate      Action = "customer_packages.create"
+	ActionCustomerPackagesAccess      Action = "customer_packages.access"
+	ActionPortalAccessManage          Action = "portal_access.manage"
+)
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -148,6 +162,14 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionCRAReadinessHTMLGenerate, ActionPDFReportsGenerate:
+		return Definition{Scope: "report:read", Boundary: ResourceBoundary}, true
+	case ActionGraphSnapshotsCreate:
+		return Definition{Scope: "evidence:read", Boundary: ResourceBoundary}, true
+	case ActionQuestionnaireDraftsCreate, ActionCustomerPackagesAccess:
+		return Definition{Scope: "package:read", Boundary: ResourceBoundary}, true
+	case ActionAnswerLibraryEntriesCreate, ActionQuestionnairePackagesCreate, ActionCustomerPackagesCreate, ActionPortalAccessManage:
+		return Definition{Scope: "package:write", Boundary: ResourceBoundary}, true
 	case ActionReleaseVulnerabilityPostureRead:
 		return Definition{Scope: "security:read", Boundary: ResourceBoundary}, true
 	case ActionControlCoverageReportRead, ActionCRAReadinessReportRead, ActionCRAVulnerabilityHandlingRead, ActionSecurityUpdateEvidenceRead:

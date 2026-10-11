@@ -26,7 +26,10 @@ func authorizeResource(actor identitydomain.Actor, scope string, request Request
 		if !validResourceReferences(request.Action, refs) {
 			return ErrForbidden
 		}
-		return authorizeCurrentGrant(actor, scope, refs, false)
+		if err := authorizeCurrentGrant(actor, scope, refs, false); err == nil {
+			return nil
+		}
+		return authorizePackageGrant(actor, scope, request.Action, refs)
 	default:
 		return ErrForbidden
 	}
@@ -34,6 +37,8 @@ func authorizeResource(actor identitydomain.Actor, scope string, request Request
 
 func allowsTenantResourceEvaluation(action Action) bool {
 	switch action {
+	case ActionPDFReportsGenerate, ActionGraphSnapshotsCreate, ActionQuestionnaireDraftsCreate, ActionAnswerLibraryEntriesCreate, ActionQuestionnairePackagesCreate:
+		return true
 	case ActionControlCoverageReportRead:
 		return true
 	case ActionEvidenceVerify, ActionDSSEVerify, ActionAuditChainVerify, ActionMerkleBatchVerify,
@@ -59,6 +64,12 @@ func allowsTenantResourceEvaluation(action Action) bool {
 
 func validResourceReferences(action Action, refs ResourceReferences) bool {
 	switch action {
+	case ActionCRAReadinessHTMLGenerate, ActionPDFReportsGenerate, ActionGraphSnapshotsCreate, ActionQuestionnaireDraftsCreate, ActionAnswerLibraryEntriesCreate, ActionCustomerPackagesCreate:
+		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case ActionQuestionnairePackagesCreate:
+		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, CustomerPackageID: refs.CustomerPackageID})
+	case ActionCustomerPackagesAccess, ActionPortalAccessManage:
+		return refs.ProductID != "" && refs.CustomerPackageID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID, CustomerPackageID: refs.CustomerPackageID})
 	case ActionReleaseVulnerabilityPostureRead, ActionCRAVulnerabilityHandlingRead, ActionReleaseReadinessReportRead, ActionSecurityUpdateEvidenceRead:
 		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
 	case ActionControlCoverageReportRead:

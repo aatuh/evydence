@@ -1,7 +1,10 @@
 package query
 
-import "github.com/aatuh/evydence/internal/application"
+import (
+	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
+)
 
 func NewGraphSnapshotAuthorizer() application.Authorizer {
-	return questionnaireScopeAuthorizer{scope: "evidence:read"}
+	return packageCommandAuthorizer{action: authz.ActionGraphSnapshotsCreate}
 }

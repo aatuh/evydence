@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -21,25 +22,25 @@ func TestCustomerCreationAuthorizerRequiresSelectedProductOrReleaseGrant(t *test
 	} {
 		t.Run(tc.kind+tc.id+tc.scope, func(t *testing.T) {
 			a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"package:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: tc.kind, ResourceID: tc.id, Scopes: []string{tc.scope}}}}
-			err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "package:write", Resources: refs})
+			err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesCreate, Resources: refs})
 			if tc.allowed && err != nil || !tc.allowed && !errors.Is(err, application.ErrForbidden) {
 				t.Fatalf("err=%v", err)
 			}
 		})
 	}
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"package:write"}}
-	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "package:write", Resources: refs}); !errors.Is(err, application.ErrForbidden) {
+	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesCreate, Resources: refs}); !errors.Is(err, application.ErrForbidden) {
 		t.Fatal("removed grants accepted", err)
 	}
 	a.KeyID = "key"
-	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "package:write", Resources: refs}); err != nil {
+	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesCreate, Resources: refs}); err != nil {
 		t.Fatal(err)
 	}
 	for _, r := range []application.AuthorizationRequest{
-		{Scope: "package:write", Resources: application.ResourceReferences{ReleaseID: "release"}},
+		{Action: authz.ActionCustomerPackagesCreate, Resources: application.ResourceReferences{ReleaseID: "release"}},
 		{Scope: "package:read", Resources: refs},
-		{Scope: "package:write", Resources: application.ResourceReferences{ProductID: "product", CustomerPackageID: "package"}},
-		{Scope: "package:write", TenantWide: true, Resources: refs},
+		{Action: authz.ActionCustomerPackagesCreate, Resources: application.ResourceReferences{ProductID: "product", CustomerPackageID: "package"}},
+		{Action: authz.ActionCustomerPackagesCreate, TenantWide: true, Resources: refs},
 	} {
 		if err := p.Authorize(t.Context(), a, r); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal("unrelated boundary accepted", err)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
@@ -318,7 +319,7 @@ func (l *Ledger) persistCustomerPortalAccessUpdateLocked(ctx context.Context, pr
 }
 
 func prepareLocalPortalAccess(ctx context.Context, a domain.Actor, in CreateCustomerPortalAccessInput) (packageapp.CreatePortalAccessInput, error) {
-	if err := packagequery.NewPortalAccessWriteAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true}); err != nil {
+	if err := packagequery.NewPortalAccessWriteAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPortalAccessManage, ScopeOnly: true}); err != nil {
 		return packageapp.CreatePortalAccessInput{}, fromIdentityContextError(err)
 	}
 	v, err := packageapp.NormalizePortalAccessInput(packageapp.CreatePortalAccessInput{PackageID: in.PackageID, CustomerName: in.CustomerName, ReviewerName: in.ReviewerName, ReviewerEmail: in.ReviewerEmail, RequireNDA: in.RequireNDA, Watermark: in.Watermark, ExpiresAt: in.ExpiresAt})
@@ -334,7 +335,7 @@ func (l *Ledger) authorizePortalWriteLocked(ctx context.Context, a domain.Actor,
 	if err := packageapp.ValidatePortalPackageScope(a.TenantID, id, packageapp.PortalPackageScope{TenantID: pkg.TenantID, PackageID: pkg.ID, Resources: refs}); err != nil {
 		return fromPackageContextError(err)
 	}
-	return fromIdentityContextError(packagequery.NewPortalAccessWriteAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: refs}))
+	return fromIdentityContextError(packagequery.NewPortalAccessWriteAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionPortalAccessManage, Resources: refs}))
 }
 
 func (l *Ledger) ExportCustomerPortalPackageArchive(ctx context.Context, token string) (CustomerPackageArchive, error) {

@@ -153,43 +153,6 @@ func (s *SecurityUpdateEvidence) Report(ctx context.Context, actor identitydomai
 // Readers fetch one extra row to detect overflow without truncating evidence.
 const MaxSecurityUpdateEntries = 4096
 
-func releaseReportAllowed(actor identitydomain.Actor, productID, releaseID string) bool {
-	return releaseScopeAllowed(actor, "report:read", productID, releaseID)
-}
-
-func releaseScopeAllowed(actor identitydomain.Actor, requiredScope, productID, releaseID string) bool {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true
-	}
-	for _, grant := range actor.ResourceGrants {
-		allowed := false
-		for _, scope := range grant.Scopes {
-			if scope == requiredScope || scope == "admin" || scope == "*" {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true
-			}
-		case "product":
-			if productID != "" && grant.ResourceID == productID {
-				return true
-			}
-		case "release":
-			if releaseID != "" && grant.ResourceID == releaseID {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func sortedReportEvidenceIDs(values []string) []string {
 	unique := make(map[string]struct{}, len(values))
 	for _, value := range values {

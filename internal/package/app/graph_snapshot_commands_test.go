@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -32,7 +33,7 @@ func (f *graphCommandFixture) Authorize(ctx context.Context, a identitydomain.Ac
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !a.HasScope(ScopeEvidenceRead) || f.phase == "authorization" || !r.ScopeOnly && f.phase == "root authorization" {
+	if r.Action != authz.ActionGraphSnapshotsCreate || r.Scope != "" || !a.HasScope(ScopeEvidenceRead) || f.phase == "authorization" || !r.ScopeOnly && f.phase == "root authorization" {
 		return application.ErrForbidden
 	}
 	return nil

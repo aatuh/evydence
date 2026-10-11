@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
 
@@ -37,13 +38,26 @@ func accessTestPackage() packagedomain.CustomerSecurityPackage {
 
 func TestFocusedPackageAccessAndReportCommitAuditAtomically(t *testing.T) {
 	state := newPackageTestState()
+	checks := 0
+	state.authorize = func(request application.AuthorizationRequest) error {
+		checks++
+		want := application.AuthorizationRequest{Action: authz.ActionCustomerPackagesAccess, ScopeOnly: true}
+		if !request.ScopeOnly {
+			want.ScopeOnly = false
+			want.Resources = application.ResourceReferences{ProductID: "prod_1", ReleaseID: "rel_1", CustomerPackageID: "csp_access"}
+		}
+		if request != want {
+			t.Fatal("access command substituted action or package boundary", request)
+		}
+		return nil
+	}
 	state.packages["csp_access"] = accessTestPackage()
 	commands := newAccessTestCommands(t, state)
 	report, err := commands.SecurityReviewPackageReport(t.Context(), packageTestActor(), "csp_access")
 	if err != nil || report.PackageID != "csp_access" || len(report.EvidenceIDs) != 2 || report.EvidenceIDs[0] != "ev_2" || report.TemplateVersion != "security-review-package.v1.0.0" || !report.GeneratedAt.Equal(packageTestNow()) {
 		t.Fatalf("report=%#v err=%v", report, err)
 	}
-	if state.packages["csp_access"].AccessCount != 1 || len(state.audit) != 1 || state.audit[0].EntryType != "customer_package.accessed" || state.audit[0].PayloadHash != "sha256:manifest" {
+	if checks != 2 || state.packages["csp_access"].AccessCount != 1 || len(state.audit) != 1 || state.audit[0].EntryType != "customer_package.accessed" || state.audit[0].PayloadHash != "sha256:manifest" {
 		t.Fatalf("count=%d audit=%#v", state.packages["csp_access"].AccessCount, state.audit)
 	}
 	state.auditErr = errPackageTestFailure

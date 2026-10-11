@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -39,7 +40,7 @@ func (f *draftCommandFixture) Authorize(ctx context.Context, a identitydomain.Ac
 	if a.TenantID == "" || a.KeyID == "" && a.UserID == "" {
 		return application.ErrUnauthorized
 	}
-	if r.Scope != ScopePackageRead || !a.HasScope(r.Scope) || f.phase == "authorization" || f.phase == "root authorization" && !r.ScopeOnly {
+	if r.Action != authz.ActionQuestionnaireDraftsCreate || r.Scope != "" || !a.HasScope(ScopePackageRead) || f.phase == "authorization" || f.phase == "root authorization" && !r.ScopeOnly {
 		return application.ErrForbidden
 	}
 	if f.phase == "global answer denied" && !r.ScopeOnly && r.Resources == (application.ResourceReferences{}) {
@@ -330,7 +331,7 @@ func TestDraftAnswerSelectionUsesRecencyThenStableID(t *testing.T) {
 	y.CreatedAt = x.CreatedAt.Add(time.Second)
 	z := y
 	z.ID = "a"
-	winner, ok, err := selectDraftAnswer(t.Context(), f, a, f.scope, f.questions[0], []DraftAnswerCandidate{x, y, z}, ScopePackageRead)
+	winner, ok, err := selectDraftAnswer(t.Context(), f, a, f.scope, f.questions[0], []DraftAnswerCandidate{x, y, z}, authz.ActionQuestionnaireDraftsCreate)
 	if err != nil || !ok || winner.ID != "a" {
 		t.Fatal("unstable answer ranking", winner, err)
 	}

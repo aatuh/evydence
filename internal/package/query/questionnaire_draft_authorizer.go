@@ -1,46 +1,14 @@
 package query
 
 import (
-	"context"
-
 	"github.com/aatuh/evydence/internal/application"
-	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	"github.com/aatuh/evydence/internal/authz"
 )
 
 func NewQuestionnaireDraftAuthorizer() application.Authorizer {
-	return questionnaireScopeAuthorizer{scope: "package:read"}
+	return packageCommandAuthorizer{action: authz.ActionQuestionnaireDraftsCreate}
 }
+
 func NewAnswerLibraryAuthorizer() application.Authorizer {
-	return questionnaireScopeAuthorizer{scope: "package:write"}
-}
-
-type questionnaireScopeAuthorizer struct{ scope string }
-
-func (p questionnaireScopeAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if ctx == nil {
-		return application.ErrUnauthorized
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if a.TenantID == "" || a.UserID == "" && a.KeyID == "" && a.CollectorID == "" {
-		return application.ErrUnauthorized
-	}
-	if r.Scope != p.scope || !a.HasScope(r.Scope) && !a.HasScope("admin") {
-		return application.ErrForbidden
-	}
-	refs := r.Resources
-	if r.ScopeOnly {
-		if r.TenantWide || refs != (application.ResourceReferences{}) {
-			return application.ErrForbidden
-		}
-		return nil
-	}
-	if refs != (application.ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID}) || r.TenantWide != (refs == (application.ResourceReferences{})) || refs.ReleaseID != "" && refs.ProductID == "" {
-		return application.ErrForbidden
-	}
-	if !releaseScopeAllowed(a, r.Scope, refs.ProductID, refs.ReleaseID) {
-		return application.ErrForbidden
-	}
-	return nil
+	return packageCommandAuthorizer{action: authz.ActionAnswerLibraryEntriesCreate}
 }

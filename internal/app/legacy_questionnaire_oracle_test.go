@@ -341,7 +341,7 @@ func questionnaireAnswerSpecificity(entry domain.QuestionnaireAnswerLibraryEntry
 }
 
 func prepareLocalQuestionnairePackage(ctx context.Context, a domain.Actor, in CreateQuestionnairePackageInput) (packageapp.CreateQuestionnairePackageInput, error) {
-	if err := packagequery.NewQuestionnairePackageAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true}); err != nil {
+	if err := packagequery.NewQuestionnairePackageAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnairePackagesCreate, ScopeOnly: true}); err != nil {
 		return packageapp.CreateQuestionnairePackageInput{}, fromIdentityContextError(err)
 	}
 	v, err := packageapp.NormalizeQuestionnairePackageInput(packageapp.CreateQuestionnairePackageInput{TemplateID: in.TemplateID, PackageID: in.PackageID, ProductID: in.ProductID, ReleaseID: in.ReleaseID})
@@ -405,11 +405,11 @@ func (l *Ledger) authorizeQuestionnairePackageCreateLocked(ctx context.Context, 
 	if err := packageapp.ValidateQuestionnairePackageScope(a.TenantID, in, scope); err != nil {
 		return fromPackageContextError(err)
 	}
-	if err := packagequery.NewQuestionnairePackageAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: refs, TenantWide: refs == (application.ResourceReferences{})}); err != nil {
+	if err := packagequery.NewQuestionnairePackageAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnairePackagesCreate, Resources: refs, TenantWide: refs == (application.ResourceReferences{})}); err != nil {
 		return fromIdentityContextError(err)
 	}
 	if in.PackageID != "" {
-		return fromIdentityContextError(packagequery.NewQuestionnairePackageAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: scope.PackageResources}))
+		return fromIdentityContextError(packagequery.NewQuestionnairePackageAuthorizer().Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnairePackagesCreate, Resources: scope.PackageResources}))
 	}
 	return ctx.Err()
 }

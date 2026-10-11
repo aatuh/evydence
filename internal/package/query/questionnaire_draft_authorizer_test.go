@@ -5,17 +5,18 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func TestDraftAuthorizerSeparatesScopedAndTenantWideAnswers(t *testing.T) {
 	p := NewQuestionnaireDraftAuthorizer()
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"package:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "product", ResourceID: "product", Scopes: []string{"package:read"}}}}
-	r := application.AuthorizationRequest{Scope: "package:read", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
+	r := application.AuthorizationRequest{Action: authz.ActionQuestionnaireDraftsCreate, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
 	if err := p.Authorize(t.Context(), a, r); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "package:read", TenantWide: true}); !errors.Is(err, application.ErrForbidden) {
+	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionQuestionnaireDraftsCreate, TenantWide: true}); !errors.Is(err, application.ErrForbidden) {
 		t.Fatal("product grant disclosed global answer", err)
 	}
 	a.ResourceGrants[0] = identitydomain.ResourceGrant{ResourceType: "release", ResourceID: "release", Scopes: []string{"package:read"}}
@@ -27,7 +28,7 @@ func TestDraftAuthorizerSeparatesScopedAndTenantWideAnswers(t *testing.T) {
 		t.Fatal("removed grant accepted", err)
 	}
 	a.KeyID = "key"
-	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "package:read", TenantWide: true}); err != nil {
+	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionQuestionnaireDraftsCreate, TenantWide: true}); err != nil {
 		t.Fatal(err)
 	}
 	r.Resources.CustomerPackageID = "package"

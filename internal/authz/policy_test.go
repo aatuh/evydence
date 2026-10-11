@@ -78,6 +78,16 @@ func TestEveryDeclaredActionHasPolicyAndBehaviorCases(t *testing.T) {
 		return false
 	})
 	seen := map[Action]bool{}
+	for _, tc := range packageCommandCases {
+		if seen[tc.action] {
+			t.Fatalf("duplicate package command action: %s", tc.action)
+		}
+		seen[tc.action] = true
+		definition, ok := DefinitionFor(tc.action)
+		if !ok || definition.Scope != tc.scope || definition.Boundary != ResourceBoundary {
+			t.Fatalf("%s definition = %#v, registered=%v", tc.action, definition, ok)
+		}
+	}
 	for _, tc := range packageReportCases {
 		if seen[tc.action] {
 			t.Fatalf("duplicate package report action case: %s", tc.action)

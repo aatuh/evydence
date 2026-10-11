@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -68,7 +69,7 @@ func (s *QuestionnairePackageCommands) prepare(ctx context.Context, a identitydo
 	if err != nil {
 		return in, err
 	}
-	return in, s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true})
+	return in, s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnairePackagesCreate, ScopeOnly: true})
 }
 
 // ValidateQuestionnairePackageScope is shared by command and persistence
@@ -110,11 +111,11 @@ func readAuthorizedQuestionnairePackageScope(ctx context.Context, tx Questionnai
 	if err := ValidateQuestionnairePackageScope(a.TenantID, in, s); err != nil {
 		return s, err
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: s.Selection.Resources, TenantWide: s.Selection.Resources == (application.ResourceReferences{})}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnairePackagesCreate, Resources: s.Selection.Resources, TenantWide: s.Selection.Resources == (application.ResourceReferences{})}); err != nil {
 		return s, err
 	}
 	if in.PackageID != "" {
-		return s, tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: s.PackageResources})
+		return s, tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionQuestionnairePackagesCreate, Resources: s.PackageResources})
 	}
 	return s, nil
 }
@@ -139,7 +140,7 @@ func (s *QuestionnairePackageCommands) CreateQuestionnairePackage(ctx context.Co
 		if err != nil {
 			return err
 		}
-		responses, hash, err := assembleQuestionnaireResponses(ctx, tx, a, scope.Selection, ScopePackageWrite)
+		responses, hash, err := assembleQuestionnaireResponses(ctx, tx, a, scope.Selection, authz.ActionQuestionnairePackagesCreate)
 		if err != nil {
 			return err
 		}

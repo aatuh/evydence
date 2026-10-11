@@ -1,7 +1,10 @@
 package query
 
-import "github.com/aatuh/evydence/internal/application"
+import (
+	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
+)
 
 func NewPortalAccessWriteAuthorizer() application.Authorizer {
-	return packageAccessAuthorizer{scope: "package:write"}
+	return packageCommandAuthorizer{action: authz.ActionPortalAccessManage}
 }

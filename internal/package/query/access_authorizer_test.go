@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -20,17 +21,17 @@ func TestPackageAccessAuthorizerRequiresMatchingCurrentResourceGrant(t *testing.
 	} {
 		t.Run(tc.kind+tc.id+tc.scope, func(t *testing.T) {
 			actor := identitydomain.Actor{TenantID: "ten_1", UserID: "user_1", Scopes: []string{"package:read"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: tc.kind, ResourceID: tc.id, Scopes: []string{tc.scope}}}}
-			err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: "package:read", Resources: refs})
+			err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesAccess, Resources: refs})
 			if tc.allowed && err != nil || !tc.allowed && !errors.Is(err, application.ErrForbidden) {
 				t.Fatalf("err=%v", err)
 			}
 		})
 	}
 	actor := identitydomain.Actor{TenantID: "ten_1", KeyID: "key_1", Scopes: []string{"package:read"}}
-	if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: "package:read", Resources: refs}); err != nil {
+	if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesAccess, Resources: refs}); err != nil {
 		t.Fatal(err)
 	}
-	if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Scope: "package:read", Resources: application.ResourceReferences{CustomerPackageID: "csp_1"}}); !errors.Is(err, application.ErrForbidden) {
+	if err := authorizer.Authorize(t.Context(), actor, application.AuthorizationRequest{Action: authz.ActionCustomerPackagesAccess, Resources: application.ResourceReferences{CustomerPackageID: "csp_1"}}); !errors.Is(err, application.ErrForbidden) {
 		t.Fatal(err)
 	}
 }

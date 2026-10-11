@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -61,7 +62,7 @@ func (f *answerLibraryFixture) ValidateAnswerLibraryReferences(_ context.Context
 	return nil
 }
 func (f *answerLibraryFixture) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
-	if r.Scope != ScopePackageWrite || !a.HasScope(r.Scope) {
+	if r.Action != authz.ActionAnswerLibraryEntriesCreate || r.Scope != "" || !a.HasScope(ScopePackageWrite) {
 		return application.ErrForbidden
 	}
 	if !r.ScopeOnly && a.UserID != "" && a.KeyID == "" && len(a.ResourceGrants) == 0 {

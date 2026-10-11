@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	packagedomain "github.com/aatuh/evydence/internal/package/domain"
 )
@@ -121,7 +122,7 @@ func (s *AnswerLibraryCommands) prepare(ctx context.Context, a identitydomain.Ac
 	if err := contextError(ctx); err != nil {
 		return in, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionAnswerLibraryEntriesCreate, ScopeOnly: true}); err != nil {
 		return in, err
 	}
 	return NormalizeAnswerLibraryInput(in)
@@ -135,7 +136,7 @@ func (s *AnswerLibraryCommands) authorize(ctx context.Context, tx AnswerLibraryT
 	if scope.TenantID != a.TenantID || scope.ProductID != in.ProductID || scope.ReleaseID != in.ReleaseID || r != (application.ResourceReferences{ProductID: r.ProductID, ReleaseID: r.ReleaseID}) || r.ReleaseID != in.ReleaseID || in.ProductID != "" && r.ProductID != in.ProductID || in.ReleaseID != "" && !summaryString(r.ProductID, MaxAnswerLibraryIDBytes) || in.ProductID == "" && in.ReleaseID == "" && r != (application.ResourceReferences{}) {
 		return ErrNotFound
 	}
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: ScopePackageWrite, Resources: r, TenantWide: r == (application.ResourceReferences{})}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionAnswerLibraryEntriesCreate, Resources: r, TenantWide: r == (application.ResourceReferences{})}); err != nil {
 		return err
 	}
 	return tx.ValidateAnswerLibraryReferences(ctx, scope, in.ControlID, in.EvidenceIDs)

@@ -1201,9 +1201,23 @@ rechecks the resolved parent before returning data. All seven report operations
 reject cancellation after a successful reader return, and explicit-product
 reports recheck current actor grants after the read as well as before it.
 Report schemas, bounded projections, privacy exclusions, canonical rendering,
-and safe ownership misses remain unchanged. Package command authorizers and
-their shared legacy grant helpers remain separate migration work; these query
-policies do not claim to complete that work.
+and safe ownership misses remain unchanged.
+
+HTML/PDF report generation, graph snapshots, questionnaire drafts/packages,
+answer-library entries, customer-package creation/access, and portal-access
+management now bind their native preflight, resolved and replay checks to
+distinct typed actions. The shared release/package grant helpers are removed;
+their delegates translate envelopes into central policy without selecting a
+policy from a scope string or caller-provided resource kind. Direct
+`customer_security_package` grants authorize only audited package access,
+portal management, and a questionnaire's package association. They do not
+authorize the questionnaire's unassociated evidence/answer selection, tenant
+inventories, other report generation, graph snapshots, or new customer packages.
+Root tenant/product/release grants and credential capabilities retain their
+existing behavior. Frozen hashes, redaction profiles, private answer retrieval,
+expiry, credential issuance, and transaction/audit effects are unchanged.
+Other package policies, including evidence summaries, bundles, query catalogs,
+and token consumption, remain separate migration work.
 
 This is partial EVY-1002 implementation. Remaining resource-specific policies,
 other contexts' typed caller contracts, collector binding, and the complete
