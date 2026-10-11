@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
@@ -83,7 +84,7 @@ func (s *SourceBranchCommands) UpsertSourceBranch(ctx context.Context, a identit
 	if s == nil {
 		return integrationdomain.SourceBranch{}, ErrValidation
 	}
-	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+	if err := prepareSourceWrite(ctx, a, authz.ActionSourceBranchesUpsert, s.config.Authorizer); err != nil {
 		return integrationdomain.SourceBranch{}, err
 	}
 	in, err := NormalizeSourceBranchInput(in)
@@ -99,7 +100,7 @@ func (s *SourceBranchCommands) UpsertSourceBranch(ctx context.Context, a identit
 	}
 	var result integrationdomain.SourceBranch
 	err = s.config.Transactions.ExecuteSourceBranch(ctx, func(ctx context.Context, tx SourceBranchTransaction) error {
-		r, err := authorizeSourceWriteRepository(ctx, tx, a, in.RepositoryID)
+		r, err := authorizeSourceWriteRepository(ctx, tx, a, authz.ActionSourceBranchesUpsert, in.RepositoryID)
 		if err != nil {
 			return err
 		}

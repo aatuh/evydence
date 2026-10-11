@@ -34,6 +34,9 @@ func authorizeResource(actor identitydomain.Actor, scope string, request Request
 
 func allowsTenantResourceEvaluation(action Action) bool {
 	switch action {
+	case ActionSourceRepositoriesCreate, ActionSourceCommitsRecord, ActionSourceBranchesUpsert,
+		ActionPullRequestsRecord, ActionSourceSnapshotsRecord, ActionSourceRepositoriesRead:
+		return true
 	case ActionProductsRead, ActionProjectsRead, ActionProjectsCreate,
 		ActionReleasesRead, ActionReleasesManage, ActionBuildsRead, ActionBuildsCreate,
 		ActionBuildAttestationsCreate, ActionReleaseCandidatesCreate, ActionReleaseCandidatesRead, ActionArtifactsRead,
@@ -51,6 +54,11 @@ func allowsTenantResourceEvaluation(action Action) bool {
 
 func validResourceReferences(action Action, refs ResourceReferences) bool {
 	switch action {
+	case ActionSourceRepositoriesCreate, ActionSourceCommitsRecord, ActionSourceBranchesUpsert,
+		ActionPullRequestsRecord, ActionSourceSnapshotsRecord:
+		return refs.ProductID != "" && refs.ProjectID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID})
+	case ActionSourceRepositoriesRead:
+		return refs == (ResourceReferences{}) || refs.ProductID != "" && refs.ProjectID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID})
 	case ActionEnvironmentsCreate:
 		return refs.ProductID != "" && refs == (ResourceReferences{ProductID: refs.ProductID})
 	case ActionEnvironmentsRead:

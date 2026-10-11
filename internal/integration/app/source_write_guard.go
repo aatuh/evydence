@@ -5,17 +5,18 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-func prepareSourceWrite(ctx context.Context, a identitydomain.Actor, auth application.Authorizer) error {
+func prepareSourceWrite(ctx context.Context, a identitydomain.Actor, action authz.Action, auth application.Authorizer) error {
 	if ctx == nil {
 		return ErrValidation
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := auth.Authorize(ctx, a, application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}); err != nil {
+	if err := auth.Authorize(ctx, a, application.AuthorizationRequest{Action: action, ScopeOnly: true}); err != nil {
 		return err
 	}
 	if !validSourceText(a.TenantID, 1024, false) || strings.TrimSpace(a.TenantID) != a.TenantID {
@@ -29,8 +30,8 @@ type sourceWriteScope interface {
 	application.Authorizer
 }
 
-func authorizeSourceWriteRepository(ctx context.Context, tx sourceWriteScope, a identitydomain.Actor, id string) (SourceRepositoryIdentity, error) {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}); err != nil {
+func authorizeSourceWriteRepository(ctx context.Context, tx sourceWriteScope, a identitydomain.Actor, action authz.Action, id string) (SourceRepositoryIdentity, error) {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: action, ScopeOnly: true}); err != nil {
 		return SourceRepositoryIdentity{}, err
 	}
 	r, err := tx.LockSourceRepositoryForWrite(ctx, a.TenantID, id)
@@ -40,7 +41,7 @@ func authorizeSourceWriteRepository(ctx context.Context, tx sourceWriteScope, a 
 	if err := validateSourceRepositoryIdentity(r, a.TenantID, id); err != nil {
 		return r, err
 	}
-	return r, tx.Authorize(ctx, a, sourceRepositoryAuthorization(r.ProjectID, r.ProductID))
+	return r, tx.Authorize(ctx, a, sourceRepositoryAuthorization(action, r.ProjectID, r.ProductID))
 }
 
 func authorizeSourceHead(ctx context.Context, tx SourceCommitIdentityReader, a identitydomain.Actor, repository, head string) error {
@@ -58,7 +59,7 @@ func (s *SourceCommitCommands) AuthorizeSourceCommitRecording(ctx context.Contex
 	if s == nil {
 		return ErrValidation
 	}
-	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+	if err := prepareSourceWrite(ctx, a, authz.ActionSourceCommitsRecord, s.config.Authorizer); err != nil {
 		return err
 	}
 	in, err := NormalizeSourceCommitInput(in)
@@ -66,7 +67,7 @@ func (s *SourceCommitCommands) AuthorizeSourceCommitRecording(ctx context.Contex
 		return err
 	}
 	return s.config.Transactions.ExecuteSourceCommit(ctx, func(ctx context.Context, tx SourceCommitTransaction) error {
-		_, err := authorizeSourceWriteRepository(ctx, tx, a, in.RepositoryID)
+		_, err := authorizeSourceWriteRepository(ctx, tx, a, authz.ActionSourceCommitsRecord, in.RepositoryID)
 		return err
 	})
 }
@@ -75,7 +76,7 @@ func (s *SourceBranchCommands) AuthorizeSourceBranchUpsert(ctx context.Context, 
 	if s == nil {
 		return ErrValidation
 	}
-	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+	if err := prepareSourceWrite(ctx, a, authz.ActionSourceBranchesUpsert, s.config.Authorizer); err != nil {
 		return err
 	}
 	in, err := NormalizeSourceBranchInput(in)
@@ -86,7 +87,7 @@ func (s *SourceBranchCommands) AuthorizeSourceBranchUpsert(ctx context.Context, 
 		return err
 	}
 	return s.config.Transactions.ExecuteSourceBranch(ctx, func(ctx context.Context, tx SourceBranchTransaction) error {
-		r, err := authorizeSourceWriteRepository(ctx, tx, a, in.RepositoryID)
+		r, err := authorizeSourceWriteRepository(ctx, tx, a, authz.ActionSourceBranchesUpsert, in.RepositoryID)
 		if err != nil {
 			return err
 		}
@@ -98,7 +99,7 @@ func (s *PullRequestCommands) AuthorizePullRequestRecording(ctx context.Context,
 	if s == nil {
 		return ErrValidation
 	}
-	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+	if err := prepareSourceWrite(ctx, a, authz.ActionPullRequestsRecord, s.config.Authorizer); err != nil {
 		return err
 	}
 	in, err := NormalizePullRequestInput(in)
@@ -106,7 +107,7 @@ func (s *PullRequestCommands) AuthorizePullRequestRecording(ctx context.Context,
 		return err
 	}
 	return s.config.Transactions.ExecutePullRequest(ctx, func(ctx context.Context, tx PullRequestTransaction) error {
-		r, err := authorizeSourceWriteRepository(ctx, tx, a, in.RepositoryID)
+		r, err := authorizeSourceWriteRepository(ctx, tx, a, authz.ActionPullRequestsRecord, in.RepositoryID)
 		if err != nil {
 			return err
 		}

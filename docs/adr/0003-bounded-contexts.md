@@ -1052,6 +1052,24 @@ build coordinates centrally rather than stripping the build identifier in a
 local wrapper. Syntax-aware regressions reject catalog scope-string callers;
 historical aggregate scope translation exists only in test oracles.
 
+Integration source repositories, commits, branches, pull requests, and snapshot
+preflights now select distinct typed actions with the unchanged `source:write`
+capability. Their shared source policy rejects legacy scopes, mixed operation
+envelopes, another action family, and ambiguous evaluation phases. Linked source
+operations require current coherent product/project coordinates and grants;
+detached repositories require explicit tenant authority. Replay guards preserve
+ownership-only reads before reservations without inspecting source metadata.
+Composed snapshots still bind all child commands to one transaction; each child
+selects its own action and rechecks its current ownership and authority. No
+provider collection, parsing, hash, audit, or replay format is changed.
+
+Source repository lists select `source_repositories.read` and obtain current
+product/project filters centrally before the keyset limit. Release grants do not
+confer source visibility; detached rows remain tenant-only. Returned ownership,
+filter membership, and cursor checks are retained, with no local actor-scope or
+grant predicates in the Integration queries. Cancellation after the filtered
+reader returns now propagates without exposing rows or a continuation cursor.
+
 API-key, membership/identity administration, and collector-management commands
 also construct typed action requests. Their factory-bound policies require the
 exact tenant-wide operation envelope and reject legacy scopes, mixed requests,

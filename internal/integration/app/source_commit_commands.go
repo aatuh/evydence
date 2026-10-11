@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
@@ -89,7 +90,7 @@ func (s *SourceCommitCommands) RecordSourceCommit(ctx context.Context, a identit
 	if s == nil {
 		return integrationdomain.SourceCommit{}, ErrValidation
 	}
-	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+	if err := prepareSourceWrite(ctx, a, authz.ActionSourceCommitsRecord, s.config.Authorizer); err != nil {
 		return integrationdomain.SourceCommit{}, err
 	}
 	in, err := NormalizeSourceCommitInput(in)
@@ -106,7 +107,7 @@ func (s *SourceCommitCommands) RecordSourceCommit(ctx context.Context, a identit
 	}
 	var result integrationdomain.SourceCommit
 	err = s.config.Transactions.ExecuteSourceCommit(ctx, func(ctx context.Context, tx SourceCommitTransaction) error {
-		r, err := authorizeSourceWriteRepository(ctx, tx, a, in.RepositoryID)
+		r, err := authorizeSourceWriteRepository(ctx, tx, a, authz.ActionSourceCommitsRecord, in.RepositoryID)
 		if err != nil {
 			return err
 		}

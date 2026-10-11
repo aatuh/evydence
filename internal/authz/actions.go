@@ -92,6 +92,15 @@ const (
 	ActionEvidenceDiffsCreate    Action = "evidence_diffs.create"
 )
 
+const (
+	ActionSourceRepositoriesCreate Action = "source_repositories.create"
+	ActionSourceCommitsRecord      Action = "source_commits.record"
+	ActionSourceBranchesUpsert     Action = "source_branches.upsert"
+	ActionPullRequestsRecord       Action = "pull_requests.record"
+	ActionSourceSnapshotsRecord    Action = "source_snapshots.record"
+	ActionSourceRepositoriesRead   Action = "source_repositories.read"
+)
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -112,6 +121,10 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionSourceRepositoriesCreate, ActionSourceCommitsRecord, ActionSourceBranchesUpsert, ActionPullRequestsRecord, ActionSourceSnapshotsRecord:
+		return Definition{Scope: "source:write", Boundary: ResourceBoundary}, true
+	case ActionSourceRepositoriesRead:
+		return Definition{Scope: "source:read", Boundary: ResourceBoundary}, true
 	case ActionAPIKeysRead, ActionAPIKeysManage, ActionRetentionPoliciesManage, ActionRetentionReportRead, ActionRetentionMarkersManage, ActionAuditLogRead, ActionTenantMetricsRead, ActionBackupGenerate:
 		return Definition{Scope: "admin", Boundary: TenantBoundary}, true
 	case ActionMembershipsManage, ActionRoleBindingsRead:

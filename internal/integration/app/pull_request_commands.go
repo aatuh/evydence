@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
@@ -67,7 +68,7 @@ func (s *PullRequestCommands) RecordPullRequest(ctx context.Context, a identityd
 	if s == nil {
 		return integrationdomain.PullRequest{}, ErrValidation
 	}
-	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+	if err := prepareSourceWrite(ctx, a, authz.ActionPullRequestsRecord, s.config.Authorizer); err != nil {
 		return integrationdomain.PullRequest{}, err
 	}
 	in, err := NormalizePullRequestInput(in)
@@ -80,7 +81,7 @@ func (s *PullRequestCommands) RecordPullRequest(ctx context.Context, a identityd
 	}
 	var result integrationdomain.PullRequest
 	err = s.config.Transactions.ExecutePullRequest(ctx, func(ctx context.Context, tx PullRequestTransaction) error {
-		r, err := authorizeSourceWriteRepository(ctx, tx, a, in.RepositoryID)
+		r, err := authorizeSourceWriteRepository(ctx, tx, a, authz.ActionPullRequestsRecord, in.RepositoryID)
 		if err != nil {
 			return err
 		}

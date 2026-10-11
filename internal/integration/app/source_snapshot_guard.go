@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -98,7 +99,7 @@ func (s *SourceSnapshotCommands) AuthorizeSourceSnapshot(ctx context.Context, a 
 	if s == nil {
 		return ErrValidation
 	}
-	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+	if err := prepareSourceWrite(ctx, a, authz.ActionSourceSnapshotsRecord, s.config.Authorizer); err != nil {
 		return err
 	}
 	if err := ValidateSourceSnapshotRequest(provider, in); err != nil {

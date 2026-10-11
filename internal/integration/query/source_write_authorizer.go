@@ -4,59 +4,44 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
+// NewSourceWriteAuthorizer accepts only registered Integration source commands.
+// Current tenant-owned parent coordinates are resolved by the command guards.
 func NewSourceWriteAuthorizer() application.Authorizer { return sourceWriteAuthorizer{} }
 
 type sourceWriteAuthorizer struct{}
 
-func (sourceWriteAuthorizer) Authorize(ctx context.Context, a identitydomain.Actor, r application.AuthorizationRequest) error {
+func (sourceWriteAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
 	if ctx == nil {
 		return ErrValidation
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if a.TenantID == "" || a.KeyID == "" && a.UserID == "" && a.CollectorID == "" {
+	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return application.ErrUnauthorized
 	}
-	if r.Scope != "source:write" || !a.HasScope(r.Scope) && !a.HasScope("admin") {
+	if request.Scope != "" || !isSourceWriteAction(request.Action) || request.ScopeOnly && request.TenantWide {
 		return application.ErrForbidden
 	}
-	if r.ScopeOnly {
-		if r.TenantWide || r.Resources != (application.ResourceReferences{}) {
-			return application.ErrForbidden
-		}
-		return nil
+	evaluation := authz.ResolvedEvaluation
+	if request.ScopeOnly {
+		evaluation = authz.ScopeEvaluation
+	} else if request.TenantWide {
+		evaluation = authz.TenantEvaluation
 	}
-	refs := r.Resources
-	if r.TenantWide {
-		if refs != (application.ResourceReferences{}) {
-			return application.ErrForbidden
-		}
-	} else if refs.ProductID == "" || refs.ProjectID == "" || refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID}) {
-		return application.ErrForbidden
+	return authz.Authorize(ctx, actor, authz.Request{Action: request.Action, Resources: request.Resources, Evaluation: evaluation})
+}
+
+func isSourceWriteAction(action authz.Action) bool {
+	switch action {
+	case authz.ActionSourceRepositoriesCreate, authz.ActionSourceCommitsRecord, authz.ActionSourceBranchesUpsert,
+		authz.ActionPullRequestsRecord, authz.ActionSourceSnapshotsRecord:
+		return true
+	default:
+		return false
 	}
-	if a.UserID == "" || a.KeyID != "" || a.CollectorID != "" {
-		return nil
-	}
-	for _, g := range a.ResourceGrants {
-		allowed := false
-		for _, scope := range g.Scopes {
-			if scope == r.Scope || scope == "admin" || scope == "*" {
-				allowed = true
-			}
-		}
-		if !allowed {
-			continue
-		}
-		if (g.ResourceType == "" || g.ResourceType == "tenant") && (g.ResourceID == "" || g.ResourceID == a.TenantID) {
-			return nil
-		}
-		if !r.TenantWide && (g.ResourceType == "product" && g.ResourceID == refs.ProductID || g.ResourceType == "project" && g.ResourceID == refs.ProjectID) {
-			return nil
-		}
-	}
-	return application.ErrForbidden
 }

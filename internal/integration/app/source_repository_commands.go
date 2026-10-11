@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
@@ -70,8 +71,8 @@ func NewSourceRepositoryCommands(c SourceRepositoryCreationConfig) (*SourceRepos
 func validSourceText(v string, limit int, optional bool) bool {
 	return (optional || v != "") && len(v) <= limit && utf8.ValidString(v) && !strings.ContainsRune(v, 0)
 }
-func sourceRepositoryAuthorization(project, product string) application.AuthorizationRequest {
-	r := application.AuthorizationRequest{Scope: "source:write", TenantWide: project == ""}
+func sourceRepositoryAuthorization(action authz.Action, project, product string) application.AuthorizationRequest {
+	r := application.AuthorizationRequest{Action: action, TenantWide: project == ""}
 	if project != "" {
 		r.Resources = application.ResourceReferences{ProductID: product, ProjectID: project}
 	}
@@ -105,7 +106,7 @@ func (s *SourceRepositoryCommands) prepareCreation(ctx context.Context, a identi
 	if err := ctx.Err(); err != nil {
 		return in, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSourceRepositoriesCreate, ScopeOnly: true}); err != nil {
 		return in, err
 	}
 	in, err := NormalizeSourceRepositoryInput(in)
@@ -118,7 +119,7 @@ func (s *SourceRepositoryCommands) prepareCreation(ctx context.Context, a identi
 // authorizeSourceRepositoryCreation reads only current tenant/project and
 // natural-key ownership. It never reads repository metadata or allocates IDs.
 func authorizeSourceRepositoryCreation(ctx context.Context, tx SourceRepositoryCreationTransaction, a identitydomain.Actor, in CreateSourceRepositoryInput) (SourceRepositoryIdentity, bool, error) {
-	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: "source:write", ScopeOnly: true}); err != nil {
+	if err := tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSourceRepositoriesCreate, ScopeOnly: true}); err != nil {
 		return SourceRepositoryIdentity{}, false, err
 	}
 	if err := tx.LockRepositoryCreation(ctx, a.TenantID); err != nil {
@@ -135,7 +136,7 @@ func authorizeSourceRepositoryCreation(ctx context.Context, tx SourceRepositoryC
 		}
 		product = p.ProductID
 	}
-	if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(in.ProjectID, product)); err != nil {
+	if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(authz.ActionSourceRepositoriesCreate, in.ProjectID, product)); err != nil {
 		return SourceRepositoryIdentity{}, false, err
 	}
 	identity, found, err := tx.RepositoryIdentityByName(ctx, a.TenantID, in.Provider, in.FullName)
@@ -146,7 +147,7 @@ func authorizeSourceRepositoryCreation(ctx context.Context, tx SourceRepositoryC
 		if err := validateSourceRepositoryIdentity(identity, a.TenantID, identity.ID); err != nil {
 			return identity, found, err
 		}
-		if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(identity.ProjectID, identity.ProductID)); err != nil {
+		if err := tx.Authorize(ctx, a, sourceRepositoryAuthorization(authz.ActionSourceRepositoriesCreate, identity.ProjectID, identity.ProductID)); err != nil {
 			return identity, found, err
 		}
 	}

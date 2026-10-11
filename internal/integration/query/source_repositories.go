@@ -4,16 +4,13 @@ package query
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	appquery "github.com/aatuh/evydence/internal/app/query"
-	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
-
-const scopeSourceRead = "source:read"
 
 var (
 	ErrValidation        = errors.New("invalid source repository query")
@@ -62,16 +59,20 @@ func (s *SourceRepositories) ListPage(ctx context.Context, actor identitydomain.
 	if err := appquery.Validate(page, after); err != nil {
 		return appquery.Result[integrationdomain.SourceRepository]{}, ErrValidation
 	}
-	if err := authorizeSourceRead(actor, "", ""); err != nil {
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionSourceRepositoriesRead)
+	if err != nil {
 		return appquery.Result[integrationdomain.SourceRepository]{}, err
 	}
-	tenantWide, products, projects := sourceRepositoryVisibility(actor)
+	tenantWide, products, projects := visibility.TenantWide, visibility.ProductIDs, visibility.ProjectIDs
 	if !tenantWide && len(products) == 0 && len(projects) == 0 {
 		return appquery.Result[integrationdomain.SourceRepository]{Items: []integrationdomain.SourceRepository{}}, nil
 	}
 	request := SourceRepositoryPageRequest{TenantID: actor.TenantID, ProjectID: projectID, TenantWide: tenantWide, AllowedProductIDs: products, AllowedProjectIDs: projects, Page: page, After: after}
 	result, err := s.reader.PageSourceRepositories(ctx, request)
 	if err != nil {
+		return appquery.Result[integrationdomain.SourceRepository]{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return appquery.Result[integrationdomain.SourceRepository]{}, err
 	}
 	if len(result.Items) > page.PageSize || result.Next != nil && (len(result.Items) == 0 || *result.Next != appquery.RecordSortKey(result.Items[len(result.Items)-1].Repository.ID, result.Items[len(result.Items)-1].Repository.CreatedAt, page.Sort)) {
@@ -87,91 +88,12 @@ func (s *SourceRepositories) ListPage(ctx context.Context, actor identitydomain.
 			!tenantWide && !sourceAllowed(products, point.ProductID) && !sourceAllowed(projects, repository.ProjectID) {
 			return appquery.Result[integrationdomain.SourceRepository]{}, ErrInvalidProjection
 		}
-		if err := authorizeSourceRead(actor, point.ProductID, repository.ProjectID); err != nil {
+		if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionSourceRepositoriesRead, Resources: authz.ResourceReferences{ProductID: point.ProductID, ProjectID: repository.ProjectID}}); err != nil {
 			return appquery.Result[integrationdomain.SourceRepository]{}, ErrInvalidProjection
 		}
 		items = append(items, repository)
 	}
 	return appquery.Result[integrationdomain.SourceRepository]{Items: items, Next: result.Next}, nil
-}
-
-func authorizeSourceRead(actor identitydomain.Actor, productID, projectID string) error {
-	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
-		return application.ErrUnauthorized
-	}
-	if !actor.HasScope(scopeSourceRead) && !actor.HasScope("admin") {
-		return application.ErrForbidden
-	}
-	if productID == "" && projectID == "" || actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	for _, grant := range actor.ResourceGrants {
-		if !sourceGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return nil
-			}
-		case "product":
-			if productID != "" && grant.ResourceID == productID {
-				return nil
-			}
-		case "project":
-			if projectID != "" && grant.ResourceID == projectID {
-				return nil
-			}
-		}
-	}
-	return application.ErrForbidden
-}
-
-func sourceRepositoryVisibility(actor identitydomain.Actor) (bool, []string, []string) {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true, nil, nil
-	}
-	productSet := make(map[string]struct{})
-	projectSet := make(map[string]struct{})
-	for _, grant := range actor.ResourceGrants {
-		if !sourceGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true, nil, nil
-			}
-		case "product":
-			if grant.ResourceID != "" {
-				productSet[grant.ResourceID] = struct{}{}
-			}
-		case "project":
-			if grant.ResourceID != "" {
-				projectSet[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	products := make([]string, 0, len(productSet))
-	for id := range productSet {
-		products = append(products, id)
-	}
-	sort.Strings(products)
-	projects := make([]string, 0, len(projectSet))
-	for id := range projectSet {
-		projects = append(projects, id)
-	}
-	sort.Strings(projects)
-	return false, products, projects
-}
-
-func sourceGrantHasScope(grant identitydomain.ResourceGrant) bool {
-	for _, scope := range grant.Scopes {
-		if scope == scopeSourceRead || scope == "admin" || scope == "*" {
-			return true
-		}
-	}
-	return false
 }
 
 func sourceAllowed(ids []string, id string) bool {

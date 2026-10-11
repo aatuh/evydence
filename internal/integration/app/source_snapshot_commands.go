@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationdomain "github.com/aatuh/evydence/internal/integration/domain"
 )
@@ -65,7 +66,7 @@ func (s *SourceSnapshotCommands) RecordSourceSnapshot(ctx context.Context, a ide
 	if s == nil {
 		return SourceSnapshotResult{}, ErrValidation
 	}
-	if err := prepareSourceWrite(ctx, a, s.config.Authorizer); err != nil {
+	if err := prepareSourceWrite(ctx, a, authz.ActionSourceSnapshotsRecord, s.config.Authorizer); err != nil {
 		return SourceSnapshotResult{}, err
 	}
 	if err := ValidateSourceSnapshotRaw(provider, in); err != nil {

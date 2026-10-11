@@ -16,11 +16,32 @@ type sourceRepositoryReaderStub struct {
 	request SourceRepositoryPageRequest
 	result  appquery.Result[SourceRepositoryPoint]
 	calls   int
+	before  func()
 }
 
 func (r *sourceRepositoryReaderStub) PageSourceRepositories(_ context.Context, request SourceRepositoryPageRequest) (appquery.Result[SourceRepositoryPoint], error) {
 	r.request, r.calls = request, r.calls+1
+	if r.before != nil {
+		r.before()
+	}
 	return r.result, nil
+}
+
+func TestSourceRepositoriesPropagateCancellationAfterFilteredReader(t *testing.T) {
+	for _, items := range [][]SourceRepositoryPoint{nil, {{Repository: integrationdomain.SourceRepository{ID: "repo", TenantID: "ten_1", ProjectID: "project", FullName: "private/repository"}, ProductID: "product"}}} {
+		reader := &sourceRepositoryReaderStub{result: appquery.Result[SourceRepositoryPoint]{Items: items}}
+		service, err := NewSourceRepositories(reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		reader.before = cancel
+		page := appquery.PageRequest{PageSize: 2, Sort: appquery.SortID, Direction: appquery.Ascending}
+		result, err := service.ListPage(ctx, sourceKeyActor(), "", page, nil)
+		if !errors.Is(err, context.Canceled) || len(result.Items) != 0 || result.Next != nil || reader.calls != 1 {
+			t.Fatal("canceled filtered read lost cancellation or returned metadata", result, err, reader.calls)
+		}
+	}
 }
 
 func TestSourceRepositoriesAuthorizeCurrentParentAndFilterBeforeLimit(t *testing.T) {

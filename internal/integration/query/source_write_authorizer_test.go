@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
@@ -16,7 +17,7 @@ func TestSourceWriteAuthorizerRequiresCurrentProjectOrTenantGrant(t *testing.T) 
 	}{{"tenant", "tenant", true, true}, {"product", "product", true, false}, {"project", "project", true, false}, {"project", "other", false, false}, {"release", "release", false, false}, {"", "other", false, false}} {
 		a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"source:write"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: tc.kind, ResourceID: tc.id, Scopes: []string{"source:write"}}}}
 		for _, detached := range []bool{false, true} {
-			r := application.AuthorizationRequest{Scope: "source:write", TenantWide: detached}
+			r := application.AuthorizationRequest{Action: authz.ActionSourceRepositoriesCreate, TenantWide: detached}
 			if !detached {
 				r.Resources = application.ResourceReferences{ProductID: "product", ProjectID: "project"}
 			}
@@ -30,12 +31,12 @@ func TestSourceWriteAuthorizerRequiresCurrentProjectOrTenantGrant(t *testing.T) 
 			}
 		}
 		a.ResourceGrants = nil
-		if err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "source:write", TenantWide: true}); !errors.Is(err, application.ErrForbidden) {
+		if err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionSourceRepositoriesCreate, TenantWide: true}); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal("revoked grant remained authorized", err)
 		}
 	}
 	for _, a := range []identitydomain.Actor{{TenantID: "tenant", KeyID: "key", Scopes: []string{"source:write"}}, {TenantID: "tenant", CollectorID: "collector", Scopes: []string{"admin"}}} {
-		if err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: "source:write", TenantWide: true}); err != nil {
+		if err := auth.Authorize(t.Context(), a, application.AuthorizationRequest{Action: authz.ActionSourceRepositoriesCreate, TenantWide: true}); err != nil {
 			t.Fatal(err)
 		}
 	}
