@@ -818,7 +818,8 @@ The separate `TestRouteAuthorizationBehaviorMatrix` and
 `TestRouteAuthorizationBehaviorCoverage` cover all 189 registered operations
 with native application-policy scenarios and reject gaps. Fixture limitations
 are documented in the [authorization policy boundary](adr/0003-bounded-contexts.md#authorization-policy).
-EVY-1002's required full validation remains pending.
+EVY-1002's required full validation passed on 2026-10-11 for source `50f4ad37`;
+the completion record retains the local-fixture and external-provider limits.
 
 Important scope boundaries:
 
@@ -1239,7 +1240,8 @@ policy, issuance/denial, lifetime/cancellation and signed HTTP coverage live in
 `internal/identity/app/sso_exchange_policy_test.go`, and
 `internal/adapters/httpapi/sso_exchange_authorization_matrix_test.go`.
 This route participates in the complete authorization matrix; EVY-1002's
-required full-suite and production gates remain pending.
+required full-suite and production gates passed on source `50f4ad37`. This does
+not establish live-provider identity or provider-token single-use.
 
 #### Provider Identity Verification Receipts
 
@@ -2624,7 +2626,8 @@ in `internal/adapters/httpapi/portal_authorization_matrix_test.go`; policy,
 isolation and cancellation regressions are in `internal/authz/portal_policy_test.go`
 and `internal/package/app/portal_token_policy_test.go`. These routes participate
 in the complete authorization matrix; EVY-1002's required full-suite and
-production gates remain pending.
+production gates passed on source `50f4ad37`. This does not establish external
+sharing approval or legal acceptance sufficiency.
 
 ### Built-in Policy Evaluation
 

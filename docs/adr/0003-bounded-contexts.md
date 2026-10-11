@@ -1379,14 +1379,21 @@ scenarios reuse their dedicated token/cryptographic fixtures. Collector
 attribution is bound to the authenticated identity. Controlled object/provider
 I/O is not an alternative authorization implementation.
 
-This remains incomplete EVY-1002 validation. Memory transactions and controlled
-I/O do not prove SQL locking, durability, complete backup state commitments,
-provider identity, or provider custody. Focused live recovery checks cover the
-native backup fixtures separately; their policy delegates select typed artifact
-and backup actions rather than legacy scope-only or retention requests. The
-required full internal suite and production gate must pass before ticket
-closure. Neither committed tests nor scoped checks establish hosted CI,
-external-provider controls, or general production readiness.
+EVY-1002's required full internal suite, OpenAPI checks and complete production
+gate passed on 2026-10-11 for clean source `50f4ad37`. The gate includes full
+unit/race/live PostgreSQL/MinIO, coverage, migration-prefix compatibility,
+black-box restart/release-style binary flows and local signing smoke. Exact
+commands, results and implementation commits are in the
+[completion record](../../.EVYDENCE_CODEX_BACKLOG.md#x-evy-1002-centralize-authorization-policy-and-prove-route-coverage).
+These final results supersede earlier pending-validation checkpoints above.
+
+Memory transactions and controlled I/O alone do not prove SQL locking,
+durability, complete backup state commitments, provider identity or custody.
+Live recovery checks cover native backup fixtures separately; their delegates
+select typed artifact and backup actions rather than legacy scope-only or
+retention requests. The final local gate does not establish hosted CI,
+external-provider controls, provider-token single-use, multi-writer safety,
+host-reboot/power-loss durability or general production readiness.
 
 ### Migration and retirement sequence
 

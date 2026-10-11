@@ -21,7 +21,13 @@ and an executable positive/negative matrix cover all 189 API operations; a
 separate check rejects missing or unregistered scenarios. Memory fixtures and
 controlled external I/O are not storage-durability or provider proof. Route
 methods, response schemas and immutable persistence formats are unchanged.
-EVY-1002's required full-suite and production validation remain pending.
+EVY-1002's required full-suite and production validation passed on 2026-10-11
+for clean source `50f4ad37`: full unit/race/live PostgreSQL/MinIO, security,
+migration-prefix, black-box and local signing checks passed. Coverage was 86.3%
+overall and 85.1% critical, above the unchanged 80%/81% floors. See the
+[completion record](.EVYDENCE_CODEX_BACKLOG.md#x-evy-1002-centralize-authorization-policy-and-prove-route-coverage)
+for exact commands, compatibility and local-evidence limits. No new release,
+hosted CI, external-provider controls or general security conclusion is implied.
 
 Centralized SSO credential-exchange authority as a verified-identity action.
 Session issuance now requires a passed assessment, completed fully passed
@@ -30,7 +36,8 @@ missing proof no longer acquires session authority. Requested session expiry
 is rechecked after snapshot locks. Post-commit cancellation withholds results
 and secrets without undoing committed records/audits. Local OIDC/SAML crypto,
 safe denial receipts, repeat valid issuance, token/cookie/schema/hash formats
-and historical rows are unchanged. This remains partial EVY-1002 work.
+and historical rows are unchanged. This migration is included in EVY-1002's
+validated source; it does not establish live-provider or token single-use proof.
 
 Centralized signed incident-webhook authority as a receiver-signature action,
 with bound current incident/evidence scope. API scopes cannot replace a receiver
@@ -39,8 +46,8 @@ blocking reads now fail before fresh writes or receipt replay; providers can
 re-sign the same event ID and exact body to retry. Post-commit cancellation
 withholds receiver/receipt results without undoing committed records or audits.
 Ed25519 framing, raw-body/hash formats, schemas and natural replay identities
-remain unchanged. This is partial EVY-1002 work, not live-storage, provider or
-release verification.
+remain unchanged. This migration is included in EVY-1002's validated source;
+provider controls and release publication are not inferred from local checks.
 
 Centralized customer-portal token authorization with separate read/download
 actions and exact current package ownership, expiry, and required acceptance.
@@ -50,7 +57,7 @@ Post-commit request cancellation now withholds the package result while retainin
 already committed acceptance/counters/audits. Token and hash formats, redaction,
 response schemas, denial auditing and five-failure revocation are unchanged.
 These routes participate in the complete authorization matrix; EVY-1002's
-required final gates remain pending.
+required final gates passed on source `50f4ad37` with the limits recorded above.
 
 Constrained collector attribution on generic evidence and build creation,
 including completed replay. Caller-supplied collector identity must match the
@@ -58,7 +65,8 @@ authenticated binding; conflicting, malformed or unbound claims now return
 generic `403` before writes. Unrelated metadata, valid bound credentials,
 schema/hash formats and historical rows are unchanged. See the
 [unreleased collector attribution boundary](docs/reference/api-versioning.md#unreleased-collector-attribution-boundary)
-for client migration and compatibility limits. EVY-1002 remains incomplete.
+for client migration and compatibility limits. This migration is included in
+EVY-1002's validated source.
 
 Completed EVY-906's production Ledger retirement and required local validation
 on 2026-10-10 for source commit `3c2f1037`. Architecture, full unit/race, live
