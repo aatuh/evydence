@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
@@ -111,7 +113,7 @@ func (f verificationCommandFixture) verifyCurrentArtifactMetadata(ctx context.Co
 }
 func (f verificationCommandFixture) authorizeCurrentEvidenceVerification(ctx context.Context, a domain.Actor, id string) error {
 	policy := verificationquery.NewEvidenceVerificationAuthorizer()
-	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceVerify, ScopeOnly: true}); err != nil {
 		return mapVerificationCommandError(err)
 	}
 	_, id, err := verificationapp.NormalizeSubjectVerificationInput("evidence_item", id)
@@ -123,12 +125,12 @@ func (f verificationCommandFixture) authorizeCurrentEvidenceVerification(ctx con
 		if err != nil {
 			return err
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, Resources: s.Resources, TenantWide: s.Resources == (application.ResourceReferences{})})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionEvidenceVerify, Resources: s.Resources, TenantWide: s.Resources == (application.ResourceReferences{})})
 	}))
 }
 func (f verificationCommandFixture) authorizeCurrentArtifactMetadata(ctx context.Context, a domain.Actor, id string) error {
 	policy := verificationquery.NewCosignVerificationAuthorizer()
-	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactSignatureVerify, ScopeOnly: true}); err != nil {
 		return mapVerificationCommandError(err)
 	}
 	_, id, err := verificationapp.NormalizeSubjectVerificationInput("artifact_signature", id)
@@ -144,6 +146,6 @@ func (f verificationCommandFixture) authorizeCurrentArtifactMetadata(ctx context
 		if err != nil {
 			return err
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, Resources: refs})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionArtifactSignatureVerify, Resources: refs})
 	}))
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
@@ -22,7 +23,7 @@ type subjectDispatchFake struct {
 
 func (f *subjectDispatchFake) Authorize(_ context.Context, _ identitydomain.Actor, r application.AuthorizationRequest) error {
 	f.authCalls++
-	if r.Scope != ScopeVerifyRead || !r.ScopeOnly || r.TenantWide || !emptyResources(r.Resources) {
+	if r.Action != authz.ActionSubjectVerificationDispatch || r.Scope != "" || !r.ScopeOnly || r.TenantWide || !emptyResources(r.Resources) {
 		return errors.New("dispatcher changed resource authorization policy")
 	}
 	return f.authErr
@@ -192,7 +193,11 @@ func TestSubjectVerificationReplayGuardUsesOnlyCurrentScope(t *testing.T) {
 			if err := c.AuthorizeSubjectVerification(t.Context(), a, " "+kind+" ", " "+id+" "); err != nil {
 				t.Fatal(err)
 			}
-			want := application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: refs, TenantWide: emptyResources(refs)}
+			want := application.AuthorizationRequest{Action: map[string]authz.Action{
+				"audit_chain": "audit_chain.verify", "evidence_item": "evidence.verify", "release_bundle": "release_bundle.verify",
+				"build_attestation": "dsse.verify", "artifact_signature": "artifact_signature.verify", "merkle_batch": "merkle_batch.verify",
+				"audit_chain_checkpoint": "merkle_checkpoint.verify", "audit_chain_release_manifest": "release_manifest_checkpoint.verify", "backup_manifest": "backup_manifest.verify",
+			}[kind], Resources: refs, TenantWide: emptyResources(refs)}
 			if f.transactions != 1 || f.resolutions != 1 || f.authorizations != 1 || f.request != want || !reflect.DeepEqual(f.actor, a) || len(dispatch.calls) != 0 || dispatch.authCalls != 1 {
 				t.Fatal("guard inspected or changed policy", f, dispatch)
 			}

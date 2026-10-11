@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -41,7 +43,7 @@ func (s *MerkleCheckpointVerificationCommands) VerifyMerkleCheckpoint(ctx contex
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionMerkleCheckpointVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -50,7 +52,7 @@ func (s *MerkleCheckpointVerificationCommands) VerifyMerkleCheckpoint(ctx contex
 	}
 	var result verificationdomain.VerificationResult
 	err := s.config.Transactions.ExecuteMerkleCheckpointVerification(ctx, func(ctx context.Context, tx MerkleCheckpointVerificationTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionMerkleCheckpointVerify, TenantWide: true}); err != nil {
 			return err
 		}
 		// The full-chain fence precedes the batch lock, matching audit writers.

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -71,7 +73,7 @@ func (s *ReleaseBundleVerificationCommands) VerifyReleaseBundle(ctx context.Cont
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleaseBundleVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -87,7 +89,7 @@ func (s *ReleaseBundleVerificationCommands) VerifyReleaseBundle(ctx context.Cont
 		if !validSubjectReference(subject, actor.TenantID, "release_bundle", id) {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleaseBundleVerify, Resources: subject.Resources}); err != nil {
 			return err
 		}
 		snapshot, err := tx.ReadReleaseBundleVerification(ctx, subject)

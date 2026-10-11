@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/adapters/signing/localed25519"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -62,13 +64,13 @@ func (f verificationCommandFixture) verifyCurrentMerkle(ctx context.Context, a d
 }
 func (f verificationCommandFixture) authorizeCurrentMerkle(ctx context.Context, a domain.Actor, id string) error {
 	policy := verificationquery.NewEvidenceVerificationAuthorizer()
-	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionMerkleBatchVerify, ScopeOnly: true}); err != nil {
 		return mapVerificationCommandError(err)
 	}
 	return mapVerificationCommandError((merkleVerificationFixtureTransactions{f.catalogFixtureCommands}).ExecuteMerkleVerification(ctx, func(ctx context.Context, tx verificationapp.MerkleVerificationTransaction) error {
 		if _, err := tx.ResolveMerkleVerificationSubject(ctx, a.TenantID, strings.TrimSpace(id)); err != nil {
 			return err
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, TenantWide: true})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionMerkleBatchVerify, TenantWide: true})
 	}))
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -61,7 +63,7 @@ func (s *SubjectVerificationCommands) VerifySubject(ctx context.Context, actor i
 	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionSubjectVerificationDispatch, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	var err error
@@ -142,7 +144,7 @@ func (s *SubjectVerificationCommands) AuthorizeSubjectVerification(ctx context.C
 	if err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionSubjectVerificationDispatch, ScopeOnly: true}); err != nil {
 		return err
 	}
 	return s.config.ReplayTransactions.ExecuteSubjectVerificationScope(ctx, func(ctx context.Context, tx SubjectVerificationScopeTransaction) error {
@@ -156,7 +158,7 @@ func (s *SubjectVerificationCommands) AuthorizeSubjectVerification(ctx context.C
 		if !validSubjectVerificationScope(kind, subject.Resources) {
 			return ErrConflict
 		}
-		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)})
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: subjectVerificationAction(kind), Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)})
 	})
 }
 
@@ -180,5 +182,30 @@ func validSubjectVerificationScope(kind string, refs application.ResourceReferen
 		return refs.ArtifactID == "" && refs.EnvironmentID == "" && refs.CustomerPackageID == ""
 	default:
 		return false
+	}
+}
+
+func subjectVerificationAction(kind string) authz.Action {
+	switch kind {
+	case "audit_chain":
+		return authz.ActionAuditChainVerify
+	case "evidence_item":
+		return authz.ActionEvidenceVerify
+	case "release_bundle":
+		return authz.ActionReleaseBundleVerify
+	case "build_attestation":
+		return authz.ActionDSSEVerify
+	case "artifact_signature":
+		return authz.ActionArtifactSignatureVerify
+	case "merkle_batch":
+		return authz.ActionMerkleBatchVerify
+	case "audit_chain_checkpoint":
+		return authz.ActionMerkleCheckpointVerify
+	case "audit_chain_release_manifest":
+		return authz.ActionReleaseManifestCheckpointVerify
+	case "backup_manifest":
+		return authz.ActionBackupManifestVerify
+	default:
+		return ""
 	}
 }

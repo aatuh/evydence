@@ -30,12 +30,12 @@ func ReadVisibility(ctx context.Context, actor identitydomain.Actor, action Acti
 	case ActionEnvironmentsRead, ActionDeploymentsRead, ActionVulnerabilityDecisionsRead,
 		ActionExceptionsRead, ActionControlEvidenceRead, ActionVulnerabilityDecisionSummaryRead,
 		ActionReleaseReadinessRead, ActionReleaseSecuritySummaryRead, ActionEvidenceRead, ActionSBOMComponentsRead,
-		ActionProductsRead, ActionReleaseCandidatesRead, ActionArtifactsRead, ActionSourceRepositoriesRead:
+		ActionProductsRead, ActionReleaseCandidatesRead, ActionArtifactsRead, ActionSourceRepositoriesRead, ActionArtifactSignaturesRead:
 	default:
 		return Visibility{}, ErrForbidden
 	}
 	definition, _ := DefinitionFor(action) // Authorize already rejected unknown actions.
-	allowProjects := action == ActionControlEvidenceRead || action == ActionEvidenceRead || action == ActionSBOMComponentsRead || action == ActionArtifactsRead || action == ActionSourceRepositoriesRead
+	allowProjects := action == ActionControlEvidenceRead || action == ActionEvidenceRead || action == ActionSBOMComponentsRead || action == ActionArtifactsRead || action == ActionSourceRepositoriesRead || action == ActionArtifactSignaturesRead
 	visibility := visibilityForGrants(actor, definition.Scope, allowProjects, action != ActionEnvironmentsRead && action != ActionProductsRead && action != ActionSourceRepositoriesRead)
 	if action == ActionProductsRead {
 		// Product points normalize request IDs; a padded grant must not create

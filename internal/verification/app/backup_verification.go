@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -53,7 +55,7 @@ func (s *BackupVerificationCommands) VerifyBackupManifest(ctx context.Context, a
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBackupManifestVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -62,7 +64,7 @@ func (s *BackupVerificationCommands) VerifyBackupManifest(ctx context.Context, a
 	}
 	var result verificationdomain.VerificationResult
 	err := s.config.Transactions.ExecuteBackupVerification(ctx, func(ctx context.Context, tx BackupVerificationTransaction) error {
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionBackupManifestVerify, TenantWide: true}); err != nil {
 			return err
 		}
 		subject := SubjectReference{TenantID: actor.TenantID, Type: "backup_manifest", ID: id}

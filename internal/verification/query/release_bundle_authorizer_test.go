@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func TestReleaseBundleVerificationAuthorizationRequiresMatchingCurrentGrants(t *testing.T) {
 	authorizer := NewReleaseBundleVerificationAuthorizer()
-	request := application.AuthorizationRequest{Scope: "verify:read", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
+	request := application.AuthorizationRequest{Action: authz.ActionReleaseBundleVerify, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release"}}
 	for _, tc := range []struct {
 		name, resource, id, scope string
 		allowed                   bool
@@ -41,7 +42,7 @@ func TestReleaseBundleVerificationAuthorizationRequiresMatchingCurrentGrants(t *
 	if err := authorizer.Authorize(t.Context(), actor, request); err != nil {
 		t.Fatal(err)
 	}
-	for _, invalid := range []application.AuthorizationRequest{{Scope: "bundle:read", Resources: request.Resources}, {Scope: "verify:read", TenantWide: true}, {Scope: "verify:read", ScopeOnly: true, Resources: request.Resources}, {Scope: "verify:read", Resources: application.ResourceReferences{ReleaseID: "release"}}, {Scope: "verify:read", Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release", BuildID: "build"}}} {
+	for _, invalid := range []application.AuthorizationRequest{{Scope: "bundle:read", Resources: request.Resources}, {Action: authz.ActionReleaseBundleVerify, TenantWide: true}, {Action: authz.ActionReleaseBundleVerify, ScopeOnly: true, Resources: request.Resources}, {Action: authz.ActionReleaseBundleVerify, Resources: application.ResourceReferences{ReleaseID: "release"}}, {Action: authz.ActionReleaseBundleVerify, Resources: application.ResourceReferences{ProductID: "product", ReleaseID: "release", BuildID: "build"}}} {
 		if err := authorizer.Authorize(t.Context(), actor, invalid); !errors.Is(err, application.ErrForbidden) {
 			t.Fatal("unsupported authorization input accepted", err)
 		}

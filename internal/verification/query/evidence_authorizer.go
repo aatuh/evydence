@@ -4,73 +4,67 @@ import (
 	"context"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func NewEvidenceVerificationAuthorizer() application.Authorizer {
-	return evidenceVerificationAuthorizer{}
+	return verificationAuthorizer{family: evidenceVerificationFamily}
 }
 
-type evidenceVerificationAuthorizer struct{}
+// NewSubjectVerificationAuthorizer accepts a dispatcher preflight and the
+// closed child operations selected after current subject ownership resolution.
+func NewSubjectVerificationAuthorizer() application.Authorizer {
+	return verificationAuthorizer{family: subjectVerificationFamily}
+}
 
-func (evidenceVerificationAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if ctx == nil || actor.TenantID == "" || actor.UserID == "" && actor.KeyID == "" && actor.CollectorID == "" {
+type verificationFamily uint8
+
+const (
+	evidenceVerificationFamily verificationFamily = iota
+	artifactVerificationFamily
+	bundleVerificationFamily
+	subjectVerificationFamily
+)
+
+type verificationAuthorizer struct{ family verificationFamily }
+
+func (p verificationAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	if ctx == nil {
 		return application.ErrUnauthorized
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if request.Scope != "verify:read" || !actor.HasScope(request.Scope) && !actor.HasScope("admin") {
+	if actor.TenantID == "" || actor.UserID == "" && actor.KeyID == "" && actor.CollectorID == "" {
+		return application.ErrUnauthorized
+	}
+	if request.Scope != "" || request.ScopeOnly && request.TenantWide || !p.accepts(request.Action) {
 		return application.ErrForbidden
 	}
-	refs := request.Resources
+	evaluation := authz.ResolvedEvaluation
 	if request.ScopeOnly {
-		if refs != (application.ResourceReferences{}) || request.TenantWide {
-			return application.ErrForbidden
-		}
-		return nil
+		evaluation = authz.ScopeEvaluation
+	} else if request.TenantWide {
+		evaluation = authz.TenantEvaluation
 	}
-	if refs != (application.ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID}) || request.TenantWide != (refs == application.ResourceReferences{}) {
-		return application.ErrForbidden
-	}
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return nil
-	}
-	if verificationResourceGrantAllows(actor, request.Scope, refs) {
-		return nil
-	}
-	return application.ErrForbidden
+	return authz.Authorize(ctx, actor, authz.Request{Action: request.Action, Resources: request.Resources, Evaluation: evaluation})
 }
 
-func verificationResourceGrantAllows(actor identitydomain.Actor, scope string, refs application.ResourceReferences) bool {
-	for _, grant := range actor.ResourceGrants {
-		allowed := false
-		for _, candidate := range grant.Scopes {
-			if candidate == scope || candidate == "admin" || candidate == "*" {
-				allowed = true
-			}
-		}
-		if !allowed {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true
-			}
-		case "product":
-			if refs.ProductID != "" && grant.ResourceID == refs.ProductID {
-				return true
-			}
-		case "project":
-			if refs.ProjectID != "" && grant.ResourceID == refs.ProjectID {
-				return true
-			}
-		case "release":
-			if refs.ReleaseID != "" && grant.ResourceID == refs.ReleaseID {
-				return true
-			}
-		}
+func (p verificationAuthorizer) accepts(action authz.Action) bool {
+	switch action {
+	case authz.ActionEvidenceVerify, authz.ActionDSSEVerify, authz.ActionAuditChainVerify, authz.ActionMerkleBatchVerify,
+		authz.ActionMerkleCheckpointVerify, authz.ActionReleaseManifestCheckpointVerify, authz.ActionBackupManifestVerify:
+		return p.family == evidenceVerificationFamily || p.family == subjectVerificationFamily
+	case authz.ActionCosignVerify:
+		return p.family == artifactVerificationFamily
+	case authz.ActionArtifactSignatureVerify:
+		return p.family == artifactVerificationFamily || p.family == subjectVerificationFamily
+	case authz.ActionReleaseBundleVerify:
+		return p.family == bundleVerificationFamily || p.family == subjectVerificationFamily
+	case authz.ActionSubjectVerificationDispatch:
+		return p.family == subjectVerificationFamily
+	default:
+		return false
 	}
-	return false
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -81,7 +83,7 @@ func (s *DSSEVerificationCommands) AuthorizeDSSEVerification(ctx context.Context
 	if err != nil {
 		return err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionDSSEVerify, ScopeOnly: true}); err != nil {
 		return err
 	}
 	return s.config.Transactions.ExecuteDSSEVerification(ctx, func(ctx context.Context, tx DSSEVerificationTransaction) error {
@@ -92,7 +94,7 @@ func (s *DSSEVerificationCommands) AuthorizeDSSEVerification(ctx context.Context
 		if !validSubjectReference(subject, actor.TenantID, "build_attestation", id) {
 			return ErrNotFound
 		}
-		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)})
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionDSSEVerify, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)})
 	})
 }
 
@@ -103,7 +105,7 @@ func (s *DSSEVerificationCommands) VerifyDSSEAttestationSignature(ctx context.Co
 	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionDSSEVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	var err error
@@ -120,7 +122,7 @@ func (s *DSSEVerificationCommands) VerifyDSSEAttestationSignature(ctx context.Co
 		if !validSubjectReference(subject, actor.TenantID, "build_attestation", id) {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionDSSEVerify, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)}); err != nil {
 			return err
 		}
 		snapshot, err := tx.ReadDSSEVerification(ctx, subject)

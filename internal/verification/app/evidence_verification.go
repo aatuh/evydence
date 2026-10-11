@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -56,7 +58,7 @@ func (s *EvidenceVerificationCommands) VerifyEvidence(ctx context.Context, actor
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -72,7 +74,7 @@ func (s *EvidenceVerificationCommands) VerifyEvidence(ctx context.Context, actor
 		if !validSubjectReference(subject, actor.TenantID, "evidence_item", id) {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionEvidenceVerify, Resources: subject.Resources, TenantWide: emptyResources(subject.Resources)}); err != nil {
 			return err
 		}
 		snapshot, err := tx.ReadEvidenceVerification(ctx, subject)

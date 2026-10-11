@@ -31,8 +31,5 @@ func (t subjectVerificationScopeTransaction) ResolveSubjectVerificationScope(ctx
 	return subject, mapSigningKeyWriteError(err)
 }
 func (t subjectVerificationScopeTransaction) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
-	if request.Resources.ArtifactID != "" {
-		return verificationquery.NewCosignVerificationAuthorizer().Authorize(ctx, actor, request)
-	}
-	return verificationquery.NewEvidenceVerificationAuthorizer().Authorize(ctx, actor, request)
+	return verificationquery.NewSubjectVerificationAuthorizer().Authorize(ctx, actor, request)
 }

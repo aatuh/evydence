@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/adapters/signing/localed25519"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -76,7 +78,7 @@ func (f verificationCommandFixture) verifyCurrentReleaseBundle(ctx context.Conte
 
 func (f verificationCommandFixture) authorizeCurrentReleaseBundle(ctx context.Context, a domain.Actor, id string) error {
 	policy := verificationquery.NewReleaseBundleVerificationAuthorizer()
-	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleaseBundleVerify, ScopeOnly: true}); err != nil {
 		return mapVerificationCommandError(err)
 	}
 	return mapVerificationCommandError((releaseBundleVerificationFixtureTransactions{f.catalogFixtureCommands}).ExecuteReleaseBundleVerification(ctx, func(ctx context.Context, tx verificationapp.ReleaseBundleVerificationTransaction) error {
@@ -84,6 +86,6 @@ func (f verificationCommandFixture) authorizeCurrentReleaseBundle(ctx context.Co
 		if err != nil {
 			return err
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, Resources: subject.Resources})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionReleaseBundleVerify, Resources: subject.Resources})
 	}))
 }

@@ -101,6 +101,21 @@ const (
 	ActionSourceRepositoriesRead   Action = "source_repositories.read"
 )
 
+const (
+	ActionEvidenceVerify                  Action = "evidence.verify"
+	ActionDSSEVerify                      Action = "dsse.verify"
+	ActionAuditChainVerify                Action = "audit_chain.verify"
+	ActionMerkleBatchVerify               Action = "merkle_batch.verify"
+	ActionMerkleCheckpointVerify          Action = "merkle_checkpoint.verify"
+	ActionReleaseManifestCheckpointVerify Action = "release_manifest_checkpoint.verify"
+	ActionBackupManifestVerify            Action = "backup_manifest.verify"
+	ActionReleaseBundleVerify             Action = "release_bundle.verify"
+	ActionCosignVerify                    Action = "cosign.verify"
+	ActionArtifactSignatureVerify         Action = "artifact_signature.verify"
+	ActionSubjectVerificationDispatch     Action = "subject_verification.dispatch"
+	ActionArtifactSignaturesRead          Action = "artifact_signatures.read"
+)
+
 // Boundary distinguishes tenant, resolved-resource and explicit instance authority.
 type Boundary uint8
 
@@ -121,6 +136,12 @@ type Definition struct {
 // DefinitionFor rejects unknown actions instead of accepting arbitrary scopes.
 func DefinitionFor(action Action) (Definition, bool) {
 	switch action {
+	case ActionEvidenceVerify, ActionDSSEVerify, ActionAuditChainVerify, ActionMerkleBatchVerify, ActionMerkleCheckpointVerify,
+		ActionReleaseManifestCheckpointVerify, ActionBackupManifestVerify, ActionReleaseBundleVerify, ActionCosignVerify,
+		ActionArtifactSignatureVerify, ActionSubjectVerificationDispatch:
+		return Definition{Scope: "verify:read", Boundary: ResourceBoundary}, true
+	case ActionArtifactSignaturesRead:
+		return Definition{Scope: "evidence:read", Boundary: ResourceBoundary}, true
 	case ActionSourceRepositoriesCreate, ActionSourceCommitsRecord, ActionSourceBranchesUpsert, ActionPullRequestsRecord, ActionSourceSnapshotsRecord:
 		return Definition{Scope: "source:write", Boundary: ResourceBoundary}, true
 	case ActionSourceRepositoriesRead:

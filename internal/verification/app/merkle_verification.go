@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -57,7 +59,7 @@ func (s *MerkleVerificationCommands) VerifyMerkleBatch(ctx context.Context, acto
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionMerkleBatchVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -73,7 +75,7 @@ func (s *MerkleVerificationCommands) VerifyMerkleBatch(ctx context.Context, acto
 		if !validSubjectReference(subject, actor.TenantID, "merkle_batch", id) || subject.Resources != (application.ResourceReferences{}) {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionMerkleBatchVerify, TenantWide: true}); err != nil {
 			return err
 		}
 		snapshot, err := tx.ReadMerkleVerification(ctx, subject)

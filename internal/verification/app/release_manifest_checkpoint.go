@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -44,7 +46,7 @@ func (s *ReleaseManifestCheckpointCommands) VerifyReleaseManifestCheckpoint(ctx 
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := s.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleaseManifestCheckpointVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -54,7 +56,7 @@ func (s *ReleaseManifestCheckpointCommands) VerifyReleaseManifestCheckpoint(ctx 
 	var result verificationdomain.VerificationResult
 	err := s.config.Transactions.ExecuteReleaseManifestCheckpointVerification(ctx, func(ctx context.Context, tx ReleaseManifestCheckpointTransaction) error {
 		// The assessment includes every tenant audit entry, not just a release.
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, TenantWide: true}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionReleaseManifestCheckpointVerify, TenantWide: true}); err != nil {
 			return err
 		}
 		view, err := tx.LockAuditChainVerification(ctx, actor.TenantID)

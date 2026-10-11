@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -95,7 +97,7 @@ func (c *CosignVerificationCommands) AuthorizeCosignVerification(ctx context.Con
 	if err != nil {
 		return err
 	}
-	if err := c.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := c.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionCosignVerify, ScopeOnly: true}); err != nil {
 		return err
 	}
 	return c.config.Transactions.ExecuteCosignVerification(ctx, func(ctx context.Context, tx CosignVerificationTransaction) error {
@@ -106,7 +108,7 @@ func (c *CosignVerificationCommands) AuthorizeCosignVerification(ctx context.Con
 		if refs != (application.ResourceReferences{ArtifactID: refs.ArtifactID}) || !validRetentionText(refs.ArtifactID, 1024) || strings.TrimSpace(refs.ArtifactID) != refs.ArtifactID {
 			return ErrNotFound
 		}
-		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: refs})
+		return tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionCosignVerify, Resources: refs})
 	})
 }
 
@@ -117,7 +119,7 @@ func (c *CosignVerificationCommands) VerifyCosign(ctx context.Context, actor ide
 	if err := validateSigningKeyActor(actor); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
-	if err := c.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := c.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionCosignVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}
 	var err error
@@ -135,7 +137,7 @@ func (c *CosignVerificationCommands) VerifyCosign(ctx context.Context, actor ide
 		if !validCosignSubject(subject, actor.TenantID, input.ArtifactSignatureID) || subject.Resources != (application.ResourceReferences{ArtifactID: subject.ArtifactID}) {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionCosignVerify, Resources: subject.Resources}); err != nil {
 			return err
 		}
 		snapshot, err := tx.ReadCosignSnapshot(ctx, subject)

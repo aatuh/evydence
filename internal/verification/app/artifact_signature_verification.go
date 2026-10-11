@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
@@ -53,7 +55,7 @@ func (c *ArtifactSignatureVerificationCommands) VerifyArtifactSignature(ctx cont
 	if err := validateActor(actor); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
-	if err := c.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := c.config.Authorizer.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionArtifactSignatureVerify, ScopeOnly: true}); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
 	id = strings.TrimSpace(id)
@@ -69,7 +71,7 @@ func (c *ArtifactSignatureVerificationCommands) VerifyArtifactSignature(ctx cont
 		if !validSubjectReference(subject, actor.TenantID, "artifact_signature", id) || subject.Resources.ArtifactID == "" || subject.Resources != (application.ResourceReferences{ArtifactID: subject.Resources.ArtifactID}) {
 			return ErrNotFound
 		}
-		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Scope: ScopeVerifyRead, Resources: subject.Resources}); err != nil {
+		if err := tx.Authorize(ctx, actor, application.AuthorizationRequest{Action: authz.ActionArtifactSignatureVerify, Resources: subject.Resources}); err != nil {
 			return err
 		}
 		snapshot, err := tx.ReadArtifactSignatureVerification(ctx, subject)

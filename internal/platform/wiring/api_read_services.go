@@ -360,7 +360,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 		return httpapi.ServerOptions{}, fmt.Errorf("create source snapshot commands: %w", err)
 	}
 	options.SubjectVerification, err = verificationapp.NewSubjectVerificationCommands(verificationapp.SubjectVerificationConfig{
-		Authorizer:         verificationquery.NewEvidenceVerificationAuthorizer(),
+		Authorizer:         verificationquery.NewSubjectVerificationAuthorizer(),
 		ReplayTransactions: subjectVerificationScopeTransactions{store},
 		AuditChain:         options.AuditChainVerification, Evidence: options.EvidenceVerification,
 		ReleaseBundle: options.ReleaseBundleVerification, DSSE: options.DSSEVerification,

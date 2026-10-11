@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
@@ -65,7 +67,7 @@ func (f verificationCommandFixture) verifyCurrentBackup(ctx context.Context, a d
 }
 func (f verificationCommandFixture) authorizeCurrentBackup(ctx context.Context, a domain.Actor, id string) error {
 	policy := verificationquery.NewEvidenceVerificationAuthorizer()
-	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBackupManifestVerify, ScopeOnly: true}); err != nil {
 		return mapVerificationCommandError(err)
 	}
 	_, id, err := verificationapp.NormalizeSubjectVerificationInput("backup_manifest", id)
@@ -82,6 +84,6 @@ func (f verificationCommandFixture) authorizeCurrentBackup(ctx context.Context, 
 		if err := locker.LockBackupVerificationScope(ctx, a.TenantID, id); err != nil {
 			return err
 		}
-		return tx.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, TenantWide: true})
+		return tx.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionBackupManifestVerify, TenantWide: true})
 	}))
 }

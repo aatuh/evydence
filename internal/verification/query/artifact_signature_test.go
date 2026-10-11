@@ -15,12 +15,34 @@ type signatureReaderStub struct {
 	request SignatureReadRequest
 	point   SignaturePoint
 	calls   int
+	before  func()
 }
 
 func (r *signatureReaderStub) GetArtifactSignaturePoint(_ context.Context, request SignatureReadRequest) (SignaturePoint, error) {
 	r.calls++
 	r.request = request
+	if r.before != nil {
+		r.before()
+	}
 	return r.point, nil
+}
+
+func TestArtifactSignatureQueryNeverReturnsMetadataAfterReaderCancellation(t *testing.T) {
+	reader := &signatureReaderStub{point: SignaturePoint{
+		Signature:      verificationdomain.ArtifactSignature{ID: "signature", TenantID: "tenant", ArtifactID: "artifact", SubjectDigest: "sha256:subject", Algorithm: "ed25519", Signature: "private-signature-metadata", SchemaVersion: verificationdomain.ArtifactSignatureSchemaVersion, CreatedAt: time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)},
+		ArtifactDigest: "sha256:subject",
+	}}
+	service, err := NewArtifactSignatures(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	reader.before = cancel
+	actor := identitydomain.Actor{TenantID: "tenant", KeyID: "key", Scopes: []string{"evidence:read"}}
+	signature, err := service.GetArtifactSignature(ctx, actor, "signature")
+	if !errors.Is(err, context.Canceled) || signature.ID != "" || reader.calls != 1 {
+		t.Fatal("canceled reader returned signature metadata", signature, err, reader.calls)
+	}
 }
 
 func TestArtifactSignatureQueryAuthorizesCurrentAssociation(t *testing.T) {

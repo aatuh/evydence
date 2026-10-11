@@ -1070,6 +1070,27 @@ filter membership, and cursor checks are retained, with no local actor-scope or
 grant predicates in the Integration queries. Cancellation after the filtered
 reader returns now propagates without exposing rows or a continuation cursor.
 
+Verification commands now select distinct typed actions for canonical evidence,
+DSSE, release bundles, artifact-signature metadata, Cosign, audit chains, Merkle
+batches/checkpoints, release-manifest checkpoints, and backup manifests. Their
+fixed policy families reject scope-string fallback and another operation family.
+The central policy retains current product/project/release grants for evidence
+and DSSE, product/release grants for bundles, and tenant-only human authority for
+artifact/Cosign verification and tenant-wide audit/checkpoint/backup operations.
+Scope preflight does not grant resource or tenant inventory authority.
+
+Generic subject verification uses a preflight-only dispatcher action, then
+selects a closed child action from the normalized, ownership-checked subject
+kind for replay. Runtime policy no longer guesses the operation from populated
+resource fields. Fresh inspection remains in the focused child commands.
+Artifact-signature reads separately select `artifact_signatures.read` with the
+unchanged `evidence:read` capability; their product/project/release visibility
+is central and returned association/digest/metadata checks are retained.
+Post-read cancellation cannot return signature metadata. Verification queries
+contain no local actor-scope or grant predicates. Signing/trust configuration,
+cryptographic inspectors, payload limits, assurance profiles, receipt/audit
+atomicity, public API scopes, and persisted/replay formats are unchanged.
+
 API-key, membership/identity administration, and collector-management commands
 also construct typed action requests. Their factory-bound policies require the
 exact tenant-wide operation envelope and reject legacy scopes, mixed requests,

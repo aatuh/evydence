@@ -3,15 +3,13 @@ package query
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
-
-const scopeSignatureRead = "evidence:read"
 
 var (
 	ErrSignatureValidation = errors.New("invalid artifact signature query")
@@ -62,14 +60,15 @@ func (s *ArtifactSignatures) GetArtifactSignature(ctx context.Context, actor ide
 	if actor.TenantID == "" || actor.KeyID == "" && actor.UserID == "" && actor.CollectorID == "" {
 		return verificationdomain.ArtifactSignature{}, application.ErrUnauthorized
 	}
-	if !actor.HasScope(scopeSignatureRead) && !actor.HasScope("admin") {
-		return verificationdomain.ArtifactSignature{}, application.ErrForbidden
+	visibility, err := authz.ReadVisibility(ctx, actor, authz.ActionArtifactSignaturesRead)
+	if err != nil {
+		return verificationdomain.ArtifactSignature{}, err
 	}
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return verificationdomain.ArtifactSignature{}, ErrSignatureNotFound
 	}
-	tenantWide, products, projects, releases := signatureVisibility(actor)
+	tenantWide, products, projects, releases := visibility.TenantWide, visibility.ProductIDs, visibility.ProjectIDs, visibility.ReleaseIDs
 	if !tenantWide && len(products) == 0 && len(projects) == 0 && len(releases) == 0 {
 		return verificationdomain.ArtifactSignature{}, application.ErrForbidden
 	}
@@ -93,56 +92,10 @@ func (s *ArtifactSignatures) GetArtifactSignature(ctx context.Context, actor ide
 			return verificationdomain.ArtifactSignature{}, ErrSignatureProjection
 		}
 	}
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionArtifactSignaturesRead, Resources: authz.ResourceReferences{ProductID: point.ProductID, ProjectID: point.ProjectID, ReleaseID: point.ReleaseID}}); err != nil {
+		return verificationdomain.ArtifactSignature{}, err
+	}
 	return signature, nil
-}
-
-func signatureVisibility(actor identitydomain.Actor) (bool, []string, []string, []string) {
-	if actor.UserID == "" || actor.KeyID != "" || actor.CollectorID != "" {
-		return true, nil, nil, nil
-	}
-	products, projects, releases := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
-	for _, grant := range actor.ResourceGrants {
-		if !signatureGrantHasScope(grant) {
-			continue
-		}
-		switch grant.ResourceType {
-		case "", "tenant":
-			if grant.ResourceID == "" || grant.ResourceID == actor.TenantID {
-				return true, nil, nil, nil
-			}
-		case "product":
-			if grant.ResourceID != "" {
-				products[grant.ResourceID] = struct{}{}
-			}
-		case "project":
-			if grant.ResourceID != "" {
-				projects[grant.ResourceID] = struct{}{}
-			}
-		case "release":
-			if grant.ResourceID != "" {
-				releases[grant.ResourceID] = struct{}{}
-			}
-		}
-	}
-	return false, sortedSignatureIDs(products), sortedSignatureIDs(projects), sortedSignatureIDs(releases)
-}
-
-func signatureGrantHasScope(grant identitydomain.ResourceGrant) bool {
-	for _, scope := range grant.Scopes {
-		if scope == scopeSignatureRead || scope == "admin" || scope == "*" {
-			return true
-		}
-	}
-	return false
-}
-
-func sortedSignatureIDs(set map[string]struct{}) []string {
-	ids := make([]string, 0, len(set))
-	for id := range set {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	return ids
 }
 
 func hasSignatureCoordinate(ids []string, id string) bool {

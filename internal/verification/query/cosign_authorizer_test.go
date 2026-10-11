@@ -6,14 +6,15 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func TestCosignAuthorizerRequiresScopeAndTenantGrantForHumans(t *testing.T) {
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "user", Scopes: []string{"verify:read"}}
-	r := application.AuthorizationRequest{Scope: "verify:read", Resources: application.ResourceReferences{ArtifactID: "artifact"}}
+	r := application.AuthorizationRequest{Action: authz.ActionCosignVerify, Resources: application.ResourceReferences{ArtifactID: "artifact"}}
 	p := NewCosignVerificationAuthorizer()
-	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Scope: r.Scope, ScopeOnly: true}); err != nil {
+	if err := p.Authorize(t.Context(), a, application.AuthorizationRequest{Action: r.Action, ScopeOnly: true}); err != nil {
 		t.Fatal(err)
 	}
 	for _, grant := range []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: "other", Scopes: []string{"verify:read"}}, {ResourceType: "release", ResourceID: "artifact", Scopes: []string{"verify:read"}}, {ResourceType: "tenant", ResourceID: "tenant", Scopes: []string{"evidence:read"}}} {

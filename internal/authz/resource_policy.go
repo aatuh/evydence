@@ -34,6 +34,9 @@ func authorizeResource(actor identitydomain.Actor, scope string, request Request
 
 func allowsTenantResourceEvaluation(action Action) bool {
 	switch action {
+	case ActionEvidenceVerify, ActionDSSEVerify, ActionAuditChainVerify, ActionMerkleBatchVerify,
+		ActionMerkleCheckpointVerify, ActionReleaseManifestCheckpointVerify, ActionBackupManifestVerify, ActionArtifactSignaturesRead:
+		return true
 	case ActionSourceRepositoriesCreate, ActionSourceCommitsRecord, ActionSourceBranchesUpsert,
 		ActionPullRequestsRecord, ActionSourceSnapshotsRecord, ActionSourceRepositoriesRead:
 		return true
@@ -54,6 +57,14 @@ func allowsTenantResourceEvaluation(action Action) bool {
 
 func validResourceReferences(action Action, refs ResourceReferences) bool {
 	switch action {
+	case ActionEvidenceVerify, ActionDSSEVerify:
+		return refs != (ResourceReferences{}) && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID, BuildID: refs.BuildID, DeploymentID: refs.DeploymentID})
+	case ActionReleaseBundleVerify:
+		return refs.ProductID != "" && refs.ReleaseID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ReleaseID: refs.ReleaseID})
+	case ActionCosignVerify, ActionArtifactSignatureVerify:
+		return refs.ArtifactID != "" && refs == (ResourceReferences{ArtifactID: refs.ArtifactID})
+	case ActionArtifactSignaturesRead:
+		return refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID, ReleaseID: refs.ReleaseID})
 	case ActionSourceRepositoriesCreate, ActionSourceCommitsRecord, ActionSourceBranchesUpsert,
 		ActionPullRequestsRecord, ActionSourceSnapshotsRecord:
 		return refs.ProductID != "" && refs.ProjectID != "" && refs == (ResourceReferences{ProductID: refs.ProductID, ProjectID: refs.ProjectID})

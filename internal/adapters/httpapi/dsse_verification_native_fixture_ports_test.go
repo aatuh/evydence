@@ -3,6 +3,8 @@ package httpapi
 import (
 	"context"
 
+	"github.com/aatuh/evydence/internal/authz"
+
 	"github.com/aatuh/evydence/internal/adapters/verification/dsseobjects"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -59,8 +61,8 @@ func (f verificationCommandFixture) nativeDSSE(guard bool) (*verificationapp.DSS
 }
 
 func (f verificationCommandFixture) authorizeCurrentSubjectScope(ctx context.Context, a domain.Actor, kind, id string) error {
-	policy := verificationquery.NewEvidenceVerificationAuthorizer()
-	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, ScopeOnly: true}); err != nil {
+	policy := verificationquery.NewSubjectVerificationAuthorizer()
+	if err := policy.Authorize(ctx, a, application.AuthorizationRequest{Action: authz.ActionSubjectVerificationDispatch, ScopeOnly: true}); err != nil {
 		return mapVerificationCommandError(err)
 	}
 	kind, id, err := verificationapp.NormalizeSubjectVerificationInput(kind, id)
@@ -79,7 +81,14 @@ func (f verificationCommandFixture) authorizeCurrentSubjectScope(ctx context.Con
 		if err != nil {
 			return err
 		}
-		return mapVerificationCommandError(policy.Authorize(ctx, a, application.AuthorizationRequest{Scope: app.ScopeVerifyRead, Resources: subject.Resources, TenantWide: subject.Resources == (application.ResourceReferences{})}))
+		return mapVerificationCommandError(policy.Authorize(ctx, a, application.AuthorizationRequest{Action: map[string]authz.Action{
+			"audit_chain": authz.ActionAuditChainVerify, "evidence_item": authz.ActionEvidenceVerify,
+			"release_bundle": authz.ActionReleaseBundleVerify, "build_attestation": authz.ActionDSSEVerify,
+			"artifact_signature": authz.ActionArtifactSignatureVerify, "merkle_batch": authz.ActionMerkleBatchVerify,
+			"audit_chain_checkpoint":       authz.ActionMerkleCheckpointVerify,
+			"audit_chain_release_manifest": authz.ActionReleaseManifestCheckpointVerify,
+			"backup_manifest":              authz.ActionBackupManifestVerify,
+		}[kind], Resources: subject.Resources, TenantWide: subject.Resources == (application.ResourceReferences{})}))
 	})
 }
 
