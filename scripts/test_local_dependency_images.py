@@ -64,6 +64,12 @@ class LocalDependencyImageTests(unittest.TestCase):
         self.assertIn("run: make openapi-breaking-check", source)
         self.assertIn("if: always()", source)
 
+    def test_compatibility_gate_precedes_expensive_tool_and_fixture_builds(self):
+        source = (ROOT / ".github/workflows/ci.yml").read_text()
+        compatibility = source.index("Enforce OpenAPI compatibility and deprecation policy")
+        self.assertLess(compatibility, source.index("Install Go QA tools"))
+        self.assertLess(compatibility, source.index("Start isolated MinIO integration service"))
+
     def test_compose_builds_instead_of_pulling_private_minio_images(self):
         for name in ("docker-compose.yml", "compose.production-like.yml"):
             source = (ROOT / name).read_text()

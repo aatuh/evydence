@@ -16,6 +16,9 @@ operator-facing upgrade policy.
 selected release artifact in [`openapi-baseline.json`](openapi-baseline.json).
 The manifest records the release tag, published asset URL, artifact path, and
 SHA-256. The gate verifies that digest before it compares contracts.
+The exact published baseline is tracked at
+[`openapi-baselines/v0.1.0-rc.7/openapi.yaml`](openapi-baselines/v0.1.0-rc.7/openapi.yaml),
+so clean checkouts do not depend on ignored local release downloads in `dist/`.
 
 The CI workflow downloads the pinned `oasdiff` `v1.29.1` Linux binary, verifies
 its published SHA-256, and runs the same command. Local callers provide that
@@ -210,8 +213,8 @@ compatibility change set or claim a release.
 
 The current baseline is the published `v0.1.0-rc.7` OpenAPI asset with digest
 `4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364`.
-The committed prerelease contract contains 135 changes selected by the
-compatibility policy. The exact set and its digest are recorded in
+The previously reviewed EVY-905 snapshot contains 135 changes selected by the
+compatibility policy. That historical set and its digest are recorded in
 [`.github/openapi-breaking-exceptions.json`](../../.github/openapi-breaking-exceptions.json):
 
 - 16 generated Problem Details error-code additions;
@@ -226,6 +229,16 @@ digest must all match. It is not evidence of a published stable release or of
 external approval. Any additional or altered breaking change fails until a new
 repository-owned prerelease exception, migration note, and Unreleased changelog
 entry are reviewed and committed together.
+
+On 2026-10-11, comparison of the current contract against this same published
+baseline selects 205 changes, with normalized change-set digest
+`c46ba2dc78fab6fbcd3b5a3a5366815589fbfa694fbc05ba364a2435cc961a94`.
+The existing 133/135-change exceptions do not authorize this newer set, and no
+new exception has been recorded. The additional selected changes include
+non-empty input bounds, enum restrictions, required transition reasons,
+questionnaire-list bounds, catalog response-field declarations and the
+evidence-flow idempotency contract. Compatibility remains a merge/release
+review gap even when local production validation passes.
 
 The migration impact is already reflected in the Unreleased changelog: clients
 must use the current documented request fields and response envelopes, send

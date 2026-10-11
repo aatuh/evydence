@@ -55,6 +55,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes ripgrep
 
+      - name: Install pinned OpenAPI diff tool
+        env:
+          OASDIFF_VERSION: 1.29.1
+          OASDIFF_SHA256: 541f7c66c933495fceef24eaf5c48aa66c19069f366f7bd0a60a6a4820c5e533
+        run: |
+          tool_dir="$RUNNER_TEMP/oasdiff"
+          archive="$tool_dir/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          mkdir -p "$tool_dir"
+          curl --fail --location --retry 3 --silent --show-error \
+            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$OASDIFF_SHA256" "$archive" | sha256sum --check --status
+          tar --extract --gzip --file "$archive" --directory "$tool_dir"
+          "$tool_dir/oasdiff" --version | grep --fixed-strings "oasdiff version ${OASDIFF_VERSION}"
+
+      - name: Enforce OpenAPI compatibility and deprecation policy
+        env:
+          OASDIFF_BIN: ${{ runner.temp }}/oasdiff/oasdiff
+        run: make openapi-breaking-check
+
       - name: Install Go QA tools
         run: make tools
 
@@ -75,26 +95,6 @@ jobs:
           done
           docker logs evydence-ci-minio >&2 || true
           exit 1
-
-      - name: Install pinned OpenAPI diff tool
-        env:
-          OASDIFF_VERSION: 1.29.1
-          OASDIFF_SHA256: 541f7c66c933495fceef24eaf5c48aa66c19069f366f7bd0a60a6a4820c5e533
-        run: |
-          tool_dir="$RUNNER_TEMP/oasdiff"
-          archive="$tool_dir/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
-          mkdir -p "$tool_dir"
-          curl --fail --location --retry 3 --silent --show-error \
-            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz" \
-            --output "$archive"
-          printf '%s  %s\n' "$OASDIFF_SHA256" "$archive" | sha256sum --check --status
-          tar --extract --gzip --file "$archive" --directory "$tool_dir"
-          "$tool_dir/oasdiff" --version | grep --fixed-strings "oasdiff version ${OASDIFF_VERSION}"
-
-      - name: Enforce OpenAPI compatibility and deprecation policy
-        env:
-          OASDIFF_BIN: ${{ runner.temp }}/oasdiff/oasdiff
-        run: make openapi-breaking-check
 
       - name: Run production check with live PostgreSQL and MinIO
         run: make production-check

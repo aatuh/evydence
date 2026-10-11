@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -135,6 +136,23 @@ class CompatibilityPolicyTests(unittest.TestCase):
         operation["x-evydence-deprecation"]["minimum_notice_days"] = 1
         with self.assertRaisesRegex(checker.CheckFailure, "minimum_notice_days"):
             checker.validate_deprecations(target)
+
+
+class RepositoryBaselineTests(unittest.TestCase):
+    def test_release_artifact_is_tracked_and_digest_verified_for_clean_checkouts(self) -> None:
+        path = checker.ROOT / "docs/reference/openapi-baseline.json"
+        baseline = checker.read_json(path, "baseline manifest")
+        artifact = baseline["artifact"]
+        result = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", artifact],
+            cwd=checker.ROOT, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0,
+                         "release baseline must be tracked, not an ignored local download")
+        verified, _, _ = checker.load_baseline(path)
+        self.assertEqual(verified["release_tag"], "v0.1.0-rc.7")
+        self.assertEqual(verified["artifact_sha256"],
+                         "4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364")
 
 
 if __name__ == "__main__":
