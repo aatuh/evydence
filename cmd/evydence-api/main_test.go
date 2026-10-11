@@ -11,10 +11,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/adapters/signing/gcpkms"
+	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
 )
 
 func TestValidateRuntimeConfigRejectsProductionBootstrapSecretPrinting(t *testing.T) {
@@ -429,17 +434,18 @@ func TestOpenSigningExecutorRequiresHTTPSUnlessLocalOverride(t *testing.T) {
 	}
 }
 
-func TestOpenSigningExecutorUsesGatewayForNonAWSKMSModes(t *testing.T) {
-	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
+func TestOpenSigningExecutorUsesGatewayForPKCS11HSM(t *testing.T) {
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Join(t.TempDir(), "missing-adc.json"))
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "pkcs11-hsm")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64", base64.StdEncoding.EncodeToString(make([]byte, 32)))
 	signer, err := openSigningExecutor(t.Context())
 	if err != nil {
-		t.Fatalf("gcp-kms gateway signer should be accepted: %v", err)
+		t.Fatalf("pkcs11-hsm gateway signer should be accepted without cloud credentials: %v", err)
 	}
-	if signer == nil {
-		t.Fatal("expected signer")
+	if _, ok := signer.(*signinggateway.Executor); !ok {
+		t.Fatalf("expected gateway signer, got %T", signer)
 	}
 }
 
@@ -450,16 +456,49 @@ func TestOpenSigningExecutorRequiresGatewayForNonAWSKMSModes(t *testing.T) {
 	}
 }
 
+type bootstrapProviderTransport struct{ calls atomic.Int32 }
+
+func (tr *bootstrapProviderTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	tr.calls.Add(1)
+	return nil, errors.New("unexpected provider request during bootstrap test")
+}
+
 func TestOpenSigningExecutorConfiguresDirectGCPKMS(t *testing.T) {
+	// Exercise ADC parsing without discovering developer credentials or
+	// refreshing a token. These synthetic values must never reach a provider.
+	path := filepath.Join(t.TempDir(), "adc.json")
+	if err := os.WriteFile(path, []byte(`{"type":"authorized_user","client_id":"fixture-client","client_secret":"fixture-secret","refresh_token":"fixture-refresh"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", path)
 	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
 	t.Setenv("EVYDENCE_GCP_KMS_ENDPOINT", "https://kms.example.test")
-	t.Setenv("EVYDENCE_GCP_KMS_ACCESS_TOKEN", "access-token")
-	signer, err := openSigningExecutor(t.Context())
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64", base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	transport := &bootstrapProviderTransport{}
+	ctx := context.WithValue(t.Context(), oauth2.HTTPClient, &http.Client{Transport: transport})
+	signer, err := openSigningExecutor(ctx)
 	if err != nil {
 		t.Fatalf("gcp-kms direct signer should be accepted: %v", err)
 	}
-	if signer == nil {
-		t.Fatal("expected signer")
+	if _, ok := signer.(*gcpkms.Executor); !ok {
+		t.Fatalf("expected native GCP signer, got %T", signer)
+	}
+	if transport.calls.Load() != 0 {
+		t.Fatal("constructor tried to contact a provider")
+	}
+}
+
+func TestOpenSigningExecutorDoesNotDowngradeGCPToGatewayWithoutCredentials(t *testing.T) {
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Join(t.TempDir(), "missing-adc.json"))
+	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
+	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64", base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	signer, err := openSigningExecutor(t.Context())
+	if signer != nil || err == nil || !strings.Contains(err.Error(), "application default credentials") {
+		t.Fatalf("missing native credentials downgraded to gateway: signer=%T err=%v", signer, err)
 	}
 }
 

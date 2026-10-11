@@ -345,7 +345,10 @@ private key material or send raw evidence payload bytes.
 
 `EVYDENCE_SIGNING_KEY_MODE=gcp-kms` uses the Google Application Default
 Credentials chain and `azure-key-vault` uses Azure DefaultAzureCredential. If
-direct credentials are unavailable, use the HTTPS signing gateway.
+direct credentials are unavailable, select
+`EVYDENCE_SIGNING_KEY_MODE=external` and configure the HTTPS signing gateway.
+Native cloud modes do not silently fall back to a gateway when credentials
+are missing, even if `EVYDENCE_SIGNING_EXECUTOR_URL` is also configured.
 `pkcs11-hsm` always uses the HTTPS signing gateway because native HSM modules
 and slots are deployment-specific. Operators remain responsible for provider
 credentials, IAM, key lifecycle, gateway operation where used, and custody

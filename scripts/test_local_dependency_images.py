@@ -70,6 +70,15 @@ class LocalDependencyImageTests(unittest.TestCase):
         self.assertLess(compatibility, source.index("Install Go QA tools"))
         self.assertLess(compatibility, source.index("Start isolated MinIO integration service"))
 
+    def test_bootstrap_checks_precede_expensive_tools_and_live_integration(self):
+        source = (ROOT / ".github/workflows/ci.yml").read_text()
+        bootstrap = source.index("Validate API bootstrap configuration")
+        self.assertLess(source.index("Enforce OpenAPI compatibility and deprecation policy"), bootstrap)
+        self.assertLess(bootstrap, source.index("Install Go QA tools"))
+        self.assertLess(bootstrap, source.index("Start isolated MinIO integration service"))
+        self.assertIn("run: go test ./cmd/evydence-api -timeout=30m", source)
+        self.assertIn("run: make production-check", source)
+
     def test_compose_builds_instead_of_pulling_private_minio_images(self):
         for name in ("docker-compose.yml", "compose.production-like.yml"):
             source = (ROOT / name).read_text()

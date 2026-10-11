@@ -75,6 +75,11 @@ jobs:
           OASDIFF_BIN: ${{ runner.temp }}/oasdiff/oasdiff
         run: make openapi-breaking-check
 
+      - name: Validate API bootstrap configuration
+        env:
+          GOFLAGS: -p=1
+        run: go test ./cmd/evydence-api -timeout=30m
+
       - name: Install Go QA tools
         run: make tools
 
