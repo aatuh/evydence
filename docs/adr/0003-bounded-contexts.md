@@ -692,6 +692,12 @@ The type lists are exhaustive for the exported production types currently in
 `internal/domain/domain.go`. Supporting types and schema-version constants
 belong to the row that owns the resource they support.
 
+Identity owns the supporting `SessionPolicy` value object in
+`internal/identity/domain/session_lifecycle.go`, which defines the lifecycle
+bounds used by SSO issuance and admission. It has no legacy transport DTO.
+See the [session lifecycle reference](../reference/configuration.md#sso-session-lifecycle-unreleased)
+for policy configuration and compatibility limits.
+
 | Context | Owns these current domain types | Current implementation and port ownership |
 | --- | --- | --- |
 | Identity and access | `Actor`, `ResourceGrant`, `Tenant`, `Organization`, `HumanUser`, `RoleBinding`, `SSOProvider`, `UserIdentityLink`, `SSOSession`, `APIKey`, `ProviderVerification` | `internal/identity/app.Service`; `IdentityRepository`; identity portions of `EnterpriseRepository` and the Ledger DTO adapter are temporary. |
