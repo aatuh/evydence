@@ -71,10 +71,43 @@ func (f ssoFixtureAuthenticator) SessionIdentity(ctx context.Context, session id
 	}
 	return out, nil
 }
-func (f ssoFixtureAuthenticator) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, now time.Time) error {
-	return f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
-		return repos.Identity.ValidateActiveSSOSession(ctx, domain.SSOSession(session), now)
+func (f ssoFixtureAuthenticator) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, expected identityapp.SessionIdentity, clock application.Clock) (time.Time, error) {
+	var used time.Time
+	err := f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
+		reader, ok := repos.Identity.(interface {
+			SessionIdentity(context.Context, identitydomain.SSOSession) (identityapp.SessionIdentity, error)
+		})
+		if !ok {
+			return app.ErrValidation
+		}
+		current, err := reader.SessionIdentity(ctx, session)
+		if err != nil {
+			return err
+		}
+		if !identityapp.SameSessionIdentity(current, expected) {
+			return app.ErrUnauthorized
+		}
+		if err := repos.Identity.ValidateActiveSSOSession(ctx, domain.SSOSession(session), clock.Now().UTC()); err != nil {
+			return err
+		}
+		metadataReader, ok := repos.Identity.(identityapp.SSOSessionRevocationReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		metadata, err := metadataReader.ReadSSOSessionForRevocation(ctx, session.TenantID, session.ID)
+		if err != nil {
+			return err
+		}
+		if metadata.LastUsedAt == nil {
+			return app.ErrValidation
+		}
+		used = metadata.LastUsedAt.UTC()
+		return nil
 	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	return used, nil
 }
 
 var _ Authenticator = ssoFixtureAuthenticator{}

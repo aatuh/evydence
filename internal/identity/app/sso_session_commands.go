@@ -25,11 +25,12 @@ type SSOSessionTransactions interface {
 	ExecuteSSOSession(context.Context, func(context.Context, SSOSessionTransaction) error) error
 }
 type SSOSessionCommandConfig struct {
-	Transactions SSOSessionTransactions
-	Credentials  SessionCredentialManager
-	Authorizer   application.Authorizer
-	Clock        application.Clock
-	IDs          application.IDGenerator
+	Transactions  SSOSessionTransactions
+	Credentials   SessionCredentialManager
+	Authorizer    application.Authorizer
+	Clock         application.Clock
+	IDs           application.IDGenerator
+	SessionPolicy identitydomain.SessionPolicy
 }
 type SSOSessionCommands struct{ config SSOSessionCommandConfig }
 
@@ -37,6 +38,11 @@ func NewSSOSessionCommands(c SSOSessionCommandConfig) (*SSOSessionCommands, erro
 	if c.Transactions == nil || c.Credentials == nil || c.Authorizer == nil || c.Clock == nil || c.IDs == nil {
 		return nil, ErrValidation
 	}
+	policy, ok := c.SessionPolicy.Normalized()
+	if !ok {
+		return nil, ErrValidation
+	}
+	c.SessionPolicy = policy
 	return &SSOSessionCommands{c}, nil
 }
 func normalizeSSOSessionInput(in CreateSSOSessionInput) (CreateSSOSessionInput, error) {
@@ -107,7 +113,7 @@ func (s *SSOSessionCommands) CreateSSOSession(ctx context.Context, a identitydom
 	var secret string
 	err = s.execute(ctx, a, in, func(ctx context.Context, tx SSOSessionTransaction) error {
 		now := s.config.Clock.Now().UTC().Truncate(time.Microsecond)
-		if now.IsZero() || !validAPIKeyTime(now) || !in.ExpiresAt.After(now) {
+		if now.IsZero() || !validAPIKeyTime(now) || !in.ExpiresAt.After(now) || in.ExpiresAt.After(now.Add(s.config.SessionPolicy.MaximumLifetime)) {
 			return ErrValidation
 		}
 		credential, err := s.config.Credentials.GenerateSession()
@@ -118,6 +124,9 @@ func (s *SSOSessionCommands) CreateSSOSession(ctx context.Context, a identitydom
 			return ErrValidation
 		}
 		out = identitydomain.SSOSession{ID: s.config.IDs.NewID("sess"), TenantID: a.TenantID, UserID: in.UserID, ProviderID: in.ProviderID, Prefix: credential.Prefix, Hash: credential.Hash, ExpiresAt: in.ExpiresAt, SchemaVersion: identitydomain.SSOSessionSchemaVersion, CreatedAt: now}
+		out.LastUsedAt = &now
+		out.MaximumLifetimeSeconds = int64(s.config.SessionPolicy.MaximumLifetime / time.Second)
+		out.IdleTimeoutSeconds = int64(s.config.SessionPolicy.IdleTimeout / time.Second)
 		if !validAPIKeyID(out.ID) {
 			return ErrValidation
 		}
@@ -131,11 +140,20 @@ func (s *SSOSessionCommands) CreateSSOSession(ctx context.Context, a identitydom
 		if _, err := tx.AppendAudit(ctx, audit); err != nil {
 			return err
 		}
+		if !out.ActiveAt(s.config.Clock.Now().UTC()) {
+			return ErrValidation
+		}
 		secret = credential.Secret
 		return nil
 	})
 	if err != nil {
 		return identitydomain.SSOSession{}, "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return identitydomain.SSOSession{}, "", err
+	}
+	if !out.ActiveAt(s.config.Clock.Now().UTC()) {
+		return identitydomain.SSOSession{}, "", ErrValidation
 	}
 	return publicSession(out), secret, nil
 }
@@ -144,9 +162,9 @@ func validIssuedSessionCredential(c Credential) bool {
 		return false
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(c.Secret[7:])
-	if err != nil || len(raw) != 32 {
+	if err != nil || len(raw) != 32 || base64.RawURLEncoding.EncodeToString(raw) != c.Secret[7:] {
 		return false
 	}
 	hash, err := hex.DecodeString(c.Hash)
-	return err == nil && len(hash) == 32
+	return err == nil && len(hash) == 32 && c.Hash == strings.ToLower(c.Hash)
 }

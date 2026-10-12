@@ -95,7 +95,7 @@ type Repository interface {
 	InsertTenant(context.Context, identitydomain.Tenant) error
 	InsertAPIKey(context.Context, identitydomain.APIKey) error
 	UpdateAPIKeyActivity(context.Context, identitydomain.APIKey, CollectorActivity) error
-	ValidateActiveSession(context.Context, identitydomain.SSOSession, time.Time) error
+	ValidateActiveSession(context.Context, identitydomain.SSOSession, SessionIdentity, application.Clock) (time.Time, error)
 	InsertOrganization(context.Context, identitydomain.Organization) error
 	InsertHumanUser(context.Context, identitydomain.HumanUser) error
 	DeactivateHumanUser(context.Context, identitydomain.HumanUser) error
@@ -136,6 +136,7 @@ type Config struct {
 	VerificationPolicy ProviderVerificationPolicy
 	Clock              application.Clock
 	IDs                application.IDGenerator
+	SessionPolicy      identitydomain.SessionPolicy
 }
 
 type Service struct {
@@ -153,10 +154,15 @@ type Service struct {
 	exchange           *SSOExchangeCommands
 	clock              application.Clock
 	ids                application.IDGenerator
+	sessionPolicy      identitydomain.SessionPolicy
 }
 
 func NewService(config Config) (*Service, error) {
 	if config.Reader == nil || config.Transactions == nil || config.Authorizer == nil || config.GrantPolicy == nil || config.Credentials == nil || config.SessionCredentials == nil || config.GrantTargets == nil || config.SessionGrants == nil || config.TrustMaterial == nil || config.CanonicalHasher == nil || config.CredentialVerifier == nil || config.VerificationPolicy == nil || config.Clock == nil || config.IDs == nil {
+		return nil, ErrValidation
+	}
+	policy, ok := config.SessionPolicy.Normalized()
+	if !ok {
 		return nil, ErrValidation
 	}
 	authenticator, err := NewAuthenticator(AuthenticationConfig{
@@ -171,6 +177,7 @@ func NewService(config Config) (*Service, error) {
 		Credentials: config.SessionCredentials, Verifier: config.CredentialVerifier,
 		VerificationPolicy: config.VerificationPolicy, SessionGrants: config.SessionGrants,
 		Clock: config.Clock, IDs: config.IDs,
+		SessionPolicy: policy,
 	})
 	if err != nil {
 		return nil, err
@@ -183,6 +190,7 @@ func NewService(config Config) (*Service, error) {
 		canonicalHasher: config.CanonicalHasher, oidcDiscovery: config.OIDCDiscovery,
 		exchange: exchange,
 		clock:    config.Clock, ids: config.IDs,
+		sessionPolicy: policy,
 	}, nil
 }
 

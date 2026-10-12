@@ -35,8 +35,8 @@ func (a *collectorBindingActivity) RecordAPIKeyUse(_ context.Context, _ identity
 	}
 	return nil
 }
-func (*collectorBindingActivity) ValidateActiveSession(context.Context, identitydomain.SSOSession, time.Time) error {
-	return nil
+func (*collectorBindingActivity) ValidateActiveSession(_ context.Context, _ identitydomain.SSOSession, _ SessionIdentity, clock application.Clock) (time.Time, error) {
+	return clock.Now().UTC(), nil
 }
 
 func TestCollectorAuthenticationRejectsInvalidInactiveOrBroaderCredentialBindingsBeforeActivity(t *testing.T) {

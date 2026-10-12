@@ -12,9 +12,13 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-func BuildSSOExchangeCommands(factory app.UnitOfWorkFactory, pepper string, production bool) (*identityapp.SSOExchangeCommands, error) {
+func BuildSSOExchangeCommands(factory app.UnitOfWorkFactory, pepper string, production bool, policies ...identitydomain.SessionPolicy) (*identityapp.SSOExchangeCommands, error) {
 	if factory == nil {
 		return nil, errors.New("SSO exchange transactions are required")
+	}
+	policy, err := configuredSessionPolicy(policies)
+	if err != nil {
+		return nil, err
 	}
 	credentials, err := buildAuthenticationCredentials(pepper, production)
 	if err != nil {
@@ -24,6 +28,7 @@ func BuildSSOExchangeCommands(factory app.UnitOfWorkFactory, pepper string, prod
 		Reader: ssoExchangeReader{factory: factory}, Transactions: ssoExchangeTransactions{factory: factory},
 		Credentials: credentials, Verifier: app.LocalSSOCredentialVerifier{}, VerificationPolicy: app.LocalSSOVerificationPolicy{},
 		SessionGrants: ssoExchangeGroupPolicy{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID),
+		SessionPolicy: policy,
 	})
 }
 

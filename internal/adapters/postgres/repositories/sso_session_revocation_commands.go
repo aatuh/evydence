@@ -33,9 +33,9 @@ func (r identity) ReadSSOSessionForRevocation(ctx context.Context, tenant, id st
 	CASE WHEN octet_length(prefix)<=1024 THEN prefix ELSE '' END,
 	CASE WHEN coalesce(octet_length(groups::text),0)<=131072 THEN coalesce(groups::text,'null') ELSE 'null' END,
 	expires_at,revoked_at,
-	CASE WHEN octet_length(schema_version)<=1024 THEN schema_version ELSE '' END,created_at,
+	CASE WHEN octet_length(schema_version)<=1024 THEN schema_version ELSE '' END,created_at,last_used_at,maximum_lifetime_seconds,idle_timeout_seconds,
 	octet_length(user_id)>1024 OR octet_length(provider_id)>1024 OR octet_length(prefix)>1024 OR coalesce(octet_length(groups::text),0)>131072 OR octet_length(schema_version)>1024
-	FROM sso_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenant, id).Scan(&v.UserID, &v.ProviderID, &v.Prefix, &groups, &v.ExpiresAt, &revoked, &v.SchemaVersion, &v.CreatedAt, &oversized)
+	FROM sso_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenant, id).Scan(&v.UserID, &v.ProviderID, &v.Prefix, &groups, &v.ExpiresAt, &revoked, &v.SchemaVersion, &v.CreatedAt, &v.LastUsedAt, &v.MaximumLifetimeSeconds, &v.IdleTimeoutSeconds, &oversized)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return identitydomain.SSOSession{}, app.ErrNotFound
 	}

@@ -33,6 +33,8 @@ process, or equivalent deployment control.
 | `ENV` | Production only | unset locally | Set `ENV=production` to enable production-safety checks. |
 | `EVYDENCE_ADDR` | No | `:8080` | API bind address. |
 | `EVYDENCE_API_KEY_PEPPER` | Production yes | `change-me-long-random-pepper` | HMAC pepper for API key, session, and portal-token hashes. Use a long random value. |
+| `EVYDENCE_SSO_SESSION_MAX_LIFETIME_SECONDS` | No | `43200` | Integer `60..43200`; maximum absolute lifetime for newly issued SSO sessions. Explicit expiry beyond the configured limit is rejected. |
+| `EVYDENCE_SSO_SESSION_IDLE_TIMEOUT_SECONDS` | No | `1800` | Integer `60..43200`, at most the configured maximum lifetime. Cannot be disabled. Captured on new sessions. |
 | `EVYDENCE_RUNTIME_PROFILE` | API and worker yes | `postgres` | The only supported runtime profile, including local evaluation. Retired `local_memory` input fails before opening resources and explains the PostgreSQL migration. |
 | `EVYDENCE_DATABASE_URL` | API and worker yes | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | PostgreSQL durable state, projections, migrations, and persisted outbox jobs. Connection settings alone do not select the runtime profile. |
 | `EVYDENCE_POSTGRES_LOAD_MODE` | No | `snapshot_preferred` locally, `relational_only` when `ENV=production` | PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-only startup reads, refuses snapshot fallback modes, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks. |
@@ -106,6 +108,50 @@ process, or equivalent deployment control.
 | `EVYDENCE_TEST_S3_ACCESS_KEY_ID` | Live MinIO tests | `.test.env.example` value | Test-only credential for the disposable MinIO service. Never point it at a production or shared object-store account. |
 | `EVYDENCE_TEST_S3_SECRET_ACCESS_KEY` | Live MinIO tests | `.test.env.example` value | Test-only secret for the disposable MinIO service. The integration summary redacts credentials. Never commit a real value. |
 | `EVYDENCE_TEST_S3_USE_SSL` | Live MinIO tests | `false` | Boolean transport setting for the loopback test service. |
+
+## SSO Session Lifecycle (Unreleased)
+
+SSO credentials use 32 bytes from `crypto/rand`, encoded as unpadded URL-safe
+base64 after `evysso_` (50 characters total). Lookup prefixes are 12 characters;
+only the lowercase 64-character HMAC-SHA-256 hash, keyed by
+`EVYDENCE_API_KEY_PEPPER`, is persisted. Issuance returns the secret only after
+the session/audit transaction succeeds. Completed creation replay returns the
+original public metadata without a secret.
+
+The API validates the two policy variables before opening runtime adapters.
+Each new `sso-session.v1.1.0` record captures its maximum lifetime and idle
+timeout. Explicit expiry must be future and within the configured maximum.
+Exchange without explicit expiry uses eight hours, shortened to the configured
+maximum when necessary. Activity cannot extend absolute expiry or rotate a
+secret. A policy change affects future issuance; revoke existing sessions when
+an incident or policy change requires their immediate invalidation.
+
+Cookie and Bearer admission apply the same exclusive expiry and idle deadlines.
+They require an active user and provider, unchanged credential coordinates,
+and current identity/grants. The transaction locks the selected session and
+identity/grant rows, checks time after acquiring those locks, and advances
+`last_used_at` monotonically. Failed admission checks roll back activity.
+Issuance and admission also check lifecycle after commit before returning a
+secret or actor. If a delayed commit crosses a deadline, the result is withheld;
+committed history remains, and the now-inactive credential is not renewed.
+Revocation and admission serialize on the session row; an admission
+committed before revocation may finish its request, while later admissions fail.
+
+Migration `20261012000100_sso_session_lifecycle` adds activity and bounded-policy
+columns without replacing hashes, owners, groups, expiry or creation timestamps.
+Older rows retain their schema labels and use the bounded defaults. Missing
+activity means creation time, so an upgrade does not revive an idle session;
+older idle or over-lifetime sessions require fresh authentication. Older safe
+replay receipts may omit the new policy/activity fields. Stop old API writers
+during rollout: an older binary does not enforce these new admission rules.
+Plan for the migration's DDL lock. Its downgrade refuses to discard recorded
+activity or tightened policy; retain the columns and use a forward fix instead.
+
+There is no sliding absolute expiry or refresh-token endpoint. Use fresh
+configured SSO exchange or authorized administrative issuance and revoke the
+prior session as described in [Key rotation](../runbooks/key-rotation.md).
+OIDC/SAML request binding, proof replay protection and authentication failure
+limits remain separate EVY-1005 work.
 
 ## First-Tenant Bootstrap
 

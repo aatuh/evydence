@@ -32,6 +32,7 @@ type exchangeCommandFixture struct {
 	phase                                                 string
 	reads, verificationsCalled, generations, transactions int
 	cancel                                                context.CancelFunc
+	commitHook                                            func()
 }
 
 func (f *exchangeCommandFixture) SSOProviderByID(_ context.Context, id string) (identitydomain.SSOProvider, error) {
@@ -127,6 +128,9 @@ func (f *exchangeCommandFixture) ExecuteSSOExchange(ctx context.Context, fn func
 	f.verifications = append(f.verifications, pending.verifications...)
 	f.sessions = append(f.sessions, pending.sessions...)
 	f.audits = append(f.audits, pending.audits...)
+	if f.commitHook != nil {
+		f.commitHook()
+	}
 	return nil
 }
 func (f *exchangeCommandFixture) ValidateSSOExchangeState(_ context.Context, v SSOExchangeSnapshot) error {
@@ -163,13 +167,18 @@ func (f *exchangeCommandFixture) AppendAudit(_ context.Context, v application.Au
 func exchangeCommandsForTest(t *testing.T) (*SSOExchangeCommands, *exchangeCommandFixture, ExchangeSSOCredentialInput, time.Time) {
 	t.Helper()
 	f := &exchangeCommandFixture{
-		provider:   identitydomain.SSOProvider{ID: "provider", TenantID: "tenant", Type: "oidc", Status: "active", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}},
-		link:       identitydomain.UserIdentityLink{ID: "link", TenantID: "tenant", ProviderID: "provider", UserID: "user", Subject: "subject", Verified: true},
-		user:       identitydomain.HumanUser{ID: "user", TenantID: "tenant", Status: "active"},
-		grants:     []identitydomain.ResourceGrant{{Role: "release_manager", Scopes: []string{"release:read"}}},
-		result:     CredentialVerificationResult{Checks: []identitydomain.VerificationCheck{{Name: "signature", Result: "passed"}}, Groups: []string{"security", "raw-id-token"}},
-		credential: Credential{Secret: "evysso_session-secret", Prefix: "evysso_sessi", Hash: "hash-only"},
+		provider: identitydomain.SSOProvider{ID: "provider", TenantID: "tenant", Type: "oidc", Status: "active", GroupsClaim: "groups", RoleMapping: map[string]string{"security": "security_engineer"}},
+		link:     identitydomain.UserIdentityLink{ID: "link", TenantID: "tenant", ProviderID: "provider", UserID: "user", Subject: "subject", Verified: true},
+		user:     identitydomain.HumanUser{ID: "user", TenantID: "tenant", Status: "active"},
+		grants:   []identitydomain.ResourceGrant{{Role: "release_manager", Scopes: []string{"release:read"}}},
+		result:   CredentialVerificationResult{Checks: []identitydomain.VerificationCheck{{Name: "signature", Result: "passed"}}, Groups: []string{"security", "raw-id-token"}},
 	}
+	credentials, err := NewHMACAuthenticationCredentials("fixture-pepper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := "evysso_" + strings.Repeat("A", 43)
+	f.credential = Credential{Secret: secret, Prefix: credentials.Prefix(secret), Hash: credentials.Hash(secret)}
 	now := time.Date(2026, 9, 1, 1, 2, 3, 0, time.FixedZone("fixture", 3600))
 	s, err := NewSSOExchangeCommands(SSOExchangeCommandConfig{Reader: f, Transactions: f, Credentials: f, Verifier: f, VerificationPolicy: fakeProviderVerificationPolicy{}, SessionGrants: exchangeGroupPolicy{}, Clock: application.ClockFunc(func() time.Time { return now }), IDs: application.IDGeneratorFunc(func(p string) string { return p + "_exchange" })})
 	if err != nil {
@@ -453,6 +462,45 @@ func TestSSOExchangeCommandsRejectIncompleteGeneratedCredentialsBeforeTransactio
 				t.Fatal("incomplete session material reached persistence", err)
 			}
 		})
+	}
+}
+
+func TestSSOExchangeCommandsRejectWeakOrNoncanonicalIssuedCredential(t *testing.T) {
+	for _, change := range []func(*Credential){
+		func(c *Credential) { c.Secret = "evysso_weak"; c.Prefix = c.Secret },
+		func(c *Credential) { c.Hash = "not-a-persisted-hash" },
+	} {
+		s, f, input, _ := exchangeCommandsForTest(t)
+		change(&f.credential)
+		value, session, secret, err := s.ExchangeSSOCredential(t.Context(), input)
+		if !errors.Is(err, ErrValidation) || value.ID != "" || session.ID != "" || secret != "" || f.transactions != 0 {
+			t.Fatal("weak session material reached transaction", err)
+		}
+	}
+}
+
+func TestSSOExchangeCommandsPersistTightenedPolicyAndBoundDefaultExpiry(t *testing.T) {
+	s, f, input, now := exchangeCommandsForTest(t)
+	s.config.SessionPolicy = identitydomain.SessionPolicy{MaximumLifetime: time.Hour, IdleTimeout: 5 * time.Minute}
+	_, session, secret, err := s.ExchangeSSOCredential(t.Context(), input)
+	if err != nil || secret == "" || session.ExpiresAt != now.Add(time.Hour) || session.MaximumLifetimeSeconds != 3600 || session.IdleTimeoutSeconds != 300 || session.LastUsedAt == nil || !session.LastUsedAt.Equal(now) || len(f.sessions) != 1 || f.sessions[0].Hash != f.credential.Hash {
+		t.Fatal("tightened lifecycle policy not retained", err)
+	}
+	input.ExpiresAt = now.Add(2 * time.Hour)
+	before := f.generations
+	if _, _, secret, err := s.ExchangeSSOCredential(t.Context(), input); !errors.Is(err, ErrValidation) || secret != "" || f.generations != before {
+		t.Fatal("explicit over-policy expiry issued a credential", err)
+	}
+}
+
+func TestSSOExchangeCommandsWithholdSecretWhenCommitOutlivesLifecycle(t *testing.T) {
+	s, f, input, now := exchangeCommandsForTest(t)
+	at := now
+	s.config.Clock = application.ClockFunc(func() time.Time { return at })
+	f.commitHook = func() { at = at.Add(30 * time.Minute) }
+	verification, session, secret, err := s.ExchangeSSOCredential(t.Context(), input)
+	if !errors.Is(err, ErrValidation) || verification.ID != "" || session.ID != "" || secret != "" || len(f.sessions) != 1 || f.sessions[0].Hash == "" || len(f.audits) != 2 {
+		t.Fatal("late committed exchange returned unusable material or lost committed history", err)
 	}
 }
 

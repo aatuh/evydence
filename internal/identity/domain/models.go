@@ -92,17 +92,20 @@ type SSOProvider struct {
 	CreatedAt               time.Time
 }
 type SSOSession struct {
-	ID            string
-	TenantID      string
-	UserID        string
-	ProviderID    string
-	Prefix        string
-	Groups        []string
-	ExpiresAt     time.Time
-	RevokedAt     *time.Time
-	SchemaVersion string
-	CreatedAt     time.Time
-	Hash          string
+	ID                     string
+	TenantID               string
+	UserID                 string
+	ProviderID             string
+	Prefix                 string
+	Groups                 []string
+	ExpiresAt              time.Time
+	RevokedAt              *time.Time
+	SchemaVersion          string
+	CreatedAt              time.Time
+	LastUsedAt             *time.Time
+	MaximumLifetimeSeconds int64
+	IdleTimeoutSeconds     int64
+	Hash                   string
 }
 type Tenant struct {
 	ID        string

@@ -233,6 +233,16 @@ func TestCreateSSOSessionReturnsSecretOnlyAfterCommit(t *testing.T) {
 	}
 }
 
+func TestIdentityServiceSessionIssuanceCannotBypassMaximumLifetime(t *testing.T) {
+	f := newIdentityServiceFixture(t)
+	f.reader.users = []identitydomain.HumanUser{{ID: "usr_1", TenantID: f.actor.TenantID, Status: "active"}}
+	f.reader.providers = []identitydomain.SSOProvider{{ID: "sso_1", TenantID: f.actor.TenantID, Status: "active"}}
+	value, secret, err := f.service.CreateSSOSession(t.Context(), f.actor, CreateSSOSessionInput{UserID: "usr_1", ProviderID: "sso_1", ExpiresAt: f.now.Add(13 * time.Hour)})
+	if !errors.Is(err, ErrValidation) || value.ID != "" || secret != "" || f.transactions.commits != 0 {
+		t.Fatal("identity facade bypassed bounded issuance", err)
+	}
+}
+
 func TestCreateSSOSessionRejectsExpiredInputAndAuditFailureWithoutSecret(t *testing.T) {
 	expired := newIdentityServiceFixture(t)
 	if session, secret, err := expired.service.CreateSSOSession(context.Background(), expired.actor, CreateSSOSessionInput{UserID: "usr_1", ProviderID: "sso_1", ExpiresAt: expired.now}); !errors.Is(err, ErrValidation) || session.ID != "" || secret != "" {
@@ -282,11 +292,15 @@ func TestExchangeSSOCredentialCommitsVerificationSessionAndAuditsTogether(t *tes
 	if err != nil {
 		t.Fatalf("ExchangeSSOCredential: %v", err)
 	}
-	if verification.Result != "passed" || session.ID != "sess_1" || session.Hash != "" || secret != "evysso_secret" {
+	expected, credentialErr := fixture.sessionCredentials.GenerateSession()
+	if credentialErr != nil {
+		t.Fatal(credentialErr)
+	}
+	if verification.Result != "passed" || session.ID != "sess_1" || session.Hash != "" || secret != expected.Secret {
 		t.Fatalf("verification=%#v session=%#v secret=%q", verification, session, secret)
 	}
 	stored := fixture.transactions.state.sessions[session.ID]
-	if stored.Hash != "session-hash" || len(fixture.transactions.state.verifications) != 1 || len(fixture.transactions.state.audit) != 2 {
+	if stored.Hash != expected.Hash || len(fixture.transactions.state.verifications) != 1 || len(fixture.transactions.state.audit) != 2 {
 		t.Fatalf("state = %#v", fixture.transactions.state)
 	}
 	if strings.Contains(fmt.Sprintf("%#v", fixture.transactions.state), "raw-id-token") {

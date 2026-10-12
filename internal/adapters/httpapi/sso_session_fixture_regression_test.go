@@ -61,7 +61,7 @@ func seedFixtureSession(t *testing.T, l *repositoryFixture, f ssoProviderFixture
 	t.Helper()
 	grantFixtureSessionUser(t, l, f)
 	c := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: l}, credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
-	v, secret, err := c.CreateSSOSession(t.Context(), f.actor, identityapp.CreateSSOSessionInput{UserID: f.user.ID, ProviderID: f.provider.ID, ExpiresAt: time.Date(2026, 10, 8, 16, 0, 0, 0, time.UTC)})
+	v, secret, err := c.CreateSSOSession(t.Context(), f.actor, identityapp.CreateSSOSessionInput{UserID: f.user.ID, ProviderID: f.provider.ID, ExpiresAt: time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestSSOSessionFixturesRollbackSecretsLifecycleAuditsAndCookies(t *testing.T
 			owner := seedSSOProviderFixtureScope(t, ledger, "Owner")
 			session, secret := seedFixtureSession(t, ledger, owner)
 			actor := owner.actor
-			path, body := "/v1/sso/sessions", fmt.Sprintf(`{"user_id":%q,"provider_id":%q,"expires_at":"2026-10-08T16:00:00Z"}`, owner.user.ID, owner.provider.ID)
+			path, body := "/v1/sso/sessions", fmt.Sprintf(`{"user_id":%q,"provider_id":%q,"expires_at":"2026-10-08T00:00:00Z"}`, owner.user.ID, owner.provider.ID)
 			if action == "revoke" {
 				path, body = "/v1/sso/sessions/"+session.ID+"/revoke", `{}`
 			}
@@ -151,7 +151,7 @@ func TestSSOSessionIssuanceFixtureReplaysMetadataWithoutReissuingSecret(t *testi
 	human.ResourceGrants = []domain.ResourceGrant{{ResourceType: "tenant", ResourceID: human.TenantID, Scopes: []string{"identity:admin"}}}
 	auth := &configuredAuthenticator{actor: human}
 	s.authn = auth
-	body := fmt.Sprintf(`{"user_id":%q,"provider_id":%q,"expires_at":"2026-10-08T16:00:00Z"}`, owner.user.ID, owner.provider.ID)
+	body := fmt.Sprintf(`{"user_id":%q,"provider_id":%q,"expires_at":"2026-10-08T00:00:00Z"}`, owner.user.ID, owner.provider.ID)
 	first := fixtureSessionPost(t, s, "fixture-auth", "/v1/sso/sessions", "same-session", body, 201)
 	secret := nestedDataField(t, first.Body.String(), "secret")
 	id := dataFieldFromNestedObject(t, first.Body.String(), "session", "id")

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
@@ -66,7 +67,7 @@ func TestLedgerIdentityTransactionRejectsStalePreloadedUser(t *testing.T) {
 
 			ledger.mu.Lock()
 			test.mutate(ledger, user.ID)
-			err = newLedgerIdentityTransaction(ledger).ValidateActiveSession(context.Background(), ssoSessionToIdentityContext(session), now)
+			_, err = newLedgerIdentityTransaction(ledger).ValidateActiveSession(context.Background(), ssoSessionToIdentityContext(session), identity, application.ClockFunc(func() time.Time { return now }))
 			ledger.mu.Unlock()
 
 			if !errors.Is(err, identityapp.ErrUnauthorized) {

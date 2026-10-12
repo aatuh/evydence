@@ -56,7 +56,7 @@ func TestSSOSessionHTTPUsesFocusedIssuanceAndStrictDecoder(t *testing.T) {
 	if f.calls != 1 || f.guards != 1 || f.actor.TenantID == "" || f.actor.KeyID == "" || f.input.UserID != "user" || f.input.ProviderID != "provider" || f.input.ExpiresAt.IsZero() {
 		t.Fatal("session actor/input mapping lost")
 	}
-	for _, field := range []string{`"id":"session"`, `"schema_version":"sso-session.v1.0.0"`, `"secret":"evysso_private-fixture"`} {
+	for _, field := range []string{`"id":"session"`, `"schema_version":"sso-session.v1.1.0"`, `"secret":"evysso_private-fixture"`} {
 		if !strings.Contains(out, field) {
 			t.Fatal("session creation field lost", field)
 		}

@@ -71,8 +71,9 @@ func TestMemorySessionAuthenticationReadsCurrentOwnedRowsWithoutTrustOrPII(t *te
 func TestMemorySessionActivityRejectsClosedTransactions(t *testing.T) {
 	_, tx := memoryMembershipReadFixture(t)
 	now := fixedNow()
-	session := domain.SSOSession{ID: "session", TenantID: "tenant", UserID: "tenant-user", ProviderID: "provider", Prefix: "evysso_test12", Hash: strings.Repeat("a", 64), ExpiresAt: now.Add(time.Hour)}
+	session := domain.SSOSession{ID: "session", TenantID: "tenant", UserID: "tenant-user", ProviderID: "provider", Prefix: "evysso_test12", Hash: strings.Repeat("a", 64), CreatedAt: now, ExpiresAt: now.Add(time.Hour)}
 	tx.state.SSOSessions[session.ID] = session
+	tx.state.SSOProviders[session.ProviderID] = domain.SSOProvider{ID: session.ProviderID, TenantID: session.TenantID, Status: "active"}
 	u := tx.state.Users[session.UserID]
 	u.Status = "active"
 	tx.state.Users[u.ID] = u
@@ -88,13 +89,58 @@ func TestMemorySessionActivityRejectsClosedTransactions(t *testing.T) {
 	}
 }
 
+func TestMemorySessionActivityAdvancesWithoutChangingLifetime(t *testing.T) {
+	_, tx := memoryMembershipReadFixture(t)
+	now := fixedNow()
+	session := domain.SSOSession{ID: "session", TenantID: "tenant", UserID: "tenant-user", ProviderID: "provider", Prefix: "evysso_test12", Hash: strings.Repeat("a", 64), CreatedAt: now, ExpiresAt: now.Add(time.Hour)}
+	tx.state.SSOSessions[session.ID] = session
+	tx.state.SSOProviders[session.ProviderID] = domain.SSOProvider{ID: session.ProviderID, TenantID: session.TenantID, Status: "active"}
+	user := tx.state.Users[session.UserID]
+	user.Status = "active"
+	tx.state.Users[user.ID] = user
+	r := memoryIdentityRepository{uow: tx}
+	for _, at := range []time.Time{now.Add(10 * time.Minute), now.Add(5 * time.Minute)} {
+		if err := r.ValidateActiveSSOSession(t.Context(), session, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stored := tx.state.SSOSessions[session.ID]
+	if stored.LastUsedAt == nil || !stored.LastUsedAt.Equal(now.Add(10*time.Minute)) || !stored.ExpiresAt.Equal(session.ExpiresAt) || !stored.CreatedAt.Equal(session.CreatedAt) {
+		t.Fatal("activity was lost or lifetime changed")
+	}
+	if err := r.ValidateActiveSSOSession(t.Context(), session, now.Add(40*time.Minute)); !errors.Is(err, ErrUnauthorized) {
+		t.Fatal("idle session revived", err)
+	}
+}
+
+func TestMemorySessionRevocationPreservesCommittedActivity(t *testing.T) {
+	_, tx := memoryMembershipReadFixture(t)
+	now := fixedNow()
+	used := now.Add(10 * time.Minute)
+	session := domain.SSOSession{ID: "session", TenantID: "tenant", UserID: "tenant-user", ProviderID: "provider", Prefix: "evysso_test12", Hash: strings.Repeat("a", 64), CreatedAt: now, ExpiresAt: now.Add(time.Hour), LastUsedAt: &used}
+	tx.state.SSOSessions[session.ID] = session
+	stale := session
+	stale.LastUsedAt = nil
+	revoked := now.Add(11 * time.Minute)
+	stale.RevokedAt = &revoked
+	r := memoryIdentityRepository{uow: tx}
+	if err := r.RevokeSSOSession(t.Context(), stale); err != nil {
+		t.Fatal(err)
+	}
+	stored := tx.state.SSOSessions[session.ID]
+	if stored.LastUsedAt == nil || !stored.LastUsedAt.Equal(used) || stored.RevokedAt == nil || !stored.RevokedAt.Equal(revoked) {
+		t.Fatal("revocation overwrote committed activity")
+	}
+}
+
 func TestMemorySessionActivityRejectsChangedStoredIdentities(t *testing.T) {
 	for _, target := range []string{"session-id", "user-id"} {
 		t.Run(target, func(t *testing.T) {
 			_, tx := memoryMembershipReadFixture(t)
 			now := fixedNow()
-			session := domain.SSOSession{ID: "session", TenantID: "tenant", UserID: "tenant-user", ProviderID: "provider", Prefix: "evysso_test1", Hash: strings.Repeat("a", 64), ExpiresAt: now.Add(time.Hour)}
+			session := domain.SSOSession{ID: "session", TenantID: "tenant", UserID: "tenant-user", ProviderID: "provider", Prefix: "evysso_test1", Hash: strings.Repeat("a", 64), CreatedAt: now, ExpiresAt: now.Add(time.Hour)}
 			tx.state.SSOSessions[session.ID] = session
+			tx.state.SSOProviders[session.ProviderID] = domain.SSOProvider{ID: session.ProviderID, TenantID: session.TenantID, Status: "active"}
 			u := tx.state.Users[session.UserID]
 			u.Status = "active"
 			tx.state.Users[session.UserID] = u

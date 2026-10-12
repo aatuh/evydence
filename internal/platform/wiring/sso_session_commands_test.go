@@ -90,7 +90,7 @@ INSERT INTO role_bindings(id,tenant_id,subject_type,subject_id,role,resource_typ
 		}
 		return out.Data
 	}
-	expiry := time.Now().Add(30 * 24 * time.Hour).UTC()
+	expiry := time.Now().Add(8 * time.Hour).UTC()
 	bytes, err := json.Marshal(map[string]any{"user_id": " user ", "provider_id": " provider ", "expires_at": expiry})
 	if err != nil {
 		t.Fatal(err)

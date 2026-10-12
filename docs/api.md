@@ -43,6 +43,14 @@ revoking a database record; permission denials and invalid explicit Bearer
 credentials do not clear an incidental cookie. SSO issuance/exchange and cookie
 cleanup responses include `Cache-Control: no-store`.
 
+SSO cookie and Bearer credentials share bounded absolute and idle lifetimes.
+Authentication commits monotonic activity after checking current session,
+identity and grants; activity does not extend expiry or return a replacement
+secret. The [configuration reference](reference/configuration.md#sso-session-lifecycle-unreleased)
+owns the limits, stored policy fields, historical-session upgrade behavior and
+in-flight revocation semantics. New session metadata uses schema v1.1.0; older
+safe replay receipts can omit the added policy/activity fields.
+
 Create and action endpoints require `Idempotency-Key`. A key is scoped to the
 authenticated tenant, actor, HTTP method, and path. The service stores a
 request digest, not the raw request body, and uses an internal hashed lease

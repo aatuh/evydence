@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -214,6 +215,7 @@ func TestAuthenticateRejectsRevokedExpiredAndCrossTenantSessions(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newIdentityServiceFixture(t)
+			test.session.CreatedAt = fixture.now
 			fixture.reader.sessions = []identitydomain.SSOSession{test.session}
 			fixture.reader.sessionIdentity = test.identity
 			if _, err := fixture.service.Authenticate(context.Background(), "evy_secret"); !errors.Is(err, ErrUnauthorized) {
@@ -228,7 +230,7 @@ func TestAuthenticateRejectsRevokedExpiredAndCrossTenantSessions(t *testing.T) {
 
 func TestAuthenticateRejectsSessionWithoutAuthorizationGrants(t *testing.T) {
 	fixture := newIdentityServiceFixture(t)
-	fixture.reader.sessions = []identitydomain.SSOSession{{ID: "sess_1", TenantID: "ten_1", UserID: "usr_1", Prefix: "evy_secret", Hash: "stored-hash", ExpiresAt: fixture.now.Add(time.Hour)}}
+	fixture.reader.sessions = []identitydomain.SSOSession{{ID: "sess_1", TenantID: "ten_1", UserID: "usr_1", Prefix: "evy_secret", Hash: "stored-hash", CreatedAt: fixture.now, ExpiresAt: fixture.now.Add(time.Hour)}}
 	fixture.reader.sessionIdentity = SessionIdentity{User: identitydomain.HumanUser{ID: "usr_1", TenantID: "ten_1", Status: "active"}}
 	if _, err := fixture.service.Authenticate(context.Background(), "evy_secret"); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("Authenticate error = %v, want forbidden", err)
@@ -238,7 +240,7 @@ func TestAuthenticateRejectsSessionWithoutAuthorizationGrants(t *testing.T) {
 func TestAuthenticatePropagatesCancellationFromSessionIdentityLookup(t *testing.T) {
 	fixture := newIdentityServiceFixture(t)
 	fixture.reader.sessions = []identitydomain.SSOSession{{
-		ID: "sess_1", TenantID: "ten_1", UserID: "usr_1", Prefix: "evy_secret", Hash: "stored-hash", ExpiresAt: fixture.now.Add(time.Hour),
+		ID: "sess_1", TenantID: "ten_1", UserID: "usr_1", Prefix: "evy_secret", Hash: "stored-hash", CreatedAt: fixture.now, ExpiresAt: fixture.now.Add(time.Hour),
 	}}
 	ctx, cancel := context.WithCancel(context.Background())
 	fixture.reader.sessionIdentityHook = cancel
@@ -347,7 +349,12 @@ func (f *fakeSessionCredentials) GenerateSession() (Credential, error) {
 	if f.err != nil {
 		return Credential{}, f.err
 	}
-	return Credential{Secret: "evysso_secret", Prefix: "evysso_secret", Hash: "session-hash"}, nil
+	secret := "evysso_" + strings.Repeat("A", 43)
+	credentials, err := NewHMACAuthenticationCredentials("fixture-pepper")
+	if err != nil {
+		return Credential{}, err
+	}
+	return Credential{Secret: secret, Prefix: credentials.Prefix(secret), Hash: credentials.Hash(secret)}, nil
 }
 
 type fakeGrantTargetResolver struct {
@@ -700,8 +707,8 @@ func (f fakeIdentityRepository) UpdateAPIKeyActivity(_ context.Context, value id
 	}
 	return nil
 }
-func (f fakeIdentityRepository) ValidateActiveSession(context.Context, identitydomain.SSOSession, time.Time) error {
-	return nil
+func (f fakeIdentityRepository) ValidateActiveSession(_ context.Context, _ identitydomain.SSOSession, _ SessionIdentity, clock application.Clock) (time.Time, error) {
+	return clock.Now().UTC(), nil
 }
 
 func (f fakeIdentityRepository) InsertOrganization(_ context.Context, value identitydomain.Organization) error {

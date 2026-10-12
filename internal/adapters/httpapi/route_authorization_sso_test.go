@@ -44,7 +44,7 @@ func addNativeSSOAuthorizationCases(cases map[string]func(*testing.T)) {
 		}, status, tc.foreign)
 	}
 	cases["createSSOSession"] = nativeMutationAuthorizationFixtureCase("createSSOSession", newNativeSSOAuthorizationFixture, func(f nativeAuthorizationFixture) (string, []byte) {
-		return "/v1/sso/sessions", []byte(fmt.Sprintf(`{"user_id":%q,"provider_id":%q,"expires_at":"2026-10-08T16:00:00Z"}`, f.sso.user.ID, f.sso.provider.ID))
+		return "/v1/sso/sessions", []byte(fmt.Sprintf(`{"user_id":%q,"provider_id":%q,"expires_at":"2026-10-08T00:00:00Z"}`, f.sso.user.ID, f.sso.provider.ID))
 	}, nativeMutationExpectation{status: 201, foreignStatus: 404, resultField: "session", auditDelta: 1})
 	cases["revokeSSOSession"] = nativeWriteAuthorizationFixtureCase("revokeSSOSession", newNativeSSOAuthorizationFixture, func(f nativeAuthorizationFixture) (string, []byte) {
 		return "/v1/sso/sessions/" + f.session.ID + "/revoke", []byte(`{}`)

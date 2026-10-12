@@ -12,15 +12,34 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-func BuildSSOSessionCommands(factory app.UnitOfWorkFactory, pepper string, production bool) (*identityapp.SSOSessionCommands, error) {
+func BuildSSOSessionCommands(factory app.UnitOfWorkFactory, pepper string, production bool, policies ...identitydomain.SessionPolicy) (*identityapp.SSOSessionCommands, error) {
 	if factory == nil {
 		return nil, errors.New("session transactions are required")
+	}
+	policy, err := configuredSessionPolicy(policies)
+	if err != nil {
+		return nil, err
 	}
 	credentials, err := buildAuthenticationCredentials(pepper, production)
 	if err != nil {
 		return nil, err
 	}
-	return identityapp.NewSSOSessionCommands(identityapp.SSOSessionCommandConfig{Transactions: sessionTransactions{factory}, Credentials: credentials, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return identityapp.NewSSOSessionCommands(identityapp.SSOSessionCommandConfig{Transactions: sessionTransactions{factory}, Credentials: credentials, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID), SessionPolicy: policy})
+}
+
+func configuredSessionPolicy(policies []identitydomain.SessionPolicy) (identitydomain.SessionPolicy, error) {
+	if len(policies) > 1 {
+		return identitydomain.SessionPolicy{}, identityapp.ErrValidation
+	}
+	var policy identitydomain.SessionPolicy
+	if len(policies) == 1 {
+		policy = policies[0]
+	}
+	policy, ok := policy.Normalized()
+	if !ok {
+		return identitydomain.SessionPolicy{}, identityapp.ErrValidation
+	}
+	return policy, nil
 }
 
 type sessionTransactions struct{ factory app.UnitOfWorkFactory }

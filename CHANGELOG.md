@@ -23,6 +23,16 @@ CSRF regressions now issue real human sessions while retaining their original
 status, replay and denied-effect assertions. Broader lifecycle, OIDC/SAML and
 abuse-resistance work remains incomplete under EVY-1005.
 
+Added bounded session lifecycle behavior (EVY-1008): issuance captures finite
+absolute/idle policy, authentication checks current identity/grants under locks
+and commits monotonic last use without extending expiry or replacing a secret.
+Cookie and Bearer paths reject idle, expired, revoked, inactive-user/provider
+and over-lifetime sessions. Session schema v1.1.0 adds policy/activity metadata;
+the migration preserves historical core fields and does not revive old idle
+sessions. See the [configuration and upgrade limits](docs/reference/configuration.md#sso-session-lifecycle-unreleased).
+OIDC/SAML request/proof binding and failure limits remain incomplete; this
+change is not a release or a broader security-readiness claim.
+
 Recorded EVY-1002's exact repository-controlled prerelease API compatibility
 review: the unchanged `v0.1.0-rc.7` artifact is compared with 205 selected
 differences, retaining all 135 previously reviewed entries and adding 70

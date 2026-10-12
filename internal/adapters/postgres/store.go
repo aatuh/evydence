@@ -529,7 +529,7 @@ func (s *Store) loadRelationalIdentityLinks(ctx context.Context, state *app.Pers
 }
 
 func (s *Store) loadRelationalSSOSessions(ctx context.Context, state *app.PersistedState, loaded *bool) error {
-	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, user_id, provider_id, prefix, hash, COALESCE(groups, '[]'::jsonb), expires_at, revoked_at, schema_version, created_at FROM sso_sessions`)
+	rows, err := s.pool.Query(ctx, `SELECT id, tenant_id, user_id, provider_id, prefix, hash, COALESCE(groups, '[]'::jsonb), expires_at, revoked_at, schema_version, created_at, last_used_at, maximum_lifetime_seconds, idle_timeout_seconds FROM sso_sessions`)
 	if err != nil {
 		return fmt.Errorf("load relational sso sessions: %w", err)
 	}
@@ -538,8 +538,8 @@ func (s *Store) loadRelationalSSOSessions(ctx context.Context, state *app.Persis
 		var session domain.SSOSession
 		var hash string
 		var groups []byte
-		var revokedAt sql.NullTime
-		if err := rows.Scan(&session.ID, &session.TenantID, &session.UserID, &session.ProviderID, &session.Prefix, &hash, &groups, &session.ExpiresAt, &revokedAt, &session.SchemaVersion, &session.CreatedAt); err != nil {
+		var revokedAt, lastUsedAt sql.NullTime
+		if err := rows.Scan(&session.ID, &session.TenantID, &session.UserID, &session.ProviderID, &session.Prefix, &hash, &groups, &session.ExpiresAt, &revokedAt, &session.SchemaVersion, &session.CreatedAt, &lastUsedAt, &session.MaximumLifetimeSeconds, &session.IdleTimeoutSeconds); err != nil {
 			return fmt.Errorf("scan relational sso session: %w", err)
 		}
 		if len(groups) > 0 {
@@ -548,6 +548,7 @@ func (s *Store) loadRelationalSSOSessions(ctx context.Context, state *app.Persis
 			}
 		}
 		session.RevokedAt = nullableSQLTime(revokedAt)
+		session.LastUsedAt = nullableSQLTime(lastUsedAt)
 		state.SSOSessions[session.ID] = session
 		state.SSOSessionHashes[session.ID] = hash
 		*loaded = true
@@ -5051,20 +5052,27 @@ func syncIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, state app.Persis
 		if err != nil {
 			return fmt.Errorf("encode sso session groups: %w", err)
 		}
+		maximumLifetimeSeconds, idleTimeoutSeconds, err := sessionLifecycleMetadata(session)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO sso_sessions (
 				id, tenant_id, user_id, provider_id, prefix, hash, groups, expires_at,
-				revoked_at, schema_version, created_at
+				revoked_at, schema_version, created_at, last_used_at, maximum_lifetime_seconds, idle_timeout_seconds
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11)
+			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14)
 			ON CONFLICT (id) DO UPDATE SET
 				prefix = EXCLUDED.prefix,
 				hash = EXCLUDED.hash,
 				groups = EXCLUDED.groups,
 				expires_at = EXCLUDED.expires_at,
-				revoked_at = EXCLUDED.revoked_at,
-				schema_version = EXCLUDED.schema_version
-		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, string(groups), session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt)); err != nil {
+				revoked_at = COALESCE(sso_sessions.revoked_at, EXCLUDED.revoked_at),
+				schema_version = EXCLUDED.schema_version,
+				last_used_at = GREATEST(sso_sessions.last_used_at, EXCLUDED.last_used_at),
+				maximum_lifetime_seconds = LEAST(sso_sessions.maximum_lifetime_seconds, EXCLUDED.maximum_lifetime_seconds),
+				idle_timeout_seconds = LEAST(sso_sessions.idle_timeout_seconds, EXCLUDED.idle_timeout_seconds)
+		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, string(groups), session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt), nullableTime(session.LastUsedAt), maximumLifetimeSeconds, idleTimeoutSeconds); err != nil {
 			return fmt.Errorf("upsert sso session row: %w", err)
 		}
 	}
@@ -5195,20 +5203,27 @@ func syncCriticalIdentityAndIdempotency(ctx context.Context, tx pgx.Tx, mutation
 		if err != nil {
 			return fmt.Errorf("encode critical sso session groups: %w", err)
 		}
+		maximumLifetimeSeconds, idleTimeoutSeconds, err := sessionLifecycleMetadata(session)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO sso_sessions (
 				id, tenant_id, user_id, provider_id, prefix, hash, groups, expires_at,
-				revoked_at, schema_version, created_at
+				revoked_at, schema_version, created_at, last_used_at, maximum_lifetime_seconds, idle_timeout_seconds
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11)
+			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14)
 			ON CONFLICT (id) DO UPDATE SET
 				prefix = EXCLUDED.prefix,
 				hash = EXCLUDED.hash,
 				groups = EXCLUDED.groups,
 				expires_at = EXCLUDED.expires_at,
-				revoked_at = EXCLUDED.revoked_at,
-				schema_version = EXCLUDED.schema_version
-		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, string(groups), session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt)); err != nil {
+				revoked_at = COALESCE(sso_sessions.revoked_at, EXCLUDED.revoked_at),
+				schema_version = EXCLUDED.schema_version,
+				last_used_at = GREATEST(sso_sessions.last_used_at, EXCLUDED.last_used_at),
+				maximum_lifetime_seconds = LEAST(sso_sessions.maximum_lifetime_seconds, EXCLUDED.maximum_lifetime_seconds),
+				idle_timeout_seconds = LEAST(sso_sessions.idle_timeout_seconds, EXCLUDED.idle_timeout_seconds)
+		`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, hash, string(groups), session.ExpiresAt, nullableTime(session.RevokedAt), session.SchemaVersion, nonZeroTime(session.CreatedAt), nullableTime(session.LastUsedAt), maximumLifetimeSeconds, idleTimeoutSeconds); err != nil {
 			return fmt.Errorf("upsert critical sso session row: %w", err)
 		}
 	}

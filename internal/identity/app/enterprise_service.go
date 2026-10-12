@@ -507,7 +507,7 @@ func (s *Service) CreateSSOSession(ctx context.Context, actor identitydomain.Act
 		return identitydomain.SSOSession{}, "", err
 	}
 	now := s.clock.Now().UTC().Truncate(time.Microsecond)
-	if !input.ExpiresAt.After(now) {
+	if !input.ExpiresAt.After(now) || input.ExpiresAt.After(now.Add(s.sessionPolicy.MaximumLifetime)) {
 		return identitydomain.SSOSession{}, "", ErrValidation
 	}
 	user, err := s.reader.User(ctx, actor.TenantID, input.UserID)
@@ -528,7 +528,7 @@ func (s *Service) CreateSSOSession(ctx context.Context, actor identitydomain.Act
 	if err != nil {
 		return identitydomain.SSOSession{}, "", err
 	}
-	if !validCredential(credential) {
+	if !validIssuedSessionCredential(credential) {
 		return identitydomain.SSOSession{}, "", ErrValidation
 	}
 	session := identitydomain.SSOSession{
@@ -536,13 +536,28 @@ func (s *Service) CreateSSOSession(ctx context.Context, actor identitydomain.Act
 		Prefix: credential.Prefix, ExpiresAt: input.ExpiresAt.UTC(), SchemaVersion: identitydomain.SSOSessionSchemaVersion,
 		CreatedAt: now, Hash: credential.Hash,
 	}
+	session.LastUsedAt = &now
+	session.MaximumLifetimeSeconds = int64(s.sessionPolicy.MaximumLifetime / time.Second)
+	session.IdleTimeoutSeconds = int64(s.sessionPolicy.IdleTimeout / time.Second)
 	if err := s.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
 		if err := tx.Identity().InsertSSOSession(ctx, session); err != nil {
 			return err
 		}
-		return s.appendActorAudit(ctx, tx, actor, now, "sso_session.created", "human_user", user.ID, "", "")
+		if err := s.appendActorAudit(ctx, tx, actor, now, "sso_session.created", "human_user", user.ID, "", ""); err != nil {
+			return err
+		}
+		if !session.ActiveAt(s.clock.Now().UTC()) {
+			return ErrValidation
+		}
+		return nil
 	}); err != nil {
 		return identitydomain.SSOSession{}, "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return identitydomain.SSOSession{}, "", err
+	}
+	if !session.ActiveAt(s.clock.Now().UTC()) {
+		return identitydomain.SSOSession{}, "", ErrValidation
 	}
 	return publicSession(session), credential.Secret, nil
 }
@@ -658,10 +673,6 @@ func validSSOType(value string) bool { return value == "oidc" || value == "saml"
 
 func normalizedIssuer(value string) string { return strings.TrimRight(strings.TrimSpace(value), "/") }
 
-func validCredential(value Credential) bool {
-	return strings.TrimSpace(value.Secret) != "" && strings.TrimSpace(value.Prefix) != "" && strings.TrimSpace(value.Hash) != ""
-}
-
 func publicSession(value identitydomain.SSOSession) identitydomain.SSOSession {
 	value = cloneSSOSession(value)
 	value.Hash = ""
@@ -676,6 +687,7 @@ func cloneHumanUser(value identitydomain.HumanUser) identitydomain.HumanUser {
 func cloneSSOSession(value identitydomain.SSOSession) identitydomain.SSOSession {
 	value.Groups = append([]string(nil), value.Groups...)
 	value.RevokedAt = cloneTime(value.RevokedAt)
+	value.LastUsedAt = cloneTime(value.LastUsedAt)
 	return value
 }
 

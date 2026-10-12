@@ -61,6 +61,8 @@ func (r memoryIdentityRepository) ReadSSOSessionForRevocation(ctx context.Contex
 			}
 		}
 		out = identitydomain.SSOSession{ID: id, TenantID: tenant, UserID: v.UserID, ProviderID: v.ProviderID, Prefix: v.Prefix, Groups: slices.Clone(v.Groups), ExpiresAt: v.ExpiresAt.UTC(), SchemaVersion: v.SchemaVersion, CreatedAt: v.CreatedAt.UTC()}
+		out.LastUsedAt = cloneTimePtr(v.LastUsedAt)
+		out.MaximumLifetimeSeconds, out.IdleTimeoutSeconds = v.MaximumLifetimeSeconds, v.IdleTimeoutSeconds
 		if len(out.Groups) == 0 {
 			out.Groups = nil
 		}

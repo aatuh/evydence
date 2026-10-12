@@ -159,8 +159,35 @@ func (a postgresFixtureIdentityActivity) RecordAPIKeyUse(ctx context.Context, ke
 	}
 	return writer.RecordAPIKeyUse(ctx, key, activity)
 }
-func (a postgresFixtureIdentityActivity) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, now time.Time) error {
-	return a.identity.ValidateActiveSSOSession(ctx, domain.SSOSession(session), now)
+func (a postgresFixtureIdentityActivity) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, expected identityapp.SessionIdentity, clock application.Clock) (time.Time, error) {
+	reader, ok := a.identity.(interface {
+		SessionIdentity(context.Context, identitydomain.SSOSession) (identityapp.SessionIdentity, error)
+	})
+	if !ok {
+		return time.Time{}, app.ErrValidation
+	}
+	current, err := reader.SessionIdentity(ctx, session)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if !identityapp.SameSessionIdentity(current, expected) {
+		return time.Time{}, app.ErrUnauthorized
+	}
+	if err := a.identity.ValidateActiveSSOSession(ctx, domain.SSOSession(session), clock.Now().UTC()); err != nil {
+		return time.Time{}, err
+	}
+	metadataReader, ok := a.identity.(identityapp.SSOSessionRevocationReader)
+	if !ok {
+		return time.Time{}, app.ErrValidation
+	}
+	metadata, err := metadataReader.ReadSSOSessionForRevocation(ctx, session.TenantID, session.ID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if metadata.LastUsedAt == nil {
+		return time.Time{}, app.ErrValidation
+	}
+	return metadata.LastUsedAt.UTC(), nil
 }
 
 func postgresIdentityFixtureError(err error) error {

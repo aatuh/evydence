@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 // MemoryUnitOfWorkFactory provides deterministic transaction semantics for
@@ -588,6 +589,12 @@ func (r memoryIdentityRepository) InsertSSOSession(ctx context.Context, session 
 		if cloned.ID == "" || cloned.Prefix == "" || cloned.Hash == "" || cloned.ExpiresAt.IsZero() || cloned.SchemaVersion == "" || cloned.CreatedAt.IsZero() {
 			return ErrValidation
 		}
+		policy, ok := identitydomain.SSOSession(cloned).LifecyclePolicy()
+		if !ok || !identitydomain.SSOSession(cloned).ActiveAt(cloned.CreatedAt) {
+			return ErrValidation
+		}
+		cloned.MaximumLifetimeSeconds = int64(policy.MaximumLifetime / time.Second)
+		cloned.IdleTimeoutSeconds = int64(policy.IdleTimeout / time.Second)
 		user, userExists := state.Users[cloned.UserID]
 		if !userExists || user.TenantID != cloned.TenantID || user.Status != "active" || !memoryResourceBelongsToTenant(cloned.ProviderID, cloned.TenantID, state.SSOProviders) {
 			return ErrNotFound
@@ -606,13 +613,23 @@ func (r memoryIdentityRepository) ValidateActiveSSOSession(ctx context.Context, 
 	}
 	return r.membershipRead(ctx, session.TenantID, func(state *MemoryUnitOfWorkSnapshot) error {
 		stored, ok := state.SSOSessions[session.ID]
-		if !ok || stored.ID != session.ID || stored.TenantID != session.TenantID || stored.UserID != session.UserID || stored.ProviderID != session.ProviderID || stored.Prefix != session.Prefix || !secretHashEqual(stored.Hash, session.Hash) || stored.RevokedAt != nil || !stored.ExpiresAt.After(now) {
+		if !ok || stored.ID != session.ID || stored.TenantID != session.TenantID || stored.UserID != session.UserID || stored.ProviderID != session.ProviderID || stored.Prefix != session.Prefix || !secretHashEqual(stored.Hash, session.Hash) || !identitydomain.SSOSession(stored).ActiveAt(now) || !stored.CreatedAt.Equal(session.CreatedAt) || !stored.ExpiresAt.Equal(session.ExpiresAt) || !slices.Equal(stored.Groups, session.Groups) {
 			return ErrUnauthorized
 		}
 		user, ok := state.Users[stored.UserID]
 		if !ok || user.ID != stored.UserID || user.TenantID != stored.TenantID || user.Status != "active" {
 			return ErrUnauthorized
 		}
+		provider, ok := state.SSOProviders[stored.ProviderID]
+		if !ok || provider.ID != stored.ProviderID || provider.TenantID != stored.TenantID || provider.Status != "active" {
+			return ErrUnauthorized
+		}
+		at := now.UTC().Truncate(time.Microsecond)
+		if stored.LastUsedAt != nil && stored.LastUsedAt.After(at) {
+			at = stored.LastUsedAt.UTC()
+		}
+		stored.LastUsedAt = &at
+		state.SSOSessions[stored.ID] = stored
 		return nil
 	})
 }
@@ -627,7 +644,8 @@ func (r memoryIdentityRepository) RevokeSSOSession(ctx context.Context, session 
 		if !ok || stored.TenantID != cloned.TenantID || stored.UserID != cloned.UserID || stored.ProviderID != cloned.ProviderID || stored.Hash != cloned.Hash || stored.RevokedAt != nil || cloned.RevokedAt == nil {
 			return ErrConflict
 		}
-		state.SSOSessions[cloned.ID] = cloned
+		stored.RevokedAt = cloneTimePtr(cloned.RevokedAt)
+		state.SSOSessions[cloned.ID] = stored
 		return nil
 	})
 }
@@ -4274,6 +4292,8 @@ func cloneMemorySigningKey(key domain.SigningKey) domain.SigningKey {
 func cloneMemorySSOSession(session domain.SSOSession) domain.SSOSession {
 	cloned := session
 	cloned.Groups = append([]string(nil), session.Groups...)
+	cloned.RevokedAt = cloneTimePtr(session.RevokedAt)
+	cloned.LastUsedAt = cloneTimePtr(session.LastUsedAt)
 	return cloned
 }
 

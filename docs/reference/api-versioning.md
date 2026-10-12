@@ -52,8 +52,23 @@ HTTPS Origin requirement for mutations. Unauthorized cookie admission clears
 the host-only `/v1` cookie; failed Origin checks, permission denials and an
 invalid explicit Bearer leave incidental cookies alone. SSO credential responses
 are marked `no-store`. Existing valid secrets, hashes, scopes, tenant ownership,
-schemas and persisted records retain their formats. Session lifecycle bounds,
-OIDC/SAML request binding/replay and failure rate limits remain EVY-1005 work.
+schemas and persisted records retain their formats for that transport change.
+
+## Unreleased SSO Session Lifecycle
+
+EVY-1008 bounds administrative issuance and exchange by the configured maximum,
+with a hard twelve-hour ceiling, and captures a finite idle timeout on new
+`sso-session.v1.1.0` records. New metadata adds optional policy/activity fields;
+older safe replay receipts retain their original shape. Secret encoding and
+HMAC format remain unchanged. Historical rows retain their labels and core
+fields, but admission now rejects idle, over-lifetime, inactive-user/provider,
+expired and revoked sessions across both transports. An upgrade does not give
+old rows a fresh activity window. These are prerelease admission restrictions;
+clients must obtain a fresh session when the old one no longer qualifies.
+
+See the [configuration reference](configuration.md#sso-session-lifecycle-unreleased)
+for exact bounds, rollout and downgrade limits. OIDC/SAML request binding/replay
+and failure rate limits remain EVY-1005 work.
 
 ## Unreleased Custom Report Template Boundary
 

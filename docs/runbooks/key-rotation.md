@@ -35,6 +35,36 @@ GitHub/GitLab secrets, branch protection, and incident notifications.
 | Release signing key | Generate a new release signing key, publish the new public key, and sign the next release manifest. | Protect the private key in the release workflow secret store. |
 | KMS/HSM provider credential | Disable the old provider credential and record signing-provider verification receipts. | Rotate provider IAM, HSM partitions, network access, and audit logs. |
 
+## SSO Session Replacement
+
+Read the [session lifecycle reference](../reference/configuration.md#sso-session-lifecycle-unreleased)
+for policy values and upgrade limits. Idle or absolute expiry requires a fresh
+session; activity never changes an existing secret or extends its absolute
+expiry.
+
+1. For suspected exposure, revoke the old session immediately with
+   `POST /v1/sso/sessions/{id}/revoke` using a tenant identity administrator.
+   The authenticated owner can revoke their current session with
+   `POST /v1/sso/logout`. Supply the required `Idempotency-Key`; unsafe cookie
+   requests also require the documented same-origin protection.
+2. Issue a replacement through `POST /v1/sso/session-exchanges` using fresh
+   configured provider credentials, or authorized administrative
+   `POST /v1/sso/sessions` with an expiry inside the current policy. Keep the
+   one-time secret in the approved private credential channel. Replaying an
+   administrative creation retrieves metadata and cannot recover the secret.
+3. Verify an operation within the new session's grants. For routine replacement,
+   revoke the prior session after this verification; do not edit its stored
+   hash, expiry, policy, or creation time.
+4. Verify the prior credential fails on both supported transports. Concurrent
+   requests admitted before revocation may complete; new admissions must fail.
+   Keep the old session/audit records. If the replacement fails, issue a forward
+   replacement rather than clearing revocation or extending the old record.
+
+Changing policy variables or provider trust material alone does not revoke
+existing sessions. Revoke affected sessions explicitly. Pepper changes invalidate
+every credential class hashed with that pepper; plan them separately from a
+single-session replacement.
+
 ## Verification
 
 After rotation:

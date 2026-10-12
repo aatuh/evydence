@@ -412,7 +412,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO identity link commands: %w", err)
 	}
-	options.SSOSessionCommands, err = BuildSSOSessionCommands(store, pepper, runtime.Production)
+	options.SSOSessionCommands, err = BuildSSOSessionCommands(store, pepper, runtime.Production, runtime.SessionPolicy)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO session commands: %w", err)
 	}
@@ -420,7 +420,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO revocation commands: %w", err)
 	}
-	options.SSOExchangeCommands, err = BuildSSOExchangeCommands(store, pepper, runtime.Production)
+	options.SSOExchangeCommands, err = BuildSSOExchangeCommands(store, pepper, runtime.Production, runtime.SessionPolicy)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO exchange commands: %w", err)
 	}

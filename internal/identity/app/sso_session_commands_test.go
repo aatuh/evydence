@@ -19,11 +19,13 @@ type sessionCommandFixture struct {
 	transactions, generations int
 	cancel                    context.CancelFunc
 	credential                Credential
+	auditHook                 func()
+	commitHook                func()
 }
 
 func (f *sessionCommandFixture) ExecuteSSOSession(ctx context.Context, fn func(context.Context, SSOSessionTransaction) error) error {
 	f.transactions++
-	staged := &sessionCommandFixture{phase: f.phase, cancel: f.cancel}
+	staged := &sessionCommandFixture{phase: f.phase, cancel: f.cancel, auditHook: f.auditHook}
 	if err := fn(ctx, staged); err != nil {
 		return err
 	}
@@ -32,6 +34,9 @@ func (f *sessionCommandFixture) ExecuteSSOSession(ctx context.Context, fn func(c
 	}
 	f.sessions = append(f.sessions, staged.sessions...)
 	f.audits = append(f.audits, staged.audits...)
+	if f.commitHook != nil {
+		f.commitHook()
+	}
 	return nil
 }
 func (f *sessionCommandFixture) GenerateSession() (Credential, error) {
@@ -74,6 +79,9 @@ func (f *sessionCommandFixture) AppendAudit(_ context.Context, v application.Aud
 		return application.AuditReceipt{}, errors.New("private session audit")
 	}
 	f.audits = append(f.audits, v)
+	if f.auditHook != nil {
+		f.auditHook()
+	}
 	if f.cancel != nil {
 		f.cancel()
 	}
@@ -93,7 +101,7 @@ func sessionCommandsForTest(t *testing.T, f *sessionCommandFixture) (*SSOSession
 		t.Fatal(err)
 	}
 	a := identitydomain.Actor{TenantID: "tenant", UserID: "operator", Scopes: []string{"identity:admin"}, ResourceGrants: []identitydomain.ResourceGrant{{ResourceType: "tenant", ResourceID: "tenant", Scopes: []string{"identity:admin"}}}}
-	return s, a, CreateSSOSessionInput{UserID: " user ", ProviderID: " provider ", ExpiresAt: now.Add(30 * 24 * time.Hour)}
+	return s, a, CreateSSOSessionInput{UserID: " user ", ProviderID: " provider ", ExpiresAt: now.Add(8 * time.Hour)}
 }
 func TestSSOSessionCommandsIssueOnceAfterCommitWithCurrentParentsAndAudit(t *testing.T) {
 	f := &sessionCommandFixture{}
@@ -117,6 +125,42 @@ func TestSSOSessionCommandsIssueOnceAfterCommitWithCurrentParentsAndAudit(t *tes
 	}
 	if _, secret, err := s.CreateSSOSession(t.Context(), a, in); !errors.Is(err, ErrValidation) || secret != "" || f.generations != 1 {
 		t.Fatal("expired request minted a session", err)
+	}
+}
+
+func TestSSOSessionCommandsRejectUnboundedLifetimeBeforeIssuingSecret(t *testing.T) {
+	for _, lifetime := range []time.Duration{12*time.Hour + time.Microsecond, 30 * 24 * time.Hour} {
+		f := &sessionCommandFixture{}
+		s, actor, input := sessionCommandsForTest(t, f)
+		input.ExpiresAt = s.config.Clock.Now().UTC().Truncate(time.Microsecond).Add(lifetime)
+		value, secret, err := s.CreateSSOSession(t.Context(), actor, input)
+		if !errors.Is(err, ErrValidation) || !reflect.DeepEqual(value, identitydomain.SSOSession{}) || secret != "" || f.generations != 0 || len(f.sessions)+len(f.audits) != 0 {
+			t.Fatalf("over-lifetime issuance returned material/effects: lifetime=%s error=%v generations=%d", lifetime, err, f.generations)
+		}
+	}
+}
+
+func TestSSOSessionCommandsWithholdSecretWhenLifecycleElapsesBeforeCommit(t *testing.T) {
+	f := &sessionCommandFixture{}
+	s, actor, input := sessionCommandsForTest(t, f)
+	at := s.config.Clock.Now()
+	s.config.Clock = application.ClockFunc(func() time.Time { return at })
+	f.auditHook = func() { at = at.Add(30 * time.Minute) }
+	value, secret, err := s.CreateSSOSession(t.Context(), actor, input)
+	if !errors.Is(err, ErrValidation) || value.ID != "" || secret != "" || len(f.sessions)+len(f.audits) != 0 {
+		t.Fatal("elapsed issuance committed a credential or effects", err)
+	}
+}
+
+func TestSSOSessionCommandsWithholdSecretWhenCommitOutlivesLifecycle(t *testing.T) {
+	f := &sessionCommandFixture{}
+	s, actor, input := sessionCommandsForTest(t, f)
+	at := s.config.Clock.Now()
+	s.config.Clock = application.ClockFunc(func() time.Time { return at })
+	f.commitHook = func() { at = at.Add(30 * time.Minute) }
+	value, secret, err := s.CreateSSOSession(t.Context(), actor, input)
+	if !errors.Is(err, ErrValidation) || value.ID != "" || secret != "" || len(f.sessions) != 1 || len(f.audits) != 1 || f.sessions[0].Hash == "" {
+		t.Fatal("late committed issuance returned unusable credential or lost committed history", err)
 	}
 }
 func TestSSOSessionCommandsRejectInputsAuthorityParentsAndDependencyFailures(t *testing.T) {

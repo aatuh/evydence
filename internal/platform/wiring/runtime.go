@@ -10,6 +10,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
@@ -44,6 +45,7 @@ type RuntimeConfig struct {
 	ProviderAPI        app.ProviderIdentityValidator
 	SigningExecutor    app.SigningExecutor
 	TransparencyProofs app.TransparencyProofFetcher
+	SessionPolicy      identitydomain.SessionPolicy
 }
 
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
@@ -60,6 +62,7 @@ type Runtime struct {
 	ProviderAPI        app.ProviderIdentityValidator
 	SigningExecutor    app.SigningExecutor
 	TransparencyProofs app.TransparencyProofFetcher
+	SessionPolicy      identitydomain.SessionPolicy
 	lease              func()
 	closed             sync.Once
 }
@@ -89,6 +92,10 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	sessionPolicy, ok := config.SessionPolicy.Normalized()
+	if !ok {
+		return nil, errors.New("invalid SSO session lifecycle policy")
+	}
 	profile, err := ResolveRuntimeProfile(string(config.Profile), config.Production, config.DatabaseURL, config.Process)
 	if err != nil {
 		return nil, err
@@ -110,7 +117,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if err != nil {
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}
-	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs}
+	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs, SessionPolicy: sessionPolicy}
 	defer func() {
 		if err != nil {
 			runtime.Close()

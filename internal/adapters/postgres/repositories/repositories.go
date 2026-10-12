@@ -20,6 +20,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
@@ -498,6 +499,10 @@ func (r identity) InsertSSOSession(ctx context.Context, session domain.SSOSessio
 	if session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" || session.ExpiresAt.IsZero() || session.SchemaVersion == "" || session.CreatedAt.IsZero() {
 		return app.ErrValidation
 	}
+	policy, ok := identitydomain.SSOSession(session).LifecyclePolicy()
+	if !ok || !identitydomain.SSOSession(session).ActiveAt(session.CreatedAt) {
+		return app.ErrValidation
+	}
 	if err := requireOwnedActiveHumanUser(ctx, r.tx, session.TenantID, session.UserID); err != nil {
 		return err
 	}
@@ -511,10 +516,10 @@ func (r identity) InsertSSOSession(ctx context.Context, session domain.SSOSessio
 	_, err = r.tx.Exec(ctx, `
 		INSERT INTO sso_sessions (
 			id, tenant_id, user_id, provider_id, prefix, hash, groups, expires_at,
-			revoked_at, schema_version, created_at
+			revoked_at, schema_version, created_at, last_used_at, maximum_lifetime_seconds, idle_timeout_seconds
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, session.Hash, groups, session.ExpiresAt, session.RevokedAt, session.SchemaVersion, session.CreatedAt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, session.Hash, groups, session.ExpiresAt, session.RevokedAt, session.SchemaVersion, session.CreatedAt, session.LastUsedAt, int64(policy.MaximumLifetime/time.Second), int64(policy.IdleTimeout/time.Second))
 	return writeError("insert SSO session", err)
 }
 
@@ -522,17 +527,22 @@ func (r identity) ValidateActiveSSOSession(ctx context.Context, session domain.S
 	if session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" || now.IsZero() {
 		return app.ErrValidation
 	}
-	err := requireRow(ctx, r.tx, `
-		SELECT 1
-		FROM sso_sessions AS session
-		JOIN human_users AS user_record
-		  ON user_record.id = session.user_id AND user_record.tenant_id = session.tenant_id
+	result, err := r.tx.Exec(ctx, `
+		UPDATE sso_sessions AS session SET last_used_at=GREATEST(COALESCE(session.last_used_at,session.created_at),$7)
+		FROM human_users AS user_record, sso_providers AS provider
 		WHERE session.id = $1 AND session.tenant_id = $2 AND session.user_id = $3
 		  AND session.provider_id = $4 AND session.prefix = $5 AND session.hash = $6
 		  AND session.revoked_at IS NULL AND session.expires_at > $7
+		  AND session.created_at <= $7
+		  AND session.expires_at <= session.created_at + session.maximum_lifetime_seconds * interval '1 second'
+		  AND COALESCE(session.last_used_at,session.created_at) >= session.created_at
+		  AND COALESCE(session.last_used_at,session.created_at) < session.expires_at
+		  AND COALESCE(session.last_used_at,session.created_at) + session.idle_timeout_seconds * interval '1 second' > $7
+		  AND user_record.id=session.user_id AND user_record.tenant_id=session.tenant_id
+		  AND provider.id=session.provider_id AND provider.tenant_id=session.tenant_id AND provider.status='active'
 		  AND user_record.status = 'active'
 	`, session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, session.Hash, now)
-	if errors.Is(err, app.ErrNotFound) {
+	if err == nil && result.RowsAffected() != 1 {
 		return app.ErrUnauthorized
 	}
 	return err

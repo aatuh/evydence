@@ -1639,16 +1639,19 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "id", "tenant_id", "user_id", "provider_id", "subject", "email", "verified", "schema_version", "created_at"))
 	registry.RegisterSchema("UserIdentityLinkEnvelope", dataEnvelopeSchema("#/components/schemas/UserIdentityLink"))
 	registry.RegisterSchema("SSOSession", objectSchema(map[string]any{
-		"id":             map[string]any{"type": "string"},
-		"tenant_id":      map[string]any{"type": "string"},
-		"user_id":        map[string]any{"type": "string"},
-		"provider_id":    map[string]any{"type": "string"},
-		"prefix":         map[string]any{"type": "string", "description": "Non-secret session token prefix for audit displays."},
-		"groups":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Provider group claim values captured for session-scoped role mapping."},
-		"expires_at":     map[string]any{"type": "string", "format": "date-time"},
-		"revoked_at":     map[string]any{"type": "string", "format": "date-time"},
-		"schema_version": map[string]any{"type": "string"},
-		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+		"last_used_at":             map[string]any{"type": "string", "format": "date-time", "description": "Initialized at issuance and advanced by committed authentication activity; absent on older metadata receipts."},
+		"maximum_lifetime_seconds": map[string]any{"type": "integer", "format": "int64", "minimum": 60, "maximum": 43200, "description": "Captured issuance policy; the absolute expiry cannot exceed this lifetime from created_at. Optional on older receipts."},
+		"idle_timeout_seconds":     map[string]any{"type": "integer", "format": "int64", "minimum": 60, "maximum": 43200, "description": "Captured idle policy, at most maximum_lifetime_seconds. Older stored rows use creation as their initial activity time."},
+		"id":                       map[string]any{"type": "string"},
+		"tenant_id":                map[string]any{"type": "string"},
+		"user_id":                  map[string]any{"type": "string"},
+		"provider_id":              map[string]any{"type": "string"},
+		"prefix":                   map[string]any{"type": "string", "description": "Non-secret session token prefix for audit displays."},
+		"groups":                   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Provider group claim values captured for session-scoped role mapping."},
+		"expires_at":               map[string]any{"type": "string", "format": "date-time"},
+		"revoked_at":               map[string]any{"type": "string", "format": "date-time"},
+		"schema_version":           map[string]any{"type": "string"},
+		"created_at":               map[string]any{"type": "string", "format": "date-time"},
 	}, "id", "tenant_id", "user_id", "provider_id", "prefix", "expires_at", "schema_version", "created_at"))
 	registry.RegisterSchema("SSOSessionEnvelope", dataEnvelopeSchema("#/components/schemas/SSOSession"))
 	registry.RegisterSchema("SSOSessionCreateResponse", objectSchema(map[string]any{

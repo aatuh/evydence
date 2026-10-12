@@ -79,6 +79,10 @@ func runWithContext(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	sessionPolicy, err := sessionPolicyFromEnv()
+	if err != nil {
+		return err
+	}
 	oidcClient := oidcdiscovery.New(oidcdiscovery.Config{
 		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
@@ -117,6 +121,7 @@ func runWithContext(ctx context.Context) error {
 		ProviderAPI:        providerValidator,
 		SigningExecutor:    signer,
 		TransparencyProofs: transparencyFetcher,
+		SessionPolicy:      sessionPolicy,
 	})
 	if err != nil {
 		return err

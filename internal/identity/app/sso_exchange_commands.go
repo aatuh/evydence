@@ -45,6 +45,7 @@ type SSOExchangeCommandConfig struct {
 	SessionGrants      SessionGrantPolicy
 	Clock              application.Clock
 	IDs                application.IDGenerator
+	SessionPolicy      identitydomain.SessionPolicy
 }
 type SSOExchangeCommands struct{ config SSOExchangeCommandConfig }
 
@@ -52,6 +53,11 @@ func NewSSOExchangeCommands(c SSOExchangeCommandConfig) (*SSOExchangeCommands, e
 	if c.Reader == nil || c.Transactions == nil || c.Credentials == nil || c.Verifier == nil || c.VerificationPolicy == nil || c.SessionGrants == nil || c.Clock == nil || c.IDs == nil {
 		return nil, ErrValidation
 	}
+	policy, ok := c.SessionPolicy.Normalized()
+	if !ok {
+		return nil, ErrValidation
+	}
+	c.SessionPolicy = policy
 	return &SSOExchangeCommands{config: c}, nil
 }
 
@@ -83,8 +89,11 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	}
 	if expiresAt.IsZero() {
 		expiresAt = now.Add(8 * time.Hour)
+		if expiresAt.After(now.Add(s.config.SessionPolicy.MaximumLifetime)) {
+			expiresAt = now.Add(s.config.SessionPolicy.MaximumLifetime)
+		}
 	}
-	if !validAPIKeyTime(expiresAt) || !expiresAt.After(now) || expiresAt.After(now.Add(12*time.Hour)) {
+	if !validAPIKeyTime(expiresAt) || !expiresAt.After(now) || expiresAt.After(now.Add(s.config.SessionPolicy.MaximumLifetime)) {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
 	provider, err := s.config.Reader.SSOProviderByID(ctx, input.ProviderID)
@@ -209,7 +218,7 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if err != nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
-	if !validCredential(credential) {
+	if !validIssuedSessionCredential(credential) {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
 	session := identitydomain.SSOSession{
@@ -217,6 +226,9 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 		Prefix: credential.Prefix, Groups: append([]string(nil), groups...), ExpiresAt: expiresAt,
 		SchemaVersion: identitydomain.SSOSessionSchemaVersion, CreatedAt: now, Hash: credential.Hash,
 	}
+	session.LastUsedAt = &now
+	session.MaximumLifetimeSeconds = int64(s.config.SessionPolicy.MaximumLifetime / time.Second)
+	session.IdleTimeoutSeconds = int64(s.config.SessionPolicy.IdleTimeout / time.Second)
 	if err := s.execute(ctx, snapshot, func(ctx context.Context, tx SSOExchangeTransaction) error {
 		policy.VerificationResult = verification.Result
 		if err := authz.AuthorizeSSOExchange(ctx, policy); err != nil {
@@ -238,9 +250,18 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 		if err := tx.InsertSSOSession(ctx, cloneSSOSession(session)); err != nil {
 			return err
 		}
-		return s.appendAudit(ctx, tx, now, provider.TenantID, "sso_session.created", "human_user", user.ID, provider.ID)
+		if err := s.appendAudit(ctx, tx, now, provider.TenantID, "sso_session.created", "human_user", user.ID, provider.ID); err != nil {
+			return err
+		}
+		if !session.ActiveAt(s.config.Clock.Now().UTC()) {
+			return ErrValidation
+		}
+		return nil
 	}); err != nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
+	}
+	if !session.ActiveAt(s.config.Clock.Now().UTC()) {
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
 	return cloneProviderVerification(verification), publicSession(session), credential.Secret, nil
 }

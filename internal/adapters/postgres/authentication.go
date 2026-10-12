@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/authz"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -78,7 +80,8 @@ func (s *Store) SessionsByPrefix(ctx context.Context, prefix string) ([]identity
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, tenant_id, user_id, provider_id, prefix, hash, groups,
-		       expires_at, revoked_at, schema_version, created_at
+		       expires_at, revoked_at, schema_version, created_at, last_used_at,
+		       maximum_lifetime_seconds, idle_timeout_seconds
 		FROM sso_sessions WHERE prefix = $1 AND revoked_at IS NULL
 		ORDER BY id LIMIT 65`, prefix)
 	if err != nil {
@@ -89,10 +92,11 @@ func (s *Store) SessionsByPrefix(ctx context.Context, prefix string) ([]identity
 	for rows.Next() {
 		var session identitydomain.SSOSession
 		var groups []byte
-		var revokedAt sql.NullTime
+		var revokedAt, lastUsedAt sql.NullTime
 		if err := rows.Scan(&session.ID, &session.TenantID, &session.UserID, &session.ProviderID,
 			&session.Prefix, &session.Hash, &groups, &session.ExpiresAt,
-			&revokedAt, &session.SchemaVersion, &session.CreatedAt); err != nil {
+			&revokedAt, &session.SchemaVersion, &session.CreatedAt, &lastUsedAt,
+			&session.MaximumLifetimeSeconds, &session.IdleTimeoutSeconds); err != nil {
 			return nil, fmt.Errorf("scan session candidate: %w", err)
 		}
 		if len(groups) > maxStoredAuthJSONBytes {
@@ -102,6 +106,7 @@ func (s *Store) SessionsByPrefix(ctx context.Context, prefix string) ([]identity
 			return nil, errors.New("invalid stored session groups")
 		}
 		session.RevokedAt = nullTimePtr(revokedAt)
+		session.LastUsedAt = nullTimePtr(lastUsedAt)
 		sessions = append(sessions, session)
 		if len(sessions) > maxCredentialPrefixMatches {
 			return nil, errors.New("too many session candidates")
@@ -158,10 +163,18 @@ func (s *Store) SessionIdentity(ctx context.Context, session identitydomain.SSOS
 		return identityapp.SessionIdentity{}, fmt.Errorf("begin session identity read: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	return readSessionIdentity(ctx, tx, session, false)
+}
+
+func readSessionIdentity(ctx context.Context, tx pgx.Tx, session identitydomain.SSOSession, lock bool) (identityapp.SessionIdentity, error) {
+	lockClause := ""
+	if lock {
+		lockClause = " FOR SHARE"
+	}
 	var user identitydomain.HumanUser
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		SELECT id, tenant_id, email, status FROM human_users
-		WHERE tenant_id = $1 AND id = $2`, session.TenantID, session.UserID).
+		WHERE tenant_id = $1 AND id = $2`+lockClause, session.TenantID, session.UserID).
 		Scan(&user.ID, &user.TenantID, &user.Email, &user.Status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return identityapp.SessionIdentity{}, identityapp.ErrNotFound
@@ -173,7 +186,7 @@ func (s *Store) SessionIdentity(ctx context.Context, session identitydomain.SSOS
 		SELECT role, COALESCE(resource_type, ''), COALESCE(resource_id, '')
 		FROM role_bindings
 		WHERE tenant_id = $1 AND subject_type = 'user' AND subject_id = $2
-		ORDER BY created_at, id LIMIT 257`, session.TenantID, session.UserID)
+		ORDER BY created_at, id LIMIT 257`+lockClause, session.TenantID, session.UserID)
 	if err != nil {
 		return identityapp.SessionIdentity{}, fmt.Errorf("read user grants: %w", err)
 	}
@@ -201,12 +214,15 @@ func (s *Store) SessionIdentity(ctx context.Context, session identitydomain.SSOS
 		return identityapp.SessionIdentity{}, fmt.Errorf("read user grants: %w", err)
 	}
 	rows.Close()
-	var providerTenantID, groupsClaim string
+	var providerTenantID, groupsClaim, status string
 	var mappingJSON []byte
 	err = tx.QueryRow(ctx, `
-		SELECT tenant_id, COALESCE(groups_claim, ''), role_mapping
-		FROM sso_providers WHERE tenant_id = $1 AND id = $2`, session.TenantID, session.ProviderID).
-		Scan(&providerTenantID, &groupsClaim, &mappingJSON)
+		SELECT tenant_id, COALESCE(groups_claim, ''), role_mapping, status
+		FROM sso_providers WHERE tenant_id = $1 AND id = $2`+lockClause, session.TenantID, session.ProviderID).
+		Scan(&providerTenantID, &groupsClaim, &mappingJSON, &status)
+	if lock && (errors.Is(err, pgx.ErrNoRows) || err == nil && status != "active") {
+		return identityapp.SessionIdentity{}, identityapp.ErrUnauthorized
+	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return identityapp.SessionIdentity{}, fmt.Errorf("read session provider: %w", err)
 	}
@@ -284,28 +300,63 @@ func (s *Store) RecordAPIKeyUse(ctx context.Context, key identitydomain.APIKey, 
 	return nil
 }
 
-func (s *Store) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, now time.Time) error {
-	if s == nil || s.pool == nil || ctx == nil || session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" || now.IsZero() {
-		return identityapp.ErrValidation
+func (s *Store) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, expected identityapp.SessionIdentity, clock application.Clock) (time.Time, error) {
+	if s == nil || s.pool == nil || ctx == nil || clock == nil || session.ID == "" || session.TenantID == "" || session.UserID == "" || session.ProviderID == "" || session.Prefix == "" || session.Hash == "" {
+		return time.Time{}, identityapp.ErrValidation
 	}
-	var active int
-	err := s.pool.QueryRow(ctx, `
-		SELECT 1 FROM sso_sessions AS session
-		JOIN human_users AS user_record
-		  ON user_record.id = session.user_id AND user_record.tenant_id = session.tenant_id
-		WHERE session.id = $1 AND session.tenant_id = $2 AND session.user_id = $3
-		  AND session.provider_id = $4 AND session.prefix = $5 AND session.hash = $6
-		  AND session.revoked_at IS NULL AND session.expires_at > $7
-		  AND user_record.status = 'active'`,
-		session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, session.Hash, now).
-		Scan(&active)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("begin session activity: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	current := session
+	var revoked, lastUsed sql.NullTime
+	var groups []byte
+	err = tx.QueryRow(ctx, `SELECT created_at, expires_at, revoked_at, last_used_at, maximum_lifetime_seconds, idle_timeout_seconds,
+		CASE WHEN octet_length(groups::text) <= $7 THEN groups ELSE NULL END
+		FROM sso_sessions WHERE id=$1 AND tenant_id=$2 AND user_id=$3 AND provider_id=$4 AND prefix=$5 AND hash=$6 FOR UPDATE`,
+		session.ID, session.TenantID, session.UserID, session.ProviderID, session.Prefix, session.Hash, maxStoredAuthJSONBytes).
+		Scan(&current.CreatedAt, &current.ExpiresAt, &revoked, &lastUsed, &current.MaximumLifetimeSeconds, &current.IdleTimeoutSeconds, &groups)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return identityapp.ErrUnauthorized
+		return time.Time{}, identityapp.ErrUnauthorized
 	}
 	if err != nil {
-		return fmt.Errorf("validate active session: %w", err)
+		return time.Time{}, fmt.Errorf("validate active session: %w", err)
 	}
-	return nil
+	current.RevokedAt, current.LastUsedAt = nullTimePtr(revoked), nullTimePtr(lastUsed)
+	if json.Unmarshal(groups, &current.Groups) != nil || len(current.Groups) > maxSessionGroups {
+		return time.Time{}, identityapp.ErrUnauthorized
+	}
+	beforePolicy, beforeOK := session.LifecyclePolicy()
+	currentPolicy, currentOK := current.LifecyclePolicy()
+	if !beforeOK || !currentOK || beforePolicy != currentPolicy || !current.CreatedAt.Equal(session.CreatedAt) || !current.ExpiresAt.Equal(session.ExpiresAt) || !slices.Equal(current.Groups, session.Groups) {
+		return time.Time{}, identityapp.ErrUnauthorized
+	}
+	identity, err := readSessionIdentity(ctx, tx, current, true)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if identity.User.Status != "active" || !identityapp.SameSessionIdentity(identity, expected) {
+		return time.Time{}, identityapp.ErrUnauthorized
+	}
+	// Sample time after the session, identity and grant locks are held. Waiting
+	// for a concurrent revocation cannot revive an expired or idle credential.
+	now := clock.Now().UTC().Truncate(time.Microsecond)
+	if !current.ActiveAt(now) {
+		return time.Time{}, identityapp.ErrUnauthorized
+	}
+	var used time.Time
+	err = tx.QueryRow(ctx, `UPDATE sso_sessions SET last_used_at=GREATEST(COALESCE(last_used_at,created_at),$3) WHERE tenant_id=$1 AND id=$2 RETURNING last_used_at`, current.TenantID, current.ID, now).Scan(&used)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("record session activity: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return time.Time{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return time.Time{}, err
+	}
+	return used.UTC(), nil
 }
 
 func nullTimePtr(value sql.NullTime) *time.Time {

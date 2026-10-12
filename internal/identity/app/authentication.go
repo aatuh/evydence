@@ -30,7 +30,7 @@ type AuthenticationCredentials interface {
 // explicit. An adapter must commit key and collector activity atomically.
 type AuthenticationActivity interface {
 	RecordAPIKeyUse(context.Context, identitydomain.APIKey, CollectorActivity) error
-	ValidateActiveSession(context.Context, identitydomain.SSOSession, time.Time) error
+	ValidateActiveSession(context.Context, identitydomain.SSOSession, SessionIdentity, application.Clock) (time.Time, error)
 }
 
 type AuthenticationConfig struct {
@@ -64,10 +64,17 @@ func (a transactionAuthenticationActivity) RecordAPIKeyUse(ctx context.Context, 
 	})
 }
 
-func (a transactionAuthenticationActivity) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, now time.Time) error {
-	return a.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
-		return tx.Identity().ValidateActiveSession(ctx, session, now)
+func (a transactionAuthenticationActivity) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, identity SessionIdentity, clock application.Clock) (time.Time, error) {
+	var used time.Time
+	err := a.transactions.Execute(ctx, func(ctx context.Context, tx Transaction) error {
+		var err error
+		used, err = tx.Identity().ValidateActiveSession(ctx, session, identity, clock)
+		return err
 	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	return used, nil
 }
 
 func (a *Authenticator) Authenticate(ctx context.Context, secret string) (identitydomain.Actor, error) {
@@ -131,7 +138,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, secret string) (identi
 	}
 	for _, session := range sessions {
 		now := a.clock.Now().UTC()
-		if session.Prefix != prefix || !a.credentials.Equal(session.Hash, hash) || session.RevokedAt != nil || !session.ExpiresAt.After(now) {
+		if session.Prefix != prefix || !a.credentials.Equal(session.Hash, hash) || !session.ActiveAt(now) {
 			continue
 		}
 		identity, err := a.reader.SessionIdentity(ctx, session)
@@ -141,13 +148,23 @@ func (a *Authenticator) Authenticate(ctx context.Context, secret string) (identi
 		if identity.User.TenantID != session.TenantID || identity.User.ID != session.UserID || identity.User.Status != "active" {
 			return identitydomain.Actor{}, ErrUnauthorized
 		}
-		if err := a.activity.ValidateActiveSession(ctx, session, now); err != nil {
-			return identitydomain.Actor{}, authenticationError(ctx)
-		}
+		identity.User = cloneHumanUser(identity.User)
 		grants := cloneGrants(identity.Grants)
 		scopes := scopesFromGrants(grants)
 		if len(scopes) == 0 {
 			return identitydomain.Actor{}, ErrForbidden
+		}
+		identity.Grants = cloneGrants(grants)
+		used, err := a.activity.ValidateActiveSession(ctx, cloneSSOSession(session), identity, a.clock)
+		if err != nil {
+			return identitydomain.Actor{}, authenticationError(ctx)
+		}
+		if err := ctx.Err(); err != nil {
+			return identitydomain.Actor{}, err
+		}
+		session.LastUsedAt = &used
+		if !session.ActiveAt(a.clock.Now().UTC()) {
+			return identitydomain.Actor{}, ErrUnauthorized
 		}
 		return identitydomain.Actor{
 			TenantID: identity.User.TenantID, UserID: identity.User.ID, SessionID: session.ID, Name: identity.User.Email,
@@ -155,4 +172,19 @@ func (a *Authenticator) Authenticate(ctx context.Context, secret string) (identi
 		}, nil
 	}
 	return identitydomain.Actor{}, ErrUnauthorized
+}
+
+// SameSessionIdentity compares every coordinate that contributes to the actor.
+// Admission adapters use it while holding the selected identity/grant rows.
+func SameSessionIdentity(a, b SessionIdentity) bool {
+	if a.User.ID != b.User.ID || a.User.TenantID != b.User.TenantID || a.User.Email != b.User.Email || a.User.Status != b.User.Status || len(a.Grants) != len(b.Grants) {
+		return false
+	}
+	for i, grant := range a.Grants {
+		other := b.Grants[i]
+		if grant.Role != other.Role || grant.ResourceType != other.ResourceType || grant.ResourceID != other.ResourceID || !slices.Equal(grant.Scopes, other.Scopes) {
+			return false
+		}
+	}
+	return true
 }

@@ -443,22 +443,26 @@ func (t *ledgerIdentityTransaction) UpdateAPIKeyActivity(ctx context.Context, ke
 	return nil
 }
 
-func (t *ledgerIdentityTransaction) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, now time.Time) error {
+func (t *ledgerIdentityTransaction) ValidateActiveSession(ctx context.Context, session identitydomain.SSOSession, _ identityapp.SessionIdentity, clock application.Clock) (time.Time, error) {
+	now := clock.Now().UTC()
 	legacy := ssoSessionFromIdentityContext(session)
 	stored, ok := t.ledger.ssoSessions[legacy.ID]
 	if !ok || stored.TenantID != legacy.TenantID || stored.UserID != legacy.UserID || stored.ProviderID != legacy.ProviderID || stored.Prefix != legacy.Prefix || !secretHashEqual(stored.Hash, legacy.Hash) || stored.RevokedAt != nil || !stored.ExpiresAt.After(now) {
-		return identityapp.ErrUnauthorized
+		return time.Time{}, identityapp.ErrUnauthorized
 	}
 	user, ok := t.ledger.users[stored.UserID]
 	if !ok || user.TenantID != stored.TenantID || user.Status != "active" {
-		return identityapp.ErrUnauthorized
+		return time.Time{}, identityapp.ErrUnauthorized
 	}
 	if t.repositories != nil {
 		if err := t.repositories.Identity.ValidateActiveSSOSession(ctx, legacy, now); err != nil {
-			return identityapp.ErrUnauthorized
+			return time.Time{}, identityapp.ErrUnauthorized
 		}
 	}
-	return nil
+	if stored.LastUsedAt != nil && stored.LastUsedAt.After(now) {
+		now = *stored.LastUsedAt
+	}
+	return now.UTC(), nil
 }
 
 func (t *ledgerIdentityTransaction) InsertOrganization(ctx context.Context, organization identitydomain.Organization) error {
@@ -974,6 +978,7 @@ func ssoSessionToIdentityContext(value domain.SSOSession) identitydomain.SSOSess
 		ID: value.ID, TenantID: value.TenantID, UserID: value.UserID, ProviderID: value.ProviderID, Prefix: value.Prefix,
 		Groups: append([]string(nil), value.Groups...), ExpiresAt: value.ExpiresAt, RevokedAt: cloneTimePtr(value.RevokedAt),
 		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt, Hash: value.Hash,
+		LastUsedAt: cloneTimePtr(value.LastUsedAt), MaximumLifetimeSeconds: value.MaximumLifetimeSeconds, IdleTimeoutSeconds: value.IdleTimeoutSeconds,
 	}
 }
 
@@ -982,6 +987,7 @@ func ssoSessionFromIdentityContext(value identitydomain.SSOSession) domain.SSOSe
 		ID: value.ID, TenantID: value.TenantID, UserID: value.UserID, ProviderID: value.ProviderID, Prefix: value.Prefix,
 		Groups: append([]string(nil), value.Groups...), ExpiresAt: value.ExpiresAt, RevokedAt: cloneTimePtr(value.RevokedAt),
 		SchemaVersion: value.SchemaVersion, CreatedAt: value.CreatedAt, Hash: value.Hash,
+		LastUsedAt: cloneTimePtr(value.LastUsedAt), MaximumLifetimeSeconds: value.MaximumLifetimeSeconds, IdleTimeoutSeconds: value.IdleTimeoutSeconds,
 	}
 }
 

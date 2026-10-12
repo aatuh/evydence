@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/application"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -30,8 +31,8 @@ type authenticationActivityStub struct{}
 func (authenticationActivityStub) RecordAPIKeyUse(context.Context, identitydomain.APIKey, identityapp.CollectorActivity) error {
 	return nil
 }
-func (authenticationActivityStub) ValidateActiveSession(context.Context, identitydomain.SSOSession, time.Time) error {
-	return nil
+func (authenticationActivityStub) ValidateActiveSession(_ context.Context, _ identitydomain.SSOSession, _ identityapp.SessionIdentity, clock application.Clock) (time.Time, error) {
+	return clock.Now().UTC(), nil
 }
 
 func TestBuildAuthenticatorRequiresPortsAndMatchesLocalPepper(t *testing.T) {

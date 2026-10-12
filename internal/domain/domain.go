@@ -80,17 +80,20 @@ type UserIdentityLink struct {
 }
 
 type SSOSession struct {
-	ID            string     `json:"id"`
-	TenantID      string     `json:"tenant_id"`
-	UserID        string     `json:"user_id"`
-	ProviderID    string     `json:"provider_id"`
-	Prefix        string     `json:"prefix"`
-	Groups        []string   `json:"groups,omitempty"`
-	ExpiresAt     time.Time  `json:"expires_at"`
-	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
-	SchemaVersion string     `json:"schema_version"`
-	CreatedAt     time.Time  `json:"created_at"`
-	Hash          string     `json:"-"`
+	ID                     string     `json:"id"`
+	TenantID               string     `json:"tenant_id"`
+	UserID                 string     `json:"user_id"`
+	ProviderID             string     `json:"provider_id"`
+	Prefix                 string     `json:"prefix"`
+	Groups                 []string   `json:"groups,omitempty"`
+	ExpiresAt              time.Time  `json:"expires_at"`
+	RevokedAt              *time.Time `json:"revoked_at,omitempty"`
+	SchemaVersion          string     `json:"schema_version"`
+	CreatedAt              time.Time  `json:"created_at"`
+	LastUsedAt             *time.Time `json:"last_used_at,omitempty"`
+	MaximumLifetimeSeconds int64      `json:"maximum_lifetime_seconds,omitempty"`
+	IdleTimeoutSeconds     int64      `json:"idle_timeout_seconds,omitempty"`
+	Hash                   string     `json:"-"`
 }
 
 type APIKey struct {
