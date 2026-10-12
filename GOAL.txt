@@ -1,0 +1,7 @@
+implement the backlog ".EVYDENCE_CODEX_BACKLOG.md". Move fast without lowering quality:
+- During implementation, use test-first development and run the smallest relevant tests and checks after each change. Re-run those checks after fixes.
+- Defer expensive broad, live-dependency, race, and production gates until the ticket's implementation is ready for closure, unless a specific risk or failure calls for them earlier. Never omit a gate required by the ticket or project instructions before marking it complete.
+- Avoid repeating unchanged full-suite runs. After a failure, diagnose and verify the affected area narrowly, then repeat the required full gate before closure.
+- Keep tests equally rigorous: do not skip, weaken, delete, or mark tests passing to save time. Improve slow checks through profiling, isolation, caching, or infrastructure fixes while preserving their assertions and coverage.
+- Use focused services and bounded database queries to eliminate the production Ledger aggregate, rather than adding compatibility layers that leave the architectural blocker in place.
+- Commit each verified implementation unit with a Conventional Commit. Mark a backlog ticket complete only after its required checks genuinely pass and its evidence is recorded; unavailable external dependencies remain blockers, not passes.

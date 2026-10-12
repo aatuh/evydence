@@ -29,6 +29,7 @@ product-boundary language across the docs.
 | Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | CODEOWNERS is an ownership reference; the policy records the verified solo-maintainer CI gates and administrator bypass. |
 | Roadmap and cadence | `docs/reference/roadmap.md` | Public roadmap, supported release line, and cadence expectations. |
 | Agent execution policy | `AGENTS.md` | Canonical repository-local execution contract for agents, including backlog status, commit, validation, evidence, and safety rules. |
+| Implementation takeover | `HANDOFF.md` and `GOAL.txt` | Dated handoff snapshot and exported goal objective; ticket state stays in the root backlog, and the user activates the goal in the receiving thread. |
 | 9/10 implementation tracking | `docs/reference/world-class-backlog.md` and `.EVYDENCE_CODEX_BACKLOG.md` | The reference page explains tracking; the root backlog holds ticket state. Neither is a production claim or evidence of external completion. |
 | Backlog issue labels | `docs/reference/issue-labels.md` | Use these labels and the backlog ticket template when creating maintainable issue records. |
 | 9/10 evidence scorecard | `docs/reference/quality-scorecard.md` | Current repository and external evidence are deliberately separate. Do not raise the score from prose or local checks alone. |
