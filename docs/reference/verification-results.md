@@ -194,8 +194,11 @@ Source/test evidence: `internal/verification/app/subject_verification.go`,
 with tenant-wide `admin` authorization before reads; human actors need a tenant
 grant. An empty JSON object (or omitted body) is accepted. Non-object bodies,
 unknown fields and duplicate fields are rejected. The command creates
-`backup-manifest.v2.0.0` with `tenant-relational-state.v2` state-hash semantics.
+`backup-manifest.v2.0.0` with `tenant-relational-state.v3` state-hash semantics.
 The response field layout and eight legacy resource-count names are unchanged.
+The v3 profile includes session activity and captured lifetime/idle policy.
+Frozen v1/v2 vocabularies and hash vectors remain available for historical
+reproduction; existing manifests and replay receipts are not rewritten.
 
 The commitment covers the full declared tenant-owned relational metadata set in
 [`backup_profile_catalog.go`](../../internal/verification/app/backup_profile_catalog.go)

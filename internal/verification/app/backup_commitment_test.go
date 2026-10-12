@@ -63,8 +63,10 @@ func TestBackupCommitmentVersionsKeepLegacyHashReproducible(t *testing.T) {
 	if legacy != "sha256:75b81056765bafc0210dad2d1daf64ffbaf64e02c526a9aea780a34217957086" {
 		t.Fatal("legacy v1 commitment changed", legacy)
 	}
-	if hash(BackupStateCommitmentProfile) == legacy {
-		t.Fatal("v2 hash omitted profile separation")
+	v2 := hash(BackupStateCommitmentProfileV2)
+	v3 := hash(BackupStateCommitmentProfile)
+	if v2 == legacy || v3 == legacy || v3 == v2 {
+		t.Fatal("versioned hashes omitted profile separation")
 	}
 	if _, err := NewBackupStateDigesterWithProfile("unknown", "tenant", resources); !errors.Is(err, ErrValidation) {
 		t.Fatal("unknown commitment profile accepted", err)

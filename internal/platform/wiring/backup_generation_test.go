@@ -247,6 +247,44 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 	}
 }
 
+func TestPostgresBackupCommitmentTracksSessionLifecycleWithoutCredentials(t *testing.T) {
+	store, pool := openHTMLReportWiringStore(t)
+	seedBackupGenerationHTTP(t, pool, store)
+	read := func() string {
+		t.Helper()
+		var hash string
+		if err := app.ExecuteUnitOfWork(t.Context(), store, func(ctx context.Context, repos app.Repositories) error {
+			value, err := repos.Integrity.(verificationapp.BackupStateCommitmentReader).ReadBackupStateCommitment(ctx, "tenant")
+			hash = value.StateHash
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return hash
+	}
+	previous := read()
+	for _, statement := range []string{
+		`UPDATE sso_sessions SET last_used_at=created_at WHERE id='operator-session'`,
+		`UPDATE sso_sessions SET maximum_lifetime_seconds=7200 WHERE id='operator-session'`,
+		`UPDATE sso_sessions SET idle_timeout_seconds=600 WHERE id='operator-session'`,
+	} {
+		if _, err := pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+		current := read()
+		if current == previous {
+			t.Fatal("session lifecycle metadata omitted from state commitment")
+		}
+		previous = current
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE sso_sessions SET hash=repeat('f',64) WHERE id='operator-session'`); err != nil {
+		t.Fatal(err)
+	}
+	if read() != previous {
+		t.Fatal("credential hash entered backup commitment")
+	}
+}
+
 func TestPostgresBackupGenerationCommitsVersionedManifestAuditAndReplayAtomically(t *testing.T) {
 	store, pool := openHTMLReportWiringStore(t)
 	ctx := t.Context()

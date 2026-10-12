@@ -33,6 +33,11 @@ sessions. See the [configuration and upgrade limits](docs/reference/configuratio
 OIDC/SAML request/proof binding and failure limits remain incomplete; this
 change is not a release or a broader security-readiness claim.
 
+Backup metadata commitments now use `tenant-relational-state.v3` to include
+the captured session policy and activity fields. Frozen v1/v2 vocabularies and
+hash vectors are retained for historical reproduction; manifest field layout,
+credential exclusions and stored historical manifests are unchanged.
+
 Recorded EVY-1002's exact repository-controlled prerelease API compatibility
 review: the unchanged `v0.1.0-rc.7` artifact is compared with 205 selected
 differences, retaining all 135 previously reviewed entries and adding 70

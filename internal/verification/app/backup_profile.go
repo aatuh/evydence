@@ -5,10 +5,22 @@ import (
 	"strings"
 )
 
-// BackupCommitmentProfileResources returns fresh copies of the immutable v2
+// BackupCommitmentProfileResources returns fresh copies of the immutable v3
 // commitment vocabulary. Adapters supply records; SQL and storage mechanics
 // are not part of this application-owned profile.
 func BackupCommitmentProfileResources() []BackupCommitmentResource {
+	sources := BackupCommitmentProfileResourcesV2()
+	for i := range sources {
+		if sources[i].Name == "sso_sessions" {
+			sources[i].Columns = append(sources[i].Columns, "last_used_at", "maximum_lifetime_seconds", "idle_timeout_seconds")
+		}
+	}
+	return sources
+}
+
+// BackupCommitmentProfileResourcesV2 keeps historical supersession-aware
+// commitments reproducible without incorporating later session columns.
+func BackupCommitmentProfileResourcesV2() []BackupCommitmentResource {
 	sources := BackupCommitmentProfileResourcesV1()
 	sources = append(sources, BackupCommitmentResource{Name: "vulnerability_decision_supersessions", Columns: []string{"tenant_id", "finding_id", "predecessor_id", "successor_id", "created_at", "schema_version"}})
 	sort.Slice(sources, func(i, j int) bool { return sources[i].Name < sources[j].Name })

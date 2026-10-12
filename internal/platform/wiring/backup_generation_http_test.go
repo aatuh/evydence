@@ -13,7 +13,9 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	verificationapp "github.com/aatuh/evydence/internal/verification/app"
 )
 
@@ -33,11 +35,21 @@ func seedBackupGenerationHTTP(t *testing.T, p *pgxpool.Pool, store *postgres.Sto
 	}
 }
 
-func backupGenerationHTTP(t *testing.T, store *postgres.Store, key, body string, want int) string {
+func backupGenerationHTTP(t *testing.T, store *postgres.Store, key, body string, want int, clocks ...application.Clock) string {
 	t.Helper()
 	opts, err := BuildAPIReadServices(&Runtime{Process: API, Profile: PostgreSQL, Postgres: store}, "receipt-test-pepper", []app.ReadinessCheck{{Name: "postgres", Check: store.CheckReadiness}, {Name: "migrations", Check: func(ctx context.Context) error { return store.CheckMigrationState(ctx, "../../../migrations") }}})
 	if err != nil || opts.BackupGenerationCommands == nil || opts.DurableCommandExecutor == nil {
 		t.Fatal("native backup composition missing", err)
+	}
+	if len(clocks) == 1 {
+		credentials, err := buildAuthenticationCredentials("receipt-test-pepper", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.Authenticator, err = identityapp.NewAuthenticator(identityapp.AuthenticationConfig{Reader: store, Activity: store, Credentials: credentials, Clock: clocks[0]})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	noReload := newAggregateLoadCanary(t, t.Context(), store)
 	s, err := newNativeHTTPFixture(t.Context(), opts)
@@ -71,6 +83,23 @@ func backupGenerationHTTPCounts(t *testing.T, p *pgxpool.Pool) [5]int {
 func TestPostgresBackupGenerationHTTPRestartReplayAndCurrentAuthority(t *testing.T) {
 	store, p := openHTMLReportWiringStore(t)
 	seedBackupGenerationHTTP(t, p, store)
+	var at time.Time
+	if err := p.QueryRow(t.Context(), `SELECT created_at FROM sso_sessions WHERE id='operator-session'`).Scan(&at); err != nil {
+		t.Fatal(err)
+	}
+	clock := application.ClockFunc(func() time.Time { return at })
+	credentials, err := buildAuthenticationCredentials("receipt-test-pepper", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authenticator, err := identityapp.NewAuthenticator(identityapp.AuthenticationConfig{Reader: store, Activity: store, Credentials: credentials, Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := authenticator.Authenticate(t.Context(), "evysso_receipt_fixture"); err != nil {
+		t.Fatal(err)
+	}
+	request := func(key, body string, want int) string { return backupGenerationHTTP(t, store, key, body, want, clock) }
 	var before verificationapp.BackupStateCommitment
 	if err := app.ExecuteUnitOfWork(t.Context(), store, func(ctx context.Context, r app.Repositories) error {
 		var err error
@@ -79,7 +108,7 @@ func TestPostgresBackupGenerationHTTPRestartReplayAndCurrentAuthority(t *testing
 	}); err != nil {
 		t.Fatal(err)
 	}
-	one := backupGenerationHTTP(t, store, "generate", `{}`, 201)
+	one := request("generate", `{}`, 201)
 	var envelope struct {
 		Data domain.BackupManifest `json:"data"`
 	}
@@ -94,7 +123,7 @@ func TestPostgresBackupGenerationHTTPRestartReplayAndCurrentAuthority(t *testing
 	if err := p.QueryRow(t.Context(), `SELECT a.payload_hash,a.actor_id,a.entry_type,i.response::text FROM audit_chain_entries a JOIN idempotency_records i ON i.tenant_id=a.tenant_id AND i.idempotency_key='generate'WHERE a.tenant_id='tenant'AND a.subject_id=$1`, m.ID).Scan(&hash, &actor, &kind, &saved); err != nil || hash != m.StateHash || actor != "user" || kind != "backup_manifest.generated" || strings.Contains(saved, "private-") {
 		t.Fatal("backup audit/replay mismatch", err)
 	}
-	assertRetentionHTTPReplay(t, one, backupGenerationHTTP(t, store, "generate", `{}`, 201))
+	assertRetentionHTTPReplay(t, one, request("generate", `{}`, 201))
 	exec := func(sql string) {
 		t.Helper()
 		if _, err := p.Exec(t.Context(), sql); err != nil {
@@ -104,15 +133,15 @@ func TestPostgresBackupGenerationHTTPRestartReplayAndCurrentAuthority(t *testing
 	// Completed replay must not stream or verify current state, even when that
 	// state is now too large and its audit-chain root is corrupt.
 	exec(`UPDATE products SET name=repeat('private-new-state',600000)WHERE id='product';UPDATE audit_chain_entries SET entry_hash=''WHERE id='backup-seed'`)
-	assertRetentionHTTPReplay(t, one, backupGenerationHTTP(t, store, "generate", `{}`, 201))
-	backupGenerationHTTP(t, store, "generate", `{} `, 409)
+	assertRetentionHTTPReplay(t, one, request("generate", `{}`, 201))
+	request("generate", `{} `, 409)
 	for _, sql := range []string{`UPDATE role_bindings SET resource_type='product',resource_id='product'WHERE id='grant'`, `UPDATE role_bindings SET resource_type='tenant',resource_id='other'WHERE id='grant'`, `UPDATE role_bindings SET resource_type='tenant',resource_id='tenant',role='viewer'WHERE id='grant'`} {
 		exec(sql)
-		backupGenerationHTTP(t, store, "generate", `{}`, 403)
-		backupGenerationHTTP(t, store, "fresh-denied", `{}`, 403)
+		request("generate", `{}`, 403)
+		request("fresh-denied", `{}`, 403)
 	}
 	exec(`UPDATE role_bindings SET role='tenant_admin'WHERE id='grant';UPDATE sso_sessions SET revoked_at=now()WHERE id='operator-session'`)
-	backupGenerationHTTP(t, store, "generate", `{}`, 401)
+	request("generate", `{}`, 401)
 	if backupGenerationHTTPCounts(t, p) != [5]int{1, 2, 1, 0, 0} {
 		t.Fatal("denied/conflicting replay changed effects")
 	}

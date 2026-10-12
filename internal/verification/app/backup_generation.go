@@ -13,7 +13,8 @@ import (
 
 const (
 	BackupStateCommitmentProfileV1 = "tenant-relational-state.v1"
-	BackupStateCommitmentProfile   = "tenant-relational-state.v2"
+	BackupStateCommitmentProfileV2 = "tenant-relational-state.v2"
+	BackupStateCommitmentProfile   = "tenant-relational-state.v3"
 	MaxBackupStateCommitmentRows   = 32768
 	MaxBackupStateCommitmentBytes  = 8 << 20
 )
