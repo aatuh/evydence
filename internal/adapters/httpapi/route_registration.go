@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/aatuh/api-toolkit/v3/routecontracts"
@@ -18,6 +19,13 @@ type routeDef struct {
 
 func (s *Server) registerRoutes() error {
 	for _, route := range s.routeDefinitions() {
+		policy, ok := authorizationPolicyForOperation(route.op.OperationID)
+		if !ok {
+			return errors.New("route lacks authorization policy contract")
+		}
+		if err := validateRouteAuthorizationPolicy(route.op, policy); err != nil {
+			return err
+		}
 		if err := s.routes.Register(routecontracts.Route{Method: route.method, Pattern: route.path, Handler: route.handler, Operation: route.op}); err != nil {
 			return err
 		}
@@ -42,6 +50,13 @@ func (s *Server) routeDefinitions() []routeDef {
 	var routes []routeDef
 	for _, group := range groups {
 		routes = append(routes, group...)
+	}
+	for index := range routes {
+		routes[index].op = withRouteAuthorizationPolicy(routes[index].op)
+		routes[index].op.Extensions = withBoundedContextOperationOwner(
+			routes[index].op.OperationID,
+			routes[index].op.Extensions,
+		)
 	}
 	return routes
 }
@@ -118,7 +133,7 @@ func (s *Server) productReleaseRoutes() []routeDef {
 		{http.MethodGet, "/v1/projects/{id}", op("getProject", http.MethodGet, "/v1/projects/{id}", "Get project", []string{app.ScopeProjectRead}), http.HandlerFunc(s.getProject)},
 		{http.MethodPost, "/v1/releases", op("createRelease", http.MethodPost, "/v1/releases", "Create release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.createRelease)},
 		{http.MethodGet, "/v1/releases/{id}", op("getRelease", http.MethodGet, "/v1/releases/{id}", "Get release", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.getRelease)},
-		{http.MethodPost, "/v1/releases/{id}/evidence-flow/start", op("startReleaseEvidenceFlow", http.MethodPost, "/v1/releases/{id}/evidence-flow/start", "Start release evidence flow", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.startReleaseEvidenceFlow)},
+		{http.MethodPost, "/v1/releases/{id}/evidence-flow/start", readOnlyPostOp("startReleaseEvidenceFlow", http.MethodPost, "/v1/releases/{id}/evidence-flow/start", "Start release evidence flow", []string{app.ScopeReleaseRead}), http.HandlerFunc(s.startReleaseEvidenceFlow)},
 		{http.MethodGet, "/v1/releases/{id}/security-summary", op("releaseSecuritySummary", http.MethodGet, "/v1/releases/{id}/security-summary", "Release security summary", []string{app.ScopeReportRead}), http.HandlerFunc(s.releaseSecuritySummary)},
 		{http.MethodPost, "/v1/releases/{id}/freeze", op("freezeRelease", http.MethodPost, "/v1/releases/{id}/freeze", "Freeze release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.freezeRelease)},
 		{http.MethodPost, "/v1/releases/{id}/approve", op("approveRelease", http.MethodPost, "/v1/releases/{id}/approve", "Approve release", []string{app.ScopeReleaseWrite}), http.HandlerFunc(s.approveRelease)},

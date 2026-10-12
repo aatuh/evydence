@@ -229,7 +229,7 @@ func TestReconcileObjectPayloadsRequiresExplicitThresholdForApply(t *testing.T) 
 }
 
 func TestLedgerMetricsExposeOnlySafeReconciliationCounters(t *testing.T) {
-	ledger := NewLedger(Config{
+	ledger := newLegacyLedgerFixture(Config{
 		APIKeyPepper: "test-pepper",
 		Now:          fixedNow,
 		ReconciliationMetrics: reconciliationMetricsFixture{metrics: ObjectReconciliationMetrics{

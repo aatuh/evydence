@@ -13,7 +13,30 @@ current token, so a worker that continues after its five-minute lease expires
 cannot overwrite a newer worker's outcome. An expired running job is reclaimed
 when attempts remain; an expired final attempt becomes terminal.
 
+PostgreSQL parser side effects use the same lease token. The worker locks the
+still-running, unexpired claim, writes only that job's focused release-ledger
+mutation, and renews the lease in one database transaction. A stale or
+reclaimed worker therefore receives a conflict before it can replace a newer
+parser report, decision, or audit entry. VEX decision audit-entry IDs are also
+derived from the logical job operation, so retrying after a transient
+completion failure does not create a second logical audit record.
+
 ## Failure and replay lifecycle
+
+The daemon composes a closed native processor after opening the validated
+PostgreSQL runtime. Its store ports require subject-scoped reads, claim-fenced
+mutations, dependency inspection and payload lifecycle transitions; they do not
+expose `LoadState` or `SaveState`. Object storage must support staged/finalized
+payloads and bounded reads. Missing or typed-nil ports fail startup. Unknown job
+kinds fail as `poisoned` before state/object reads, and an incomplete focused
+parser store cannot regain a snapshot fallback. EVY-906 removed the worker's
+whole-state read, snapshot publication and unfenced mutation branches, including
+the old compatibility-test fallbacks. Test fixtures now use the focused ports.
+
+`SIGINT` and `SIGTERM` cancel the worker's runtime/request context and interrupt
+idle polling waits. Runtime resources close when the loop exits. A canceled
+claim that cannot record its outcome remains governed by the existing lease
+expiry/reclaim rules; shutdown does not bypass claim fencing.
 
 Worker failures use stable, payload-free classes and codes:
 
@@ -72,20 +95,115 @@ separate key namespace. If a database transaction fails after streaming, the
 object remains only in the tenant staging namespace, where it can be identified
 as uncommitted storage residue; it is never exposed at the final payload key.
 
-Current behavior is intentionally conservative. The API still records normalized signing and verification results before enqueueing jobs for the implemented paths. Parser jobs independently replay tenant-prefixed payload objects when `payload_ref` is present, verify object metadata and byte digests when `payload_hash` is present, parse SBOM, vulnerability-scan, OpenAPI, OpenVEX, CycloneDX VEX, and DSSE attestation payloads, and check that replayed payload summaries match the expected durable state. When `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, parser-backed uploads store accepted records first and workers write parser-derived document fields after replay. The `parse_vex` worker also creates VEX-derived vulnerability decisions idempotently in that mode and updates the VEX import report from `accepted` to `parsed` with safe decision and mapping-failure counts. VEX parser failures update the import report to `failed` with `failure_code` and `failure_detail` before the outbox job is retried or marked terminal by the persisted job status. Missing objects, wrong tenant prefixes, tenant mismatches, oversized payload objects, malformed replay payloads, durable-state mismatches, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
+Current behavior is intentionally conservative. The API still records normalized signing and verification results before enqueueing jobs for the implemented paths. Parser jobs independently replay tenant-prefixed payload objects when `payload_ref` is present, verify object metadata and byte digests when `payload_hash` is present, parse SBOM, vulnerability-scan, OpenAPI, OpenVEX, CycloneDX VEX, and DSSE attestation payloads, and check that replayed payload summaries match the expected durable state. When `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`, non-VEX parser-backed uploads store accepted records first and workers write parser-derived document fields after replay. Every VEX upload persists its verified normalized document, an `accepted` report, and a bounded `vex-decision-request.v1.0.0` request in the same transaction with `worker_create_decisions=true`. The `parse_vex` worker creates decisions idempotently after commit and updates the report to `parsed` with safe decision, supersession, and mapping-failure counts. When a replayable object exists, the worker reparses it and rejects a normalized request that does not match the raw payload; without an object, it consumes the versioned normalized request directly. A VEX job remains `accepted` and retries when a release-scoped vulnerability-scan projection is still pending, so claim order cannot permanently discard otherwise mappable decisions. Once the linked report is `parsed`, a reclaimed job is a no-op and cannot recompute or downgrade the committed result. Other VEX processing failures update the import report to `failed` with `failure_code` and `failure_detail` before the outbox job is retried or marked terminal by the persisted job status. Missing objects, wrong tenant prefixes, tenant mismatches, oversized payload objects, malformed replay payloads or normalized requests, durable-state mismatches, incomplete verification, missing signatures, hash mismatch, uninitialized storage, and unsupported job kinds fail the job safely.
+
+If no active scan-parser dependency exists because it completed without the
+required projection or became terminal, the VEX report becomes `failed` with
+the stable `dependency_failed` code instead of retrying forever.
 
 Parser and attestation jobs include a deterministic `parser_version` payload
 field for new uploads. Workers reject unsupported parser versions and accept
 older jobs with no parser version for upgrade compatibility.
 
 Parser replay is worker-owned for CycloneDX SBOM, generic vulnerability-scan,
-OpenAPI contract, DSSE build-attestation, OpenVEX document metadata, and
-CycloneDX VEX document metadata when
-`EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`. VEX-derived vulnerability
-decision creation is also worker-owned in that mode and uses deterministic
-decision IDs to avoid duplicate side effects on retry.
+OpenAPI contract, and DSSE build-attestation metadata when
+`EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=true`. OpenVEX and CycloneDX VEX
+metadata is verified and stored by the API, while decision creation is always
+worker-owned, including without object storage, and uses deterministic decision
+and audit IDs to avoid duplicate side effects on retry.
 
-Workers use the same object-store environment variables as the API. The default worker payload replay limit is 20 MiB and can be adjusted with `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES`.
+The production PostgreSQL worker persists only the records changed by a parser
+job (for example one SBOM projection, one attestation, or the VEX decisions,
+report, and audit entries created by that replay). It does not write the full
+state snapshot loaded before parsing, so an unrelated command committed during
+the replay cannot be overwritten by stale worker state. There is no full-snapshot
+`SaveState` or unfenced release-ledger mutation fallback. Parser publication
+requires the claimed job ID and lease token, preserves storage conflicts, and
+rejects cancellation or typed-nil writers before invoking storage.
+
+For `parse_sbom`, `parse_vulnerability_scan`, and `parse_openapi_contract`, the
+production worker reads only the claimed tenant's subject through a
+source-validated PostgreSQL point query before replay. This transitional
+one-subject state shape is paired with lease-fenced focused mutations in native
+composition. An incomplete or typed-nil focused store is rejected before its
+state read; no compatibility loader exists in the worker.
+`parse_vex` reads the claimed document and source, its import reports,
+same-release scans and finding decisions under one tenant-filtered snapshot.
+It validates current source and parent ownership before replay and rejects
+report/document linkage mismatches. The worker reads only the matching
+`vex.accepted` entry and current audit tip; the durable append transaction
+checks committed sequence and predecessor continuity before rebasing and
+writing new entries.
+`sign_bundle` and `verify_subject` also use focused tenant-filtered reads;
+their read-only paths do not perform mutations (the daemon's complete store
+surface still includes the parser write ports). When a signing job
+contains `manifest_hash`, the worker requires it to match the durable bundle;
+older jobs without that field remain supported. `verify_attestation` reads one
+tenant-scoped attestation only when its current build/project/release/product
+and immutable source evidence agree on ownership, source type, payload digest,
+size, and reference. Its replay mutation remains lease-fenced. VEX decision
+and report mutations remain lease-fenced too. Operator-triggered parser replay
+reads its tenant-owned source, same-version marker if present, and tenant audit
+tip under a repeatable-read snapshot; the apply transaction revalidates the
+current source and marker and checks committed chain continuity before
+appending. PostgreSQL API startup also binds focused native services without
+constructing a Ledger; see [current runtime composition](../architecture.md#current-runtime-composition).
+
+## PostgreSQL projection consistency
+
+Worker-owned parser and decision records can commit after an API process has
+loaded its in-memory compatibility read model. `WorkerProjectionStore` reloads
+the tenant's SBOMs, vulnerability scans, OpenAPI contracts, VEX documents and
+import reports, build attestations, vulnerability decisions, and audit chain.
+Every PostgreSQL loader includes the tenant ID in its SQL predicate; records are
+not loaded globally and filtered afterward. The compatibility merge validates
+tenant identity, applicable referenced resource coordinates, and audit-chain
+continuity before publishing the complete projection, and fails without
+partially replacing the local view.
+
+A standalone refresh opens one read-only, repeatable-read transaction and holds
+a shared per-tenant PostgreSQL advisory fence through commit. A command unit of
+work exposes `Repositories.WorkerProjection`, bound to that unit of work's
+`pgx.Tx`, and takes the exclusive tenant fence before loading. Focused worker
+projection mutations and audit appends take the same exclusive fence; audit
+append takes it before the audit-chain sequencing lock. Consequently, a command
+that reads a worker-owned projection inside its unit of work cannot commit a
+dependent business record or audit entry after an intervening mutation changed
+that tenant's projection. Locks are tenant-scoped, so unrelated tenants do not
+share this serialization boundary.
+
+This projection is a compatibility bridge for the deprecated Ledger read model.
+It does not grant cross-context mutation authority and does not represent
+completion of the EVY-904 decision, package, or verification service migration
+or the EVY-905 database-backed query-service migration.
+
+Successful parser replay also appends one reserved `parser_normalization`
+evidence marker that binds the source evidence, parser version, payload digest,
+normalized subject set, and audit entry. The API validates that provenance
+before exposing a marker through get, list, search, or package projection paths;
+malformed or forged markers fail closed. Generic evidence creation cannot use
+the reserved type. Parser-normalization markers and the worker-owned `sbom`,
+`vulnerability_scan`, `openapi_contract`, `vex`, and `build_attestation`
+evidence types cannot be generically linked or superseded because changing
+their projection coordinates independently would make durable state
+inconsistent. Parser replay is create-or-return-existing only after the
+PostgreSQL adapter validates the full existing marker, its source, and its audit
+entry in the current tenant transaction.
+
+Workers use the same object-store environment variables as the API. The default
+worker payload replay limit is 20 MiB and can be adjusted with
+`EVYDENCE_WORKER_MAX_PAYLOAD_BYTES`. Native replay passes this limit to
+`GetBounded` before allocating source bytes; a failed bounded read never retries
+through unbounded `Get`. Bounded size/metadata conflicts are terminal `poisoned`
+failures with `payload_invariant_failed`; the adapter does not distinguish the
+provider-specific cause. Returned bytes still undergo size, tenant and digest
+checks before parsing. This does not broaden the interpretation of recorded
+signing references or verification results into a new cryptographic proof.
+
+Tests: `cmd/evydence-worker/native_processor_test.go` covers missing ports,
+unsupported kinds, bounded-read failure and cancellation;
+`cmd/evydence-worker/native_processor_postgres_test.go` covers aggregate canaries,
+tenant isolation, recorded metadata jobs and real payload finalization/replay.
 
 Safe logging rules:
 
@@ -97,6 +215,7 @@ Safe logging rules:
 - VEX import report `failure_code` values are stable operator hints such as
   `payload_read_failed`, `payload_ref_invalid`, `payload_tenant_mismatch`,
   `payload_digest_mismatch`, `payload_too_large`, `payload_invalid`,
-  `unsupported_parser_version`, and `durable_state_mismatch`.
+  `unsupported_parser_version`, `durable_state_mismatch`, and
+  `dependency_failed`.
 
 This contract supports operations evidence for asynchronous processing. It does not claim external scanner authority, complete parsing coverage, or cryptographic attestation trust unless the relevant trust roots and verification receipts are recorded.

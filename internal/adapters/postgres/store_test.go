@@ -13,8 +13,12 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	fsobject "github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
+	postgresrepositories "github.com/aatuh/evydence/internal/adapters/postgres/repositories"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
+	verificationdomain "github.com/aatuh/evydence/internal/verification/domain"
 )
 
 func TestResolveLoadMode(t *testing.T) {
@@ -280,22 +284,20 @@ func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
 	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := app.NewLedgerWithContext(ctx, app.Config{APIKeyPepper: "test-pepper", Store: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _, secret, err := ledger.BootstrapTenant(ctx, "Atomic idempotency", "admin", []string{"*"})
+	identity := postgresIdentitySetup(store, "test-pepper")
+	_, _, secret, err := identity.BootstrapTenant(ctx, "Atomic idempotency", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
 	}
-	actor, err := ledger.Authenticate(ctx, secret)
+	actor, err := identity.Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatalf("authenticate actor: %v", err)
 	}
+	executor := app.IdempotencyUnitOfWork{Transactions: store}
 
 	commandErr := errors.New("force transactional rollback")
-	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "rollback", []byte(`{"name":"Rollback","slug":"rollback"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		if _, err := commandLedger.CreateProduct(ctx, actor, "Rollback", "rollback"); err != nil {
+	if _, _, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "rollback", []byte(`{"name":"Rollback","slug":"rollback"}`), func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		if _, err := postgresReleaseSetup(store).CreateProduct(ctx, actor, "Rollback", "rollback"); err != nil {
 			return 0, nil, err
 		}
 		return 500, nil, commandErr
@@ -317,14 +319,14 @@ func TestStoreCommitsIdempotentCommandAndReplayAtomically(t *testing.T) {
 		t.Fatalf("failed idempotency records=%d, want 1", failed)
 	}
 
-	status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(ctx context.Context, commandLedger *app.Ledger) (int, any, error) {
-		product, err := commandLedger.CreateProduct(ctx, actor, "Committed", "committed")
+	status, _, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(ctx context.Context, _ app.Repositories) (int, any, error) {
+		product, err := postgresReleaseSetup(store).CreateProduct(ctx, actor, "Committed", "committed")
 		return 201, product, err
 	})
 	if err != nil || status != 201 {
 		t.Fatalf("commit command status=%d err=%v", status, err)
 	}
-	if status, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(context.Context, *app.Ledger) (int, any, error) {
+	if status, _, err := executor.WithBody(ctx, actor, "POST", "/v1/products", "commit", []byte(`{"name":"Committed","slug":"committed"}`), func(context.Context, app.Repositories) (int, any, error) {
 		t.Fatal("committed request must replay after a lost client response")
 		return 0, nil, nil
 	}); err != nil || status != 201 {
@@ -400,20 +402,11 @@ func TestStoreSaveRelationalStateSkipsLedgerSnapshot(t *testing.T) {
 }
 
 func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
-	databaseURL := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	store, err := Open(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	if _, err := store.ApplyMigrations(ctx, "../../../migrations"); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve the default snapshot profile, but never reuse historical IDs
+	// from another run when validating immutable relational replay.
+	store := isolatedPostgresTestStore(t, StoreOptions{})
 	state := app.PersistedState{
 		Tenants: map[string]domain.Tenant{
 			"ten_test": {ID: "ten_test", Name: "Test", CreatedAt: time.Now().UTC()},
@@ -556,10 +549,10 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"approval_test": {ID: "approval_test", TenantID: "ten_test", SubjectType: "release", SubjectID: "rel_test", Decision: "approved", Reason: "test", ApproverID: "user_test", EvidenceID: "ev_test", SchemaVersion: domain.ApprovalRecordSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		DSSETrustRoots: map[string]domain.DSSETrustRoot{
-			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
+			"dsse_root_test": {ID: "dsse_root_test", TenantID: "ten_test", Name: "root", KeyID: "key-1", Algorithm: "Ed25519", PublicKey: "pub", AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"https://example.test/builder"}, RequiredClaims: []string{"builder_id"}, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		CosignVerifications: map[string]domain.CosignVerification{
-			"cosign_test": {ID: "cosign_test", TenantID: "ten_test", ArtifactID: "art_test", ContainerImageID: "image_test", ArtifactSignatureID: "artsig_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), RekorUUID: "rekor", RekorLogIndex: "1", CertificateIdentity: "repo", CertificateIssuer: "issuer", Result: "pass", Checks: []domain.VerifyCheck{{Name: "digest", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: time.Now().UTC()},
+			"cosign_test": {ID: "cosign_test", TenantID: "ten_test", ArtifactID: "art_test", ContainerImageID: "image_test", ArtifactSignatureID: "artsig_test", SubjectDigest: "sha256:" + strings.Repeat("a", 64), RekorUUID: "rekor", RekorLogIndex: "1", CertificateIdentity: "repo", CertificateIssuer: "issuer", VerifierLibraryVersion: "sigstore-go.v1.1.4", TrustRootVersion: "test-root.v1", VerificationMode: "keyless", Result: "pass", Checks: []domain.VerifyCheck{{Name: "digest", Result: "passed"}}, SchemaVersion: domain.CosignVerificationSchemaVersion, CreatedAt: time.Now().UTC()},
 		},
 		SigningProviders: map[string]domain.SigningProvider{
 			"sign_provider_test": {ID: "sign_provider_test", TenantID: "ten_test", Name: "kms", Type: "aws_kms", Status: "active", KeyRef: "arn:aws:kms:test", Encrypted: true, SchemaVersion: domain.SigningProviderSchemaVersion, CreatedAt: time.Now().UTC()},
@@ -698,7 +691,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 			"provider_verification_test": {ID: "provider_verification_test", TenantID: "ten_test", ProviderType: "oidc", ProviderID: "sso_test", Subject: "sub", Result: "verified", Checks: []domain.VerifyCheck{{Name: "subject", Result: "passed"}}, Limitations: []string{"static trust material"}, SchemaVersion: domain.ProviderVerificationVersion, CreatedAt: time.Now().UTC()},
 		},
 		SigningOperations: map[string]domain.SigningOperation{
-			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), SignatureRef: "provider_receipt_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
+			"signing_operation_test": {ID: "signing_operation_test", TenantID: "ten_test", ProviderID: "sign_provider_test", SubjectType: "release", SubjectID: "rel_test", PayloadHash: "sha256:" + strings.Repeat("2", 64), CanonicalPayloadHash: "sha256:" + strings.Repeat("3", 64), RequestID: "signing-request-test", ProviderRequestID: "provider-request-test", SignatureRef: "provider_receipt_test", Result: "signed", Checks: []domain.VerifyCheck{{Name: "provider", Result: "passed"}}, SchemaVersion: domain.SigningOperationVersion, CreatedAt: time.Now().UTC()},
 		},
 		Idempotency: map[string]app.IdempotencyRecord{
 			app.NewIdempotencyRecordKey("ten_test", "user:user_test", "POST", "/v1/products", "idem"): {RequestHash: "sha256:request", Status: 201, Response: map[string]any{"ok": true}, CreatedAt: time.Now().UTC()},
@@ -934,7 +927,8 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if !relational.Waivers["waiver_test"].Approved || relational.Approvals["approval_test"].EvidenceID != "ev_test" || relational.DSSETrustRoots["dsse_root_test"].Status != "active" {
 		t.Fatalf("relational governance/trust rows missing: waiver=%#v approval=%#v trust=%#v", relational.Waivers["waiver_test"], relational.Approvals["approval_test"], relational.DSSETrustRoots["dsse_root_test"])
 	}
-	if len(relational.CosignVerifications["cosign_test"].Checks) != 1 || !relational.SigningProviders["sign_provider_test"].Encrypted {
+	cosignVerification := relational.CosignVerifications["cosign_test"]
+	if len(cosignVerification.Checks) != 1 || cosignVerification.VerifierLibraryVersion != "sigstore-go.v1.1.4" || cosignVerification.TrustRootVersion != "test-root.v1" || cosignVerification.VerificationMode != "keyless" || !relational.SigningProviders["sign_provider_test"].Encrypted {
 		t.Fatalf("relational signing provider rows missing: cosign=%#v provider=%#v", relational.CosignVerifications["cosign_test"], relational.SigningProviders["sign_provider_test"])
 	}
 	if relational.MerkleBatches["merkle_test"].RootHash == "" || relational.TransparencyCheckpoints["transparency_test"].ExternalID != "ts-1" {
@@ -997,7 +991,7 @@ func TestStoreLoadSaveAndOutboxWithPostgres(t *testing.T) {
 	if relational.MarketplaceCollectors["market_collector_test"].State != "published" || relational.ProviderVerifications["provider_verification_test"].Result != "verified" {
 		t.Fatalf("relational marketplace/provider rows missing: market=%#v provider=%#v", relational.MarketplaceCollectors["market_collector_test"], relational.ProviderVerifications["provider_verification_test"])
 	}
-	if relational.SigningOperations["signing_operation_test"].SignatureRef != "provider_receipt_test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
+	if relational.SigningOperations["signing_operation_test"].SignatureRef != "provider_receipt_test" || relational.SigningOperations["signing_operation_test"].CanonicalPayloadHash != "sha256:"+strings.Repeat("3", 64) || relational.SigningOperations["signing_operation_test"].RequestID != "signing-request-test" || relational.SigningOperations["signing_operation_test"].ProviderRequestID != "provider-request-test" || len(relational.SigningOperations["signing_operation_test"].Checks) != 1 {
 		t.Fatalf("relational signing operation missing: operation=%#v", relational.SigningOperations["signing_operation_test"])
 	}
 	if relational.PDFReports["pdf_test"].PayloadHash == "" || relational.AnomalyReports["anom_test"].Result != "review" {
@@ -1291,12 +1285,12 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 		}},
 		SBOMs: []domain.SBOM{{
 			ID: "sbom_focus", TenantID: "ten_release_focus", EvidenceID: "ev_focus", ReleaseID: "rel_focus", ArtifactID: "art_focus",
-			Format: "cyclonedx", SpecVersion: "1.5", ComponentCount: 1,
+			Format: "cyclonedx", ComponentCount: 1,
 			Components: []domain.SBOMComponent{{Name: "lib", Version: "1.0.0"}}, CreatedAt: now,
 		}},
 		Scans: []domain.VulnerabilityScan{{
 			ID: "scan_focus", TenantID: "ten_release_focus", EvidenceID: "ev_focus", ReleaseID: "rel_focus",
-			Scanner: "generic", TargetRef: "api", Summary: map[string]int{"critical": 1},
+			Summary:   map[string]int{"critical": 1},
 			Findings:  []domain.VulnerabilityFinding{{ID: "finding_focus", Vulnerability: "CVE-2099-0001", Component: "lib", Severity: "critical", State: "open"}},
 			CreatedAt: now,
 		}},
@@ -1339,6 +1333,39 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 	if err := store.ApplyReleaseLedgerMutation(ctx, mutation); err != nil {
 		t.Fatalf("retry release ledger mutation: %v", err)
 	}
+	build := domain.BuildRun{
+		ID: "build_parser_focus", TenantID: "ten_release_focus", ProjectID: "proj_focus", ReleaseID: "rel_focus",
+		Provider: "local", CommitSHA: strings.Repeat("1", 40), Status: "passed", StartedAt: now,
+		Outputs: []domain.BuildOutput{{ArtifactID: "art_focus", Digest: hash}}, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now,
+	}
+	buildWrite, err := store.BeginUnitOfWork(ctx)
+	if err != nil {
+		t.Fatalf("begin parser build seed: %v", err)
+	}
+	if err := buildWrite.Repositories().Builds.InsertBuildRun(ctx, build); err != nil {
+		_ = buildWrite.Rollback(ctx)
+		t.Fatalf("seed parser build: %v", err)
+	}
+	if err := buildWrite.Commit(ctx); err != nil {
+		t.Fatalf("commit parser build: %v", err)
+	}
+	attestationEvidence := mutation.Evidence[0]
+	attestationEvidence.ID = "ev_attestation_focus"
+	attestationEvidence.BuildID = build.ID
+	attestationEvidence.Type = "build_attestation"
+	attestationEvidence.Subtype = "dsse"
+	attestationEvidence.Title = "Build attestation"
+	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{Evidence: []domain.EvidenceItem{attestationEvidence}}); err != nil {
+		t.Fatalf("seed attestation evidence: %v", err)
+	}
+	initialAttestation := domain.BuildAttestation{
+		ID: "att_parser_focus", TenantID: "ten_release_focus", BuildID: build.ID, EvidenceID: attestationEvidence.ID,
+		PayloadHash: hash, PayloadSize: 100, VerificationStatus: "pending",
+		SchemaVersion: domain.BuildAttestationSchemaVersion, CreatedAt: now,
+	}
+	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{BuildAttestations: []domain.BuildAttestation{initialAttestation}}); err != nil {
+		t.Fatalf("seed parser-owned attestation projection: %v", err)
+	}
 
 	var snapshotRows int
 	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM ledger_state`).Scan(&snapshotRows); err != nil {
@@ -1359,6 +1386,7 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 		{name: "lifecycle", query: `SELECT count(*) FROM evidence_lifecycle_events WHERE id = 'elc_focus' AND action = 'amendment'`},
 		{name: "sbom", query: `SELECT count(*) FROM sboms WHERE id = 'sbom_focus' AND component_count = 1`},
 		{name: "scan", query: `SELECT count(*) FROM vulnerability_scans WHERE id = 'scan_focus' AND release_id = 'rel_focus'`},
+		{name: "parser attestation", query: `SELECT count(*) FROM build_attestations WHERE id = 'att_parser_focus' AND payload_type = ''`},
 		{name: "contract", query: `SELECT count(*) FROM openapi_contracts WHERE id = 'oas_focus' AND path_count = 1`},
 		{name: "vex", query: `SELECT count(*) FROM vex_documents WHERE id = 'vex_focus' AND statement_count = 1`},
 		{name: "vex report", query: `SELECT count(*) FROM vex_import_reports WHERE id = 'vex_report_focus' AND decisions_created = 1`},
@@ -1393,8 +1421,65 @@ func TestApplyReleaseLedgerMutationWithPostgres(t *testing.T) {
 	if loaded.SBOMs["sbom_focus"].ComponentCount != 1 || loaded.Scans["scan_focus"].ReleaseID != "rel_focus" || loaded.Contracts["oas_focus"].PathCount != 1 || loaded.VEXDocuments["vex_focus"].StatementCount != 1 || loaded.VEXImportReports["vex_report_focus"].DecisionsCreated != 1 {
 		t.Fatalf("loaded parser metadata missing: sbom=%#v scan=%#v contract=%#v vex=%#v report=%#v", loaded.SBOMs["sbom_focus"], loaded.Scans["scan_focus"], loaded.Contracts["oas_focus"], loaded.VEXDocuments["vex_focus"], loaded.VEXImportReports["vex_report_focus"])
 	}
+	if loaded.SBOMs["sbom_focus"].SpecVersion != "" || loaded.Scans["scan_focus"].Scanner != "" || loaded.Scans["scan_focus"].TargetRef != "" || loaded.BuildAttestations[initialAttestation.ID].PayloadType != "" {
+		t.Fatalf("initial parser projections were not blank: sbom=%#v scan=%#v attestation=%#v", loaded.SBOMs["sbom_focus"], loaded.Scans["scan_focus"], loaded.BuildAttestations[initialAttestation.ID])
+	}
 	if loaded.Decisions["decision_release_focus"].Status != "not_affected" || len(loaded.Chain["ten_release_focus"]) != 1 {
 		t.Fatalf("loaded decision/chain missing: decision=%#v chain=%#v", loaded.Decisions["decision_release_focus"], loaded.Chain["ten_release_focus"])
+	}
+
+	// Model a worker that loaded its projections before a concurrent API link
+	// update. Its focused mutation must update every parser-owned field without
+	// replacing the newer evidence links.
+	linkTx, err := store.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin concurrent evidence link transaction: %v", err)
+	}
+	linkRepository := postgresrepositories.New(linkTx).Evidence
+	concurrentEvidence, err := linkRepository.GetEvidence(ctx, "ten_release_focus", "ev_focus")
+	if err != nil {
+		_ = linkTx.Rollback(context.Background())
+		t.Fatalf("load concurrent evidence link state: %v", err)
+	}
+	linkedEvidence := concurrentEvidence
+	linkedEvidence.RelatedEvidenceRefs = []domain.EvidenceRef{{Type: "release", ID: "rel_focus", Relationship: "linked_to"}}
+	if err := linkRepository.CompareAndSwapEvidenceLinks(ctx, concurrentEvidence, linkedEvidence); err != nil {
+		_ = linkTx.Rollback(context.Background())
+		t.Fatalf("persist concurrent evidence link: %v", err)
+	}
+	if err := linkTx.Commit(ctx); err != nil {
+		t.Fatalf("commit concurrent evidence link: %v", err)
+	}
+	workerSBOM := mutation.SBOMs[0]
+	workerSBOM.SpecVersion = "1.6"
+	workerSBOM.ComponentCount = 2
+	workerSBOM.Components = append(workerSBOM.Components, domain.SBOMComponent{Name: "worker-normalized", Version: "2.0.0"})
+	workerScan := mutation.Scans[0]
+	workerScan.Scanner = "grype"
+	workerScan.TargetRef = "api.tar.gz"
+	workerAttestation := initialAttestation
+	workerAttestation.PayloadType = "application/vnd.dsse.envelope.v1+json"
+	if err := store.ApplyReleaseLedgerMutation(ctx, app.ReleaseLedgerMutation{
+		SBOMs: []domain.SBOM{workerSBOM}, Scans: []domain.VulnerabilityScan{workerScan},
+		BuildAttestations: []domain.BuildAttestation{workerAttestation},
+	}); err != nil {
+		t.Fatalf("persist focused worker projections: %v", err)
+	}
+	loaded, ok, err = store.LoadState(ctx)
+	if err != nil || !ok {
+		t.Fatalf("reload focused worker mutation ok=%v err=%v", ok, err)
+	}
+	if got := loaded.Evidence["ev_focus"].RelatedEvidenceRefs; len(got) != 1 || got[0].ID != "rel_focus" {
+		t.Fatalf("focused worker mutation replaced concurrent evidence links: %#v", got)
+	}
+	if loaded.SBOMs[workerSBOM.ID].SpecVersion != workerSBOM.SpecVersion || loaded.SBOMs[workerSBOM.ID].ComponentCount != 2 {
+		t.Fatalf("focused worker SBOM fields were not persisted: %#v", loaded.SBOMs[workerSBOM.ID])
+	}
+	if loaded.Scans[workerScan.ID].Scanner != workerScan.Scanner || loaded.Scans[workerScan.ID].TargetRef != workerScan.TargetRef {
+		t.Fatalf("focused worker scan fields were not persisted: %#v", loaded.Scans[workerScan.ID])
+	}
+	if loaded.BuildAttestations[workerAttestation.ID].PayloadType != workerAttestation.PayloadType {
+		t.Fatalf("focused worker attestation payload type was not persisted: %#v", loaded.BuildAttestations[workerAttestation.ID])
 	}
 }
 
@@ -1606,32 +1691,36 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := app.NewLedgerWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: sourceStore, ObjectStore: sourceObjects})
+	identity := postgresIdentitySetup(sourceStore, "test-pepper")
+	_, _, secret, err := identity.BootstrapTenant(ctx, "Restore Tenant", "admin", []string{"*"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, secret, err := ledger.BootstrapTenant(ctx, "Restore Tenant", "admin", []string{"*"})
+	actor, err := identity.Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := ledger.Authenticate(ctx, secret)
+	setup := postgresReleaseSetupFixture{execute: func(ctx context.Context, command app.UnitOfWorkCommand) error {
+		return app.ExecuteUnitOfWork(ctx, sourceStore, command)
+	}}
+	product, err := setup.CreateProduct(ctx, actor, "Payments API", "payments-restore")
 	if err != nil {
 		t.Fatal(err)
 	}
-	product, err := ledger.CreateProduct(ctx, actor, "Payments API", "payments-restore")
+	release, err := setup.CreateRelease(ctx, actor, product.ID, "1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	release, err := ledger.CreateRelease(ctx, actor, product.ID, "1.0.0")
+	artifact, err := setup.RegisterArtifact(ctx, actor, "payments.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact, err := ledger.RegisterArtifact(ctx, actor, "payments.tar.gz", "application/gzip", "sha256:"+strings.Repeat("a", 64), 42)
+	rawSBOM := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"api","purl":"pkg:oci/api"}]}`)
+	ingestion, err := newSBOMIngestionFixture(sourceStore, sourceObjects)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rawSBOM := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api","purl":"pkg:oci/api"}]}`)
-	sbom, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, rawSBOM)
+	sbom, err := ingestion.UploadSBOMPayload(ctx, actor, evidenceapp.SBOMIngestionInput{ReleaseID: release.ID, ArtifactID: artifact.ID, Format: "cyclonedx"}, evidenceapp.BytesPayloadSource(rawSBOM))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1639,13 +1728,16 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err := app.FinalizeStagedObjectPayload(ctx, sourceStore, sourceObjects, actor.TenantID, "sha256:"+hex.EncodeToString(sum[:])); err != nil {
 		t.Fatalf("finalize staged source payload: %v", err)
 	}
-	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
+	bundle, err := createReleaseBundleFixture(ctx, sourceStore, actor, release.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := ledger.GenerateBackupManifest(ctx, actor)
+	manifest, err := generateBackupManifestFixture(ctx, sourceStore, actor)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if manifest.SchemaVersion != verificationdomain.BackupManifestTenantSchemaVersion || manifest.TenantID != actor.TenantID || !strings.HasPrefix(manifest.StateHash, "sha256:") || len(manifest.ResourceCounts) != 8 || manifest.ResourceCounts["evidence"] < 1 || manifest.ResourceCounts["release_bundles"] < 1 {
+		t.Fatal("recovery setup did not generate the native tenant-scoped v2 commitment")
 	}
 	dbBackup, ok, err := sourceStore.LoadState(ctx)
 	if err != nil || !ok {
@@ -1669,22 +1761,26 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := app.NewLedgerWithContext(context.Background(), app.Config{APIKeyPepper: "test-pepper", Store: targetStore, ObjectStore: targetObjects})
+	restoredActor, err := postgresIdentitySetup(targetStore, "test-pepper").Authenticate(ctx, secret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	restoredActor, err := restored.Authenticate(ctx, secret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result, err := restored.VerifyBackupManifest(ctx, restoredActor, manifest.ID); err != nil {
+	if result, err := verifyBackupManifestFixture(ctx, targetStore, restoredActor, manifest.ID); err != nil {
 		t.Fatalf("verify backup manifest after restore: %v result=%#v", err, result)
 	}
-	restoredSBOM, err := restored.GetSBOM(ctx, restoredActor, sbom.ID)
+	query, err := evidencequery.NewSBOMPoints(targetStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoredSBOM, err := query.GetSBOM(ctx, restoredActor, sbom.ID)
 	if err != nil || restoredSBOM.ComponentCount != sbom.ComponentCount {
 		t.Fatalf("restored sbom = %#v err=%v", restoredSBOM, err)
 	}
-	evidence, err := restored.GetEvidence(ctx, restoredActor, restoredSBOM.EvidenceID)
+	points, err := evidencequery.NewEvidencePoints(targetStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := points.GetEvidence(ctx, restoredActor, restoredSBOM.EvidenceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1696,7 +1792,7 @@ func TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects(t *testing.T) {
 	if object.Digest != evidence.PayloadHash {
 		t.Fatalf("restored object digest = %q, want %q", object.Digest, evidence.PayloadHash)
 	}
-	if vr, err := restored.VerifySubject(ctx, restoredActor, "release_bundle", bundle.ID); err != nil || vr.Result != "passed" {
+	if vr, err := verifyRestoredSubjectFixture(ctx, targetStore, restoredActor, "release_bundle", bundle.ID); err != nil || vr.Result != "passed" {
 		t.Fatalf("verify restored bundle = %#v err=%v", vr, err)
 	}
 }

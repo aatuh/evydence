@@ -1,0 +1,578 @@
+package app
+
+import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/aatuh/evydence/internal/domain"
+	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	releaseapp "github.com/aatuh/evydence/internal/release/app"
+	verificationapp "github.com/aatuh/evydence/internal/verification/app"
+)
+
+type Config struct {
+	BuildAttestationParser releaseapp.BuildAttestationParser
+	DSSEPolicyVerifier     verificationapp.DSSEPolicyVerifier
+	APIKeyPepper           string
+	Now                    func() time.Time
+	Store                  Store
+	UnitOfWork             UnitOfWorkFactory
+	ObjectStore            ObjectStore
+	Retention              ObjectRetentionVerifier
+	Signer                 SigningExecutor
+	OIDC                   OIDCDiscoveryClient
+	ProviderAPI            ProviderIdentityValidator
+	Transparency           TransparencyProofFetcher
+	Cosign                 CosignPolicyVerifier
+	Outbox                 Outbox
+	OutboxAdmin            OutboxAdmin
+	ReconciliationMetrics  ObjectReconciliationMetricsStore
+	ReadinessChecks        []ReadinessCheck
+	// WorkerOwnedParserSideEffects stores accepted parser records first and
+	// lets outbox workers populate parser-derived fields from raw payloads.
+	WorkerOwnedParserSideEffects bool
+}
+
+type CreateEvidenceInput struct {
+	ProductID        string
+	ProjectID        string
+	ReleaseID        string
+	BuildID          string
+	DeploymentID     string
+	Type             string
+	Subtype          string
+	Title            string
+	SourceSystem     string
+	SourceIdentity   map[string]any
+	CollectorID      string
+	ObservedAt       time.Time
+	PayloadRef       string
+	PayloadHash      string
+	PayloadMediaType string
+	PayloadSize      int64
+	StagedPayload    ObjectPayload
+	SubjectRefs      []domain.SubjectRef
+	Metadata         map[string]any
+	Tags             []string
+	Limitations      []string
+}
+
+// Ledger is the compatibility facade used while bounded-context services and
+// query adapters migrate. Deprecated: new command behavior belongs in the
+// owning context application package.
+type Ledger struct {
+	mu              sync.Mutex
+	transactionGate sync.RWMutex
+
+	pepper                 []byte
+	now                    func() time.Time
+	store                  Store
+	evidencePages          EvidencePageStore
+	workerProjections      WorkerProjectionStore
+	unitOfWork             UnitOfWorkFactory
+	objects                ObjectStore
+	retention              ObjectRetentionVerifier
+	signer                 SigningExecutor
+	oidc                   OIDCDiscoveryClient
+	providerAPI            ProviderIdentityValidator
+	transparencyProofs     TransparencyProofFetcher
+	cosign                 CosignPolicyVerifier
+	outbox                 Outbox
+	outboxAdmin            OutboxAdmin
+	reconciliationMetrics  ObjectReconciliationMetricsStore
+	readinessChecks        []ReadinessCheck
+	workerOwnedParsers     bool
+	buildAttestationParser releaseapp.BuildAttestationParser
+	dssePolicyVerifier     verificationapp.DSSEPolicyVerifier
+
+	tenants               map[string]domain.Tenant
+	organizations         map[string]domain.Organization
+	users                 map[string]domain.HumanUser
+	roleBindings          map[string]domain.RoleBinding
+	ssoProviders          map[string]domain.SSOProvider
+	identityLinks         map[string]domain.UserIdentityLink
+	ssoSessions           map[string]domain.SSOSession
+	apiKeys               map[string]domain.APIKey
+	collectors            map[string]domain.Collector
+	collectorReleases     map[string]domain.CollectorRelease
+	products              map[string]domain.Product
+	projects              map[string]domain.Project
+	releases              map[string]domain.Release
+	artifacts             map[string]domain.Artifact
+	buildRuns             map[string]domain.BuildRun
+	attestations          map[string]domain.BuildAttestation
+	evidence              map[string]domain.EvidenceItem
+	lifecycle             map[string]domain.EvidenceLifecycleEvent
+	candidates            map[string]domain.ReleaseCandidate
+	images                map[string]domain.ContainerImage
+	artifactSigs          map[string]domain.ArtifactSignature
+	repositories          map[string]domain.SourceRepository
+	commits               map[string]domain.SourceCommit
+	branches              map[string]domain.SourceBranch
+	pullRequests          map[string]domain.PullRequest
+	environments          map[string]domain.DeploymentEnvironment
+	deployments           map[string]domain.DeploymentEvent
+	incidents             map[string]domain.Incident
+	timeline              map[string]domain.IncidentTimelineEvent
+	webhookReceivers      map[string]domain.IncidentWebhookReceiver
+	webhookEvents         map[string]domain.IncidentWebhookEvent
+	tasks                 map[string]domain.RemediationTask
+	securityScans         map[string]domain.SecurityScan
+	manualDocs            map[string]domain.ManualSecurityDocument
+	sbomDiffs             map[string]domain.SBOMDiff
+	depChanges            map[string]domain.DependencyChange
+	vulnWorkflow          map[string]domain.VulnerabilityWorkflowRecord
+	contractDiffs         map[string]domain.ContractDiff
+	customPolicies        map[string]domain.CustomPolicy
+	customPolicyEvals     map[string]domain.CustomPolicyEvaluation
+	waivers               map[string]domain.Waiver
+	approvals             map[string]domain.ApprovalRecord
+	redactions            map[string]domain.RedactionProfile
+	customerPackages      map[string]domain.CustomerSecurityPackage
+	htmlReports           map[string]domain.HTMLReportPackage
+	reportTemplates       map[string]domain.CustomReportTemplate
+	renderedReports       map[string]domain.RenderedCustomReport
+	evidenceBundles       map[string]domain.EvidenceBundle
+	bundleImports         map[string]domain.EvidenceBundleImport
+	dsseTrustRoots        map[string]domain.DSSETrustRoot
+	cosignVerifs          map[string]domain.CosignVerification
+	signingProviders      map[string]domain.SigningProvider
+	merkleBatches         map[string]domain.MerkleBatch
+	transparency          map[string]domain.TransparencyCheckpoint
+	retentionPolicies     map[string]domain.ObjectRetentionPolicy
+	backupManifests       map[string]domain.BackupManifest
+	legalHolds            map[string]domain.LegalHold
+	retentionOverrides    map[string]domain.RetentionOverride
+	portalAccess          map[string]domain.CustomerPortalAccess
+	questionTemplates     map[string]domain.QuestionnaireTemplate
+	questionPackages      map[string]domain.QuestionnairePackage
+	answerLibrary         map[string]domain.QuestionnaireAnswerLibraryEntry
+	commercialCollectors  map[string]domain.CommercialCollectorDefinition
+	evidenceSummaries     map[string]domain.EvidenceSummary
+	questionDrafts        map[string]domain.QuestionnaireDraft
+	graphSnapshots        map[string]domain.EvidenceGraphSnapshot
+	saasProfiles          map[string]domain.SaaSEditionProfile
+	publicLogs            map[string]domain.PublicTransparencyLog
+	publicLogEntries      map[string]domain.PublicTransparencyLogEntry
+	marketplaceCollectors map[string]domain.MarketplaceCollector
+	pdfReports            map[string]domain.PDFReportPackage
+	anomalyReports        map[string]domain.AnomalyReport
+	providerVerifications map[string]domain.ProviderVerification
+	signingOperations     map[string]domain.SigningOperation
+	frameworks            map[string]domain.ControlFramework
+	controls              map[string]domain.SecurityControl
+	controlLinks          map[string]domain.ControlEvidence
+	sboms                 map[string]domain.SBOM
+	scans                 map[string]domain.VulnerabilityScan
+	vexDocuments          map[string]domain.VEXDocument
+	vexImportReports      map[string]domain.VEXImportReport
+	decisions             map[string]domain.VulnerabilityDecision
+	contracts             map[string]domain.OpenAPIContract
+	policies              map[string]domain.PolicyEvaluation
+	exceptions            map[string]domain.Exception
+	bundles               map[string]domain.ReleaseBundle
+	signingKeys           map[string]domain.SigningKey
+	signatures            map[string]domain.Signature
+	verifications         map[string]domain.VerificationResult
+	chain                 map[string][]domain.AuditChainEntry
+	idempotency           map[string]IdempotencyRecord
+	// localVEXJobs is a compatibility-only, per-ledger handoff used when the
+	// DB-less runtime has no durable outbox worker. The evidence transaction
+	// adapter drains each job in a separate post-commit command.
+	localVEXJobs map[string]OutboxJob
+}
+
+// NewLedgerWithContext creates a ledger and honors cancellation while loading
+// configured durable state.
+func NewLedgerWithContext(ctx context.Context, cfg Config) (*Ledger, error) {
+	if ctx == nil {
+		return nil, ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := validateLedgerDSSEPorts(cfg); err != nil {
+		return nil, err
+	}
+	now := cfg.Now
+	if now == nil {
+		now = func() time.Time { return time.Now().UTC() }
+	}
+	pepper := strings.TrimSpace(cfg.APIKeyPepper)
+	if pepper == "" {
+		pepper = identityapp.LocalDevelopmentPepper
+	}
+	retention := cfg.Retention
+	if retention == nil && cfg.ObjectStore != nil {
+		if verifier, ok := cfg.ObjectStore.(ObjectRetentionVerifier); ok {
+			retention = verifier
+		}
+	}
+	unitOfWork := cfg.UnitOfWork
+	if unitOfWork == nil {
+		if factory, ok := cfg.Store.(UnitOfWorkFactory); ok {
+			unitOfWork = factory
+		}
+	}
+	ledger := &Ledger{
+		pepper:                 []byte(pepper),
+		now:                    now,
+		store:                  cfg.Store,
+		evidencePages:          evidencePageStore(cfg.Store),
+		workerProjections:      workerProjectionStore(cfg.Store),
+		unitOfWork:             unitOfWork,
+		objects:                cfg.ObjectStore,
+		retention:              retention,
+		signer:                 cfg.Signer,
+		oidc:                   cfg.OIDC,
+		providerAPI:            cfg.ProviderAPI,
+		transparencyProofs:     cfg.Transparency,
+		cosign:                 cfg.Cosign,
+		outbox:                 cfg.Outbox,
+		outboxAdmin:            cfg.OutboxAdmin,
+		reconciliationMetrics:  cfg.ReconciliationMetrics,
+		readinessChecks:        normalizedReadinessChecks(cfg.ReadinessChecks),
+		workerOwnedParsers:     cfg.WorkerOwnedParserSideEffects,
+		buildAttestationParser: cfg.BuildAttestationParser,
+		dssePolicyVerifier:     cfg.DSSEPolicyVerifier,
+		tenants:                map[string]domain.Tenant{},
+		organizations:          map[string]domain.Organization{},
+		users:                  map[string]domain.HumanUser{},
+		roleBindings:           map[string]domain.RoleBinding{},
+		ssoProviders:           map[string]domain.SSOProvider{},
+		identityLinks:          map[string]domain.UserIdentityLink{},
+		ssoSessions:            map[string]domain.SSOSession{},
+		apiKeys:                map[string]domain.APIKey{},
+		collectors:             map[string]domain.Collector{},
+		collectorReleases:      map[string]domain.CollectorRelease{},
+		products:               map[string]domain.Product{},
+		projects:               map[string]domain.Project{},
+		releases:               map[string]domain.Release{},
+		artifacts:              map[string]domain.Artifact{},
+		buildRuns:              map[string]domain.BuildRun{},
+		attestations:           map[string]domain.BuildAttestation{},
+		evidence:               map[string]domain.EvidenceItem{},
+		lifecycle:              map[string]domain.EvidenceLifecycleEvent{},
+		candidates:             map[string]domain.ReleaseCandidate{},
+		images:                 map[string]domain.ContainerImage{},
+		artifactSigs:           map[string]domain.ArtifactSignature{},
+		repositories:           map[string]domain.SourceRepository{},
+		commits:                map[string]domain.SourceCommit{},
+		branches:               map[string]domain.SourceBranch{},
+		pullRequests:           map[string]domain.PullRequest{},
+		environments:           map[string]domain.DeploymentEnvironment{},
+		deployments:            map[string]domain.DeploymentEvent{},
+		incidents:              map[string]domain.Incident{},
+		timeline:               map[string]domain.IncidentTimelineEvent{},
+		webhookReceivers:       map[string]domain.IncidentWebhookReceiver{},
+		webhookEvents:          map[string]domain.IncidentWebhookEvent{},
+		tasks:                  map[string]domain.RemediationTask{},
+		securityScans:          map[string]domain.SecurityScan{},
+		manualDocs:             map[string]domain.ManualSecurityDocument{},
+		sbomDiffs:              map[string]domain.SBOMDiff{},
+		depChanges:             map[string]domain.DependencyChange{},
+		vulnWorkflow:           map[string]domain.VulnerabilityWorkflowRecord{},
+		contractDiffs:          map[string]domain.ContractDiff{},
+		customPolicies:         map[string]domain.CustomPolicy{},
+		customPolicyEvals:      map[string]domain.CustomPolicyEvaluation{},
+		waivers:                map[string]domain.Waiver{},
+		approvals:              map[string]domain.ApprovalRecord{},
+		redactions:             map[string]domain.RedactionProfile{},
+		customerPackages:       map[string]domain.CustomerSecurityPackage{},
+		htmlReports:            map[string]domain.HTMLReportPackage{},
+		reportTemplates:        map[string]domain.CustomReportTemplate{},
+		renderedReports:        map[string]domain.RenderedCustomReport{},
+		evidenceBundles:        map[string]domain.EvidenceBundle{},
+		bundleImports:          map[string]domain.EvidenceBundleImport{},
+		dsseTrustRoots:         map[string]domain.DSSETrustRoot{},
+		cosignVerifs:           map[string]domain.CosignVerification{},
+		signingProviders:       map[string]domain.SigningProvider{},
+		merkleBatches:          map[string]domain.MerkleBatch{},
+		transparency:           map[string]domain.TransparencyCheckpoint{},
+		retentionPolicies:      map[string]domain.ObjectRetentionPolicy{},
+		backupManifests:        map[string]domain.BackupManifest{},
+		legalHolds:             map[string]domain.LegalHold{},
+		retentionOverrides:     map[string]domain.RetentionOverride{},
+		portalAccess:           map[string]domain.CustomerPortalAccess{},
+		questionTemplates:      map[string]domain.QuestionnaireTemplate{},
+		questionPackages:       map[string]domain.QuestionnairePackage{},
+		answerLibrary:          map[string]domain.QuestionnaireAnswerLibraryEntry{},
+		commercialCollectors:   map[string]domain.CommercialCollectorDefinition{},
+		evidenceSummaries:      map[string]domain.EvidenceSummary{},
+		questionDrafts:         map[string]domain.QuestionnaireDraft{},
+		graphSnapshots:         map[string]domain.EvidenceGraphSnapshot{},
+		saasProfiles:           map[string]domain.SaaSEditionProfile{},
+		publicLogs:             map[string]domain.PublicTransparencyLog{},
+		publicLogEntries:       map[string]domain.PublicTransparencyLogEntry{},
+		marketplaceCollectors:  map[string]domain.MarketplaceCollector{},
+		pdfReports:             map[string]domain.PDFReportPackage{},
+		anomalyReports:         map[string]domain.AnomalyReport{},
+		providerVerifications:  map[string]domain.ProviderVerification{},
+		signingOperations:      map[string]domain.SigningOperation{},
+		frameworks:             map[string]domain.ControlFramework{},
+		controls:               map[string]domain.SecurityControl{},
+		controlLinks:           map[string]domain.ControlEvidence{},
+		sboms:                  map[string]domain.SBOM{},
+		scans:                  map[string]domain.VulnerabilityScan{},
+		vexDocuments:           map[string]domain.VEXDocument{},
+		vexImportReports:       map[string]domain.VEXImportReport{},
+		decisions:              map[string]domain.VulnerabilityDecision{},
+		contracts:              map[string]domain.OpenAPIContract{},
+		policies:               map[string]domain.PolicyEvaluation{},
+		exceptions:             map[string]domain.Exception{},
+		bundles:                map[string]domain.ReleaseBundle{},
+		signingKeys:            map[string]domain.SigningKey{},
+		signatures:             map[string]domain.Signature{},
+		verifications:          map[string]domain.VerificationResult{},
+		chain:                  map[string][]domain.AuditChainEntry{},
+		idempotency:            map[string]IdempotencyRecord{},
+		localVEXJobs:           map[string]OutboxJob{},
+	}
+	if ledger.outbox == nil {
+		ledger.outbox = nopOutbox{}
+	}
+	if cfg.Store != nil {
+		state, ok, err := cfg.Store.LoadState(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			if err := ledger.applyState(state); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return ledger, nil
+}
+
+func evidencePageStore(store Store) EvidencePageStore {
+	pages, _ := store.(EvidencePageStore)
+	return pages
+}
+
+func workerProjectionStore(store Store) WorkerProjectionStore {
+	projections, _ := store.(WorkerProjectionStore)
+	return projections
+}
+
+// newEvidenceItemForScopeLocked keeps composite command authorization explicit.
+// The build-attestation and deployment compatibility bridges use their
+// documented command scopes and must not introduce a hidden evidence:write
+// requirement.
+func (l *Ledger) newEvidenceItemForScopeLocked(actor domain.Actor, authorizationScope string, in CreateEvidenceInput) (domain.EvidenceItem, error) {
+	if authorizationScope != ScopeEvidenceWrite && authorizationScope != ScopeBuildWrite && authorizationScope != ScopeDeploymentWrite {
+		return domain.EvidenceItem{}, ErrValidation
+	}
+	deploymentEvent := strings.TrimSpace(in.Type) == "deployment" && strings.TrimSpace(in.Subtype) == "event" && strings.TrimSpace(in.DeploymentID) != ""
+	if (authorizationScope == ScopeDeploymentWrite) != deploymentEvent {
+		return domain.EvidenceItem{}, ErrValidation
+	}
+	if err := l.ensureScopeLocked(actor.TenantID, in.ProductID, in.ProjectID, in.ReleaseID); err != nil {
+		return domain.EvidenceItem{}, err
+	}
+	if err := l.authorizeResourceLocked(actor, authorizationScope, resourceRefs{ProductID: in.ProductID, ProjectID: in.ProjectID, ReleaseID: in.ReleaseID}); err != nil {
+		return domain.EvidenceItem{}, err
+	}
+	now := l.now()
+	item := domain.EvidenceItem{
+		ID:                  newID("ev"),
+		TenantID:            actor.TenantID,
+		ProductID:           in.ProductID,
+		ProjectID:           in.ProjectID,
+		ReleaseID:           in.ReleaseID,
+		BuildID:             in.BuildID,
+		DeploymentID:        in.DeploymentID,
+		Type:                in.Type,
+		Subtype:             strings.TrimSpace(in.Subtype),
+		Title:               in.Title,
+		SourceSystem:        nonEmpty(in.SourceSystem, "api"),
+		SourceIdentity:      cloneMap(in.SourceIdentity),
+		CollectorID:         strings.TrimSpace(in.CollectorID),
+		UploadedBy:          actor.KeyID,
+		ObservedAt:          in.ObservedAt.UTC(),
+		EvidenceVersion:     1,
+		SchemaVersion:       domain.EvidenceItemSchemaVersion,
+		PayloadRef:          strings.TrimSpace(in.PayloadRef),
+		PayloadHash:         in.PayloadHash,
+		PayloadMediaType:    strings.TrimSpace(in.PayloadMediaType),
+		PayloadSize:         in.PayloadSize,
+		Canonicalization:    evidencedomain.EvidenceCanonicalizationProfileVersion,
+		SubjectRefs:         append([]domain.SubjectRef(nil), in.SubjectRefs...),
+		TrustLevel:          "L2",
+		VerificationStatus:  "pending",
+		Tags:                sortedStrings(in.Tags),
+		Metadata:            cloneMap(in.Metadata),
+		Limitations:         append([]string(nil), in.Limitations...),
+		CreatedAt:           now,
+		RelatedEvidenceRefs: nil,
+	}
+	item = withEvidenceCanonicalOriginRefs(item)
+	hash, err := canonicalHash(item)
+	if err != nil {
+		return domain.EvidenceItem{}, err
+	}
+	item.CanonicalHash = hash
+	return item, nil
+}
+
+// IdempotencyCommand runs application writes using the isolated ledger view
+// bound to the idempotency transaction. It must use the provided context and
+// ledger rather than retaining either after it returns.
+type IdempotencyCommand func(context.Context, *Ledger) (int, any, error)
+
+func (l *Ledger) WithIdempotency(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, run IdempotencyCommand) (int, any, error) {
+	return l.withIdempotencyRequestHash(ctx, actor, method, path, key, hashBytes(append([]byte(method+"\n"+path+"\n"), body...)), run)
+}
+
+// WithIdempotencyRequestHash permits streaming transports to retain only a
+// request digest. The supplied digest must cover the complete request body;
+// the method and path remain part of the persisted idempotency fingerprint.
+func (l *Ledger) WithIdempotencyRequestHash(ctx context.Context, actor domain.Actor, method, path, key, bodyDigest string, run IdempotencyCommand) (int, any, error) {
+	if !validDigest(bodyDigest) {
+		return 0, nil, ErrValidation
+	}
+	return l.withIdempotencyRequestHash(ctx, actor, method, path, key, hashBytes([]byte(method+"\n"+path+"\n"+bodyDigest)), run)
+}
+
+func (l *Ledger) withIdempotencyRequestHash(ctx context.Context, actor domain.Actor, method, path, key, requestHash string, run IdempotencyCommand) (int, any, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, nil, err
+	}
+	key = strings.TrimSpace(key)
+	if key == "" || run == nil || !validDigest(requestHash) {
+		return 0, nil, ErrValidation
+	}
+	persistenceKey := IdempotencyRecordKey{TenantID: actor.TenantID, ActorID: idempotencyActorID(actor), Method: method, Path: path, IdempotencyKey: key}
+	reservation, err := newIdempotencyReservation(persistenceKey, requestHash, l.now())
+	if err != nil {
+		return 0, nil, err
+	}
+	if l.unitOfWork != nil {
+		return l.withDurableIdempotency(ctx, reservation, run)
+	}
+	return l.withInMemoryIdempotency(ctx, reservation, run)
+}
+
+func (l *Ledger) ensureScopeLocked(tenantID, productID, projectID, releaseID string) error {
+	if productID != "" {
+		product, ok := l.products[productID]
+		if !ok || product.TenantID != tenantID {
+			return ErrNotFound
+		}
+	}
+	if projectID != "" {
+		project, ok := l.projects[projectID]
+		if !ok || project.TenantID != tenantID {
+			return ErrNotFound
+		}
+	}
+	if releaseID != "" {
+		release, ok := l.releases[releaseID]
+		if !ok || release.TenantID != tenantID {
+			return ErrNotFound
+		}
+	}
+	return nil
+}
+
+func (l *Ledger) appendChainLocked(tenantID, entryType, subjectType, subjectID, actorType, actorID, payloadHash, signatureRef string) (domain.AuditChainEntry, error) {
+	entries := l.chain[tenantID]
+	previous := ""
+	if len(entries) > 0 {
+		previous = entries[len(entries)-1].EntryHash
+	}
+	entry := domain.AuditChainEntry{
+		ID:                newID("ace"),
+		TenantID:          tenantID,
+		Sequence:          int64(len(entries) + 1),
+		EntryType:         entryType,
+		SubjectType:       subjectType,
+		SubjectID:         subjectID,
+		ActorType:         actorType,
+		ActorID:           actorID,
+		OccurredAt:        l.now(),
+		PayloadHash:       payloadHash,
+		PreviousEntryHash: previous,
+		SignatureRef:      signatureRef,
+		SchemaVersion:     domain.AuditChainEntrySchemaVersion,
+	}
+	if err := RehashAuditChainEntry(&entry); err != nil {
+		return domain.AuditChainEntry{}, err
+	}
+	l.chain[tenantID] = append(entries, entry)
+	return entry, nil
+}
+
+// newSigningKey creates private material without publishing it. Callers must
+// write it transactionally and must never return Private to normal callers.
+func (l *Ledger) newSigningKeyAt(tenantID, provider string, version int, now time.Time) (domain.SigningKey, error) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return domain.SigningKey{}, err
+	}
+	if provider == "" {
+		provider = domain.SigningKeyDefaultProvider
+	}
+	if version < 1 {
+		version = 1
+	}
+	now = now.UTC()
+	fingerprint := sha256.Sum256(pub)
+	return domain.SigningKey{ID: newID("sk"), TenantID: tenantID, KID: fmt.Sprintf("%s-v%d", now.Format("20060102T150405Z"), version), Version: version, Provider: provider, Algorithm: "Ed25519", Status: domain.SigningKeyStatusActive, PublicKey: base64.RawStdEncoding.EncodeToString(pub), PublicKeyFingerprint: "sha256:" + hex.EncodeToString(fingerprint[:]), Private: priv, ValidFrom: now, CreatedAt: now, HistoricalValidityPolicy: domain.SigningKeyHistoricalValidityPreserve}, nil
+}
+
+func (l *Ledger) verifySignatureLocked(tenantID string, signatureRefs []string, payload []byte) bool {
+	return l.verifySignatureForSubjectLocked(tenantID, signatureRefs, "", "", payload)
+}
+
+// verifySignatureForSubjectLocked verifies both the cryptographic value and the
+// immutable subject recorded with the signature. Callers that verify an
+// identifiable ledger object must use this form so a valid signature for one
+// object cannot be replayed for another object with identical bytes.
+func (l *Ledger) verifySignatureForSubjectLocked(tenantID string, signatureRefs []string, subjectType, subjectID string, payload []byte) bool {
+	for _, ref := range signatureRefs {
+		sig, ok := l.signatures[ref]
+		if !ok || sig.TenantID != tenantID {
+			continue
+		}
+		if subjectType != "" && (sig.SubjectType != subjectType || sig.SubjectID != subjectID) {
+			continue
+		}
+		key, ok := l.signingKeys[sig.KeyID]
+		if !ok || key.TenantID != tenantID {
+			continue
+		}
+		if key.HistoricalValidityAt(sig.CreatedAt, l.now().UTC()) != domain.SigningKeyHistoricalValidityValid {
+			continue
+		}
+		if (ledgerVerificationPayloadVerifier{}).VerifyPayload(key.PublicKey, sig.Value, payload) {
+			return true
+		}
+	}
+	return false
+}
+
+// Compatibility-only crypto adapter for the explicit local Ledger profile.
+// Durable commands receive their cryptographic adapter from platform wiring.
+type ledgerVerificationPayloadVerifier struct{}
+
+func (ledgerVerificationPayloadVerifier) VerifyPayload(publicKey, signature string, payload []byte) bool {
+	if len(publicKey) > 128 || len(signature) > 128 {
+		return false
+	}
+	public, err := base64.RawStdEncoding.DecodeString(publicKey)
+	if err != nil || len(public) != ed25519.PublicKeySize {
+		return false
+	}
+	value, err := base64.RawStdEncoding.DecodeString(signature)
+	return err == nil && ed25519.Verify(ed25519.PublicKey(public), payload, value)
+}

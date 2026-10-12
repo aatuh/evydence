@@ -156,10 +156,11 @@ func TestCriticalMutationStoreCoversSSOAndPortalSecrets(t *testing.T) {
 		SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: fixedNow(),
 	}
 	ledger.customerPackages["pkg_test"] = domain.CustomerSecurityPackage{
-		ID: "pkg_test", TenantID: actor.TenantID, Title: "Customer package",
+		ID: "pkg_test", TenantID: actor.TenantID, ProductID: "portal_product", Title: "Customer package",
 		ManifestHash: "sha256:test", SchemaVersion: domain.CustomerPackageSchemaVersion,
 		CreatedAt: fixedNow(),
 	}
+	ledger.products["portal_product"] = domain.Product{ID: "portal_product", TenantID: actor.TenantID, Name: "Portal product"}
 
 	store.reset()
 	session, secret, err := ledger.CreateSSOSession(ctx, actor, CreateSSOSessionInput{
@@ -278,7 +279,7 @@ func TestReleaseLedgerMutationStoreCoversParserMetadataAndOutbox(t *testing.T) {
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 
 	store.reset()
-	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.5","components":[{"name":"lib","version":"1.0.0"}]}`)); err != nil {
+	if _, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"lib","version":"1.0.0"}]}`)); err != nil {
 		t.Fatalf("upload sbom: %v", err)
 	}
 	if store.saveCalls != 0 || store.releaseCalls == 0 || !releaseMutationsContainSBOMAndOutbox(store.releases, "parse_sbom") {

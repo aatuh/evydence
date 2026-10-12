@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/httpclient"
 )
 
 const (
@@ -68,9 +68,15 @@ func New(cfg Config) (*Validator, error) {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	client := cfg.Client
-	if client == nil {
-		client = &http.Client{Timeout: timeout}
+	client, err := httpclient.New(httpclient.Config{
+		Timeout:                   timeout,
+		MaxResponseBytes:          maxBodyBytes,
+		AllowedHosts:              []string{parsed.Hostname()},
+		AllowInsecureForLocalhost: cfg.AllowInsecureForLocalhost,
+		Client:                    cfg.Client,
+	})
+	if err != nil {
+		return nil, app.ErrValidation
 	}
 	return &Validator{endpoint: endpoint, bearerToken: strings.TrimSpace(cfg.BearerToken), client: client}, nil
 }
@@ -209,6 +215,5 @@ func localhostHost(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return strings.HasPrefix(host, "127.") || host == "::1"
 }

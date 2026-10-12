@@ -7,43 +7,27 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/aatuh/evydence/internal/app"
-	"github.com/aatuh/evydence/internal/domain"
 )
 
-type streamedUpload func(*Server, requestContext, domain.Actor, app.PayloadSource) (int, any, error)
-
-// createStreamedEvidence spools an untrusted evidence document to a private
-// temporary file while counting and hashing it. The command receives only a
-// repeatable source, so it can validate and stage the document without a
-// second request-sized memory allocation. The temporary file is always removed
-// before the handler returns and its path is never included in an error.
-func (s *Server) createStreamedEvidence(w http.ResponseWriter, r *http.Request, limit int64, run streamedUpload) {
-	actor, ok := s.authenticate(w, r)
-	if !ok {
-		return
+func streamedRequestFingerprint(bodyDigest string, semanticFields map[string]string) string {
+	if len(semanticFields) == 0 {
+		return bodyDigest
 	}
-	source, cleanup, err := streamRequestPayload(r, limit)
-	if err != nil {
-		writeProblem(w, r, app.ErrValidation)
-		return
+	keys := make([]string, 0, len(semanticFields))
+	for key := range semanticFields {
+		keys = append(keys, key)
 	}
-	defer cleanup()
-	status, response, err := s.ledger.WithIdempotencyRequestHash(r.Context(), actor, r.Method, r.URL.Path, r.Header.Get("Idempotency-Key"), source.Digest, func(commandCtx requestContext, commandLedger *app.Ledger) (int, any, error) {
-		commandServer := *s
-		commandServer.ledger = commandLedger
-		return run(&commandServer, commandCtx, actor, source)
-	})
-	if err != nil {
-		writeProblem(w, r, err)
-		return
+	sort.Strings(keys)
+	hash := sha256.New()
+	_, _ = io.WriteString(hash, bodyDigest)
+	for _, key := range keys {
+		_, _ = io.WriteString(hash, "\x00"+key+"\x00"+semanticFields[key])
 	}
-	if r.Header.Get("Idempotency-Key") != "" {
-		w.Header().Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
-	}
-	writeData(w, status, response)
+	return "sha256:" + hex.EncodeToString(hash.Sum(nil))
 }
 
 func streamRequestPayload(r *http.Request, limit int64) (app.PayloadSource, func(), error) {

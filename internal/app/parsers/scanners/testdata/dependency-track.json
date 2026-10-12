@@ -1,0 +1,1 @@
+{"scanner":"dependency-track","target_ref":"pkg:oci/example@sha256:111","release_id":"rel_test","source_schema":"dependency-track-json.v1","payload":{"findings":[{"component":{"purl":"pkg:maven/org.example/demo@1.0.0"},"vulnerability":{"vulnId":"CVE-2026-0004","source":"NVD","severity":"HIGH"},"state":"open","fixedVersion":"1.0.4"}]}}

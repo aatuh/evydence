@@ -1,0 +1,217 @@
+                  }
+                }
+              }
+            },
+            "signature": {
+              "$ref": "#/definitions/signature",
+              "title": "Signature",
+              "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+            }
+          }
+        },
+        "signature": {
+          "$ref": "#/definitions/signature",
+          "title": "Signature",
+          "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+        }
+      }
+    },
+    "definitions": {
+      "type": "object",
+      "title": "Definitions",
+      "description": "A collection of reusable objects that are defined and may be used elsewhere in the BOM.",
+      "additionalProperties": false,
+      "properties": {
+        "standards": {
+          "type": "array",
+          "title": "Standards",
+          "description": "The list of standards which may consist of regulations, industry or organizational-specific standards, maturity models, best practices, or any other requirements which can be evaluated against or attested to.",
+          "items": {
+            "$ref": "#/definitions/standard"
+          }
+        }
+      }
+    },
+    "properties": {
+      "type": "array",
+      "title": "Properties",
+      "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+      "items": {
+        "$ref": "#/definitions/property"
+      }
+    },
+    "signature": {
+      "$ref": "#/definitions/signature",
+      "title": "Signature",
+      "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+    }
+  },
+  "definitions": {
+    "refType": {
+      "description": "Identifier for referable and therefore interlinkable elements.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links.",
+      "type": "string",
+      "minLength": 1,
+      "$comment": "TODO (breaking change): add a format constraint that prevents the value from starting with 'urn:cdx:'"
+    },
+    "refLinkType": {
+      "description": "Descriptor for an element identified by the attribute 'bom-ref' in the same BOM document.\nIn contrast to `bomLinkElementType`.",
+      "$ref": "#/definitions/refType"
+    },
+    "bomLinkDocumentType": {
+      "title": "BOM-Link Document",
+      "description": "Descriptor for another BOM document. See https://cyclonedx.org/capabilities/bomlink/",
+      "type": "string",
+      "format": "iri-reference",
+      "pattern": "^urn:cdx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[1-9][0-9]*$",
+      "$comment": "part of the pattern is based on `bom.serialNumber`'s pattern"
+    },
+    "bomLinkElementType": {
+      "title": "BOM-Link Element",
+      "description": "Descriptor for an element in a BOM document. See https://cyclonedx.org/capabilities/bomlink/",
+      "type": "string",
+      "format": "iri-reference",
+      "pattern": "^urn:cdx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[1-9][0-9]*#.+$",
+      "$comment": "part of the pattern is based on `bom.serialNumber`'s pattern"
+    },
+    "bomLink": {
+      "title": "BOM-Link",
+      "anyOf": [
+        {
+          "title": "BOM-Link Document",
+          "$ref": "#/definitions/bomLinkDocumentType"
+        },
+        {
+          "title": "BOM-Link Element",
+          "$ref": "#/definitions/bomLinkElementType"
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "title": "BOM Metadata",
+      "additionalProperties": false,
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Timestamp",
+          "description": "The date and time (timestamp) when the BOM was created."
+        },
+        "lifecycles": {
+          "type": "array",
+          "title": "Lifecycles",
+          "description": "Lifecycles communicate the stage(s) in which data in the BOM was captured. Different types of data may be available at various phases of a lifecycle, such as the Software Development Lifecycle (SDLC), IT Asset Management (ITAM), and Software Asset Management (SAM). Thus, a BOM may include data specific to or only obtainable in a given lifecycle.",
+          "items": {
+            "type": "object",
+            "title": "Lifecycle",
+            "description": "The product lifecycle(s) that this BOM represents.",
+            "oneOf": [
+              {
+                "title": "Pre-Defined Phase",
+                "required": ["phase"],
+                "additionalProperties": false,
+                "properties": {
+                  "phase": {
+                    "type": "string",
+                    "title": "Phase",
+                    "description": "A pre-defined phase in the product lifecycle.",
+                    "enum": [
+                      "design",
+                      "pre-build",
+                      "build",
+                      "post-build",
+                      "operations",
+                      "discovery",
+                      "decommission"
+                    ],
+                    "meta:enum": {
+                      "design": "BOM produced early in the development lifecycle containing an inventory of components and services that are proposed or planned to be used. The inventory may need to be procured, retrieved, or resourced prior to use.",
+                      "pre-build": "BOM consisting of information obtained prior to a build process and may contain source files and development artifacts and manifests. The inventory may need to be resolved and retrieved prior to use.",
+                      "build": "BOM consisting of information obtained during a build process where component inventory is available for use. The precise versions of resolved components are usually available at this time as well as the provenance of where the components were retrieved from.",
+                      "post-build": "BOM consisting of information obtained after a build process has completed and the resulting components(s) are available for further analysis. Built components may exist as the result of a CI/CD process, may have been installed or deployed to a system or device, and may need to be retrieved or extracted from the system or device.",
+                      "operations": "BOM produced that represents inventory that is running and operational. This may include staging or production environments and will generally encompass multiple SBOMs describing the applications and operating system, along with HBOMs describing the hardware that makes up the system. Operations Bill of Materials (OBOM) can provide full-stack inventory of runtime environments, configurations, and additional dependencies.",
+                      "discovery": "BOM consisting of information observed through network discovery providing point-in-time enumeration of embedded, on-premise, and cloud-native services such as server applications, connected devices, microservices, and serverless functions.",
+                      "decommission": "BOM containing inventory that will be, or has been retired from operations."
+                    }
+                  }
+                }
+              },
+              {
+                "title": "Custom Phase",
+                "required": ["name"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "title": "Name",
+                    "description": "The name of the lifecycle phase"
+                  },
+                  "description": {
+                    "type": "string",
+                    "title": "Description",
+                    "description": "The description of the lifecycle phase"
+                  }
+                }
+              }
+            ]
+          }
+      },
+        "tools": {
+          "title": "Tools",
+          "description": "The tool(s) used in the creation, enrichment, and validation of the BOM.",
+          "oneOf": [
+            {
+              "type": "object",
+              "title": "Tools",
+              "description": "The tool(s) used in the creation, enrichment, and validation of the BOM.",
+              "additionalProperties": false,
+              "properties": {
+                "components": {
+                  "type": "array",
+                  "items": {"$ref": "#/definitions/component"},
+                  "uniqueItems": true,
+                  "title": "Components",
+                  "description": "A list of software and hardware components used as tools."
+                },
+                "services": {
+                  "type": "array",
+                  "items": {"$ref": "#/definitions/service"},
+                  "uniqueItems": true,
+                  "title": "Services",
+                  "description": "A list of services used as tools. This may include microservices, function-as-a-service, and other types of network or intra-process services."
+                }
+              }
+            },
+            {
+              "type": "array",
+              "title": "Tools (legacy)",
+              "description": "[Deprecated] The tool(s) used in the creation, enrichment, and validation of the BOM.",
+              "items": {"$ref": "#/definitions/tool"}
+            }
+          ]
+        },
+        "manufacturer": {
+          "title": "BOM Manufacturer",
+          "description": "The organization that created the BOM.\nManufacturer is common in BOMs created through automated processes. BOMs created through manual means may have `@.authors` instead.",
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "authors": {
+          "type": "array",
+          "title": "BOM Authors",
+          "description": "The person(s) who created the BOM.\nAuthors are common in BOMs created through manual processes. BOMs created through automated means may have `@.manufacturer` instead.",
+          "items": {"$ref": "#/definitions/organizationalContact"}
+        },
+        "component": {
+          "title": "Component",
+          "description": "The component that the BOM describes.",
+          "$ref": "#/definitions/component"
+        },
+        "manufacture": {
+          "deprecated": true,
+          "title": "Component Manufacture (legacy)",
+          "description": "[Deprecated] This will be removed in a future version. Use the `@.component.manufacturer` instead.\nThe organization that manufactured the component that the BOM describes.",
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "supplier": {
+          "title": "Supplier",
+          "description": " The organization that supplied the component that the BOM describes. The supplier may often be the manufacturer, but may also be a distributor or repackager.",

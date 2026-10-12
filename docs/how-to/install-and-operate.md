@@ -14,9 +14,13 @@ artifact map and exact verification commands.
 
 | Mode | How To Enable | Expected Use |
 |------|---------------|--------------|
-| In-process state | Leave `EVYDENCE_DATABASE_URL` unset. | Local demos and unit tests. State is lost when the process exits. |
-| PostgreSQL state | Set `EVYDENCE_DATABASE_URL`. | Durable local or self-hosted operation with migrations and persisted outbox jobs. |
+| PostgreSQL state | Set `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`. | Durable local or self-hosted operation with migrations and persisted outbox jobs. |
 | Production checks | Set `ENV=production`. | Rejects unsafe local defaults before API startup. |
+
+Current source requires PostgreSQL for API evaluation; the former `local_memory`
+profile is retired. This unreleased change does not alter already published
+release binaries. See the [migration note](../reference/configuration.md#retired-local-memory-profile-unreleased).
+Unit tests may still use in-memory fakes.
 
 Configuration details live in [Configuration](../reference/configuration.md).
 For production planning, use `.production.env.example` as a deployment-secret
@@ -59,7 +63,8 @@ downloaded archive, and prints `public release verified`.
 To run a release-binary local demo instead of `go run`, use the extracted
 `evydence-api` and `evydence-worker` binaries with the same environment
 variables shown below. The in-process tutorial is still local-only; for durable
-evaluation set `EVYDENCE_DATABASE_URL` and run migrations first.
+evaluation set `EVYDENCE_RUNTIME_PROFILE=postgres` and `EVYDENCE_DATABASE_URL`,
+then run migrations first.
 
 ## Start Local Dependencies
 
@@ -67,7 +72,23 @@ evaluation set `EVYDENCE_DATABASE_URL` and run migrations first.
 make compose-up
 ```
 
-Expected result: Docker Compose starts PostgreSQL and MinIO containers using `.env.example` defaults unless local overrides are present.
+Expected result: Docker Compose starts PostgreSQL and source-built MinIO
+containers using `.env.example` defaults unless local overrides are present.
+The first MinIO build downloads and compiles pinned upstream Go modules; later
+builds reuse the local BuildKit module/compiler caches. Docker must be able to
+reach Docker Official Images, the Go module proxy, and Go's checksum database.
+MinIO API/console ports are bound to loopback only.
+
+The source and base-image pins live in
+`deploy/local-dependencies/Dockerfile`; `make local-dependency-images` builds
+the server and bucket-initialization client without starting services.
+Go checksum verification stays enabled. These are disposable CI/local
+rehearsal fixtures, not published Evydence images or production object-store
+recommendations. [Community MinIO is archived](https://github.com/minio/minio)
+and its final releases have unresolved upstream advisories, including an
+[unsigned-trailer authentication bypass](https://github.com/minio/minio/security/advisories/GHSA-hv4r-mvr4-25vw).
+Use an operator-reviewed, maintained S3-compatible service for actual production
+and keep test fixtures unreachable from untrusted networks.
 
 Stop them with:
 
@@ -81,9 +102,9 @@ For a fuller local rehearsal, use `compose.production-like.yml`. It starts
 PostgreSQL, MinIO, bucket initialization, migrations, one API writer, and one
 worker. It is still a local evaluation stack: replace every secret, use TLS at
 the edge, back up PostgreSQL and object storage together, and keep production
-API writer replicas at one for the current supported profile. PostgreSQL and
-MinIO service images in this production-like file are digest-pinned so the
-rehearsal does not pull floating `latest` dependencies.
+API writer replicas at one for the current supported profile. PostgreSQL is
+digest-pinned; the local MinIO fixtures use the pinned source/base-image build
+above. The rehearsal does not pull floating `latest` dependencies.
 
 ```sh
 export POSTGRES_PASSWORD='replace-with-long-random-password'

@@ -1,0 +1,43 @@
+package query
+
+import (
+	"context"
+
+	"github.com/aatuh/evydence/internal/application"
+	"github.com/aatuh/evydence/internal/authz"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+)
+
+// NewTemplateAuthorizer preserves the tenant-wide report permission required
+// for template definitions and metadata-only materialized reports.
+func NewTemplateAuthorizer() application.Authorizer {
+	return tenantWideCommandAuthorizer{action: authz.ActionReportTemplatesManage}
+}
+
+// NewBundleImportAuthorizer requires tenant-wide permission to record an
+// imported manifest receipt; source labels do not grant target-tenant access.
+func NewBundleImportAuthorizer() application.Authorizer {
+	return tenantWideCommandAuthorizer{action: authz.ActionBundleImport}
+}
+
+// Questionnaire definitions are tenant-wide; product/release grants cannot
+// authorize creation of definitions visible across the tenant.
+func NewQuestionnaireTemplateAuthorizer() application.Authorizer {
+	return tenantWideCommandAuthorizer{action: authz.ActionQuestionnaireTemplatesManage}
+}
+
+// Redaction profiles define tenant-wide package policy; a product or release
+// grant alone cannot create policy definitions for the whole tenant.
+func NewRedactionProfileAuthorizer() application.Authorizer {
+	return tenantWideCommandAuthorizer{action: authz.ActionRedactionProfilesManage}
+}
+
+type tenantWideCommandAuthorizer struct{ action authz.Action }
+
+func (a tenantWideCommandAuthorizer) Authorize(ctx context.Context, actor identitydomain.Actor, request application.AuthorizationRequest) error {
+	definition, ok := authz.DefinitionFor(a.action)
+	if !ok || definition.Boundary != authz.TenantBoundary || request.Action != a.action || request.Scope != "" || request.Resources != (application.ResourceReferences{}) || request.ScopeOnly == request.TenantWide {
+		return application.ErrForbidden
+	}
+	return authz.Authorize(ctx, actor, authz.Request{Action: a.action})
+}

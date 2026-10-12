@@ -6,7 +6,18 @@ import (
 	"github.com/aatuh/api-toolkit/v3/specs"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 )
+
+const focusedVEXIngestionDescription = " In PostgreSQL mode, a focused command checks current tenant-owned release parents and human release/artifact grants before parsing or staging. IDs are NUL-free UTF-8 bounded at 1024 bytes; wrapped JSON remains capped at 64 KiB and rejects null, duplicate, and unknown fields. Declared source size and SHA-256 are verified. Normalized projections are limited to 100,000 statements, 1 MiB per string, and 64 MiB combined projection strings; the versioned post-commit decision request permits at most 1,000,000 values and 20 MiB combined decision text. Overflow fails validation rather than truncating. VEX, accepted report, evidence, audit, payload metadata, outbox jobs, and idempotency completion commit together; decisions are never written during upload. Replay checks current grants without parsing or staging. Retained body-only native OpenVEX receipts require exact tenant, release, optional artifact, and format and never execute a new upload. Normalized VEX metadata and the accepted report are always retained, regardless of worker-owned parsing. Acceptance does not establish source authority, signature trust, or legal sufficiency."
+
+const focusedVEXPreviewDescription = " In PostgreSQL mode, one read-only repeatable-read snapshot resolves current tenant-owned release parents and optional artifact ownership, then checks human release and artifact grants before parsing or candidate selection. The wrapped JSON request is limited to 64 KiB and rejects null, duplicate, and unknown fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Reads select only relevant finding coordinates and active-decision presence, never private notes or evidence metadata; at most 4096 release scans, 4096 candidate findings, and 8 MiB of combined candidate text are allowed. Oversized or malformed stored projections fail closed without a partial preview. Matching preserves duplicate and ambiguity policy and original statement indexes. Results remain advisory and create no audit, outbox, or idempotency records; Idempotency-Key is not required."
+
+const focusedSecurityDocumentDescription = " In PostgreSQL mode, focused security:write commands check current tenant-owned product/release parents and human resource grants before parsing or staging; scoped human artifact grants require a current authorized evidence/build association, while tenant-wide grants and issued credentials do not need a narrower association. No request reloads the Ledger aggregate. Wrapped JSON remains limited to 64 KiB and rejects null metadata/payload, duplicate keys, and unknown envelope fields. IDs are NUL-free UTF-8 bounded at 1024 bytes. Evidence, accepted document metadata, payload metadata, finalizer job, two audit entries, and safe idempotency completion commit in one transaction. Same-key replay rechecks current grants without parsing or staging and preserves safe metadata; payload_ref is omitted on replay by the central privacy policy. Raw payload bytes are never included in responses. Failed commands roll back document effects; a response-free failed-key record can remain. Local-memory mode retains its explicit compatibility command."
+
+const focusedStateTransitionDescription = " PostgreSQL uses native durable execution without Ledger cloning/replay/refresh. Every retry checks current tenant/subject/release/product ownership and grants without lifecycle state, revision, private metadata, clocks or IDs; the shared writer fence precedes locks held through state/audit/replay commit. Completed replay returns the original response without reapplying lifecycle rules against newer state; fresh execution retains bounded revision/state checks. The unchanged conditional-action-v1 fingerprint binds canonical strong If-Match and original body bytes, so changed intent conflicts. Raw NUL-free UTF-8 IDs are limited to 1024 bytes before trimming and JSON to 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
+
+const focusedEvidenceRelationshipDescription = " PostgreSQL uses focused native durable execution without Ledger cloning or reload. Every retry checks current tenant-owned evidence/parent/replacement/target coordinates and evidence:write grants; the writer fence precedes ownership locks held through relationship/event/audit/replay commit. Completed retries do not reread metadata or lifecycle history, rehash legacy origins, or allocate event IDs. Original request bytes remain the fingerprint. Strict non-null JSON rejects duplicate, unknown and case-aliased fields; raw NUL-free UTF-8 IDs are capped at 1024 bytes before trimming, action/target-type at 128 bytes and reason/details at 64 KiB, with existing 64 KiB body and 16 KiB JSON-string limits. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 
 func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
@@ -17,7 +28,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Liveness status envelope.", "#/components/schemas/HealthStatusEnvelope")
 	case "ready":
-		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors."
+		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After. PostgreSQL is required for local evaluation."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
@@ -28,10 +39,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Version information envelope.", "#/components/schemas/VersionInfoEnvelope")
 	case "readinessDiagnostics":
-		operation.Description = "Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded."
+		operation.Description = "Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance readiness diagnostics envelope.", "#/components/schemas/ReadinessDiagnosticsEnvelope")
 	case "metrics":
-		operation.Description = "Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain."
+		operation.Description = "Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = specs.Response{
 			Description:  "Tenant metrics envelope or Prometheus text metrics.",
 			ContentTypes: []string{"application/json", "text/plain"},
@@ -46,101 +57,113 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("OpenAPI document.", "#/components/schemas/OpenAPIDocument")
 	case "instanceAdminSnapshot":
-		operation.Description = "Returns instance-level diagnostic counts. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient."
+		operation.Description = "Returns instance-level diagnostic counts from one current database snapshot. Requires the explicit instance:admin scope; tenant admin and ordinary wildcard tenant keys are insufficient. The response omits tenant identifiers, evidence payloads, and credential material. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance admin snapshot envelope.", "#/components/schemas/InstanceAdminSnapshotEnvelope")
 	case "outboxOperatorDiagnostics":
-		operation.Description = "Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope."
+		operation.Description = "Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Outbox operator diagnostics envelope.", "#/components/schemas/OutboxDiagnosticsEnvelope")
 	case "replayTerminalOutboxJob":
-		operation.Description = "Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; raw payload and failure details are never returned."
+		operation.Description = "Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; current instance authority is checked before completed replay. Job mutation, audit, and safe replay completion share one PostgreSQL transaction. Raw payload and failure details are never returned. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Terminal outbox job id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		delete(operation.Responses, http.StatusCreated)
 		operation.Responses[http.StatusOK] = jsonResponse("Requeued outbox job envelope.", "#/components/schemas/OutboxReplayEnvelope")
 	case "createOrganization":
-		operation.Description = "Creates a tenant-scoped organization record for human identity grouping."
+		operation.Description = "Creates a tenant-scoped organization record for human identity grouping. Focused Identity commands check current tenant-wide human authority and use atomic audit/replay; slugs are trimmed and case-sensitive. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Organization creation request.", "#/components/schemas/CreateOrganizationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created organization envelope.", "#/components/schemas/OrganizationEnvelope")
 	case "createUser":
-		operation.Description = "Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows."
+		operation.Description = "Creates a tenant-scoped human user metadata record. Authentication is still controlled by API keys or configured SSO/session flows. Focused Identity commands check current tenant-wide human authority and current optional organization ownership. Email is trimmed/lowercased and must be a plain mailbox address; this does not verify ownership. The fixed public user DTO, including required email, survives authorized durable replay without broadening log or customer-package redaction. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Human user creation request.", "#/components/schemas/CreateUserRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created human user envelope.", "#/components/schemas/HumanUserEnvelope")
 	case "deactivateUser":
-		operation.Description = "Deactivates a tenant-scoped human user as an audited lifecycle transition."
+		operation.Description = "Deactivates a tenant-scoped human user as an audited lifecycle transition. A focused command uses a bounded current-user projection with tenant-wide human authority and current organization ownership; status, audit and replay commit atomically. Committed deactivation invalidates current-user session authentication. A completed matching request replays the public DTO without another transition; a new transition of an inactive user conflicts. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Human user id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Deactivated human user envelope.", "#/components/schemas/HumanUserEnvelope")
 	case "createRoleBinding":
-		operation.Description = "Creates a tenant-scoped role binding for a user or collector subject."
+		operation.Description = "Creates a tenant-scoped role binding for a user or collector subject. Focused Identity commands check current tenant-wide human admin authority and bounded current subject/resource ownership before writes and replay. Binding, audit and safe replay completion commit atomically. Empty/omitted resource type with an empty ID, or tenant with an empty/current tenant ID, remains tenant-wide; supported scoped resources require a nonempty owned ID. A package's optional release must match its product. Reusing a completed key/body returns the original public binding; a new key intentionally permits another assignment with identical grant coordinates. No credential hashes, target metadata or evidence manifests are loaded. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Role binding creation request.", "#/components/schemas/CreateRoleBindingRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created role binding envelope.", "#/components/schemas/RoleBindingEnvelope")
 	case "listRoleBindings":
 		operation.Description = "Lists tenant-scoped role bindings visible to the identity administrator."
 		operation.Responses[http.StatusOK] = jsonResponse("Role binding list envelope.", "#/components/schemas/RoleBindingListEnvelope")
 	case "createSSOSession":
-		operation.Description = "Creates an admin-managed human SSO session record and returns a one-time bearer secret."
-		operation.RequestBody = jsonRequest("SSO session creation request.", "#/components/schemas/CreateSSOSessionRequest")
+		operation.Description = "Creates an administrator-issued human SSO session with current tenant-wide identity:admin authority, a tenant-owned active user and a tenant-owned provider. PostgreSQL uses a focused Identity transaction for session, actual-caller audit and safe replay completion. The first 201 response returns the bearer secret once; completed replay contains only original session metadata and never reissues a credential. This route verifies no provider credential, grants no additional roles and sets no browser cookie."
+		operation.RequestBody = jsonRequest("All fields are required and non-null. User/provider IDs are trimmed, UTF-8/NUL-safe and at most 1 KiB each. Explicit expires_at must be in the future for new issuance, normalized to UTC microseconds; administrative issuance retains no upper lifetime cap. JSON must be one strict object without unknown or duplicate fields, trailing values or malformed UTF-8.", "#/components/schemas/CreateSSOSessionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO session and one-time secret envelope.", "#/components/schemas/SSOSessionCreateEnvelope")
+		operation.Description += " PostgreSQL is required for local evaluation."
 	case "exchangeSSOCredential":
-		operation.Description = "Exchanges a locally verified OIDC ID token or SAML assertion for an SSO session and HttpOnly browser cookie using configured tenant trust material and verified identity links. No live provider API or group synchronization call is made."
+		operation.Description = "Exchanges a locally verified OIDC ID token or SAML assertion for an SSO session and Secure HttpOnly SameSite=Strict browser cookie. PostgreSQL reads bounded current provider, identity-link, user and grant projections without Ledger inventories; the write transaction rechecks those snapshots and commits verification, session and audits together before returning a secret or cookie. Only an active tenant-owned user with a verified identity link and current user or mapped provider-group grants can receive a session. Exactly one nonempty credential is required. Omitted or zero expiry defaults to eight hours; explicit expiry must be future and no more than twelve hours. Duplicate, null, unknown, non-object, invalid UTF-8 and NUL-bearing inputs are rejected. This public route is not an idempotency replay surface: repeated valid requests may issue new sessions, and no credential or secret enters a replay receipt. No live provider API or group synchronization call is made."
 		operation.Security = nil
 		operation.Scopes = nil
-		operation.RequestBody = jsonRequest("SSO credential exchange request.", "#/components/schemas/ExchangeSSOCredentialRequest")
+		operation.RequestBody = jsonRequest("Strict object with non-null supplied fields. Provider ID is bounded at 1 KiB; subject and credential text at 64 KiB each, within the 64 KiB request-body limit.", "#/components/schemas/ExchangeSSOCredentialRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO session, verification receipt, and one-time secret envelope.", "#/components/schemas/SSOCredentialExchangeEnvelope")
+		operation.Description += " PostgreSQL is required for local evaluation."
 	case "revokeSSOSession":
-		operation.Description = "Revokes a tenant-scoped SSO session as an audited lifecycle transition."
+		operation.Description = "Revokes a current tenant-owned SSO session with tenant-wide identity:admin authority. PostgreSQL reads bounded, hash-free session metadata under a row lock and commits revocation, actual-caller audit and safe replay together without Ledger inventories. An expired session, inactive user/provider or missing parent does not prevent administrative invalidation. A new request for an already-revoked session conflicts; authorized completed replay returns the original safe metadata after current session ownership checks. Ambient session-cookie requests require a single HTTPS Origin matching request Host; bearer requests do not. Admin revocation sets no browser cookie."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO session id."))
-		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.RequestBody = jsonRequest("Optional empty body or strict empty JSON object only, bounded at 64 KiB. Unknown/duplicate fields, null, malformed UTF-8 and trailing values are rejected. The trimmed session ID is NUL-free UTF-8 bounded at 1 KiB.", "#/components/schemas/EmptyObject")
+		operation.RequestBody.Required = false
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked SSO session envelope.", "#/components/schemas/SSOSessionEnvelope")
+		operation.Description += " PostgreSQL is required for local evaluation."
 	case "logoutSSOSession":
-		operation.Description = "Revokes the currently authenticated SSO session without requiring identity administrator privileges. API keys and collector keys cannot use this route."
-		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Description = "Revokes only the currently authenticated user's tenant-owned SSO session without requiring administration grants. API and collector keys cannot use this route. PostgreSQL uses bounded hash-free locked metadata and one revocation/audit/replay transaction without Ledger inventories. The HttpOnly Secure SameSite=Strict cookie at /v1 is cleared only after successful durable commit, never on failure. A revoked or expired secret cannot authenticate another request, including saved-receipt replay. Ambient session-cookie requests require a single HTTPS Origin matching request Host; bearer requests do not. HTTPS proxies must preserve the public Host."
+		operation.RequestBody = jsonRequest("Optional empty body or strict empty JSON object only, bounded at 64 KiB. Unknown/duplicate fields, null, malformed UTF-8 and trailing values are rejected.", "#/components/schemas/EmptyObject")
+		operation.RequestBody.Required = false
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked current SSO session envelope.", "#/components/schemas/SSOSessionEnvelope")
+		operation.Description += " PostgreSQL is required for local evaluation."
 	case "createSSOProvider":
-		operation.Description = "Records tenant SSO provider metadata. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls."
+		operation.Description = "Records tenant SSO provider metadata. PostgreSQL uses focused Identity commands with current tenant-wide administration and input validation before reservation or completed replay, and atomic provider/audit/replay writes without Ledger reloads. Required issuer metadata is an absolute HTTPS URL with a host, no userinfo and no fragment; stored text is bounded, UTF-8 and NUL-free. Explicit null fields/items are rejected. Another key creates another provider for identical metadata. Authorized replay preserves harmless group names within the public provider DTO without weakening generic privacy redaction. Optional static JWKS public keys and SAML signing certificates can be supplied for local token/assertion verification without live provider calls. Shared stateless Identity normalization rejects private/symmetric JOSE members, retains supported public JWK fields only, and normalizes parsed RSA certificates without trailing PEM blocks. This validates supported metadata shapes, not provider ownership or key custody; historical rows and backups are not scrubbed."
 		operation.RequestBody = jsonRequest("SSO provider creation request.", "#/components/schemas/CreateSSOProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
+		operation.Description += " PostgreSQL is required for local evaluation."
 	case "updateSSOProviderTrustMaterial":
-		operation.Description = "Rotates tenant SSO provider public trust material for local OIDC ID-token or SAML assertion verification without storing provider secrets."
+		operation.Description = "Rotates tenant SSO provider public trust material for local OIDC ID-token or SAML assertion verification. PostgreSQL uses focused Identity commands and one bounded tenant-owned provider read, not Ledger state or provider inventories. Current tenant-wide administration, input and provider checks run before reservation or completed replay; update, canonical-hash audit and safe replay completion commit together. Foreign/missing providers return 404; oversized or ill-typed stored metadata returns 409 without truncation. OIDC requires nonempty JWKS only; SAML requires signing certificates only. Strict decoding rejects invalid UTF-8, duplicate/unknown fields, trailing JSON and explicit null fields/items; retained public-key text is NUL-free. Shared stateless Identity normalization rejects private/symmetric JOSE members and retains supported public JWK fields only; parsed RSA certificates exclude trailing PEM blocks. Authorized replay preserves normalized public PEM and harmless public group names without weakening generic privacy redaction. Invalid trust material does not replace current trust or append an audit. No live provider call is made; provider ownership and key custody are not proved. Historical records, receipts and backups are not scrubbed or repaired."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO provider id."))
 		operation.RequestBody = jsonRequest("SSO provider trust material update request.", "#/components/schemas/UpdateSSOProviderTrustMaterialRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Updated SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
+		operation.Description += " PostgreSQL is required for local evaluation."
 	case "refreshSSOProviderOIDCTrustMaterial":
-		operation.Description = "Fetches the OIDC discovery document and public JWKS for the tenant provider issuer, then stores refreshed public trust material. This does not authenticate users, store provider secrets, or synchronize groups."
+		operation.Description = "Fetches the OIDC discovery document and public JWKS for the tenant provider issuer, then stores normalized public trust material. PostgreSQL uses focused Identity commands and a bounded tenant-owned provider read, not Ledger state or provider inventories. Current tenant-wide administration, provider ownership/type and strict optional empty-object body checks precede reservation or replay without network calls. A newly acquired command uses the configured hardened discovery adapter; conditional trust update, canonical-hash audit and safe replay completion commit together. Authorized completed retries return the original public provider without refetching. Private/symmetric JOSE members, empty keys, issuer mismatch and malformed or unsafe retained public text fail verification without replacing current trust or appending an audit; unsupported extension metadata is not retained. Missing/foreign providers return 404, oversized stored metadata returns 409 and provider verification failures return 422. This does not authenticate users, prove provider ownership, scrub historical records/backups, or synchronize groups."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SSO provider id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.RequestBody.Required = false
 		operation.Responses[http.StatusOK] = jsonResponse("Refreshed SSO provider envelope.", "#/components/schemas/SSOProviderEnvelope")
+		operation.Description += " PostgreSQL is required for local evaluation."
 	case "verifyProviderIdentity":
-		operation.Description = "Verifies stored provider identity metadata and, when supplied, locally verifies OIDC ID-token or SAML assertion issuer, audience, subject, time bounds, and signature against configured tenant trust material."
-		operation.RequestBody = jsonRequest("Provider identity verification request.", "#/components/schemas/VerifyProviderIdentityRequest")
+		operation.Description = "Records an administrative provider-identity assessment using stored tenant-owned metadata, optional local OIDC/SAML credential verification, and an optional configured live OIDC provider validator. PostgreSQL uses focused bounded Identity reads and revalidates provider/link state before receipt, caller-attributed audit and safe replay commit atomically. Human callers need tenant-wide identity:admin authority before reservation/replay. Inactive providers may be assessed; no session or authorization grant is issued. Failed HTTP assessments roll back receipt/audit and retain only a safe failed-retry marker. Cookie-authenticated requests require a single same-host HTTPS Origin; bearer credentials take precedence."
+		operation.Description += " The handler requires focused command/replay ports, with no aggregate fallback. PostgreSQL is required for local evaluation."
+		operation.RequestBody = jsonRequest("Non-null object fields; malformed, duplicate, unknown or trailing JSON, invalid UTF-8 and NUL text are rejected. Provider ID is bounded to 1 KiB, subject/local credentials to 64 KiB each and access token to 16 KiB before trimming, within the 64 KiB body limit. OIDC forbids SAML assertions; SAML forbids OIDC tokens. Metadata labels cannot contain a supplied credential.", "#/components/schemas/VerifyProviderIdentityRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Provider verification envelope.", "#/components/schemas/ProviderVerificationEnvelope")
 	case "linkSSOIdentity":
-		operation.Description = "Links a verified provider subject to a tenant-scoped human user."
-		operation.RequestBody = jsonRequest("SSO identity link request.", "#/components/schemas/LinkSSOIdentityRequest")
+		operation.Description = "Records an administrator-asserted verified provider subject for a current tenant-owned user with matching normalized email. PostgreSQL uses a focused Identity transaction: current tenant-wide identity:admin authority and parent ownership/email checks precede reservation or replay; link, audit and safe replay commit atomically. This does not verify a live provider credential, activate the user/provider, issue a session or grant roles."
+		operation.RequestBody = jsonRequest("Required non-null fields; verified must be true. IDs are bounded to 1 KiB each; tenant, provider and case-sensitive subject together are bounded to 2304 UTF-8 bytes. Email must be a plain mailbox, normalized by trimming/lowercasing, with tenant and email together at most 2304 bytes. Malformed, duplicate, unknown or trailing JSON is rejected. Existing tenant/provider/subject identities conflict rather than being reassigned.", "#/components/schemas/LinkSSOIdentityRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SSO identity link envelope.", "#/components/schemas/UserIdentityLinkEnvelope")
+		operation.Description += " PostgreSQL is required for local evaluation."
 	case "createAPIKey":
-		operation.Description = "Creates a tenant-scoped API key and returns the secret exactly once. Stored records expose only non-secret key metadata."
+		operation.Description = "Creates a tenant-scoped API key atomically with audit and replay state. PostgreSQL uses a focused Identity command and current tenant-wide admin authority. Delegating instance:admin requires explicit instance authority, not a tenant wildcard. The first response returns the secret once; restart replay retains only the public key metadata, never its secret or hash. Names are not unique; scopes retain existing trimming, sorting and duplicate/blank/unknown-string behavior."
 		operation.RequestBody = jsonRequest("API key creation request.", "#/components/schemas/CreateAPIKeyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created API key and one-time secret envelope.", "#/components/schemas/APIKeyCreateEnvelope")
 	case "listAPIKeys":
 		operation.Description = "Lists tenant-scoped API key metadata without key hashes or one-time secrets."
 		operation.Responses[http.StatusOK] = jsonResponse("API key list envelope.", "#/components/schemas/APIKeyListEnvelope")
 	case "createCollector":
-		operation.Description = "Creates a tenant-scoped collector identity, binds a scoped API key, and returns the collector key secret exactly once."
+		operation.Description = "Creates a tenant-scoped collector identity and scoped API key atomically with audit and replay state. PostgreSQL uses focused commands; human sessions require a current tenant-wide collector:admin grant. The secret is returned only in the first response; durable replay preserves public collector/key metadata without the secret or hash. Omitted or empty scopes default to build:write and evidence:write; read scopes require explicit opt-in."
 		operation.RequestBody = jsonRequest("Collector creation request.", "#/components/schemas/CreateCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created collector and one-time key secret envelope.", "#/components/schemas/CollectorCreateEnvelope")
 	case "listCollectors":
 		operation.Description = "Lists tenant-scoped collector metadata without API key hashes or one-time secrets."
 		operation.Responses[http.StatusOK] = jsonResponse("Collector list envelope.", "#/components/schemas/CollectorListEnvelope")
 	case "createControlFramework":
-		operation.Description = "Creates a tenant-scoped versioned control framework."
+		operation.Description = "Creates a tenant-scoped versioned control framework. PostgreSQL binds focused Risk commands and native durable replay, without Ledger cloning or inventories. Current tenant-wide controls:admin grants for human sessions and tenant existence are checked before every fresh request or replay; duplicate versions and installed metadata are not replay authority. Record, principal audit and replay result commit together without a job. Same-key replay preserves the original response; changed bytes or different-key duplicate slug/version return 409. Raw NUL-free UTF-8 name/description fields are bounded at 64 KiB, slug/version individually at 1024 bytes before trimming, with normalized slug plus version at 1024 bytes. An omitted/blank slug is derived from the name. Strict JSON and the 64 KiB body limit apply. Cookie-authenticated writes require same-host HTTPS Origin; explicit bearer authentication takes precedence. PostgreSQL is required for local evaluation. Recording does not establish framework compliance."
 		operation.RequestBody = jsonRequest("Control framework creation request.", "#/components/schemas/CreateControlFrameworkRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created control framework envelope.", "#/components/schemas/ControlFrameworkEnvelope")
 	case "listControlFrameworks":
 		operation.Description = "Lists tenant-scoped control frameworks."
 		operation.Responses[http.StatusOK] = jsonResponse("Control framework list envelope.", "#/components/schemas/ControlFrameworkListEnvelope")
 	case "createSecurityControl":
-		operation.Description = "Creates a framework-owned security control with deterministic evidence requirements."
+		operation.Description = "Creates a framework-owned security control through focused Risk commands and native PostgreSQL durable replay. Current tenant-wide controls:admin grants for human sessions, tenant existence and framework ownership are checked before every fresh request or replay. The shared writer fence precedes tenant/framework share locks held through record, principal audit and replay commit. Replay never reads installed metadata or duplicate control codes; different-key duplicate codes return 409. Raw NUL-free UTF-8 parent IDs/codes are bounded at 1024 bytes, titles/objectives at 64 KiB before trimming; the normalized tenant/parent/code identity is bounded at 2048 bytes. At most ten ordered evidence requirements are accepted with raw types bounded at 1024 bytes and explicit non-null required booleans; false remains valid. Applicability sorting preserves duplicates and limitations preserve nonblank order. Strict JSON and the 64 KiB body limit apply. Cookie-authenticated writes require same-host HTTPS Origin; explicit bearer authentication takes precedence. PostgreSQL is required for local evaluation. Recording does not prove control effectiveness."
 		operation.RequestBody = jsonRequest("Security control creation request.", "#/components/schemas/CreateSecurityControlRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created security control envelope.", "#/components/schemas/SecurityControlEnvelope")
 	case "getSecurityControl":
@@ -148,12 +171,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Security control id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Security control envelope.", "#/components/schemas/SecurityControlEnvelope")
 	case "linkControlEvidence":
-		operation.Description = "Creates an append-only link between a security control and tenant-scoped evidence or related release resource."
+		operation.Description = "Creates an append-only control-evidence link through focused Risk commands and native PostgreSQL durable replay, without Ledger cloning or inventories. Current tenant, control/framework/subject ownership and matching controls:write grants are checked before every fresh request or replay; supplied scope labels do not confer authority. Artifact grants require a current matching evidence/build association, including the build-output digest, and parsed subjects require coherent source-evidence relationships. The shared writer fence precedes tenant/control/framework share locks held through link, principal audit and replay commit. Completed replay never reads stored duplicate notes or adds an audit; fresh natural-key reuse preserves original notes/confidence. Changed bytes under the same key conflict. Raw path/subject/scope/kind text is NUL-free UTF-8 bounded at 1024 bytes before trimming, confidence at 64 bytes, notes at 65536 bytes; the normalized indexed identity is bounded at 2048 bytes. Strict JSON and the 64 KiB body limit apply. Cookie writes require same-host HTTPS Origin; bearer authentication takes precedence. PostgreSQL is required for local evaluation. Linking does not prove control effectiveness or framework compliance."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Security control id."))
 		operation.RequestBody = jsonRequest("Control evidence link request.", "#/components/schemas/LinkControlEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created control evidence link envelope.", "#/components/schemas/ControlEvidenceEnvelope")
 	case "listControlEvidence":
-		operation.Description = "Lists tenant-scoped control evidence links with optional control, product, and release filters."
+		operation.Description = "Keyset-pages tenant and grant-visible control evidence links with optional control, product, and release filters. PostgreSQL validates current control, framework, scope, and subject ownership before the page limit; broken links are excluded."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("control_id", "Filter by security control id.", "string"),
 			queryParam("product_id", "Filter by product id.", "string"),
@@ -161,7 +184,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Control evidence list envelope.", "#/components/schemas/ControlEvidenceListEnvelope")
 	case "createProduct":
-		operation.Description = "Creates a tenant-scoped product. Product slugs must be unique per tenant."
+		operation.Description = "Creates a tenant-scoped product requiring product:write and a current tenant-wide human grant. PostgreSQL uses native durable execution without Ledger replay/refresh. Every retry checks and locks current tenant authority without product metadata or slug uniqueness reads; fresh creation retains unique tenant/slugs and atomic product/audit/replay effects. Identical request bytes replay the original response; changed bytes conflict. Strict non-null exact JSON applies in both profiles. Raw NUL-free UTF-8 name/slug text is capped at 64 KiB before trimming; the normalized slug retains its 1024-byte limit, and the whole JSON body remains capped at 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 		operation.RequestBody = jsonRequest("Product creation request.", "#/components/schemas/CreateProductRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created product envelope.", "#/components/schemas/ProductEnvelope")
 	case "listProducts":
@@ -172,7 +195,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Product id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Product envelope.", "#/components/schemas/ProductEnvelope")
 	case "createProject":
-		operation.Description = "Creates a tenant-scoped project under a product."
+		operation.Description = "Creates a tenant-scoped project requiring project:write and current product authority. PostgreSQL uses native durable execution; every retry holds current tenant/product ownership locks through the outer transaction without loading product names/slugs or existing child metadata. Fresh creation retains product slug-drift checks and atomic project/audit/replay effects. Project names are not reuse keys. Identical bytes replay the original response; changed bytes conflict. Both profiles use strict non-null exact JSON, NUL-free UTF-8 raw parent IDs capped at 1024 bytes and raw names capped at 64 KiB before trimming; the whole body remains capped at 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 		operation.RequestBody = jsonRequest("Project creation request.", "#/components/schemas/CreateProjectRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created project envelope.", "#/components/schemas/ProjectEnvelope")
 	case "getProject":
@@ -180,14 +203,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Project id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Project envelope.", "#/components/schemas/ProjectEnvelope")
 	case "createRelease":
-		operation.Description = "Creates an append-only release record under a product and optional project."
+		operation.Description = "Creates an append-only draft release at revision 1, requiring release:write and current product authority. PostgreSQL uses native durable execution; every retry holds current tenant/product ownership locks without names, slugs, versions or existing child reads. Fresh creation retains product slug-drift checks, unique per-product versions and atomic release/audit/replay effects. Identical bytes replay the original response; changed bytes conflict. Both profiles use strict non-null exact JSON, NUL-free UTF-8 raw parent IDs capped at 1024 bytes and raw versions capped at 64 KiB before trimming; the whole body remains capped at 64 KiB. Versions exceeding PostgreSQL encoded index capacity return safe 400 without writes. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 		operation.RequestBody = jsonRequest("Release creation request.", "#/components/schemas/CreateReleaseRequest")
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"release-candidate": specs.Example{
 				Summary: "Create a release for evidence collection",
 				Value: map[string]any{
 					"product_id": "prod_20260527120000",
-					"project_id": "proj_20260527120000",
 					"version":    "1.0.0-rc.1",
 				},
 			},
@@ -198,14 +220,13 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 				Summary: "Created release response",
 				Value: map[string]any{
 					"data": map[string]any{
-						"id":             "rel_20260527120000",
-						"tenant_id":      "ten_20260527120000",
-						"product_id":     "prod_20260527120000",
-						"project_id":     "proj_20260527120000",
-						"version":        "1.0.0-rc.1",
-						"status":         "draft",
-						"schema_version": "release.v1.0.0",
-						"created_at":     "2026-05-27T12:00:00Z",
+						"id":         "rel_20260527120000",
+						"tenant_id":  "ten_20260527120000",
+						"product_id": "prod_20260527120000",
+						"version":    "1.0.0-rc.1",
+						"revision":   1,
+						"state":      "draft",
+						"created_at": "2026-05-27T12:00:00Z",
 					},
 					"meta": map[string]any{"api_version": "v1"},
 				},
@@ -221,21 +242,23 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		delete(operation.Responses, http.StatusCreated)
 		operation.Responses[http.StatusOK] = jsonResponse("Release evidence flow envelope.", "#/components/schemas/ReleaseEvidenceFlowEnvelope")
 	case "releaseSecuritySummary":
-		operation.Description = "Returns a tenant-scoped release security summary for review surfaces without raw evidence payload bytes."
+		operation.Description = "Returns a tenant-scoped release security summary through a bounded focused Risk query, requiring report:read and current tenant/product/release grants for human sessions. Raw evidence payload bytes and private decision notes are excluded. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release security summary envelope.", "#/components/schemas/ReleaseSecuritySummaryEnvelope")
 	case "freezeRelease":
 		operation.Description = "Freezes a release as an append-only transition. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Description += focusedStateTransitionDescription + " Nonempty bodies must be empty JSON objects; legacy absent/blank bodies remain accepted."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Frozen release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "approveRelease":
 		operation.Description = "Approves a release as an append-only transition. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Description += focusedStateTransitionDescription + " Nonempty bodies must be empty JSON objects; legacy absent/blank bodies remain accepted."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved release envelope.", "#/components/schemas/ReleaseEnvelope")
 	case "registerArtifact":
-		operation.Description = "Registers an artifact digest for release evidence and later build/attestation matching."
+		operation.Description = "Registers declared artifact metadata requiring evidence:write. PostgreSQL uses native durable execution without Ledger replay/refresh. Current tenant authority and existing digest ownership/grants run on every retry without private metadata, clocks or IDs; locks join the outer record/audit/replay transaction. Natural-key reuse returns original immutable metadata without another audit. Identical request bytes replay the original result, including exact integer sizes; changed bytes conflict. Both profiles require strict non-null exact JSON within 64 KiB; raw NUL-free UTF-8 names/media types are capped at 64 KiB and digest text at 128 bytes before trimming. Size is nonnegative and defaults to zero when omitted. Fresh reuse of oversized stored metadata returns 409. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable. Registration does not verify uploaded bytes, signatures or provenance."
 		operation.RequestBody = jsonRequest("Artifact registration request.", "#/components/schemas/RegisterArtifactRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered artifact envelope.", "#/components/schemas/ArtifactEnvelope")
 	case "getArtifact":
@@ -243,7 +266,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Artifact envelope.", "#/components/schemas/ArtifactEnvelope")
 	case "createBuild":
-		operation.Description = "Records an immutable CI build run. Collector identity is derived from the authenticated key when present."
+		operation.Description = "Records an immutable CI build run requiring build:write and current tenant-owned product/project/release and output-artifact authority. PostgreSQL uses native durable execution with a read-only ownership/grant guard on every retry, without cached Ledger reads or refresh. The guard locks parents and supplied artifacts but does not reread release versions, artifact digests or historical build metadata; fresh creation still checks output digests and atomically commits build, audit and replay effects. Identical request bytes replay the original response; changed bytes under the same key conflict. Strict non-null JSON and raw input bounds apply in both profiles. Unsafe cookie mutations require same-host HTTPS Origin; Bearer takes precedence. Collector identity comes from the authenticated key. Submitted CI/OIDC metadata is unverified and cannot set oidc_verified to true. Local memory remains nondurable."
 		operation.RequestBody = jsonRequest("Build run creation request.", "#/components/schemas/CreateBuildRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created build run envelope.", "#/components/schemas/BuildRunEnvelope")
 	case "getBuild":
@@ -251,15 +274,16 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Build run id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Build run envelope.", "#/components/schemas/BuildRunEnvelope")
 	case "uploadGitHubSourceSnapshot":
-		operation.Description = "Uploads a strict GitHub source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records."
+		operation.Description = "Records a strict GitHub source snapshot. PostgreSQL checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. Repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. Stores only the exact-byte message hash; omitted commit time defaults to server time. Optional components must be omitted rather than null. Request replay adds no effects. The provider label is submitted metadata and does not verify GitHub origin, signatures, or review authority. PostgreSQL HTTP uses native durable replay with a read-only current tenant/submitted/existing repository creation-scope guard before reservation and completed replay. The common writer fence and parent locks survive through the outer commit. The guard does not read private child metadata, call child writes or use clocks/IDs; it is not re-verification of historical children or current branch state. Raw nested input bounds are checked before trimming and before composed writes, within the 64 KiB HTTP envelope. Completed replay preserves original public JSON and request-byte fingerprints without reapplying old branches. Cookie writes require same-host HTTPS Origin; explicit bearer credentials take precedence. Local evaluation requires PostgreSQL; there is no local-memory API path."
 		operation.RequestBody = jsonRequest("GitHub source snapshot upload request.", "#/components/schemas/SourceSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source snapshot resources envelope.", "#/components/schemas/SourceSnapshotEnvelope")
 	case "uploadGitLabSourceSnapshot":
-		operation.Description = "Uploads a strict GitLab source snapshot, hashes commit messages, and stores repository, commit, branch, and pull-request evidence records."
+		operation.Description = "Records a strict GitLab source snapshot. PostgreSQL checks current project and repository ownership and commits all supplied source components and audit entries in one transaction. Repository and commit identities are reused, branches are current state, and each executed pull-request recording appends a new snapshot. Stores only the exact-byte message hash; omitted commit time defaults to server time. Optional components must be omitted rather than null. Request replay adds no effects. The provider label is submitted metadata and does not verify GitLab origin, signatures, or review authority. PostgreSQL HTTP uses native durable replay with a read-only current tenant/submitted/existing repository creation-scope guard before reservation and completed replay. The common writer fence and parent locks survive through the outer commit. The guard does not read private child metadata, call child writes or use clocks/IDs; it is not re-verification of historical children or current branch state. Raw nested input bounds are checked before trimming and before composed writes, within the 64 KiB HTTP envelope. Completed replay preserves original public JSON and request-byte fingerprints without reapplying old branches. Cookie writes require same-host HTTPS Origin; explicit bearer credentials take precedence. Local evaluation requires PostgreSQL; there is no local-memory API path."
 		operation.RequestBody = jsonRequest("GitLab source snapshot upload request.", "#/components/schemas/SourceSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source snapshot resources envelope.", "#/components/schemas/SourceSnapshotEnvelope")
 	case "uploadSBOM":
 		operation.Description = "Uploads a CycloneDX SBOM payload, stores raw bytes in object storage, and records normalized SBOM metadata. Use application/vnd.cyclonedx+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description += focusedSBOMIngestionDescription
 		operation.RequestBody = streamingDocumentRequest("CycloneDX SBOM upload request.", "#/components/schemas/EvidenceUploadRequest", "application/vnd.cyclonedx+json", app.EvidenceDocumentLimit)
 		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native CycloneDX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native CycloneDX document upload."))
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
@@ -271,11 +295,12 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "getSBOM":
-		operation.Description = "Returns a tenant-scoped SBOM metadata record by id."
+		operation.Description = "Returns a tenant-scoped SBOM record and its stored components when parsed; an accepted pending record may have an empty spec version and no components. In the PostgreSQL profile, source evidence and optional release/artifact parents must resolve within the same tenant, and the optional artifact must match the source evidence's sole artifact subject, before current resource grants are applied."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "SBOM id."))
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "uploadVEX":
-		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description = "Uploads OpenVEX payload bytes and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status. Use application/vnd.openvex+json with the explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description += focusedVEXIngestionDescription
 		operation.RequestBody = streamingDocumentRequest("OpenVEX upload request.", "#/components/schemas/EvidenceUploadRequest", "application/vnd.openvex+json", app.EvidenceDocumentLimit)
 		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native OpenVEX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native OpenVEX document upload."))
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
@@ -283,7 +308,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			SchemaRef: "#/components/schemas/EvidenceUploadRequest",
 			Examples: map[string]any{
 				"openvex-fixed-decision": specs.Example{
-					Summary: "Imported OpenVEX fixed decision",
+					Summary: "Upload OpenVEX for asynchronous decision mapping",
 					Value:   openVEXUploadExample(),
 				},
 			},
@@ -291,14 +316,17 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "previewVEXImport":
 		operation.Description = "Validates an OpenVEX payload and returns advisory mapping counts without storing raw payloads, creating evidence, creating decisions, or enqueueing parser jobs."
+		operation.Description += focusedVEXPreviewDescription
 		operation.RequestBody = jsonRequest("OpenVEX import preview request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "uploadCycloneDXVEX":
-		operation.Description = "Uploads VEX payload bytes, stores raw evidence in object storage, and records normalized VEX metadata and decisions where applicable."
+		operation.Description = "Uploads CycloneDX VEX JSON and atomically records normalized VEX metadata, an accepted import report, and a versioned bounded decision request. Decision mapping always runs asynchronously after commit. When a durable object payload is available, the worker replays it and verifies that it matches the normalized request; otherwise the worker consumes the normalized request directly. Poll the import-report endpoint for parsed or failed status."
+		operation.Description += focusedVEXIngestionDescription
 		operation.RequestBody = jsonRequest("CycloneDX VEX upload request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "previewCycloneDXVEXImport":
 		operation.Description = "Validates a CycloneDX VEX payload and returns advisory mapping counts without storing raw payloads, creating evidence, creating decisions, or enqueueing parser jobs."
+		operation.Description += focusedVEXPreviewDescription
 		operation.RequestBody = jsonRequest("CycloneDX VEX import preview request.", "#/components/schemas/EvidenceUploadRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Advisory VEX import preview envelope.", "#/components/schemas/VEXImportPreviewEnvelope")
 	case "getVEX":
@@ -306,18 +334,20 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX document envelope.", "#/components/schemas/VEXDocumentEnvelope")
 	case "getVEXImportReport":
-		operation.Description = "Returns the persisted parser report for a tenant-scoped VEX import, including counts, warnings, and mapping failures without raw payload bytes."
+		operation.Description = "Returns the persisted parser report for a tenant-scoped VEX import. Uploads begin as accepted and become parsed or failed after asynchronous decision processing; the report includes safe counts, warnings, and mapping failures without raw payload bytes."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "VEX document id."))
 		operation.Responses[http.StatusOK] = jsonResponse("VEX import report envelope.", "#/components/schemas/VEXImportReportEnvelope")
 	case "uploadVulnerabilityScan":
-		operation.Description = "Uploads a generic vulnerability scan JSON payload and records normalized findings. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
-		operation.RequestBody = jsonRequest("Vulnerability scan upload payload.", "#/components/schemas/UploadVulnerabilityScanRequest")
+		operation.Description = "Uploads either the Evydence generic scan schema or a versioned native-scanner envelope (Grype, Trivy, OSV-Scanner, or Dependency-Track). Scanner output is preserved as raw evidence and is not treated as authoritative. The request is streamed to a private temporary file while hashing and is limited to 20 MiB."
+		operation.Description += " In PostgreSQL mode, scope-only authorization precedes a complete bounded, size/SHA-256-checked release-ID probe. Normalized release IDs are NUL-free UTF-8 bounded at 1024 bytes. A focused command checks current tenant-owned release parents and human resource grants before full findings normalization or object staging. Normalized projections allow 100,000 findings, 1 MiB per string, and 64 MiB of combined projection strings; severity summaries must match findings. Scan, evidence, audit, payload metadata, outbox, and idempotency completion commit together. Same-byte replay checks current grants and exact tenant/release coordinates without findings normalization or staging. With worker-owned parsing and object storage, the response contains parsed findings while the stored projection stays accepted until its parser job runs."
+		operation.RequestBody = jsonRequest("Generic scan or versioned native-scanner envelope.", "#/components/schemas/UploadVulnerabilityScanBody")
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
 			"generic-critical-finding": specs.Example{
 				Summary: "Upload a generic scanner finding for release triage",
 				Value:   vulnerabilityScanUploadExample(),
 			},
+			"grype-envelope": specs.Example{Summary: "Preserve a Grype JSON report with explicit release scope", Value: map[string]any{"scanner": "grype", "target_ref": "pkg:oci/payments-api@sha256-ca978112", "release_id": "rel_20260527120000", "source_schema": "grype-json.v1", "payload": map[string]any{"matches": []any{}}}},
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability scan envelope.", "#/components/schemas/VulnerabilityScanEnvelope")
 	case "getVulnerabilityScan":
@@ -325,26 +355,35 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability scan id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability scan envelope.", "#/components/schemas/VulnerabilityScanEnvelope")
 	case "createEvidence":
-		operation.Description = "Creates immutable evidence metadata and optional raw payload evidence. Evidence core fields are append-only after creation."
+		operation.Description = "Creates immutable evidence metadata requiring evidence:write. PostgreSQL uses native durable execution without Ledger cloning/replay/refresh. Every retry checks current coherent tenant-owned parents and recognized subject ownership/grants; artifact identity is replay authority, while fresh creation checks supported declared digests. The shared writer fence precedes locks held through evidence/audit/replay commit. The guard reads no historical/private metadata and generates no payload inspection, clock, ID or hash. Changed original bytes conflict and completed replay adds no effects. Both profiles enforce exact-case non-null fields/items, raw NUL-free UTF-8 IDs bounded at 1024 bytes before trimming, at most 1024 supplied subject/tag/limitation items and the existing 64 KiB body/JSON structural limits. Numeric metadata is decoded without transport rounding; the unchanged hash profile retains its documented float64 normalization limitation. Omitted observed_at defaults to command time; supplied UTC timestamps require years 1 through 9999. Cookie writes require same-host HTTPS Origin with Bearer precedence. Opaque payload references are omitted on safe replay. Internal staged-payload capabilities are not accepted by this route; recording does not upload bytes or verify provenance. Local memory remains nondurable and evidence core fields are append-only."
 		operation.RequestBody = jsonRequest("Evidence creation request.", "#/components/schemas/CreateEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "listEvidence":
-		operation.Description = "Lists tenant-scoped evidence by optional release and evidence type filters."
+		operation.Description = "Lists tenant-scoped evidence by exact optional release/type filters under evidence:read. PostgreSQL uses a focused query without Ledger relationships, tenant-wide projection refresh or cache authority. SQL candidate visibility and keyset bounds precede metadata reads; current selected parent coordinates and worker-owned provenance are validated in one repeatable-read view with unconditional rollback and no writes. Only canonical permission denials are filtered; bounded batches refill before deciding a continuation. Existing response fields, ordering and tenant/resource/filter-bound cursors remain. Selected item/provenance reads retain the 8 MiB and 4096-fact budgets, and serialized returned items have a 16 MiB page budget; oversized or malformed data fails without a partial page. PostgreSQL filter text is raw NUL-free UTF-8 capped at 1024 bytes and timestamp filters must fit UTC years 1 through 9999. Stored JSON numbers are preserved exactly for transport; historical normalized-JSON hash behavior remains unchanged. Local memory retains its explicit compatibility reader. These reads do not verify payload bytes, evidence completeness, scanner authority or compliance."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("release_id", "Filter by release id.", "string"),
 			queryParam("type", "Filter by evidence type.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence item list envelope.", "#/components/schemas/EvidenceItemListEnvelope")
 	case "searchEvidence":
-		operation.Description = "Searches tenant-scoped evidence with deterministic filters and cursor-style pagination."
+		operation.Description = "Searches tenant-scoped evidence with exact deterministic filters under evidence:read. The legacy source alias remains supported for source_system; supplying both is rejected. PostgreSQL uses a focused, cache-independent repeatable-read query with SQL-side candidate grant visibility before keyset limits and selected ownership/worker-provenance checks before metadata reads. Only canonical permission denials are filtered and batches refill to preserve continuation. Product/project/release coordinates inferred through builds or deployments can authorize visibility, but filter matching remains against stored fields. Created-time bounds are inclusive; subject ID matches stored ID or digest. Existing response fields, ordering and tenant/resource/filter-bound cursors remain; the historical limit alias still sets page size. Raw NUL-free UTF-8 filter text is capped at 1024 bytes, timestamps must fit UTC years 1 through 9999, and serialized returned items have a 16 MiB page budget. The existing 8 MiB item/provenance and 4096-fact limits remain. Malformed or oversized selected projections fail without partial results; unauthorized metadata is not loaded. Stored JSON numbers are preserved exactly for transport without rehashing records or changing historical hash normalization. Queries roll back unconditionally and create no audit, receipt or job. Local memory remains an explicit compatibility profile. Search is not payload verification or an evidence completeness/security/compliance conclusion."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Filter by product id.", "string"),
 			queryParam("project_id", "Filter by project id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),
+			queryParam("build_id", "Filter by build id.", "string"),
+			queryParam("deployment_id", "Filter by deployment id.", "string"),
 			queryParam("type", "Filter by evidence type.", "string"),
-			queryParam("source", "Filter by evidence source.", "string"),
+			queryParam("subtype", "Filter by evidence subtype.", "string"),
+			queryParam("source", "Deprecated alias for source_system.", "string"),
+			queryParam("source_system", "Filter by evidence source system.", "string"),
+			queryParam("collector_id", "Filter by collector id.", "string"),
+			queryParam("verification_status", "Filter by verification status.", "string"),
+			queryParam("subject_type", "Filter by subject type.", "string"),
+			queryParam("subject_id", "Filter by subject id.", "string"),
 			queryParam("tag", "Filter by a single evidence tag.", "string"),
-			queryParam("cursor", "Opaque pagination cursor.", "string"),
+			queryParam("created_after", "Filter by an RFC3339 creation timestamp inclusive lower bound.", "string"),
+			queryParam("created_before", "Filter by an RFC3339 creation timestamp inclusive upper bound.", "string"),
 			queryParam("limit", "Maximum returned records.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence search result envelope.", "#/components/schemas/EvidenceSearchEnvelope")
@@ -353,11 +392,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "createGraphSnapshot":
-		operation.Description = "Creates a deterministic product/release evidence adjacency snapshot from stored tenant-scoped evidence records."
+		operation.Description = "Creates a deterministic product/release evidence adjacency snapshot through focused Package commands without an aggregate fallback. Current ownership and evidence:read grants precede every replay; PostgreSQL commits bounded adjacency, audit and replay atomically. PostgreSQL is required for local evaluation. Recorded references do not prove trust or evidence completeness."
 		operation.RequestBody = jsonRequest("Evidence graph snapshot creation request.", "#/components/schemas/CreateGraphSnapshotRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence graph snapshot envelope.", "#/components/schemas/EvidenceGraphSnapshotEnvelope")
 	case "listSBOMComponents":
-		operation.Description = "Lists tenant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL."
+		operation.Description = "Lists tenant- and resource-grant-scoped SBOM components by SBOM, release, artifact, name/version/PURL query, or exact PURL. In the PostgreSQL profile, results use durable keyset pages without the legacy 500-component preselection cap. Source evidence must be an SBOM with matching release and artifact subject; an inaccessible, missing, or inconsistently linked filtered SBOM returns 404."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("sbom_id", "Filter by SBOM id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),
@@ -368,21 +407,21 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("SBOM component result envelope.", "#/components/schemas/SBOMComponentRecordListEnvelope")
 	case "createIncident":
-		operation.Description = "Creates an append-only incident record linked to tenant-scoped product and optional release evidence."
+		operation.Description = "Creates an append-only incident linked to a current tenant-owned product and optional matching release. PostgreSQL uses a focused Operations command; incident:write and current human tenant/product/release grants are checked before creation or replay. Record, principal-attributed audit, and replay completion commit together. Omitted opened_at defaults to creation time; timestamps are UTC with microsecond precision. Null fields and NUL/invalid UTF-8 are rejected; IDs are capped at 1024 bytes and title at 64 KiB."
 		operation.RequestBody = jsonRequest("Incident creation request.", "#/components/schemas/CreateIncidentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created incident envelope.", "#/components/schemas/IncidentEnvelope")
 	case "recordIncidentTimeline":
-		operation.Description = "Appends an incident timeline event and optional evidence reference."
+		operation.Description = "Appends a timeline event to a current tenant-owned incident. PostgreSQL uses a focused Operations command and independently checks incident:write grants for the incident and optional current evidence parents before creation or replay. Event, audit, and replay completion commit together. Omitted occurred_at defaults to creation time; timestamps are UTC with microsecond precision. Null fields and NUL/invalid UTF-8 are rejected; IDs are capped at 1024 bytes and event_type/summary at 64 KiB each. Linked evidence organizes recorded references without proving remediation completeness."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Incident id."))
 		operation.RequestBody = jsonRequest("Incident timeline event request.", "#/components/schemas/RecordIncidentTimelineRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created incident timeline event envelope.", "#/components/schemas/IncidentTimelineEventEnvelope")
 	case "createIncidentWebhookReceiver":
-		operation.Description = "Creates an incident-scoped webhook receiver with an Ed25519 public key. The matching private key stays with the external incident tool."
+		operation.Description = "Creates an incident-scoped Ed25519 webhook receiver. PostgreSQL uses a focused Operations command, current tenant-owned incident parents, and incident:write grants before creation or HTTP idempotency replay. Receiver, principal audit, and replay completion commit together. Public keys accept raw or padded standard base64 and are stored as raw standard base64; private keys stay with the external incident tool. JSON bodies are limited to 64 KiB; null/duplicate/unknown fields, NUL, and invalid UTF-8 are rejected. IDs are capped at 1024 UTF-8 bytes, name/provider at 64 KiB each, and encoded keys at 1024 bytes. New timestamps use UTC microsecond precision."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Incident id."))
 		operation.RequestBody = jsonRequest("Incident webhook receiver creation request.", "#/components/schemas/CreateIncidentWebhookReceiverRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created incident webhook receiver envelope.", "#/components/schemas/IncidentWebhookReceiverEnvelope")
 	case "receiveIncidentWebhook":
-		operation.Description = "Public signed webhook endpoint for incident timeline events. It verifies Ed25519 signature, event id replay, and timestamp before parsing payload fields."
+		operation.Description = "Public incident timeline webhook: no bearer token or HTTP Idempotency-Key is required. PostgreSQL uses focused Operations commands and bounded tenant/receiver/event point reads. A single event-id, timestamp, and signature header is required. The Ed25519 signature covers UTC RFC3339 seconds, newline, trimmed event id, newline, and exact body bytes; timestamps must be within five minutes. Verification precedes payload parsing. Event-id retries with the same bytes return the original event/timeline, including after a fresh signature; changed bytes conflict. Current receiver status/key, incident parents, and linked evidence ownership are rechecked on replay. Evidence must belong to the incident product and, if release-scoped, its release. Event, timeline, and webhook-attributed audit commit together. JSON bodies are limited to 64 KiB and reject null/duplicate/unknown fields, NUL, and invalid UTF-8. IDs are capped at 1024 UTF-8 bytes; the tenant/receiver/event replay key is capped at 2304 combined bytes. New timestamps use UTC microsecond precision."
 		operation.Parameters = append(operation.Parameters,
 			pathParam("receiver_id", "Incident webhook receiver id."),
 			headerParam("X-Evydence-Webhook-Event-ID", "Provider event id used for replay detection."),
@@ -395,7 +434,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Extensions = withStability(operation.OperationID, nil)
 		operation.Responses[http.StatusCreated] = jsonResponse("Accepted webhook event and timeline event envelope.", "#/components/schemas/IncidentWebhookDeliveryEnvelope")
 	case "createRemediationTask":
-		operation.Description = "Creates an incident or release remediation task linked to optional evidence."
+		operation.Description = "Creates a remediation task with at least one incident or release reference and optional evidence. PostgreSQL uses a focused Operations command and independently checks incident:write grants for every current tenant-owned reference before creation or replay. Authorized incident and release references need not share a product. Task, audit, and replay completion commit together. Omitted due_at is absent; explicit null is rejected as published. Timestamps are UTC with microsecond precision. IDs are capped at 1024 bytes and title/owner at 64 KiB each; NUL/invalid UTF-8 are rejected. Recording a task does not prove remediation completeness."
 		operation.RequestBody = jsonRequest("Remediation task creation request.", "#/components/schemas/CreateRemediationTaskRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created remediation task envelope.", "#/components/schemas/RemediationTaskEnvelope")
 	case "incidentReport":
@@ -407,11 +446,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Release bundle creation request.", "#/components/schemas/CreateReleaseBundleRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
 	case "getReleaseBundle":
-		operation.Description = "Returns a tenant-scoped immutable release bundle by id."
+		operation.Description = "Returns an immutable release bundle through a focused query only when its current tenant-owned release is covered by the caller's bundle:read grant. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle envelope.", "#/components/schemas/ReleaseBundleEnvelope")
 	case "getReleaseBundleManifest":
-		operation.Description = "Returns the deterministic release bundle manifest by bundle id."
+		operation.Description = "Returns the deterministic release bundle manifest through a focused query under the same current-release and bundle:read authorization as the bundle read. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release bundle id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Release bundle manifest envelope.", "#/components/schemas/ReleaseBundleManifestEnvelope")
 	case "verifyReleaseBundle":
@@ -422,20 +461,20 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Description = "Recomputes tenant audit-chain entry hashes, continuity, schema versions, and referenced signatures. This local verification does not by itself prove protection from an administrator able to rewrite all history and signing material."
 		operation.Responses[http.StatusOK] = jsonResponse("Audit chain verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "verify":
-		operation.Description = "Verifies a supported tenant-scoped subject. Audit-chain checkpoint verification supports audit_chain_checkpoint with a Merkle batch id and audit_chain_release_manifest with a release bundle id."
+		operation.Description = "Verifies one of nine supported tenant-scoped subject types using its existing assurance profile. PostgreSQL uses native durable execution, not Ledger replay. Current flat ownership and resource grants are checked before reservation and every replay; the common writer fence precedes share locks held through the outer commit. Audit-chain, Merkle, checkpoint, backup and artifact-signature profiles require tenant-wide human grants; evidence, attestation and release-bundle profiles retain their matching resource grants. Completed retries return the original receipt without re-reading changed payloads, manifests, digests, trust policies or prior verification metadata. The strict non-null JSON object is capped at 64 KiB, raw subject_type at 64 NUL-free UTF-8 bytes and raw subject_id at 1024 bytes before trimming. Only subject_type and subject_id are accepted; unknown, duplicate, case-aliased, malformed and non-object input is rejected. Audit-chain IDs must be absent or empty; other supported types require an ID. Cookie mutations require same-origin protection; bearer credentials take precedence. Fresh receipt, audit, verification job and successful replay commit atomically; failed HTTP inspection returns 422 and rolls back business effects. The API requires PostgreSQL, including local evaluation. Historical delivery does not establish current trust validity, provider runtime integrity, artifact safety or compliance."
 		operation.RequestBody = jsonRequest("Subject verification request.", "#/components/schemas/VerifySubjectRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Subject verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "listAuditLog":
-		operation.Description = "Lists tenant-scoped append-only audit-chain entries in reverse chronological order."
+		operation.Description = "Lists tenant-scoped append-only audit-chain entries in reverse chronological order. Human sessions require a tenant-wide admin grant."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("subject_type", "Filter by audited subject type.", "string"),
 			queryParam("subject_id", "Filter by audited subject id.", "string"),
 			queryParam("since", "Only include entries at or after this RFC3339 timestamp.", "string"),
-			queryParam("limit", "Maximum returned entries; defaults to 100 and caps at 500.", "integer"),
+			queryParam("limit", "Deprecated maximum returned entries alias; defaults to 50 and caps at 500.", "integer"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Audit-chain entry list envelope.", "#/components/schemas/AuditChainEntryListEnvelope")
 	case "generateBackupManifest":
-		operation.Description = "Generates a tenant-scoped backup manifest after an operator backup completes. The manifest excludes raw payload bytes and private key material."
+		operation.Description = "Generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. PostgreSQL emits backup-manifest.v2.0.0 with tenant-relational-state.v2 semantics, including append-only decision supersession history; historical commitments retain their recorded profiles. Native durable execution checks current tenant-wide admin authority before reservation and replay; human sessions need a matching tenant grant. The replay guard locks only the tenant root, not state rows, audit pages or signing material. The common writer fence precedes tenant and chain locks. Fresh generation streams the complete declared metadata profile in one committed view, bounded by 32768 rows and 8 MiB; overflow fails rather than publishing a truncated prefix. Manifest, caller audit and successful replay commit together. Completed retries return the original manifest without reading or hashing current state or rerunning audit inspection; changed request bytes conflict. The API requires an empty JSON object, reject unknown, duplicate, case-aliased, invalid UTF-8 and malformed input, and cap the body at 64 KiB. Unsafe cookie mutations require same-origin protection. The API requires PostgreSQL, including local evaluation. Credential material, replay bookkeeping and raw object payload bytes are excluded. Failed audit observations remain failed, and local checks do not prove external anchoring."
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusCreated] = jsonResponse("Backup manifest envelope.", "#/components/schemas/BackupManifestEnvelope")
 	case "verifyBackupManifest":
@@ -453,7 +492,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 			},
 		})
 	case "missingEvidenceReport":
-		operation.Description = "Returns a deterministic missing-evidence report for a release with assumptions and limitations."
+		operation.Description = "Returns a read-only deterministic missing-evidence report for a release through focused readiness/report queries, with assumptions and limitations. It requires verify:read and current tenant/product/release grants for human sessions; reads do not create policy evaluations, audit entries, jobs or replay records. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Missing evidence report envelope.", "#/components/schemas/MissingEvidenceReportEnvelope")
 	case "evaluatePolicy":
@@ -461,7 +500,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Policy evaluation request.", "#/components/schemas/EvaluatePolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Policy evaluation envelope.", "#/components/schemas/PolicyEvaluationEnvelope")
 	case "createVulnerabilityDecision":
-		operation.Description = "Creates an append-only vulnerability decision for a tenant-scoped scan finding."
+		operation.Description = "Creates an append-only vulnerability decision for a tenant-scoped scan finding. Tenant-internal notes are accepted for the ledger but excluded from the response and idempotency replays."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
 		operation.RequestBody = jsonRequest("Vulnerability decision creation request.", "#/components/schemas/CreateVulnerabilityDecisionRequest")
 		addJSONRequestExamples(operation.RequestBody, map[string]any{
@@ -472,7 +511,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		})
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability decision envelope.", "#/components/schemas/VulnerabilityDecisionEnvelope")
 	case "listVulnerabilityDecisions":
-		operation.Description = "Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters."
+		operation.Description = "Lists append-only vulnerability decisions over time with tenant-scoped product, release, vulnerability, component, status, and active filters. Tenant-internal notes are excluded from responses."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Filter by product id.", "string"),
 			queryParam("release_id", "Filter by release id.", "string"),
@@ -483,7 +522,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability decision list envelope.", "#/components/schemas/VulnerabilityDecisionListEnvelope")
 	case "recordVulnerabilityWorkflow":
-		operation.Description = "Records an append-only vulnerability workflow event for a tenant-scoped finding."
+		operation.Description = "Records an append-only vulnerability workflow annotation through a focused Risk command and durable replay. Current finding/source/parent ownership and security:write grants are checked before every fresh request or replay; replay does not read historical workflow reasons or reapply effects. The annotation does not change a finding or decision. Record, principal audit and replay result commit together. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Vulnerability finding id."))
 		operation.RequestBody = jsonRequest("Vulnerability workflow event request.", "#/components/schemas/RecordVulnerabilityWorkflowRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created vulnerability workflow record envelope.", "#/components/schemas/VulnerabilityWorkflowRecordEnvelope")
@@ -492,7 +531,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Exception creation request.", "#/components/schemas/CreateExceptionRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created exception envelope.", "#/components/schemas/ExceptionEnvelope")
 	case "listExceptions":
-		operation.Description = "Lists tenant-scoped exceptions, optionally filtered by release."
+		operation.Description = "Lists tenant- and current verify-grant-scoped exceptions, optionally filtered by release. In the PostgreSQL profile, release ownership and bounded keyset pages are resolved in one database snapshot before results are returned. A missing filtered release returns 404; an existing release outside the actor's grants returns 403."
 		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Exception list envelope.", "#/components/schemas/ExceptionListEnvelope")
 	case "approveException":
@@ -501,11 +540,11 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Approved exception envelope.", "#/components/schemas/ExceptionEnvelope")
 	case "createCustomPolicy":
-		operation.Description = "Creates a deterministic custom policy definition for tenant-managed release checks."
+		operation.Description = "Creates an immutable tenant-wide custom policy through a focused Risk command and durable replay. Human sessions require a current tenant-wide policy:write grant. Current tenant authority is checked before every fresh request or replay; definition, principal audit and replay result commit together. Duplicate tenant/name/version definitions return 409. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Custom policy creation request.", "#/components/schemas/CreateCustomPolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created custom policy envelope.", "#/components/schemas/CustomPolicyEnvelope")
 	case "evaluateCustomPolicy":
-		operation.Description = "Evaluates a tenant custom policy against a release and records the input hash."
+		operation.Description = "Evaluates evidence presence for a tenant-owned custom policy and release through a focused Risk command, recording the normalized input hash. Human sessions need a current tenant/product/release policy:read grant. Replay checks current ownership/grants without reading rules or evidence and returns the original result; changed request bytes conflict. Evaluation, principal audit and replay result commit together. This does not verify payloads, freshness, control effectiveness or compliance. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Custom policy id."))
 		operation.RequestBody = jsonRequest("Custom policy evaluation request.", "#/components/schemas/EvaluatePolicyRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Custom policy evaluation envelope.", "#/components/schemas/CustomPolicyEvaluationEnvelope")
@@ -529,7 +568,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
 	case "getOpenAPIContract":
-		operation.Description = "Returns a tenant-scoped OpenAPI contract metadata record by id."
+		operation.Description = "Returns tenant-scoped OpenAPI contract metadata by id. PostgreSQL reads require current same-tenant source evidence, product, and optional release parentage; human sessions need an evidence:read grant covering the product or release."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "OpenAPI contract id."))
 		operation.Responses[http.StatusOK] = jsonResponse("OpenAPI contract envelope.", "#/components/schemas/OpenAPIContractEnvelope")
 	case "createOpenAPIDiff":
@@ -537,15 +576,17 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("OpenAPI contract diff request.", "#/components/schemas/CreateOpenAPIDiffRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created OpenAPI contract diff envelope.", "#/components/schemas/ContractDiffEnvelope")
 	case "listSigningKeys":
-		operation.Description = "Lists tenant signing public-key metadata without private key material."
+		operation.Description = "Lists tenant signing public-key lifecycle metadata under verify:read; human sessions require a current tenant-level grant. PostgreSQL reads are keyset-paginated and never select encrypted private key material."
 		operation.Responses[http.StatusOK] = jsonResponse("Signing key list envelope.", "#/components/schemas/SigningKeyListEnvelope")
 	case "rotateSigningKey":
-		operation.Description = "Rotates the active tenant signing key and returns public-key metadata only."
-		operation.RequestBody = jsonRequest("Signing key rotation request.", "#/components/schemas/SigningKeyTransitionRequest")
+		operation.Description = "Rotates the active tenant signing key, retires the prior key with an explicit validity window, and returns public-key metadata only."
+		operation.RequestBody = jsonRequest("Signing key rotation request.", "#/components/schemas/SigningKeyRotationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Rotated signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
 	case "revokeSigningKey":
-		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition."
-		operation.Parameters = append(operation.Parameters, pathParam("id", "Signing key id."))
+		operation.Description = "Revokes a tenant signing key as an audited lifecycle transition. Ordinary revocation preserves signatures valid at signing time; compromised-key policy is explicit and can invalidate historical results."
+		keyID := pathParam("id", "Signing key id; raw NUL-free UTF-8 is capped at 1024 bytes before trimming.")
+		keyID.Schema["minLength"], keyID.Schema["maxLength"] = 1, 1024
+		operation.Parameters = append(operation.Parameters, keyID)
 		operation.RequestBody = jsonRequest("Signing key revocation request.", "#/components/schemas/SigningKeyTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked signing key envelope.", "#/components/schemas/SigningKeyEnvelope")
 	case "createSigningProvider":
@@ -553,39 +594,38 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Signing provider creation request.", "#/components/schemas/CreateSigningProviderRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing provider envelope.", "#/components/schemas/SigningProviderEnvelope")
 	case "createSigningOperation":
-		operation.Description = "Records an external signing operation receipt and checks payload/signature metadata without logging secrets. When the API is configured with a signing executor, external_signature may be omitted and the executor signs the payload hash."
+		operation.Description = "Requests a configured signing executor through focused Verification commands without an aggregate fallback. Current tenant-wide human keys:admin authority and owned active provider/subject roots precede every replay. Canonical requests bind tenant, provider/type/key reference, subject, payload digest, request ID and nonce; caller-supplied signatures are rejected. Signature, operation, audit and replay commit together in PostgreSQL, which is required for local evaluation. Replay does not sign again; rollback cannot undo provider observation. Raw signature bytes and key material are not response data."
 		operation.RequestBody = jsonRequest("Signing operation creation request.", "#/components/schemas/CreateSigningOperationRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created signing operation envelope.", "#/components/schemas/SigningOperationEnvelope")
 	case "createArtifactSignature":
-		operation.Description = "Records detached artifact signature evidence and optional raw signature payload metadata."
+		operation.Description = "Records detached artifact signature evidence with recorded status; creation does not verify cryptographic trust. PostgreSQL uses native durable execution without Ledger replay. Current artifact ownership and evidence:write grants run before reservation and every replay; human sessions retain current tenant, product, project or release association policy. The common writer fence precedes tenant/artifact share locks held through the outer commit. Fresh signature metadata, optional payload lifecycle, finalization job, audit and successful replay commit in the same transaction. Completed retries preserve the original public DTO and canonical tenant/digest-bound payload reference without selecting changed artifact digest/metadata or staging again. The strict JSON object remains capped at 64 KiB; payload must be an optional non-null JSON object. Raw IDs are bounded at 1024 bytes, algorithm and signature text at 64 KiB, and media-type text at 4096 bytes before trimming; text is NUL-free UTF-8. Unknown, duplicate, case-aliased, null, malformed and over-budget input fails validation. Cookie mutations require same-origin protection; bearer credentials take precedence. Payload staging is not finalization and filesystem staging cannot be rolled back by a failed database transaction. PostgreSQL is required for local evaluation. No current cryptographic trust, artifact safety or compliance is claimed."
 		operation.RequestBody = jsonRequest("Artifact signature creation request.", "#/components/schemas/CreateArtifactSignatureRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "getArtifactSignature":
-		operation.Description = "Returns tenant-scoped artifact signature metadata by id."
+		operation.Description = "Returns artifact signature metadata through a focused query only when the current tenant owns the signature and its artifact digest still matches. A human session additionally needs an evidence:read grant covering a current evidence or build association; issued credentials use their evidence:read scope. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Artifact signature envelope.", "#/components/schemas/ArtifactSignatureEnvelope")
 	case "verifyCosignSignature":
-		operation.Description = "Deprecated compatibility metadata-assessment endpoint. It assesses stored digest binding, signature-material presence, and supplied Rekor metadata only. It never cryptographically verifies a Cosign signature, certificate identity, trust policy, Rekor inclusion, or checkpoint. Successful metadata assessment returns limited; require_full_verification=true returns COSIGN_FULL_VERIFICATION_UNAVAILABLE until a verifier and trust policy are configured."
-		operation.Deprecated = true
+		operation.Description = "Cryptographically verifies a stored Sigstore/Cosign bundle against operator-configured trust material and caller-supplied keyless identity policy. The explicit offline profile requires an embedded Rekor inclusion proof and does not silently downgrade an online-required request. PostgreSQL uses native durable execution: current verify:read authority and flat tenant/signature/artifact ownership guards run before reservation and every replay; human sessions need a tenant-wide grant. The common writer fence precedes tenant, artifact and signature locks. Successful verification commits both receipts, audit and replay atomically. Completed replay returns the original receipt without reading current digests, images, payloads or trust material, or re-running verification. The API requires exact non-null policy fields within 64 KiB; signature IDs are capped at 1024 bytes and optional identity/issuer text at 4096 UTF-8 bytes before trimming. Fresh object reads retain the 4 MiB bound. Cookie mutations require same-origin protection; bearer credentials take precedence. Failed or unavailable inspection returns 422 without a success envelope or partial receipt commit. The API requires PostgreSQL, including local evaluation. A historical receipt is not proof of current trust validity, artifact safety, provenance completeness or legal compliance."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Artifact signature id."))
-		operation.RequestBody = jsonRequest("Cosign verification metadata request.", "#/components/schemas/VerifyCosignSignatureRequest")
+		operation.RequestBody = jsonRequest("Cosign policy verification request.", "#/components/schemas/VerifyCosignSignatureRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Cosign verification envelope.", "#/components/schemas/CosignVerificationEnvelope")
 	case "uploadBuildAttestation":
-		operation.Description = "Uploads a DSSE/in-toto build attestation for a tenant-scoped build and stores raw bytes in object storage."
+		operation.Description = "Accepts a nonempty DSSE/in-toto JSON envelope of at most 20 MiB for a tenant-scoped build; raw build IDs are limited to 1024 NUL-free UTF-8 bytes before trimming. PostgreSQL uses native durable execution with a read-only current build/parent/output-artifact ownership and grant guard on every retry, without Ledger replay or refresh. Identical bytes replay the original public response without reparsing or staging; changed bytes under the same key conflict. Fresh ingestion still verifies observed payload hash/size, output digests and subject coverage, and commits evidence, attestation, caller audits, payload records, worker jobs and replay completion together. HTTP responses omit private payload_ref storage coordinates. Structurally_valid is not signature verification; managed worker-owned projections stay accepted/pending until the worker runs. Upload concurrency limits apply; cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Build run id."))
 		operation.RequestBody = jsonRequest("DSSE envelope.", "#/components/schemas/DSSEEnvelope")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created build attestation envelope.", "#/components/schemas/BuildAttestationEnvelope")
 	case "verifyBuildAttestationSignature":
-		operation.Description = "Verifies a build attestation signature against configured tenant DSSE trust roots."
+		operation.Description = "Offline-verifies DSSE PAE, an in-toto Statement v1/SLSA provenance v1 predicate, registered release-artifact subject digests, and immutable configured tenant-root policy. Requires verify:read and current owned attestation/evidence/build/project/release/product coordinates; human sessions need a matching tenant, product, project or release grant. PostgreSQL uses native durable execution without Ledger replay. Current flat ownership and grants run before reservation and every replay, with the common writer fence before row locks held through receipt/audit/job/replay commit. Completed retries return the original receipt without reading changed payloads, trust policies or build outputs. The required empty JSON object is capped at 64 KiB; raw NUL-free UTF-8 IDs at 1024 bytes before trimming. Malformed, missing, unknown, duplicate and non-object input fails validation. Cookie mutations require same-origin protection; bearer credentials take precedence. Fresh metadata is bounded to 4096 records and 8 MiB, and finalized payload reads to 8 MiB. Failed HTTP inspection returns 422 and rolls back business effects; unavailable trust can return a conservative not_verified receipt with 200. The API requires PostgreSQL, including local evaluation. This receipt does not prove current trust validity, provenance completeness, CI-provider runtime integrity or compliance."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Build attestation id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Build attestation verification envelope.", "#/components/schemas/VerificationResultEnvelope")
 	case "createDSSETrustRoot":
-		operation.Description = "Creates a tenant-scoped DSSE trust root using public verification key material only."
+		operation.Description = "Creates a tenant-scoped immutable DSSE Ed25519 trust root with an explicit SLSA predicate, builder, and required-claims policy."
 		operation.RequestBody = jsonRequest("DSSE trust-root creation request.", "#/components/schemas/CreateDSSETrustRootRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created DSSE trust root envelope.", "#/components/schemas/DSSETrustRootEnvelope")
 	case "createReleaseCandidate":
-		operation.Description = "Creates an immutable release-candidate snapshot of selected release evidence references."
+		operation.Description = "Creates a release-candidate snapshot requiring release:write and current parent/reference ownership and human grants. PostgreSQL uses native durable execution without Ledger cloning/replay/refresh. Every retry checks coherent tenant/release/source parents and all seven reference groups without private metadata, stored candidate documents, clocks, IDs or hashing. The shared writer fence precedes ownership locks held through snapshot/audit/replay commit. Fresh creation preserves open/revision-1 initialization and the versioned normalized-JSON hash; reference sorting retains duplicates and different keys create distinct snapshots. Identical bytes replay the original result; changed bytes conflict. Both profiles require strict non-null exact JSON within 64 KiB. Raw NUL-free UTF-8 names are capped at 64 KiB, parent/reference IDs at 1024 bytes before trimming; arrays share 4096 entries and 64 KiB of raw identifier text. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable. Snapshots do not establish release safety or compliance."
 		operation.RequestBody = jsonRequest("Release candidate creation request.", "#/components/schemas/CreateReleaseCandidateRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "listReleaseCandidates":
@@ -598,30 +638,34 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = jsonResponse("Release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "promoteReleaseCandidate", "rejectReleaseCandidate":
 		operation.Description = "Records a release-candidate lifecycle transition without mutating the original snapshot. Supply the current revision as a strong decimal ETag in If-Match."
+		operation.Description += focusedStateTransitionDescription + " Strict JSON accepts only non-null reason text, NUL-free UTF-8 capped at 64 KiB before trimming. Snapshot fields/hash remain unchanged."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Release candidate id."), revisionIfMatchParam())
 		operation.RequestBody = jsonRequest("Release candidate transition request.", "#/components/schemas/ReleaseCandidateTransitionRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Transitioned release candidate envelope.", "#/components/schemas/ReleaseCandidateEnvelope")
 	case "supersedeEvidence":
-		operation.Description = "Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata."
+		operation.Description = "Supersedes immutable evidence by linking it to replacement evidence and appending lifecycle metadata. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead."
+		operation.Description += focusedEvidenceRelationshipDescription
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence supersession request.", "#/components/schemas/SupersedeEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Superseded evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "linkEvidence":
-		operation.Description = "Creates an append-only relationship from evidence to another tenant-scoped subject."
+		operation.Description = "Creates an append-only relationship from evidence to another tenant-scoped subject. Worker-owned parser and build-attestation evidence has fixed projection relationships and returns a conflict instead."
+		operation.Description += focusedEvidenceRelationshipDescription + " Targets are product or release; a new key appends another link, while a completed retry adds no effects."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence link request.", "#/components/schemas/LinkEvidenceRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Linked evidence item envelope.", "#/components/schemas/EvidenceItemEnvelope")
 	case "recordEvidenceLifecycleEvent":
 		operation.Description = "Appends an evidence lifecycle event such as amendment, redaction marker, tombstone, or retention marker."
+		operation.Description += focusedEvidenceRelationshipDescription + " Reasons/details are redacted; details cannot contain the reserved evydence_canonical_origin_v1 key. Ordinary events may mark worker-owned evidence without changing its projection."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.RequestBody = jsonRequest("Evidence lifecycle event request.", "#/components/schemas/RecordEvidenceLifecycleEventRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence lifecycle event envelope.", "#/components/schemas/EvidenceLifecycleEventEnvelope")
 	case "listEvidenceLifecycleEvents":
-		operation.Description = "Lists append-only lifecycle events for a tenant-scoped evidence item."
+		operation.Description = "Lists append-only lifecycle events for a tenant-scoped evidence item. PostgreSQL pages ordinary evidence events from a consistent snapshot without loading all lifecycle records; worker-owned evidence retains its validated projection path. Sensitive detail fields are removed from responses."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Evidence item id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Evidence lifecycle event list envelope.", "#/components/schemas/EvidenceLifecycleEventListEnvelope")
 	case "createSourceRepository":
-		operation.Description = "Creates a tenant-scoped source repository record."
+		operation.Description = "Creates source repository metadata with source:write authorization and native durable replay in PostgreSQL. A read-only current tenant/ownership guard runs before reservation and completed replay, without reading clone URLs or branch metadata or allocating IDs. PostgreSQL serializes tenant/provider/full-name reuse and returns the existing repository unchanged without another audit entry. Human sessions need a tenant-wide grant for detached creation, or a matching product/project grant for attached creation; the existing repository is separately authorized before metadata is read. The tenant fence and submitted/existing product/project locks survive through the outer replay commit. Raw UTF-8 and NUL-free text bounds are checked before trimming; IDs are bounded at 1024 bytes, tenant/provider/full-name keys at 2304 bytes and optional metadata at 64 KiB, within the 64 KiB HTTP envelope. Repository and audit records commit in the same transaction as HTTP replay state, with no outbox job. Completed replay preserves the original public response and request-byte fingerprint. Cookie-authenticated writes require a same-host HTTPS Origin; explicit bearer credentials take precedence. Local evaluation requires PostgreSQL; there is no local-memory API path. This records supplied metadata and does not contact or verify the provider, clone URL or repository contents."
 		operation.RequestBody = jsonRequest("Source repository creation request.", "#/components/schemas/CreateSourceRepositoryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source repository envelope.", "#/components/schemas/SourceRepositoryEnvelope")
 	case "listSourceRepositories":
@@ -629,19 +673,19 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, queryParam("project_id", "Project id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Source repository list envelope.", "#/components/schemas/SourceRepositoryListEnvelope")
 	case "recordSourceCommit":
-		operation.Description = "Records immutable source commit metadata and stores only a hash of the commit message."
+		operation.Description = "Records immutable source commit metadata using current repository tenant/project authorization before metadata reads. PostgreSQL mode normalizes 40-character hexadecimal SHAs to lowercase and returns the original repository/SHA record without changing metadata or auditing twice. Commit and audit are persisted in the same transaction. Stores only sha256 of exact nonblank message bytes; whitespace-only messages have no hash. Author and message inputs are bounded to 64 KiB; timestamps use UTC microseconds and committed_at defaults to recording time when omitted. Recording does not verify provider identity or repository contents. PostgreSQL HTTP uses native durable replay with a read-only current tenant/repository/product/project guard before reservation and completed replay, without metadata reads, clocks or IDs. The common writer fence precedes tenant/repository/parent locks held through the outer replay commit. Original public JSON and request-byte fingerprints are preserved, with no outbox job. Raw bounds are checked before trimming; IDs and raw SHA text are limited to 1024 bytes within the 64 KiB HTTP envelope. Cookie writes require same-host HTTPS Origin; explicit bearer credentials take precedence. Local evaluation requires PostgreSQL; there is no local-memory API path."
 		operation.RequestBody = jsonRequest("Source commit creation request.", "#/components/schemas/RecordSourceCommitRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created source commit envelope.", "#/components/schemas/SourceCommitEnvelope")
 	case "upsertSourceBranch":
-		operation.Description = "Records or updates source branch metadata and protected-branch snapshot hash."
+		operation.Description = "Records or replaces source branch metadata after current repository tenant/project authorization before metadata reads. PostgreSQL mode requires any supplied head commit to belong to the same repository and tenant. Existing branch identity and creation time are retained; head, protected flag and protection hash are replaced, including defaults when omitted. Repository/name upserts serialize; each executed create/update and its audit persist in the same transaction with replay state. Combined tenant/repository/name identity is limited to 2304 UTF-8 bytes and protection hash metadata to 64 KiB. A supplied protection hash is recorded metadata only; recording does not verify provider identity or branch protection. PostgreSQL HTTP uses native durable replay with a read-only current tenant/repository/product/project and optional-head guard before reservation and completed replay, without mutable branch metadata reads, clocks or IDs. The common writer fence precedes tenant/repository/parent/head locks held through the outer replay commit. Original public JSON and request-byte fingerprints are preserved without reapplying old branch state; no outbox job is created. Raw bounds are checked before trimming within the 64 KiB HTTP envelope; whitespace-only supplied heads return not found. Cookie writes require same-host HTTPS Origin; explicit bearer credentials take precedence. Local evaluation requires PostgreSQL; there is no local-memory API path."
 		operation.RequestBody = jsonRequest("Source branch upsert request.", "#/components/schemas/UpsertSourceBranchRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Source branch envelope.", "#/components/schemas/SourceBranchEnvelope")
 	case "recordPullRequest":
-		operation.Description = "Records pull-request review metadata linked to source repository evidence."
+		operation.Description = "Records an append-only pull-request metadata snapshot after current repository tenant/project authorization before metadata reads. Any supplied head commit must belong to the same repository and tenant. Each non-replayed call creates a new snapshot, even for the same provider ID; recording does not update an earlier snapshot. An omitted provider defaults to the stored repository provider. Snapshot, audit and HTTP replay state persist in the same transaction. Tenant/repository/head IDs are bounded to 1024 UTF-8 bytes and submitted metadata to 64 KiB; states are open, closed or merged. Recording does not verify provider identity, repository contents, review approval or merge authority. PostgreSQL HTTP uses native durable replay with a read-only current tenant/repository/product/project and optional-head guard before reservation and completed replay, without provider defaults, earlier snapshots, clocks or IDs. The common writer fence precedes tenant/repository/parent/head locks held through the outer replay commit. Original public JSON and request-byte fingerprints are preserved, with no outbox job. Raw bounds are checked before trimming within the 64 KiB HTTP envelope; whitespace-only supplied heads return not found. Cookie writes require same-host HTTPS Origin; explicit bearer credentials take precedence. Local evaluation requires PostgreSQL; there is no local-memory API path."
 		operation.RequestBody = jsonRequest("Pull request record request.", "#/components/schemas/RecordPullRequestRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created pull request envelope.", "#/components/schemas/PullRequestEnvelope")
 	case "createDeploymentEnvironment":
-		operation.Description = "Creates a tenant-scoped deployment environment for release deployment evidence."
+		operation.Description = "Creates tenant-owned deployment environment metadata after deployment:write authorization. PostgreSQL uses native durable execution without Ledger replay/refresh. Current tenant/product ownership and human tenant/product grants are checked before reservation and every completed replay without name reuse, private metadata, clocks or IDs. The shared writer fence precedes ownership locks held through the outer commit. PostgreSQL serializes tenant/product/name reuse and returns the original environment without changing its kind or appending another audit entry; durable creation/reuse timestamps use UTC microsecond precision. New environment, audit and replay records commit in the same transaction; replay adds no effects and changed original bytes conflict. Raw tenant/product IDs are bounded at 1024 bytes, name/kind text at 64 KiB before trimming; the combined tenant ID, product ID and normalized name is bounded at 2304 bytes to fit the unique database key. Both profiles enforce strict exact-case non-null JSON within 64 KiB and same-host HTTPS cookie Origin with Bearer precedence. Local memory remains nondurable. This records an environment definition, not proof of an actual deployment."
 		operation.RequestBody = jsonRequest("Deployment environment creation request.", "#/components/schemas/CreateDeploymentEnvironmentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created deployment environment envelope.", "#/components/schemas/DeploymentEnvironmentEnvelope")
 	case "listDeploymentEnvironments":
@@ -649,7 +693,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, queryParam("product_id", "Product id.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Deployment environment list envelope.", "#/components/schemas/DeploymentEnvironmentListEnvelope")
 	case "recordDeployment":
-		operation.Description = "Records append-only deployment evidence for a release/environment/artifact set."
+		operation.Description = "Records append-only deployment metadata with immediately readable deployment/event evidence in the same transaction as both audit entries and HTTP replay state. Requires deployment:write; human sessions need a current tenant, product or release grant. PostgreSQL uses native durable execution without Ledger replay/refresh. Every retry checks current environment/release/product ownership, tenant-owned artifacts and same-environment rollback ownership without private metadata, lifecycle state, clocks or IDs. The shared writer fence precedes locks held through the outer commit; replay adds no effects and changed original bytes conflict. Raw reference IDs are bounded at 1024 bytes, status at 64 bytes before trimming; artifact lists have at most 1024 entries and retain sorted duplicates. Omitted started_at defaults to command time; supplied timestamps use UTC microsecond precision and UTC years 1 through 9999 without imposing ordering. Both profiles enforce strict exact-case non-null JSON within 64 KiB and same-host HTTPS cookie Origin with Bearer precedence. Local memory remains nondurable. This records supplied metadata and does not prove runtime security or availability."
 		operation.RequestBody = jsonRequest("Deployment event creation request.", "#/components/schemas/RecordDeploymentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created deployment event envelope.", "#/components/schemas/DeploymentEventEnvelope")
 	case "listDeployments":
@@ -664,70 +708,79 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Deployment event id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Deployment event envelope.", "#/components/schemas/DeploymentEventEnvelope")
 	case "recordCollectorRelease":
-		operation.Description = "Records collector release supply-chain evidence for a tenant-scoped collector."
+		operation.Description = "Records collector release evidence through bounded current collector, signature/artifact, SBOM/evidence and scan/evidence reads in PostgreSQL. Human sessions require a tenant-wide collector:admin grant, checked before replay. Pins, release rows, audit and replay state commit atomically. Reference presence is not proof of runtime safety or vulnerability absence."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Collector id."))
 		operation.RequestBody = jsonRequest("Collector release record request.", "#/components/schemas/RecordCollectorReleaseRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created collector release envelope.", "#/components/schemas/CollectorReleaseEnvelope")
 	case "collectorHealthReport":
-		operation.Description = "Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations."
+		operation.Description = "Returns collector supply-chain health from recorded tenant evidence, assumptions, and limitations. Production resolves the collector and its latest and pinned releases in one tenant-scoped database snapshot; human sessions require a tenant-wide collector:read grant."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Collector id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Collector health report envelope.", "#/components/schemas/CollectorHealthReportEnvelope")
 	case "createCommercialCollector":
-		operation.Description = "Creates tenant-scoped commercial collector metadata without installing external code."
+		operation.Description = "Creates tenant-scoped commercial collector metadata through focused PostgreSQL commands under a current tenant-wide collector:admin grant for human sessions. Identity is tenant/provider/name/version; duplicate creation conflicts, while same-key replay returns original metadata after current authorization. Metadata, audit and replay state commit atomically. No external code is installed and no provider trust is granted."
 		operation.RequestBody = jsonRequest("Commercial collector definition request.", "#/components/schemas/CreateCommercialCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created commercial collector definition envelope.", "#/components/schemas/CommercialCollectorDefinitionEnvelope")
 	case "listCommercialCollectors":
-		operation.Description = "Lists tenant-scoped commercial collector definitions."
+		operation.Description = "Lists tenant-scoped commercial collector definitions under collector:read; human sessions require a current tenant-level grant. PostgreSQL results are keyset-paginated."
 		operation.Responses[http.StatusOK] = jsonResponse("Commercial collector definition list envelope.", "#/components/schemas/CommercialCollectorDefinitionListEnvelope")
 	case "createMarketplaceCollector":
-		operation.Description = "Creates tenant-scoped marketplace collector package metadata and evidence references."
+		operation.Description = "Records tenant-scoped marketplace collector metadata through focused Experimental commands without an aggregate fallback. Current tenant-wide human collector:admin authority and signature, SBOM and scan ownership precede every replay. Metadata, manifest-hash audit and replay commit atomically in PostgreSQL, which is required for local evaluation. Registration does not verify package bytes, publish a package or endorse a provider."
 		operation.RequestBody = jsonRequest("Marketplace collector creation request.", "#/components/schemas/CreateMarketplaceCollectorRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created marketplace collector envelope.", "#/components/schemas/MarketplaceCollectorEnvelope")
 	case "listMarketplaceCollectors":
-		operation.Description = "Lists tenant-scoped marketplace collector package metadata."
+		operation.Description = "Keyset-pages tenant-scoped marketplace collector metadata through a focused query without an aggregate fallback. Human sessions need a current tenant-level collector:read grant; PostgreSQL applies the tenant limit in SQL and is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector list envelope.", "#/components/schemas/MarketplaceCollectorListEnvelope")
 	case "marketplaceCollectorHealth":
-		operation.Description = "Returns marketplace collector package health from recorded signature, SBOM, and scan evidence."
+		operation.Description = "Returns marketplace collector health through a focused read-only query without an aggregate fallback. Human sessions need a current tenant-level collector:read grant. PostgreSQL, required for local evaluation, resolves current owned signature, SBOM and scan references without reading their payloads. Presence does not prove package safety, marketplace trust or provider endorsement."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Marketplace collector id."))
 		operation.Responses[http.StatusOK] = jsonResponse("Marketplace collector health report envelope.", "#/components/schemas/MarketplaceCollectorHealthReportEnvelope")
 	case "listControlFrameworkTemplatePacks":
 		operation.Description = "Lists built-in control framework template packs available for explicit tenant installation."
 		operation.Responses[http.StatusOK] = jsonResponse("Control framework template pack list envelope.", "#/components/schemas/ControlFrameworkTemplatePackListEnvelope")
 	case "installControlFrameworkTemplatePack":
-		operation.Description = "Installs a named control framework template pack into the tenant as ordinary framework/control records."
-		operation.Parameters = append(operation.Parameters, pathParam("slug", "Control framework template pack slug."))
-		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
+		operation.Description = "Installs a named starter pack as ordinary framework/control records. PostgreSQL uses a focused command and native durable replay: current tenant-level controls:admin grants for human sessions and tenant existence are checked before every fresh request or replay, without reading installed framework/control metadata. Fresh installation alone checks the tenant/slug/version key and atomically appends all starter controls, one principal audit and the replay result, without a background job or Ledger clone. Same-key replay returns the original framework; changed request bytes or a different-key duplicate tenant/slug/version return 409. The raw slug is NUL-free UTF-8 and bounded at 1024 bytes before trimming and durable replay reservation; invalid slugs return 400 and unknown slugs 404. An optional body must be an empty JSON object; blank/absent bodies retain their acceptance and exact byte fingerprints. Malformed, non-object, null, or unknown-field bodies return 400. Cookie-authenticated writes require same-host HTTPS Origin; explicit bearer authentication takes precedence. PostgreSQL is required for local evaluation. Starter content organizes technical evidence, not framework compliance or control efficacy."
+		operation.Parameters = append(operation.Parameters, pathParam("slug", "Control framework template pack slug; trimmed, NUL-free UTF-8, at most 1024 bytes."))
+		operation.RequestBody = jsonRequest("Optional empty JSON object; an absent or blank body uses an empty object.", "#/components/schemas/EmptyObject")
+		operation.RequestBody.Required = false
 		operation.Responses[http.StatusCreated] = jsonResponse("Installed control framework envelope.", "#/components/schemas/ControlFrameworkEnvelope")
 	case "registerContainerImage":
-		operation.Description = "Registers OCI/container image metadata and digest evidence linked to an optional artifact."
+		operation.Description = "Registers declared OCI/container image metadata requiring evidence:write and current supplied/existing artifact ownership and grants. PostgreSQL uses native durable execution without Ledger replay/refresh. Every retry locks flat tenant/image/artifact coordinates through the outer transaction without private image metadata or artifact digest revalidation; fresh execution retains digest checks. Immutable tenant/repository/digest reuse adds no audit. Image, audit and successful replay commit together; identical bytes replay the original result and changed bytes conflict. Both profiles require strict non-null exact JSON within 64 KiB. Raw NUL-free UTF-8 artifact IDs are capped at 1024 bytes, repository/tag/platform at 64 KiB and digest text at 128 bytes before trimming. Indexed repository capacity overflow returns safe 400; fresh oversized stored image metadata returns 409. Cookie writes require same-host HTTPS Origin with Bearer precedence. Local memory remains nondurable. Registration does not download or verify registry images."
 		operation.RequestBody = jsonRequest("Container image registration request.", "#/components/schemas/RegisterContainerImageRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Registered container image envelope.", "#/components/schemas/ContainerImageEnvelope")
 	case "uploadSecurityScan", "uploadAPISecurityScan":
 		operation.Description = "Uploads SAST, DAST, secret, license, or API security scan metadata and raw JSON payload evidence without exposing raw payload bytes in responses."
+		operation.Description += focusedSecurityDocumentDescription + " The generic findings/severity and SARIF version/runs/results/level parsers are reduced contracts, not complete SARIF support. Omitted format defaults to generic. Projections are bounded at 100,000 findings, 1 MiB per label, and 8 MiB combined summary labels; overflow fails validation. Secret-scan redacted/quarantined flags record policy metadata and do not prove that stored raw bytes are scrubbed or safe to distribute. Scanner findings are not authoritative."
 		operation.RequestBody = jsonRequest("Security scan upload request.", "#/components/schemas/UploadSecurityScanRequest")
+		if operation.OperationID == "uploadAPISecurityScan" {
+			operation.RequestBody = jsonRequest("API security scan upload request; category is fixed to api_security and must not be supplied.", "#/components/schemas/UploadAPISecurityScanRequest")
+		}
 		operation.Responses[http.StatusCreated] = jsonResponse("Created security scan envelope.", "#/components/schemas/SecurityScanEnvelope")
 	case "uploadManualSecurityDocument":
 		operation.Description = "Uploads sensitive manual security evidence such as threat model, security review, or penetration-test report metadata and raw payload reference."
+		operation.Description += focusedSecurityDocumentDescription + " Payload is an opaque non-null JSON value whose exact encoded bytes are retained, not executed. Omitted media_type defaults to application/octet-stream. Manual evidence has lower default trust and requires human review; acceptance does not establish legal sufficiency."
 		operation.RequestBody = jsonRequest("Manual security document upload request.", "#/components/schemas/UploadManualSecurityDocumentRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created manual security document envelope.", "#/components/schemas/ManualSecurityDocumentEnvelope")
 	case "uploadSPDXSBOM":
-		operation.Description = "Uploads an SPDX JSON SBOM payload, stores raw bytes as evidence, and records normalized SBOM metadata."
-		operation.RequestBody = jsonRequest("SPDX SBOM upload request.", "#/components/schemas/UploadSPDXSBOMRequest")
+		operation.Description = "Uploads an SPDX 2.2 or 2.3 JSON SBOM payload, stores immutable raw bytes as evidence, and records deterministic normalization metadata. Use application/spdx+json with explicit metadata headers for streaming uploads up to 20 MiB; the JSON envelope remains limited to small requests."
+		operation.Description += focusedSBOMIngestionDescription
+		operation.RequestBody = streamingDocumentRequest("SPDX SBOM upload request.", "#/components/schemas/UploadSPDXSBOMRequest", "application/spdx+json", app.EvidenceDocumentLimit)
+		operation.Parameters = append(operation.Parameters, optionalHeaderParam("X-Evydence-Release-ID", "Required for a native SPDX document upload."), optionalHeaderParam("X-Evydence-Artifact-ID", "Optional artifact id for a native SPDX document upload."))
+		setRequestBodyLimit(&operation, app.EvidenceDocumentLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM envelope.", "#/components/schemas/SBOMEnvelope")
 	case "createSBOMDiff":
 		operation.Description = "Creates a deterministic SBOM diff between two tenant-scoped SBOM records."
 		operation.RequestBody = jsonRequest("SBOM diff creation request.", "#/components/schemas/CreateSBOMDiffRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SBOM diff envelope.", "#/components/schemas/SBOMDiffEnvelope")
 	case "vulnerabilityPostureReport":
-		operation.Description = "Returns a vulnerability posture report derived from stored scan, decision, VEX, exception, and workflow records."
-		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Description = "Returns aggregate severity counts and open-critical counts from stored vulnerability-scan findings only through a focused bounded query; decisions, VEX, exceptions, and workflow records are not included. Without release_id, human sessions require a tenant-wide security:read grant; a release filter permits a matching tenant, product, or release grant. Raw findings are not returned, and scanner coverage is not independently verified. PostgreSQL is required for local evaluation."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Optional single release id; blank or duplicate values are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability posture report envelope.", "#/components/schemas/VulnerabilityPostureReportEnvelope")
 	case "vulnerabilityDecisionSummaryReport":
-		operation.Description = "Returns customer-safe active vulnerability decision summaries for a release with assumptions and limitations. Raw payloads and internal notes are excluded."
-		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Release id.", "string"))
+		operation.Description = "Returns customer-safe active vulnerability decision summaries for one tenant-owned release with assumptions and limitations. Raw payloads and internal notes are excluded."
+		operation.Parameters = append(operation.Parameters, queryParam("release_id", "Single release id; missing, blank, duplicate, or unknown query parameters are rejected.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Vulnerability decision summary report envelope.", "#/components/schemas/VulnerabilityDecisionSummaryReportEnvelope")
 	case "generateAnomalyReport":
-		operation.Description = "Creates a deterministic anomaly report over existing tenant evidence and metrics with assumptions and limitations."
+		operation.Description = "Creates an experimental anomaly report through focused commands without an aggregate fallback. Current report:read grants and owned subject coordinates precede every replay. Bounded release facts generate fixed signals; other supported roots currently have no checks, and clear is not a security conclusion. Report, audit and replay commit together in PostgreSQL, which is required for local evaluation. Replays retain original signals without recalculation."
 		operation.RequestBody = jsonRequest("Anomaly report creation request.", "#/components/schemas/CreateAnomalyReportRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created anomaly report envelope.", "#/components/schemas/AnomalyReportEnvelope")
 	case "createMerkleBatch":
@@ -743,20 +796,20 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.RequestBody = jsonRequest("Transparency checkpoint creation request.", "#/components/schemas/CreateTransparencyCheckpointRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created transparency checkpoint envelope.", "#/components/schemas/TransparencyCheckpointEnvelope")
 	case "createPublicTransparencyLog":
-		operation.Description = "Creates tenant metadata for an optional public transparency log trust root."
+		operation.Description = "Records tenant-owned public transparency log configuration through focused Experimental commands without an aggregate fallback. Current tenant-wide human keys:admin authority precedes every replay. Metadata, audit and replay commit together in PostgreSQL, which is required for local evaluation. The supplied public key is metadata, not a validated trust root; no outbound request or external publication occurs."
 		operation.RequestBody = jsonRequest("Public transparency log creation request.", "#/components/schemas/CreatePublicTransparencyLogRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created public transparency log envelope.", "#/components/schemas/PublicTransparencyLogEnvelope")
 	case "publishPublicTransparencyLogEntry":
-		operation.Description = "Records publication metadata for a checkpoint submitted to a configured public transparency log."
+		operation.Description = "Records declared publication metadata through focused Experimental commands without an aggregate fallback. Current tenant-wide human keys:admin authority and owned log, checkpoint and Merkle batch precede every replay. Metadata, canonical entry-hash audit and replay commit atomically in PostgreSQL, which is required for local evaluation. No provider request, external publication or inclusion assurance is performed."
 		operation.RequestBody = jsonRequest("Public transparency log entry publication request.", "#/components/schemas/PublishPublicTransparencyLogEntryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
 	case "verifyPublicTransparencyLogEntry":
-		operation.Description = "Verifies operator-supplied RFC6962-style public transparency inclusion proof material for a published entry."
+		operation.Description = "Assesses operator-supplied RFC6962-style inclusion proof material through focused commands without an aggregate fallback. Current tenant-wide human keys:admin authority and owned entry/root chain precede every replay. Passing or failing local assessment, proof-bound audit and replay commit atomically in PostgreSQL, which is required for local evaluation. Local root recomputation does not authenticate the supplied root or establish public-log trust."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Public transparency log entry id."))
 		operation.RequestBody = jsonRequest("Public transparency log inclusion proof verification request.", "#/components/schemas/VerifyPublicTransparencyLogEntryRequest")
 		operation.Responses[http.StatusOK] = jsonResponse("Verified public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
 	case "fetchPublicTransparencyLogEntryProof":
-		operation.Description = "Fetches public transparency inclusion proof material from the configured log endpoint or transparency proof gateway and verifies it locally. Endpoint trust and provider semantics remain deployment responsibilities."
+		operation.Description = "Fetches inclusion proof material through focused commands without an aggregate fallback and assesses it locally. Current tenant-wide human keys:admin authority and owned entry/root chain precede fetching and every saved replay; replay does not refetch. PostgreSQL holds bounded entry/endpoint locks through provider call, assessment, audit and replay commit and is required for local evaluation. Unusable provider results return safe 422 responses; well-formed nonmatching proofs remain not verified. Remote observation cannot be rolled back. Endpoint trust and provider semantics remain deployment responsibilities."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Public transparency log entry id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Fetched and verified public transparency log entry envelope.", "#/components/schemas/PublicTransparencyLogEntryEnvelope")
@@ -788,32 +841,32 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Retention report envelope.", "#/components/schemas/RetentionReportEnvelope")
 	case "createSaaSEditionProfile":
-		operation.Description = "Creates a SaaS edition profile record for future hosted deployment planning; it is not a production readiness claim."
+		operation.Description = "Records experimental hosted-deployment intent through focused commands without an aggregate fallback. Exact issued instance:admin authority and both existing tenant roots precede every replay; tenant admin or wildcard authority is insufficient. An instance administrator may reference another admin tenant. Profile, raw-value configuration hash audit and replay commit atomically in PostgreSQL, which is required for local evaluation. No deployment, isolation enforcement or readiness certification is performed."
 		operation.RequestBody = jsonRequest("SaaS edition profile creation request.", "#/components/schemas/CreateSaaSEditionProfileRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created SaaS edition profile envelope.", "#/components/schemas/SaaSEditionProfileEnvelope")
 	case "craReadinessReport":
-		operation.Description = "Returns a CRA-oriented readiness report without legal compliance or certification conclusions."
+		operation.Description = "Returns a CRA-oriented readiness report through a focused bounded query without legal compliance or certification conclusions. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Product id.", "string"),
 			queryParam("release_id", "Release id.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("CRA readiness report envelope.", "#/components/schemas/ReadinessReportEnvelope")
 	case "craVulnerabilityHandlingReport":
-		operation.Description = "Returns a CRA-oriented vulnerability handling evidence report without legal compliance, certification, scanner-authority, or release-security conclusions."
+		operation.Description = "Returns a CRA-oriented vulnerability handling evidence report through a focused bounded query without legal compliance, certification, scanner-authority, or release-security conclusions. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Product id.", "string"),
 			queryParam("release_id", "Release id.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("CRA vulnerability handling report envelope.", "#/components/schemas/CRAVulnerabilityHandlingReportEnvelope")
 	case "securityUpdateEvidenceReport":
-		operation.Description = "Returns a security update evidence report for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions."
+		operation.Description = "Returns a security update evidence report through a focused bounded query for release-scoped fixed decisions, incidents, remediation tasks, and linked evidence without legal or security conclusions. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("product_id", "Product id.", "string"),
 			queryParam("release_id", "Release id.", "string"),
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Security update evidence report envelope.", "#/components/schemas/SecurityUpdateEvidenceReportEnvelope")
 	case "controlCoverageReport":
-		operation.Description = "Returns deterministic control coverage with linked evidence, missing evidence, assumptions, and limitations."
+		operation.Description = "Returns deterministic control coverage through a focused bounded query with linked evidence, missing evidence, assumptions, and limitations. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("framework_id", "Control framework id.", "string"),
 			queryParam("product_id", "Product id.", "string"),
@@ -840,14 +893,17 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = jsonResponse("Customer security package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
 	case "createCustomerPortalAccess":
 		operation.Description = "Creates a named, expiring external reviewer access record for a customer package and returns the portal token once."
+		operation.Description += " The handler requires focused Package command/replay ports, with current ownership and human grants checked before reservation or replay. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Customer portal access creation request.", "#/components/schemas/CreateCustomerPortalAccessRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created portal access and one-time token envelope.", "#/components/schemas/CustomerPortalAccessCreateEnvelope")
 	case "listCustomerPortalAccess":
-		operation.Description = "Lists tenant-scoped external reviewer access records without token hashes or token secrets."
+		operation.Description = "Lists tenant-scoped external reviewer access records visible under the caller's current package, product, release, or tenant-level package:read grant. Token hashes and secrets are never returned."
+		operation.Description += " The handler requires its focused query port, without an aggregate inventory fallback. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, queryParam("package_id", "Optional customer package id filter.", "string"))
 		operation.Responses[http.StatusOK] = jsonResponse("Customer portal access list envelope.", "#/components/schemas/CustomerPortalAccessListEnvelope")
 	case "revokeCustomerPortalAccess":
 		operation.Description = "Revokes a tenant-scoped external reviewer access record; revocation is append-only and the original token cannot be used afterwards."
+		operation.Description += " The handler requires focused Package command/replay ports, with current ownership and human grants checked before reservation or replay. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Customer portal access id."))
 		operation.RequestBody = jsonRequest("Empty JSON object.", "#/components/schemas/EmptyObject")
 		operation.Responses[http.StatusOK] = jsonResponse("Revoked customer portal access envelope.", "#/components/schemas/CustomerPortalAccessEnvelope")
@@ -857,12 +913,14 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = binaryResponse("Customer security package ZIP archive.")
 	case "accessCustomerPortalPackage":
 		operation.Description = "Public token exchange endpoint for a scoped customer package. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body."
+		operation.Description += " The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and access audits commit together; semantic denials retain their intended audit/counter effects, while storage failures roll back. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Customer portal token request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Scoped customer package envelope.", "#/components/schemas/CustomerSecurityPackageEnvelope")
 	case "downloadCustomerPortalPackage":
 		operation.Description = "Public token exchange endpoint for downloading a scoped customer package ZIP. It intentionally uses no bearer authentication and accepts only the issued portal token in the JSON body."
+		operation.Description += " The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and download audits commit together before record-only ZIP rendering. PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Customer portal token request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
@@ -874,12 +932,14 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Responses[http.StatusOK] = htmlResponse("Customer portal package review form.")
 	case "customerPortalPackageView":
 		operation.Description = "Public HTML package review endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields."
+		operation.Description += " The token helper requires a focused Package service, without an aggregate fallback. Escaping, restrictive CSP and no-store/no-referrer headers are retained. PostgreSQL is required for local evaluation."
 		operation.RequestBody = formRequest("Customer portal token form request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = htmlResponse("Scoped customer package review HTML.")
 	case "downloadCustomerPortalPackageView":
 		operation.Description = "Public HTML-form package ZIP download endpoint backed by the customer portal token exchange. Tokens are accepted only as form body fields."
+		operation.Description += " The token helper requires a focused Package service, without an aggregate fallback. NDA, counters and download audits commit together before record-only ZIP rendering. PostgreSQL is required for local evaluation."
 		operation.RequestBody = formRequest("Customer portal token form request.", "#/components/schemas/CustomerPortalPackageRequest")
 		operation.Security = nil
 		operation.Scopes = nil
@@ -896,45 +956,47 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("CRA readiness HTML package envelope.", "#/components/schemas/HTMLReportPackageEnvelope")
 	case "createReportTemplate":
-		operation.Description = "Creates a tenant-defined deterministic report template with an explicit allowed-field list."
+		operation.Description = "Records an inert report-template definition requiring report:read and current tenant-wide human permission. PostgreSQL uses native durable execution without Ledger cloning/replay/refresh. Every retry checks tenant authority/existence without definition reads, clocks or IDs; the shared writer fence precedes locks held through record/audit/replay commit. Allowed fields are trimmed, sorted and deduplicated; template text is never executed. Different-key duplicate tenant/name/version creates conflict; changed original bytes conflict and same-key replay returns the original safe result. Raw NUL-free UTF-8 name/version/type/field text is bounded at 64 KiB, template text at 1 MiB and allowed fields at 1024 entries before deduplication; the normalized tenant/name/version key is bounded at 2304 bytes. Both profiles enforce exact-case non-null fields/items and the existing 1 MiB body/JSON structural limits. Cookie writes require same-host HTTPS Origin with Bearer precedence. Durable timestamps use UTC microseconds; local memory remains nondurable. A definition does not establish compliance or verify evidence."
 		operation.RequestBody = jsonRequest("Report template creation request.", "#/components/schemas/CreateReportTemplateRequest")
 		setRequestBodyLimit(&operation, app.ReportTemplateRequestLimit)
 		operation.Responses[http.StatusCreated] = jsonResponse("Created report template envelope.", "#/components/schemas/CustomReportTemplateEnvelope")
 	case "renderReportTemplate":
-		operation.Description = "Renders a tenant report template for a scoped subject using allowed fields only."
+		operation.Description = "Materializes an append-only metadata report requiring report:read and current tenant-wide human permission. Only allowed subject_type, subject_id and generated_at labels are emitted; unknown allowed fields are ignored, subjects are not dereferenced and template text is never executed. Raw labels remain in output while stored coordinates are trimmed; normalized string-output hashing is unchanged. PostgreSQL uses native durable execution without Ledger replay/refresh. Every retry checks current tenant/template ownership without definition reads, clocks, IDs or output generation; the shared writer fence precedes locks held through report/audit/replay commit. Completed replay preserves the original safe result; fresh rendering uses one current definition bounded at 8 MiB. Raw NUL-free UTF-8 tenant/template IDs are bounded at 1024 bytes and subject labels at 64 KiB. Both profiles enforce exact-case non-null fields and the existing 64 KiB body/JSON structural limits. Cookie writes require same-host HTTPS Origin with Bearer precedence. Durable timestamps use UTC microseconds; local memory remains nondurable. This does not verify subject evidence or establish security/compliance conclusions."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Report template id."))
 		operation.RequestBody = jsonRequest("Report template render request.", "#/components/schemas/RenderReportTemplateRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Rendered report envelope.", "#/components/schemas/RenderedCustomReportEnvelope")
 	case "exportEvidenceBundle":
-		operation.Description = "Exports a portable evidence bundle manifest with hashes, signatures, and verification text."
+		operation.Description = "Exports a signed portable manifest of evidence references from one bounded committed snapshot under bundle:read. Explicit IDs are trimmed, sorted and deduplicated; omitted/empty IDs select only currently authorized evidence. Release filters also require current release-root authority. PostgreSQL uses native durable HTTP execution without Ledger cloning/replay/refresh. Every retry checks the requested root/references; completed replay additionally authorizes the original saved evidence IDs, not a new automatic selection. The shared writer fence precedes current tenant/selected-parent locks held through the outer replay transaction. Replay reads only ownership coordinates, not evidence payload/title metadata, the export snapshot, signing keys or providers; it allocates no bundle clocks/IDs and does not hash or sign again. A revoked signing key does not rewrite a historical bundle or turn replay into a current verification result. Fresh exports recheck selected coordinates and the signature against current signing-key lifecycle before atomically committing signature, bundle, caller audit and replay; export adds no worker job. Original request-byte identity, public DTOs/schema versions and normalized-JSON hash behavior remain unchanged. Both profiles require exact-case non-null JSON fields/items, raw NUL-free UTF-8 IDs of at most 1024 bytes, the existing 64 KiB body and JSON structural limits, and same-host HTTPS Origin for cookie mutations with Bearer precedence. Snapshot selections retain the 4096 combined evidence/proof-row and 8 MiB proof-metadata limits; unsupported saved selections fail closed. New durable times use UTC microseconds. Local memory explicitly checks the actual response selection before disclosure but remains nondurable, without database ownership transactions. Export does not prove evidence completeness, external key custody, release security or compliance."
 		operation.RequestBody = jsonRequest("Evidence bundle export request.", "#/components/schemas/ExportEvidenceBundleRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence bundle envelope.", "#/components/schemas/EvidenceBundleEnvelope")
 	case "importEvidenceBundle":
-		operation.Description = "Imports a portable evidence bundle manifest and records deterministic import metadata."
+		operation.Description = "Validates the portable manifest hash, evidence-bundle.v1.0.0 version and normalized evidence-ID set, then records only a target-tenant import receipt and caller-attributed audit entry. Empty evidence selections are allowed; manifest IDs cannot repeat after trimming, while duplicate outer IDs retain set semantics. Source identities, timestamps and signature references are untrusted labels, not resource lookups or target authority. Human actors require current tenant-wide bundle:write permission. PostgreSQL uses native durable HTTP execution without Ledger cloning/replay/refresh; every retry rechecks target-tenant authority/existence without hashing the manifest or allocating receipt clocks/IDs. The shared writer fence precedes tenant locks held through receipt/audit/replay commit. Changed original bytes conflict; completed replay returns the original safe receipt. Both profiles enforce exact-case non-null fields/items and NUL-free UTF-8 outer labels; source IDs and reference text are bounded at 1024 raw bytes, manifest hashes at 128 bytes, outer evidence/signature lists at 1024 entries before normalization, and the encoded manifest at 64 KiB with the existing JSON structural limits. The HTTP body remains bounded at 64 KiB. Cookie writes require same-host HTTPS Origin with Bearer precedence. New durable timestamps use UTC microseconds. Existing normalized-JSON hashing, including its float64 numeric limitation, is unchanged. Local memory remains nondurable. An accepted receipt does not ingest evidence, verify signatures, establish provenance or prove security/compliance."
 		operation.RequestBody = jsonRequest("Evidence bundle import request.", "#/components/schemas/EvidenceBundle")
 		operation.Responses[http.StatusCreated] = jsonResponse("Evidence bundle import result envelope.", "#/components/schemas/EvidenceBundleImportEnvelope")
 	case "createEvidenceSummary":
-		operation.Description = "Creates an evidence-backed summary with citations, assumptions, and limitations."
+		operation.Description = "Creates an evidence-backed technical summary with citations, assumptions, and limitations. Supports tenant, product, release, evidence, build, and customer_package roots. Omit evidence_ids or use [] for automatic selection; explicit IDs are trimmed, sorted, unique and limited to 512. Automatic selection uses stored product/project/release coordinates, not inferred parents, exact build identity or a customer package's frozen manifest. PostgreSQL reads only bounded citation metadata under current report:read root authority and commits the summary, caller-attributed audit and successful idempotency replay in the same transaction. Citation titles are limited to 64 KiB, type text to 128 bytes, identifiers/hashes to 1024 bytes, and selected metadata plus the encoded public result each have a 4 MiB budget. Oversized selections fail rather than truncate. Replays recheck current root authority. Cookie-authenticated creates require a single same-host HTTPS Origin; explicit bearer credentials retain precedence. The handler requires focused ports, without an aggregate fallback; PostgreSQL is required for local evaluation. These summaries do not assert legal compliance, certification, or release security."
 		operation.RequestBody = jsonRequest("Evidence summary creation request.", "#/components/schemas/CreateEvidenceSummaryRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created evidence summary envelope.", "#/components/schemas/EvidenceSummaryEnvelope")
 	case "createQuestionnaireTemplate":
-		operation.Description = "Creates a tenant questionnaire template with explicit evidence/control mapping fields."
+		operation.Description = "Creates a tenant-wide questionnaire definition under package:write; human sessions require a current tenant-level grant. Questions retain input order and require unique trimmed IDs, nonblank prompts and current same-tenant control/framework references when supplied. Name, version, selectors and allowed fields are limited to 1024 raw UTF-8/NUL-free bytes; prompts to 64 KiB; question count to 512; allowed fields to 128 per question. Aggregate input text and the encoded template each have a 4 MiB budget. Allowed fields are inert metadata, trimmed/sorted with duplicates and blank strings preserved. PostgreSQL uses focused Package commands, locks only tenant and selected control/framework identities after the worker/audit fence, and commits template, caller audit and successful body-keyed idempotency replay together. Replays recheck current tenant-wide authority and referenced control ownership. The API rejects null/duplicate/unknown/mixed-case fields, invalid UTF-8 and NUL; cookie mutations require one same-host HTTPS Origin, with explicit bearer precedence. Historical templates and response schemas are unchanged. The handler requires focused ports, without an aggregate fallback; PostgreSQL is required for local evaluation."
 		operation.RequestBody = jsonRequest("Questionnaire template creation request.", "#/components/schemas/CreateQuestionnaireTemplateRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire template envelope.", "#/components/schemas/QuestionnaireTemplateEnvelope")
 	case "createQuestionnairePackage":
-		operation.Description = "Creates a questionnaire response package from a template and scoped evidence package."
+		operation.Description = "Creates an evidence-backed questionnaire response package under package:write from one tenant-owned template and optional coherent product/release selection. Human sessions require matching tenant/product/release grants for the selection; unscoped selection requires tenant-wide authority. Optional package_id is an independently authorized customer-package association, not an implicit filter, download, redaction or expiry/NDA acceptance operation. Explicit selection must agree with its current product/release parents. Reusable answers require independent package:write authority before private text is read. Response ranking, raw selection coordinates, response schema and normalized-JSON manifest hash remain unchanged. PostgreSQL uses focused Package commands and bounded question selectors, candidate scope metadata and citations, never template prompts, associated manifests or evidence payloads. Limits are 512 questions, 4096 combined answer candidates, 4096 combined citations, 1024-byte IDs/selectors, 64 KiB answers and each limitation, 128 limitations per response, and 4 MiB selected metadata and encoded output. Overflow fails rather than truncates. The worker/audit fence precedes root/template/package locks; package, caller audit and successful replay commit atomically. Replay checks current roots and association and binds canonical credential scopes and human grants; changed permissions or older body-only fingerprints return 409 when current access is still allowed. Use a new key for a new result. The API rejects null/duplicate/unknown/mixed-case fields, invalid UTF-8 and NUL; cookie writes require one same-host HTTPS Origin, with bearer precedence. The handler requires focused ports, without an aggregate fallback; PostgreSQL is required for local evaluation. Generated responses require human review and provide neither compliance conclusions nor customer-safe redaction."
 		operation.RequestBody = jsonRequest("Questionnaire package creation request.", "#/components/schemas/CreateQuestionnairePackageRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire package envelope.", "#/components/schemas/QuestionnairePackageEnvelope")
 	case "createQuestionnaireDraft":
-		operation.Description = "Creates an evidence-backed questionnaire draft with limitations."
+		operation.Description = "Creates a technical questionnaire draft from a tenant-owned template and optional coherent product/release scope. Requires package:read and matching tenant/product/release grants for human sessions. Reusable answers are independently authorized before private text is read; tenant-wide answers require a tenant grant. Candidates are ranked by matching question/control/type and scope specificity, then newest timestamp and ID ascending. Stored product/release selection is preserved; release-only input does not implicitly include product-scoped library entries. Without an authorized answer, the draft cites matching evidence or states that none is recorded. Cited evidence must remain in the requested scope. PostgreSQL uses bounded selectors rather than full prompts/payloads, allows at most 512 questions and 4096 combined answer candidates plus 4096 combined citations, limits identifiers/selectors to 1024 bytes, answers and each limitation to 64 KiB, limitations to 128 per response, and selected metadata and the public draft each to 4 MiB. Overflow fails rather than truncates. Draft, caller-attributed audit and successful idempotency replay commit together. Replay rechecks current root authority and binds canonical credential scopes and human resource grants without reading private answer text. Changed permissions or older body-only draft fingerprints conflict with 409 when root access remains allowed; use a new key for a new draft. Null/duplicate/unknown fields and invalid UTF-8/NUL input are rejected. Cookie writes require one same-host HTTPS Origin; bearer credentials retain precedence. The handler requires focused ports, without an aggregate fallback; PostgreSQL is required for local evaluation. These drafts require human review and do not provide compliance conclusions or customer-package redaction."
 		operation.RequestBody = jsonRequest("Questionnaire draft creation request.", "#/components/schemas/CreateQuestionnaireDraftRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire draft envelope.", "#/components/schemas/QuestionnaireDraftEnvelope")
 	case "createQuestionnaireAnswerLibraryEntry":
-		operation.Description = "Creates a tenant-scoped reusable questionnaire answer draft linked to optional evidence, product, release, or control scope."
+		operation.Description = "Creates a reusable answer draft under package:write with at least one nonblank question/type/control selector and optional coherent product/release scope. Human sessions need a current matching tenant/product/release grant; unscoped entries require tenant-wide authority. Release parents are resolved for authorization only; raw product/release coordinates and exact stored-coordinate citation filtering remain unchanged. IDs/selectors are limited to 1024 raw UTF-8/NUL-free bytes, answers and each limitation to 64 KiB, citations to 4096, and limitations to 128. Aggregate input text, selected citation coordinates, and encoded output each have a 4 MiB budget; the complete HTTP body retains its 64 KiB limit. Citations and limitations are trimmed/sorted with duplicates preserved; blank limitations remain inert, and omitted/empty limitations use the existing human-review warning. PostgreSQL locks current tenant/root/control/framework/evidence parents after the worker/audit fence, selects no existing private answers or evidence payloads, and commits the answer, caller audit and body-keyed successful replay together. Replays recheck current root grants and all references. Both profiles reject null, duplicate, unknown or mixed-case fields, invalid UTF-8 and NUL. Cookie writes require one same-host HTTPS Origin; bearer credentials retain precedence. Historical response schemas remain unchanged. These entries are reusable drafts requiring human review, not evidence completeness, customer-package redaction or compliance conclusions."
 		operation.RequestBody = jsonRequest("Questionnaire answer library entry creation request.", "#/components/schemas/CreateQuestionnaireAnswerLibraryEntryRequest")
+		operation.Description += " The handler requires focused ports, without an aggregate fallback; PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusCreated] = jsonResponse("Created questionnaire answer library entry envelope.", "#/components/schemas/QuestionnaireAnswerLibraryEntryEnvelope")
 	case "listQuestionnaireAnswerLibrary":
-		operation.Description = "Lists tenant-scoped questionnaire answer library entries with optional question, product, and release filters."
+		operation.Description = "Lists questionnaire answer drafts with optional question, product, and release filters. Product and release filters must reference current tenant-owned parents and agree when combined. Human sessions see only entries covered by their current resource grants; tenant-wide drafts require a tenant grant."
+		operation.Description += " The handler requires its focused query port, without an aggregate inventory fallback; PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters,
 			queryParam("question_id", "Filter by questionnaire question id.", "string"),
 			queryParam("product_id", "Filter by product id.", "string"),
@@ -942,15 +1004,95 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		)
 		operation.Responses[http.StatusOK] = jsonResponse("Questionnaire answer library entry list envelope.", "#/components/schemas/QuestionnaireAnswerLibraryEntryListEnvelope")
 	case "createPDFReportPackage":
-		operation.Description = "Creates a deterministic PDF report package record and payload metadata."
+		operation.Description = "Creates a minimal title-only PDF-marked envelope through focused Package commands without an aggregate fallback. Current report:read grants and owned matching product/release coordinates precede every replay. Verified staging metadata, finalizer job, report, audit and replay commit together in PostgreSQL, which is required for local evaluation. Physical staged bytes can outlive rollback. Replay does not regenerate or restage bytes and preserves the privacy-safe omission of payload_ref. This is not a full evidence report renderer, PDF-reader interoperability guarantee or compliance conclusion."
 		operation.RequestBody = jsonRequest("PDF report package creation request.", "#/components/schemas/CreatePDFReportPackageRequest")
 		operation.Responses[http.StatusCreated] = jsonResponse("Created PDF report package envelope.", "#/components/schemas/PDFReportPackageEnvelope")
+	}
+	if isPaginatedOperation(operation.OperationID) {
+		operation.Description += " Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction."
+		operation.Parameters = appendPaginationParameters(operation.OperationID, operation.Parameters)
+	}
+	if isConditionalReadOperation(operation.OperationID) {
+		operation.Parameters = appendParameterIfMissing(operation.Parameters, optionalHeaderParam("If-None-Match", "Optional ETag from a prior private resource read. A match returns 304 without a response body."))
+		if operation.Extensions == nil {
+			operation.Extensions = map[string]any{}
+		}
+		operation.Extensions["x-evydence-conditional-read"] = map[string]any{
+			"cache_control": "private, max-age=0, must-revalidate",
+			"vary":          "Authorization",
+			"not_modified":  http.StatusNotModified,
+		}
 	}
 	return operation
 }
 
+func isPaginatedOperation(operationID string) bool {
+	switch operationID {
+	case "listAPIKeys", "listCollectors", "listControlFrameworks", "listControlEvidence", "listProducts", "listEvidence", "searchEvidence", "listSBOMComponents", "listAuditLog", "listVulnerabilityDecisions", "listExceptions", "listSigningKeys", "listReleaseCandidates", "listEvidenceLifecycleEvents", "listSourceRepositories", "listDeploymentEnvironments", "listDeployments", "listCommercialCollectors", "listMarketplaceCollectors", "listControlFrameworkTemplatePacks", "listCustomerPortalAccess", "listQuestionnaireAnswerLibrary", "listRoleBindings":
+		return true
+	default:
+		return false
+	}
+}
+
+func isConditionalReadOperation(operationID string) bool {
+	switch operationID {
+	case "getSecurityControl", "getProduct", "getProject", "getRelease", "getReleaseCandidate", "getArtifact", "getArtifactSignature", "getBuildRun", "getDeployment", "getCustomerPackage", "getEvidence", "getSBOM", "getVEX", "getVEXImportReport", "getVulnerabilityScan", "getOpenAPIContract", "getReleaseBundle", "getReleaseBundleManifest":
+		return true
+	default:
+		return false
+	}
+}
+
+func appendPaginationParameters(operationID string, parameters []specs.Parameter) []specs.Parameter {
+	sortValues := []string{string(appquery.SortCreatedAt), string(appquery.SortID)}
+	defaultSort := string(appquery.SortCreatedAt)
+	defaultDirection := string(appquery.Ascending)
+	if operationID == "listControlFrameworkTemplatePacks" || operationID == "listSBOMComponents" {
+		sortValues = []string{string(appquery.SortID)}
+		defaultSort = string(appquery.SortID)
+	}
+	if operationID == "searchEvidence" || operationID == "listAuditLog" {
+		defaultDirection = string(appquery.Descending)
+	}
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "page_size",
+		In:          "query",
+		Description: "Maximum records in this page. Defaults to 50 and is capped at 500.",
+		Schema:      map[string]any{"type": "integer", "minimum": 1, "maximum": appquery.MaxPageSize, "default": appquery.DefaultPageSize},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "cursor",
+		In:          "query",
+		Description: "Opaque continuation token returned as meta.next_cursor. It must be reused with the same tenant, filters, sort, and direction.",
+		Schema:      map[string]any{"type": "string", "minLength": 1, "maxLength": 4096},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "sort",
+		In:          "query",
+		Description: "Stable sort key for cursor pagination.",
+		Schema:      map[string]any{"type": "string", "enum": sortValues, "default": defaultSort},
+	})
+	parameters = appendParameterIfMissing(parameters, specs.Parameter{
+		Name:        "direction",
+		In:          "query",
+		Description: "Sort direction for cursor pagination.",
+		Schema:      map[string]any{"type": "string", "enum": []string{string(appquery.Ascending), string(appquery.Descending)}, "default": defaultDirection},
+	})
+	return parameters
+}
+
+func appendParameterIfMissing(parameters []specs.Parameter, parameter specs.Parameter) []specs.Parameter {
+	for _, existing := range parameters {
+		if existing.In == parameter.In && existing.Name == parameter.Name {
+			return parameters
+		}
+	}
+	return append(parameters, parameter)
+}
+
 func addProblemResponses(operation *specs.Operation) {
-	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity} {
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusServiceUnavailable} {
 		operation.Responses[status] = problemResponse(http.StatusText(status))
 	}
 }
@@ -1014,6 +1156,8 @@ func addJSONResponseExamples(operation *specs.Operation, status int, examples ma
 	response.Content["application/json"] = media
 	operation.Responses[status] = response
 }
+
+const focusedSBOMIngestionDescription = " In PostgreSQL mode, a focused command validates current tenant-owned release parents and human release/artifact grants before parsing or staging. IDs are NUL-free UTF-8 bounded at 1024 bytes. Wrapped JSON remains capped at 64 KiB and rejects null, duplicate, and unknown fields; native uploads require one nonblank release header and allow one optional artifact header. Declared source size and SHA-256 are verified. Evidence, SBOM, audit, payload metadata, outbox jobs, and idempotency completion commit together. Replay checks current grants without parsing; retained body-only native receipts require matching tenant, release, optional artifact, and format and never execute a new upload. With worker-owned parsing and object storage, the response contains parsed components while the stored projection stays accepted until its parser job runs. Acceptance does not prove SBOM completeness or release security."
 
 func cyclonedxSBOMUploadExample() map[string]any {
 	return map[string]any{

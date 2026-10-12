@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS remediation_tasks_security_update_order_idx;
+DROP INDEX IF EXISTS incidents_security_update_order_idx;

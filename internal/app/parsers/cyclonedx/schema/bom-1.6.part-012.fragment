@@ -1,0 +1,277 @@
+        "requires_configuration": "Exploitability requires a configurable option to be set/unset.",
+        "requires_dependency": "Exploitability requires a dependency that is not present.",
+        "requires_environment": "Exploitability requires a certain environment which is not present.",
+        "protected_by_compiler": "Exploitability requires a compiler flag to be set/unset.",
+        "protected_at_runtime": "Exploits are prevented at runtime.",
+        "protected_at_perimeter": "Attacks are blocked at physical, logical, or network perimeter.",
+        "protected_by_mitigating_control": "Preventative measures have been implemented that reduce the likelihood and/or impact of the vulnerability."
+      }
+    },
+    "rating": {
+      "type": "object",
+      "title": "Rating",
+      "description": "Defines the severity or risk ratings of a vulnerability.",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "$ref": "#/definitions/vulnerabilitySource",
+          "description": "The source that calculated the severity or risk rating of the vulnerability."
+        },
+        "score": {
+          "type": "number",
+          "title": "Score",
+          "description": "The numerical score of the rating."
+        },
+        "severity": {
+          "$ref": "#/definitions/severity",
+          "description": "Textual representation of the severity that corresponds to the numerical score of the rating."
+        },
+        "method": {
+          "$ref": "#/definitions/scoreMethod"
+        },
+        "vector": {
+          "type": "string",
+          "title": "Vector",
+          "description": "Textual representation of the metric values used to score the vulnerability"
+        },
+        "justification": {
+          "type": "string",
+          "title": "Justification",
+          "description": "An optional reason for rating the vulnerability as it was"
+        }
+      }
+    },
+    "vulnerabilitySource": {
+      "type": "object",
+      "title": "Source",
+      "description": "The source of vulnerability information. This is often the organization that published the vulnerability.",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "description": "The url of the vulnerability documentation as provided by the source.",
+          "examples": [
+            "https://nvd.nist.gov/vuln/detail/CVE-2021-39182"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of the source.",
+          "examples": [
+            "NVD",
+            "National Vulnerability Database",
+            "OSS Index",
+            "VulnDB",
+            "GitHub Advisories"
+          ]
+        }
+      }
+    },
+    "vulnerability": {
+      "type": "object",
+      "title": "Vulnerability",
+      "description": "Defines a weakness in a component or service that could be exploited or triggered by a threat source.",
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the vulnerability elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "id": {
+          "type": "string",
+          "title": "ID",
+          "description": "The identifier that uniquely identifies the vulnerability.",
+          "examples": [
+            "CVE-2021-39182",
+            "GHSA-35m5-8cvj-8783",
+            "SNYK-PYTHON-ENROCRYPT-1912876"
+          ]
+        },
+        "source": {
+          "$ref": "#/definitions/vulnerabilitySource",
+          "description": "The source that published the vulnerability."
+        },
+        "references": {
+          "type": "array",
+          "title": "References",
+          "description": "Zero or more pointers to vulnerabilities that are the equivalent of the vulnerability specified. Often times, the same vulnerability may exist in multiple sources of vulnerability intelligence, but have different identifiers. References provide a way to correlate vulnerabilities across multiple sources of vulnerability intelligence.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "source"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "title": "ID",
+                "description": "An identifier that uniquely identifies the vulnerability.",
+                "examples": [
+                  "CVE-2021-39182",
+                  "GHSA-35m5-8cvj-8783",
+                  "SNYK-PYTHON-ENROCRYPT-1912876"
+                ]
+              },
+              "source": {
+                "$ref": "#/definitions/vulnerabilitySource",
+                "description": "The source that published the vulnerability."
+              }
+            }
+          }
+        },
+        "ratings": {
+          "type": "array",
+          "title": "Ratings",
+          "description": "List of vulnerability ratings. Consumers SHOULD consider ratings in prioritization decisions; source ratings may differ and aid prioritization.",
+          "items": {
+            "$ref": "#/definitions/rating"
+          }
+        },
+        "cwes": {
+          "type": "array",
+          "title": "CWEs",
+          "description": "List of Common Weaknesses Enumerations (CWEs) codes that describes this vulnerability.",
+          "examples": [399],
+          "items": {
+            "$ref": "#/definitions/cwe"
+          }
+        },
+        "description": {
+          "type": "string",
+          "title": "Description",
+          "description": "A description of the vulnerability as provided by the source."
+        },
+        "detail": {
+          "type": "string",
+          "title": "Details",
+          "description": "If available, an in-depth description of the vulnerability as provided by the source organization. Details often include information useful in understanding root cause."
+        },
+        "recommendation": {
+          "type": "string",
+          "title": "Recommendation",
+          "description": "Recommendations of how the vulnerability can be remediated or mitigated."
+        },
+        "workaround": {
+          "type": "string",
+          "title": "Workarounds",
+          "description": "A bypass, usually temporary, of the vulnerability that reduces its likelihood and/or impact. Workarounds often involve changes to configuration or deployments."
+        },
+        "proofOfConcept": {
+          "type": "object",
+          "title": "Proof of Concept",
+          "description": "Evidence used to reproduce the vulnerability.",
+          "properties": {
+            "reproductionSteps": {
+              "type": "string",
+              "title": "Steps to Reproduce",
+              "description": "Precise steps to reproduce the vulnerability."
+            },
+            "environment": {
+              "type": "string",
+              "title": "Environment",
+              "description": "A description of the environment in which reproduction was possible."
+            },
+            "supportingMaterial": {
+              "type": "array",
+              "title": "Supporting Material",
+              "description": "Supporting material that helps in reproducing or understanding how reproduction is possible. This may include screenshots, payloads, and PoC exploit code.",
+              "items": { "$ref": "#/definitions/attachment" }
+            }
+          }
+        },
+        "advisories": {
+          "type": "array",
+          "title": "Advisories",
+          "description": "Published advisories of the vulnerability if provided.",
+          "items": {
+            "$ref": "#/definitions/advisory"
+          }
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Created",
+          "description": "The date and time (timestamp) when the vulnerability record was created in the vulnerability database."
+        },
+        "published": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Published",
+          "description": "The date and time (timestamp) when the vulnerability record was first published."
+        },
+        "updated": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Updated",
+          "description": "The date and time (timestamp) when the vulnerability record was last updated."
+        },
+        "rejected": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Rejected",
+          "description": "The date and time (timestamp) when the vulnerability record was rejected (if applicable)."
+        },
+        "credits": {
+          "type": "object",
+          "title": "Credits",
+          "description": "Individuals or organizations credited with the discovery of the vulnerability.",
+          "additionalProperties": false,
+          "properties": {
+            "organizations": {
+              "type": "array",
+              "title": "Organizations",
+              "description": "The organizations credited with vulnerability discovery.",
+              "items": {
+                "$ref": "#/definitions/organizationalEntity"
+              }
+            },
+            "individuals": {
+              "type": "array",
+              "title": "Individuals",
+              "description": "The individuals, not associated with organizations, that are credited with vulnerability discovery.",
+              "items": {
+                "$ref": "#/definitions/organizationalContact"
+              }
+            }
+          }
+        },
+        "tools": {
+          "title": "Tools",
+          "description": "The tool(s) used to identify, confirm, or score the vulnerability.",
+          "oneOf": [
+            {
+              "type": "object",
+              "title": "Tools",
+              "description": "The tool(s) used to identify, confirm, or score the vulnerability.",
+              "additionalProperties": false,
+              "properties": {
+                "components": {
+                  "type": "array",
+                  "items": {"$ref": "#/definitions/component"},
+                  "uniqueItems": true,
+                  "title": "Components",
+                  "description": "A list of software and hardware components used as tools."
+                },
+                "services": {
+                  "type": "array",
+                  "items": {"$ref": "#/definitions/service"},
+                  "uniqueItems": true,
+                  "title": "Services",
+                  "description": "A list of services used as tools. This may include microservices, function-as-a-service, and other types of network or intra-process services."
+                }
+              }
+            },
+            {
+              "type": "array",
+              "title": "Tools (legacy)",
+              "description": "[Deprecated] The tool(s) used to identify, confirm, or score the vulnerability.",
+              "items": {"$ref": "#/definitions/tool"}
+            }
+          ]
+        },
+        "analysis": {
+          "type": "object",

@@ -7,37 +7,23 @@ import (
 	"time"
 )
 
-// stagePayload writes raw bytes to a deterministic tenant staging key. When a
-// command uses a unit of work, the caller must persist the returned metadata
-// with persistStagedObjectPayload in that same transaction before exposing a
-// domain record. Legacy in-memory paths finalize immediately because they do
-// not have a transactional payload repository.
-func (l *Ledger) stagePayload(ctx context.Context, tenantID, mediaType, digest string, raw []byte) (ObjectPayload, error) {
-	source := BytesPayloadSource(raw)
-	if source.Digest != digest {
-		return ObjectPayload{}, ErrValidation
+// StageObjectPayload is the shared, Ledger-independent staging boundary. It
+// verifies the returned metadata against the requested identity; persistence
+// and finalization remain the caller's transactional responsibility.
+func StageObjectPayload(ctx context.Context, objects PayloadObjectStore, tenantID, mediaType string, source PayloadSource, at time.Time) (ObjectPayload, error) {
+	if ctx == nil {
+		return ObjectPayload{}, context.Canceled
 	}
-	return l.stagePayloadSource(ctx, tenantID, mediaType, source)
-}
-
-// stagePayloadSource stages a repeatable payload source after its transport
-// has streamed, counted, and hashed it. The object-store adapter performs its
-// own digest and byte-count verification before staged metadata is trusted.
-func (l *Ledger) stagePayloadSource(ctx context.Context, tenantID, mediaType string, source PayloadSource) (ObjectPayload, error) {
 	if err := ctx.Err(); err != nil {
 		return ObjectPayload{}, err
 	}
 	if err := validatePayloadSource(source, EvidenceDocumentLimit); err != nil {
 		return ObjectPayload{}, err
 	}
-	if l.objects == nil {
-		return ObjectPayload{}, nil
-	}
-	stager, ok := l.objects.(PayloadObjectStore)
-	if !ok {
+	if objects == nil {
 		return ObjectPayload{}, ErrConflict
 	}
-	payload, err := newStagedObjectPayload(tenantID, mediaType, source.Digest, l.now())
+	expected, err := newStagedObjectPayload(tenantID, mediaType, source.Digest, at)
 	if err != nil {
 		return ObjectPayload{}, err
 	}
@@ -45,46 +31,34 @@ func (l *Ledger) stagePayloadSource(ctx context.Context, tenantID, mediaType str
 	if err != nil {
 		return ObjectPayload{}, err
 	}
-	defer reader.Close()
-	payload, err = stager.StagePayload(ctx, payload, reader)
-	if err != nil {
-		return ObjectPayload{}, err
-	}
-	if payload.Size != source.Size || payload.Digest != source.Digest || payload.Status != ObjectPayloadStaged {
+	if reader == nil {
 		return ObjectPayload{}, ErrValidation
 	}
-	if l.unitOfWork != nil {
-		return payload, nil
-	}
-	object, err := stager.FinalizePayload(ctx, payload)
+	defer reader.Close()
+	p, err := objects.StagePayload(ctx, expected, reader)
 	if err != nil {
 		return ObjectPayload{}, err
 	}
-	if err := verifyFinalizedPayloadObject(payload, object); err != nil {
-		return ObjectPayload{}, err
+	if validateObjectPayload(p) != nil || p.TenantID != expected.TenantID || p.Size != source.Size || p.Digest != expected.Digest || !ObjectMediaTypesMatch(expected.MediaType, p.MediaType) || p.StagingKey != expected.StagingKey || p.FinalKey != expected.FinalKey || p.Status != ObjectPayloadStaged || !p.CreatedAt.Equal(expected.CreatedAt) || p.FinalizedAt != nil || p.FailedAt != nil || p.OrphanedAt != nil || p.FailureCode != "" {
+		return ObjectPayload{}, ErrValidation
 	}
-	now := l.now().UTC()
-	payload.Status = ObjectPayloadFinalized
-	payload.UpdatedAt = now
-	payload.FinalizedAt = &now
-	return payload, nil
+	return p, nil
 }
 
 func newStagedObjectPayload(tenantID, mediaType, digest string, now time.Time) (ObjectPayload, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	mediaType = strings.TrimSpace(mediaType)
-	if tenantID == "" || !validDigest(digest) {
+	stagingKey, finalKey, err := CanonicalObjectPayloadKeys(tenantID, digest)
+	if err != nil || ValidateObjectMediaType(mediaType) != nil {
 		return ObjectPayload{}, ErrValidation
 	}
-	digestPart := strings.TrimPrefix(digest, "sha256:")
-	prefix := "tenants/" + tenantID + "/"
 	now = now.UTC()
 	return ObjectPayload{
 		TenantID:   tenantID,
 		Digest:     digest,
 		MediaType:  mediaType,
-		StagingKey: prefix + "staging/sha256/" + digestPart,
-		FinalKey:   prefix + "payloads/sha256/" + digestPart,
+		StagingKey: stagingKey,
+		FinalKey:   finalKey,
 		Status:     ObjectPayloadStaged,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -102,14 +76,10 @@ func (p ObjectPayload) managed() bool {
 	return p.Status == ObjectPayloadStaged && p.TenantID != "" && p.Digest != "" && p.StagingKey != "" && p.FinalKey != ""
 }
 
-func (p ObjectPayload) present() bool {
-	return p.TenantID != "" || p.Digest != "" || p.Size != 0 || p.MediaType != "" || p.StagingKey != "" || p.FinalKey != "" || p.Status != "" || p.FailureCode != "" || !p.CreatedAt.IsZero() || !p.UpdatedAt.IsZero() || p.FinalizedAt != nil || p.FailedAt != nil || p.OrphanedAt != nil
-}
-
 func validateObjectPayload(payload ObjectPayload) error {
-	prefix := "tenants/" + strings.TrimSpace(payload.TenantID) + "/"
-	if strings.TrimSpace(payload.TenantID) == "" || !validDigest(payload.Digest) || payload.Size < 0 ||
-		!strings.HasPrefix(payload.StagingKey, prefix) || !strings.HasPrefix(payload.FinalKey, prefix) ||
+	stagingKey, finalKey, err := CanonicalObjectPayloadKeys(payload.TenantID, payload.Digest)
+	if err != nil || ValidateObjectMediaType(payload.MediaType) != nil || payload.Size < 0 ||
+		payload.StagingKey != stagingKey || payload.FinalKey != finalKey ||
 		payload.CreatedAt.IsZero() || payload.UpdatedAt.IsZero() {
 		return ErrValidation
 	}
@@ -126,37 +96,6 @@ func validateObjectPayload(payload ObjectPayload) error {
 // to the application layer.
 func ValidateObjectPayloadForRepository(payload ObjectPayload) error {
 	return validateObjectPayload(payload)
-}
-
-// persistStagedObjectPayload couples staged metadata and the finalization job
-// to the surrounding domain transaction. The job uses a stable logical key so
-// repeated command delivery cannot create competing finalizers.
-func (l *Ledger) persistStagedObjectPayload(ctx context.Context, repos Repositories, payload ObjectPayload) error {
-	if !payload.managed() {
-		return nil
-	}
-	if err := validateObjectPayload(payload); err != nil {
-		return err
-	}
-	if err := repos.Payloads.RecordStagedObjectPayload(ctx, payload); err != nil {
-		return err
-	}
-	return repos.Outbox.Enqueue(ctx, l.newOutboxJob(payload.TenantID, "finalize_payload", "object_payload", payload.Digest, map[string]any{
-		"payload_digest":    payload.Digest,
-		"payload_lifecycle": PayloadLifecycleVersion,
-	}))
-}
-
-// addPayloadLifecycle records that a worker must verify durable finalization
-// before reading a payload object. Legacy jobs intentionally omit this marker
-// and retain their historical behavior until separately migrated.
-func addPayloadLifecycle(payload map[string]any, staged ObjectPayload) map[string]any {
-	if !staged.managed() {
-		return payload
-	}
-	payload["payload_lifecycle"] = PayloadLifecycleVersion
-	payload["payload_digest"] = staged.Digest
-	return payload
 }
 
 // FinalizeStagedObjectPayload makes finalization repeatable after crashes. A
@@ -219,8 +158,5 @@ func RequireFinalizedObjectPayload(ctx context.Context, lifecycle ObjectPayloadL
 }
 
 func verifyFinalizedPayloadObject(payload ObjectPayload, object Object) error {
-	if object.TenantID != payload.TenantID || object.Key != payload.FinalKey || object.Digest != payload.Digest || int64(len(object.Bytes)) != payload.Size {
-		return ErrValidation
-	}
-	return nil
+	return VerifyObjectPayloadRead(payload, object, payload.FinalKey)
 }

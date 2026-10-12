@@ -1,0 +1,202 @@
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "licenses": {
+          "title": "BOM License(s)",
+          "description": "The license information for the BOM document.\nThis may be different from the license(s) of the component(s) that the BOM describes.",
+          "$ref": "#/definitions/licenseChoice"
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {"$ref": "#/definitions/property"}
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "title": "Tool",
+      "description": "[Deprecated] This will be removed in a future version. Use component or service instead. Information about the automated or manual tool used",
+      "additionalProperties": false,
+      "properties": {
+        "vendor": {
+          "type": "string",
+          "title": "Tool Vendor",
+          "description": "The name of the vendor who created the tool"
+        },
+        "name": {
+          "type": "string",
+          "title": "Tool Name",
+          "description": "The name of the tool"
+        },
+        "version": {
+          "$ref": "#/definitions/version",
+          "title": "Tool Version",
+          "description": "The version of the tool"
+        },
+        "hashes": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/hash"},
+          "title": "Hashes",
+          "description": "The hashes of the tool (if applicable)."
+        },
+        "externalReferences": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/externalReference"},
+          "title": "External References",
+          "description": "External references provide a way to document systems, sites, and information that may be relevant, but are not included with the BOM. They may also establish specific relationships within or external to the BOM."
+        }
+      }
+    },
+    "organizationalEntity": {
+      "type": "object",
+      "title": "Organizational Entity",
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the object elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "name": {
+          "type": "string",
+          "title": "Organization Name",
+          "description": "The name of the organization",
+          "examples": [
+            "Example Inc."
+          ]
+        },
+        "address": {
+          "$ref": "#/definitions/postalAddress",
+          "title": "Organization Address",
+          "description": "The physical address (location) of the organization"
+        },
+        "url": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "iri-reference"
+          },
+          "title": "Organization URL(s)",
+          "description": "The URL of the organization. Multiple URLs are allowed.",
+          "examples": ["https://example.com"]
+        },
+        "contact": {
+          "type": "array",
+          "title": "Organizational Contact",
+          "description": "A contact at the organization. Multiple contacts are allowed.",
+          "items": {"$ref": "#/definitions/organizationalContact"}
+        }
+      }
+    },
+    "organizationalContact": {
+      "type": "object",
+      "title": "Organizational Contact",
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the object elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "The name of a contact",
+          "examples": ["Contact name"]
+        },
+        "email": {
+          "type": "string",
+          "format": "idn-email",
+          "title": "Email Address",
+          "description": "The email address of the contact.",
+          "examples": ["firstname.lastname@example.com"]
+        },
+        "phone": {
+          "type": "string",
+          "title": "Phone",
+          "description": "The phone number of the contact.",
+          "examples": ["800-555-1212"]
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "title": "Component",
+      "required": [
+        "type",
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "application",
+            "framework",
+            "library",
+            "container",
+            "platform",
+            "operating-system",
+            "device",
+            "device-driver",
+            "firmware",
+            "file",
+            "machine-learning-model",
+            "data",
+            "cryptographic-asset"
+          ],
+          "meta:enum": {
+            "application": "A software application. Refer to [https://en.wikipedia.org/wiki/Application_software](https://en.wikipedia.org/wiki/Application_software) for information about applications.",
+            "framework": "A software framework. Refer to [https://en.wikipedia.org/wiki/Software_framework](https://en.wikipedia.org/wiki/Software_framework) for information on how frameworks vary slightly from libraries.",
+            "library": "A software library. Refer to [https://en.wikipedia.org/wiki/Library_(computing)](https://en.wikipedia.org/wiki/Library_(computing)) for information about libraries. All third-party and open source reusable components will likely be a library. If the library also has key features of a framework, then it should be classified as a framework. If not, or is unknown, then specifying library is recommended.",
+            "container": "A packaging and/or runtime format, not specific to any particular technology, which isolates software inside the container from software outside of a container through virtualization technology. Refer to [https://en.wikipedia.org/wiki/OS-level_virtualization](https://en.wikipedia.org/wiki/OS-level_virtualization).",
+            "platform": "A runtime environment which interprets or executes software. This may include runtimes such as those that execute bytecode or low-code/no-code application platforms.",
+            "operating-system": "A software operating system without regard to deployment model (i.e. installed on physical hardware, virtual machine, image, etc) Refer to [https://en.wikipedia.org/wiki/Operating_system](https://en.wikipedia.org/wiki/Operating_system).",
+            "device": "A hardware device such as a processor or chip-set. A hardware device containing firmware SHOULD include a component for the physical hardware itself and another component of type 'firmware' or 'operating-system' (whichever is relevant), describing information about the software running on the device. See also the list of [known device properties](https://github.com/CycloneDX/cyclonedx-property-taxonomy/blob/main/cdx/device.md).",
+            "device-driver": "A special type of software that operates or controls a particular type of device. Refer to [https://en.wikipedia.org/wiki/Device_driver](https://en.wikipedia.org/wiki/Device_driver).",
+            "firmware": "A special type of software that provides low-level control over a device's hardware. Refer to [https://en.wikipedia.org/wiki/Firmware](https://en.wikipedia.org/wiki/Firmware).",
+            "file": "A computer file. Refer to [https://en.wikipedia.org/wiki/Computer_file](https://en.wikipedia.org/wiki/Computer_file) for information about files.",
+            "machine-learning-model": "A model based on training data that can make predictions or decisions without being explicitly programmed to do so.",
+            "data": "A collection of discrete values that convey information.",
+            "cryptographic-asset": "A cryptographic asset including algorithms, protocols, certificates, keys, tokens, and secrets."
+          },
+          "title": "Component Type",
+          "description": "Specifies the type of component. For software components, classify as application if no more specific appropriate classification is available or cannot be determined for the component.",
+          "examples": ["library"]
+        },
+        "mime-type": {
+          "type": "string",
+          "title": "Mime-Type",
+          "description": "The optional mime-type of the component. When used on file components, the mime-type can provide additional context about the kind of file being represented, such as an image, font, or executable. Some library or framework components may also have an associated mime-type.",
+          "examples": ["image/jpeg"],
+          "pattern": "^[-+a-z0-9.]+/[-+a-z0-9.]+$"
+        },
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the component elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "supplier": {
+          "title": "Component Supplier",
+          "description": " The organization that supplied the component. The supplier may often be the manufacturer, but may also be a distributor or repackager.",
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "manufacturer": {
+          "title": "Component Manufacturer",
+          "description": "The organization that created the component.\nManufacturer is common in components created through automated processes. Components created through manual means may have `@.authors` instead.",
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "authors" :{
+          "type": "array",
+          "title": "Component Authors",
+          "description": "The person(s) who created the component.\nAuthors are common in components created through manual processes. Components created through automated means may have `@.manufacturer` instead.",
+          "items": {"$ref": "#/definitions/organizationalContact"}
+        },
+        "author": {
+          "deprecated": true,
+          "type": "string",
+          "title": "Component Author (legacy)",
+          "description": "[Deprecated] This will be removed in a future version. Use `@.authors` or `@.manufacturer` instead.\nThe person(s) or organization(s) that authored the component",
+          "examples": ["Acme Inc"]
+        },

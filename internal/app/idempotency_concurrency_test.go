@@ -348,7 +348,7 @@ func TestWithIdempotencyRecoversExpiredPendingAfterProcessRestart(t *testing.T) 
 
 	// A fresh ledger models a new API process. It deliberately has no copy of
 	// the original process cache; recovery relies only on the durable UOW state.
-	restarted := NewLedger(Config{
+	restarted := newLegacyLedgerFixture(Config{
 		APIKeyPepper: "test-pepper",
 		Now: func() time.Time {
 			return startedAt.Add(defaultIdempotencyLease + time.Second)

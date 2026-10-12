@@ -1,0 +1,97 @@
+// Package application contains the small, transport-neutral command
+// primitives shared by bounded-context application services.
+package application
+
+import (
+	"context"
+	"time"
+
+	"github.com/aatuh/evydence/internal/authz"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+)
+
+// Authorization sentinels are transport-neutral. Adapters map them to the
+// public problem catalog without exposing actor or grant details.
+var (
+	ErrUnauthorized = authz.ErrUnauthorized
+	ErrForbidden    = authz.ErrForbidden
+)
+
+// Clock supplies command timestamps without hidden process-global state.
+type Clock interface {
+	Now() time.Time
+}
+
+type ClockFunc func() time.Time
+
+func (f ClockFunc) Now() time.Time { return f() }
+
+// IDGenerator supplies context-owned record identifiers.
+type IDGenerator interface {
+	NewID(prefix string) string
+}
+
+type IDGeneratorFunc func(string) string
+
+func (f IDGeneratorFunc) NewID(prefix string) string { return f(prefix) }
+
+// ResourceReferences are the explicit, tenant-scoped resource coordinates
+// supplied to authorization policy. Blank fields are intentionally absent.
+type ResourceReferences = authz.ResourceReferences
+
+// AuthorizationRequest keeps the action and resource decision visible at each
+// service entry point. Scope is retained only for contexts not yet migrated;
+// a typed context rejects scope strings and action/scope ambiguity. ScopeOnly
+// distinguishes preflight from resolved resource authority.
+type AuthorizationRequest struct {
+	Action     authz.Action `json:",omitempty"`
+	Scope      string
+	Resources  ResourceReferences
+	ScopeOnly  bool
+	TenantWide bool
+}
+
+type Authorizer interface {
+	Authorize(context.Context, identitydomain.Actor, AuthorizationRequest) error
+}
+
+// AuditEvent is the unsequenced audit intent appended inside the caller's
+// transaction. Persistence assigns chain sequence and predecessor metadata.
+type AuditEvent struct {
+	ID           string
+	TenantID     string
+	EntryType    string
+	SubjectType  string
+	SubjectID    string
+	ActorType    string
+	ActorID      string
+	OccurredAt   time.Time
+	PayloadHash  string
+	SignatureRef string
+}
+
+// AuditReceipt identifies the committed audit entry without exposing chain
+// internals to the owning context.
+type AuditReceipt struct {
+	ID string
+}
+
+type AuditAppender interface {
+	AppendAudit(context.Context, AuditEvent) (AuditReceipt, error)
+}
+
+// OutboxEvent is a post-commit effect requested by the owning context. The
+// transaction adapter assigns storage-specific deduplication metadata.
+type OutboxEvent struct {
+	ID          string
+	TenantID    string
+	Kind        string
+	SubjectType string
+	SubjectID   string
+	Payload     map[string]any
+	CreatedAt   time.Time
+}
+
+type OutboxEnqueuer interface {
+	EnqueueOutbox(context.Context, OutboxEvent) error
+}

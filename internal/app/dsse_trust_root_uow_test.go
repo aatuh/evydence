@@ -10,7 +10,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 )
 
-type failingDSSETrustRootRepository struct{ GovernanceRepository }
+type failingDSSETrustRootRepository struct{ IntegrityRepository }
 
 func (failingDSSETrustRootRepository) InsertDSSETrustRoot(context.Context, domain.DSSETrustRoot) error {
 	return errInjectedRepositoryFailure
@@ -23,7 +23,7 @@ func TestDSSETrustRootUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	publicKey := base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize))
 	auditEntriesBefore := len(ledger.chain[actor.TenantID])
 
-	root, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "Root", KeyID: "root-1", Algorithm: "Ed25519", PublicKey: publicKey})
+	root, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "Root", KeyID: "root-1", Algorithm: "Ed25519", PublicKey: publicKey, AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"builder"}, RequiredClaims: []string{"builder_id", "build_type", "external_parameters"}})
 	if err != nil {
 		t.Fatalf("create DSSE trust root: %v", err)
 	}
@@ -36,11 +36,11 @@ func TestDSSETrustRootUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	}
 
 	ledger.unitOfWork = repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
-		repositories.Governance = failingDSSETrustRootRepository{GovernanceRepository: repositories.Governance}
+		repositories.Integrity = failingDSSETrustRootRepository{IntegrityRepository: repositories.Integrity}
 		return repositories
 	}}
 	beforeRoots, beforeAudit := len(ledger.dsseTrustRoots), len(ledger.chain[actor.TenantID])
-	if _, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "Failed", KeyID: "root-2", Algorithm: "Ed25519", PublicKey: publicKey}); !errors.Is(err, errInjectedRepositoryFailure) {
+	if _, err := ledger.CreateDSSETrustRoot(ctx, actor, CreateDSSETrustRootInput{Name: "Failed", KeyID: "root-2", Algorithm: "Ed25519", PublicKey: publicKey, AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"builder"}, RequiredClaims: []string{"builder_id", "build_type", "external_parameters"}}); !errors.Is(err, errInjectedRepositoryFailure) {
 		t.Fatalf("failed DSSE trust root err=%v, want injected repository failure", err)
 	}
 	if len(ledger.dsseTrustRoots) != beforeRoots || len(ledger.chain[actor.TenantID]) != beforeAudit {
@@ -55,13 +55,13 @@ func TestDSSETrustRootUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	repositories := uow.Repositories()
 	duplicate := root
 	duplicate.ID = "dsse_trust_root_duplicate"
-	if err := repositories.Governance.InsertDSSETrustRoot(ctx, duplicate); !errors.Is(err, ErrConflict) {
+	if err := repositories.Integrity.InsertDSSETrustRoot(ctx, duplicate); !errors.Is(err, ErrConflict) {
 		t.Fatalf("duplicate DSSE trust root err=%v, want conflict", err)
 	}
 	invalid := root
 	invalid.ID = "dsse_trust_root_invalid"
 	invalid.PublicKey = "not-base64"
-	if err := repositories.Governance.InsertDSSETrustRoot(ctx, invalid); !errors.Is(err, ErrValidation) {
+	if err := repositories.Integrity.InsertDSSETrustRoot(ctx, invalid); !errors.Is(err, ErrValidation) {
 		t.Fatalf("invalid DSSE trust root err=%v, want validation", err)
 	}
 }

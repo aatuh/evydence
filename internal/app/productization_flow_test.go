@@ -11,7 +11,7 @@ import (
 )
 
 func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Design Partner", "admin", []string{"*"})
 	if err != nil {
@@ -43,8 +43,8 @@ func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
 		"components":[
-			{"name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"},
-			{"name":"curl","version":"8.0.0","purl":"pkg:apk/curl@8.0.0"}
+			{"type":"library","name":"openssl","version":"3.1.0","purl":"pkg:apk/openssl@3.1.0"},
+			{"type":"library","name":"curl","version":"8.0.0","purl":"pkg:apk/curl@8.0.0"}
 		]
 	}`))
 	if err != nil {
@@ -80,7 +80,7 @@ func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("vex import report: %v", err)
 	}
-	if importReport.DecisionsCreated != 1 || len(importReport.MappingFailures) != 0 {
+	if importReport.Status != "parsed" || importReport.DecisionsCreated != 1 || len(importReport.MappingFailures) != 0 {
 		t.Fatalf("vex import report = %#v", importReport)
 	}
 	active := true
@@ -122,9 +122,11 @@ func TestVEXFirstReleaseEvidenceFlowEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
-	if _, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest)); err != nil {
+	attestation, err := ledger.UploadBuildAttestation(ctx, actor, build.ID, dsseForDigest(t, artifact.Digest))
+	if err != nil {
 		t.Fatalf("attestation: %v", err)
 	}
+	markAttestationVerifiedForReadiness(ledger, actor, attestation.ID)
 
 	bundle, err := ledger.CreateReleaseBundle(ctx, actor, release.ID)
 	if err != nil {

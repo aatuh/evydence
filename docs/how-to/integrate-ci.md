@@ -191,21 +191,31 @@ The manifest schema and supported request kinds are documented in
 ## Local CI Simulation
 
 Run the checked local simulation before copying the workflow into another
-repository:
+repository. It requires `curl`, Go, `jq`, OpenSSL, `psql`, Python 3, and a
+configured `EVYDENCE_TEST_DATABASE_URL`:
 
 ```sh
+set -a; . ./.test.env.example; set +a
 make local-ci-simulation-check
 ```
 
-The target starts a local in-process Evydence API on a random loopback port,
+The target creates a fresh schema in the configured test database and starts a
+PostgreSQL-backed Evydence API on a random loopback port and a local outbox worker,
 creates non-sensitive product, project, release, and artifact records, uploads
-GitHub Actions-style build provenance with a structural DSSE/in-toto
+GitHub Actions-style build provenance with an ephemeral, locally signed and
+verified DSSE/in-toto
 attestation, generates the same upload manifest shape used by the quickstart,
 runs `evydence ci preflight`, uploads SBOM and vulnerability scan fixtures,
 creates a customer package, and verifies release-readiness and audit-chain
-outputs. All generated files are written under `tmp/local-ci-simulation/` during
-the run and removed afterward unless `EVYDENCE_LOCAL_CI_KEEP_ARTIFACTS=1` is
-set.
+outputs. Generated files are written under a fresh
+`tmp/local-ci-simulation.*` directory during the run and removed afterward
+unless `EVYDENCE_LOCAL_CI_KEEP_ARTIFACTS=1` is set. The ephemeral private
+signing key is removed immediately after generating the test attestation.
+The flow waits for finalized payloads and successful worker jobs before
+signature and readiness checks. The owned schema is removed after the API and
+worker stop, including failure paths;
+existing schemas are not reset. No live GitHub or signing-provider account is
+required. The database must already be running.
 
 The full workflow also shows a scanner handoff path:
 

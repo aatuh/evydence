@@ -84,17 +84,21 @@ vulnerability decision, release bundle, redaction profile, customer package,
 readiness report, and audit-chain verification output. It expects a local API
 that already has a tenant and scoped API key.
 
-To exercise the GitHub Actions-style CI path without external services, run:
+To exercise the GitHub Actions-style CI path without hosted provider services,
+configure `EVYDENCE_TEST_DATABASE_URL` for a running PostgreSQL test database
+and run:
 
 ```sh
 make local-ci-simulation-check
 ```
 
-That checked target starts a temporary loopback API, creates the required
+That checked target owns a fresh PostgreSQL schema and starts a temporary
+loopback API, creates the required
 product, project, release, and artifact IDs, uploads build provenance and a
 structural DSSE/in-toto attestation, runs `evydence ci preflight`, uploads the
 manifest, and verifies readiness, customer-package, and audit-chain outputs
-under `tmp/local-ci-simulation/`.
+under a fresh `tmp/local-ci-simulation.*` directory. Its schema is removed on
+exit; set `EVYDENCE_LOCAL_CI_KEEP_ARTIFACTS=1` to retain local output files.
 
 ## Inspect The Result
 

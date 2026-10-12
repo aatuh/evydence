@@ -9,7 +9,7 @@ import (
 )
 
 func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor := domain.Actor{TenantID: "ten_ctx", KeyID: "key_ctx", Scopes: []string{"*"}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -407,7 +407,7 @@ func TestLedgerOperationsHonorCanceledContextBeforeWork(t *testing.T) {
 }
 
 func TestLedgerOperationsRejectActorsWithoutRequiredScopesBeforeResourceWork(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor := domain.Actor{TenantID: "ten_scope", KeyID: "key_scope"}
 	ctx := context.Background()
 

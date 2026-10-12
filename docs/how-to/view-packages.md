@@ -39,6 +39,28 @@ running the API, load
 `examples/end-to-end-release-evidence/sample-customer-package-manifest.json` or
 press **Load bundled demo** in the viewer.
 
+## Local Viewer Safety Limits
+
+The viewer is an inspection aid, so it rejects local JSON before rendering when
+the selected file is larger than 8 MiB or exceeds these structural limits:
+
+- 32 nesting levels;
+- 256 keys in one object;
+- 1,024 items in one array; or
+- 16,384 characters in one JSON string.
+
+It also limits the rendered raw-JSON pane to 512 KiB of characters. The static
+page has a restrictive Content Security Policy, makes no network requests, and
+uses text-node APIs for package values. These limits deliberately make the
+viewer unsuitable for inspecting raw payloads or arbitrarily large JSON; use
+the CLI verifier or an approved operator workflow for those artifacts.
+
+Repository changes to this boundary are covered by:
+
+```sh
+make security-regression-check
+```
+
 The top **Reviewer Dossier** is the quickest read-only path through a package.
 It summarizes package scope, package verification status, SBOM metadata, CVE
 decision status, approver or approval context, linked evidence, limitations, and

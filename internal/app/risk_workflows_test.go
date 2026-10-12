@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/domain"
+	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 )
 
 func TestIncidentTimelineAndReportAreTenantScoped(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, _ := setupReleaseRiskFixture(t, ledger)
 	incident, err := ledger.CreateIncident(ctx, actor, CreateIncidentInput{ProductID: release.ProductID, ReleaseID: release.ID, Title: "prod outage", Severity: "high"})
@@ -46,7 +47,7 @@ func TestIncidentTimelineAndReportAreTenantScoped(t *testing.T) {
 }
 
 func TestSecurityScansManualDocsSPDXAndSBOMDiff(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadSecurityScan(ctx, actor, UploadSecurityScanInput{
@@ -85,7 +86,7 @@ func TestSecurityScansManualDocsSPDXAndSBOMDiff(t *testing.T) {
 }
 
 func TestCycloneDXVEXVulnerabilityWorkflowContractDiffAndPolicyV2(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -97,11 +98,19 @@ func TestCycloneDXVEXVulnerabilityWorkflowContractDiffAndPolicyV2(t *testing.T) 
 	if err != nil {
 		t.Fatalf("vulnerability scan: %v", err)
 	}
-	vex, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{
+	raw := []byte(`{
 		"bomFormat":"CycloneDX",
 		"specVersion":"1.6",
 		"vulnerabilities":[{"id":"CVE-2026-9999","analysis":{"state":"resolved","justification":"code_not_present","detail":"fixed before release","response":["update"]}}]
-	}`))
+	}`)
+	preview, err := ledger.PreviewCycloneDXVEXImport(ctx, actor, release.ID, artifact.ID, raw)
+	if err != nil {
+		t.Fatalf("cyclonedx vex preview: %v", err)
+	}
+	if preview.DecisionsWouldCreate != 1 || preview.DecisionsWouldSupersede != 0 || len(preview.MappingFailures) != 0 {
+		t.Fatalf("cyclonedx preview = %#v", preview)
+	}
+	vex, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, raw)
 	if err != nil {
 		t.Fatalf("cyclonedx vex: %v", err)
 	}
@@ -154,7 +163,7 @@ func TestCycloneDXVEXVulnerabilityWorkflowContractDiffAndPolicyV2(t *testing.T) 
 
 func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -191,16 +200,16 @@ func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import report: %v", err)
 	}
-	if report.ParserVersion != ParserVersionCycloneDXVEXJSON || report.StatementCount != 4 || report.DecisionsCreated != 1 || report.DecisionsSuperseded != 1 {
+	if report.ParserVersion != ParserVersionCycloneDXVEXJSON || report.StatementCount != 4 || report.DecisionsCreated != 0 || report.DecisionsSuperseded != 0 || report.Status != "accepted" {
 		t.Fatalf("import report counts = %#v", report)
 	}
-	if len(report.MappingFailures) != 1 || report.MappingFailures[0].StatementIndex != 3 || report.MappingFailures[0].Code != "finding_not_found" {
+	if len(report.MappingFailures) != 0 {
 		t.Fatalf("mapping failures = %#v", report.MappingFailures)
 	}
 	if len(report.InvalidStatements) != 1 || report.InvalidStatements[0].StatementIndex != 4 || report.InvalidStatements[0].Code != "unsupported_analysis_state" {
 		t.Fatalf("invalid statements = %#v", report.InvalidStatements)
 	}
-	if !strings.Contains(strings.Join(report.Warnings, "\n"), "Duplicate CycloneDX VEX vulnerabilities") || !strings.Contains(strings.Join(report.Warnings, "\n"), "skipped") {
+	if !stringSliceContains(report.Warnings, evidenceapp.VEXAsyncDecisionWarning) || !strings.Contains(strings.Join(report.Warnings, "\n"), "skipped") {
 		t.Fatalf("warnings = %#v", report.Warnings)
 	}
 	active := true
@@ -208,15 +217,24 @@ func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list decisions: %v", err)
 	}
-	if len(decisions) != 1 || decisions[0].Status != decisionStatusFixed || decisions[0].Source != "cyclonedx_vex" {
+	if len(decisions) != 1 || decisions[0].Status != decisionStatusAffected || decisions[0].Source != "api" {
 		t.Fatalf("active decisions = %#v", decisions)
 	}
-	if len(outbox.jobs) != 1 || outbox.jobs[0].Kind != "parse_vex" || outbox.jobs[0].Payload["parser_version"] != ParserVersionCycloneDXVEXJSON || outbox.jobs[0].Payload["import_report_id"] != report.ID {
+	if len(outbox.jobs) != 1 || outbox.jobs[0].Kind != "parse_vex" || outbox.jobs[0].Payload["parser_version"] != ParserVersionCycloneDXVEXJSON || outbox.jobs[0].Payload["import_report_id"] != report.ID || outbox.jobs[0].Payload["payload_ref"] != "" {
 		t.Fatalf("outbox jobs = %#v", outbox.jobs)
 	}
+	statements := requireVEXDecisionRequest(t, outbox.jobs[0].Payload, 3)
+	if statements[0].StatementIndex != 1 || statements[1].StatementIndex != 2 || statements[2].StatementIndex != 3 || statements[2].Vulnerability != "CVE-2026-2999" {
+		t.Fatalf("normalized CycloneDX decision statements = %#v", statements)
+	}
 
-	if _, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-2001","analysis":{"state":"resolved"}}]}`)); !errors.Is(err, ErrValidation) {
-		t.Fatalf("unsupported field err=%v, want validation", err)
+	extended, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-2001","analysis":{"state":"resolved"}}]}`))
+	if err != nil {
+		t.Fatalf("extension-bearing vex: %v", err)
+	}
+	extendedReport, err := ledger.GetVEXImportReport(ctx, actor, extended.ID)
+	if err != nil || !strings.Contains(strings.Join(extendedReport.Warnings, "\n"), "$.unexpected is preserved") {
+		t.Fatalf("extension report = %#v, err=%v", extendedReport, err)
 	}
 	if _, err := ledger.UploadCycloneDXVEX(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","vulnerabilities":[`)); !errors.Is(err, ErrValidation) {
 		t.Fatalf("malformed err=%v, want validation", err)
@@ -225,7 +243,7 @@ func TestCycloneDXVEXImportReportTracksIssuesDuplicatesAndOutbox(t *testing.T) {
 
 func TestVEXImportPreviewIsAdvisoryAndDoesNotMutateLedger(t *testing.T) {
 	outbox := &recordingOutbox{}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, Outbox: outbox})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	scan, err := ledger.UploadVulnerabilityScan(ctx, actor, []byte(`{
@@ -288,7 +306,8 @@ func TestVEXImportPreviewIsAdvisoryAndDoesNotMutateLedger(t *testing.T) {
 	if len(cyclonePreview.MappingFailures) != 1 || cyclonePreview.MappingFailures[0].StatementIndex != 2 {
 		t.Fatalf("cyclonedx mapping failures = %#v", cyclonePreview.MappingFailures)
 	}
-	if _, err := ledger.PreviewCycloneDXVEXImport(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-4001","analysis":{"state":"resolved"}}]}`)); !errors.Is(err, ErrValidation) {
-		t.Fatalf("strict preview err=%v, want validation", err)
+	extendedPreview, err := ledger.PreviewCycloneDXVEXImport(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","unexpected":true,"vulnerabilities":[{"id":"CVE-2026-4001","analysis":{"state":"resolved"}}]}`))
+	if err != nil || !strings.Contains(strings.Join(extendedPreview.Warnings, "\n"), "$.unexpected is preserved") {
+		t.Fatalf("extension preview = %#v, err=%v", extendedPreview, err)
 	}
 }

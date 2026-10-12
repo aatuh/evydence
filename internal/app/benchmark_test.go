@@ -8,7 +8,7 @@ import (
 
 func BenchmarkReleaseEvidenceIngestion(b *testing.B) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "benchmark-pepper"})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "benchmark-pepper"})
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Benchmark Tenant", "admin", []string{"*"})
 	if err != nil {
 		b.Fatal(err)

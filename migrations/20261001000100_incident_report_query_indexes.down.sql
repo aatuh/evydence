@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS remediation_tasks_report_order_idx;
+DROP INDEX IF EXISTS incident_timeline_events_report_order_idx;

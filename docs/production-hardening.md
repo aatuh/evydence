@@ -28,7 +28,7 @@ copy-paste go/no-go record.
 - Object storage is external S3/MinIO-compatible storage with tenant-prefixed paths, encryption, lifecycle policy, and retention/object-lock policy where required.
 - S3/MinIO object-retention policy verification has been run for required tenant prefixes, and records show bucket versioning, default object-lock mode/duration, sample object retention, and sample object legal-hold checks where those controls are required, with documented limitations.
 - Ingress terminates TLS and does not expose internal diagnostics.
-- Edge rate limiting is configured at the reverse proxy or ingress. The optional `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` in-process limiter is a local safety net and keys by TCP remote address only.
+- Edge rate limiting is configured at the reverse proxy or ingress. The process-local `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` and `EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE` limits are additional safety boundaries. Configure `EVYDENCE_TRUSTED_PROXY_CIDRS` only for proxies that append and sanitize `X-Forwarded-For`; otherwise Evydence keys the edge limiter by its direct TCP peer. See [Configuration](reference/configuration.md#http-ingress-limits-and-proxy-trust).
 - `/v1/metrics`, `/v1/audit-log`, and `/v1/admin/instance` are protected by server-side scopes and are not public.
 - API keys and collector keys are scoped, rotated, and stored outside source control.
 - OIDC UserInfo validation, when used, sends only the supplied access token to

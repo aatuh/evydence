@@ -28,6 +28,214 @@ func (failingIdempotencyWriteTx) Exec(context.Context, string, ...any) (pgconn.C
 	return pgconn.CommandTag{}, errIdempotencyWrite
 }
 
+func TestCatalogPointReadsOnlyCurrentTenantWithinTransaction(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := tx.Rollback(context.Background()); err != nil {
+			t.Errorf("rollback product lookup transaction: %v", err)
+		}
+	}()
+	repositories := postgresrepositories.New(tx)
+	now := time.Now().UTC()
+	for _, tenantID := range []string{"ten_first", "ten_second"} {
+		if err := repositories.Identity.InsertTenant(ctx, domain.Tenant{ID: tenantID, Name: tenantID, CreatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	product := domain.Product{ID: "prod_first", TenantID: "ten_first", Name: "First", Slug: "shared", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertProduct(ctx, product); err != nil {
+		t.Fatal(err)
+	}
+	found, ok, err := repositories.ReleaseCatalog.ProductBySlug(ctx, "ten_first", "shared")
+	if err != nil || !ok || found.ID != product.ID || found.TenantID != product.TenantID {
+		t.Fatalf("same-tenant lookup product=%#v found=%t err=%v", found, ok, err)
+	}
+	if foreign, ok, err := repositories.ReleaseCatalog.ProductBySlug(ctx, "ten_second", "shared"); err != nil || ok || foreign.ID != "" {
+		t.Fatalf("foreign-tenant lookup product=%#v found=%t err=%v", foreign, ok, err)
+	}
+	if found, err := repositories.ReleaseCatalog.GetProduct(ctx, "ten_first", product.ID); err != nil || found.ID != product.ID || found.TenantID != product.TenantID {
+		t.Fatalf("same-tenant point product=%#v err=%v", found, err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetProduct(ctx, "ten_second", product.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("foreign-tenant point err=%v, want not found", err)
+	}
+	project := domain.Project{ID: "proj_first", TenantID: product.TenantID, ProductID: product.ID, Name: "First Project", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	if found, err := repositories.ReleaseCatalog.GetProject(ctx, product.TenantID, project.ID); err != nil || found.ID != project.ID || found.ProductID != product.ID {
+		t.Fatalf("same-tenant project=%#v err=%v", found, err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetProject(ctx, "ten_second", project.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("foreign-tenant project err=%v, want not found", err)
+	}
+	release := domain.Release{ID: "rel_first", TenantID: product.TenantID, ProductID: product.ID, Version: "1.0.0", Revision: 1, State: "draft", CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertRelease(ctx, release); err != nil {
+		t.Fatal(err)
+	}
+	if found, ok, err := repositories.ReleaseCatalog.ReleaseByVersion(ctx, product.TenantID, product.ID, release.Version); err != nil || !ok || found.ID != release.ID || found.ProductID != product.ID {
+		t.Fatalf("same-tenant release=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, ok, err := repositories.ReleaseCatalog.ReleaseByVersion(ctx, "ten_second", product.ID, release.Version); err != nil || ok || found.ID != "" {
+		t.Fatalf("foreign-tenant release=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, err := repositories.ReleaseCatalog.GetRelease(ctx, product.TenantID, release.ID); err != nil || found.ID != release.ID || found.ProductID != product.ID {
+		t.Fatalf("same-tenant release point=%#v err=%v", found, err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetRelease(ctx, "ten_second", release.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("foreign-tenant release point err=%v, want not found", err)
+	}
+	if locked, err := repositories.ReleaseCatalog.GetReleaseForUpdate(ctx, product.TenantID, release.ID); err != nil || locked.ID != release.ID || locked.ProductID != product.ID {
+		t.Fatalf("same-tenant locked release=%#v err=%v", locked, err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetReleaseForUpdate(ctx, "ten_second", release.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("foreign-tenant locked release err=%v, want not found", err)
+	}
+	artifact := domain.Artifact{ID: "art_first", TenantID: product.TenantID, Name: "Output", MediaType: "application/octet-stream", Digest: "sha256:" + strings.Repeat("a", 64), Size: 1, CreatedAt: now}
+	if err := repositories.ReleaseCatalog.InsertArtifact(ctx, artifact); err != nil {
+		t.Fatal(err)
+	}
+	if found, ok, err := repositories.ReleaseCatalog.ArtifactByDigest(ctx, product.TenantID, artifact.Digest); err != nil || !ok || found.ID != artifact.ID || found.Digest != artifact.Digest {
+		t.Fatalf("same-tenant digest artifact=%#v found=%t err=%v", found, ok, err)
+	}
+	if found, ok, err := repositories.ReleaseCatalog.ArtifactByDigest(ctx, "ten_second", artifact.Digest); err != nil || ok || found.ID != "" {
+		t.Fatalf("foreign-tenant digest artifact=%#v found=%t err=%v", found, ok, err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO projects (id, tenant_id, product_id, name, created_at) VALUES ($1, $2, $3, $4, $5)`,
+		"proj_mismatched", "ten_second", product.ID, "Mismatched", now); err != nil {
+		t.Fatalf("seed mismatched project: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO releases (id, tenant_id, product_id, version, state, revision, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		"rel_mismatched", "ten_second", product.ID, "2.0.0", "draft", 1, now); err != nil {
+		t.Fatalf("seed mismatched release: %v", err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetProject(ctx, "ten_second", "proj_mismatched"); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("mismatched project parent err=%v, want not found", err)
+	}
+	if _, err := repositories.ReleaseCatalog.GetRelease(ctx, "ten_second", "rel_mismatched"); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("mismatched release parent err=%v, want not found", err)
+	}
+}
+
+func TestArtifactDigestConflictKeepsTransactionReadable(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	now := time.Now().UTC()
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants (id, name, created_at) VALUES ($1, $2, $3)`, "ten_artifact_race", "Artifact race", now); err != nil {
+		t.Fatal(err)
+	}
+	first, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := first.Rollback(context.Background()); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			t.Errorf("rollback first artifact transaction: %v", err)
+		}
+	}()
+	second, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := second.Rollback(context.Background()); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			t.Errorf("rollback second artifact transaction: %v", err)
+		}
+	}()
+	digest := "sha256:" + strings.Repeat("b", 64)
+	for _, tx := range []pgx.Tx{first, second} {
+		if artifact, found, err := postgresrepositories.New(tx).ReleaseCatalog.ArtifactByDigest(ctx, "ten_artifact_race", digest); err != nil || found || artifact.ID != "" {
+			t.Fatalf("expected digest miss before competing insert: artifact=%#v found=%t err=%v", artifact, found, err)
+		}
+	}
+	winner := domain.Artifact{ID: "art_winner", TenantID: "ten_artifact_race", Name: "Winner", MediaType: "application/octet-stream", Digest: digest, Size: 1, CreatedAt: now}
+	if err := postgresrepositories.New(first).ReleaseCatalog.InsertArtifact(ctx, winner); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	loser := winner
+	loser.ID = "art_loser"
+	if err := postgresrepositories.New(second).ReleaseCatalog.InsertArtifact(ctx, loser); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("competing digest insert err=%v, want conflict", err)
+	}
+	if artifact, found, err := postgresrepositories.New(second).ReleaseCatalog.ArtifactByDigest(ctx, winner.TenantID, digest); err != nil || !found || artifact.ID != winner.ID {
+		t.Fatalf("winner cannot be reloaded after insert conflict: artifact=%#v found=%t err=%v", artifact, found, err)
+	}
+}
+
+func TestIdentityActivityUpdatesAreMonotonic(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	base := time.Now().UTC().Truncate(time.Microsecond)
+	tenant := domain.Tenant{ID: "ten_activity_monotonic", Name: "Activity monotonic", CreatedAt: base}
+	key := domain.APIKey{
+		ID: "key_activity_monotonic", TenantID: tenant.ID, Name: "Activity key", Prefix: "evy_activity",
+		Hash: "activity-hash", Scopes: []string{"evidence:read"}, CreatedAt: base,
+	}
+	collector := domain.Collector{
+		ID: "col_activity_monotonic", TenantID: tenant.ID, Name: "Activity collector", Type: "ci", Version: "1.0.0",
+		APIKeyID: key.ID, Status: "active", AllowedScopes: []string{"evidence:read"}, SchemaVersion: domain.CollectorSchemaVersion, CreatedAt: base,
+	}
+	seed, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedRepositories := postgresrepositories.New(seed)
+	if err := seedRepositories.Identity.InsertTenant(ctx, tenant); err != nil {
+		t.Fatal(err)
+	}
+	if err := seedRepositories.Identity.InsertAPIKey(ctx, key); err != nil {
+		t.Fatal(err)
+	}
+	if err := seedRepositories.Builds.InsertCollector(ctx, collector); err != nil {
+		t.Fatal(err)
+	}
+	if err := seed.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	newer := base.Add(2 * time.Minute)
+	older := base.Add(time.Minute)
+	for _, observed := range []time.Time{newer, older} {
+		tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		repositories := postgresrepositories.New(tx)
+		key.LastUsedAt = &observed
+		collector.LastSeenAt = &observed
+		if err := repositories.Identity.UpdateAPIKeyLastUsed(ctx, key); err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatalf("update API key at %s: %v", observed, err)
+		}
+		if err := repositories.Identity.UpdateCollectorLastSeen(ctx, collector); err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatalf("update collector at %s: %v", observed, err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var lastUsedAt, lastSeenAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT last_used_at FROM api_keys WHERE id = $1`, key.ID).Scan(&lastUsedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT last_seen_at FROM collectors WHERE id = $1`, collector.ID).Scan(&lastSeenAt); err != nil {
+		t.Fatal(err)
+	}
+	if !lastUsedAt.Equal(newer) || !lastSeenAt.Equal(newer) {
+		t.Fatalf("activity regressed: key=%s collector=%s want=%s", lastUsedAt, lastSeenAt, newer)
+	}
+}
+
 func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	ctx, pool := openRepositoryTestPool(t)
 	defer pool.Close()
@@ -81,9 +289,10 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Identity.InsertSSOProvider(ctx, provider); err != nil {
 		t.Fatalf("insert SSO provider: %v", err)
 	}
+	expectedProvider := provider
 	provider.JWKS = map[string]any{"keys": []any{map[string]any{"kid": "repository-key"}}}
 	provider.TrustMaterialUpdatedAt = &now
-	if err := repositories.Identity.UpdateSSOProviderTrustMaterial(ctx, provider); err != nil {
+	if err := repositories.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, expectedProvider, provider); err != nil {
 		t.Fatalf("update SSO provider trust material: %v", err)
 	}
 	if err := repositories.Identity.InsertRoleBinding(ctx, domain.RoleBinding{ID: "rbac_repository", TenantID: tenant.ID, SubjectType: "user", SubjectID: user.ID, Role: "security_engineer", ResourceType: "tenant", ResourceID: tenant.ID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: now}); err != nil {
@@ -219,6 +428,9 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	deploymentEvidence := evidence
 	deploymentEvidence.ID = "evi_repository_deployment"
 	deploymentEvidence.DeploymentID = "dep_repository"
+	deploymentEvidence.Type = "deployment"
+	deploymentEvidence.Subtype = "event"
+	deploymentEvidence.Title = "Repository deployment"
 	deploymentEvidence.PayloadHash = "sha256:deployment-payload"
 	deploymentEvidence.CanonicalHash = "sha256:deployment-canonical"
 	if err := repositories.Evidence.InsertEvidence(ctx, deploymentEvidence); err != nil {
@@ -338,7 +550,7 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	if err := repositories.Risk.InsertManualSecurityDocument(ctx, domain.ManualSecurityDocument{ID: "manual_security_document_repository", TenantID: tenant.ID, ProductID: product.ID, ReleaseID: release.ID, DocumentType: "security_review", Title: "Repository review", Sensitivity: "restricted", EvidenceID: evidence.ID, PayloadHash: "sha256:" + strings.Repeat("a", 64), SchemaVersion: domain.ManualSecurityDocSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert manual security document: %v", err)
 	}
-	if err := repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
+	if err := repositories.Integrity.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{ID: "dtr_repository", TenantID: tenant.ID, Name: "Repository root", KeyID: "repository-root", Algorithm: "Ed25519", PublicKey: strings.Repeat("A", 43) + "=", AllowedPredicateTypes: []string{"https://slsa.dev/provenance/v1"}, ExpectedBuilderIDs: []string{"https://example.test/builder"}, RequiredClaims: []string{"builder_id"}, Status: "active", SchemaVersion: domain.DSSETrustRootSchemaVersion, CreatedAt: now}); err != nil {
 		t.Fatalf("insert DSSE trust root: %v", err)
 	}
 	exception := domain.Exception{ID: "ex_repository", TenantID: tenant.ID, ReleaseID: release.ID, ControlID: control.ID, Reason: "repository test", Owner: "security", ExpiresAt: now.Add(time.Hour), CreatedAt: now}
@@ -366,7 +578,7 @@ func TestRepositoriesWriteBoundedContextsInOneTransaction(t *testing.T) {
 	}
 	linkedEvidence := evidence
 	linkedEvidence.RelatedEvidenceRefs = []domain.EvidenceRef{{Type: "product", ID: product.ID, Relationship: "linked_to"}}
-	if err := repositories.Evidence.UpdateEvidenceLinks(ctx, linkedEvidence); err != nil {
+	if err := repositories.Evidence.CompareAndSwapEvidenceLinks(ctx, evidence, linkedEvidence); err != nil {
 		t.Fatalf("update evidence links: %v", err)
 	}
 	supersededEvidence := linkedEvidence
@@ -677,7 +889,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"human user deactivation", repositories.Identity.DeactivateHumanUser(ctx, domain.HumanUser{})},
 		{"role binding", repositories.Identity.InsertRoleBinding(ctx, domain.RoleBinding{})},
 		{"SSO provider", repositories.Identity.InsertSSOProvider(ctx, domain.SSOProvider{})},
-		{"SSO trust material", repositories.Identity.UpdateSSOProviderTrustMaterial(ctx, domain.SSOProvider{})},
+		{"SSO trust material", repositories.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, domain.SSOProvider{}, domain.SSOProvider{})},
 		{"identity link", repositories.Identity.InsertUserIdentityLink(ctx, domain.UserIdentityLink{})},
 		{"provider verification", repositories.Identity.InsertProviderVerification(ctx, domain.ProviderVerification{})},
 		{"SSO session", repositories.Identity.InsertSSOSession(ctx, domain.SSOSession{})},
@@ -692,7 +904,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"waiver approval", repositories.Governance.ApproveWaiver(ctx, domain.Waiver{})},
 		{"approval record", repositories.Governance.InsertApprovalRecord(ctx, domain.ApprovalRecord{})},
 		{"redaction profile", repositories.Governance.InsertRedactionProfile(ctx, domain.RedactionProfile{})},
-		{"DSSE trust root", repositories.Governance.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{})},
+		{"DSSE trust root", repositories.Integrity.InsertDSSETrustRoot(ctx, domain.DSSETrustRoot{})},
 		{"exception", repositories.Decisions.InsertException(ctx, domain.Exception{})},
 		{"exception approval", repositories.Decisions.ApproveException(ctx, domain.Exception{})},
 		{"legal hold", repositories.Governance.InsertLegalHold(ctx, domain.LegalHold{})},
@@ -716,7 +928,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"release candidate", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{})},
 		{"release candidate state", repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, domain.ReleaseCandidate{}, "")},
 		{"evidence", repositories.Evidence.InsertEvidence(ctx, domain.EvidenceItem{})},
-		{"evidence links", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{})},
+		{"evidence links", repositories.Evidence.CompareAndSwapEvidenceLinks(ctx, domain.EvidenceItem{}, domain.EvidenceItem{})},
 		{"evidence supersession", repositories.Evidence.RecordSupersession(ctx, domain.EvidenceItem{}, domain.EvidenceItem{})},
 		{"lifecycle", repositories.Evidence.AppendLifecycle(ctx, domain.EvidenceLifecycleEvent{})},
 		{"SBOM", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{})},
@@ -792,7 +1004,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"release state", repositories.ReleaseCatalog.UpdateReleaseState(ctx, domain.Release{ID: "missing-release", TenantID: "ten_repository_a", ProductID: "prod_repository_a", Revision: 2, State: "frozen"}, "draft"), app.ErrConflict},
 		{"candidate insert", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "missing-candidate", TenantID: "ten_repository_a", ReleaseID: "missing-release", Name: "Missing", State: "open", SnapshotHash: "sha256:missing", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now}), app.ErrNotFound},
 		{"candidate state", repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, domain.ReleaseCandidate{ID: "missing-candidate", TenantID: "ten_repository_a", ReleaseID: "missing-release", Revision: 2, State: "promoted"}, "open"), app.ErrConflict},
-		{"evidence links", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: "missing-evidence", TenantID: "ten_repository_a"}), app.ErrNotFound},
+		{"evidence links", repositories.Evidence.CompareAndSwapEvidenceLinks(ctx, domain.EvidenceItem{ID: "missing-evidence", TenantID: "ten_repository_a"}, domain.EvidenceItem{ID: "missing-evidence", TenantID: "ten_repository_a"}), app.ErrNotFound},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "missing-sbom", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", Format: "cyclonedx", CreatedAt: now}), app.ErrNotFound},
 		{"scan evidence", repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScan{ID: "missing-scan", TenantID: "ten_repository_a", EvidenceID: "missing-evidence", Scanner: "test", TargetRef: "target", CreatedAt: now}), app.ErrNotFound},
 		{"OpenAPI product", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "missing-contract", TenantID: "ten_repository_a", ProductID: "missing-product", EvidenceID: "missing-evidence", Version: "v1", Hash: "sha256:missing", CreatedAt: now}), app.ErrNotFound},
@@ -900,7 +1112,7 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		{"retention override evidence", repositories.Governance.InsertRetentionOverride(ctx, domain.RetentionOverride{ID: "ro_repository_b", TenantID: "ten_repository_b", ScopeType: "evidence", ScopeID: evidenceA.ID, RetentionUntil: now.Add(time.Hour), Reason: "B override", Owner: "security", SchemaVersion: domain.RetentionOverrideSchemaVersion, CreatedAt: now})},
 		{"build run project", repositories.Builds.InsertBuildRun(ctx, domain.BuildRun{ID: "build_repository_b", TenantID: "ten_repository_b", ProjectID: "proj_repository_b", ReleaseID: releaseA.ID, Provider: "generic_ci", CommitSHA: "0123456789abcdef0123456789abcdef01234567", Status: "passed", StartedAt: now, SchemaVersion: domain.BuildRunSchemaVersion, CreatedAt: now})},
 		{"candidate release", repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, domain.ReleaseCandidate{ID: "rc_repository_b", TenantID: "ten_repository_b", ReleaseID: releaseA.ID, Name: "B candidate", State: "open", SnapshotHash: "sha256:candidate-b", SchemaVersion: domain.ReleaseCandidateSchemaVersion, CreatedAt: now})},
-		{"evidence link product", repositories.Evidence.UpdateEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
+		{"evidence link product", repositories.Evidence.CompareAndSwapEvidenceLinks(ctx, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b"}, domain.EvidenceItem{ID: evidenceA.ID, TenantID: "ten_repository_b", ProductID: "prod_repository_a"})},
 		{"SBOM evidence", repositories.Evidence.InsertSBOM(ctx, domain.SBOM{ID: "sbom_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, ArtifactID: artifactA.ID, Format: "cyclonedx", CreatedAt: now})},
 		{"scan evidence", repositories.Evidence.InsertVulnerabilityScan(ctx, domain.VulnerabilityScan{ID: "scan_repository_b", TenantID: "ten_repository_b", EvidenceID: evidenceA.ID, ReleaseID: releaseA.ID, Scanner: "test", TargetRef: "target", CreatedAt: now})},
 		{"OpenAPI product", repositories.Evidence.InsertOpenAPIContract(ctx, domain.OpenAPIContract{ID: "oas_repository_b", TenantID: "ten_repository_b", ProductID: "prod_repository_a", ReleaseID: releaseA.ID, Version: "v1", Hash: "sha256:openapi-b", EvidenceID: evidenceA.ID, CreatedAt: now})},
@@ -919,6 +1131,173 @@ func TestRepositoriesRejectInvalidAndCrossTenantReferences(t *testing.T) {
 		if !errors.Is(check.err, app.ErrNotFound) {
 			t.Errorf("%s err=%v, want not found", check.name, check.err)
 		}
+	}
+}
+
+func TestIdentityRepositoryValidatesSSOExchangeSnapshotAndLocksMutableState(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	now := time.Now().UTC().Round(0)
+	tenant := domain.Tenant{ID: "ten_sso_snapshot", Name: "SSO snapshot", CreatedAt: now}
+	provider := domain.SSOProvider{ID: "sso_snapshot", TenantID: tenant.ID, Name: "Snapshot OIDC", Type: "oidc", Issuer: "https://idp.example.test", ClientID: "client", Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: now}
+	user := domain.HumanUser{ID: "usr_sso_snapshot", TenantID: tenant.ID, Email: "user@example.test", DisplayName: "Snapshot user", Status: "active", SchemaVersion: domain.HumanUserSchemaVersion, CreatedAt: now}
+	link := domain.UserIdentityLink{ID: "link_sso_snapshot", TenantID: tenant.ID, UserID: user.ID, ProviderID: provider.ID, Subject: "subject-existing", Email: user.Email, Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: now}
+	binding := domain.RoleBinding{ID: "rb_sso_snapshot", TenantID: tenant.ID, SubjectType: "user", SubjectID: user.ID, Role: "tenant_admin", ResourceType: "tenant", ResourceID: tenant.ID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: now}
+
+	seed, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin seed transaction: %v", err)
+	}
+	seedRepositories := postgresrepositories.New(seed)
+	for _, step := range []struct {
+		name   string
+		insert func() error
+	}{
+		{name: "tenant", insert: func() error { return seedRepositories.Identity.InsertTenant(ctx, tenant) }},
+		{name: "user", insert: func() error { return seedRepositories.Identity.InsertHumanUser(ctx, user) }},
+		{name: "provider", insert: func() error { return seedRepositories.Identity.InsertSSOProvider(ctx, provider) }},
+		{name: "link", insert: func() error { return seedRepositories.Identity.InsertUserIdentityLink(ctx, link) }},
+		{name: "binding", insert: func() error { return seedRepositories.Identity.InsertRoleBinding(ctx, binding) }},
+	} {
+		if err := step.insert(); err != nil {
+			_ = seed.Rollback(context.Background())
+			t.Fatalf("insert %s: %v", step.name, err)
+		}
+	}
+	if err := seed.Commit(ctx); err != nil {
+		t.Fatalf("commit seed transaction: %v", err)
+	}
+
+	snapshot := app.SSOExchangeSnapshot{
+		Provider: provider, Subject: link.Subject, IdentityLink: link, IdentityLinkFound: true,
+		User: user, UserLoaded: true, UserFound: true,
+		UserGrants: []domain.ResourceGrant{{Role: binding.Role, ResourceType: binding.ResourceType, ResourceID: binding.ResourceID, Scopes: []string{"*"}}}, UserGrantsLoaded: true,
+	}
+	validation, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin validation transaction: %v", err)
+	}
+	if err := postgresrepositories.New(validation).Identity.ValidateSSOExchangeState(ctx, snapshot); err != nil {
+		_ = validation.Rollback(context.Background())
+		t.Fatalf("validate exchange snapshot: %v", err)
+	}
+
+	assertLockedWrite := func(t *testing.T, run func(app.Repositories) error) {
+		t.Helper()
+		writer, err := pool.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			t.Fatalf("begin competing transaction: %v", err)
+		}
+		defer func() { _ = writer.Rollback(ctx) }()
+		if _, err := writer.Exec(ctx, `SET LOCAL lock_timeout = '100ms'`); err != nil {
+			t.Fatalf("set competing lock timeout: %v", err)
+		}
+		writeErr := run(postgresrepositories.New(writer))
+		var databaseError *pgconn.PgError
+		if !errors.As(writeErr, &databaseError) || databaseError.Code != "55P03" {
+			t.Fatalf("competing identity mutation error = %v, want lock timeout", writeErr)
+		}
+	}
+	assertLockedWrite(t, func(repositories app.Repositories) error {
+		changed := provider
+		changed.TrustMaterialUpdatedAt = &now
+		return repositories.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, provider, changed)
+	})
+	assertLockedWrite(t, func(repositories app.Repositories) error {
+		return repositories.Identity.InsertRoleBinding(ctx, domain.RoleBinding{ID: "rb_sso_snapshot_added", TenantID: tenant.ID, SubjectType: "user", SubjectID: user.ID, Role: "release_manager", ResourceType: "tenant", ResourceID: tenant.ID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: now})
+	})
+	if err := validation.Rollback(ctx); err != nil {
+		t.Fatalf("rollback validation transaction: %v", err)
+	}
+
+	absenceValidation, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin absence validation transaction: %v", err)
+	}
+	absentSnapshot := app.SSOExchangeSnapshot{Provider: provider, Subject: "subject-absent"}
+	if err := postgresrepositories.New(absenceValidation).Identity.ValidateSSOExchangeState(ctx, absentSnapshot); err != nil {
+		_ = absenceValidation.Rollback(context.Background())
+		t.Fatalf("validate absent link snapshot: %v", err)
+	}
+	assertLockedWrite(t, func(repositories app.Repositories) error {
+		newLink := link
+		newLink.ID = "link_sso_snapshot_absent"
+		newLink.Subject = absentSnapshot.Subject
+		return repositories.Identity.InsertUserIdentityLink(ctx, newLink)
+	})
+	if err := absenceValidation.Rollback(ctx); err != nil {
+		t.Fatalf("rollback absence validation transaction: %v", err)
+	}
+
+	mutate, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin grant mutation transaction: %v", err)
+	}
+	if err := postgresrepositories.New(mutate).Identity.InsertRoleBinding(ctx, domain.RoleBinding{ID: "rb_sso_snapshot_committed", TenantID: tenant.ID, SubjectType: "user", SubjectID: user.ID, Role: "release_manager", ResourceType: "tenant", ResourceID: tenant.ID, SchemaVersion: domain.RoleBindingSchemaVersion, CreatedAt: now}); err != nil {
+		_ = mutate.Rollback(context.Background())
+		t.Fatalf("insert committed grant: %v", err)
+	}
+	if err := mutate.Commit(ctx); err != nil {
+		t.Fatalf("commit grant mutation: %v", err)
+	}
+
+	stale, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin stale validation transaction: %v", err)
+	}
+	defer func() { _ = stale.Rollback(context.Background()) }()
+	if err := postgresrepositories.New(stale).Identity.ValidateSSOExchangeState(ctx, snapshot); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale grant snapshot error = %v, want conflict", err)
+	}
+	if err := postgresrepositories.New(stale).Identity.ValidateSSOExchangeState(ctx, app.SSOExchangeSnapshot{}); !errors.Is(err, app.ErrValidation) {
+		t.Fatalf("invalid exchange snapshot error = %v, want validation", err)
+	}
+}
+
+func TestIdentityRepositoryRejectsStaleSSOTrustMaterialUpdate(t *testing.T) {
+	ctx, pool := openRepositoryTestPool(t)
+	defer pool.Close()
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	repositories := postgresrepositories.New(tx)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	tenant := domain.Tenant{ID: "ten_sso_cas", Name: "SSO CAS", CreatedAt: now}
+	if err := repositories.Identity.InsertTenant(ctx, tenant); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	expected := domain.SSOProvider{
+		ID: "sso_cas", TenantID: tenant.ID, Name: "OIDC", Type: "oidc",
+		Issuer: "https://cas-idp.example.test", ClientID: "cas-client",
+		JWKS:   map[string]any{"keys": []any{map[string]any{"kid": "initial"}}},
+		Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: now,
+	}
+	if err := repositories.Identity.InsertSSOProvider(ctx, expected); err != nil {
+		t.Fatalf("insert SSO provider: %v", err)
+	}
+	committed := expected
+	committedAt := now.Add(time.Minute)
+	committed.JWKS = map[string]any{"keys": []any{map[string]any{"kid": "committed"}}}
+	committed.TrustMaterialUpdatedAt = &committedAt
+	if err := repositories.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, expected, committed); err != nil {
+		t.Fatalf("first trust material update: %v", err)
+	}
+	stale := expected
+	staleAt := now.Add(2 * time.Minute)
+	stale.JWKS = map[string]any{"keys": []any{map[string]any{"kid": "stale"}}}
+	stale.TrustMaterialUpdatedAt = &staleAt
+	if err := repositories.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, expected, stale); !errors.Is(err, app.ErrConflict) {
+		t.Fatalf("stale trust material update err=%v, want conflict", err)
+	}
+	var kid string
+	var updatedAt time.Time
+	if err := tx.QueryRow(ctx, `SELECT jwks -> 'keys' -> 0 ->> 'kid', trust_material_updated_at FROM sso_providers WHERE id = $1 AND tenant_id = $2`, expected.ID, tenant.ID).Scan(&kid, &updatedAt); err != nil {
+		t.Fatalf("read SSO provider trust material: %v", err)
+	}
+	if kid != "committed" || !updatedAt.Equal(committedAt) {
+		t.Fatalf("stored trust material kid=%q updated_at=%s", kid, updatedAt)
 	}
 }
 
@@ -1125,7 +1504,8 @@ func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
 			return repositories.Identity.InsertSSOProvider(ctx, domain.SSOProvider{ID: "sso_closed", TenantID: tenantID, Name: "Closed", Type: "oidc", Issuer: "https://closed.example.test", ClientID: "closed", Status: "active", SchemaVersion: domain.SSOProviderSchemaVersion, CreatedAt: now})
 		}},
 		{"SSO trust material", func() error {
-			return repositories.Identity.UpdateSSOProviderTrustMaterial(ctx, domain.SSOProvider{ID: "sso_closed", TenantID: tenantID, Type: "oidc", TrustMaterialUpdatedAt: &now})
+			provider := domain.SSOProvider{ID: "sso_closed", TenantID: tenantID, Type: "oidc", TrustMaterialUpdatedAt: &now}
+			return repositories.Identity.CompareAndSwapSSOProviderTrustMaterial(ctx, provider, provider)
 		}},
 		{"identity link", func() error {
 			return repositories.Identity.InsertUserIdentityLink(ctx, domain.UserIdentityLink{ID: "link_closed", TenantID: tenantID, UserID: "usr_closed", ProviderID: "sso_closed", Subject: "closed", Email: "closed@example.test", Verified: true, SchemaVersion: "user-identity-link.v1.0.0", CreatedAt: now})
@@ -1198,7 +1578,7 @@ func TestRepositoriesPropagateClosedTransactionFailures(t *testing.T) {
 		}},
 		{"candidate", func() error { return repositories.ReleaseCatalog.InsertReleaseCandidate(ctx, candidate) }},
 		{"candidate state", func() error { return repositories.ReleaseCatalog.UpdateReleaseCandidateState(ctx, candidate, "open") }},
-		{"evidence links", func() error { return repositories.Evidence.UpdateEvidenceLinks(ctx, evidence) }},
+		{"evidence links", func() error { return repositories.Evidence.CompareAndSwapEvidenceLinks(ctx, evidence, evidence) }},
 		{"evidence supersession", func() error {
 			replacement := evidence
 			replacement.ID, evidence.SupersededBy, replacement.Supersedes = "evi_closed_replacement", replacement.ID, evidence.ID

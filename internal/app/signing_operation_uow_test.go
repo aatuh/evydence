@@ -18,6 +18,7 @@ func TestSigningOperationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T)
 	ctx := context.Background()
 	memory := NewMemoryUnitOfWorkFactory()
 	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	ledger.signer = &fakeSigningExecutor{}
 	product, err := ledger.CreateProduct(ctx, actor, "Payments", "payments")
 	if err != nil {
 		t.Fatalf("create product: %v", err)
@@ -32,7 +33,7 @@ func TestSigningOperationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T)
 	}
 
 	chainEntriesBefore := len(ledger.chain[actor.TenantID])
-	op, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload"), ExternalSignature: "provider-receipt"})
+	op, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("payload")})
 	if err != nil {
 		t.Fatalf("create signing operation: %v", err)
 	}
@@ -45,7 +46,7 @@ func TestSigningOperationUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T)
 		return repositories
 	}}
 	beforeSignatures, beforeOperations, beforeChain := len(ledger.signatures), len(ledger.signingOperations), len(ledger.chain[actor.TenantID])
-	if _, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("failed"), ExternalSignature: "failed-receipt"}); !errors.Is(err, errInjectedRepositoryFailure) {
+	if _, err := ledger.CreateSigningOperation(ctx, actor, CreateSigningOperationInput{ProviderID: provider.ID, SubjectType: "release", SubjectID: release.ID, PayloadHash: sampleDigest("failed")}); !errors.Is(err, errInjectedRepositoryFailure) {
 		t.Fatalf("failed signing operation err=%v, want injected repository failure", err)
 	}
 	if len(ledger.signatures) != beforeSignatures || len(ledger.signingOperations) != beforeOperations || len(ledger.chain[actor.TenantID]) != beforeChain {

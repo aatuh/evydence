@@ -13,6 +13,20 @@ api:
   replicas: 1
   writerMode: single
   addr: ":8080"
+  readHeaderTimeoutSeconds: 5
+  readTimeoutSeconds: 30
+  writeTimeoutSeconds: 60
+  idleTimeoutSeconds: 120
+  shutdownTimeoutSeconds: 30
+  maxHeaderBytes: 16384
+  maxURLBytes: 8192
+  maxInFlightRequests: 256
+  maxConcurrentUploads: 8
+  rateLimitRequestsPerMinute: 120
+  expensiveTenantRequestsPerMinute: 30
+  rateLimitBucketCapacity: 10000
+  # Set only to CIDRs of proxies that append and sanitize X-Forwarded-For.
+  trustedProxyCIDRs: ""
   resources:
     requests:
       cpu: 100m

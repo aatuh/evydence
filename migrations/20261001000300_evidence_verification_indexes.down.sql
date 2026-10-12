@@ -1,0 +1,5 @@
+DROP INDEX IF EXISTS build_attestations_tenant_evidence_id_idx;
+DROP INDEX IF EXISTS vex_documents_tenant_evidence_id_idx;
+DROP INDEX IF EXISTS openapi_contracts_tenant_evidence_id_idx;
+DROP INDEX IF EXISTS vulnerability_scans_tenant_evidence_id_idx;
+DROP INDEX IF EXISTS sboms_tenant_evidence_id_idx;

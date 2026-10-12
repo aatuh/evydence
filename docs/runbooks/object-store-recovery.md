@@ -31,26 +31,35 @@ regional availability.
 
 ## Recovery Procedure
 
-1. Restore the object-store bucket or tenant prefix from the backup matching
-   the PostgreSQL restore point.
-2. If the database was also restored, apply migrations for the Evydence release
-   being recovered.
-3. Start one API writer and the required worker replicas.
-4. Verify `/v1/ready`.
-5. Verify the latest backup manifest and representative release bundles,
-   evidence payload hashes, readiness reports, and customer packages.
+1. Select the database backup and object-store backup that belong to the same
+   paired generation. Before starting Evydence, verify the recorded pair with
+   `scripts/paired_backup_manifest.py verify`. A database-newer, objects-newer,
+   release, migration, manifest, or inventory mismatch is a stop condition.
+2. Restore the object-store bucket or tenant prefix and PostgreSQL database into
+   clean recovery targets. Do not combine generations to fill missing objects.
+3. Verify that the restored database has no pending migrations for the release
+   recorded by the paired manifest.
+4. Start one API writer and the required worker replicas.
+5. Verify `/v1/ready`, the application backup checkpoint, representative
+   release bundles, evidence payload hashes, readiness reports, and customer
+   packages.
 6. Resume worker jobs only after digest checks pass for the affected payloads.
-7. Record object-store backup ID, database backup ID, restored prefixes,
-   verification results, failed objects, and limitations.
+7. Record the paired generation ID, object-store backup ID, database backup ID,
+   restored prefixes, verification results, failed objects, and limitations.
 
 ## Payload Reconciliation
 
-Run reconciliation after a restore, an object-store incident, a provider
-migration, or an unexpected payload verification failure. It checks one tenant
-at a time. PostgreSQL payload metadata is checked with direct object reads;
-provider listing is used only to report candidate provider objects without a
-database owner. A listing omission is never treated as proof that a final or
-staged object is missing.
+Reconciliation begins only after backup-generation preflight has selected a
+matching trusted database/object pair. It must not be used to merge an older
+object backup with a newer database backup, or the reverse. If paired preflight
+fails, keep normal startup stopped and select another trusted generation.
+
+Run reconciliation after a verified restore, an object-store incident, a
+provider migration, or an unexpected payload verification failure. It checks one
+tenant at a time. PostgreSQL payload metadata is checked with direct object
+reads; provider listing is used only to report candidate provider objects
+without a database owner. A listing omission is never treated as proof that a
+final or staged object is missing.
 
 Set the normal worker database and object-store environment first, then start
 with the non-mutating command:
@@ -130,10 +139,13 @@ satisfied.
 
 ## Repository-Owned Checks
 
-Use the local rehearsal for non-sensitive restore mechanics:
+Use the live paired rehearsal for non-sensitive restore mechanics. It requires
+`EVYDENCE_TEST_DATABASE_URL`, `pg_dump`, and `pg_restore` and has no memory
+fallback:
 
 ```sh
-make restore-rehearsal-check
+EVYDENCE_TEST_DATABASE_URL='postgres://...' sh scripts/restore_rehearsal.sh
+EVYDENCE_TEST_DATABASE_URL='postgres://...' make restore-rehearsal-check
 ```
 
 Use package verification for customer package fixtures or exports:
@@ -164,7 +176,7 @@ the limitation in customer-facing reports.
 - Database backup identifier and restore timestamp.
 - Object-store backup identifier, bucket, prefix, and restore timestamp.
 - Evydence release tag, commit, OpenAPI checksum, and migration checksum.
-- Backup manifest and verification output.
+- Application backup manifest plus paired-generation manifest and verification output.
 - List of affected object refs or evidence IDs, sanitized for sharing.
 - Package, bundle, readiness, and audit-chain verification results.
 - Operator notes about provider-side IAM, encryption, lifecycle, object lock,

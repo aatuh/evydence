@@ -1,0 +1,68 @@
+// Package query owns bounded, authorized operations read services.
+package query
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/aatuh/evydence/internal/authz"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
+)
+
+var (
+	ErrValidation = errors.New("invalid deployment query")
+	ErrNotFound   = errors.New("deployment not found")
+)
+
+// DeploymentPoint contains one deployment and the product verified through its
+// tenant-owned release and environment in the same database statement.
+type DeploymentPoint struct {
+	Deployment operationsdomain.DeploymentEvent
+	ProductID  string
+}
+
+type DeploymentPointReader interface {
+	GetDeploymentPoint(context.Context, string, string) (DeploymentPoint, error)
+}
+
+type DeploymentPoints struct {
+	reader DeploymentPointReader
+}
+
+func NewDeploymentPoints(reader DeploymentPointReader) (*DeploymentPoints, error) {
+	if reader == nil {
+		return nil, ErrValidation
+	}
+	return &DeploymentPoints{reader: reader}, nil
+}
+
+func (s *DeploymentPoints) GetDeployment(ctx context.Context, actor identitydomain.Actor, id string) (operationsdomain.DeploymentEvent, error) {
+	if s == nil || ctx == nil || strings.TrimSpace(actor.TenantID) == "" {
+		return operationsdomain.DeploymentEvent{}, ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return operationsdomain.DeploymentEvent{}, err
+	}
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionDeploymentsRead, Evaluation: authz.ScopeEvaluation}); err != nil {
+		return operationsdomain.DeploymentEvent{}, err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return operationsdomain.DeploymentEvent{}, ErrNotFound
+	}
+	point, err := s.reader.GetDeploymentPoint(ctx, actor.TenantID, id)
+	if err != nil {
+		return operationsdomain.DeploymentEvent{}, err
+	}
+	deployment := point.Deployment
+	if deployment.ID != id || deployment.TenantID != actor.TenantID ||
+		strings.TrimSpace(point.ProductID) == "" || strings.TrimSpace(deployment.ReleaseID) == "" || strings.TrimSpace(deployment.EnvironmentID) == "" {
+		return operationsdomain.DeploymentEvent{}, ErrNotFound
+	}
+	if err := authz.Authorize(ctx, actor, authz.Request{Action: authz.ActionDeploymentsRead, Resources: authz.ResourceReferences{TenantID: deployment.TenantID, ProductID: point.ProductID, ReleaseID: deployment.ReleaseID, EnvironmentID: deployment.EnvironmentID, DeploymentID: deployment.ID}}); err != nil {
+		return operationsdomain.DeploymentEvent{}, err
+	}
+	return deployment, nil
+}

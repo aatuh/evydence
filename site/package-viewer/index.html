@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-evydence-package-viewer-v1'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Evydence Package Viewer</title>
   <style>
     :root {
@@ -326,7 +327,13 @@
     </div>
   </main>
 
-  <script>
+  <script nonce="evydence-package-viewer-v1">
+    const maxPackageFileBytes = 8 * 1024 * 1024;
+    const maxJSONDepth = 32;
+    const maxJSONObjectKeys = 256;
+    const maxJSONArrayItems = 1024;
+    const maxJSONStringCharacters = 16 * 1024;
+    const maxRawDisplayCharacters = 512 * 1024;
     const fileInput = document.getElementById("file");
     const demoButton = document.getElementById("demo");
     const statusNode = document.getElementById("status");
@@ -429,6 +436,36 @@
 
     const safeArray = (value) => Array.isArray(value) ? value : [];
     const safeObject = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const validatePackageJSON = (value) => {
+      const values = [{ value, depth: 0 }];
+      while (values.length) {
+        const current = values.pop();
+        if (typeof current.value === "string") {
+          if (current.value.length > maxJSONStringCharacters) {
+            throw new Error("JSON string exceeds the viewer safety limit");
+          }
+          continue;
+        }
+        if (!current.value || typeof current.value !== "object") {
+          continue;
+        }
+        if (current.depth >= maxJSONDepth) {
+          throw new Error("JSON nesting exceeds the viewer safety limit");
+        }
+        if (Array.isArray(current.value)) {
+          if (current.value.length > maxJSONArrayItems) {
+            throw new Error("JSON array exceeds the viewer safety limit");
+          }
+          current.value.forEach((nested) => values.push({ value: nested, depth: current.depth + 1 }));
+          continue;
+        }
+        const keys = Object.keys(current.value);
+        if (keys.length > maxJSONObjectKeys || keys.some((key) => key.length > maxJSONStringCharacters)) {
+          throw new Error("JSON object exceeds the viewer safety limit");
+        }
+        keys.forEach((key) => values.push({ value: current.value[key], depth: current.depth + 1 }));
+      }
+    };
     const text = (value, fallback = "not present") => {
       if (value === undefined || value === null || value === "") {
         return fallback;
@@ -954,7 +991,10 @@
     const renderRaw = (parsed) => {
       sectionHead(nodes.raw, "Raw JSON");
       const pre = document.createElement("pre");
-      pre.textContent = JSON.stringify(parsed, null, 2);
+      const raw = JSON.stringify(parsed, null, 2);
+      pre.textContent = raw.length > maxRawDisplayCharacters
+        ? "Raw JSON omitted because its rendered form exceeds the viewer display limit."
+        : raw;
       nodes.raw.append(pre);
     };
 
@@ -984,7 +1024,12 @@
         return;
       }
       try {
-        renderPackage(JSON.parse(await file.text()), file.name);
+        if (file.size > maxPackageFileBytes) {
+          throw new Error("Selected package exceeds the viewer file-size limit");
+        }
+        const parsed = JSON.parse(await file.text());
+        validatePackageJSON(parsed);
+        renderPackage(parsed, file.name);
       } catch (error) {
         statusNode.textContent = "Could not parse JSON";
         summaryNode.replaceChildren();
@@ -994,9 +1039,11 @@
     });
 
     demoButton.addEventListener("click", () => {
+      validatePackageJSON(bundledDemo);
       renderPackage(bundledDemo, "bundled-demo-customer-package.json");
     });
 
+    validatePackageJSON(bundledDemo);
     renderPackage(bundledDemo, "bundled-demo-customer-package.json");
   </script>
 </body>

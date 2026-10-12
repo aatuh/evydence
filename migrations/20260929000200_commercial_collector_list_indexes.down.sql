@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS commercial_collectors_tenant_id_idx;
+DROP INDEX IF EXISTS commercial_collectors_tenant_created_id_idx;

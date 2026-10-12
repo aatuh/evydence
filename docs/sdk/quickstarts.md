@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -63,23 +64,26 @@ func main() {
 }
 ```
 
-For Problem Details bodies, use a generated client or a custom HTTP call. The
-lightweight Go wrapper currently returns an error with the HTTP status code
-only:
+The Go wrapper returns a typed `*evydence.ProblemError` for non-2xx API
+responses. Switch on the generated `Problem.Code` instead of parsing an error
+message:
 
 ```go
-type Problem struct {
-	Code      string `json:"code"`
-	RequestID string `json:"request_id"`
-	Status    int    `json:"status"`
-	Title     string `json:"title"`
+var problem *evydence.ProblemError
+if errors.As(err, &problem) {
+	switch problem.Problem.Code {
+	case evydence.ErrorCodeRateLimited:
+		// respect problem.Problem.RetryAfterSeconds
+	case evydence.ErrorCodeValidationFailed:
+		// inspect safe problem.Problem.Violations
+	}
 }
 ```
 
 ## TypeScript
 
 ```ts
-import { EvydenceClient } from "../../sdk/typescript/client";
+import { EvydenceClient, EvydenceProblemError } from "../../sdk/typescript/client";
 
 const client = new EvydenceClient({
   baseUrl: process.env.EVYDENCE_URL ?? "http://localhost:8080",
@@ -100,24 +104,16 @@ const readiness = await client.releaseReadiness<{ data: unknown }>(release.data.
 console.log(readiness.data);
 ```
 
-Use direct `fetch` or a generated client when you need RFC 9457 Problem Details
-fields such as `code`, `request_id`, and `status`:
+The TypeScript wrapper rejects with `EvydenceProblemError`, whose `problem`
+field has generated error-code and retry-class unions:
 
 ```ts
-type Problem = { code?: string; request_id?: string; status?: number; title?: string };
-
-const response = await fetch(`${process.env.EVYDENCE_URL}/v1/products`, {
-  method: "POST",
-  headers: {
-    "Authorization": `Bearer ${process.env.EVYDENCE_API_KEY}`,
-    "Idempotency-Key": "quickstart-typescript-product-v1",
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ name: "Quickstart API", slug: "quickstart-api" }),
-});
-if (!response.ok) {
-  const problem = await response.json() as Problem;
-  throw new Error(`Evydence ${problem.code ?? response.status}: ${problem.request_id ?? "no-request-id"}`);
+try {
+  await client.createProduct("quickstart-typescript-product-v1", { name: "Quickstart API", slug: "quickstart-api" });
+} catch (error) {
+  if (error instanceof EvydenceProblemError && error.problem.code === "RATE_LIMITED") {
+    // respect error.problem.retry_after_seconds
+  }
 }
 ```
 
@@ -126,7 +122,8 @@ if (!response.ok) {
 ```python
 import os
 
-from evydence_client import EvydenceClient
+from error_codes import ErrorCode
+from evydence_client import EvydenceClient, EvydenceProblemError
 
 
 client = EvydenceClient(
@@ -145,9 +142,17 @@ release = client.create_release(
 print(client.release_readiness(release["data"]["id"])["data"])
 ```
 
-Use a direct `urllib.request` call or a generated client when you need Problem
-Details response bodies. The lightweight Python wrapper raises `RuntimeError`
-with the HTTP status code only.
+The Python wrapper raises `EvydenceProblemError` with a generated `ErrorCode`
+enum and safe Problem Details fields:
+
+```python
+try:
+    client.create_product("quickstart-python-product-v1", {"name": "Quickstart API", "slug": "quickstart-api"})
+except EvydenceProblemError as error:
+    if error.problem.code is ErrorCode.RATE_LIMITED:
+        # respect error.problem.retry_after_seconds
+        pass
+```
 
 ## Idempotency
 
@@ -192,8 +197,7 @@ or treat scanner results as authoritative.
   [`sdk/openapi-route-catalog.json`](../../sdk/openapi-route-catalog.json) and
   [`openapi.yaml`](../../openapi.yaml) for generated clients that need all
   routes.
-- Wrapper error values intentionally avoid including response bodies to reduce
-  accidental leakage. Use a generated or custom client when you need Problem
-  Details fields.
+- Wrapper error values expose only typed, documented Problem Details fields;
+  they never include arbitrary response bodies.
 - Binary downloads, package archive verification, evidence bundle verification,
   and release manifest verification remain CLI/offline-verifier workflows.

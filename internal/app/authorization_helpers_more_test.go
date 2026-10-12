@@ -9,7 +9,7 @@ import (
 
 func TestEnterpriseGovernanceAndFutureHelperBranches(t *testing.T) {
 	now := fixedNow()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ledger.mu.Lock()
 	ledger.tenants["ten_1"] = domain.Tenant{ID: "ten_1", CreatedAt: now}
 	ledger.products["prod_1"] = domain.Product{ID: "prod_1", TenantID: "ten_1", CreatedAt: now}

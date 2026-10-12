@@ -1,0 +1,299 @@
+            "other": "Any other type of data that does not fit into existing definitions."
+          }
+        },
+        "name": {
+          "title": "Dataset Name",
+          "description": "The name of the dataset.",
+          "type": "string"
+        },
+        "contents": {
+          "type": "object",
+          "title": "Data Contents",
+          "description": "The contents or references to the contents of the data being described.",
+          "additionalProperties": false,
+          "properties": {
+            "attachment": {
+              "title": "Data Attachment",
+              "description": "An optional way to include textual or encoded data.",
+              "$ref": "#/definitions/attachment"
+            },
+            "url": {
+              "type": "string",
+              "title": "Data URL",
+              "description": "The URL to where the data can be retrieved.",
+              "format": "iri-reference"
+            },
+            "properties": {
+              "type": "array",
+              "title": "Configuration Properties",
+              "description": "Provides the ability to document name-value parameters used for configuration.",
+              "items": {
+                "$ref": "#/definitions/property"
+              }
+            }
+          }
+        },
+        "classification": {
+          "$ref": "#/definitions/dataClassification"
+        },
+        "sensitiveData": {
+          "type": "array",
+          "title": "Sensitive Data",
+          "description": "A description of any sensitive data in a dataset.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "graphics": { "$ref": "#/definitions/graphicsCollection" },
+        "description": {
+          "title": "Dataset Description",
+          "description": "A description of the dataset. Can describe size of dataset, whether it's used for source code, training, testing, or validation, etc.",
+          "type": "string"
+        },
+        "governance": {
+          "title": "Data Governance",
+          "$ref": "#/definitions/dataGovernance"
+        }
+      }
+    },
+    "dataGovernance": {
+      "type": "object",
+      "title": "Data Governance",
+      "description": "Data governance captures information regarding data ownership, stewardship, and custodianship, providing insights into the individuals or entities responsible for managing, overseeing, and safeguarding the data throughout its lifecycle.",
+      "additionalProperties": false,
+      "properties": {
+        "custodians": {
+          "type": "array",
+          "title": "Data Custodians",
+          "description": "Data custodians are responsible for the safe custody, transport, and storage of data.",
+          "items": { "$ref": "#/definitions/dataGovernanceResponsibleParty" }
+        },
+        "stewards": {
+          "type": "array",
+          "title": "Data Stewards",
+          "description": "Data stewards are responsible for data content, context, and associated business rules.",
+          "items": { "$ref": "#/definitions/dataGovernanceResponsibleParty" }
+        },
+        "owners": {
+          "type": "array",
+          "title": "Data Owners",
+          "description": "Data owners are concerned with risk and appropriate access to data.",
+          "items": { "$ref": "#/definitions/dataGovernanceResponsibleParty" }
+        }
+      }
+    },
+    "dataGovernanceResponsibleParty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "organization": {
+          "title": "Organization",
+          "description": "The organization that is responsible for specific data governance role(s).",
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "contact": {
+          "title": "Individual",
+          "description": "The individual that is responsible for specific data governance role(s).",
+          "$ref": "#/definitions/organizationalContact"
+        }
+      },
+      "oneOf":[
+        {
+          "required": ["organization"]
+        },
+        {
+          "required": ["contact"]
+        }
+      ]
+    },
+    "graphicsCollection": {
+      "type": "object",
+      "title": "Graphics Collection",
+      "description": "A collection of graphics that represent various measurements.",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "description": "A description of this collection of graphics.",
+          "type": "string"
+        },
+        "collection": {
+          "title": "Collection",
+          "description": "A collection of graphics.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/graphic" }
+        }
+      }
+    },
+    "graphic": {
+      "type": "object",
+      "title": "Graphic",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "description": "The name of the graphic.",
+          "type": "string"
+        },
+        "image": {
+          "title": "Graphic Image",
+          "description": "The graphic (vector or raster). Base64 encoding must be specified for binary images.",
+          "$ref": "#/definitions/attachment"
+        }
+      }
+    },
+    "performanceMetric": {
+      "type": "object",
+      "title": "Performance Metric",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "title": "Type",
+          "description": "The type of performance metric.",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "description": "The value of the performance metric.",
+          "type": "string"
+        },
+        "slice": {
+          "title": "Slice",
+          "description": "The name of the slice this metric was computed on. By default, assume this metric is not sliced.",
+          "type": "string"
+        },
+        "confidenceInterval": {
+          "title": "Confidence Interval",
+          "description": "The confidence interval of the metric.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "lowerBound": {
+              "title": "Lower Bound",
+              "description": "The lower bound of the confidence interval.",
+              "type": "string"
+            },
+            "upperBound": {
+              "title": "Upper Bound",
+              "description": "The upper bound of the confidence interval.",
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "title": "Risk",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "description": "The name of the risk.",
+          "type": "string"
+        },
+        "mitigationStrategy": {
+          "title": "Mitigation Strategy",
+          "description": "Strategy used to address this risk.",
+          "type": "string"
+        }
+      }
+    },
+    "fairnessAssessment": {
+      "type": "object",
+      "title": "Fairness Assessment",
+      "description": "Information about the benefits and harms of the model to an identified at risk group.",
+      "additionalProperties": false,
+      "properties": {
+        "groupAtRisk": {
+          "type": "string",
+          "title": "Group at Risk",
+          "description": "The groups or individuals at risk of being systematically disadvantaged by the model."
+        },
+        "benefits": {
+          "type": "string",
+          "title": "Benefits",
+          "description": "Expected benefits to the identified groups."
+        },
+        "harms": {
+          "type": "string",
+          "title": "Harms",
+          "description": "Expected harms to the identified groups."
+        },
+        "mitigationStrategy": {
+          "type": "string",
+          "title": "Mitigation Strategy",
+          "description": "With respect to the benefits and harms outlined, please describe any mitigation strategy implemented."
+        }
+      }
+    },
+    "dataClassification": {
+      "type": "string",
+      "title": "Data Classification",
+      "description": "Data classification tags data according to its type, sensitivity, and value if altered, stolen, or destroyed."
+    },
+    "environmentalConsiderations": {
+      "type": "object",
+      "title": "Environmental Considerations",
+      "description": "Describes various environmental impact metrics.",
+      "additionalProperties": false,
+      "properties": {
+        "energyConsumptions": {
+          "title": "Energy Consumptions",
+          "description": "Describes energy consumption information incurred for one or more component lifecycle activities.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/energyConsumption"
+          }
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {
+            "$ref": "#/definitions/property"
+          }
+        }
+      }
+    },
+    "energyConsumption": {
+      "title": "Energy consumption",
+      "description": "Describes energy consumption information incurred for the specified lifecycle activity.",
+      "type": "object",
+      "required": [
+        "activity",
+        "energyProviders",
+        "activityEnergyCost"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "activity": {
+          "type": "string",
+          "title": "Activity",
+          "description": "The type of activity that is part of a machine learning model development or operational lifecycle.",
+          "enum": [
+            "design",
+            "data-collection",
+            "data-preparation",
+            "training",
+            "fine-tuning",
+            "validation",
+            "deployment",
+            "inference",
+            "other"
+          ],
+          "meta:enum": {
+            "design": "A model design including problem framing, goal definition and algorithm selection.",
+            "data-collection": "Model data acquisition including search, selection and transfer.",
+            "data-preparation": "Model data preparation including data cleaning, labeling and conversion.",
+            "training": "Model building, training and generalized tuning.",
+            "fine-tuning": "Refining a trained model to produce desired outputs for a given problem space.",
+            "validation": "Model validation including model output evaluation and testing.",
+            "deployment": "Explicit model deployment to a target hosting infrastructure.",
+            "inference": "Generating an output response from a hosted model from a set of inputs.",
+            "other": "A lifecycle activity type whose description does not match currently defined values."
+          }
+        },
+        "energyProviders": {
+          "title": "Energy Providers",
+          "description": "The provider(s) of the energy consumed by the associated model development lifecycle activity.",

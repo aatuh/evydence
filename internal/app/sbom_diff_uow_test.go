@@ -30,11 +30,11 @@ func TestSBOMDiffUsesUnitOfWorkAndPublishesOnlyAfterCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register artifact: %v", err)
 	}
-	base, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"base","version":"1"}]}`))
+	base, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"base","version":"1"}]}`))
 	if err != nil {
 		t.Fatalf("upload base SBOM: %v", err)
 	}
-	target, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"target","version":"1"}]}`))
+	target, err := ledger.UploadSBOM(ctx, actor, release.ID, artifact.ID, []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"target","version":"1"}]}`))
 	if err != nil {
 		t.Fatalf("upload target SBOM: %v", err)
 	}

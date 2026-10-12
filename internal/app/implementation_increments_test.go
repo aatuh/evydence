@@ -10,7 +10,7 @@ import (
 )
 
 func TestEvidenceSearchAndLifecycleEventsAreTenantScopedAppendOnly(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actorA, releaseA, _ := setupReleaseRiskFixture(t, ledger)
 	_, _, secretB, err := ledger.BootstrapTenant(ctx, "Tenant B", "admin-b", []string{"*"})
@@ -68,7 +68,7 @@ func TestEvidenceSearchAndLifecycleEventsAreTenantScopedAppendOnly(t *testing.T)
 }
 
 func TestReleaseCandidateContainerImageAndArtifactSignature(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	candidate, err := ledger.CreateReleaseCandidate(ctx, actor, CreateReleaseCandidateInput{
@@ -128,7 +128,7 @@ func TestReleaseCandidateContainerImageAndArtifactSignature(t *testing.T) {
 }
 
 func TestSourceCollectorsAndBuildProviders(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	project, err := ledger.CreateProject(ctx, actor, release.ProductID, "api")
@@ -180,7 +180,7 @@ func TestSourceCollectorsAndBuildProviders(t *testing.T) {
 }
 
 func TestDeploymentEvidenceIsTenantScopedAndAppendOnly(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	ctx := context.Background()
 	actor, release, artifact := setupReleaseRiskFixture(t, ledger)
 	env, err := ledger.CreateDeploymentEnvironment(ctx, actor, CreateEnvironmentInput{ProductID: release.ProductID, Name: "production", Kind: "production"})

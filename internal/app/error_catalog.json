@@ -1,0 +1,18 @@
+[
+  {"code":"VALIDATION_FAILED","status":400,"detail":"validation failed","retryable":false,"retry_class":"none"},
+  {"code":"UNAUTHORIZED","status":401,"detail":"unauthorized","retryable":false,"retry_class":"none"},
+  {"code":"FORBIDDEN","status":403,"detail":"forbidden","retryable":false,"retry_class":"none"},
+  {"code":"NOT_FOUND","status":404,"detail":"not found","retryable":false,"retry_class":"none"},
+  {"code":"VERSION_CONFLICT","status":409,"detail":"resource revision conflict","retryable":true,"retry_class":"refresh_and_retry"},
+  {"code":"CONFLICT","status":409,"detail":"conflict","retryable":false,"retry_class":"none"},
+  {"code":"EVIDENCE_IMMUTABLE","status":409,"detail":"immutable resource","retryable":false,"retry_class":"none"},
+  {"code":"IDEMPOTENCY_KEY_REUSED","status":409,"detail":"idempotency key reused with different request","retryable":false,"retry_class":"none"},
+  {"code":"IDEMPOTENCY_IN_PROGRESS","status":409,"detail":"idempotency request is in progress","retryable":true,"retry_class":"idempotency_in_progress","retry_after_seconds":1},
+  {"code":"IDEMPOTENCY_REQUEST_FAILED","status":409,"detail":"idempotency request previously failed","retryable":false,"retry_class":"none"},
+  {"code":"COSIGN_FULL_VERIFICATION_UNAVAILABLE","status":422,"detail":"full cosign verification is unavailable because no verifier or trust policy is configured","retryable":false,"retry_class":"dependency_unavailable"},
+  {"code":"VERIFICATION_FAILED","status":422,"detail":"verification failed","retryable":false,"retry_class":"none"},
+  {"code":"RATE_LIMITED","status":429,"detail":"rate limited","retryable":true,"retry_class":"rate_limited","retry_after_seconds":60},
+  {"code":"SIGNING_PROVIDER_UNAVAILABLE","status":503,"detail":"signing provider temporarily unavailable","retryable":true,"retry_class":"transient_provider","retry_after_seconds":5},
+  {"code":"DEPENDENCY_UNAVAILABLE","status":503,"detail":"dependency temporarily unavailable","retryable":true,"retry_class":"dependency_unavailable","retry_after_seconds":5},
+  {"code":"INTERNAL_ERROR","status":500,"detail":"internal server error","retryable":false,"retry_class":"none"}
+]

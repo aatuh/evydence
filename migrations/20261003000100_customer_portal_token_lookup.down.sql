@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS customer_portal_access_prefix_lookup_idx;

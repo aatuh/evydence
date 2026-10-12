@@ -29,7 +29,7 @@ func TestOutboxOperatorControlsRequireExplicitInstanceAdmin(t *testing.T) {
 		replay:      OutboxReplay{JobID: "job_terminal", Status: "queued", ReplayedAt: fixedNow()},
 		diagnostics: OutboxDiagnostics{PendingJobs: 2, RunningJobs: 1, TerminalJobs: 3, OldestPendingCreatedAt: fixedNow()},
 	}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OutboxAdmin: admin})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, OutboxAdmin: admin})
 	ctx := context.Background()
 	instance := domain.Actor{TenantID: "ten_instance", KeyID: "key_instance", Scopes: []string{ScopeInstanceAdmin}}
 	if _, err := ledger.ReplayTerminalOutboxJob(ctx, domain.Actor{TenantID: "ten_tenant", KeyID: "key_tenant", Scopes: []string{"*"}}, "job_terminal"); !errors.Is(err, ErrForbidden) {

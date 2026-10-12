@@ -1,116 +1,14 @@
 package domain
 
-import "time"
+import (
+	"time"
 
-const (
-	EvidenceItemSchemaVersion         = "evidence-item.v1.0.0"
-	AuditChainEntrySchemaVersion      = "audit-chain-entry.v2.0.0"
-	ReleaseBundleSchemaVersion        = "release-bundle.v1.0.0"
-	ReleaseEvidenceFlowVersion        = "release-evidence-flow.v1.0.0"
-	ReleaseSecuritySummaryVersion     = "release-security-summary.v1.0.0"
-	CanonicalizationProfileVersion    = "canonicalization-profile.v1.0.0"
-	PolicySetVersion                  = "policy-set.v1.0.0"
-	VEXDocumentSchemaVersion          = "vex-document.v1.0.0"
-	VEXImportReportSchemaVersion      = "vex-import-report.v1.0.0"
-	VEXImportPreviewSchemaVersion     = "vex-import-preview.v1.0.0"
-	VulnerabilityDecisionVersion      = "vulnerability-decision.v1.0.0"
-	ReleaseReadinessTemplateVersion   = "release-readiness.v1.0.0"
-	CollectorSchemaVersion            = "collector.v1.0.0"
-	BuildRunSchemaVersion             = "build-run.v1.0.0"
-	BuildAttestationSchemaVersion     = "build-attestation.v1.0.0"
-	ControlFrameworkSchemaVersion     = "control-framework.v1.0.0"
-	SecurityControlSchemaVersion      = "security-control.v1.0.0"
-	ControlEvidenceSchemaVersion      = "control-evidence.v1.0.0"
-	ControlCoverageTemplateVersion    = "control-coverage.v1.0.0"
-	CRAReadinessTemplateVersion       = "cra-readiness.v1.0.0"
-	EvidenceLifecycleSchemaVersion    = "evidence-lifecycle-event.v1.0.0"
-	ReleaseCandidateSchemaVersion     = "release-candidate.v1.0.0"
-	ContainerImageSchemaVersion       = "container-image.v1.0.0"
-	ArtifactSignatureSchemaVersion    = "artifact-signature.v1.0.0"
-	SourceRepositorySchemaVersion     = "source-repository.v1.0.0"
-	SourceCommitSchemaVersion         = "source-commit.v1.0.0"
-	SourceBranchSchemaVersion         = "source-branch.v1.0.0"
-	PullRequestSchemaVersion          = "pull-request.v1.0.0"
-	DeploymentEnvironmentVersion      = "deployment-environment.v1.0.0"
-	DeploymentEventSchemaVersion      = "deployment-event.v1.0.0"
-	IncidentSchemaVersion             = "incident.v1.0.0"
-	IncidentTimelineSchemaVersion     = "incident-timeline-event.v1.0.0"
-	IncidentWebhookReceiverVersion    = "incident-webhook-receiver.v1.0.0"
-	IncidentWebhookEventVersion       = "incident-webhook-event.v1.0.0"
-	RemediationTaskSchemaVersion      = "remediation-task.v1.0.0"
-	SecurityScanSchemaVersion         = "security-scan.v1.0.0"
-	ManualSecurityDocSchemaVersion    = "manual-security-document.v1.0.0"
-	SBOMDiffSchemaVersion             = "sbom-diff.v1.0.0"
-	DependencyChangeSchemaVersion     = "dependency-change.v1.0.0"
-	ContractDiffSchemaVersion         = "contract-diff.v1.0.0"
-	CustomPolicySchemaVersion         = "custom-policy.v1.0.0"
-	CustomPolicyEvalSchemaVersion     = "custom-policy-evaluation.v1.0.0"
-	WaiverSchemaVersion               = "waiver.v1.0.0"
-	ApprovalRecordSchemaVersion       = "approval-record.v1.0.0"
-	RedactionProfileSchemaVersion     = "redaction-profile.v1.0.0"
-	CustomerPackageSchemaVersion      = "customer-security-package.v2.0.0"
-	ReportTemplateSchemaVersion       = "report-template.v1.0.0"
-	EvidenceBundleSchemaVersion       = "evidence-bundle.v1.0.0"
-	EvidenceBundleImportVersion       = "evidence-bundle-import.v1.0.0"
-	DSSETrustRootSchemaVersion        = "dsse-trust-root.v1.0.0"
-	CosignVerificationSchemaVersion   = "cosign-verification.v2.0.0"
-	SigningProviderSchemaVersion      = "signing-provider.v1.0.0"
-	MerkleBatchSchemaVersion          = "merkle-batch.v1.0.0"
-	TransparencyCheckpointVersion     = "transparency-checkpoint.v1.0.0"
-	ObjectRetentionPolicyVersion      = "object-retention-policy.v2.0.0"
-	BackupManifestSchemaVersion       = "backup-manifest.v1.0.0"
-	CollectorReleaseSchemaVersion     = "collector-release.v1.0.0"
-	OrganizationSchemaVersion         = "organization.v1.0.0"
-	HumanUserSchemaVersion            = "human-user.v1.0.0"
-	RoleBindingSchemaVersion          = "role-binding.v1.0.0"
-	SSOProviderSchemaVersion          = "sso-provider.v1.0.0"
-	SSOSessionSchemaVersion           = "sso-session.v1.0.0"
-	LegalHoldSchemaVersion            = "legal-hold.v1.0.0"
-	RetentionOverrideSchemaVersion    = "retention-override.v1.0.0"
-	CustomerPortalAccessVersion       = "customer-portal-access.v1.0.0"
-	QuestionnaireTemplateVersion      = "questionnaire-template.v1.0.0"
-	QuestionnairePackageVersion       = "questionnaire-package.v1.0.0"
-	QuestionnaireAnswerLibraryVersion = "questionnaire-answer-library.v1.0.0"
-	CommercialCollectorVersion        = "commercial-collector.v1.0.0"
-	EvidenceSummaryVersion            = "evidence-summary.v1.0.0"
-	QuestionnaireDraftVersion         = "questionnaire-draft.v1.0.0"
-	EvidenceGraphSnapshotVersion      = "evidence-graph-snapshot.v1.0.0"
-	SaaSEditionProfileVersion         = "saas-edition-profile.v1.0.0"
-	PublicTransparencyLogVersion      = "public-transparency-log.v1.0.0"
-	PublicTransparencyEntryVersion    = "public-transparency-entry.v1.0.0"
-	MarketplaceCollectorVersion       = "marketplace-collector.v1.0.0"
-	PDFReportPackageVersion           = "pdf-report-package.v1.0.0"
-	AnomalyReportVersion              = "anomaly-report.v1.0.0"
-	ProviderVerificationVersion       = "provider-verification.v2.0.0"
-	SigningOperationVersion           = "signing-operation.v1.0.0"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-type Actor struct {
-	TenantID       string
-	KeyID          string
-	UserID         string
-	SessionID      string
-	Name           string
-	Scopes         []string
-	CollectorID    string
-	ResourceGrants []ResourceGrant
-}
+type Actor = identitydomain.Actor
 
-func (a Actor) HasScope(scope string) bool {
-	for _, got := range a.Scopes {
-		if got == scope || got == "*" {
-			return true
-		}
-	}
-	return false
-}
-
-type ResourceGrant struct {
-	Role         string
-	ResourceType string
-	ResourceID   string
-	Scopes       []string
-}
+type ResourceGrant = identitydomain.ResourceGrant
 
 type Tenant struct {
 	ID        string    `json:"id"`
@@ -728,16 +626,38 @@ type AuditChainEntry struct {
 	SchemaVersion      string         `json:"schema_version"`
 }
 
+// SigningKey records public signing-key metadata and its immutable lifecycle
+// facts. Private material is deliberately excluded from JSON serialization.
 type SigningKey struct {
-	ID        string     `json:"id"`
-	TenantID  string     `json:"tenant_id"`
-	KID       string     `json:"kid"`
-	Algorithm string     `json:"algorithm"`
-	Status    string     `json:"status"`
-	PublicKey string     `json:"public_key"`
-	Private   []byte     `json:"-"`
-	CreatedAt time.Time  `json:"created_at"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	ID                       string     `json:"id"`
+	TenantID                 string     `json:"tenant_id"`
+	KID                      string     `json:"kid"`
+	Version                  int        `json:"version"`
+	Provider                 string     `json:"provider"`
+	Algorithm                string     `json:"algorithm"`
+	Status                   string     `json:"status"`
+	PublicKey                string     `json:"public_key"`
+	PublicKeyFingerprint     string     `json:"public_key_fingerprint,omitempty"`
+	Private                  []byte     `json:"-"`
+	ValidFrom                time.Time  `json:"valid_from"`
+	ValidUntil               *time.Time `json:"valid_until,omitempty"`
+	CreatedAt                time.Time  `json:"created_at"`
+	RevokedAt                *time.Time `json:"revoked_at,omitempty"`
+	RevocationReason         string     `json:"revocation_reason,omitempty"`
+	RevocationSemantics      string     `json:"revocation_semantics,omitempty"`
+	HistoricalValidityPolicy string     `json:"historical_validity_policy,omitempty"`
+	CompromisedAt            *time.Time `json:"compromised_at,omitempty"`
+}
+
+// HistoricalValidityAt evaluates a signature timestamp against a recorded key
+// lifecycle. It has no wall-clock dependency: callers provide verificationTime
+// so an evidence package can be re-evaluated deterministically later.
+func (key SigningKey) HistoricalValidityAt(signedAt, verificationTime time.Time) string {
+	contextKey, err := signingKeyToContextModel(key)
+	if err != nil {
+		return SigningKeyHistoricalValidityOutsideWindow
+	}
+	return contextKey.HistoricalValidityAt(signedAt, verificationTime)
 }
 
 type SigningProvider struct {
@@ -764,22 +684,25 @@ type Signature struct {
 }
 
 type CosignVerification struct {
-	ID                  string              `json:"id"`
-	TenantID            string              `json:"tenant_id"`
-	ArtifactID          string              `json:"artifact_id,omitempty"`
-	ContainerImageID    string              `json:"container_image_id,omitempty"`
-	ArtifactSignatureID string              `json:"artifact_signature_id"`
-	SubjectDigest       string              `json:"subject_digest"`
-	RekorUUID           string              `json:"rekor_uuid,omitempty"`
-	RekorLogIndex       string              `json:"rekor_log_index,omitempty"`
-	CertificateIdentity string              `json:"certificate_identity,omitempty"`
-	CertificateIssuer   string              `json:"certificate_issuer,omitempty"`
-	Result              string              `json:"result"`
-	Checks              []VerifyCheck       `json:"checks"`
-	Profile             VerificationProfile `json:"profile"`
-	Limitations         []string            `json:"limitations"`
-	SchemaVersion       string              `json:"schema_version"`
-	CreatedAt           time.Time           `json:"created_at"`
+	ID                     string              `json:"id"`
+	TenantID               string              `json:"tenant_id"`
+	ArtifactID             string              `json:"artifact_id,omitempty"`
+	ContainerImageID       string              `json:"container_image_id,omitempty"`
+	ArtifactSignatureID    string              `json:"artifact_signature_id"`
+	SubjectDigest          string              `json:"subject_digest"`
+	RekorUUID              string              `json:"rekor_uuid,omitempty"`
+	RekorLogIndex          string              `json:"rekor_log_index,omitempty"`
+	CertificateIdentity    string              `json:"certificate_identity,omitempty"`
+	CertificateIssuer      string              `json:"certificate_issuer,omitempty"`
+	VerifierLibraryVersion string              `json:"verifier_library_version,omitempty"`
+	TrustRootVersion       string              `json:"trust_root_version,omitempty"`
+	VerificationMode       string              `json:"verification_mode,omitempty"`
+	Result                 string              `json:"result"`
+	Checks                 []VerifyCheck       `json:"checks"`
+	Profile                VerificationProfile `json:"profile"`
+	Limitations            []string            `json:"limitations"`
+	SchemaVersion          string              `json:"schema_version"`
+	CreatedAt              time.Time           `json:"created_at"`
 }
 
 type MerkleBatch struct {
@@ -1169,17 +1092,20 @@ type ProviderVerification struct {
 }
 
 type SigningOperation struct {
-	ID            string        `json:"id"`
-	TenantID      string        `json:"tenant_id"`
-	ProviderID    string        `json:"provider_id"`
-	SubjectType   string        `json:"subject_type"`
-	SubjectID     string        `json:"subject_id"`
-	PayloadHash   string        `json:"payload_hash"`
-	SignatureRef  string        `json:"signature_ref,omitempty"`
-	Result        string        `json:"result"`
-	Checks        []VerifyCheck `json:"checks"`
-	SchemaVersion string        `json:"schema_version"`
-	CreatedAt     time.Time     `json:"created_at"`
+	ID                   string        `json:"id"`
+	TenantID             string        `json:"tenant_id"`
+	ProviderID           string        `json:"provider_id"`
+	SubjectType          string        `json:"subject_type"`
+	SubjectID            string        `json:"subject_id"`
+	PayloadHash          string        `json:"payload_hash"`
+	CanonicalPayloadHash string        `json:"canonical_payload_hash,omitempty"`
+	RequestID            string        `json:"request_id,omitempty"`
+	ProviderRequestID    string        `json:"provider_request_id,omitempty"`
+	SignatureRef         string        `json:"signature_ref,omitempty"`
+	Result               string        `json:"result"`
+	Checks               []VerifyCheck `json:"checks"`
+	SchemaVersion        string        `json:"schema_version"`
+	CreatedAt            time.Time     `json:"created_at"`
 }
 
 type SBOM struct {
@@ -1196,12 +1122,14 @@ type SBOM struct {
 }
 
 type SBOMComponent struct {
-	Name    string `json:"name"`
-	Version string `json:"version,omitempty"`
-	PURL    string `json:"purl,omitempty"`
+	Identity string `json:"identity,omitempty"`
+	Name     string `json:"name"`
+	Version  string `json:"version,omitempty"`
+	PURL     string `json:"purl,omitempty"`
 }
 
 type SBOMComponentRecord struct {
+	ID          string        `json:"id"`
 	SBOMID      string        `json:"sbom_id"`
 	ReleaseID   string        `json:"release_id,omitempty"`
 	ArtifactID  string        `json:"artifact_id,omitempty"`
@@ -1211,23 +1139,38 @@ type SBOMComponentRecord struct {
 }
 
 type VulnerabilityScan struct {
-	ID         string                 `json:"id"`
-	TenantID   string                 `json:"tenant_id"`
-	EvidenceID string                 `json:"evidence_id"`
-	ReleaseID  string                 `json:"release_id,omitempty"`
-	Scanner    string                 `json:"scanner"`
-	TargetRef  string                 `json:"target_ref"`
-	Summary    map[string]int         `json:"summary"`
-	Findings   []VulnerabilityFinding `json:"findings,omitempty"`
-	CreatedAt  time.Time              `json:"created_at"`
+	ID             string                 `json:"id"`
+	TenantID       string                 `json:"tenant_id"`
+	EvidenceID     string                 `json:"evidence_id"`
+	ReleaseID      string                 `json:"release_id,omitempty"`
+	Scanner        string                 `json:"scanner"`
+	Adapter        string                 `json:"adapter,omitempty"`
+	AdapterVersion string                 `json:"adapter_version,omitempty"`
+	SourceSchema   string                 `json:"source_schema,omitempty"`
+	TargetRef      string                 `json:"target_ref"`
+	Summary        map[string]int         `json:"summary"`
+	Findings       []VulnerabilityFinding `json:"findings,omitempty"`
+	CreatedAt      time.Time              `json:"created_at"`
 }
 
 type VulnerabilityFinding struct {
-	ID            string `json:"id"`
-	Vulnerability string `json:"vulnerability"`
-	Component     string `json:"component,omitempty"`
-	Severity      string `json:"severity"`
-	State         string `json:"state"`
+	ID             string                `json:"id"`
+	Vulnerability  string                `json:"vulnerability"`
+	Component      string                `json:"component,omitempty"`
+	Severity       string                `json:"severity"`
+	State          string                `json:"state"`
+	SeveritySource string                `json:"severity_source,omitempty"`
+	FixVersion     string                `json:"fix_version,omitempty"`
+	Identity       VulnerabilityIdentity `json:"identity,omitempty"`
+}
+
+type VulnerabilityIdentity struct {
+	CVE            string `json:"cve,omitempty"`
+	GHSA           string `json:"ghsa,omitempty"`
+	OSV            string `json:"osv,omitempty"`
+	VendorAdvisory string `json:"vendor_advisory,omitempty"`
+	PURL           string `json:"purl,omitempty"`
+	CPE            string `json:"cpe,omitempty"`
 }
 
 type VEXDocument struct {
@@ -1883,13 +1826,16 @@ type EvidenceBundleImport struct {
 }
 
 type DSSETrustRoot struct {
-	ID            string    `json:"id"`
-	TenantID      string    `json:"tenant_id"`
-	Name          string    `json:"name"`
-	KeyID         string    `json:"key_id"`
-	Algorithm     string    `json:"algorithm"`
-	PublicKey     string    `json:"public_key"`
-	Status        string    `json:"status"`
-	SchemaVersion string    `json:"schema_version"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID                    string    `json:"id"`
+	TenantID              string    `json:"tenant_id"`
+	Name                  string    `json:"name"`
+	KeyID                 string    `json:"key_id"`
+	Algorithm             string    `json:"algorithm"`
+	PublicKey             string    `json:"public_key"`
+	AllowedPredicateTypes []string  `json:"allowed_predicate_types"`
+	ExpectedBuilderIDs    []string  `json:"expected_builder_ids"`
+	RequiredClaims        []string  `json:"required_claims"`
+	Status                string    `json:"status"`
+	SchemaVersion         string    `json:"schema_version"`
+	CreatedAt             time.Time `json:"created_at"`
 }

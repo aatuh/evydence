@@ -27,20 +27,6 @@ func withActiveRepositories(ctx context.Context, repositories Repositories) cont
 	return context.WithValue(ctx, activeUnitOfWorkContextKey{}, activeUnitOfWork{repositories: repositories})
 }
 
-// ExecuteUnitOfWork runs a transaction-backed application command using this
-// ledger's configured persistence factory.
-func (l *Ledger) ExecuteUnitOfWork(ctx context.Context, command UnitOfWorkCommand) error {
-	if l == nil || l.unitOfWork == nil {
-		return ErrValidation
-	}
-	if repositories, ok := activeRepositories(ctx); ok {
-		return command(ctx, repositories)
-	}
-	l.transactionGate.RLock()
-	defer l.transactionGate.RUnlock()
-	return ExecuteUnitOfWork(ctx, l.unitOfWork, command)
-}
-
 // newUnitOfWorkAuditEntry creates an unsequenced audit entry for a command
 // transaction. The transaction-scoped audit repository assigns the durable
 // sequence and predecessor hash before the command is committed.
@@ -58,12 +44,6 @@ func newUnitOfWorkAuditEntry(now time.Time, tenantID, entryType, subjectType, su
 		SignatureRef:  signatureRef,
 		SchemaVersion: domain.AuditChainEntrySchemaVersion,
 	}
-}
-
-// publishCommittedAuditEntryLocked refreshes the local read model only after
-// the transaction holding the entry has committed.
-func (l *Ledger) publishCommittedAuditEntryLocked(entry domain.AuditChainEntry) {
-	l.chain[entry.TenantID] = append(l.chain[entry.TenantID], entry)
 }
 
 // ExecuteUnitOfWork runs a command with focused transaction-scoped

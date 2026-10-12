@@ -1,0 +1,242 @@
+            "certification-report": "Industry, regulatory, or other certification from an accredited (if applicable) certification body.",
+            "codified-infrastructure": "Code or configuration that defines and provisions virtualized infrastructure, commonly referred to as Infrastructure as Code (IaC).",
+            "quality-metrics": "Report or system in which quality metrics can be obtained.",
+            "poam": "Plans of Action and Milestones (POA&M) complement an \"attestation\" external reference. POA&M is defined by NIST as a \"document that identifies tasks needing to be accomplished. It details resources required to accomplish the elements of the plan, any milestones in meeting the tasks and scheduled completion dates for the milestones\".",
+            "electronic-signature": "An e-signature is commonly a scanned representation of a written signature or a stylized script of the person's name.",
+            "digital-signature": "A signature that leverages cryptography, typically public/private key pairs, which provides strong authenticity verification.",
+            "rfc-9116": "Document that complies with [RFC 9116](https://www.ietf.org/rfc/rfc9116.html) (A File Format to Aid in Security Vulnerability Disclosure)",
+            "other": "Use this if no other types accurately describe the purpose of the external reference."
+          }
+        },
+        "hashes": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/hash"},
+          "title": "Hashes",
+          "description": "The hashes of the external reference (if applicable)."
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "title": "Dependency",
+      "description": "Defines the direct dependencies of a component, service, or the components provided/implemented by a given component. Components or services that do not have their own dependencies must be declared as empty elements within the graph. Components or services that are not represented in the dependency graph may have unknown dependencies. It is recommended that implementations assume this to be opaque and not an indicator of an object being dependency-free. It is recommended to leverage compositions to indicate unknown dependency graphs.",
+      "required": [
+        "ref"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "$ref": "#/definitions/refLinkType",
+          "title": "Reference",
+          "description": "References a component or service by its bom-ref attribute"
+        },
+        "dependsOn": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/refLinkType"
+          },
+          "title": "Depends On",
+          "description": "The bom-ref identifiers of the components or services that are dependencies of this dependency object."
+        },
+        "provides": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/refLinkType"
+          },
+          "title": "Provides",
+          "description": "The bom-ref identifiers of the components or services that define a given specification or standard, which are provided or implemented by this dependency object.\nFor example, a cryptographic library which implements a cryptographic algorithm. A component which implements another component does not imply that the implementation is in use."
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "title": "Service",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bom-ref": {
+          "$ref": "#/definitions/refType",
+          "title": "BOM Reference",
+          "description": "An optional identifier which can be used to reference the service elsewhere in the BOM. Every bom-ref must be unique within the BOM.\nValue SHOULD not start with the BOM-Link intro 'urn:cdx:' to avoid conflicts with BOM-Links."
+        },
+        "provider": {
+          "title": "Provider",
+          "description": "The organization that provides the service.",
+          "$ref": "#/definitions/organizationalEntity"
+        },
+        "group": {
+          "type": "string",
+          "title": "Service Group",
+          "description": "The grouping name, namespace, or identifier. This will often be a shortened, single name of the company or project that produced the service or domain name. Whitespace and special characters should be avoided.",
+          "examples": ["com.acme"]
+        },
+        "name": {
+          "type": "string",
+          "title": "Service Name",
+          "description": "The name of the service. This will often be a shortened, single name of the service.",
+          "examples": ["ticker-service"]
+        },
+        "version": {
+          "$ref": "#/definitions/version",
+          "title": "Service Version",
+          "description": "The service version."
+        },
+        "description": {
+          "type": "string",
+          "title": "Service Description",
+          "description": "Specifies a description for the service"
+        },
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "iri-reference"
+          },
+          "title": "Endpoints",
+          "description": "The endpoint URIs of the service. Multiple endpoints are allowed.",
+          "examples": ["https://example.com/api/v1/ticker"]
+        },
+        "authenticated": {
+          "type": "boolean",
+          "title": "Authentication Required",
+          "description": "A boolean value indicating if the service requires authentication. A value of true indicates the service requires authentication prior to use. A value of false indicates the service does not require authentication."
+        },
+        "x-trust-boundary": {
+          "type": "boolean",
+          "title": "Crosses Trust Boundary",
+          "description": "A boolean value indicating if use of the service crosses a trust zone or boundary. A value of true indicates that by using the service, a trust boundary is crossed. A value of false indicates that by using the service, a trust boundary is not crossed."
+        },
+        "trustZone": {
+          "type": "string",
+          "title": "Trust Zone",
+          "description": "The name of the trust zone the service resides in."
+        },
+        "data": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/serviceData"},
+          "title": "Data",
+          "description": "Specifies information about the data including the directional flow of data and the data classification."
+        },
+        "licenses": {
+          "$ref": "#/definitions/licenseChoice",
+          "title": "Service License(s)"
+        },
+        "externalReferences": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/externalReference"},
+          "title": "External References",
+          "description": "External references provide a way to document systems, sites, and information that may be relevant but are not included with the BOM. They may also establish specific relationships within or external to the BOM."
+        },
+        "services": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/service"},
+          "uniqueItems": true,
+          "title": "Services",
+          "description": "A list of services included or deployed behind the parent service. This is not a dependency tree. It provides a way to specify a hierarchical representation of service assemblies."
+        },
+        "releaseNotes": {
+          "$ref": "#/definitions/releaseNotes",
+          "title": "Release notes",
+          "description": "Specifies optional release notes."
+        },
+        "properties": {
+          "type": "array",
+          "title": "Properties",
+          "description": "Provides the ability to document properties in a name-value store. This provides flexibility to include data not officially supported in the standard without having to use additional namespaces or create extensions. Unlike key-value stores, properties support duplicate names, each potentially having different values. Property names of interest to the general public are encouraged to be registered in the [CycloneDX Property Taxonomy](https://github.com/CycloneDX/cyclonedx-property-taxonomy). Formal registration is optional.",
+          "items": {"$ref": "#/definitions/property"}
+        },
+        "tags": {
+          "$ref": "#/definitions/tags",
+          "title": "Tags"
+        },
+        "signature": {
+          "$ref": "#/definitions/signature",
+          "title": "Signature",
+          "description": "Enveloped signature in [JSON Signature Format (JSF)](https://cyberphone.github.io/doc/security/jsf.html)."
+        }
+      }
+    },
+    "serviceData": {
+      "type": "object",
+      "title": "Hash Objects",
+      "required": [
+        "flow",
+        "classification"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "flow": {
+          "$ref": "#/definitions/dataFlowDirection",
+          "title": "Directional Flow",
+          "description": "Specifies the flow direction of the data. Direction is relative to the service. Inbound flow states that data enters the service. Outbound flow states that data leaves the service. Bi-directional states that data flows both ways and unknown states that the direction is not known."
+        },
+        "classification": {
+          "$ref": "#/definitions/dataClassification"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name",
+          "description": "Name for the defined data",
+          "examples": [
+            "Credit card reporting"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "title": "Description",
+          "description": "Short description of the data content and usage",
+          "examples": [
+            "Credit card information being exchanged in between the web app and the database"
+          ]
+        },
+        "governance": {
+          "title": "Data Governance",
+          "$ref": "#/definitions/dataGovernance"
+        },
+        "source": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "title": "URL",
+                "type": "string",
+                "format": "iri-reference"
+              },
+              {
+                "title": "BOM-Link Element",
+                "$ref": "#/definitions/bomLinkElementType"
+              }
+            ]
+          },
+          "title": "Source",
+          "description": "The URI, URL, or BOM-Link of the components or services the data came in from"
+        },
+        "destination": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "title": "URL",
+                "type": "string",
+                "format": "iri-reference"
+              },
+              {
+                "title": "BOM-Link Element",
+                "$ref": "#/definitions/bomLinkElementType"
+              }
+            ]
+          },
+          "title": "Destination",
+          "description": "The URI, URL, or BOM-Link of the components or services the data is sent to"
+        }
+      }
+    },
+    "dataFlowDirection": {
+      "type": "string",
+      "enum": [
+        "inbound",
+        "outbound",

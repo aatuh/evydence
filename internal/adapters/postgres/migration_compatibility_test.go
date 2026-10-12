@@ -25,7 +25,9 @@ func TestMigrationCompatibilityFromEveryCommittedState(t *testing.T) {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
 	}
 	names := migrationFileNames(t, "../../../migrations")
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	// This test applies every historical prefix, so its bounded budget must
+	// accommodate the growing committed migration history under coverage too.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	basePool, err := pgxpool.New(ctx, databaseURL)

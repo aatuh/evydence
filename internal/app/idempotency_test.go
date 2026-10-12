@@ -44,7 +44,7 @@ func (s idempotencyPersistenceFailureStore) ApplyCriticalMutation(context.Contex
 }
 
 func TestPublishCommittedIdempotencyCommandReloadsDurableCache(t *testing.T) {
-	seed := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	seed := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	seed.mu.Lock()
 	state, err := seed.snapshotLocked()
 	seed.mu.Unlock()
@@ -52,7 +52,7 @@ func TestPublishCommittedIdempotencyCommandReloadsDurableCache(t *testing.T) {
 		t.Fatalf("snapshot seed ledger: %v", err)
 	}
 	store := &idempotencyReloadStore{state: state, ok: true}
-	ledger, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
+	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: store})
 	if err != nil {
 		t.Fatalf("create durable ledger: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestPublishCommittedIdempotencyCommandReloadsDurableCache(t *testing.T) {
 	// the command snapshot. The durable state, rather than the stale command
 	// clone, must win when publishing after commit.
 	store.state.Products["prod_worker"] = domain.Product{ID: "prod_worker", TenantID: "tenant-idempotency", Name: "Worker product", Slug: "worker-product", CreatedAt: fixedNow()}
-	command := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	command := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	command.products["prod_command"] = domain.Product{ID: "prod_command", TenantID: "tenant-idempotency", Name: "Command product", Slug: "command-product", CreatedAt: fixedNow()}
 	if err := ledger.publishCommittedIdempotencyCommand(context.Background(), command); err != nil {
 		t.Fatalf("publish durable idempotency command: %v", err)
@@ -75,7 +75,7 @@ func TestPublishCommittedIdempotencyCommandReloadsDurableCache(t *testing.T) {
 }
 
 func TestWithIdempotencyDoesNotExecuteConcurrentPendingRequest(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor := domain.Actor{TenantID: "tenant-idempotency", KeyID: "key-idempotency"}
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -216,10 +216,44 @@ func TestWithIdempotencyStoresNoOneTimeSecretInReplay(t *testing.T) {
 	}
 }
 
+func TestIdempotencyReplayRemovesAllCentralSensitiveFields(t *testing.T) {
+	canaries := []string{
+		"evy-api-key-canary",
+		"database-password-canary",
+		"internal-note-canary",
+		"object://tenant/raw-payload-canary",
+		"bearer-token-canary",
+	}
+	response, err := safeIdempotencyReplayResponse(map[string]any{
+		"api_key":        canaries[0],
+		"database_url":   "postgres://operator:" + canaries[1] + "@db.example.test/evydence",
+		"internal_notes": canaries[2],
+		"payload_ref":    canaries[3],
+		"nested":         map[string]any{"authorization": "Bearer " + canaries[4]},
+	})
+	if err != nil {
+		t.Fatalf("safe idempotency replay response: %v", err)
+	}
+	body, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal replay response: %v", err)
+	}
+	for _, canary := range canaries {
+		if strings.Contains(string(body), canary) {
+			t.Fatalf("replay response leaked %q: %s", canary, body)
+		}
+	}
+	for _, forbiddenField := range []string{"api_key", "database_url", "internal_notes", "payload_ref", "authorization"} {
+		if strings.Contains(string(body), forbiddenField) {
+			t.Fatalf("replay response retained sensitive field %q: %s", forbiddenField, body)
+		}
+	}
+}
+
 func TestIdempotencyStateErrorsAreSafeConflicts(t *testing.T) {
 	for _, testCase := range []struct {
 		err  error
-		code string
+		code ErrorCode
 	}{
 		{err: ErrIdempotencyInProgress, code: "IDEMPOTENCY_IN_PROGRESS"},
 		{err: ErrIdempotencyFailed, code: "IDEMPOTENCY_REQUEST_FAILED"},
@@ -318,7 +352,7 @@ func TestMemoryIdempotencyRepositoryStateTransitions(t *testing.T) {
 }
 
 func TestWithIdempotencyStoresOnlySafeFailedState(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor := domain.Actor{TenantID: "tenant-idempotency-failure", KeyID: "key-idempotency-failure"}
 	runErr := errors.New("upstream secret response must not be replayed")
 	if _, _, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/products", "failed-key", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
@@ -341,8 +375,27 @@ func TestWithIdempotencyStoresOnlySafeFailedState(t *testing.T) {
 	}
 }
 
+func TestWithIdempotencyAllowsRetryAfterTransientSigningFailure(t *testing.T) {
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	actor := domain.Actor{TenantID: "tenant-idempotency-retry", KeyID: "key-idempotency-retry"}
+	body := []byte(`{"provider_id":"provider"}`)
+	if _, _, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/signing-operations", "retry-key", body, func(context.Context, *Ledger) (int, any, error) {
+		return 503, nil, ErrRetryableSigning
+	}); !errors.Is(err, ErrRetryableSigning) {
+		t.Fatalf("first signing request err=%v, want retryable signing error", err)
+	}
+	ranAgain := false
+	status, response, err := ledger.WithIdempotency(context.Background(), actor, "POST", "/v1/signing-operations", "retry-key", body, func(context.Context, *Ledger) (int, any, error) {
+		ranAgain = true
+		return 201, map[string]any{"id": "sop_1"}, nil
+	})
+	if err != nil || !ranAgain || status != 201 || response.(map[string]any)["id"] != "sop_1" {
+		t.Fatalf("retry status=%d response=%#v ran=%t err=%v", status, response, ranAgain, err)
+	}
+}
+
 func TestWithIdempotencyReplaysLegacyRecordsAndReplacesExpiredKeys(t *testing.T) {
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	actor := domain.Actor{TenantID: "tenant-idempotency-legacy", KeyID: "key-idempotency-legacy"}
 	legacyBody := []byte(`{"name":"Legacy"}`)
 	key := NewIdempotencyRecordKey(actor.TenantID, idempotencyActorID(actor), "POST", "/v1/products", "legacy-key")
@@ -400,7 +453,7 @@ func TestWithIdempotencyDurablyMarksFailedReservations(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("insert durable tenant: %v", err)
 	}
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: factory})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: factory})
 	runErr := errors.New("durable command failure")
 	if _, _, err := ledger.WithIdempotency(ctx, actor, "POST", "/v1/products", "durable-failed", []byte(`{"name":"Payments"}`), func(context.Context, *Ledger) (int, any, error) {
 		return 503, nil, runErr
@@ -431,7 +484,7 @@ func TestWithIdempotencyReturnsDurableCompletionFailure(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("insert tenant: %v", err)
 	}
-	ledger := NewLedger(Config{
+	ledger := newLegacyLedgerFixture(Config{
 		APIKeyPepper: "test-pepper",
 		Now:          fixedNow,
 		UnitOfWork: repositoryFailingUnitOfWorkFactory{inner: memory, decorate: func(repositories Repositories) Repositories {
@@ -455,7 +508,7 @@ func TestWithIdempotencyReturnsDurableCompletionFailure(t *testing.T) {
 
 func TestIdempotencyInternalGuardsAndLeaseRecovery(t *testing.T) {
 	ctx := context.Background()
-	ledger := NewLedger(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
 	now := fixedNow()
 	key := IdempotencyRecordKey{TenantID: "tenant-idempotency-internal", ActorID: "api_key:key-internal", Method: "POST", Path: "/v1/products", IdempotencyKey: "recover"}
 	storeKey := NewIdempotencyRecordKey(key.TenantID, key.ActorID, key.Method, key.Path, key.IdempotencyKey)
@@ -511,7 +564,7 @@ func TestIdempotencyInternalGuardsAndLeaseRecovery(t *testing.T) {
 
 func TestInMemoryIdempotencyRollsBackWhenCompatibilityPersistenceFails(t *testing.T) {
 	persistErr := errors.New("critical persistence failed")
-	ledger, err := NewLedgerWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: idempotencyPersistenceFailureStore{err: persistErr}})
+	ledger, err := newLegacyLedgerFixtureWithContext(context.Background(), Config{APIKeyPepper: "test-pepper", Now: fixedNow, Store: idempotencyPersistenceFailureStore{err: persistErr}})
 	if err != nil {
 		t.Fatalf("create ledger: %v", err)
 	}

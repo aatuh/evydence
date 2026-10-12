@@ -11,6 +11,42 @@ import (
 
 type failingCustomerPackageRepository struct{ PackageRepository }
 
+func TestCustomerPackageCompatibilityAccessUsesCurrentDurableCounter(t *testing.T) {
+	ctx := t.Context()
+	memory := NewMemoryUnitOfWorkFactory()
+	ledger, _, actor := newReleaseEvidenceUnitOfWorkFixture(t, memory)
+	product, err := ledger.CreateProduct(ctx, actor, "Access", "access-current")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := ledger.CreateRedactionProfile(ctx, actor, CreateRedactionProfileInput{Name: "Review", AllowedTypes: []string{"sbom"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, err := ledger.CreateCustomerSecurityPackage(ctx, actor, CreateCustomerPackageInput{ProductID: product.ID, RedactionProfileID: profile.ID, Title: "Review", ExpiresAt: fixedNow().Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ExecuteUnitOfWork(ctx, memory, func(ctx context.Context, repos Repositories) error {
+		previous, err := repos.Packages.GetCustomerSecurityPackageForUpdate(ctx, actor.TenantID, pkg.ID)
+		if err != nil {
+			return err
+		}
+		current := previous
+		current.AccessCount++
+		return repos.Packages.UpdateCustomerSecurityPackageAccess(ctx, previous, current)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if ledger.customerPackages[pkg.ID].AccessCount != 0 {
+		t.Fatal("fixture did not retain a stale compatibility cache")
+	}
+	accessed, err := ledger.AccessCustomerSecurityPackage(ctx, actor, pkg.ID)
+	if err != nil || accessed.AccessCount != 2 {
+		t.Fatalf("accessed=%#v err=%v", accessed, err)
+	}
+}
+
 func (failingCustomerPackageRepository) InsertCustomerSecurityPackage(context.Context, domain.CustomerSecurityPackage) error {
 	return errInjectedRepositoryFailure
 }

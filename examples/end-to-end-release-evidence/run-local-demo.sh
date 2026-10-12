@@ -44,7 +44,7 @@ artifact="$(api POST /v1/artifacts demo-artifact '{"name":"payments-api.tar.gz",
 printf '%s\n' "$artifact" > "$outdir/artifact.json"
 artifact_id="$(printf '%s' "$artifact" | jq -er '.data.id')"
 
-sbom="$(api POST /v1/sboms demo-sbom "{\"release_id\":\"$release_id\",\"artifact_id\":\"$artifact_id\",\"payload\":{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.6\",\"components\":[{\"name\":\"openssl\",\"purl\":\"pkg:apk/openssl@3.1.0\"}]}}")"
+sbom="$(api POST /v1/sboms demo-sbom "{\"release_id\":\"$release_id\",\"artifact_id\":\"$artifact_id\",\"payload\":{\"bomFormat\":\"CycloneDX\",\"specVersion\":\"1.6\",\"components\":[{\"type\":\"library\",\"name\":\"openssl\",\"purl\":\"pkg:apk/openssl@3.1.0\"}]}}")"
 printf '%s\n' "$sbom" > "$outdir/sbom.json"
 
 scan="$(api POST /v1/vulnerability-scans demo-scan "{\"release_id\":\"$release_id\",\"scanner\":\"grype\",\"target_ref\":\"pkg:oci/payments-api\",\"findings\":[{\"vulnerability\":\"CVE-2026-0099\",\"component\":\"pkg:apk/openssl@3.1.0\",\"severity\":\"critical\",\"state\":\"open\"}]}")"

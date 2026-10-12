@@ -54,6 +54,8 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `image.repository`, `image.tag` | API and worker image. |
 | `api.replicas` | API writer replicas. Keep `1` for the current production profile. |
 | `api.writerMode` | Runtime writer mode passed as `EVYDENCE_API_WRITER_MODE`. Keep `single` for production. |
+| `api.*TimeoutSeconds`, `api.maxHeaderBytes`, `api.maxURLBytes`, `api.maxInFlightRequests`, `api.maxConcurrentUploads` | Validated API listener, request-target, and concurrency limits. Defaults match the canonical [Configuration](reference/configuration.md#http-ingress-limits-and-proxy-trust). |
+| `api.rateLimitRequestsPerMinute`, `api.expensiveTenantRequestsPerMinute`, `api.rateLimitBucketCapacity`, `api.trustedProxyCIDRs` | Process-local edge and expensive-route limits. Set trusted CIDRs only for ingress proxies that sanitize `X-Forwarded-For`. |
 | `worker.replicas` | Worker replicas. May be scaled with PostgreSQL outbox locking. |
 | `api.resources`, `worker.resources` | Resource requests and limits. |
 | `podSecurityContext`, `containerSecurityContext` | Non-root and least-privilege pod/container defaults. |
