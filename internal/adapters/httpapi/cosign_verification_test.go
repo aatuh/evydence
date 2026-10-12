@@ -80,6 +80,7 @@ func TestCosignHTTPStrictPolicyBeforeGuardForFixtureAndNativeCommands(t *testing
 func TestCosignHTTPCookieMutationAndBearerPrecedenceForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
+		cookieSecret := fixtureSSOCookieSecret(t, s, secret)
 		f := &cosignVerificationHTTPFake{}
 		if native {
 			s.cosignVerification = f
@@ -95,11 +96,11 @@ func TestCosignHTTPCookieMutationAndBearerPrecedenceForFixtureAndNativeCommands(
 				want = 200
 			}
 			r := httptest.NewRequest("POST", "https://api.example/v1/artifact-signatures/not-in-ledger/verify-cosign", strings.NewReader(`{"mode":"key","offline":true}`))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
 			if tc.bearer {
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			w := httptest.NewRecorder()
 			before := f.calls + f.guards

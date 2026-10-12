@@ -98,6 +98,7 @@ func TestControlCreationNativeHandlersDoNotUseLedger(t *testing.T) {
 func TestControlCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := operationsTestServer(t)
+		cookieSecret := fixtureSSOCookieSecret(t, s, secret)
 		fw := postJSON(t, s, secret, "/v1/control-frameworks", "seed", map[string]string{"name": "Seed", "version": "1"}, 201)
 		f := &controlCreationHTTPFake{}
 		if native {
@@ -116,11 +117,11 @@ func TestControlCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 					body = strings.Replace(tc.body, `"C"`, fmt.Sprintf(`"C%d"`, i), 1)
 				}
 				r := httptest.NewRequest("POST", "https://api.example"+tc.path, strings.NewReader(body))
-				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 				r.Header.Set("Origin", bad.origin)
 				r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
 				if bad.bearer {
-					r.Header.Set("Authorization", "Bearer "+secret)
+					r.Header.Set("Authorization", "Bearer "+cookieSecret)
 				}
 				w := httptest.NewRecorder()
 				before := f.guards + f.frameworks + f.controls

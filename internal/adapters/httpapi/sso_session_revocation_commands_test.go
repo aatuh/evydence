@@ -153,15 +153,18 @@ func TestSSOSessionRevocationHTTPCookieMutationsRequireSameHTTPSOrigin(t *testin
 			t.Fatal("ambiguous cookie origin was accepted", w.Code)
 		}
 		r = httptest.NewRequest("POST", "https://example.com"+path, strings.NewReader("{}"))
-		r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+		r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: "evysso_cookie-session"})
 		r.Header.Set("Origin", "https://example.com")
 		r.Header.Set("Idempotency-Key", "same-origin")
+		bearerAuthenticator := s.authn
+		s.authn = &configuredAuthenticator{actor: identitydomain.Actor{TenantID: "tenant", UserID: "user", SessionID: "session", Scopes: []string{"*"}}}
 		w = httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, r)
 		if w.Code != 200 || f.runs != 1 {
 			t.Fatal("same-origin cookie mutation failed", w.Code)
 		}
 		// A deliberate bearer credential is not a cookie-authenticated request.
+		s.authn = bearerAuthenticator
 		r = httptest.NewRequest("POST", "https://example.com"+path, strings.NewReader("{}"))
 		r.Header.Set("Authorization", "Bearer "+secret)
 		r.Header.Set("Origin", "https://attacker.example")

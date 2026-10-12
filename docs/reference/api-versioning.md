@@ -39,6 +39,22 @@ The gate never fetches a baseline or resolves external OpenAPI references. It
 uses only the checked-in release artifact and invokes `oasdiff` with structured
 arguments and external-reference loading disabled.
 
+## Unreleased SSO Credential Transport Boundary
+
+EVY-1007 rejects naked, blank, duplicate, joined, wrong-scheme and
+whitespace-ambiguous Authorization values through the required toolkit parser.
+Clients must send one `Authorization: Bearer <secret>` value, or omit the header
+for human session-cookie authentication; an empty header does not select cookies.
+The scheme remains case-insensitive. API/collector keys are Bearer credentials;
+putting them in `evydence_session` no longer authenticates or records key usage.
+Cookie clients use the issued `evysso_` session credential and retain the same
+HTTPS Origin requirement for mutations. Unauthorized cookie admission clears
+the host-only `/v1` cookie; failed Origin checks, permission denials and an
+invalid explicit Bearer leave incidental cookies alone. SSO credential responses
+are marked `no-store`. Existing valid secrets, hashes, scopes, tenant ownership,
+schemas and persisted records retain their formats. Session lifecycle bounds,
+OIDC/SAML request binding/replay and failure rate limits remain EVY-1005 work.
+
 ## Unreleased Custom Report Template Boundary
 
 Definition creation and metadata-only materialization now use native durable

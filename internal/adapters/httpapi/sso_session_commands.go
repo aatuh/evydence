@@ -30,6 +30,7 @@ func decodeSSOSessionRequest(body []byte) (identityapp.CreateSSOSessionInput, er
 	return identityapp.CreateSSOSessionInput{UserID: req.UserID, ProviderID: req.ProviderID, ExpiresAt: req.ExpiresAt}, nil
 }
 func (s *Server) createDurableSSOSession(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	var in identityapp.CreateSSOSessionInput
 	s.createDurable(w, r, func(ctx context.Context, a domain.Actor, body []byte) error {
 		var err error

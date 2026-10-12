@@ -249,6 +249,7 @@ func TestTrustConfigurationHTTPStrictFieldsBeforeFixtureAndNativeCommands(t *tes
 
 func TestTrustConfigurationHTTPFixtureAndNativeCookieAndReplayAuthority(t *testing.T) {
 	base, secret := governanceTestServer(t)
+	cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 	for _, focused := range []bool{false, true} {
 		f := &trustConfigurationHTTPFake{}
 		opts := ServerOptions{}
@@ -273,11 +274,11 @@ func TestTrustConfigurationHTTPFixtureAndNativeCookieAndReplayAuthority(t *testi
 					body = fmt.Sprintf(`{"name":"Builder","key_id":%q,"algorithm":"Ed25519","public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","allowed_predicate_types":["https://slsa.dev/provenance/v1"],"expected_builder_ids":["builder"],"required_claims":["builder_id"]}`, fmt.Sprintf("cookie-%t-%d", focused, i))
 				}
 				r := httptest.NewRequest("POST", "https://api.example"+path, strings.NewReader(body))
-				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 				r.Header.Set("Origin", tc.origin)
 				r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%t-%d", focused, i))
 				if tc.bearer {
-					r.Header.Set("Authorization", "Bearer "+secret)
+					r.Header.Set("Authorization", "Bearer "+cookieSecret)
 				}
 				before := f.providers + f.roots + f.guards
 				w := httptest.NewRecorder()

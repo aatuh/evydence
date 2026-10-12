@@ -23,6 +23,7 @@ type releaseBundleHTTPFake struct {
 func TestReleaseBundleHTTPBothProfilesCookiesAndLocalReplayGrant(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		base, secret := governanceTestServer(t)
+		cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 		product := postJSON(t, base, secret, "/v1/products", "bundle-product", map[string]any{"name": "Product", "slug": "bundle-product"}, 201)
 		p := dataField(t, product, "id")
 		release := postJSON(t, base, secret, "/v1/releases", "bundle-release", map[string]any{"product_id": p, "version": "1"}, 201)
@@ -35,7 +36,7 @@ func TestReleaseBundleHTTPBothProfilesCookiesAndLocalReplayGrant(t *testing.T) {
 		body := `{"release_id":"` + id + `"}`
 		for _, origin := range []string{"", "https://evil.example", "http://api.example"} {
 			r := httptest.NewRequest("POST", "https://api.example/v1/release-bundles", strings.NewReader(body))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", origin)
 			r.Header.Set("Idempotency-Key", "unsafe-bundle")
 			w := httptest.NewRecorder()
@@ -52,12 +53,12 @@ func TestReleaseBundleHTTPBothProfilesCookiesAndLocalReplayGrant(t *testing.T) {
 		}
 		for i, bearer := range []bool{false, true} {
 			r := httptest.NewRequest("POST", "https://api.example/v1/release-bundles", strings.NewReader(body))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", "https://api.example")
 			r.Header.Set("Idempotency-Key", "safe-bundle-"+string(rune('a'+i)))
 			if bearer {
 				r.Header.Set("Origin", "https://evil.example")
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			w := httptest.NewRecorder()
 			base.Handler().ServeHTTP(w, r)

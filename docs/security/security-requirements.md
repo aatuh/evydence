@@ -94,3 +94,38 @@ no route-wide or global historical-row immutability claim is added.
 - A passing local check establishes only the listed repository evidence. It does
   not prove a deployment's IAM, network, key custody, provider state, or legal
   suitability.
+
+
+## EVY-1007 authentication parser dependency review
+
+This reference records the engineering review on 2026-10-12. The HTTP adapter
+uses `api-toolkit/v3` v3.1.2's pure `shared.ParseBearerToken` primitive. A local
+standard-library implementation would duplicate toolkit-owned authentication
+grammar, contrary to the required API foundation. Cookie selection and actor
+admission remain Evydence-specific checks; identity verification stays behind
+its existing application ports.
+
+The shared toolkit package adds checksum entries for its selected
+`github.com/MicahParks/keyfunc/v3` v3.8.0 and
+`github.com/MicahParks/jwkset` v0.11.0, both Apache-2.0. It also makes the
+already selected `golang.org/x/time` v0.15.0 explicit in the root indirect
+requirements. JWT v5.3.1 is already in the dependency graph. Parsing does not
+construct JWKS clients or background refreshers. Full `make vuln` remains part
+of closure validation; uncalled findings are retained rather than suppressed.
+
+Upstream primary evidence checked through the GitHub API:
+
+- [keyfunc releases](https://github.com/MicahParks/keyfunc/releases): v3.6.2
+  (2025-09-20), v3.7.0 (2025-10-08), v3.8.0 (2026-02-11); repository activity
+  through 2026-09-04, not archived. The exact Go module advisory query returned
+  no published records; this is not a complete vulnerability-history guarantee.
+- [jwkset releases](https://github.com/MicahParks/jwkset/releases): v0.11.1 and
+  v0.11.2 in July 2026, v0.11.3 on 2026-08-01; repository activity through
+  2026-08-20, not archived. [CVE-2025-22149](https://github.com/advisories/GHSA-675f-rq2r-jw82)
+  concerns removed keys retained by the remote refresh cache in v0.5.0 through
+  v0.5.21, fixed in v0.6.0; the toolkit-selected v0.11.0 is outside that range.
+
+If the shared package stops meeting the transport contract, replace it with a
+reviewed toolkit primitive or fix the toolkit with the same regression matrix.
+Do not enable its JWT/JWKS middleware as an implicit replacement for Evydence's
+provider trust, nonce/state, tenant and replay boundaries.

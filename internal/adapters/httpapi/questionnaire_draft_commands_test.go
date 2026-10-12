@@ -124,6 +124,7 @@ func TestDraftHTTPFocusedCommandsStrictJSONAndSafeErrors(t *testing.T) {
 }
 func TestDraftHTTPCookieWritesRequireSameHTTPSOrigin(t *testing.T) {
 	base, secret := testServer(t)
+	cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 	f := &draftHTTPFake{}
 	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{QuestionnaireDraftCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
@@ -135,11 +136,11 @@ func TestDraftHTTPCookieWritesRequireSameHTTPSOrigin(t *testing.T) {
 		status int
 	}{{"", false, 403}, {"https://attacker.example", false, 403}, {"http://example.com", false, 403}, {"https://example.com", false, 201}, {"https://attacker.example", true, 201}} {
 		r := httptest.NewRequest("POST", "https://example.com/v1/questionnaire-drafts", strings.NewReader(`{"template_id":"template"}`))
-		r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+		r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 		r.Header.Set("Origin", v.origin)
 		r.Header.Set("Idempotency-Key", "origin")
 		if v.bearer {
-			r.Header.Set("Authorization", "Bearer "+secret)
+			r.Header.Set("Authorization", "Bearer "+cookieSecret)
 		}
 		before := f.calls + f.guards
 		w := httptest.NewRecorder()

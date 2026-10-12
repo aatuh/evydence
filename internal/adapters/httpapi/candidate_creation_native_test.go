@@ -78,6 +78,7 @@ func TestCandidateCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) {
 			base, secret := governanceTestServer(t)
+			cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 			p := postJSON(t, base, secret, "/v1/products", "parent", map[string]any{"name": "Parent", "slug": "parent"}, 201)
 			release := postJSON(t, base, secret, "/v1/releases", "release", map[string]any{"product_id": dataField(t, p, "id"), "version": "1"}, 201)
 			f := &candidateCreationHTTPFake{}
@@ -97,11 +98,11 @@ func TestCandidateCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 				want   int
 			}{{"", false, 403}, {"https://attacker.example", false, 403}, {"http://api.example", false, 403}, {"https://api.example", false, 201}, {"https://attacker.example", true, 201}} {
 				r := httptest.NewRequest("POST", "https://api.example/v1/release-candidates", strings.NewReader(body))
-				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 				r.Header.Set("Origin", tc.origin)
 				r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", n))
 				if tc.bearer {
-					r.Header.Set("Authorization", "Bearer "+secret)
+					r.Header.Set("Authorization", "Bearer "+cookieSecret)
 				}
 				w := httptest.NewRecorder()
 				before := f.calls + f.guards

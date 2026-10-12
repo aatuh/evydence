@@ -128,6 +128,7 @@ func TestCustomerCreationHTTPFocusedPortAndStrictInput(t *testing.T) {
 
 func TestCustomerCreationHTTPBothProfilesCookieAndLocalReplay(t *testing.T) {
 	base, secret := operationsTestServer(t)
+	cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 	product := dataField(t, postJSON(t, base, secret, "/v1/products", "product", map[string]any{"name": "Product", "slug": "product"}, 201), "id")
 	profile := dataField(t, postJSON(t, base, secret, "/v1/redaction-profiles", "profile", map[string]any{"preset": "customer_safe"}, 201), "id")
 	body := fmt.Sprintf(`{"product_id":%q,"redaction_profile_id":%q,"title":"Review","expires_at":"2030-01-01T00:00:00Z"}`, product, profile)
@@ -148,11 +149,11 @@ func TestCustomerCreationHTTPBothProfilesCookieAndLocalReplay(t *testing.T) {
 			status int
 		}{{"", false, 403}, {"https://attacker.example", false, 403}, {"http://api.example", false, 403}, {"https://api.example", false, 201}, {"https://attacker.example", true, 201}} {
 			r := httptest.NewRequest("POST", "https://api.example/v1/customer-packages", strings.NewReader(body))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%t-%d", focused, i))
 			if tc.bearer {
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			before := f.calls + f.guards
 			w := httptest.NewRecorder()

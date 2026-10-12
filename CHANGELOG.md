@@ -13,6 +13,16 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Hardened the SSO credential transport boundary (EVY-1007): authenticated routes
+use the required toolkit's strict Bearer parser, reject ambiguous headers
+without cookie fallback, and reserve cookies for issued human SSO sessions.
+API/collector keys cannot authenticate through a session cookie. Unsafe cookie
+Origins are checked before verification or cleanup; unauthorized cookies expire
+with the existing secure attributes. SSO credential responses are `no-store`.
+CSRF regressions now issue real human sessions while retaining their original
+status, replay and denied-effect assertions. Broader lifecycle, OIDC/SAML and
+abuse-resistance work remains incomplete under EVY-1005.
+
 Recorded EVY-1002's exact repository-controlled prerelease API compatibility
 review: the unchanged `v0.1.0-rc.7` artifact is compared with 205 selected
 differences, retaining all 135 previously reviewed entries and adding 70

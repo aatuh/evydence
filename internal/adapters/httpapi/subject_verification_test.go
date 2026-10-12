@@ -133,6 +133,7 @@ func TestSubjectVerificationStrictRawInputBeforeGuardForFixtureAndNativeCommands
 func TestSubjectVerificationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := governanceTestServer(t)
+		cookieSecret := fixtureSSOCookieSecret(t, s, secret)
 		f := &subjectVerificationHTTPFake{}
 		if native {
 			s.subjectVerification = f
@@ -150,11 +151,11 @@ func TestSubjectVerificationCookieOriginAndBearerPrecedence(t *testing.T) {
 				want = 200
 			}
 			r := httptest.NewRequest("POST", "https://api.example/v1/verify", strings.NewReader(`{"subject_type":"backup_manifest","subject_id":"missing"}`))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
 			if tc.bearer {
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			w := httptest.NewRecorder()
 			before := f.calls + f.guards

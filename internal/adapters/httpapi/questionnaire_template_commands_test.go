@@ -77,6 +77,7 @@ func TestQTemplateHTTPStrictNestedJSONAndFocusedProjection(t *testing.T) {
 }
 func TestQTemplateHTTPCookieMutationGuardBothProfiles(t *testing.T) {
 	base, secret := governanceTestServer(t)
+	cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 	for _, focused := range []bool{false, true} {
 		f := &qTemplateHTTPFake{}
 		opts := ServerOptions{}
@@ -96,11 +97,11 @@ func TestQTemplateHTTPCookieMutationGuardBothProfiles(t *testing.T) {
 			// Independent successful mutations must have distinct persisted
 			// template identities; origin policy is not a uniqueness bypass.
 			r := httptest.NewRequest("POST", "https://example.com/v1/questionnaire-templates", strings.NewReader(fmt.Sprintf(`{"name":"T-%d","version":"1","questions":[{"id":"q","prompt":"P"}]}`, i)))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", v.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%t-%d", focused, i))
 			if v.bearer {
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			before := f.calls + f.guards
 			w := httptest.NewRecorder()

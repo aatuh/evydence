@@ -55,6 +55,7 @@ func TestBundleImportCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testin
 		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) {
 			// The real command branch needs current transaction repositories.
 			base, secret := governanceTestServer(t)
+			cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 			f := &bundleImportHTTPFake{}
 			s := base
 			if native {
@@ -72,11 +73,11 @@ func TestBundleImportCookieOriginAndBearerPrecedenceAcrossFixturePorts(t *testin
 				want   int
 			}{{"", false, 403}, {"https://attacker.example", false, 403}, {"http://api.example", false, 403}, {"https://api.example", false, 201}, {"https://attacker.example", true, 201}} {
 				r := httptest.NewRequest("POST", "https://api.example/v1/evidence-bundles/import", strings.NewReader(body))
-				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 				r.Header.Set("Origin", tc.origin)
 				r.Header.Set("Idempotency-Key", "cookie-import")
 				if tc.bearer {
-					r.Header.Set("Authorization", "Bearer "+secret)
+					r.Header.Set("Authorization", "Bearer "+cookieSecret)
 				}
 				w := httptest.NewRecorder()
 				before := f.guards + f.calls

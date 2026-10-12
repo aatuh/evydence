@@ -31,17 +31,18 @@ func TestConfiguredAuthenticatorPrefersBearerOverSessionCookie(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodGet, "/v1/products", nil)
 	request.Header.Set("Authorization", "Bearer bearer-secret")
-	request.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: "cookie-secret"})
+	request.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: "evysso_cookie-secret"})
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK || configured.secret != "bearer-secret" {
 		t.Fatal("configured authenticator did not honor bearer precedence")
 	}
 	request = httptest.NewRequest(http.MethodGet, "/v1/products", nil)
-	request.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: "cookie-secret"})
+	configured.actor = identitydomain.Actor{TenantID: "ten_1", UserID: "user_1", SessionID: "session_1", Scopes: []string{"product:read"}}
+	request.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: "evysso_cookie-secret"})
 	response = httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
-	if response.Code != http.StatusOK || configured.secret != "cookie-secret" {
+	if response.Code != http.StatusOK || configured.secret != "evysso_cookie-secret" {
 		t.Fatal("configured authenticator did not accept session cookie fallback")
 	}
 }

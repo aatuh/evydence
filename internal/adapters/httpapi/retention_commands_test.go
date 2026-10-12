@@ -185,6 +185,7 @@ func TestRetentionHTTPRawBoundsAliasesAndScopedObjectsForFixtureAndNativeCommand
 
 func TestRetentionHTTPFixtureAndNativeCookieGuardAndFixtureReplayAuthority(t *testing.T) {
 	base, secret := governanceTestServer(t)
+	cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 	id := dataField(t, postJSON(t, base, secret, "/v1/object-retention-policies", "local-policy", map[string]any{"name": "Lock", "mode": "governance", "retention_days": 30}, 201), "id")
 	for _, focused := range []bool{false, true} {
 		f := &retentionHTTPFake{}
@@ -207,11 +208,11 @@ func TestRetentionHTTPFixtureAndNativeCookieGuardAndFixtureReplayAuthority(t *te
 				denied bool
 			}{{"", false, true}, {"https://attacker.example", false, true}, {"http://api.example", false, true}, {"https://api.example", false, false}, {"https://attacker.example", true, false}} {
 				r := httptest.NewRequest("POST", "https://api.example"+route.path, strings.NewReader(route.body))
-				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 				r.Header.Set("Origin", tc.origin)
 				r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%t-%d", focused, i))
 				if tc.bearer {
-					r.Header.Set("Authorization", "Bearer "+secret)
+					r.Header.Set("Authorization", "Bearer "+cookieSecret)
 				}
 				before := f.creates + f.verifies + f.createGuards + f.verifyGuards
 				w := httptest.NewRecorder()

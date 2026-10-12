@@ -90,6 +90,7 @@ func TestRetentionMarkerHTTPNativeReplayAndGuardErrors(t *testing.T) {
 func TestRetentionMarkerHTTPStrictBodiesCookiesAndLocalReplayAuthority(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		base, secret := operationsTestServer(t)
+		cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 		a, err := base.authn.Authenticate(t.Context(), secret)
 		if err != nil {
 			t.Fatal(err)
@@ -142,7 +143,7 @@ func TestRetentionMarkerHTTPStrictBodiesCookiesAndLocalReplayAuthority(t *testin
 			}
 			for _, origin := range []string{"", "https://evil.example", "http://api.example"} {
 				r := httptest.NewRequest("POST", "https://api.example"+path, strings.NewReader(string(raw)))
-				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 				r.Header.Set("Origin", origin)
 				r.Header.Set("Idempotency-Key", "unsafe-cookie")
 				w := httptest.NewRecorder()
@@ -156,12 +157,12 @@ func TestRetentionMarkerHTTPStrictBodiesCookiesAndLocalReplayAuthority(t *testin
 			}
 			for i, bearer := range []bool{false, true} {
 				r := httptest.NewRequest("POST", "https://api.example"+path, strings.NewReader(string(raw)))
-				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 				r.Header.Set("Origin", "https://api.example")
 				r.Header.Set("Idempotency-Key", fmt.Sprintf("safe-cookie-%d", i))
 				if bearer {
 					r.Header.Set("Origin", "https://evil.example")
-					r.Header.Set("Authorization", "Bearer "+secret)
+					r.Header.Set("Authorization", "Bearer "+cookieSecret)
 				}
 				w := httptest.NewRecorder()
 				base.Handler().ServeHTTP(w, r)

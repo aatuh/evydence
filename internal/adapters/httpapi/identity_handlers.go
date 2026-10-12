@@ -132,6 +132,7 @@ func (s *Server) createSSOSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	body, err := readBody(r)
 	if err != nil {
 		writeProblem(w, r, err)
@@ -169,6 +170,7 @@ func (s *Server) logoutSSOSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func setSSOSessionCookie(w http.ResponseWriter, secret string, expiresAt time.Time) {
+	w.Header().Set("Cache-Control", "no-store")
 	http.SetCookie(w, &http.Cookie{
 		Name:     ssoSessionCookieName,
 		Value:    secret,
@@ -181,6 +183,7 @@ func setSSOSessionCookie(w http.ResponseWriter, secret string, expiresAt time.Ti
 }
 
 func clearSSOSessionCookie(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
 	http.SetCookie(w, &http.Cookie{
 		Name:     ssoSessionCookieName,
 		Value:    "",

@@ -137,6 +137,7 @@ func TestSourceWritesCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, tc := range sourceNativeCases() {
 		for _, native := range []bool{false, true} {
 			base, secret := operationsTestServer(t)
+			cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 			s := base
 			if native {
 				o := ServerOptions{DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)}
@@ -157,11 +158,11 @@ func TestSourceWritesCookieOriginAndBearerPrecedence(t *testing.T) {
 					want = 201
 				}
 				r := httptest.NewRequest("POST", "https://api.example"+tc.path, strings.NewReader(tc.body))
-				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+				r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 				r.Header.Set("Origin", origin.value)
 				r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
 				if origin.bearer {
-					r.Header.Set("Authorization", "Bearer "+secret)
+					r.Header.Set("Authorization", "Bearer "+cookieSecret)
 				}
 				w := httptest.NewRecorder()
 				s.Handler().ServeHTTP(w, r)

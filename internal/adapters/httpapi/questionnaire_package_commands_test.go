@@ -101,6 +101,7 @@ func TestQuestionnairePackageHTTPFocusedStrictJSONAndSafeErrors(t *testing.T) {
 }
 func TestQuestionnairePackageHTTPOriginBothProfiles(t *testing.T) {
 	base, secret := governanceTestServer(t)
+	cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 	tpl := postRaw(t, base, secret, "/v1/questionnaire-templates", "template", []byte(`{"name":"Template","version":"1","questions":[{"id":"q","prompt":"Review?"}]}`), 201)
 	body := fmt.Sprintf(`{"template_id":%q}`, dataField(t, tpl, "id"))
 	for _, focused := range []bool{false, true} {
@@ -119,11 +120,11 @@ func TestQuestionnairePackageHTTPOriginBothProfiles(t *testing.T) {
 			status int
 		}{{"", false, 403}, {"https://attacker.example", false, 403}, {"http://example.com", false, 403}, {"https://example.com", false, 201}, {"https://attacker.example", true, 201}} {
 			r := httptest.NewRequest("POST", "https://example.com/v1/questionnaire-packages", strings.NewReader(body))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%t-%d", focused, i))
 			if tc.bearer {
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			w := httptest.NewRecorder()
 			s.Handler().ServeHTTP(w, r)

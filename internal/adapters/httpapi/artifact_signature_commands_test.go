@@ -113,6 +113,7 @@ func TestArtifactSignatureCreationStrictInputBeforeGuardInBothProfiles(t *testin
 func TestArtifactSignatureCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := testServer(t)
+		cookieSecret := fixtureSSOCookieSecret(t, s, secret)
 		f := &artifactSignatureCommandHTTPFake{}
 		if native {
 			s.artifactSignatureCommands = f
@@ -128,11 +129,11 @@ func TestArtifactSignatureCreationCookieOriginAndBearerPrecedence(t *testing.T) 
 				want = 201
 			}
 			r := httptest.NewRequest("POST", "https://api.example/v1/artifact-signatures", strings.NewReader(`{"artifact_id":"missing","algorithm":"cosign","signature":"recorded"}`))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
 			if tc.bearer {
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			w := httptest.NewRecorder()
 			before := f.calls + f.guards

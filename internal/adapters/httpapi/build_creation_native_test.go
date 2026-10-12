@@ -58,6 +58,7 @@ func TestBuildCreationRejectsMalformedInputBeforeNativeGuard(t *testing.T) {
 func TestBuildCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		base, secret := governanceTestServer(t)
+		cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 		s := base
 		f := &buildCreationHTTPFake{}
 		if native {
@@ -77,11 +78,11 @@ func TestBuildCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 				want = 201
 			}
 			r := httptest.NewRequest("POST", "https://api.example/v1/builds", strings.NewReader(nativeBuildBody()))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
 			if tc.bearer {
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			w := httptest.NewRecorder()
 			before := f.calls + f.guards

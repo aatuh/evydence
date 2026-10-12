@@ -27,6 +27,22 @@ Content-Type: application/json
 Accept: application/json
 ```
 
+Authenticated routes accept exactly one `Authorization` field parsed by the API
+toolkit. The Bearer scheme is case-insensitive. Blank, duplicate, comma-joined,
+wrong-scheme, or whitespace-ambiguous values return `401`; an explicit invalid
+header never falls back to a cookie. API keys and collector keys use Bearer.
+
+Cookie authentication accepts exactly one nonblank `evydence_session` value
+with the issued `evysso_` prefix, verified as a human SSO session. API and
+collector keys cannot acquire cookie authority. Cookies are Secure, HttpOnly,
+SameSite=Strict, host-only, and scoped to `/v1`; browser use requires HTTPS.
+Unsafe cookie requests require one HTTPS `Origin` matching the public request
+Host before authentication or cookie cleanup. Explicit Bearer credentials take
+precedence. Unauthorized cookie admission expires the same cookie without
+revoking a database record; permission denials and invalid explicit Bearer
+credentials do not clear an incidental cookie. SSO issuance/exchange and cookie
+cleanup responses include `Cache-Control: no-store`.
+
 Create and action endpoints require `Idempotency-Key`. A key is scoped to the
 authenticated tenant, actor, HTTP method, and path. The service stores a
 request digest, not the raw request body, and uses an internal hashed lease

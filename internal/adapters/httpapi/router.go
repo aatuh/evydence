@@ -23,7 +23,6 @@ import (
 	application "github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	evidencequery "github.com/aatuh/evydence/internal/evidence/query"
-	identityapp "github.com/aatuh/evydence/internal/identity/app"
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
@@ -2075,32 +2074,6 @@ func (s *Server) listAPIKeys(w http.ResponseWriter, r *http.Request) {
 		page.Items = append(page.Items, apiKeyFromQuery(key))
 	}
 	writePage(s, w, r, actor, "api-keys", request, page)
-}
-
-func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
-	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-	token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
-	if authHeader == "" {
-		if cookie, err := r.Cookie(ssoSessionCookieName); err == nil {
-			token = strings.TrimSpace(cookie.Value)
-		}
-	}
-	actor, err := s.authn.Authenticate(r.Context(), token)
-	if err != nil {
-		switch {
-		case errors.Is(err, identityapp.ErrUnauthorized):
-			err = app.ErrUnauthorized
-		case errors.Is(err, identityapp.ErrForbidden):
-			err = app.ErrForbidden
-		}
-		writeProblem(w, r, err)
-		return domain.Actor{}, false
-	}
-	if !s.allowExpensiveTenantRequest(actor, r) {
-		writeProblem(w, r, app.ErrRateLimited)
-		return domain.Actor{}, false
-	}
-	return actor, true
 }
 
 func readBody(r *http.Request) ([]byte, error) {

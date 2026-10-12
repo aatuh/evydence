@@ -92,6 +92,7 @@ func TestCatalogCreationRejectsMalformedJSONBeforeGuard(t *testing.T) {
 
 func TestCatalogCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 	base, secret := testServer(t)
+	cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 	p, j, r := &productHTTPFake{}, &projectHTTPFake{}, &releaseCreationHTTPFake{}
 	s, err := derivedServerFixture(base, ServerOptions{ProductCommands: p, ProjectCommands: j, ReleaseCreationCommands: r, DurableCommandExecutor: newTrustHTTPReplayExecutor(t, base, secret)})
 	if err != nil {
@@ -104,11 +105,11 @@ func TestCatalogCreationCookieOriginAndBearerPrecedence(t *testing.T) {
 			want   int
 		}{{"", false, 403}, {"https://attacker.example", false, 403}, {"http://api.example", false, 403}, {"https://api.example", false, 201}, {"https://attacker.example", true, 201}} {
 			req := httptest.NewRequest("POST", "https://api.example"+c.path, strings.NewReader(c.body))
-			req.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			req.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			req.Header.Set("Origin", tc.origin)
 			req.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
 			if tc.bearer {
-				req.Header.Set("Authorization", "Bearer "+secret)
+				req.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			w := httptest.NewRecorder()
 			before := p.calls + p.guards + j.calls + j.guards + r.calls + r.guards

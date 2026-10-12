@@ -22,6 +22,7 @@ type providerReceiptHTTPFake struct {
 
 func TestProviderReceiptHTTPCookieMutationRequiresSameHTTPSOrigin(t *testing.T) {
 	base, secret := testServer(t)
+	cookieSecret := fixtureSSOCookieSecret(t, base, secret)
 	f := &providerReceiptHTTPFake{}
 	s, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{ProviderVerificationCommands: f, DurableCommandExecutor: &decisionHTTPExecutorFake{}})
 	if err != nil {
@@ -31,12 +32,12 @@ func TestProviderReceiptHTTPCookieMutationRequiresSameHTTPSOrigin(t *testing.T) 
 	request := func(origins []string, bearer bool, want int) {
 		t.Helper()
 		r := httptest.NewRequest("POST", "https://example.com/v1/provider-verifications", strings.NewReader(body))
-		r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+		r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 		for _, origin := range origins {
 			r.Header.Add("Origin", origin)
 		}
 		if bearer {
-			r.Header.Set("Authorization", "Bearer "+secret)
+			r.Header.Set("Authorization", "Bearer "+cookieSecret)
 		}
 		r.Header.Set("Idempotency-Key", "origin")
 		w := httptest.NewRecorder()

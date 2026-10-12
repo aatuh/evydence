@@ -91,6 +91,7 @@ func TestDSSEHTTPStrictEmptyInputBeforeGuardForFixtureAndNativeCommands(t *testi
 func TestDSSEHTTPCookieMutationAndBearerPrecedenceForFixtureAndNativeCommands(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		s, secret := governanceTestServer(t)
+		cookieSecret := fixtureSSOCookieSecret(t, s, secret)
 		f := &dsseVerificationHTTPFake{}
 		if native {
 			s.dsseVerification = f
@@ -106,11 +107,11 @@ func TestDSSEHTTPCookieMutationAndBearerPrecedenceForFixtureAndNativeCommands(t 
 				want = 200
 			}
 			r := httptest.NewRequest("POST", "https://api.example/v1/build-attestations/not-in-ledger/verify-signature", strings.NewReader(`{}`))
-			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: secret})
+			r.AddCookie(&http.Cookie{Name: ssoSessionCookieName, Value: cookieSecret})
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Idempotency-Key", fmt.Sprintf("cookie-%d", i))
 			if tc.bearer {
-				r.Header.Set("Authorization", "Bearer "+secret)
+				r.Header.Set("Authorization", "Bearer "+cookieSecret)
 			}
 			w := httptest.NewRecorder()
 			before := f.calls + f.guards
