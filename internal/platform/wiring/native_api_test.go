@@ -48,16 +48,23 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 	}
 	type operation struct{ id, method, path string }
 	var operations []operation
+	var hasOIDCAuthenticationRequest bool
 	for path, methods := range doc.Paths {
 		for method, op := range methods {
 			if op.OperationID != "" {
 				operations = append(operations, operation{op.OperationID, strings.ToUpper(method), path})
+				if op.OperationID == "beginOIDCAuthentication" && method == "post" && path == "/v1/sso/authentication-requests" {
+					hasOIDCAuthenticationRequest = true
+				}
 			}
 		}
 	}
 	sort.Slice(operations, func(i, j int) bool { return operations[i].id < operations[j].id })
-	if len(operations) != 189 {
-		t.Fatalf("native route sweep covers %d operations, expected current contract's 189", len(operations))
+	if len(operations) != 190 {
+		t.Fatalf("native route sweep covers %d operations, expected current contract's 190", len(operations))
+	}
+	if !hasOIDCAuthenticationRequest {
+		t.Fatal("native route sweep omits the OIDC authentication request operation")
 	}
 	parameters := regexp.MustCompile(`\{[^}]+\}`)
 	for _, op := range operations {
