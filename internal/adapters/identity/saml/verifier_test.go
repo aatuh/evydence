@@ -291,6 +291,37 @@ func replaceFixtureCertificate(t *testing.T, f signedFixture, before, after time
 	return f
 }
 
+func TestVerifierKeepsSelectedCertificateExpiryAsProofDeadline(t *testing.T) {
+	for _, scenario := range []string{"selected expiry", "unrelated overlapping pin", "issue after certificate expiry"} {
+		t.Run(scenario, func(t *testing.T) {
+			f := newSignedFixture(t)
+			deadline := f.req.Now.Add(30 * time.Second)
+			f = replaceFixtureCertificate(t, f, f.req.Now.Add(-time.Hour), deadline, x509.KeyUsageDigitalSignature)
+			a := f.assertion()
+			a.FindElement("saml:AuthnStatement").CreateAttr("SessionNotOnOrAfter", f.req.Now.Add(2*time.Minute).Format(time.RFC3339))
+			if scenario == "unrelated overlapping pin" {
+				other := newSignedFixture(t)
+				other = replaceFixtureCertificate(t, other, f.req.Now.Add(-time.Hour), f.req.Now.Add(time.Second), x509.KeyUsageDigitalSignature)
+				f.req.Provider.SAMLSigningCertificates = append(f.req.Provider.SAMLSigningCertificates, other.req.Provider.SAMLSigningCertificates...)
+			}
+			if scenario == "issue after certificate expiry" {
+				a.CreateAttr("IssueInstant", f.req.Now.Add(45*time.Second).Format(time.RFC3339))
+			}
+			f.req.SAMLAssertion = assertionText(t, f.sign(t, a, nil))
+			got, err := (Verifier{}).Verify(t.Context(), f.req)
+			if scenario == "issue after certificate expiry" {
+				if !errors.Is(err, identityapp.ErrVerificationFailed) || got.SAMLAssertionID != "" {
+					t.Fatal("proof issue time exceeded selected trust lifetime", err)
+				}
+				return
+			}
+			if err != nil || !got.ExpiresAt.Equal(deadline) || !got.SessionExpiresAt.Equal(f.req.Now.Add(2*time.Minute)) {
+				t.Fatal("selected certificate validity was lost or confused with other pins/session lifetime", got.ExpiresAt, got.SessionExpiresAt, err)
+			}
+		})
+	}
+}
+
 func TestVerifierCertificatePinsSupportOverlapRemovalAndExclusiveExpiry(t *testing.T) {
 	f, rotated := newSignedFixture(t), newSignedFixture(t)
 	for _, name := range []string{"overlap", "removed", "untrusted", "exclusive expiry", "future certificate", "encryption-only key", "unused expired pin"} {

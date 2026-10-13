@@ -1,6 +1,10 @@
 package wiring
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"strings"
@@ -8,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/application"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
@@ -262,5 +268,83 @@ func TestPostgresSAMLSignedExchangeKeyRotationHonorsOverlapAndRemoval(t *testing
 	f.input.SAMLAssertion = f.sign(t, a)
 	if _, session, secret, err := c.ExchangeSSOCredential(t.Context(), f.input); err != nil || session.ID == "" || secret == "" {
 		t.Fatal("remaining signer could not use unconsumed state", err)
+	}
+}
+
+type samlDeadlineTransactions struct {
+	native  ssoExchangeTransactions
+	advance func()
+}
+type samlDeadlineTransaction struct {
+	identityapp.SSOExchangeTransaction
+	identityapp.SAMLAuthenticationRequestConsumer
+	advance func()
+}
+
+func (t samlDeadlineTransactions) ExecuteSSOExchange(ctx context.Context, run func(context.Context, identityapp.SSOExchangeTransaction) error) error {
+	return t.native.ExecuteSSOExchange(ctx, func(ctx context.Context, tx identityapp.SSOExchangeTransaction) error {
+		consumer, ok := tx.(identityapp.SAMLAuthenticationRequestConsumer)
+		if !ok {
+			return identityapp.ErrValidation
+		}
+		return run(ctx, samlDeadlineTransaction{tx, consumer, t.advance})
+	})
+}
+func (t samlDeadlineTransaction) ValidateSSOExchangeState(ctx context.Context, s identityapp.SSOExchangeSnapshot) error {
+	if err := t.SSOExchangeTransaction.ValidateSSOExchangeState(ctx, s); err != nil {
+		return err
+	}
+	t.advance()
+	return nil
+}
+
+func TestPostgresSAMLSelectedCertificateExpiryAfterLocksCannotIssueAuthority(t *testing.T) {
+	f := newSAMLSignedExchangeFixture(t)
+	certificate, err := x509.ParseCertificate(f.der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := f.now.Add(30 * time.Second)
+	certificate.NotAfter = deadline
+	f.der, err = x509.CreateCertificate(rand.Reader, certificate, certificate, &f.key.PublicKey, f.key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pins, err := json.Marshal([]string{string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: f.der}))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(), `UPDATE sso_providers SET saml_signing_certificates=$1 WHERE id='provider'`, pins); err != nil {
+		t.Fatal(err)
+	}
+	begin, err := BuildSAMLAuthenticationRequestCommands(f.store, "exchange-test-pepper", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.request, f.input.StateSecret, err = begin.BeginSAMLAuthentication(t.Context(), identityapp.BeginSAMLAuthenticationInput{ProviderID: "provider"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.input.AuthenticationRequestID = f.request.ID
+	f.input.SAMLAssertion = f.sign(t, f.assertion())
+	credentials, err := buildAuthenticationCredentials("exchange-test-pepper", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := time.Now().UTC()
+	if !current.Before(deadline) {
+		t.Fatal("fixture certificate expired before test began")
+	}
+	c, err := identityapp.NewSSOExchangeCommands(identityapp.SSOExchangeCommandConfig{
+		Reader: ssoExchangeReader{factory: f.store}, Transactions: samlDeadlineTransactions{ssoExchangeTransactions{factory: f.store}, func() { current = deadline }},
+		Credentials: credentials, Verifier: ssoCredentialVerifier{}, VerificationPolicy: app.LocalSSOVerificationPolicy{}, SessionGrants: ssoExchangeGroupPolicy{},
+		Clock: application.ClockFunc(func() time.Time { return current }), IDs: application.IDGeneratorFunc(application.NewID), AuthenticationRequests: ssoExchangeReader{factory: f.store}, ProofCredentials: credentials, SAMLAuthentication: ssoExchangeReader{factory: f.store},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := f.counts(t)
+	if v, session, secret, err := c.ExchangeSSOCredential(t.Context(), f.input); !errors.Is(err, identityapp.ErrUnauthorized) || v.ID != "" || session.ID != "" || secret != "" || f.counts(t) != before {
+		t.Fatal("expired certificate crossed lock boundary into durable authority", err)
 	}
 }

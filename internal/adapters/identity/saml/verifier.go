@@ -3,6 +3,7 @@
 package saml
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
@@ -66,6 +67,10 @@ func (Verifier) Verify(ctx context.Context, in identityapp.CredentialVerificatio
 	if err != nil {
 		return failure("saml_signing_certificate")
 	}
+	selected, err := selectedCertificate(root, certs)
+	if err != nil {
+		return failure("saml_signing_certificate")
+	}
 	validation := dsig.NewDefaultValidationContext(&dsig.MemoryX509CertificateStore{Roots: certs})
 	validation.Clock = dsig.NewFakeClockAt(in.Now)
 	literalRootIDFirst(root)
@@ -82,6 +87,14 @@ func (Verifier) Verify(ctx context.Context, in identityapp.CredentialVerificatio
 	if err != nil {
 		return failure("saml_assertion_bindings")
 	}
+	// Certificate validity is a proof deadline, not an ongoing session policy.
+	// The exchange rechecks this ceiling after locks, writes and commit.
+	if selected.NotAfter.Before(result.ExpiresAt) {
+		result.ExpiresAt = selected.NotAfter.UTC()
+	}
+	if !result.ExpiresAt.After(result.IssuedAt) {
+		return failure("saml_signing_certificate")
+	}
 	for _, name := range []string{"saml_assertion_signature", "issuer", "audience", "subject", "saml_assertion_time", "saml_recipient", "saml_response_correlation"} {
 		result.Checks = append(result.Checks, identitydomain.VerificationCheck{Name: name, Result: "passed"})
 	}
@@ -89,6 +102,35 @@ func (Verifier) Verify(ctx context.Context, in identityapp.CredentialVerificatio
 		return identityapp.CredentialVerificationResult{}, err
 	}
 	return result, nil
+}
+
+func selectedCertificate(root *etree.Element, pins []*x509.Certificate) (*x509.Certificate, error) {
+	children := root.ChildElements()
+	if len(children) < 2 || !named(children[1], dsig.Namespace, "Signature") {
+		return nil, errProfile
+	}
+	parts, err := exactChildren(children[1], dsig.Namespace, "SignedInfo", "SignatureValue", "KeyInfo")
+	if err != nil {
+		return nil, err
+	}
+	data, err := exactChildren(parts[2], dsig.Namespace, "X509Data")
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := exactChildren(data[0], dsig.Namespace, "X509Certificate")
+	if err != nil {
+		return nil, err
+	}
+	raw, err := base64Value(encoded[0], 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, pin := range pins {
+		if bytes.Equal(raw, pin.Raw) {
+			return pin, nil
+		}
+	}
+	return nil, errProfile
 }
 
 func certificatePins(values []string, now time.Time) ([]*x509.Certificate, error) {

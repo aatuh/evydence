@@ -631,7 +631,10 @@ replay markers, request consumption, verification, session and audits commit
 together. A verified proof denied by identity policy is still consumed; invalid
 signatures are not. Failed writes or commit leave the same proof retryable.
 Proof/request deadlines are checked after locks, writes and commit, withholding
-late secret delivery. These local checks make no provider network call and do
+late secret delivery. The selected pinned certificate's expiry also caps proof
+validity; unrelated rotation pins do not shorten it. This creation-time trust
+check does not automatically revoke an already issued session when a certificate
+expires. These local checks make no provider network call and do
 not prove arbitrary-provider interoperability.
 
 HTTP setup, supported-profile documentation and migration of the historical
