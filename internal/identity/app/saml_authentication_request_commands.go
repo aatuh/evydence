@@ -75,7 +75,7 @@ func cloneSAMLProviderBinding(b identitydomain.SAMLProviderBinding) identitydoma
 func ValidSAMLProviderBinding(b identitydomain.SAMLProviderBinding) bool {
 	_, format, err := NormalizeSAMLBindingParameters(b.Recipient, b.NameIDFormat)
 	p := b.Provider
-	return err == nil && format == b.NameIDFormat && b.SchemaVersion == identitydomain.SAMLProviderBindingSchemaVersion && validAPIKeyTime(b.UpdatedAt) && !b.UpdatedAt.IsZero() && validAPIKeyID(b.TenantID) && validAPIKeyID(b.ProviderID) && p.TenantID == b.TenantID && p.ID == b.ProviderID && p.Type == "saml" && p.Status == "active" && p.Issuer != "" && p.ClientID != "" && len(p.SAMLSigningCertificates) > 0 && len(p.SAMLSigningCertificates) <= 5
+	return err == nil && format == b.NameIDFormat && b.SchemaVersion == identitydomain.SAMLProviderBindingSchemaVersion && validAPIKeyTime(b.UpdatedAt) && !b.UpdatedAt.IsZero() && validAPIKeyID(b.TenantID) && validAPIKeyID(b.ProviderID) && p.TenantID == b.TenantID && p.ID == b.ProviderID && p.Type == "saml" && p.Status == "active" && p.Issuer != "" && validAPIKeyText(p.Issuer, 4096) && p.ClientID != "" && validAPIKeyText(p.ClientID, 4096) && len(p.SAMLSigningCertificates) > 0 && len(p.SAMLSigningCertificates) <= 5
 }
 
 // SAMLProviderTrustFingerprint binds both the existing provider trust snapshot
