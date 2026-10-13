@@ -703,6 +703,13 @@ in `internal/identity/domain/oidc_authentication_request.go`. It represents
 short-lived, single-use login state; it stores hashes rather than raw state or
 nonce values and has no legacy transport DTO.
 
+Identity owns `SAMLProviderBinding`, `SAMLAuthenticationRequest` and
+`SAMLAssertionUse` in `internal/identity/domain/saml_authentication_request.go`.
+They define the tenant-owned SP binding, finite single-use login state, and
+transient assertion replay identity. The binding includes a provider snapshot;
+raw login state and assertion bytes are excluded from these lifecycle values.
+They have no legacy transport DTOs. EVY-1010 tracks their runtime integration.
+
 | Context | Owns these current domain types | Current implementation and port ownership |
 | --- | --- | --- |
 | Identity and access | `Actor`, `ResourceGrant`, `Tenant`, `Organization`, `HumanUser`, `RoleBinding`, `SSOProvider`, `UserIdentityLink`, `SSOSession`, `APIKey`, `ProviderVerification` | `internal/identity/app.Service`; `IdentityRepository`; identity portions of `EnterpriseRepository` and the Ledger DTO adapter are temporary. |

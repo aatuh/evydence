@@ -5,10 +5,23 @@ import (
 	"strings"
 )
 
-// BackupCommitmentProfileResources returns fresh copies of the immutable v4
+// BackupCommitmentProfileResources returns fresh copies of the immutable v5
 // commitment vocabulary. Adapters supply records; SQL and storage mechanics
 // are not part of this application-owned profile.
 func BackupCommitmentProfileResources() []BackupCommitmentResource {
+	sources := BackupCommitmentProfileResourcesV4()
+	sources = append(sources,
+		BackupCommitmentResource{Name: "saml_provider_bindings", Columns: []string{"tenant_id", "provider_id", "recipient", "name_id_format", "schema_version", "updated_at"}},
+		BackupCommitmentResource{Name: "saml_authentication_requests", Columns: []string{"id", "tenant_id", "provider_id", "delivery", "issuer", "audience", "recipient", "name_id_format", "trust_fingerprint", "created_at", "expires_at", "consumed_at", "schema_version"}},
+		BackupCommitmentResource{Name: "saml_assertion_consumptions", Columns: []string{"tenant_id", "provider_id", "assertion_hash", "request_id", "consumed_at", "expires_at", "schema_version"}},
+	)
+	sort.Slice(sources, func(i, j int) bool { return sources[i].Name < sources[j].Name })
+	return sources
+}
+
+// BackupCommitmentProfileResourcesV4 preserves OIDC request commitments
+// without adding later SAML binding, login and assertion replay metadata.
+func BackupCommitmentProfileResourcesV4() []BackupCommitmentResource {
 	sources := BackupCommitmentProfileResourcesV3()
 	sources = append(sources, BackupCommitmentResource{Name: "oidc_authentication_requests", Columns: []string{"id", "tenant_id", "provider_id", "delivery", "trust_fingerprint", "created_at", "expires_at", "consumed_at", "schema_version"}})
 	sort.Slice(sources, func(i, j int) bool { return sources[i].Name < sources[j].Name })

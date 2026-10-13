@@ -56,6 +56,10 @@ func (r integrity) ReadBackupStateCommitment(ctx context.Context, tenant string)
 			key = `tenant_id`
 		case "vulnerability_decision_supersessions":
 			key = `predecessor_id`
+		case "saml_provider_bindings":
+			key = `provider_id`
+		case "saml_assertion_consumptions":
+			key = `jsonb_build_array(provider_id,assertion_hash)`
 		case "object_payloads":
 			key = `object_key`
 		case "outbox_job_attempts":

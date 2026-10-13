@@ -65,8 +65,9 @@ func TestBackupCommitmentVersionsKeepLegacyHashReproducible(t *testing.T) {
 	}
 	v2 := hash(BackupStateCommitmentProfileV2)
 	v3 := hash(BackupStateCommitmentProfileV3)
-	v4 := hash(BackupStateCommitmentProfile)
-	if v2 == legacy || v3 == legacy || v3 == v2 || v4 == legacy || v4 == v2 || v4 == v3 {
+	v4 := hash(BackupStateCommitmentProfileV4)
+	v5 := hash(BackupStateCommitmentProfile)
+	if v2 == legacy || v3 == legacy || v3 == v2 || v4 == legacy || v4 == v2 || v4 == v3 || v5 == legacy || v5 == v2 || v5 == v3 || v5 == v4 {
 		t.Fatal("versioned hashes omitted profile separation")
 	}
 	if _, err := NewBackupStateDigesterWithProfile("unknown", "tenant", resources); !errors.Is(err, ErrValidation) {

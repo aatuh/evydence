@@ -15,7 +15,8 @@ const (
 	BackupStateCommitmentProfileV1 = "tenant-relational-state.v1"
 	BackupStateCommitmentProfileV2 = "tenant-relational-state.v2"
 	BackupStateCommitmentProfileV3 = "tenant-relational-state.v3"
-	BackupStateCommitmentProfile   = "tenant-relational-state.v4"
+	BackupStateCommitmentProfileV4 = "tenant-relational-state.v4"
+	BackupStateCommitmentProfile   = "tenant-relational-state.v5"
 	MaxBackupStateCommitmentRows   = 32768
 	MaxBackupStateCommitmentBytes  = 8 << 20
 )

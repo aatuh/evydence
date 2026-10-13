@@ -3785,12 +3785,13 @@ PostgreSQL uses focused native durable execution. Before reservation and every
 replay, the current tenant-admin guard locks only the tenant root, not state
 rows, audit pages or signing material. The common writer fence precedes tenant
 and audit-chain locks. Fresh generation streams the complete declared
-`tenant-relational-state.v4` metadata profile in one committed read view,
+`tenant-relational-state.v5` metadata profile in one committed read view,
 including decision supersession history, session lifecycle and non-secret OIDC
-request metadata. State/nonce hashes are excluded. Historical v1/v2/v3 commitment
+request metadata, plus SAML SP bindings and assertion replay hashes/deadlines.
+Login state/nonce hashes are excluded. Historical v1/v2/v3/v4 commitment
 vocabularies remain frozen. The commitment is bounded
 by 32768 rows and 8 MiB of encoded input; overflow returns `409` rather than a
-truncated prefix hash. Credential material, replay bookkeeping and raw object
+truncated prefix hash. Credential material, HTTP replay bookkeeping and raw object
 payload bytes are excluded. The emitted `backup-manifest.v2.0.0` records the
 state hash, existing resource counts and actual local audit consistency checks.
 Failed checks are retained as failed observations. Manifest, caller audit and

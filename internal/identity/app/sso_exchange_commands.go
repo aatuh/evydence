@@ -301,7 +301,7 @@ func (s *SSOExchangeCommands) boundOIDCRequest(ctx context.Context, p identitydo
 	if id == "" || in.StateSecret == "" {
 		return identitydomain.OIDCAuthenticationRequest{}, ErrUnauthorized
 	}
-	if len(in.StateSecret) != len("evylogin_")+43 || !strings.HasPrefix(in.StateSecret, "evylogin_") || !validIssuedOIDCCredential(Credential{Secret: in.StateSecret, Prefix: in.StateSecret[:12], Hash: s.config.ProofCredentials.Hash(in.StateSecret)}, "evylogin_") {
+	if len(in.StateSecret) != len("evylogin_")+43 || !strings.HasPrefix(in.StateSecret, "evylogin_") || !validIssuedLoginCredential(Credential{Secret: in.StateSecret, Prefix: in.StateSecret[:12], Hash: s.config.ProofCredentials.Hash(in.StateSecret)}, "evylogin_") {
 		return identitydomain.OIDCAuthenticationRequest{}, ErrUnauthorized
 	}
 	delivery := in.Delivery

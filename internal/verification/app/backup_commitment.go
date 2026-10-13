@@ -33,7 +33,7 @@ func NewBackupStateDigester(tenant string, resources []BackupCommitmentResource)
 // NewBackupStateDigesterWithProfile reproduces each declared commitment
 // version. Callers must supply that version's unchanged resource vocabulary.
 func NewBackupStateDigesterWithProfile(profile, tenant string, resources []BackupCommitmentResource) (*BackupStateDigester, error) {
-	if profile != BackupStateCommitmentProfileV1 && profile != BackupStateCommitmentProfileV2 && profile != BackupStateCommitmentProfileV3 && profile != BackupStateCommitmentProfile {
+	if profile != BackupStateCommitmentProfileV1 && profile != BackupStateCommitmentProfileV2 && profile != BackupStateCommitmentProfileV3 && profile != BackupStateCommitmentProfileV4 && profile != BackupStateCommitmentProfile {
 		return nil, ErrValidation
 	}
 	if !validSigningKeyText(tenant) || len(tenant) > 1024 || len(resources) == 0 || len(resources) > 128 {

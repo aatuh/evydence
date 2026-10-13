@@ -117,7 +117,7 @@ func (s *OIDCAuthenticationRequestCommands) BeginOIDCAuthentication(ctx context.
 		if err != nil {
 			return err
 		}
-		if !validIssuedOIDCCredential(state, "evylogin_") || !validIssuedOIDCCredential(nonce, "evynonce_") || state.Hash != s.config.Credentials.Hash(state.Secret) || nonce.Hash != s.config.Credentials.Hash(nonce.Secret) || state.Hash == nonce.Hash {
+		if !validIssuedLoginCredential(state, "evylogin_") || !validIssuedLoginCredential(nonce, "evynonce_") || state.Hash != s.config.Credentials.Hash(state.Secret) || nonce.Hash != s.config.Credentials.Hash(nonce.Secret) || state.Hash == nonce.Hash {
 			return ErrValidation
 		}
 		request = identitydomain.OIDCAuthenticationRequest{ID: s.config.IDs.NewID("oidcreq"), TenantID: provider.TenantID, ProviderID: provider.ID, Delivery: in.Delivery, TrustFingerprint: fingerprint, StateHash: state.Hash, NonceHash: nonce.Hash, CreatedAt: now, ExpiresAt: now.Add(identitydomain.MaximumOIDCAuthenticationRequestLifetime), SchemaVersion: identitydomain.OIDCAuthenticationRequestSchemaVersion}
@@ -162,7 +162,7 @@ func PublicOIDCAuthenticationRequest(value identitydomain.OIDCAuthenticationRequ
 	return value
 }
 
-func validIssuedOIDCCredential(value Credential, prefix string) bool {
+func validIssuedLoginCredential(value Credential, prefix string) bool {
 	if len(value.Secret) != len(prefix)+43 || !strings.HasPrefix(value.Secret, prefix) || len(value.Prefix) != 12 || value.Prefix != value.Secret[:12] || len(value.Hash) != 64 {
 		return false
 	}

@@ -61,7 +61,7 @@ provider verification is introduced by login initiation/exchange.
 The guarded down migration refuses to discard any retained request, including
 consumed or expired rows. Use a forward fix; running older binaries against
 this schema does not retain the new authentication protections. The new
-backup metadata profile is `tenant-relational-state.v4`, which adds non-secret
+OIDC backup metadata profile is `tenant-relational-state.v4`, which adds non-secret
 request metadata and excludes state/nonce hashes. Historical v1/v2/v3 profiles
 and recorded commitments remain unchanged; the manifest envelope stays
 `backup-manifest.v2.0.0`.
@@ -69,6 +69,26 @@ and recorded commitments remain unchanged; the manifest envelope stays
 SAML standard assertion binding/replay and authentication failure telemetry
 remain separate backlog work. These rollout notes do not claim real-provider
 interoperability or completion of those features.
+
+### SAML operational state (unreleased)
+
+Migration `20261013000200_saml_authentication_state` adds tenant-owned SP
+bindings, five-minute authentication requests and assertion replay markers.
+It preserves existing providers, sessions, identity links and audit/evidence
+history. Recipient/NameID settings live in a separate binding record, so the
+existing OIDC provider snapshot and pending-request fingerprint remain unchanged.
+Replay markers retain a scoped assertion hash through its signed expiry,
+including when that deadline outlives its login request. Expired operational
+rows use bounded cleanup; retained requests count toward provider capacity.
+
+The guarded downgrade refuses any retained binding, request or replay marker.
+Use a forward fix; do not discard configured bindings or replay protection to
+run older writers. Backup `tenant-relational-state.v5` commits their non-secret
+metadata and excludes SAML state hashes. Frozen v1–v4 vocabularies and vectors
+remain reproducible; the manifest envelope stays `backup-manifest.v2.0.0`.
+Runtime SAML login integration and its API rollout remain EVY-1010 work until
+the complete acceptance gate passes. These storage notes do not prove real
+provider interoperability.
 
 The public API is `/v1`. Within a stable release line:
 

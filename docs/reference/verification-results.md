@@ -194,11 +194,14 @@ Source/test evidence: `internal/verification/app/subject_verification.go`,
 with tenant-wide `admin` authorization before reads; human actors need a tenant
 grant. An empty JSON object (or omitted body) is accepted. Non-object bodies,
 unknown fields and duplicate fields are rejected. The command creates
-`backup-manifest.v2.0.0` with `tenant-relational-state.v4` state-hash semantics.
+`backup-manifest.v2.0.0` with `tenant-relational-state.v5` state-hash semantics.
 The response field layout and eight legacy resource-count names are unchanged.
-The v4 profile adds non-secret OIDC authentication-request metadata; state and
-nonce hashes are excluded. The frozen v3 profile includes session activity and
-captured lifetime/idle policy. Frozen v1/v2/v3 vocabularies and hash vectors remain available for historical
+The v5 profile adds SAML SP bindings, login-request metadata and scoped assertion
+replay hashes/deadlines. These replay hashes identify consumed assertions; they
+are not login credentials. SAML state hashes remain excluded. The frozen v4
+profile adds non-secret OIDC authentication-request metadata; state and nonce
+hashes are excluded. The frozen v3 profile includes session activity and
+captured lifetime/idle policy. Frozen v1/v2/v3/v4 vocabularies and hash vectors remain available for historical
 reproduction; existing manifests and replay receipts are not rewritten.
 
 The commitment covers the full declared tenant-owned relational metadata set in
@@ -220,7 +223,7 @@ manifests retain their original hashes and recorded profile limitations. Failed
 consistency observations remain failed in the generated manifest.
 
 The Verification application context owns the immutable vocabulary: 97
-resources in v1, 98 in v2/v3, and 99 in v4. Its profile helpers return fresh resource/column
+resources in v1, 98 in v2/v3, 99 in v4 and 102 in v5. Its profile helpers return fresh resource/column
 slices, and header-only SHA-256 regression vectors pin the original vocabulary
 and order. The PostgreSQL adapter consumes those definitions directly and owns
 SQL identifiers, tenant predicates, row keys, fences and bounded streaming.
@@ -228,10 +231,10 @@ These static vectors do not prove schema coverage, a completed commitment,
 backup completeness or successful restore; live schema/commitment tests remain
 separate required evidence. Memory fixtures do not implement this full profile.
 
-Credential hashes, private signing bytes, replay records, compatibility
+Credential hashes, private signing bytes, HTTP idempotency replay records, compatibility
 `ledger_state`, cached `resource_index`, migration bookkeeping, worker
 payloads/lease tokens/raw errors and raw VEX failure detail are explicitly
-excluded. Replay records are excluded even when the enclosing HTTP transaction
+excluded. HTTP replay records are excluded even when the enclosing HTTP transaction
 has inserted its pending record. Raw object-store payload bytes are never read.
 Other tenants' rows do not contribute. Known metadata may contain sensitive
 tenant information; it contributes only to the digest, not response row copies.
