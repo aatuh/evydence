@@ -1,8 +1,11 @@
 package postgres
 
 import (
+	"errors"
 	"os"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func executeOIDCRequestMigration(t *testing.T, store *Store, direction string) error {
@@ -25,7 +28,18 @@ func oidcMigrationHistory(t *testing.T, store *Store) string {
 func TestPostgresOIDCRequestMigrationPreservesIdentityHistoryAndGuardsRetainedState(t *testing.T) {
 	store, _, request := oidcRequestStorageFixture(t)
 	before := oidcMigrationHistory(t, store)
-	if err := executeOIDCRequestMigration(t, store, "down"); err == nil {
+	// Rehearse this historical migration at its own schema prefix. Later SAML
+	// tables depend on the OIDC owner key and must roll back first; their empty
+	// operational tables can be removed without changing identity history.
+	if err := executeSAMLStateMigration(t, store, "down"); err != nil {
+		t.Fatal("roll back later SAML migration before OIDC", err)
+	}
+	if err := executeOIDCRequestMigration(t, store, "down"); err != nil {
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "P0001" || pgErr.Message != "cannot downgrade while OIDC authentication request state is retained" {
+			t.Fatal("retained OIDC state did not trigger its explicit downgrade guard", err)
+		}
+	} else {
 		t.Fatal("downgrade discarded retained authentication state")
 	}
 	var count int
@@ -51,5 +65,16 @@ func TestPostgresOIDCRequestMigrationPreservesIdentityHistoryAndGuardsRetainedSt
 	}
 	if err := store.pool.QueryRow(t.Context(), `SELECT count(*) FROM oidc_authentication_requests`).Scan(&count); err != nil || count != 0 {
 		t.Fatal("upgrade manufactured login proof for historical sessions", err)
+	}
+	if err := executeSAMLStateMigration(t, store, "up"); err != nil {
+		t.Fatal("restore later SAML migration after OIDC", err)
+	}
+	if oidcMigrationHistory(t, store) != before {
+		t.Fatal("restoring current schema rewrote identity history")
+	}
+	for _, table := range []string{"saml_provider_bindings", "saml_authentication_requests", "saml_assertion_consumptions"} {
+		if err := store.pool.QueryRow(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil || count != 0 {
+			t.Fatal("restoring current schema manufactured SAML configuration or authority", table, err)
+		}
 	}
 }
