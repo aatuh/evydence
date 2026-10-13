@@ -1468,6 +1468,6 @@
       "fingerprint": "cf14921a2f06"
     }
   ],
-  "reviewed_source": "working tree on master based on 18e498000941cc5c2e4b6a40cd199a3541fe0fd3; candidate pinned by candidate_sha256",
+  "reviewed_source": "implementation commit 867f1db4303513e3cbce23469bc08effe44910eb; production-verified source 46fbe06e5d39820bc26ff7af632f6cc7f0823d2c on master; candidate pinned by candidate_sha256",
   "review_kind": "repository-controlled prerelease compatibility record; no external approval asserted"
 }
