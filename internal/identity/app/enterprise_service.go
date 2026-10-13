@@ -88,17 +88,19 @@ type CredentialVerificationResult struct {
 // present), while keeping the validated rows/ranges stable through commit.
 // UserGrants are compared as a set; their slice order is not significant.
 type SSOExchangeSnapshot struct {
-	Provider              identitydomain.SSOProvider
-	Subject               string
-	IdentityLink          identitydomain.UserIdentityLink
-	IdentityLinkFound     bool
-	User                  identitydomain.HumanUser
-	UserLoaded            bool
-	UserFound             bool
-	UserGrants            []identitydomain.ResourceGrant
-	UserGrantsLoaded      bool
-	AuthenticationRequest *identitydomain.OIDCAuthenticationRequest
-	ProofExpiresAt        time.Time
+	Provider                  identitydomain.SSOProvider
+	Subject                   string
+	IdentityLink              identitydomain.UserIdentityLink
+	IdentityLinkFound         bool
+	User                      identitydomain.HumanUser
+	UserLoaded                bool
+	UserFound                 bool
+	UserGrants                []identitydomain.ResourceGrant
+	UserGrantsLoaded          bool
+	AuthenticationRequest     *identitydomain.OIDCAuthenticationRequest
+	SAMLAuthenticationRequest *identitydomain.SAMLAuthenticationRequest
+	SAMLAssertionUse          *identitydomain.SAMLAssertionUse
+	ProofExpiresAt            time.Time
 }
 
 // CredentialVerifier validates signatures, issuer, audience/client ID,
@@ -734,6 +736,15 @@ func cloneSSOExchangeSnapshot(value SSOExchangeSnapshot) SSOExchangeSnapshot {
 		request := *value.AuthenticationRequest
 		request.ConsumedAt = cloneTime(request.ConsumedAt)
 		value.AuthenticationRequest = &request
+	}
+	if value.SAMLAuthenticationRequest != nil {
+		request := *value.SAMLAuthenticationRequest
+		request.ConsumedAt = cloneTime(request.ConsumedAt)
+		value.SAMLAuthenticationRequest = &request
+	}
+	if value.SAMLAssertionUse != nil {
+		proof := *value.SAMLAssertionUse
+		value.SAMLAssertionUse = &proof
 	}
 	return value
 }

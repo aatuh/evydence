@@ -1265,9 +1265,12 @@ provider-group grants are also required. Pending, skipped, unknown or absent
 cryptographic proof cannot issue a session; an existing API key or human
 session cannot substitute for it. Provider groups create session-scoped grants,
 not permanent role bindings. No live provider or group synchronization call is
-made by these login endpoints. SAML continues to accept the current local
-assertion format in API delivery; its standard signature/request/replay work
-remains EVY-1010 and must not be inferred from the OIDC protections.
+made by these login endpoints. The focused SAML exchange now requires
+server-owned request context and the bounded signed XML assertion profile;
+unbound historical custom assertions cannot issue sessions. Its HTTP binding
+configuration and login-initiation flow remain pending EVY-1010 rollout. Do
+not infer a complete SAML login flow from the OIDC endpoints or use the old
+custom assertion examples as a supported exchange contract.
 
 The API rejects duplicate/unknown fields, non-object bodies, explicit nulls,
 invalid UTF-8 and NUL-bearing text with `400`. Provider/request IDs are bounded

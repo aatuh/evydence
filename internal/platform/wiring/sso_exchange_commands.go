@@ -26,10 +26,11 @@ func BuildSSOExchangeCommands(factory app.UnitOfWorkFactory, pepper string, prod
 	}
 	return identityapp.NewSSOExchangeCommands(identityapp.SSOExchangeCommandConfig{
 		Reader: ssoExchangeReader{factory: factory}, Transactions: ssoExchangeTransactions{factory: factory},
-		Credentials: credentials, Verifier: app.LocalSSOCredentialVerifier{}, VerificationPolicy: app.LocalSSOVerificationPolicy{},
+		Credentials: credentials, Verifier: ssoCredentialVerifier{}, VerificationPolicy: app.LocalSSOVerificationPolicy{},
 		SessionGrants: ssoExchangeGroupPolicy{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID),
 		SessionPolicy:          policy,
 		AuthenticationRequests: ssoExchangeReader{factory: factory}, ProofCredentials: credentials,
+		SAMLAuthentication: ssoExchangeReader{factory: factory},
 	})
 }
 
@@ -127,6 +128,15 @@ func (t ssoExchangeTransaction) ConsumeOIDCAuthenticationRequest(ctx context.Con
 		return time.Time{}, identityapp.ErrValidation
 	}
 	at, err := consumer.ConsumeOIDCAuthenticationRequest(ctx, v, c)
+	return at, mapAPIKeyWriteError(err)
+}
+
+func (t ssoExchangeTransaction) ConsumeSAMLAuthenticationRequest(ctx context.Context, v identitydomain.SAMLAuthenticationRequest, p identitydomain.SAMLAssertionUse, c application.Clock) (time.Time, error) {
+	consumer, ok := t.identity.(identityapp.SAMLAuthenticationRequestConsumer)
+	if !ok {
+		return time.Time{}, identityapp.ErrValidation
+	}
+	at, err := consumer.ConsumeSAMLAuthenticationRequest(ctx, v, p, c)
 	return at, mapAPIKeyWriteError(err)
 }
 

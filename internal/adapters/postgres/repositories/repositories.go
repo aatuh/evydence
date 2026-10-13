@@ -257,13 +257,18 @@ func (r identity) CompareAndSwapSSOProviderTrustMaterial(ctx context.Context, ex
 	if err != nil {
 		return fmt.Errorf("encode expected SSO provider certificates: %w", err)
 	}
+	// Owned reads normalize empty historical trust collections to nil. Match
+	// only those equivalent empty forms; populated keys/certificates and the
+	// trust revision still require the exact captured snapshot.
 	result, err := r.tx.Exec(ctx, `
 		UPDATE sso_providers
 		SET jwks = $3, saml_signing_certificates = $4, trust_material_updated_at = $5
 		WHERE id = $1 AND tenant_id = $2 AND type = $6
 		  AND issuer = $7 AND client_id = $8 AND status = $9
-		  AND jwks = $10::jsonb
-		  AND saml_signing_certificates = $11::jsonb
+		  AND (jwks = $10::jsonb OR
+		       jwks IN ('null'::jsonb,'{}'::jsonb) AND $10::jsonb IN ('null'::jsonb,'{}'::jsonb))
+		  AND (saml_signing_certificates = $11::jsonb OR
+		       saml_signing_certificates IN ('null'::jsonb,'[]'::jsonb) AND $11::jsonb IN ('null'::jsonb,'[]'::jsonb))
 		  AND trust_material_updated_at IS NOT DISTINCT FROM $12
 	`, provider.ID, provider.TenantID, jwks, certificates, *provider.TrustMaterialUpdatedAt, provider.Type, expected.Issuer, expected.ClientID, expected.Status, expectedJWKS, expectedCertificates, expected.TrustMaterialUpdatedAt)
 	if err != nil {

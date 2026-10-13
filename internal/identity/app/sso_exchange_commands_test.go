@@ -82,7 +82,12 @@ type exchangeCommandFixture struct {
 	reads, verificationsCalled, generations, transactions int
 	cancel                                                context.CancelFunc
 	commitHook                                            func()
+	auditHook                                             func(application.AuditEvent)
 	request                                               identitydomain.OIDCAuthenticationRequest
+	samlBinding                                           identitydomain.SAMLProviderBinding
+	samlRequest                                           identitydomain.SAMLAuthenticationRequest
+	samlUses                                              map[string]bool
+	verifiedRequest                                       CredentialVerificationRequest
 	inTransaction                                         bool
 }
 
@@ -139,6 +144,7 @@ func (f *exchangeCommandFixture) UserGrants(_ context.Context, tenant, id string
 }
 func (f *exchangeCommandFixture) Verify(_ context.Context, r CredentialVerificationRequest) (CredentialVerificationResult, error) {
 	f.verificationsCalled++
+	f.verifiedRequest = r
 	if r.Provider.ID != f.provider.ID || r.Subject != "subject" || r.Now.IsZero() || f.inTransaction {
 		return CredentialVerificationResult{}, errExchangeUnit
 	}
@@ -167,6 +173,13 @@ func (f *exchangeCommandFixture) ExecuteSSOExchange(ctx context.Context, fn func
 		return fn(ctx, nil)
 	}
 	pending := &exchangeCommandFixture{phase: f.phase, cancel: f.cancel, request: f.request}
+	pending.auditHook = f.auditHook
+	pending.samlBinding = cloneSAMLProviderBinding(f.samlBinding)
+	pending.samlRequest = f.samlRequest
+	pending.samlUses = make(map[string]bool, len(f.samlUses))
+	for hash, used := range f.samlUses {
+		pending.samlUses[hash] = used
+	}
 	if f.phase == "nil transaction context" {
 		//nolint:contextcheck // Deliberately exercise a broken transaction adapter.
 		return fn(nil, pending)
@@ -182,6 +195,7 @@ func (f *exchangeCommandFixture) ExecuteSSOExchange(ctx context.Context, fn func
 	f.sessions = append(f.sessions, pending.sessions...)
 	f.audits = append(f.audits, pending.audits...)
 	f.request = pending.request
+	f.samlRequest, f.samlUses = pending.samlRequest, pending.samlUses
 	if f.commitHook != nil {
 		f.commitHook()
 	}
@@ -228,6 +242,9 @@ func (f *exchangeCommandFixture) AppendAudit(_ context.Context, v application.Au
 		return application.AuditReceipt{}, errExchangeUnit
 	}
 	f.audits = append(f.audits, v)
+	if f.auditHook != nil {
+		f.auditHook(v)
+	}
 	if f.cancel != nil {
 		f.cancel()
 	}
@@ -507,10 +524,7 @@ func TestSSOExchangeCommandsAcceptSAMLAndProviderGroupOnlyGrants(t *testing.T) {
 			var want error
 			switch name {
 			case "saml":
-				f.provider.Type = "saml"
-				in.AuthenticationRequestID, in.StateSecret = "", ""
-				in.IDToken = ""
-				in.SAMLAssertion = "assertion"
+				s, f, in, _ = boundSAMLExchangeCommandsForTest(t)
 			case "groups only":
 				f.grants = nil
 			case "unknown groups":

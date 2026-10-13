@@ -181,6 +181,7 @@ func NewService(config Config) (*Service, error) {
 		SessionPolicy:          policy,
 		AuthenticationRequests: serviceOIDCRequestReader{reader: config.Reader},
 		ProofCredentials:       config.Credentials,
+		SAMLAuthentication:     serviceSAMLExchangeReader{reader: config.Reader},
 	})
 	if err != nil {
 		return nil, err

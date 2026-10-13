@@ -49,6 +49,8 @@ type SSOExchangeCommandConfig struct {
 	SessionPolicy          identitydomain.SessionPolicy
 	AuthenticationRequests OIDCAuthenticationRequestReader
 	ProofCredentials       AuthenticationCredentials
+	// SAML is unavailable unless its focused binding/request capability exists.
+	SAMLAuthentication SAMLExchangeReader
 }
 type SSOExchangeCommands struct{ config SSOExchangeCommandConfig }
 
@@ -66,7 +68,7 @@ func NewSSOExchangeCommands(c SSOExchangeCommandConfig) (*SSOExchangeCommands, e
 
 // ExchangeSSOCredential verifies local configured trust before opening the write
 // transaction. It is intentionally not an idempotency replay surface: incoming
-// credentials and issued secrets must never enter a replay receipt. OIDC
+// credentials and issued secrets must never enter a replay receipt. OIDC/SAML
 // exchanges consume server-owned authentication state exactly once.
 func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input ExchangeSSOCredentialInput) (identitydomain.ProviderVerification, identitydomain.SSOSession, string, error) {
 	if s == nil || ctx == nil {
@@ -113,11 +115,12 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if (provider.Type == "oidc" && input.SAMLAssertion != "") || (provider.Type == "saml" && input.IDToken != "") {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
-	if provider.Type != "oidc" && (input.AuthenticationRequestID != "" || input.StateSecret != "" || input.Delivery == "browser") {
+	if provider.Type != "oidc" && provider.Type != "saml" {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
 	provider = cloneSSOProvider(provider)
 	snapshot := SSOExchangeSnapshot{Provider: cloneSSOProvider(provider), Subject: input.Subject}
+	verificationInput := CredentialVerificationRequest{Provider: cloneSSOProvider(provider), Subject: input.Subject, IDToken: input.IDToken, SAMLAssertion: input.SAMLAssertion, Now: now}
 	if provider.Type == "oidc" {
 		request, err := s.boundOIDCRequest(ctx, provider, input, now)
 		if err != nil {
@@ -125,14 +128,30 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 		}
 		snapshot.AuthenticationRequest = &request
 	}
-	credentialResult, verificationErr := s.config.Verifier.Verify(ctx, CredentialVerificationRequest{
-		Provider: cloneSSOProvider(provider), Subject: input.Subject, IDToken: input.IDToken,
-		SAMLAssertion: input.SAMLAssertion, Now: now,
-	})
+	if provider.Type == "saml" {
+		request, err := s.boundSAMLRequest(ctx, provider, input, now)
+		if err != nil {
+			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
+		}
+		snapshot.SAMLAuthenticationRequest = &request
+		verificationInput.SAMLRequestID, verificationInput.SAMLRecipient, verificationInput.SAMLNameIDFormat = request.ID, request.Recipient, request.NameIDFormat
+	}
+	credentialResult, verificationErr := s.config.Verifier.Verify(ctx, verificationInput)
 	if err := ctx.Err(); err != nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
 	checks := redactedCredentialChecks(credentialResult.Checks, input.IDToken, input.SAMLAssertion, input.StateSecret, credentialResult.Nonce)
+	if provider.Type == "saml" && verificationErr == nil {
+		proof, err := verifiedSAMLAssertionUse(*snapshot.SAMLAuthenticationRequest, credentialResult, now)
+		if err != nil {
+			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
+		}
+		snapshot.SAMLAssertionUse, snapshot.ProofExpiresAt = &proof, proof.ExpiresAt
+		checks = append(checks, identitydomain.VerificationCheck{Name: "saml_request_state_binding", Result: "passed"})
+		if !credentialResult.SessionExpiresAt.IsZero() && credentialResult.SessionExpiresAt.Before(expiresAt) {
+			expiresAt = credentialResult.SessionExpiresAt
+		}
+	}
 	if provider.Type == "oidc" && verificationErr == nil {
 		request := snapshot.AuthenticationRequest
 		if credentialResult.Nonce == "" || containsCredential(input.Subject, credentialResult.Nonce) || !s.config.ProofCredentials.Equal(request.NonceHash, s.config.ProofCredentials.Hash(credentialResult.Nonce)) || credentialResult.IssuedAt.IsZero() || credentialResult.IssuedAt.Before(request.CreatedAt.Add(-time.Minute)) || credentialResult.IssuedAt.After(now.Add(time.Minute)) || !credentialResult.ExpiresAt.After(now) {
@@ -293,6 +312,9 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if snapshot.AuthenticationRequest != nil && (!snapshot.ProofExpiresAt.After(s.config.Clock.Now().UTC()) || !snapshot.AuthenticationRequest.ExpiresAt.After(s.config.Clock.Now().UTC())) {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrUnauthorized
 	}
+	if snapshot.SAMLAssertionUse != nil && !samlExchangeProofFresh(snapshot, s.config.Clock.Now().UTC()) {
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrUnauthorized
+	}
 	return cloneProviderVerification(verification), publicSession(session), credential.Secret, nil
 }
 
@@ -340,6 +362,7 @@ func (s *SSOExchangeCommands) execute(ctx context.Context, snapshot SSOExchangeS
 			return err
 		}
 		consume := snapshot.AuthenticationRequest != nil && !snapshot.ProofExpiresAt.IsZero()
+		consumeSAML := snapshot.SAMLAuthenticationRequest != nil && snapshot.SAMLAssertionUse != nil
 		var consumedAt time.Time
 		if consume {
 			var err error
@@ -348,6 +371,20 @@ func (s *SSOExchangeCommands) execute(ctx context.Context, snapshot SSOExchangeS
 				return err
 			}
 			if !snapshot.ProofExpiresAt.After(consumedAt) {
+				return ErrUnauthorized
+			}
+		}
+		if consumeSAML {
+			consumer, ok := tx.(SAMLAuthenticationRequestConsumer)
+			if !ok {
+				return ErrValidation
+			}
+			var err error
+			consumedAt, err = consumer.ConsumeSAMLAuthenticationRequest(ctx, *snapshot.SAMLAuthenticationRequest, *snapshot.SAMLAssertionUse, s.config.Clock)
+			if err != nil {
+				return err
+			}
+			if !samlExchangeProofFresh(snapshot, consumedAt) {
 				return ErrUnauthorized
 			}
 		}
@@ -363,12 +400,27 @@ func (s *SSOExchangeCommands) execute(ctx context.Context, snapshot SSOExchangeS
 				return ErrUnauthorized
 			}
 		}
+		if consumeSAML {
+			request := snapshot.SAMLAuthenticationRequest
+			if err := s.appendAudit(ctx, tx, consumedAt, request.TenantID, "saml_authentication_request.consumed", "saml_authentication_request", request.ID, request.ProviderID); err != nil {
+				return err
+			}
+			if !samlExchangeProofFresh(snapshot, s.config.Clock.Now().UTC()) {
+				return ErrUnauthorized
+			}
+		}
 		return ctx.Err()
 	})
 	if err != nil {
 		return err
 	}
-	return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if snapshot.SAMLAssertionUse != nil && !samlExchangeProofFresh(snapshot, s.config.Clock.Now().UTC()) {
+		return ErrUnauthorized
+	}
+	return nil
 }
 func (s *SSOExchangeCommands) persistDenied(ctx context.Context, v identitydomain.ProviderVerification, snapshot SSOExchangeSnapshot, denial error) (identitydomain.ProviderVerification, identitydomain.SSOSession, string, error) {
 	if err := s.execute(ctx, snapshot, func(ctx context.Context, tx SSOExchangeTransaction) error { return s.writeVerification(ctx, tx, v) }); err != nil {

@@ -62,6 +62,15 @@ func providerVerificationProfile(provider domain.SSOProvider, tokenSupplied bool
 	if !tokenSupplied {
 		required = append(required, "provider_credential_signature")
 	}
+	if provider.Type == "saml" && tokenSupplied {
+		for _, check := range checks {
+			if check.Name == "saml_request_state_binding" {
+				id = "provider-identity-saml-bound.v1"
+				required = append(required, "saml_assertion_signature", "issuer", "audience", "subject", "saml_assertion_time", "saml_recipient", "saml_response_correlation", "saml_request_state_binding", "verified_identity_link")
+				payloadScope = "server-owned authentication state, signed SAML assertion claims and verified tenant identity link"
+			}
+		}
+	}
 	trustMaterial := []string{"configured " + provider.Type + " provider metadata"}
 	switch provider.Type {
 	case "oidc":

@@ -614,3 +614,31 @@ retain their recorded profiles; metadata-only assessments remain nonpassing
 for credential authority. No provider API call or universal interoperability
 proof is implied. See [the login contract](../api.md#sso-credential-exchange)
 for algorithms, time bounds, state delivery and unsupported orchestration.
+
+## SAML Bound-Login Profile (Unreleased)
+
+The focused native exchange uses `provider-identity-saml-bound.v1` only after
+verifying the standard XML signature and server-owned login state. Its required
+checks pin signature, issuer, audience, subject, time, recipient, response
+correlation, request/state binding and the verified tenant identity link.
+Missing cryptographic or correlation checks cannot produce a passing bound
+profile. The profile envelope remains `verification-profile.v1.0.0`; historical
+receipts retain their recorded profiles.
+
+Only verified assertion fields reach the exchange decision. The signed session
+deadline caps configured/requested lifetime. Tenant/provider-scoped assertion
+replay markers, request consumption, verification, session and audits commit
+together. A verified proof denied by identity policy is still consumed; invalid
+signatures are not. Failed writes or commit leave the same proof retryable.
+Proof/request deadlines are checked after locks, writes and commit, withholding
+late secret delivery. These local checks make no provider network call and do
+not prove arbitrary-provider interoperability.
+
+HTTP setup, supported-profile documentation and migration of the historical
+custom assertion/standalone receipt path remain EVY-1010 rollout work. This
+native command evidence does not establish a complete public SAML flow.
+
+Source/test evidence: `internal/identity/app/saml_exchange_bindings.go`,
+`internal/identity/app/sso_exchange_commands.go`,
+`internal/adapters/identity/saml/`, `internal/app/saml_assurance_profile_test.go`
+and `internal/platform/wiring/saml_exchange_commands_test.go`.
