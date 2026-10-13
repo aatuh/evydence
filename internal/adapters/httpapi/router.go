@@ -127,6 +127,7 @@ type Server struct {
 	outboxDiagnosticsQuery            OutboxDiagnosticsQuery
 	outboxReplayCommand               OutboxReplayCommand
 	ssoExchangeCommands               SSOExchangeCommands
+	oidcAuthenticationRequestCommands OIDCAuthenticationRequestCommands
 	providerVerificationCommands      ProviderVerificationCommands
 	evidenceSummaryCommands           EvidenceSummaryCommands
 	graphSnapshotCommands             GraphSnapshotCommands
@@ -222,7 +223,8 @@ type ServerOptions struct {
 	// SSOSessionRevocationCommands revokes/logout through locked durable metadata.
 	SSOSessionRevocationCommands SSOSessionRevocationCommands
 	// SSOExchangeCommands verifies public credentials and commits login directly.
-	SSOExchangeCommands SSOExchangeCommands
+	SSOExchangeCommands               SSOExchangeCommands
+	OIDCAuthenticationRequestCommands OIDCAuthenticationRequestCommands
 	// ProviderVerificationCommands persists admin receipts without Ledger state.
 	ProviderVerificationCommands ProviderVerificationCommands
 	// EvidenceSummaryCommands creates bounded citation reports without Ledger state.
@@ -728,6 +730,7 @@ func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Serv
 	server.ssoSessionCommands = opts.SSOSessionCommands
 	server.ssoSessionRevocationCommands = opts.SSOSessionRevocationCommands
 	server.ssoExchangeCommands = opts.SSOExchangeCommands
+	server.oidcAuthenticationRequestCommands = opts.OIDCAuthenticationRequestCommands
 	server.providerVerificationCommands = opts.ProviderVerificationCommands
 	server.evidenceSummaryCommands = opts.EvidenceSummaryCommands
 	server.graphSnapshotCommands = opts.GraphSnapshotCommands
@@ -2368,7 +2371,7 @@ func stabilityForOperation(operationID string) string {
 		"downloadCustomerPackage", "verify":
 		return "core"
 	case "health", "ready", "version", "openapi", "metrics",
-		"createAPIKey", "listAPIKeys", "exchangeSSOCredential",
+		"createAPIKey", "listAPIKeys", "exchangeSSOCredential", "beginOIDCAuthentication",
 		"logoutSSOSession", "createCustomerPortalAccess",
 		"accessCustomerPortalPackage", "downloadCustomerPortalPackage":
 		return "supported"

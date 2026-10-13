@@ -113,8 +113,9 @@ func TestCredentialExchangeCommitsVerificationAndSessionTogether(t *testing.T) {
 	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "exchange-subject", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("link identity: %v", err)
 	}
+	requestID, stateSecret, nonce := beginOIDCOracleRequest(t, ledger, provider.ID)
 	token := signedTestIDToken(t, privateKey, "identity-uow", map[string]any{
-		"iss": provider.Issuer, "aud": provider.ClientID, "sub": "exchange-subject", "email": user.Email, "email_verified": true, "groups": []string{"security"}, "exp": fixedNow().Add(time.Hour).Unix(),
+		"nonce": nonce, "iss": provider.Issuer, "aud": provider.ClientID, "sub": "exchange-subject", "email": user.Email, "email_verified": true, "groups": []string{"security"}, "iat": fixedNow().Unix(), "exp": fixedNow().Add(time.Hour).Unix(),
 	})
 	before, err := memory.Snapshot()
 	if err != nil {
@@ -124,7 +125,7 @@ func TestCredentialExchangeCommitsVerificationAndSessionTogether(t *testing.T) {
 		repositories.Identity = failingIdentityRepository{IdentityRepository: repositories.Identity}
 		return repositories
 	}}
-	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "exchange-subject", IDToken: token})
+	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "exchange-subject", IDToken: token, AuthenticationRequestID: requestID, StateSecret: stateSecret})
 	if !errors.Is(err, errInjectedRepositoryFailure) || verification.ID != "" || session.ID != "" || secret != "" {
 		t.Fatalf("failed exchange verification=%#v session=%#v secret=%q err=%v", verification, session, secret, err)
 	}
@@ -137,7 +138,7 @@ func TestCredentialExchangeCommitsVerificationAndSessionTogether(t *testing.T) {
 	}
 
 	ledger.unitOfWork = memory
-	verification, session, secret, err = ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "exchange-subject", IDToken: token})
+	verification, session, secret, err = ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "exchange-subject", IDToken: token, AuthenticationRequestID: requestID, StateSecret: stateSecret})
 	if err != nil {
 		t.Fatalf("exchange credential: %v", err)
 	}
@@ -148,7 +149,7 @@ func TestCredentialExchangeCommitsVerificationAndSessionTogether(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot after exchange success: %v", err)
 	}
-	if afterSuccess.SSOSessions[session.ID].Hash == "" || len(afterSuccess.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID])+2 {
+	if afterSuccess.SSOSessions[session.ID].Hash == "" || len(afterSuccess.AuditEntries[actor.TenantID]) != len(before.AuditEntries[actor.TenantID])+3 {
 		t.Fatalf("credential exchange did not commit verification/session/audit together: %#v", afterSuccess)
 	}
 	if _, ok := afterSuccess.ProviderVerifications[verification.ID]; !ok {

@@ -15,6 +15,55 @@ import (
 
 var errExchangeUnit = errors.New("private exchange failure")
 
+func TestSSOExchangeCommandsRequireOIDCAuthenticationRequestBeforeVerification(t *testing.T) {
+	s, f, _, _ := exchangeCommandsForTest(t)
+	input := ExchangeSSOCredentialInput{ProviderID: "provider", Subject: "subject", IDToken: "raw-id-token"}
+	_, session, secret, err := s.ExchangeSSOCredential(t.Context(), input)
+	if !errors.Is(err, ErrUnauthorized) || secret != "" || session.ID != "" || f.verificationsCalled != 0 || len(f.sessions)+len(f.verifications)+len(f.audits) != 0 {
+		t.Fatal("unbound OIDC proof reached verification, issuance or durable effects", err)
+	}
+}
+
+func TestSSOExchangeCommandsRejectOIDCNonceMismatchAndCommittedReplay(t *testing.T) {
+	for _, profile := range []string{"nonce mismatch", "replay"} {
+		t.Run(profile, func(t *testing.T) {
+			s, f, in, _ := exchangeCommandsForTest(t)
+			if profile == "nonce mismatch" {
+				f.result.Nonce = "wrong-nonce"
+			} else {
+				if _, _, _, err := s.ExchangeSSOCredential(t.Context(), in); err != nil {
+					t.Fatal(err)
+				}
+			}
+			beforeSessions, beforeVerifications := len(f.sessions), len(f.verifications)
+			_, session, secret, err := s.ExchangeSSOCredential(t.Context(), in)
+			if !errors.Is(err, ErrUnauthorized) || session.ID != "" || secret != "" || len(f.sessions) != beforeSessions || len(f.verifications) != beforeVerifications {
+				t.Fatal("unbound or replayed OIDC proof issued a session", err)
+			}
+		})
+	}
+}
+
+func TestSSOExchangeCommandsRollbackProofConsumptionOnCommitFailure(t *testing.T) {
+	s, f, in, _ := exchangeCommandsForTest(t)
+	f.phase = "commit"
+	if _, session, secret, err := s.ExchangeSSOCredential(t.Context(), in); err == nil || session.ID != "" || secret != "" || f.request.ConsumedAt != nil {
+		t.Fatal("failed commit consumed proof or returned material")
+	}
+	f.phase = ""
+	if _, session, secret, err := s.ExchangeSSOCredential(t.Context(), in); err != nil || session.ID == "" || secret == "" || f.request.ConsumedAt == nil {
+		t.Fatal("rolled-back proof was not safely retryable", err)
+	}
+}
+
+func TestSSOExchangeCommandsConsumeVerifiedProofEvenWhenIdentityIsDenied(t *testing.T) {
+	s, f, in, _ := exchangeCommandsForTest(t)
+	f.user.Status = "deactivated"
+	if _, session, secret, err := s.ExchangeSSOCredential(t.Context(), in); !errors.Is(err, ErrVerificationFailed) || session.ID != "" || secret != "" || f.request.ConsumedAt == nil {
+		t.Fatal("valid proof denial retained replayable authentication state", err)
+	}
+}
+
 func exchangeTestString(v any) string { return fmt.Sprintf("%#v", v) }
 
 // This fake implements only the exchange ports, not Reader or Service.
@@ -33,6 +82,8 @@ type exchangeCommandFixture struct {
 	reads, verificationsCalled, generations, transactions int
 	cancel                                                context.CancelFunc
 	commitHook                                            func()
+	request                                               identitydomain.OIDCAuthenticationRequest
+	inTransaction                                         bool
 }
 
 func (f *exchangeCommandFixture) SSOProviderByID(_ context.Context, id string) (identitydomain.SSOProvider, error) {
@@ -88,7 +139,7 @@ func (f *exchangeCommandFixture) UserGrants(_ context.Context, tenant, id string
 }
 func (f *exchangeCommandFixture) Verify(_ context.Context, r CredentialVerificationRequest) (CredentialVerificationResult, error) {
 	f.verificationsCalled++
-	if r.Provider.ID != f.provider.ID || r.Subject != "subject" || r.Now.IsZero() || f.transactions != 0 {
+	if r.Provider.ID != f.provider.ID || r.Subject != "subject" || r.Now.IsZero() || f.inTransaction {
 		return CredentialVerificationResult{}, errExchangeUnit
 	}
 	// A verifier cannot mutate the provider snapshot used at commit.
@@ -110,10 +161,12 @@ func (f *exchangeCommandFixture) GenerateSession() (Credential, error) {
 }
 func (f *exchangeCommandFixture) ExecuteSSOExchange(ctx context.Context, fn func(context.Context, SSOExchangeTransaction) error) error {
 	f.transactions++
+	f.inTransaction = true
+	defer func() { f.inTransaction = false }()
 	if f.phase == "nil transaction" {
 		return fn(ctx, nil)
 	}
-	pending := &exchangeCommandFixture{phase: f.phase, cancel: f.cancel}
+	pending := &exchangeCommandFixture{phase: f.phase, cancel: f.cancel, request: f.request}
 	if f.phase == "nil transaction context" {
 		//nolint:contextcheck // Deliberately exercise a broken transaction adapter.
 		return fn(nil, pending)
@@ -128,10 +181,26 @@ func (f *exchangeCommandFixture) ExecuteSSOExchange(ctx context.Context, fn func
 	f.verifications = append(f.verifications, pending.verifications...)
 	f.sessions = append(f.sessions, pending.sessions...)
 	f.audits = append(f.audits, pending.audits...)
+	f.request = pending.request
 	if f.commitHook != nil {
 		f.commitHook()
 	}
 	return nil
+}
+func (f *exchangeCommandFixture) ReadOIDCAuthenticationRequest(_ context.Context, tenant, provider, id string) (identitydomain.OIDCAuthenticationRequest, error) {
+	f.reads++
+	if f.request.ID != id || f.request.TenantID != tenant || f.request.ProviderID != provider {
+		return identitydomain.OIDCAuthenticationRequest{}, ErrNotFound
+	}
+	return f.request, nil
+}
+func (f *exchangeCommandFixture) ConsumeOIDCAuthenticationRequest(_ context.Context, v identitydomain.OIDCAuthenticationRequest, c application.Clock) (time.Time, error) {
+	if !f.request.PendingAt(c.Now()) || f.request.ID != v.ID {
+		return time.Time{}, ErrUnauthorized
+	}
+	at := c.Now().UTC()
+	f.request.ConsumedAt = &at
+	return at, nil
 }
 func (f *exchangeCommandFixture) ValidateSSOExchangeState(_ context.Context, v SSOExchangeSnapshot) error {
 	f.snapshot = cloneSSOExchangeSnapshot(v)
@@ -180,11 +249,27 @@ func exchangeCommandsForTest(t *testing.T) (*SSOExchangeCommands, *exchangeComma
 	secret := "evysso_" + strings.Repeat("A", 43)
 	f.credential = Credential{Secret: secret, Prefix: credentials.Prefix(secret), Hash: credentials.Hash(secret)}
 	now := time.Date(2026, 9, 1, 1, 2, 3, 0, time.FixedZone("fixture", 3600))
-	s, err := NewSSOExchangeCommands(SSOExchangeCommandConfig{Reader: f, Transactions: f, Credentials: f, Verifier: f, VerificationPolicy: fakeProviderVerificationPolicy{}, SessionGrants: exchangeGroupPolicy{}, Clock: application.ClockFunc(func() time.Time { return now }), IDs: application.IDGeneratorFunc(func(p string) string { return p + "_exchange" })})
+	state, err := credentials.GenerateLoginState()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s, f, ExchangeSSOCredentialInput{ProviderID: " provider ", Subject: " subject ", IDToken: " raw-id-token "}, now.UTC()
+	nonce, err := credentials.GenerateLoginNonce()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fingerprint, err := OIDCProviderTrustFingerprint(f.provider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.request = identitydomain.OIDCAuthenticationRequest{ID: "request", TenantID: "tenant", ProviderID: "provider", Delivery: "api", TrustFingerprint: fingerprint, StateHash: state.Hash, NonceHash: nonce.Hash, CreatedAt: now.UTC(), ExpiresAt: now.UTC().Add(5 * time.Minute), SchemaVersion: identitydomain.OIDCAuthenticationRequestSchemaVersion}
+	f.result.Nonce = nonce.Secret
+	f.result.IssuedAt = now.UTC()
+	f.result.ExpiresAt = now.UTC().Add(time.Hour)
+	s, err := NewSSOExchangeCommands(SSOExchangeCommandConfig{Reader: f, Transactions: f, Credentials: f, Verifier: f, VerificationPolicy: fakeProviderVerificationPolicy{}, SessionGrants: exchangeGroupPolicy{}, Clock: application.ClockFunc(func() time.Time { return now }), IDs: application.IDGeneratorFunc(func(p string) string { return p + "_exchange" }), AuthenticationRequests: f, ProofCredentials: credentials})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s, f, ExchangeSSOCredentialInput{ProviderID: " provider ", Subject: " subject ", IDToken: " raw-id-token ", AuthenticationRequestID: f.request.ID, StateSecret: state.Secret}, now.UTC()
 }
 
 type exchangeGroupPolicy struct{}
@@ -199,7 +284,7 @@ func TestSSOExchangeCommandsCommitVerificationSessionAndAuditsWithoutAggregate(t
 	if err != nil || v.Result != "passed" || session.TenantID != "tenant" || session.UserID != "user" || session.ProviderID != "provider" || session.Hash != "" || secret != f.credential.Secret || session.ExpiresAt != now.Add(8*time.Hour) || session.CreatedAt != now || session.SchemaVersion != identitydomain.SSOSessionSchemaVersion {
 		t.Fatal("exchange result changed", err)
 	}
-	if f.reads != 4 || f.verificationsCalled != 1 || f.generations != 1 || f.transactions != 1 || len(f.verifications) != 1 || len(f.sessions) != 1 || len(f.audits) != 2 || f.sessions[0].Hash != f.credential.Hash {
+	if f.reads != 5 || f.verificationsCalled != 1 || f.generations != 1 || f.transactions != 1 || len(f.verifications) != 1 || len(f.sessions) != 1 || len(f.audits) != 3 || f.sessions[0].Hash != f.credential.Hash {
 		t.Fatal("exchange was not atomic and focused")
 	}
 	if !reflect.DeepEqual(session.Groups, []string{"security"}) || !f.snapshot.UserLoaded || !f.snapshot.UserFound || !f.snapshot.UserGrantsLoaded || f.snapshot.Provider.RoleMapping["security"] != "security_engineer" {
@@ -207,6 +292,9 @@ func TestSSOExchangeCommandsCommitVerificationSessionAndAuditsWithoutAggregate(t
 	}
 	if f.audits[0].EntryType != "provider_identity.verified" || f.audits[1].EntryType != "sso_session.created" || f.audits[1].ActorType != "sso_provider" || f.audits[1].ActorID != "provider" || f.audits[1].SubjectID != "user" || f.audits[0].TenantID != "tenant" {
 		t.Fatal("exchange audit attribution changed")
+	}
+	if f.audits[2].EntryType != "oidc_authentication_request.consumed" || f.audits[2].SubjectID != f.request.ID || f.request.ConsumedAt == nil {
+		t.Fatal("consumption and its audit were not committed with issuance")
 	}
 	for _, record := range []any{f.verifications, f.sessions, f.audits, v, session} {
 		// Marshaling is unnecessary: all secret-bearing outputs are explicit.
@@ -271,8 +359,15 @@ func TestSSOExchangeCommandsConservativeFailuresPersistOnlyVerification(t *testi
 				want = ErrForbidden
 			}
 			v, session, secret, err := s.ExchangeSSOCredential(t.Context(), in)
-			if !errors.Is(err, want) || v.Result != "failed" || session.ID != "" || secret != "" || f.generations != 0 || len(f.sessions) != 0 || len(f.verifications) != 1 || len(f.audits) != 1 || f.audits[0].EntryType != "provider_identity.verified" {
+			wantAudits := 2
+			if phase == "bad credential" || phase == "verifier" {
+				wantAudits = 1
+			}
+			if !errors.Is(err, want) || v.Result != "failed" || session.ID != "" || secret != "" || f.generations != 0 || len(f.sessions) != 0 || len(f.verifications) != 1 || len(f.audits) != wantAudits || f.audits[0].EntryType != "provider_identity.verified" {
 				t.Fatal("conservative failure contract changed", err)
+			}
+			if (f.request.ConsumedAt != nil) != (wantAudits == 2) || (wantAudits == 2 && f.audits[1].EntryType != "oidc_authentication_request.consumed") {
+				t.Fatal("proof consumption did not match verified denial")
 			}
 			if strings.Contains(exchangeTestString(v), "raw-id-token") || strings.Contains(exchangeTestString(v), "private provider response") {
 				t.Fatal("verifier details leaked")
@@ -358,6 +453,8 @@ func TestSSOExchangeCommandsRejectIncompleteComposition(t *testing.T) {
 		func(c *SSOExchangeCommandConfig) { c.SessionGrants = nil },
 		func(c *SSOExchangeCommandConfig) { c.Clock = nil },
 		func(c *SSOExchangeCommandConfig) { c.IDs = nil },
+		func(c *SSOExchangeCommandConfig) { c.AuthenticationRequests = nil },
+		func(c *SSOExchangeCommandConfig) { c.ProofCredentials = nil },
 	} {
 		c := s.config
 		omit(&c)
@@ -411,6 +508,7 @@ func TestSSOExchangeCommandsAcceptSAMLAndProviderGroupOnlyGrants(t *testing.T) {
 			switch name {
 			case "saml":
 				f.provider.Type = "saml"
+				in.AuthenticationRequestID, in.StateSecret = "", ""
 				in.IDToken = ""
 				in.SAMLAssertion = "assertion"
 			case "groups only":
@@ -440,7 +538,7 @@ func TestSSOExchangeCommandsCancelDuringVerificationDoesNotReadLinksOrPersist(t 
 	defer cancel()
 	f.phase, f.cancel = "cancel verifier", cancel
 	v, session, secret, err := s.ExchangeSSOCredential(ctx, in)
-	if !errors.Is(err, context.Canceled) || v.ID != "" || session.ID != "" || secret != "" || f.reads != 1 || f.verificationsCalled != 1 || f.transactions+f.generations != 0 {
+	if !errors.Is(err, context.Canceled) || v.ID != "" || session.ID != "" || secret != "" || f.reads != 2 || f.verificationsCalled != 1 || f.transactions+f.generations != 0 {
 		t.Fatal("cancelled verifier reached identity lookup/storage", err)
 	}
 }
@@ -499,7 +597,7 @@ func TestSSOExchangeCommandsWithholdSecretWhenCommitOutlivesLifecycle(t *testing
 	s.config.Clock = application.ClockFunc(func() time.Time { return at })
 	f.commitHook = func() { at = at.Add(30 * time.Minute) }
 	verification, session, secret, err := s.ExchangeSSOCredential(t.Context(), input)
-	if !errors.Is(err, ErrValidation) || verification.ID != "" || session.ID != "" || secret != "" || len(f.sessions) != 1 || f.sessions[0].Hash == "" || len(f.audits) != 2 {
+	if !errors.Is(err, ErrValidation) || verification.ID != "" || session.ID != "" || secret != "" || len(f.sessions) != 1 || f.sessions[0].Hash == "" || len(f.audits) != 3 {
 		t.Fatal("late committed exchange returned unusable material or lost committed history", err)
 	}
 }

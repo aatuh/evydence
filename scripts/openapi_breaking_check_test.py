@@ -140,6 +140,38 @@ class CompatibilityPolicyTests(unittest.TestCase):
 
 
 class RepositoryBaselineTests(unittest.TestCase):
+    def test_oidc_delivery_record_preserves_prior_review_and_rejects_wider_changes(self) -> None:
+        review = checker.read_json(checker.ROOT / "docs/reference/openapi-compatibility-reviews/evy-1009.json", "OIDC delivery record")
+        previous = checker.read_json(checker.ROOT / "docs/reference/openapi-compatibility-reviews/evy-1002.json", "prior record")
+        changes = checker.normalized_changes([checker.ContractChange(**item) for item in review["changes"]])
+        prior = checker.normalized_changes([checker.ContractChange(**item) for item in previous["changes"]])
+        additions = tuple(item for item in changes if item not in prior)
+        self.assertEqual(len(changes), 206)
+        self.assertTrue(set(prior).issubset(changes))
+        self.assertEqual(checker.changes_digest(prior), review["prior_changes_sha256"])
+        self.assertEqual(checker.changes_digest(changes), review["changes_sha256"])
+        self.assertEqual(len(additions), 1)
+        self.assertEqual(additions[0].rule, "response-property-became-optional")
+        self.assertEqual(additions[0].location, "POST /v1/sso/session-exchanges exchangeSSOCredential")
+        self.assertEqual(additions[0].fingerprint, "007463dd789c")
+        self.assertEqual(review["additional_fingerprints"], ["007463dd789c"])
+        baseline, _, _ = checker.load_baseline(checker.ROOT / "docs/reference/openapi-baseline.json")
+        self.assertEqual(review["baseline_sha256"], baseline["artifact_sha256"])
+        exceptions = checker.read_json(checker.ROOT / ".github/openapi-breaking-exceptions.json", "exceptions")
+        def match(values, selected=baseline):
+            return checker.matching_exception(exceptions, selected, selected["artifact_sha256"], values, checker.changes_digest(values))
+        self.assertEqual(match(changes), "evy-1009-prerelease-oidc-delivery-contract")
+        self.assertEqual(match(prior), "evy-1002-prerelease-contract-reconciliation")
+        wider = checker.normalized_changes(list(changes) + [checker.policy_change("scope-contract-changed", "GET /v1/example", "new scope")])
+        self.assertIsNone(match(wider))
+        self.assertIsNone(match(changes[:-1]))
+        altered = list(changes)
+        item = additions[0]
+        altered[altered.index(item)] = checker.ContractChange(source=item.source, rule=item.rule, location=item.location, detail=item.detail + " modified", fingerprint=item.fingerprint)
+        self.assertIsNone(match(checker.normalized_changes(altered)))
+        self.assertIsNone(match(changes, dict(baseline, artifact_sha256="b" * 64)))
+        self.assertIsNone(match(changes, dict(baseline, channel="stable")))
+
     def test_reviewed_prerelease_snapshot_is_exact_and_rejects_other_change_sets(self) -> None:
         review = checker.read_json(
             checker.ROOT / "docs/reference/openapi-compatibility-reviews/evy-1002.json",

@@ -288,7 +288,7 @@ func TestExchangeSSOCredentialCommitsVerificationSessionAndAuditsTogether(t *tes
 	fixture.verifier.result = CredentialVerificationResult{Checks: []identitydomain.VerificationCheck{{Name: "signature", Result: "passed"}}, Groups: []string{"security"}}
 	fixture.sessionGrants.grants = []identitydomain.ResourceGrant{{Role: "security_engineer", Scopes: []string{"evidence:write"}}}
 
-	verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"})
+	verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), fixture.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"}))
 	if err != nil {
 		t.Fatalf("ExchangeSSOCredential: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestExchangeSSOCredentialCommitsVerificationSessionAndAuditsTogether(t *tes
 		t.Fatalf("verification=%#v session=%#v secret=%q", verification, session, secret)
 	}
 	stored := fixture.transactions.state.sessions[session.ID]
-	if stored.Hash != expected.Hash || len(fixture.transactions.state.verifications) != 1 || len(fixture.transactions.state.audit) != 2 {
+	if stored.Hash != expected.Hash || len(fixture.transactions.state.verifications) != 1 || len(fixture.transactions.state.audit) != 3 {
 		t.Fatalf("state = %#v", fixture.transactions.state)
 	}
 	if strings.Contains(fmt.Sprintf("%#v", fixture.transactions.state), "raw-id-token") {
@@ -312,11 +312,11 @@ func TestExchangeSSOCredentialPersistsFailedVerificationWithoutSession(t *testin
 	fixture := newIdentityServiceFixture(t)
 	fixture.reader.providers = []identitydomain.SSOProvider{{ID: "sso_1", TenantID: fixture.actor.TenantID, Type: "oidc", Status: "active"}}
 	fixture.verifier.result = CredentialVerificationResult{Checks: []identitydomain.VerificationCheck{{Name: "signature", Result: "passed"}}}
-	verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "missing-link", IDToken: "raw-id-token"})
+	verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), fixture.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "missing-link", IDToken: "raw-id-token"}))
 	if !errors.Is(err, ErrVerificationFailed) || verification.Result != "failed" || session.ID != "" || secret != "" {
 		t.Fatalf("verification=%#v session=%#v secret=%q err=%v", verification, session, secret, err)
 	}
-	if len(fixture.transactions.state.verifications) != 1 || len(fixture.transactions.state.sessions) != 0 || len(fixture.transactions.state.audit) != 1 {
+	if len(fixture.transactions.state.verifications) != 1 || len(fixture.transactions.state.sessions) != 0 || len(fixture.transactions.state.audit) != 2 {
 		t.Fatalf("state = %#v", fixture.transactions.state)
 	}
 }
@@ -326,7 +326,7 @@ func TestExchangeSSOCredentialAuditFailureReturnsNoRecordOrSecret(t *testing.T) 
 	fixture.reader.providers = []identitydomain.SSOProvider{{ID: "sso_1", TenantID: fixture.actor.TenantID, Type: "oidc", Status: "active"}}
 	fixture.verifier.result = CredentialVerificationResult{Checks: []identitydomain.VerificationCheck{{Name: "signature", Result: "failed"}}}
 	fixture.transactions.auditErr = errIdentityCommit
-	verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"})
+	verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), fixture.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"}))
 	if !errors.Is(err, errIdentityCommit) || verification.ID != "" || session.ID != "" || secret != "" {
 		t.Fatalf("verification=%#v session=%#v secret=%q err=%v", verification, session, secret, err)
 	}
@@ -341,11 +341,11 @@ func TestExchangeSSOCredentialPersistsAuthorizationGrantFailure(t *testing.T) {
 	fixture.reader.links = []identitydomain.UserIdentityLink{{ID: "link_1", TenantID: fixture.actor.TenantID, ProviderID: "sso_1", UserID: "usr_1", Subject: "subject", Verified: true}}
 	fixture.reader.users = []identitydomain.HumanUser{{ID: "usr_1", TenantID: fixture.actor.TenantID, Status: "active"}}
 	fixture.verifier.result = CredentialVerificationResult{Checks: []identitydomain.VerificationCheck{{Name: "signature", Result: "passed"}}}
-	verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"})
+	verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), fixture.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"}))
 	if !errors.Is(err, ErrForbidden) || verification.Result != "failed" || session.ID != "" || secret != "" {
 		t.Fatalf("verification=%#v session=%#v secret=%q err=%v", verification, session, secret, err)
 	}
-	if len(fixture.transactions.state.verifications) != 1 || len(fixture.transactions.state.sessions) != 0 || len(fixture.transactions.state.audit) != 1 {
+	if len(fixture.transactions.state.verifications) != 1 || len(fixture.transactions.state.sessions) != 0 || len(fixture.transactions.state.audit) != 2 {
 		t.Fatalf("state = %#v", fixture.transactions.state)
 	}
 }
@@ -354,7 +354,7 @@ func TestExchangeSSOCredentialSanitizesVerifierFailure(t *testing.T) {
 	fixture := newIdentityServiceFixture(t)
 	fixture.reader.providers = []identitydomain.SSOProvider{{ID: "sso_1", TenantID: fixture.actor.TenantID, Type: "oidc", Status: "active"}}
 	fixture.verifier.err = errors.New("provider rejected raw-id-token with database detail")
-	verification, _, _, err := fixture.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"})
+	verification, _, _, err := fixture.service.ExchangeSSOCredential(context.Background(), fixture.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"}))
 	if !errors.Is(err, ErrVerificationFailed) {
 		t.Fatalf("ExchangeSSOCredential error = %v", err)
 	}
@@ -367,7 +367,7 @@ func TestExchangeSSOCredentialRedactsRawCredentialFromVerifierChecks(t *testing.
 	fixture := newIdentityServiceFixture(t)
 	fixture.reader.providers = []identitydomain.SSOProvider{{ID: "sso_1", TenantID: fixture.actor.TenantID, Type: "oidc", Status: "active"}}
 	fixture.verifier.result = CredentialVerificationResult{Checks: []identitydomain.VerificationCheck{{Name: "signature", Result: "failed", Detail: "rejected raw-id-token"}}}
-	verification, _, _, err := fixture.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"})
+	verification, _, _, err := fixture.service.ExchangeSSOCredential(context.Background(), fixture.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"}))
 	if !errors.Is(err, ErrVerificationFailed) {
 		t.Fatalf("ExchangeSSOCredential error = %v", err)
 	}
@@ -378,7 +378,7 @@ func TestExchangeSSOCredentialRedactsRawCredentialFromVerifierChecks(t *testing.
 
 func TestExchangeSSOCredentialDoesNotRetainCredentialAsSubjectOrGroup(t *testing.T) {
 	subject := newIdentityServiceFixture(t)
-	verification, session, secret, err := subject.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject-raw-id-token-value", IDToken: "raw-id-token"})
+	verification, session, secret, err := subject.service.ExchangeSSOCredential(context.Background(), subject.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject-raw-id-token-value", IDToken: "raw-id-token"}))
 	if !errors.Is(err, ErrValidation) || verification.ID != "" || session.ID != "" || secret != "" {
 		t.Fatalf("subject verification=%#v session=%#v secret=%q err=%v", verification, session, secret, err)
 	}
@@ -389,7 +389,7 @@ func TestExchangeSSOCredentialDoesNotRetainCredentialAsSubjectOrGroup(t *testing
 	group := newIdentityServiceFixture(t)
 	configureSuccessfulExchange(group)
 	group.verifier.result.Groups = []string{"team", "raw-id-token"}
-	_, issued, _, err := group.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"})
+	_, issued, _, err := group.service.ExchangeSSOCredential(context.Background(), group.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"}))
 	if err != nil {
 		t.Fatalf("ExchangeSSOCredential: %v", err)
 	}
@@ -474,7 +474,7 @@ func TestExchangeSSOCredentialRejectsStaleTransactionState(t *testing.T) {
 				return ErrConflict
 			}
 
-			verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"})
+			verification, session, secret, err := fixture.service.ExchangeSSOCredential(context.Background(), fixture.boundExchangeInput(t, ExchangeSSOCredentialInput{ProviderID: "sso_1", Subject: "subject", IDToken: "raw-id-token"}))
 			if !errors.Is(err, ErrConflict) || verification.ID != "" || session.ID != "" || secret != "" {
 				t.Fatalf("verification=%#v session=%#v secret=%q err=%v", verification, session, secret, err)
 			}

@@ -29,6 +29,14 @@ func (c *HMACAuthenticationCredentials) GenerateSession() (Credential, error) {
 	return c.generate("evysso_")
 }
 
+func (c *HMACAuthenticationCredentials) GenerateLoginState() (Credential, error) {
+	return c.generate("evylogin_")
+}
+
+func (c *HMACAuthenticationCredentials) GenerateLoginNonce() (Credential, error) {
+	return c.generate("evynonce_")
+}
+
 // GeneratePortalAccess preserves the existing package-token hash format.
 func (c *HMACAuthenticationCredentials) GeneratePortalAccess() (Credential, error) {
 	return c.generate("evycp_")

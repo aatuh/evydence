@@ -20,6 +20,8 @@ type APIKeyCommands interface {
 
 func mapIdentityCommandError(err error) error {
 	switch {
+	case errors.Is(err, identityapp.ErrRateLimited):
+		return app.ErrRateLimited
 	case errors.Is(err, identityapp.ErrValidation):
 		return app.ErrValidation
 	case errors.Is(err, identityapp.ErrUnauthorized), errors.Is(err, application.ErrUnauthorized):

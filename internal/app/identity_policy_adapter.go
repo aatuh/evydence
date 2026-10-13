@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
@@ -20,18 +22,29 @@ func (LocalSSOCredentialVerifier) Verify(_ context.Context, request identityapp.
 	var checks []domain.VerifyCheck
 	var groups []string
 	var err error
+	var nonce string
+	var issuedAt, expiresAt time.Time
 	switch provider.Type {
 	case "oidc":
 		checks, err = verifyOIDCIDToken(provider, request.Subject, request.IDToken, request.Now)
 		if err == nil {
 			groups = oidcGroupsFromVerifiedToken(provider, request.IDToken)
+			parts := strings.Split(request.IDToken, ".")
+			body, decodeErr := decodeOIDCSegment(parts[1])
+			var claims oidcJWTClaims
+			if decodeErr != nil || decodeOIDCObject(body, &claims) != nil {
+				return identityapp.CredentialVerificationResult{}, identityapp.ErrVerificationFailed
+			}
+			nonce = claims.Nonce
+			issuedAt = time.Unix(claims.IssuedAt, 0).UTC()
+			expiresAt = time.Unix(claims.ExpiresAt, 0).UTC()
 		}
 	case "saml":
 		checks, err = verifySAMLAssertion(provider, request.Subject, request.SAMLAssertion, request.Now)
 	default:
 		return identityapp.CredentialVerificationResult{}, identityapp.ErrValidation
 	}
-	return identityapp.CredentialVerificationResult{Checks: verificationChecksToIdentityContext(checks), Groups: append([]string(nil), groups...)}, err
+	return identityapp.CredentialVerificationResult{Checks: verificationChecksToIdentityContext(checks), Groups: append([]string(nil), groups...), Nonce: nonce, IssuedAt: issuedAt, ExpiresAt: expiresAt}, err
 }
 
 // LocalSSOVerificationPolicy applies the existing versioned assurance profile

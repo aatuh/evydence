@@ -28,7 +28,7 @@ func TestSSOExchangePolicyRequiresPassedAssessmentAndPositiveCredentialEvidence(
 			c, f, in, _ := exchangeCommandsForTest(t)
 			c.config.VerificationPolicy = fixedExchangeAssessment{result}
 			v, session, secret, err := c.ExchangeSSOCredential(t.Context(), in)
-			if !errors.Is(err, ErrVerificationFailed) || v.ID == "" || session.ID != "" || secret != "" || f.generations != 0 || len(f.sessions) != 0 || len(f.verifications) != 1 || len(f.audits) != 1 {
+			if !errors.Is(err, ErrVerificationFailed) || v.ID == "" || session.ID != "" || secret != "" || f.generations != 0 || len(f.sessions) != 0 || len(f.verifications) != 1 || len(f.audits) != 2 {
 				t.Fatal("non-passing credential assessment minted session authority", err)
 			}
 		})
@@ -61,7 +61,7 @@ func TestSSOExchangePolicyRejectsUnboundLinkBeforeUserReadsEvenWithPassingAssess
 		edit(&f.link)
 		c.config.VerificationPolicy = fixedExchangeAssessment{"passed"}
 		v, session, secret, err := c.ExchangeSSOCredential(t.Context(), in)
-		if !errors.Is(err, ErrVerificationFailed) || v.ID == "" || session.ID != "" || secret != "" || f.reads != 2 || f.generations != 0 || len(f.verifications) != 1 || len(f.audits) != 1 || f.snapshot.UserLoaded {
+		if !errors.Is(err, ErrVerificationFailed) || v.ID == "" || session.ID != "" || secret != "" || f.reads != 3 || f.generations != 0 || len(f.verifications) != 1 || len(f.audits) != 2 || f.snapshot.UserLoaded {
 			t.Fatal("permissive assessment bypassed the linked-identity boundary before user reads", err)
 		}
 	}
@@ -93,7 +93,7 @@ func TestSSOExchangePolicyWithholdsSuccessAndDenialResultsAfterCommitCancellatio
 		if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(v, identitydomain.ProviderVerification{}) || !reflect.DeepEqual(session, identitydomain.SSOSession{}) || secret != "" {
 			t.Error("post-commit cancellation disclosed an exchange result or secret", err)
 		}
-		if len(f.verifications) != 1 || accepted && (len(f.sessions) != 1 || len(f.audits) != 2) || !accepted && (len(f.sessions) != 0 || len(f.audits) != 1) {
+		if len(f.verifications) != 1 || accepted && (len(f.sessions) != 1 || len(f.audits) != 3) || !accepted && (len(f.sessions) != 0 || len(f.audits) != 1) {
 			t.Fatal("cancellation misreported already committed exchange effects")
 		}
 	}
@@ -130,5 +130,37 @@ func TestSSOExchangePolicyRejectsSessionExpiryWhileWaitingForSnapshotLocks(t *te
 	v, session, secret, err := c.ExchangeSSOCredential(t.Context(), in)
 	if !errors.Is(err, ErrValidation) || v.ID != "" || session.ID != "" || secret != "" || len(f.verifications)+len(f.sessions)+len(f.audits) != 0 {
 		t.Fatal("expired requested session was committed or exposed after a storage wait", err)
+	}
+}
+
+func TestSSOExchangePolicyRejectsOIDCDeadlineDuringLocksAndAfterCommit(t *testing.T) {
+	for _, phase := range []string{"request wait", "token wait", "request delivery", "token delivery"} {
+		t.Run(phase, func(t *testing.T) {
+			c, f, in, now := exchangeCommandsForTest(t)
+			at := now
+			c.config.Clock = application.ClockFunc(func() time.Time { return at })
+			deadline := f.request.ExpiresAt
+			if phase == "token wait" || phase == "token delivery" {
+				deadline = now.Add(time.Minute)
+				f.result.ExpiresAt = deadline
+			}
+			committed := phase == "request delivery" || phase == "token delivery"
+			if committed {
+				f.commitHook = func() { at = deadline }
+			} else {
+				c.config.Transactions = expiringExchangeTransactions{f, func() { at = deadline }}
+			}
+			v, session, secret, err := c.ExchangeSSOCredential(t.Context(), in)
+			if !errors.Is(err, ErrUnauthorized) || v.ID != "" || session.ID != "" || secret != "" {
+				t.Fatal("deadline elapsed but proof authority was delivered", err)
+			}
+			if committed {
+				if len(f.sessions) != 1 || len(f.verifications) != 1 || len(f.audits) != 3 || f.request.ConsumedAt == nil {
+					t.Fatal("withheld delivery misreported committed effects")
+				}
+			} else if len(f.sessions)+len(f.verifications)+len(f.audits) != 0 || f.request.ConsumedAt != nil {
+				t.Fatal("expired proof left partial transaction effects")
+			}
+		})
 	}
 }

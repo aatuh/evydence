@@ -141,9 +141,9 @@
       <p>This page is generated from <code>openapi.yaml</code>. It is a human-readable companion to the committed contract and does not replace route-contract tests.</p>
       <div class="summary-grid">
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
-        <div class="summary-card"><strong>172</strong><span>registered paths</span></div>
-        <div class="summary-card"><strong>189</strong><span>operations</span></div>
-        <div class="summary-card"><strong>393</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>173</strong><span>registered paths</span></div>
+        <div class="summary-card"><strong>190</strong><span>operations</span></div>
+        <div class="summary-card"><strong>397</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -415,13 +415,13 @@
               <div><dt>Responses</dt><dd>200 application/json: AuditChainEntryListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/backup-manifests generate backup manifest generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. postgresql emits backup-manifest.v2.0.0 with tenant-relational-state.v3 semantics, including append-only decision supersession history and session lifecycle metadata; historical commitments retain their frozen v1/v2 profiles. native durable execution checks current tenant-wide admin authority before reservation and replay; human sessions need a matching tenant grant. the replay guard locks only the tenant root, not state rows, audit pages or signing material. the common writer fence precedes tenant and chain locks. fresh generation streams the complete declared metadata profile in one committed view, bounded by 32768 rows and 8 mib; overflow fails rather than publishing a truncated prefix. manifest, caller audit and successful replay commit together. completed retries return the original manifest without reading or hashing current state or rerunning audit inspection; changed request bytes conflict. the api requires an empty json object, reject unknown, duplicate, case-aliased, invalid utf-8 and malformed input, and cap the body at 64 kib. unsafe cookie mutations require same-origin protection. the api requires postgresql, including local evaluation. credential material, replay bookkeeping and raw object payload bytes are excluded. failed audit observations remain failed, and local checks do not prove external anchoring. generatebackupmanifest evydence admin">
+          <article class="operation" data-operation data-search="post /v1/backup-manifests generate backup manifest generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. postgresql emits backup-manifest.v2.0.0 with tenant-relational-state.v4 semantics, including decision supersession history, session lifecycle and non-secret oidc request metadata; state/nonce hashes are excluded and historical commitments retain their frozen v1/v2/v3 profiles. native durable execution checks current tenant-wide admin authority before reservation and replay; human sessions need a matching tenant grant. the replay guard locks only the tenant root, not state rows, audit pages or signing material. the common writer fence precedes tenant and chain locks. fresh generation streams the complete declared metadata profile in one committed view, bounded by 32768 rows and 8 mib; overflow fails rather than publishing a truncated prefix. manifest, caller audit and successful replay commit together. completed retries return the original manifest without reading or hashing current state or rerunning audit inspection; changed request bytes conflict. the api requires an empty json object, reject unknown, duplicate, case-aliased, invalid utf-8 and malformed input, and cap the body at 64 kib. unsafe cookie mutations require same-origin protection. the api requires postgresql, including local evaluation. credential material, replay bookkeeping and raw object payload bytes are excluded. failed audit observations remain failed, and local checks do not prove external anchoring. generatebackupmanifest evydence admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/backup-manifests</code>
             </div>
             <h3>Generate backup manifest</h3>
-            <p>Generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. PostgreSQL emits backup-manifest.v2.0.0 with tenant-relational-state.v3 semantics, including append-only decision supersession history and session lifecycle metadata; historical commitments retain their frozen v1/v2 profiles. Native durable execution checks current tenant-wide admin authority before reservation and replay; human sessions need a matching tenant grant. The replay guard locks only the tenant root, not state rows, audit pages or signing material. The common writer fence precedes tenant and chain locks. Fresh generation streams the complete declared metadata profile in one committed view, bounded by 32768 rows and 8 MiB; overflow fails rather than publishing a truncated prefix. Manifest, caller audit and successful replay commit together. Completed retries return the original manifest without reading or hashing current state or rerunning audit inspection; changed request bytes conflict. The API requires an empty JSON object, reject unknown, duplicate, case-aliased, invalid UTF-8 and malformed input, and cap the body at 64 KiB. Unsafe cookie mutations require same-origin protection. The API requires PostgreSQL, including local evaluation. Credential material, replay bookkeeping and raw object payload bytes are excluded. Failed audit observations remain failed, and local checks do not prove external anchoring.</p>
+            <p>Generates a tenant-scoped metadata commitment, not a restore receipt or proof that an operator backup completed. PostgreSQL emits backup-manifest.v2.0.0 with tenant-relational-state.v4 semantics, including decision supersession history, session lifecycle and non-secret OIDC request metadata; state/nonce hashes are excluded and historical commitments retain their frozen v1/v2/v3 profiles. Native durable execution checks current tenant-wide admin authority before reservation and replay; human sessions need a matching tenant grant. The replay guard locks only the tenant root, not state rows, audit pages or signing material. The common writer fence precedes tenant and chain locks. Fresh generation streams the complete declared metadata profile in one committed view, bounded by 32768 rows and 8 MiB; overflow fails rather than publishing a truncated prefix. Manifest, caller audit and successful replay commit together. Completed retries return the original manifest without reading or hashing current state or rerunning audit inspection; changed request bytes conflict. The API requires an empty JSON object, reject unknown, duplicate, case-aliased, invalid UTF-8 and malformed input, and cap the body at 64 KiB. Unsafe cookie mutations require same-origin protection. The API requires PostgreSQL, including local evaluation. Credential material, replay bookkeeping and raw object payload bytes are excluded. Failed audit observations remain failed, and local checks do not prove external anchoring.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>generateBackupManifest</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -2931,6 +2931,23 @@
               <div><dt>Responses</dt><dd>201 application/json: SourceRepositoryEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
+          <article class="operation" data-operation data-search="post /v1/sso/authentication-requests begin oidc authentication creates server-owned oidc login state for a configured active provider. requests expire after five minutes; at most 64 retained requests per provider are allowed, including consumed rows until expiry. overflow returns 429; creation prunes bounded expired operational rows without deleting evidence/audit/session history. api delivery returns state_secret once in json and sets no cookie. browser delivery requires one same https origin, sets a host-only httponly secure samesite=strict state cookie and omits state_secret from json. send the returned nonce to the external provider and bind its response to this request. trust changes invalidate outstanding requests. this endpoint does not redirect, perform authorization-code exchange or call a provider. postgresql is required. responses use cache-control: no-store. beginoidcauthentication evydence none">
+            <div class="operation-heading">
+              <span class="method method-post">POST</span>
+              <code>/v1/sso/authentication-requests</code>
+            </div>
+            <h3>Begin OIDC authentication</h3>
+            <p>Creates server-owned OIDC login state for a configured active provider. Requests expire after five minutes; at most 64 retained requests per provider are allowed, including consumed rows until expiry. Overflow returns 429; creation prunes bounded expired operational rows without deleting evidence/audit/session history. API delivery returns state_secret once in JSON and sets no cookie. Browser delivery requires one same HTTPS Origin, sets a host-only HttpOnly Secure SameSite=Strict state cookie and omits state_secret from JSON. Send the returned nonce to the external provider and bind its response to this request. Trust changes invalidate outstanding requests. This endpoint does not redirect, perform authorization-code exchange or call a provider. PostgreSQL is required. Responses use Cache-Control: no-store.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>beginOIDCAuthentication</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>none</dd></div>
+              <div><dt>Idempotency</dt><dd>not required</dd></div>
+              <div><dt>Request</dt><dd>application/json: BeginOIDCAuthenticationRequest</dd></div>
+              <div><dt>Responses</dt><dd>201 application/json: BeginOIDCAuthenticationEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
           <article class="operation" data-operation data-search="post /v1/sso/identity-links link sso identity records an administrator-asserted verified provider subject for a current tenant-owned user with matching normalized email. postgresql uses a focused identity transaction: current tenant-wide identity:admin authority and parent ownership/email checks precede reservation or replay; link, audit and safe replay commit atomically. this does not verify a live provider credential, activate the user/provider, issue a session or grant roles. postgresql is required for local evaluation. linkssoidentity evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
@@ -3016,13 +3033,13 @@
               <div><dt>Responses</dt><dd>200 application/json: SSOProviderEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/session-exchanges exchange sso credential exchanges a locally verified oidc id token or saml assertion for an sso session and secure httponly samesite=strict host-only browser cookie at /v1. credential responses use cache-control: no-store. postgresql reads bounded current provider, identity-link, user and grant projections without ledger inventories; the write transaction rechecks those snapshots and commits verification, session and audits together before returning a secret or cookie. only an active tenant-owned user with a verified identity link and current user or mapped provider-group grants can receive a session. exactly one nonempty credential is required. omitted or zero expiry defaults to eight hours; explicit expiry must be future and no more than twelve hours. duplicate, null, unknown, non-object, invalid utf-8 and nul-bearing inputs are rejected. this public route is not an idempotency replay surface: repeated valid requests may issue new sessions, and no credential or secret enters a replay receipt. no live provider api or group synchronization call is made. the default eight-hour expiry is shortened when the configured maximum is lower; explicit expiry cannot exceed that maximum. issued session policy and committed last-use activity have the same bounds as administrative issuance. postgresql is required for local evaluation. exchangessocredential evydence none">
+          <article class="operation" data-operation data-search="post /v1/sso/session-exchanges exchange sso credential exchanges a locally verified oidc id token or saml assertion after checking a verified identity link, active user and current tenant-owned grants. oidc requires an unexpired server-owned authentication_request_id, matching state, signed nonce, current configured provider trust snapshot and delivery mode. a verified proof is consumed atomically with verification/session/audits, including identity denials; replay cannot issue another session. api delivery returns the secret once in json and sets no cookie. oidc browser delivery requires one same https origin and the single __host-evydence_oidc_state cookie, omits the json secret, sets an httponly secure session cookie and clears login state. unknown fields, duplicate keys, supplied nulls, trailing json, non-object, invalid utf-8 and nul-bearing inputs are rejected. credential responses use cache-control: no-store. no credential or secret enters idempotency receipts; no live provider api or group synchronization call is made. the default eight-hour expiry is shortened when the configured maximum is lower; explicit expiry cannot exceed that maximum. issued session policy and committed last-use activity have the same bounds as administrative issuance. postgresql is required for local evaluation. exchangessocredential evydence none">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/session-exchanges</code>
             </div>
             <h3>Exchange SSO credential</h3>
-            <p>Exchanges a locally verified OIDC ID token or SAML assertion for an SSO session and Secure HttpOnly SameSite=Strict host-only browser cookie at /v1. Credential responses use Cache-Control: no-store. PostgreSQL reads bounded current provider, identity-link, user and grant projections without Ledger inventories; the write transaction rechecks those snapshots and commits verification, session and audits together before returning a secret or cookie. Only an active tenant-owned user with a verified identity link and current user or mapped provider-group grants can receive a session. Exactly one nonempty credential is required. Omitted or zero expiry defaults to eight hours; explicit expiry must be future and no more than twelve hours. Duplicate, null, unknown, non-object, invalid UTF-8 and NUL-bearing inputs are rejected. This public route is not an idempotency replay surface: repeated valid requests may issue new sessions, and no credential or secret enters a replay receipt. No live provider API or group synchronization call is made. The default eight-hour expiry is shortened when the configured maximum is lower; explicit expiry cannot exceed that maximum. Issued session policy and committed last-use activity have the same bounds as administrative issuance. PostgreSQL is required for local evaluation.</p>
+            <p>Exchanges a locally verified OIDC ID token or SAML assertion after checking a verified identity link, active user and current tenant-owned grants. OIDC requires an unexpired server-owned authentication_request_id, matching state, signed nonce, current configured provider trust snapshot and delivery mode. A verified proof is consumed atomically with verification/session/audits, including identity denials; replay cannot issue another session. API delivery returns the secret once in JSON and sets no cookie. OIDC browser delivery requires one same HTTPS Origin and the single __Host-evydence_oidc_state cookie, omits the JSON secret, sets an HttpOnly Secure session cookie and clears login state. Unknown fields, duplicate keys, supplied nulls, trailing JSON, non-object, invalid UTF-8 and NUL-bearing inputs are rejected. Credential responses use Cache-Control: no-store. No credential or secret enters idempotency receipts; no live provider API or group synchronization call is made. The default eight-hour expiry is shortened when the configured maximum is lower; explicit expiry cannot exceed that maximum. Issued session policy and committed last-use activity have the same bounds as administrative issuance. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>exchangeSSOCredential</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3469,6 +3486,21 @@
             <td><code>BackupManifestEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>BeginOIDCAuthenticationEnvelope</code></td>
+            <td>object</td>
+            <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>BeginOIDCAuthenticationRequest</code></td>
+            <td>object</td>
+            <td>provider_id</td>
+          </tr>
+          <tr>
+            <td><code>BeginOIDCAuthenticationResponse</code></td>
+            <td>object</td>
+            <td>authentication_request, nonce</td>
           </tr>
           <tr>
             <td><code>BuildAttestation</code></td>
@@ -4172,7 +4204,7 @@
           </tr>
           <tr>
             <td><code>ExchangeSSOCredentialRequest</code></td>
-            <td>object</td>
+            <td>oneOf(object, object, object)</td>
             <td>provider_id, subject</td>
           </tr>
           <tr>
@@ -4369,6 +4401,11 @@
             <td><code>MissingEvidenceReportEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>OIDCAuthenticationRequest</code></td>
+            <td>object</td>
+            <td>id, tenant_id, provider_id, delivery, created_at, expires_at, schema_version</td>
           </tr>
           <tr>
             <td><code>ObjectRetentionPolicy</code></td>
@@ -4893,7 +4930,7 @@
           <tr>
             <td><code>SSOCredentialExchangeResponse</code></td>
             <td>object</td>
-            <td>verification, session, secret</td>
+            <td>verification, session</td>
           </tr>
           <tr>
             <td><code>SSOProvider</code></td>

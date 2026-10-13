@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
@@ -78,14 +77,22 @@ func newExchangeWiringServer(t *testing.T, store *postgres.Store) (*httpapi.Serv
 
 func TestPostgresSSOExchangeHTTPAuthenticatesWithoutLedgerOrSecretReplay(t *testing.T) {
 	store, pool := openHTMLReportWiringStore(t)
-	in := seedSSOExchangeWiring(t, pool)
+	_ = seedSSOExchangeWiring(t, pool)
+	in := boundExchangeWiringInput(t, store)
 	// The HTTP contract uses snake_case, not the exported application DTO names.
-	body, err := json.Marshal(map[string]any{"provider_id": in.ProviderID, "subject": in.Subject, "id_token": in.IDToken})
+	body, err := json.Marshal(map[string]any{"provider_id": in.ProviderID, "subject": in.Subject, "id_token": in.IDToken, "authentication_request_id": in.AuthenticationRequestID, "state_secret": in.StateSecret})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var previous string
 	for range 2 {
+		if previous != "" {
+			in = boundExchangeWiringInput(t, store)
+			body, err = json.Marshal(map[string]any{"provider_id": in.ProviderID, "subject": in.Subject, "id_token": in.IDToken, "authentication_request_id": in.AuthenticationRequestID, "state_secret": in.StateSecret})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 		s, noReload := newExchangeWiringServer(t, store)
 		r := httptest.NewRequest("POST", "/v1/sso/session-exchanges", bytes.NewReader(body)).WithContext(t.Context())
 		r.Header.Set("Content-Type", "application/json")
@@ -119,13 +126,16 @@ func TestPostgresSSOExchangeHTTPAuthenticatesWithoutLedgerOrSecretReplay(t *test
 		if storedProfile["id"] == "" || !reflect.DeepEqual(storedProfile, out.Data.Verification["profile"]) {
 			t.Fatal("public/persisted assurance profile mapping changed")
 		}
-		cookies := w.Result().Cookies()
-		if len(cookies) != 1 || cookies[0].Value != out.Data.Secret || cookies[0].Name != "evydence_session" || !cookies[0].HttpOnly || !cookies[0].Secure || cookies[0].Path != "/v1" || cookies[0].SameSite != http.SameSiteStrictMode {
-			t.Fatal("exchange cookie contract changed")
+		if len(w.Result().Cookies()) != 0 {
+			t.Fatal("API login unexpectedly set an ambient session cookie")
 		}
 		expires, err := time.Parse(time.RFC3339Nano, out.Data.Session["expires_at"].(string))
-		if err != nil || !cookies[0].Expires.Equal(expires.Truncate(time.Second)) {
-			t.Fatal("cookie and session expiry differ", err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		created, err := time.Parse(time.RFC3339Nano, out.Data.Session["created_at"].(string))
+		if err != nil || !expires.Equal(created.Add(8*time.Hour)) {
+			t.Fatal("default session lifetime changed", err)
 		}
 		authn, err := BuildAuthenticator(store, store, "exchange-test-pepper", false)
 		if err != nil {
@@ -141,15 +151,16 @@ func TestPostgresSSOExchangeHTTPAuthenticatesWithoutLedgerOrSecretReplay(t *test
 		}
 		previous = out.Data.Secret
 	}
-	if counts := exchangeWiringCounts(t, pool); counts != [4]int{2, 2, 4, 0} {
+	if counts := exchangeWiringCounts(t, pool); counts != [4]int{2, 2, 8, 0} {
 		t.Fatal("exchange created replay material or partial effects", counts)
 	}
 }
 
 func TestPostgresSSOExchangeWriteAuditAndDeferredCommitFailuresReturnNoCookie(t *testing.T) {
 	store, pool := openHTMLReportWiringStore(t)
-	in := seedSSOExchangeWiring(t, pool)
-	body, err := json.Marshal(map[string]any{"provider_id": in.ProviderID, "subject": in.Subject, "id_token": in.IDToken})
+	_ = seedSSOExchangeWiring(t, pool)
+	in := boundExchangeWiringInput(t, store)
+	body, err := json.Marshal(map[string]any{"provider_id": in.ProviderID, "subject": in.Subject, "id_token": in.IDToken, "authentication_request_id": in.AuthenticationRequestID, "state_secret": in.StateSecret})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +191,8 @@ func TestPostgresSSOExchangeWriteAuditAndDeferredCommitFailuresReturnNoCookie(t 
 
 func TestPostgresSSOExchangeReadsAreBoundedOwnedAndFailClosed(t *testing.T) {
 	store, pool := openHTMLReportWiringStore(t)
-	in := seedSSOExchangeWiring(t, pool)
+	_ = seedSSOExchangeWiring(t, pool)
+	in := boundExchangeWiringInput(t, store)
 	reader := ssoExchangeReader{factory: store}
 	provider, err := reader.SSOProviderByID(t.Context(), "provider")
 	if err != nil || provider.SAMLSigningCertificates != nil {
@@ -223,12 +235,12 @@ func TestPostgresSSOExchangeReadsAreBoundedOwnedAndFailClosed(t *testing.T) {
 func TestPostgresSSOExchangeDenialsPersistOnlySafeVerificationAndNoCookie(t *testing.T) {
 	for _, scenario := range []string{"bad credential", "missing link", "inactive user", "no grants"} {
 		store, pool := openHTMLReportWiringStore(t)
-		in := seedSSOExchangeWiring(t, pool)
+		_ = seedSSOExchangeWiring(t, pool)
+		var in identityapp.ExchangeSSOCredentialInput
 		want := 422
 		var mutation string
 		switch scenario {
 		case "bad credential":
-			in.IDToken = "not-a-valid-token"
 		case "missing link":
 			mutation = `DELETE FROM user_identity_links WHERE id='link'`
 		case "inactive user":
@@ -242,14 +254,20 @@ func TestPostgresSSOExchangeDenialsPersistOnlySafeVerificationAndNoCookie(t *tes
 				t.Fatal(err)
 			}
 		}
-		body, err := json.Marshal(map[string]any{"provider_id": in.ProviderID, "subject": in.Subject, "id_token": in.IDToken})
+		in = boundExchangeWiringInput(t, store)
+		audits := 3
+		if scenario == "bad credential" {
+			in.IDToken = "not-a-valid-token"
+			audits = 2
+		}
+		body, err := json.Marshal(map[string]any{"provider_id": in.ProviderID, "subject": in.Subject, "id_token": in.IDToken, "authentication_request_id": in.AuthenticationRequestID, "state_secret": in.StateSecret})
 		if err != nil {
 			t.Fatal(err)
 		}
 		s, noReload := newExchangeWiringServer(t, store)
 		w := httptest.NewRecorder()
 		s.Handler().ServeHTTP(w, httptest.NewRequest("POST", "/v1/sso/session-exchanges", bytes.NewReader(body)).WithContext(t.Context()))
-		if w.Code != want || w.Header().Get("Set-Cookie") != "" || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), in.IDToken) || exchangeWiringCounts(t, pool) != [4]int{1, 0, 1, 0} {
+		if w.Code != want || w.Header().Get("Set-Cookie") != "" || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), in.IDToken) || exchangeWiringCounts(t, pool) != [4]int{1, 0, audits, 0} {
 			t.Fatal("denied exchange issued credentials or lost safe receipt", scenario, w.Code)
 		}
 		var result string
@@ -274,6 +292,8 @@ func (u exchangeRaceUnit) Repositories() app.Repositories { return u.repos }
 type exchangeRaceIdentity struct {
 	app.IdentityRepository
 	identityapp.SSOExchangeReader
+	identityapp.OIDCAuthenticationRequestReader
+	identityapp.OIDCAuthenticationRequestConsumer
 	factory *exchangeRaceFactory
 }
 
@@ -293,20 +313,21 @@ func (f *exchangeRaceFactory) BeginUnitOfWork(ctx context.Context) (app.UnitOfWo
 		return nil, err
 	}
 	r := u.Repositories()
-	r.Identity = exchangeRaceIdentity{IdentityRepository: r.Identity, SSOExchangeReader: r.Identity.(identityapp.SSOExchangeReader), factory: f}
+	r.Identity = exchangeRaceIdentity{IdentityRepository: r.Identity, SSOExchangeReader: r.Identity.(identityapp.SSOExchangeReader), OIDCAuthenticationRequestReader: r.Identity.(identityapp.OIDCAuthenticationRequestReader), OIDCAuthenticationRequestConsumer: r.Identity.(identityapp.OIDCAuthenticationRequestConsumer), factory: f}
 	return exchangeRaceUnit{UnitOfWork: u, repos: r}, nil
 }
 func TestPostgresSSOExchangeRejectsIdentityChangesAfterVerification(t *testing.T) {
 	for _, mutation := range []string{`UPDATE sso_providers SET jwks='{}' WHERE id='provider'`, `UPDATE user_identity_links SET verified=false WHERE id='link'`, `UPDATE human_users SET status='inactive' WHERE id='user'`, `DELETE FROM role_bindings WHERE id='grant'`} {
 		store, pool := openHTMLReportWiringStore(t)
-		in := seedSSOExchangeWiring(t, pool)
+		_ = seedSSOExchangeWiring(t, pool)
+		in := boundExchangeWiringInput(t, store)
 		factory := &exchangeRaceFactory{UnitOfWorkFactory: store, hook: func(ctx context.Context) error { _, err := pool.Exec(ctx, mutation); return err }}
 		c, err := BuildSSOExchangeCommands(factory, "exchange-test-pepper", false)
 		if err != nil {
 			t.Fatal(err)
 		}
 		v, session, secret, err := c.ExchangeSSOCredential(t.Context(), in)
-		if !errors.Is(err, identityapp.ErrConflict) || v.ID != "" || session.ID != "" || secret != "" || exchangeWiringCounts(t, pool) != [4]int{} {
+		if !errors.Is(err, identityapp.ErrConflict) || v.ID != "" || session.ID != "" || secret != "" || exchangeWiringCounts(t, pool) != [4]int{0, 0, 1, 0} {
 			t.Fatal("changed identity snapshot issued a session", err)
 		}
 	}

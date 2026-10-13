@@ -424,6 +424,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO exchange commands: %w", err)
 	}
+	options.OIDCAuthenticationRequestCommands, err = BuildOIDCAuthenticationRequestCommands(store, pepper, runtime.Production)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create OIDC authentication request commands: %w", err)
+	}
 	options.ProviderVerificationCommands, err = BuildProviderVerificationCommands(store, runtime.ProviderAPI)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create provider verification commands: %w", err)

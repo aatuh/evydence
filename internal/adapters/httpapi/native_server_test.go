@@ -31,6 +31,9 @@ func nativeConstructorOptions() ServerOptions {
 		SSOSessionCommands:           &struct{ SSOSessionCommands }{},
 		SSOSessionRevocationCommands: &struct{ SSOSessionRevocationCommands }{},
 		SSOExchangeCommands:          &struct{ SSOExchangeCommands }{},
+		OIDCAuthenticationRequestCommands: &struct {
+			OIDCAuthenticationRequestCommands
+		}{},
 		ProviderVerificationCommands: &struct{ ProviderVerificationCommands }{},
 		EvidenceSummaryCommands:      &struct{ EvidenceSummaryCommands }{},
 		GraphSnapshotCommands:        &struct{ GraphSnapshotCommands }{},

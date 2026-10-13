@@ -13,6 +13,21 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added server-owned OIDC login state and nonce with atomic single-use proof
+consumption (EVY-1009). Clients first create an authentication request, then
+exchange a matching signed ID token and state within five minutes; unbound,
+replayed, stale-trust and wrongly scoped proofs fail. Strict JWT JSON, audience,
+authorized-party, time, algorithm and public-key usage checks apply. API delivery
+returns the session secret once in JSON and sets no cookie; explicit OIDC
+browser delivery uses host-only state and session cookies with same-origin
+protection and omits the JSON secret. The exact prerelease compatibility record
+adds that optional response property to the preceding unchanged 205-entry set;
+it is not an external approval or a published release. The new guarded migration
+preserves historical identity/evidence records; backup metadata uses frozen
+v4 semantics while retaining v1/v2/v3 reproduction. SAML standard signature,
+binding/replay and failure telemetry remain separate work. See the
+[rollout policy](docs/reference/upgrade-compatibility-policy.md#oidc-login-binding-rollout).
+
 Hardened the SSO credential transport boundary (EVY-1007): authenticated routes
 use the required toolkit's strict Bearer parser, reject ambiguous headers
 without cookie fallback, and reserve cookies for issued human SSO sessions.

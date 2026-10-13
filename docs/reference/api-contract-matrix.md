@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 189 operations: 189 precise, 0 broad.
+Generated from 190 operations: 190 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision | Stability |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -170,6 +170,7 @@ Generated from 189 operations: 189 precise, 0 broad.
 | POST | /v1/source/pull-requests | recordPullRequest | Bearer | source:write | required | - | application/json:RecordPullRequestRequest | 201:application/json:PullRequestEnvelope | precise | experimental |
 | GET | /v1/source/repositories | listSourceRepositories | Bearer | source:read | - | query:cursor, query:direction, query:page_size, query:project_id, query:sort | - | 200:application/json:SourceRepositoryListEnvelope | precise | experimental |
 | POST | /v1/source/repositories | createSourceRepository | Bearer | source:write | required | - | application/json:CreateSourceRepositoryRequest | 201:application/json:SourceRepositoryEnvelope | precise | experimental |
+| POST | /v1/sso/authentication-requests | beginOIDCAuthentication | public | - | not required | - | application/json:BeginOIDCAuthenticationRequest | 201:application/json:BeginOIDCAuthenticationEnvelope | precise | supported |
 | POST | /v1/sso/identity-links | linkSSOIdentity | Bearer | identity:admin | required | - | application/json:LinkSSOIdentityRequest | 201:application/json:UserIdentityLinkEnvelope | precise | experimental |
 | POST | /v1/sso/logout | logoutSSOSession | Bearer | - | required | - | application/json:EmptyObject | 200:application/json:SSOSessionEnvelope | precise | supported |
 | POST | /v1/sso/providers | createSSOProvider | Bearer | identity:admin | required | - | application/json:CreateSSOProviderRequest | 201:application/json:SSOProviderEnvelope | precise | experimental |

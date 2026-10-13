@@ -67,8 +67,33 @@ old rows a fresh activity window. These are prerelease admission restrictions;
 clients must obtain a fresh session when the old one no longer qualifies.
 
 See the [configuration reference](configuration.md#sso-session-lifecycle-unreleased)
-for exact bounds, rollout and downgrade limits. OIDC/SAML request binding/replay
-and failure rate limits remain EVY-1005 work.
+for exact bounds, rollout and downgrade limits. OIDC binding/replay is described
+below; SAML binding/signature/replay and failure telemetry remain separate work.
+
+## EVY-1009 OIDC Login Delivery Contract
+
+OIDC login now requires server-owned authentication state and nonce with durable
+single-use consumption. Old unbound OIDC exchange bodies fail with `401`.
+Clients must create an authentication request, send its nonce to the external
+provider, then exchange the signed token with request ID and API state or the
+browser cookie. See [the login contract](../api.md#sso-credential-exchange) and
+[rollout policy](upgrade-compatibility-policy.md#oidc-login-binding-rollout).
+
+API delivery returns `data.secret` once in JSON and sets no cookie. Explicit
+OIDC browser delivery returns that secret only through the secure HttpOnly
+session cookie and omits the JSON property. Regenerate clients with the optional
+response property and keep credentials out of logging/replay. SAML continues
+through the API delivery path; its standard assertion binding work is separate.
+
+The [exact compatibility record](openapi-compatibility-reviews/evy-1009.json)
+preserves all 205 EVY-1002 entries and adds only
+`response-property-became-optional` for `data/secret` on the exchange `201`
+response (fingerprint `007463dd789c`). The selected 206-entry normalized digest
+is `eb08b999b683594cd4e75043cfa56cabc6c16684fd47c95af8c39c0daeb8a773`.
+The public `v0.1.0-rc.7` baseline and preceding exception remain unchanged.
+The new repository-controlled prerelease record matches that complete exact
+set; regression tests reject added, removed, modified, foreign-baseline and
+stable-channel sets. It asserts no external review or release publication.
 
 ## Unreleased Custom Report Template Boundary
 

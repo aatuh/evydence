@@ -5,10 +5,19 @@ import (
 	"strings"
 )
 
-// BackupCommitmentProfileResources returns fresh copies of the immutable v3
+// BackupCommitmentProfileResources returns fresh copies of the immutable v4
 // commitment vocabulary. Adapters supply records; SQL and storage mechanics
 // are not part of this application-owned profile.
 func BackupCommitmentProfileResources() []BackupCommitmentResource {
+	sources := BackupCommitmentProfileResourcesV3()
+	sources = append(sources, BackupCommitmentResource{Name: "oidc_authentication_requests", Columns: []string{"id", "tenant_id", "provider_id", "delivery", "trust_fingerprint", "created_at", "expires_at", "consumed_at", "schema_version"}})
+	sort.Slice(sources, func(i, j int) bool { return sources[i].Name < sources[j].Name })
+	return sources
+}
+
+// BackupCommitmentProfileResourcesV3 preserves session-lifecycle commitments
+// without adding later operational login-request metadata or secret hashes.
+func BackupCommitmentProfileResourcesV3() []BackupCommitmentResource {
 	sources := BackupCommitmentProfileResourcesV2()
 	for i := range sources {
 		if sources[i].Name == "sso_sessions" {

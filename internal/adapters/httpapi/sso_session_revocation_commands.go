@@ -28,6 +28,10 @@ func validateSSOCookieMutation(r *http.Request) error {
 	if len(r.CookiesNamed(ssoSessionCookieName)) == 0 {
 		return nil
 	}
+	return validateSSOBrowserOrigin(r)
+}
+
+func validateSSOBrowserOrigin(r *http.Request) error {
 	origins := r.Header.Values("Origin")
 	if len(origins) != 1 {
 		return app.ErrForbidden

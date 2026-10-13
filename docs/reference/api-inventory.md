@@ -4,7 +4,7 @@ This generated reference is the complete operation-level inventory for the commi
 
 ## Review Summary
 
-- Operations: `189`; every public operation is represented once.
+- Operations: `190`; every public operation is represented once.
 - Candidate stable core: `43` operations; review this count before any stable API promise.
 - Owners, auth modes, scopes, idempotency requirements, schemas, success statuses, and error status contracts are derived from OpenAPI route metadata.
 
@@ -12,7 +12,7 @@ This generated reference is the complete operation-level inventory for the commi
 | --- | ---: |
 | `core` | 43 |
 | `experimental` | 134 |
-| `supported` | 12 |
+| `supported` | 13 |
 
 ## Complete Operation Inventory
 
@@ -181,6 +181,7 @@ This generated reference is the complete operation-level inventory for the commi
 | recordPullRequest | POST | `/v1/source/pull-requests` | `experimental` | `integration-ingestion` | `bearer` | source:write | required | RecordPullRequestRequest | 201:PullRequestEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | listSourceRepositories | GET | `/v1/source/repositories` | `experimental` | `integration-ingestion` | `bearer` | source:read | not required | - | 200:SourceRepositoryListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createSourceRepository | POST | `/v1/source/repositories` | `experimental` | `integration-ingestion` | `bearer` | source:write | required | CreateSourceRepositoryRequest | 201:SourceRepositoryEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| beginOIDCAuthentication | POST | `/v1/sso/authentication-requests` | `supported` | `identity-access` | `public-login-state` | - | not required | BeginOIDCAuthenticationRequest | 201:BeginOIDCAuthenticationEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | linkSSOIdentity | POST | `/v1/sso/identity-links` | `experimental` | `identity-access` | `bearer` | identity:admin | required | LinkSSOIdentityRequest | 201:UserIdentityLinkEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | logoutSSOSession | POST | `/v1/sso/logout` | `supported` | `identity-access` | `bearer` | - | required | EmptyObject | 200:SSOSessionEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createSSOProvider | POST | `/v1/sso/providers` | `experimental` | `identity-access` | `bearer` | identity:admin | required | CreateSSOProviderRequest | 201:SSOProviderEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |

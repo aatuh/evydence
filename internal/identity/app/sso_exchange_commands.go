@@ -24,6 +24,7 @@ type SSOExchangeReader interface {
 }
 
 type SSOExchangeWrites interface {
+	OIDCAuthenticationRequestConsumer
 	// Recheck and hold every loaded snapshot coordinate stable through commit.
 	ValidateSSOExchangeState(context.Context, SSOExchangeSnapshot) error
 	InsertProviderVerification(context.Context, identitydomain.ProviderVerification) error
@@ -37,20 +38,22 @@ type SSOExchangeTransactions interface {
 	ExecuteSSOExchange(context.Context, func(context.Context, SSOExchangeTransaction) error) error
 }
 type SSOExchangeCommandConfig struct {
-	Reader             SSOExchangeReader
-	Transactions       SSOExchangeTransactions
-	Credentials        SessionCredentialManager
-	Verifier           CredentialVerifier
-	VerificationPolicy ProviderVerificationPolicy
-	SessionGrants      SessionGrantPolicy
-	Clock              application.Clock
-	IDs                application.IDGenerator
-	SessionPolicy      identitydomain.SessionPolicy
+	Reader                 SSOExchangeReader
+	Transactions           SSOExchangeTransactions
+	Credentials            SessionCredentialManager
+	Verifier               CredentialVerifier
+	VerificationPolicy     ProviderVerificationPolicy
+	SessionGrants          SessionGrantPolicy
+	Clock                  application.Clock
+	IDs                    application.IDGenerator
+	SessionPolicy          identitydomain.SessionPolicy
+	AuthenticationRequests OIDCAuthenticationRequestReader
+	ProofCredentials       AuthenticationCredentials
 }
 type SSOExchangeCommands struct{ config SSOExchangeCommandConfig }
 
 func NewSSOExchangeCommands(c SSOExchangeCommandConfig) (*SSOExchangeCommands, error) {
-	if c.Reader == nil || c.Transactions == nil || c.Credentials == nil || c.Verifier == nil || c.VerificationPolicy == nil || c.SessionGrants == nil || c.Clock == nil || c.IDs == nil {
+	if c.Reader == nil || c.Transactions == nil || c.Credentials == nil || c.Verifier == nil || c.VerificationPolicy == nil || c.SessionGrants == nil || c.Clock == nil || c.IDs == nil || c.AuthenticationRequests == nil || c.ProofCredentials == nil {
 		return nil, ErrValidation
 	}
 	policy, ok := c.SessionPolicy.Normalized()
@@ -63,8 +66,8 @@ func NewSSOExchangeCommands(c SSOExchangeCommandConfig) (*SSOExchangeCommands, e
 
 // ExchangeSSOCredential verifies local configured trust before opening the write
 // transaction. It is intentionally not an idempotency replay surface: incoming
-// credentials and issued secrets must never enter a replay receipt. A repeated
-// valid request may issue another session, as in the existing API contract.
+// credentials and issued secrets must never enter a replay receipt. OIDC
+// exchanges consume server-owned authentication state exactly once.
 func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input ExchangeSSOCredentialInput) (identitydomain.ProviderVerification, identitydomain.SSOSession, string, error) {
 	if s == nil || ctx == nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
@@ -72,14 +75,14 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if err := ctx.Err(); err != nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
-	if !validAPIKeyText(input.ProviderID, 1024) || !validAPIKeyText(input.Subject, 65536) || !validAPIKeyText(input.IDToken, 65536) || !validAPIKeyText(input.SAMLAssertion, 65536) || (!input.ExpiresAt.IsZero() && !validAPIKeyTime(input.ExpiresAt)) {
+	if !validAPIKeyText(input.ProviderID, 1024) || !validAPIKeyText(input.Subject, 65536) || !validAPIKeyText(input.IDToken, 65536) || !validAPIKeyText(input.SAMLAssertion, 65536) || !validAPIKeyText(input.AuthenticationRequestID, 1024) || !validAPIKeyText(input.StateSecret, 128) || !validAPIKeyText(input.Delivery, 16) || (!input.ExpiresAt.IsZero() && !validAPIKeyTime(input.ExpiresAt)) {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
 	input.ProviderID = strings.TrimSpace(input.ProviderID)
 	input.Subject = strings.TrimSpace(input.Subject)
 	input.IDToken = strings.TrimSpace(input.IDToken)
 	input.SAMLAssertion = strings.TrimSpace(input.SAMLAssertion)
-	if input.ProviderID == "" || input.Subject == "" || (input.IDToken == "" && input.SAMLAssertion == "") || (input.IDToken != "" && input.SAMLAssertion != "") || containsCredential(input.Subject, input.IDToken, input.SAMLAssertion) {
+	if input.ProviderID == "" || input.Subject == "" || (input.IDToken == "" && input.SAMLAssertion == "") || (input.IDToken != "" && input.SAMLAssertion != "") || containsCredential(input.Subject, input.IDToken, input.SAMLAssertion, input.StateSecret) {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
 	now := s.config.Clock.Now().UTC()
@@ -110,8 +113,18 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if (provider.Type == "oidc" && input.SAMLAssertion != "") || (provider.Type == "saml" && input.IDToken != "") {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
+	if provider.Type != "oidc" && (input.AuthenticationRequestID != "" || input.StateSecret != "" || input.Delivery == "browser") {
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
+	}
 	provider = cloneSSOProvider(provider)
 	snapshot := SSOExchangeSnapshot{Provider: cloneSSOProvider(provider), Subject: input.Subject}
+	if provider.Type == "oidc" {
+		request, err := s.boundOIDCRequest(ctx, provider, input, now)
+		if err != nil {
+			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
+		}
+		snapshot.AuthenticationRequest = &request
+	}
 	credentialResult, verificationErr := s.config.Verifier.Verify(ctx, CredentialVerificationRequest{
 		Provider: cloneSSOProvider(provider), Subject: input.Subject, IDToken: input.IDToken,
 		SAMLAssertion: input.SAMLAssertion, Now: now,
@@ -119,7 +132,21 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if err := ctx.Err(); err != nil {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", err
 	}
-	checks := redactedCredentialChecks(credentialResult.Checks, input.IDToken, input.SAMLAssertion)
+	checks := redactedCredentialChecks(credentialResult.Checks, input.IDToken, input.SAMLAssertion, input.StateSecret, credentialResult.Nonce)
+	if provider.Type == "oidc" && verificationErr == nil {
+		request := snapshot.AuthenticationRequest
+		if credentialResult.Nonce == "" || containsCredential(input.Subject, credentialResult.Nonce) || !s.config.ProofCredentials.Equal(request.NonceHash, s.config.ProofCredentials.Hash(credentialResult.Nonce)) || credentialResult.IssuedAt.IsZero() || credentialResult.IssuedAt.Before(request.CreatedAt.Add(-time.Minute)) || credentialResult.IssuedAt.After(now.Add(time.Minute)) || !credentialResult.ExpiresAt.After(now) {
+			return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrUnauthorized
+		}
+		verified := len(credentialResult.Checks) > 0
+		for _, check := range credentialResult.Checks {
+			verified = verified && check.Result == "passed"
+		}
+		if verified {
+			checks = append(checks, identitydomain.VerificationCheck{Name: "nonce_state_binding", Result: "passed"})
+			snapshot.ProofExpiresAt = credentialResult.ExpiresAt
+		}
+	}
 	credentialChecks := make([]string, len(checks))
 	for i, check := range checks {
 		credentialChecks[i] = check.Result
@@ -189,7 +216,7 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	}
 	snapshot.UserGrantsLoaded = true
 	snapshot.UserGrants = cloneGrants(userGrants)
-	groups := credentialSafeStrings(credentialResult.Groups, input.IDToken, input.SAMLAssertion)
+	groups := credentialSafeStrings(credentialResult.Groups, input.IDToken, input.SAMLAssertion, input.StateSecret, credentialResult.Nonce)
 	mappedGroupGrants := cloneGrants(s.config.SessionGrants.GrantsForProviderGroups(cloneSSOProvider(provider), append([]string(nil), groups...)))
 	grants := append(cloneGrants(userGrants), mappedGroupGrants...)
 	policy := authz.SSOExchangeRequest{Action: authz.ActionSSOCredentialsExchange, ProviderID: input.ProviderID, Subject: input.Subject, Provider: providerBinding, Link: linkBinding, User: userBinding, LinkFound: found, UserFound: snapshot.UserFound, VerificationResult: verification.Result, CredentialChecks: credentialChecks, VerifierCompleted: verificationErr == nil, HasCapabilities: len(scopesFromGrants(grants)) != 0}
@@ -263,7 +290,36 @@ func (s *SSOExchangeCommands) ExchangeSSOCredential(ctx context.Context, input E
 	if !session.ActiveAt(s.config.Clock.Now().UTC()) {
 		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrValidation
 	}
+	if snapshot.AuthenticationRequest != nil && (!snapshot.ProofExpiresAt.After(s.config.Clock.Now().UTC()) || !snapshot.AuthenticationRequest.ExpiresAt.After(s.config.Clock.Now().UTC())) {
+		return identitydomain.ProviderVerification{}, identitydomain.SSOSession{}, "", ErrUnauthorized
+	}
 	return cloneProviderVerification(verification), publicSession(session), credential.Secret, nil
+}
+
+func (s *SSOExchangeCommands) boundOIDCRequest(ctx context.Context, p identitydomain.SSOProvider, in ExchangeSSOCredentialInput, now time.Time) (identitydomain.OIDCAuthenticationRequest, error) {
+	id := strings.TrimSpace(in.AuthenticationRequestID)
+	if id == "" || in.StateSecret == "" {
+		return identitydomain.OIDCAuthenticationRequest{}, ErrUnauthorized
+	}
+	if len(in.StateSecret) != len("evylogin_")+43 || !strings.HasPrefix(in.StateSecret, "evylogin_") || !validIssuedOIDCCredential(Credential{Secret: in.StateSecret, Prefix: in.StateSecret[:12], Hash: s.config.ProofCredentials.Hash(in.StateSecret)}, "evylogin_") {
+		return identitydomain.OIDCAuthenticationRequest{}, ErrUnauthorized
+	}
+	delivery := in.Delivery
+	if delivery == "" {
+		delivery = "api"
+	}
+	if delivery != "api" && delivery != "browser" {
+		return identitydomain.OIDCAuthenticationRequest{}, ErrValidation
+	}
+	r, err := s.config.AuthenticationRequests.ReadOIDCAuthenticationRequest(ctx, p.TenantID, p.ID, id)
+	if err != nil {
+		return identitydomain.OIDCAuthenticationRequest{}, authenticationError(ctx)
+	}
+	fingerprint, err := OIDCProviderTrustFingerprint(p)
+	if err != nil || r.ID != id || r.TenantID != p.TenantID || r.ProviderID != p.ID || r.Delivery != delivery || r.TrustFingerprint != fingerprint || !r.PendingAt(now) || !s.config.ProofCredentials.Equal(r.StateHash, s.config.ProofCredentials.Hash(in.StateSecret)) {
+		return identitydomain.OIDCAuthenticationRequest{}, ErrUnauthorized
+	}
+	return r, nil
 }
 
 func (s *SSOExchangeCommands) assess(v identitydomain.ProviderVerification, p identitydomain.SSOProvider) identitydomain.ProviderVerification {
@@ -283,8 +339,29 @@ func (s *SSOExchangeCommands) execute(ctx context.Context, snapshot SSOExchangeS
 		if err := tx.ValidateSSOExchangeState(ctx, cloneSSOExchangeSnapshot(snapshot)); err != nil {
 			return err
 		}
+		consume := snapshot.AuthenticationRequest != nil && !snapshot.ProofExpiresAt.IsZero()
+		var consumedAt time.Time
+		if consume {
+			var err error
+			consumedAt, err = tx.ConsumeOIDCAuthenticationRequest(ctx, *snapshot.AuthenticationRequest, s.config.Clock)
+			if err != nil {
+				return err
+			}
+			if !snapshot.ProofExpiresAt.After(consumedAt) {
+				return ErrUnauthorized
+			}
+		}
 		if err := fn(ctx, tx); err != nil {
 			return err
+		}
+		if consume {
+			request := snapshot.AuthenticationRequest
+			if err := s.appendAudit(ctx, tx, consumedAt, request.TenantID, "oidc_authentication_request.consumed", "oidc_authentication_request", request.ID, request.ProviderID); err != nil {
+				return err
+			}
+			if !snapshot.ProofExpiresAt.After(s.config.Clock.Now().UTC()) || !request.ExpiresAt.After(s.config.Clock.Now().UTC()) {
+				return ErrUnauthorized
+			}
 		}
 		return ctx.Err()
 	})
@@ -315,7 +392,7 @@ func (s *SSOExchangeCommands) appendAudit(ctx context.Context, tx SSOExchangeTra
 // constructing Service or configuring its unrelated authentication/admin ports.
 type serviceSSOExchangeTransactions struct{ transactions TransactionRunner }
 type serviceSSOExchangeTransaction struct {
-	SSOExchangeWrites
+	identity Repository
 	application.AuditAppender
 }
 
@@ -324,6 +401,33 @@ func (t serviceSSOExchangeTransactions) ExecuteSSOExchange(ctx context.Context, 
 		if tx == nil || tx.Identity() == nil || tx.Audit() == nil {
 			return ErrValidation
 		}
-		return fn(ctx, serviceSSOExchangeTransaction{SSOExchangeWrites: tx.Identity(), AuditAppender: tx.Audit()})
+		return fn(ctx, serviceSSOExchangeTransaction{identity: tx.Identity(), AuditAppender: tx.Audit()})
 	})
+}
+
+func (t serviceSSOExchangeTransaction) ValidateSSOExchangeState(ctx context.Context, s SSOExchangeSnapshot) error {
+	return t.identity.ValidateSSOExchangeState(ctx, s)
+}
+func (t serviceSSOExchangeTransaction) InsertProviderVerification(ctx context.Context, v identitydomain.ProviderVerification) error {
+	return t.identity.InsertProviderVerification(ctx, v)
+}
+func (t serviceSSOExchangeTransaction) InsertSSOSession(ctx context.Context, v identitydomain.SSOSession) error {
+	return t.identity.InsertSSOSession(ctx, v)
+}
+func (t serviceSSOExchangeTransaction) ConsumeOIDCAuthenticationRequest(ctx context.Context, v identitydomain.OIDCAuthenticationRequest, c application.Clock) (time.Time, error) {
+	consumer, ok := t.identity.(OIDCAuthenticationRequestConsumer)
+	if !ok {
+		return time.Time{}, ErrValidation
+	}
+	return consumer.ConsumeOIDCAuthenticationRequest(ctx, v, c)
+}
+
+type serviceOIDCRequestReader struct{ reader Reader }
+
+func (r serviceOIDCRequestReader) ReadOIDCAuthenticationRequest(ctx context.Context, tenant, provider, id string) (identitydomain.OIDCAuthenticationRequest, error) {
+	reader, ok := r.reader.(OIDCAuthenticationRequestReader)
+	if !ok {
+		return identitydomain.OIDCAuthenticationRequest{}, ErrValidation
+	}
+	return reader.ReadOIDCAuthenticationRequest(ctx, tenant, provider, id)
 }

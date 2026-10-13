@@ -150,8 +150,12 @@ activity or tightened policy; retain the columns and use a forward fix instead.
 There is no sliding absolute expiry or refresh-token endpoint. Use fresh
 configured SSO exchange or authorized administrative issuance and revoke the
 prior session as described in [Key rotation](../runbooks/key-rotation.md).
-OIDC/SAML request binding, proof replay protection and authentication failure
-limits remain separate EVY-1005 work.
+OIDC exchange now requires server-owned state/nonce binding and durable
+single-use consumption; use the [login contract](../api.md#sso-credential-exchange)
+and [rollout notes](upgrade-compatibility-policy.md#oidc-login-binding-rollout).
+Its five-minute lifetime and 64 retained requests per provider are fixed
+application bounds, not environment knobs. SAML request/signature/replay work
+and authentication failure telemetry remain EVY-1010/EVY-1011 work.
 
 ## First-Tenant Bootstrap
 

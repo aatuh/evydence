@@ -20,7 +20,9 @@ func (r identity) SSOProviderByID(ctx context.Context, id string) (identitydomai
 	}
 	var tenant string
 	var oversized bool
-	err := r.tx.QueryRow(ctx, `SELECT CASE WHEN octet_length(tenant_id)<=1024 THEN tenant_id ELSE '' END,octet_length(tenant_id)>1024 FROM sso_providers WHERE id=$1 FOR SHARE`, id).Scan(&tenant, &oversized)
+	// The complete owned read below holds FOR UPDATE. Take that mode directly
+	// here too: concurrent SHARE-to-UPDATE upgrades deadlock on this same row.
+	err := r.tx.QueryRow(ctx, `SELECT CASE WHEN octet_length(tenant_id)<=1024 THEN tenant_id ELSE '' END,octet_length(tenant_id)>1024 FROM sso_providers WHERE id=$1 FOR UPDATE`, id).Scan(&tenant, &oversized)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return identitydomain.SSOProvider{}, app.ErrNotFound
 	}

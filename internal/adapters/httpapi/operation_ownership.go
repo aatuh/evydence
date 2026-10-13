@@ -23,7 +23,7 @@ func boundedContextOperationOwner(operationID string) (string, bool) {
 		"createOrganization", "createUser", "deactivateUser",
 		"createRoleBinding", "listRoleBindings",
 		"createSSOProvider", "updateSSOProviderTrustMaterial", "refreshSSOProviderOIDCTrustMaterial",
-		"linkSSOIdentity", "createSSOSession", "exchangeSSOCredential",
+		"linkSSOIdentity", "createSSOSession", "exchangeSSOCredential", "beginOIDCAuthentication",
 		"revokeSSOSession", "logoutSSOSession":
 		return operationOwnerIdentityAccess, true
 

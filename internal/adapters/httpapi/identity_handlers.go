@@ -143,14 +143,24 @@ func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, err)
 		return
 	}
+	if err := bindSSOExchangeDelivery(r, &in); err != nil {
+		writeProblem(w, r, err)
+		return
+	}
 	v, result, secret, exchangeErr := s.ssoExchangeCommands.ExchangeSSOCredential(r.Context(), in)
 	verification, session, err := app.ProviderVerificationFromIdentity(v), domain.SSOSession(result), mapIdentityCommandError(exchangeErr)
 	if err != nil {
 		writeProblem(w, r, err)
 		return
 	}
-	setSSOSessionCookie(w, secret, session.ExpiresAt)
-	writeData(w, http.StatusCreated, map[string]any{"verification": verification, "session": session, "secret": secret})
+	out := map[string]any{"verification": verification, "session": session}
+	if in.Delivery == "browser" {
+		setSSOSessionCookie(w, secret, session.ExpiresAt)
+		setOIDCStateCookie(w, "", time.Time{}, true)
+	} else {
+		out["secret"] = secret
+	}
+	writeData(w, http.StatusCreated, out)
 }
 
 func (s *Server) revokeSSOSession(w http.ResponseWriter, r *http.Request) {

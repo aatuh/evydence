@@ -173,13 +173,41 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"provider_id": map[string]any{"type": "string"},
 		"expires_at":  map[string]any{"type": "string", "format": "date-time"},
 	}, "user_id", "provider_id", "expires_at"))
-	registry.RegisterSchema("ExchangeSSOCredentialRequest", objectSchema(map[string]any{
-		"provider_id":    map[string]any{"type": "string", "maxLength": 1024, "description": "Nonblank provider ID, bounded at 1024 UTF-8 bytes before trimming."},
-		"subject":        map[string]any{"type": "string", "maxLength": 65536, "description": "Nonblank subject, bounded at 65536 UTF-8 bytes before trimming; cannot contain the supplied credential."},
-		"id_token":       map[string]any{"type": "string", "maxLength": 65536, "description": "OIDC ID token verified locally against configured public JWKS trust material; bounded at 65536 UTF-8 bytes."},
-		"saml_assertion": map[string]any{"type": "string", "maxLength": 65536, "description": "SAML assertion verified locally against configured SAML signing certificates; bounded at 65536 UTF-8 bytes."},
-		"expires_at":     map[string]any{"type": "string", "format": "date-time", "description": "Optional session expiry, capped by the server."},
-	}, "provider_id", "subject"))
+	exchangeCredentialSchema := objectSchema(map[string]any{
+		"authentication_request_id": map[string]any{"type": "string", "minLength": 1, "maxLength": 1024, "description": "Required for OIDC. ID of an unexpired server-owned request for this provider and delivery mode."},
+		"state_secret":              map[string]any{"type": "string", "minLength": 52, "maxLength": 52, "pattern": "^evylogin_[A-Za-z0-9_-]{43}$", "description": "Required for OIDC API delivery. Browser delivery reads the single host-bound state cookie and rejects a body state secret."},
+		"delivery":                  map[string]any{"type": "string", "enum": []string{"api", "browser"}, "default": "api", "description": "API returns the secret once in JSON and sets no cookie. OIDC browser delivery requires same HTTPS Origin and delivers the secret only in an HttpOnly Secure cookie."},
+		"provider_id":               map[string]any{"type": "string", "maxLength": 1024, "description": "Nonblank provider ID, bounded at 1024 UTF-8 bytes before trimming."},
+		"subject":                   map[string]any{"type": "string", "maxLength": 65536, "description": "Nonblank subject, bounded at 65536 UTF-8 bytes before trimming; cannot contain the supplied credential."},
+		"id_token":                  map[string]any{"type": "string", "maxLength": 65536, "description": "OIDC ID token verified locally against configured public JWKS trust material; bounded at 65536 UTF-8 bytes."},
+		"saml_assertion":            map[string]any{"type": "string", "maxLength": 65536, "description": "SAML assertion verified locally against configured SAML signing certificates; bounded at 65536 UTF-8 bytes."},
+		"expires_at":                map[string]any{"type": "string", "format": "date-time", "description": "Optional session expiry, capped by the server."},
+	}, "provider_id", "subject")
+	exchangeCredentialSchema["oneOf"] = []any{
+		map[string]any{"required": []string{"id_token", "authentication_request_id", "state_secret"}, "properties": map[string]any{"id_token": map[string]any{"minLength": 1, "maxLength": 16384}, "delivery": map[string]any{"enum": []string{"api"}}, "saml_assertion": map[string]any{"maxLength": 0}}},
+		map[string]any{"required": []string{"id_token", "authentication_request_id", "delivery"}, "properties": map[string]any{"id_token": map[string]any{"minLength": 1, "maxLength": 16384}, "delivery": map[string]any{"enum": []string{"browser"}}, "saml_assertion": map[string]any{"maxLength": 0}}, "not": map[string]any{"required": []string{"state_secret"}}},
+		map[string]any{"required": []string{"saml_assertion"}, "properties": map[string]any{"saml_assertion": map[string]any{"minLength": 1}, "id_token": map[string]any{"maxLength": 0}, "delivery": map[string]any{"enum": []string{"api"}}, "authentication_request_id": map[string]any{"maxLength": 0}}, "not": map[string]any{"required": []string{"state_secret"}}},
+	}
+	registry.RegisterSchema("ExchangeSSOCredentialRequest", exchangeCredentialSchema)
+	registry.RegisterSchema("BeginOIDCAuthenticationRequest", objectSchema(map[string]any{
+		"provider_id": map[string]any{"type": "string", "minLength": 1, "maxLength": 1024},
+		"delivery":    map[string]any{"type": "string", "enum": []string{"api", "browser"}, "default": "api"},
+	}, "provider_id"))
+	registry.RegisterSchema("OIDCAuthenticationRequest", objectSchema(map[string]any{
+		"id":             map[string]any{"type": "string", "minLength": 1, "maxLength": 1024},
+		"tenant_id":      map[string]any{"type": "string", "minLength": 1, "maxLength": 1024},
+		"provider_id":    map[string]any{"type": "string", "minLength": 1, "maxLength": 1024},
+		"delivery":       map[string]any{"type": "string", "enum": []string{"api", "browser"}},
+		"created_at":     map[string]any{"type": "string", "format": "date-time"},
+		"expires_at":     map[string]any{"type": "string", "format": "date-time"},
+		"schema_version": map[string]any{"type": "string", "enum": []string{"oidc-authentication-request.v1.0.0"}},
+	}, "id", "tenant_id", "provider_id", "delivery", "created_at", "expires_at", "schema_version"))
+	registry.RegisterSchema("BeginOIDCAuthenticationResponse", objectSchema(map[string]any{
+		"authentication_request": map[string]any{"$ref": "#/components/schemas/OIDCAuthenticationRequest"},
+		"nonce":                  map[string]any{"type": "string", "minLength": 52, "maxLength": 52, "pattern": "^evynonce_[A-Za-z0-9_-]{43}$", "description": "Send this nonce in the external OIDC authorization request so it appears in the signed ID token."},
+		"state_secret":           map[string]any{"type": "string", "minLength": 52, "maxLength": 52, "pattern": "^evylogin_[A-Za-z0-9_-]{43}$", "description": "Returned once for API delivery. Browser delivery sets __Host-evydence_oidc_state and omits this property."},
+	}, "authentication_request", "nonce"))
+	registry.RegisterSchema("BeginOIDCAuthenticationEnvelope", dataEnvelopeSchema("#/components/schemas/BeginOIDCAuthenticationResponse"))
 	registry.RegisterSchema("CreateSSOProviderRequest", objectSchema(map[string]any{
 		"name":                      map[string]any{"type": "string"},
 		"type":                      map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
@@ -1662,8 +1690,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	registry.RegisterSchema("SSOCredentialExchangeResponse", objectSchema(map[string]any{
 		"verification": map[string]any{"$ref": "#/components/schemas/ProviderVerification"},
 		"session":      map[string]any{"$ref": "#/components/schemas/SSOSession"},
-		"secret":       map[string]any{"type": "string", "description": "One-time SSO session bearer secret; also set as an HttpOnly cookie for browser clients."},
-	}, "verification", "session", "secret"))
+		"secret":       map[string]any{"type": "string", "description": "One-time SSO session bearer secret in API delivery only. Browser delivery omits it and sets an HttpOnly Secure session cookie."},
+	}, "verification", "session"))
 	registry.RegisterSchema("SSOCredentialExchangeEnvelope", dataEnvelopeSchema("#/components/schemas/SSOCredentialExchangeResponse"))
 	registry.RegisterSchema("CreateAPIKeyRequest", objectSchema(map[string]any{
 		"name":       map[string]any{"type": "string"},

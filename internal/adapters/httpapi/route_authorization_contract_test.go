@@ -12,7 +12,7 @@ import (
 
 func TestEveryRegisteredRouteDeclaresAuthorizationPolicyContract(t *testing.T) {
 	routes := (&Server{}).routeDefinitions()
-	if len(routes) != 189 {
+	if len(routes) != 190 {
 		t.Fatalf("route inventory changed: %d; review every new/removed policy contract", len(routes))
 	}
 	seen := map[string]bool{}

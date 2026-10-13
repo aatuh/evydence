@@ -190,6 +190,12 @@ func (s *Server) bindSSOSessionFixturePorts(ledger *repositoryFixture) {
 	} else if s.ssoExchangeCommands == nil {
 		s.ssoExchangeCommands = f
 	}
+	if old, fixture := s.oidcAuthenticationRequestCommands.(ssoSessionFixtureCommands); fixture {
+		old.ledger = ledger
+		s.oidcAuthenticationRequestCommands = old
+	} else if s.oidcAuthenticationRequestCommands == nil {
+		s.oidcAuthenticationRequestCommands = f
+	}
 	if old, fixture := s.authn.(ssoFixtureAuthenticator); fixture {
 		old.ledger = ledger
 		s.authn = old
@@ -209,6 +215,10 @@ func (s *Server) bindSSOSessionFixtureResources(pepper string, clock application
 	if f, ok := s.ssoExchangeCommands.(ssoSessionFixtureCommands); ok {
 		f.credentials, f.clock = credentials, clock
 		s.ssoExchangeCommands = f
+	}
+	if f, ok := s.oidcAuthenticationRequestCommands.(ssoSessionFixtureCommands); ok {
+		f.credentials, f.clock = credentials, clock
+		s.oidcAuthenticationRequestCommands = f
 	}
 	if f, ok := s.authn.(ssoFixtureAuthenticator); ok {
 		f.credentials = credentials

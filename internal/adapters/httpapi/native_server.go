@@ -36,6 +36,7 @@ func validateNativeServerOptions(options ServerOptions) error {
 		{"SSOSessionCommands", options.SSOSessionCommands},
 		{"SSOSessionRevocationCommands", options.SSOSessionRevocationCommands},
 		{"SSOExchangeCommands", options.SSOExchangeCommands},
+		{"OIDCAuthenticationRequestCommands", options.OIDCAuthenticationRequestCommands},
 		{"ProviderVerificationCommands", options.ProviderVerificationCommands},
 		{"EvidenceSummaryCommands", options.EvidenceSummaryCommands},
 		{"GraphSnapshotCommands", options.GraphSnapshotCommands},

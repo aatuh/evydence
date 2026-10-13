@@ -568,13 +568,34 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
-	idToken := signedRouterIDToken(t, priv, "kid-login", map[string]any{"iss": provider.Issuer, "aud": provider.ClientID, "sub": "sub-1", "email": user.Email, "email_verified": true, "groups": []string{"security"}, "exp": time.Now().Add(time.Hour).Unix()})
-	body, err := json.Marshal(map[string]any{"provider_id": provider.ID, "subject": "sub-1", "id_token": idToken})
+	loginBody, err := json.Marshal(map[string]any{"provider_id": provider.ID, "delivery": "browser"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loginReq := httptest.NewRequest(http.MethodPost, "https://api.example.test/v1/sso/authentication-requests", bytes.NewReader(loginBody))
+	loginReq.Header.Set("Origin", "https://api.example.test")
+	loginRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(loginRec, loginReq)
+	var login struct {
+		Data struct {
+			Request struct {
+				ID string `json:"id"`
+			} `json:"authentication_request"`
+			Nonce string `json:"nonce"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &login); err != nil || loginRec.Code != 201 || len(loginRec.Result().Cookies()) != 1 || strings.Contains(loginRec.Body.String(), "evylogin_") {
+		t.Fatal("browser state was not created safely", loginRec.Code, err)
+	}
+	idToken := signedRouterIDToken(t, priv, "kid-login", map[string]any{"nonce": login.Data.Nonce, "iss": provider.Issuer, "aud": provider.ClientID, "sub": "sub-1", "email": user.Email, "email_verified": true, "groups": []string{"security"}, "iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix()})
+	body, err := json.Marshal(map[string]any{"provider_id": provider.ID, "subject": "sub-1", "id_token": idToken, "authentication_request_id": login.Data.Request.ID, "delivery": "browser"})
 	if err != nil {
 		t.Fatalf("marshal body: %v", err)
 	}
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/sso/session-exchanges", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "https://api.example.test/v1/sso/session-exchanges", bytes.NewReader(body))
+	req.Header.Set("Origin", "https://api.example.test")
+	req.AddCookie(loginRec.Result().Cookies()[0])
 	req.Header.Set("Content-Type", "application/json")
 	server.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
@@ -583,6 +604,9 @@ func TestSSOCredentialExchangeRouteSetsSessionCookie(t *testing.T) {
 	cookie := rec.Result().Cookies()[0]
 	if cookie.Name != ssoSessionCookieName || !cookie.HttpOnly || cookie.Value == "" {
 		t.Fatalf("session cookie = %#v", cookie)
+	}
+	if strings.Contains(rec.Body.String(), cookie.Value) || strings.Contains(rec.Body.String(), `"secret"`) || len(rec.Result().Cookies()) != 2 || rec.Result().Cookies()[1].Name != oidcStateCookieName || rec.Result().Cookies()[1].MaxAge != -1 {
+		t.Fatal("browser login exposed the secret or retained login state")
 	}
 	if strings.Contains(rec.Body.String(), idToken) {
 		t.Fatalf("exchange response leaked id token: %s", rec.Body.String())
@@ -2176,7 +2200,7 @@ func TestFutureExtensionAndReadAdminHTTPGaps(t *testing.T) {
 		t.Fatalf("updated provider missing trust material timestamp: %s", updatedProvider)
 	}
 	postJSON(t, server, secret, "/v1/sso/identity-links", "future-signed-link", map[string]any{"user_id": dataField(t, userBody, "id"), "provider_id": signedProviderID, "subject": "signed-sub", "email": "future@example.test", "verified": true}, http.StatusCreated)
-	idToken := signedRouterIDToken(t, priv, "kid-1", map[string]any{"iss": "https://signed-idp.example.test", "aud": "signed-client", "sub": "signed-sub", "email": "future@example.test", "email_verified": true, "exp": time.Now().UTC().Add(time.Hour).Unix()})
+	idToken := signedRouterIDToken(t, priv, "kid-1", map[string]any{"iss": "https://signed-idp.example.test", "aud": "signed-client", "sub": "signed-sub", "email": "future@example.test", "email_verified": true, "iat": time.Now().UTC().Unix(), "exp": time.Now().UTC().Add(time.Hour).Unix()})
 	signedVerification := postJSON(t, server, secret, "/v1/provider-verifications", "future-provider-token-verification", map[string]any{"provider_type": "oidc", "provider_id": signedProviderID, "subject": "signed-sub", "id_token": idToken}, http.StatusCreated)
 	if !strings.Contains(signedVerification, `"id_token_signature"`) || strings.Contains(signedVerification, idToken) {
 		t.Fatalf("signed provider verification response: %s", signedVerification)

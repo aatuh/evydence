@@ -1,5 +1,5 @@
 {
-  "route_count": 189,
+  "route_count": 190,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -2908,6 +2908,22 @@
         "source:write"
       ],
       "stability": "experimental",
+      "success_statuses": [
+        "201"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "POST",
+      "operation_id": "beginOIDCAuthentication",
+      "path": "/v1/sso/authentication-requests",
+      "request_schema": "#/components/schemas/BeginOIDCAuthenticationRequest",
+      "response_schemas": [
+        "#/components/schemas/BeginOIDCAuthenticationEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "stability": "supported",
       "success_statuses": [
         "201"
       ]

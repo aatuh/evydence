@@ -205,10 +205,12 @@ func TestOIDCProviderIdentityVerificationSupportsRS256JWKS(t *testing.T) {
 	}
 	idToken := signedTestRSAIDToken(t, privateKey, "rsa-1", map[string]any{
 		"iss":            "https://rsa-idp.example.test",
-		"aud":            []string{"other", "rsa-client"},
+		"aud":            []string{"rsa-client"},
+		"azp":            "rsa-client",
 		"sub":            "rsa-sub",
 		"email":          user.Email,
 		"email_verified": true,
+		"iat":            fixedNow().Unix(),
 		"exp":            fixedNow().Add(time.Hour).Unix(),
 	})
 	verification, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: provider.ID, Subject: "rsa-sub", IDToken: idToken})
@@ -257,6 +259,7 @@ func TestOIDCProviderIdentityVerificationUsesStaticJWKS(t *testing.T) {
 		"sub":            "sub-1",
 		"email":          user.Email,
 		"email_verified": true,
+		"iat":            fixedNow().Unix(),
 		"exp":            fixedNow().Add(time.Hour).Unix(),
 		"nbf":            fixedNow().Add(-time.Minute).Unix(),
 	})
@@ -268,7 +271,7 @@ func TestOIDCProviderIdentityVerificationUsesStaticJWKS(t *testing.T) {
 		t.Fatalf("verification = %#v", verification)
 	}
 	badAudience := signedTestIDToken(t, priv, "kid-1", map[string]any{
-		"iss": "https://idp.example.test", "aud": "other-client", "sub": "sub-1", "email": user.Email, "email_verified": true, "exp": fixedNow().Add(time.Hour).Unix(),
+		"iss": "https://idp.example.test", "aud": "other-client", "sub": "sub-1", "email": user.Email, "email_verified": true, "iat": fixedNow().Unix(), "exp": fixedNow().Add(time.Hour).Unix(),
 	})
 	failed, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "oidc", ProviderID: provider.ID, Subject: "sub-1", IDToken: badAudience})
 	if !errors.Is(err, ErrVerificationFailed) || failed.Result != "failed" {
@@ -280,7 +283,7 @@ func TestOIDCProviderIdentityVerificationUsesStaticJWKS(t *testing.T) {
 }
 
 func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
-	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: NewMemoryUnitOfWorkFactory()})
 	ctx := context.Background()
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -303,16 +306,19 @@ func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
 	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "login-sub", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("identity link: %v", err)
 	}
+	requestID, stateSecret, nonce := beginOIDCOracleRequest(t, ledger, provider.ID)
 	idToken := signedTestIDToken(t, priv, "kid-login", map[string]any{
+		"nonce":          nonce,
 		"iss":            provider.Issuer,
 		"aud":            provider.ClientID,
 		"sub":            "login-sub",
 		"email":          user.Email,
 		"email_verified": true,
 		"groups":         []string{"security"},
+		"iat":            fixedNow().Unix(),
 		"exp":            fixedNow().Add(time.Hour).Unix(),
 	})
-	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "login-sub", IDToken: idToken})
+	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "login-sub", IDToken: idToken, AuthenticationRequestID: requestID, StateSecret: stateSecret})
 	if err != nil {
 		t.Fatalf("exchange credential: %v", err)
 	}
@@ -326,7 +332,8 @@ func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
 	if sessionActor.UserID != user.ID || sessionActor.SessionID != session.ID || !sessionActor.HasScope(ScopeEvidenceWrite) {
 		t.Fatalf("session actor = %#v", sessionActor)
 	}
-	bad, badSession, badSecret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "other-sub", IDToken: idToken})
+	requestID, stateSecret, _ = beginOIDCOracleRequest(t, ledger, provider.ID)
+	bad, badSession, badSecret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "other-sub", IDToken: idToken, AuthenticationRequestID: requestID, StateSecret: stateSecret})
 	if !errors.Is(err, ErrVerificationFailed) || bad.Result != "failed" || badSession.ID != "" || badSecret != "" {
 		t.Fatalf("bad exchange verification=%#v session=%#v secret=%q err=%v", bad, badSession, badSecret, err)
 	}
@@ -338,7 +345,7 @@ func TestExchangeSSOCredentialIssuesSessionFromVerifiedOIDCToken(t *testing.T) {
 }
 
 func TestExchangeSSOCredentialRejectsSessionWithoutAuthorizationGrant(t *testing.T) {
-	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: NewMemoryUnitOfWorkFactory()})
 	ctx := context.Background()
 	_, _, _, actor := bootstrapEnterpriseTestTenant(t, ledger)
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -361,16 +368,19 @@ func TestExchangeSSOCredentialRejectsSessionWithoutAuthorizationGrant(t *testing
 	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "login-sub", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("identity link: %v", err)
 	}
+	requestID, stateSecret, nonce := beginOIDCOracleRequest(t, ledger, provider.ID)
 	idToken := signedTestIDToken(t, priv, "kid-no-grant", map[string]any{
+		"nonce":          nonce,
 		"iss":            provider.Issuer,
 		"aud":            provider.ClientID,
 		"sub":            "login-sub",
 		"email":          user.Email,
 		"email_verified": true,
 		"groups":         []string{"unmapped"},
+		"iat":            fixedNow().Unix(),
 		"exp":            fixedNow().Add(time.Hour).Unix(),
 	})
-	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "login-sub", IDToken: idToken})
+	verification, session, secret, err := ledger.ExchangeSSOCredential(ctx, ExchangeSSOCredentialInput{ProviderID: provider.ID, Subject: "login-sub", IDToken: idToken, AuthenticationRequestID: requestID, StateSecret: stateSecret})
 	if !errors.Is(err, ErrForbidden) || verification.Result != "failed" || session.ID != "" || secret != "" {
 		t.Fatalf("exchange without grant verification=%#v session=%#v secret=%q err=%v", verification, session, secret, err)
 	}

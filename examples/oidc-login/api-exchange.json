@@ -1,0 +1,8 @@
+{
+  "provider_id": "replace-with-configured-provider-id",
+  "subject": "replace-with-provider-subject",
+  "id_token": "replace-with-signed-provider-id-token",
+  "authentication_request_id": "replace-with-created-request-id",
+  "state_secret": "replace-with-one-time-api-state-secret",
+  "delivery": "api"
+}

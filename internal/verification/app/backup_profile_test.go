@@ -15,7 +15,8 @@ func TestBackupProfileVocabularyPreservesFrozenVersionsAndFreshCopies(t *testing
 	}{
 		{BackupStateCommitmentProfileV1, BackupCommitmentProfileResourcesV1(), 97, "sha256:3ef4cc91c3263312b9bddb03f17ec18701c37bd1a7f15ffd70a726b5d8864159"},
 		{BackupStateCommitmentProfileV2, BackupCommitmentProfileResourcesV2(), 98, "sha256:dd3b77b5896b352e386ac00c2d81e0845eaebf4ac25f621e986a77e494574c4a"},
-		{BackupStateCommitmentProfile, BackupCommitmentProfileResources(), 98, "sha256:1396036ce0b4c233ae42eade4a1d5596e7f70ac80168ac22e04679870d4cc79e"},
+		{BackupStateCommitmentProfileV3, BackupCommitmentProfileResourcesV3(), 98, "sha256:1396036ce0b4c233ae42eade4a1d5596e7f70ac80168ac22e04679870d4cc79e"},
+		{BackupStateCommitmentProfile, BackupCommitmentProfileResources(), 99, "sha256:cec6c60250406b7fadb0b1bc2c9b55809cbdaf6b3314db59ba01fe79c77ca52c"},
 	} {
 		if len(tc.resources) != tc.count {
 			t.Fatal("declared profile resource count changed", tc.profile)
@@ -43,9 +44,11 @@ func TestBackupProfileVocabularyPreservesFrozenVersionsAndFreshCopies(t *testing
 	}
 	v1[0].Name, v1[0].Columns[0] = "caller", "caller"
 	v2[0].Name, v2[0].Columns[0] = "caller", "caller"
-	v3 := BackupCommitmentProfileResources()
+	v3 := BackupCommitmentProfileResourcesV3()
 	v3[0].Name, v3[0].Columns[0] = "caller", "caller"
-	if BackupCommitmentProfileResourcesV1()[0].Name == "caller" || BackupCommitmentProfileResourcesV2()[0].Columns[0] == "caller" || BackupCommitmentProfileResources()[0].Columns[0] == "caller" {
+	v4 := BackupCommitmentProfileResources()
+	v4[0].Name, v4[0].Columns[0] = "caller", "caller"
+	if BackupCommitmentProfileResourcesV1()[0].Name == "caller" || BackupCommitmentProfileResourcesV2()[0].Columns[0] == "caller" || BackupCommitmentProfileResourcesV3()[0].Columns[0] == "caller" || BackupCommitmentProfileResources()[0].Columns[0] == "caller" {
 		t.Fatal("caller mutated canonical profile vocabulary")
 	}
 }
@@ -61,7 +64,7 @@ func TestBackupProfileVocabularyExcludesCredentialsAndReplayContents(t *testing.
 					t.Fatal("credential material added to declared profile", resource.Name, field)
 				}
 			}
-			if resource.Name == "api_keys" && field == "hash" || resource.Name == "customer_portal_access" && field == "hash" || resource.Name == "sso_sessions" && field == "hash" || resource.Name == "outbox_jobs" && (field == "payload" || field == "last_error") {
+			if resource.Name == "api_keys" && field == "hash" || resource.Name == "customer_portal_access" && field == "hash" || resource.Name == "sso_sessions" && field == "hash" || resource.Name == "oidc_authentication_requests" && (field == "state_hash" || field == "nonce_hash") || resource.Name == "outbox_jobs" && (field == "payload" || field == "last_error") {
 				t.Fatal("sensitive contents added to profile", resource.Name, field)
 			}
 		}
@@ -69,10 +72,10 @@ func TestBackupProfileVocabularyExcludesCredentialsAndReplayContents(t *testing.
 }
 
 func TestBackupProfileCommitsSessionLifecycleMetadataInNewVersion(t *testing.T) {
-	if BackupStateCommitmentProfile != "tenant-relational-state.v3" {
+	if BackupStateCommitmentProfileV3 != "tenant-relational-state.v3" {
 		t.Fatal("session metadata changed a frozen commitment version")
 	}
-	for _, resource := range BackupCommitmentProfileResources() {
+	for _, resource := range BackupCommitmentProfileResourcesV3() {
 		if resource.Name != "sso_sessions" {
 			continue
 		}
@@ -90,4 +93,21 @@ func TestBackupProfileCommitsSessionLifecycleMetadataInNewVersion(t *testing.T) 
 		return
 	}
 	t.Fatal("session resource missing from commitment")
+}
+
+func TestBackupProfileCommitsOIDCRequestMetadataWithoutCredentialHashes(t *testing.T) {
+	if BackupStateCommitmentProfile != "tenant-relational-state.v4" {
+		t.Fatal("new login state must not mutate a frozen commitment profile")
+	}
+	for _, resource := range BackupCommitmentProfileResources() {
+		if resource.Name != "oidc_authentication_requests" {
+			continue
+		}
+		want := []string{"id", "tenant_id", "provider_id", "delivery", "trust_fingerprint", "created_at", "expires_at", "consumed_at", "schema_version"}
+		if !reflect.DeepEqual(resource.Columns, want) {
+			t.Fatal("OIDC request metadata was omitted or credential hashes were selected", resource.Columns)
+		}
+		return
+	}
+	t.Fatal("OIDC request metadata is unclassified")
 }

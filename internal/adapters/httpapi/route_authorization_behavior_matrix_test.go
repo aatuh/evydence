@@ -231,6 +231,7 @@ func nativeRouteAuthorizationCases() map[string]func(*testing.T) {
 		"customerPortalPackageViewForm":     TestPortalPublicFormExposesNoPackageAndConsumesNoToken,
 		"receiveIncidentWebhook":            TestSignedIncidentWebhookRouteAuthorizationMatrix,
 		"exchangeSSOCredential":             TestSSOExchangeRouteAuthorizationMatrix,
+		"beginOIDCAuthentication":           TestOIDCAuthenticationRequestRouteUsesConfiguredProviderTenantAndBoundsState,
 	}
 	for _, tc := range []struct{ operation, path string }{
 		{"craReadinessReport", "/v1/reports/cra-readiness?product_id=%s&release_id=%s"},

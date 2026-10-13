@@ -456,6 +456,7 @@ func (fakeProviderVerificationPolicy) ReturnsFailure(result string) bool {
 }
 
 type fakeIdentityReader struct {
+	oidcRequests        func() map[string]identitydomain.OIDCAuthenticationRequest
 	apiKeys             []identitydomain.APIKey
 	sessions            []identitydomain.SSOSession
 	collector           CollectorBinding
@@ -591,6 +592,7 @@ func (f *fakeIdentityReader) UserGrants(context.Context, string, string) ([]iden
 }
 
 type fakeIdentityState struct {
+	oidcRequests      map[string]identitydomain.OIDCAuthenticationRequest
 	tenants           map[string]identitydomain.Tenant
 	apiKeys           map[string]identitydomain.APIKey
 	collectorActivity []CollectorActivity
@@ -606,7 +608,8 @@ type fakeIdentityState struct {
 
 func newFakeIdentityState() fakeIdentityState {
 	return fakeIdentityState{
-		tenants: map[string]identitydomain.Tenant{}, apiKeys: map[string]identitydomain.APIKey{}, organizations: map[string]identitydomain.Organization{},
+		oidcRequests: map[string]identitydomain.OIDCAuthenticationRequest{},
+		tenants:      map[string]identitydomain.Tenant{}, apiKeys: map[string]identitydomain.APIKey{}, organizations: map[string]identitydomain.Organization{},
 		users: map[string]identitydomain.HumanUser{}, roleBindings: map[string]identitydomain.RoleBinding{},
 		providers: map[string]identitydomain.SSOProvider{}, links: map[string]identitydomain.UserIdentityLink{},
 		verifications: map[string]identitydomain.ProviderVerification{}, sessions: map[string]identitydomain.SSOSession{},
@@ -615,6 +618,13 @@ func newFakeIdentityState() fakeIdentityState {
 
 func (s fakeIdentityState) clone() fakeIdentityState {
 	result := newFakeIdentityState()
+	for id, request := range s.oidcRequests {
+		if request.ConsumedAt != nil {
+			at := *request.ConsumedAt
+			request.ConsumedAt = &at
+		}
+		result.oidcRequests[id] = request
+	}
 	result.collectorActivity = append([]CollectorActivity(nil), s.collectorActivity...)
 	result.audit = append([]application.AuditEvent(nil), s.audit...)
 	for key, value := range s.tenants {

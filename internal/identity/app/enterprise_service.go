@@ -67,6 +67,10 @@ type CredentialVerificationResult struct {
 	// Groups are trusted only after ProviderVerificationPolicy assesses all
 	// credential checks as successful.
 	Groups []string
+	// Transient signed claims for request binding; never persisted in receipts.
+	Nonce     string
+	IssuedAt  time.Time
+	ExpiresAt time.Time
 }
 
 // SSOExchangeSnapshot captures every mutable identity record used to decide an
@@ -75,15 +79,17 @@ type CredentialVerificationResult struct {
 // present), while keeping the validated rows/ranges stable through commit.
 // UserGrants are compared as a set; their slice order is not significant.
 type SSOExchangeSnapshot struct {
-	Provider          identitydomain.SSOProvider
-	Subject           string
-	IdentityLink      identitydomain.UserIdentityLink
-	IdentityLinkFound bool
-	User              identitydomain.HumanUser
-	UserLoaded        bool
-	UserFound         bool
-	UserGrants        []identitydomain.ResourceGrant
-	UserGrantsLoaded  bool
+	Provider              identitydomain.SSOProvider
+	Subject               string
+	IdentityLink          identitydomain.UserIdentityLink
+	IdentityLinkFound     bool
+	User                  identitydomain.HumanUser
+	UserLoaded            bool
+	UserFound             bool
+	UserGrants            []identitydomain.ResourceGrant
+	UserGrantsLoaded      bool
+	AuthenticationRequest *identitydomain.OIDCAuthenticationRequest
+	ProofExpiresAt        time.Time
 }
 
 // CredentialVerifier validates signatures, issuer, audience/client ID,
@@ -150,11 +156,14 @@ type CreateSSOSessionInput struct {
 }
 
 type ExchangeSSOCredentialInput struct {
-	ProviderID    string
-	Subject       string
-	IDToken       string
-	SAMLAssertion string
-	ExpiresAt     time.Time
+	ProviderID              string
+	Subject                 string
+	IDToken                 string
+	SAMLAssertion           string
+	ExpiresAt               time.Time
+	AuthenticationRequestID string
+	StateSecret             string
+	Delivery                string
 }
 
 func (s *Service) CreateOrganization(ctx context.Context, actor identitydomain.Actor, input CreateOrganizationInput) (identitydomain.Organization, error) {
@@ -712,6 +721,11 @@ func cloneSSOExchangeSnapshot(value SSOExchangeSnapshot) SSOExchangeSnapshot {
 	value.Provider = cloneSSOProvider(value.Provider)
 	value.User = cloneHumanUser(value.User)
 	value.UserGrants = cloneGrants(value.UserGrants)
+	if value.AuthenticationRequest != nil {
+		request := *value.AuthenticationRequest
+		request.ConsumedAt = cloneTime(request.ConsumedAt)
+		value.AuthenticationRequest = &request
+	}
 	return value
 }
 

@@ -28,7 +28,8 @@ func BuildSSOExchangeCommands(factory app.UnitOfWorkFactory, pepper string, prod
 		Reader: ssoExchangeReader{factory: factory}, Transactions: ssoExchangeTransactions{factory: factory},
 		Credentials: credentials, Verifier: app.LocalSSOCredentialVerifier{}, VerificationPolicy: app.LocalSSOVerificationPolicy{},
 		SessionGrants: ssoExchangeGroupPolicy{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID),
-		SessionPolicy: policy,
+		SessionPolicy:          policy,
+		AuthenticationRequests: ssoExchangeReader{factory: factory}, ProofCredentials: credentials,
 	})
 }
 
@@ -42,6 +43,20 @@ func (ssoExchangeGroupPolicy) GrantsForProviderGroups(p identitydomain.SSOProvid
 // its short transaction. Credential verification runs outside transactions;
 // the final write transaction compares and locks the complete decision snapshot.
 type ssoExchangeReader struct{ factory app.UnitOfWorkFactory }
+
+func (r ssoExchangeReader) ReadOIDCAuthenticationRequest(ctx context.Context, tenant, provider, id string) (identitydomain.OIDCAuthenticationRequest, error) {
+	var out identitydomain.OIDCAuthenticationRequest
+	err := mapAPIKeyWriteError(app.ExecuteUnitOfWork(ctx, r.factory, func(ctx context.Context, repos app.Repositories) error {
+		reader, ok := repos.Identity.(identityapp.OIDCAuthenticationRequestReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadOIDCAuthenticationRequest(ctx, tenant, provider, id)
+		return err
+	}))
+	return out, err
+}
 
 func (r ssoExchangeReader) read(ctx context.Context, fn func(context.Context, identityapp.SSOExchangeReader) error) error {
 	return mapAPIKeyWriteError(app.ExecuteUnitOfWork(ctx, r.factory, func(ctx context.Context, repos app.Repositories) error {
@@ -104,6 +119,15 @@ func (t ssoExchangeTransactions) ExecuteSSOExchange(ctx context.Context, fn func
 type ssoExchangeTransaction struct {
 	identity app.IdentityRepository
 	audit    app.AuditRepository
+}
+
+func (t ssoExchangeTransaction) ConsumeOIDCAuthenticationRequest(ctx context.Context, v identitydomain.OIDCAuthenticationRequest, c application.Clock) (time.Time, error) {
+	consumer, ok := t.identity.(identityapp.OIDCAuthenticationRequestConsumer)
+	if !ok {
+		return time.Time{}, identityapp.ErrValidation
+	}
+	at, err := consumer.ConsumeOIDCAuthenticationRequest(ctx, v, c)
+	return at, mapAPIKeyWriteError(err)
 }
 
 func (t ssoExchangeTransaction) ValidateSSOExchangeState(ctx context.Context, s identityapp.SSOExchangeSnapshot) error {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/aatuh/evydence/internal/domain"
 )
@@ -41,6 +42,23 @@ func verificationReturnsFailure(result string) bool {
 
 func providerVerificationProfile(provider domain.SSOProvider, tokenSupplied bool, checks []domain.VerifyCheck, limitations []string) domain.VerificationProfile {
 	required := requiredCheckNames(checks)
+	id := "provider-identity-" + provider.Type + ".v1"
+	payloadScope := "provider credential claims and verified identity link"
+	localOIDCProof := false
+	for _, check := range checks {
+		localOIDCProof = localOIDCProof || strings.HasPrefix(check.Name, "id_token_") || check.Name == "token_time" || check.Name == "nonce_state_binding"
+	}
+	if provider.Type == "oidc" && tokenSupplied && localOIDCProof {
+		id = "provider-identity-oidc.v2"
+		required = append(required, "id_token_signature", "issuer", "audience", "authorized_party", "subject", "token_time")
+		for _, check := range checks {
+			if check.Name == "nonce_state_binding" {
+				id = "provider-identity-oidc-bound.v1"
+				required = append(required, "nonce_state_binding")
+				payloadScope = "server-owned authentication state, provider credential claims and verified tenant identity link"
+			}
+		}
+	}
 	if !tokenSupplied {
 		required = append(required, "provider_credential_signature")
 	}
@@ -51,7 +69,7 @@ func providerVerificationProfile(provider domain.SSOProvider, tokenSupplied bool
 	case "saml":
 		trustMaterial = append(trustMaterial, "configured SAML signing certificates")
 	}
-	return assuranceProfile("provider-identity-"+provider.Type+".v1", required, trustMaterial, "provider subject must match a verified tenant identity link", "not_evaluated", "provider credential claims and verified identity link", "", limitations)
+	return assuranceProfile(id, required, trustMaterial, "provider subject must match a verified tenant identity link", "not_evaluated", payloadScope, "", limitations)
 }
 
 func reassessProviderVerification(record *domain.ProviderVerification, provider domain.SSOProvider, tokenSupplied bool) {

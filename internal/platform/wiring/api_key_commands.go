@@ -57,6 +57,10 @@ func (t apiKeyTransaction) AppendAudit(ctx context.Context, v application.AuditE
 }
 func mapAPIKeyWriteError(err error) error {
 	switch {
+	case errors.Is(err, app.ErrUnauthorized):
+		return identityapp.ErrUnauthorized
+	case errors.Is(err, app.ErrRateLimited):
+		return identityapp.ErrRateLimited
 	case errors.Is(err, app.ErrValidation):
 		return identityapp.ErrValidation
 	case errors.Is(err, app.ErrNotFound):

@@ -920,7 +920,8 @@ unchanged; public readiness retains low-detail `503` and `Retry-After` metadata.
 | `POST` | `/v1/sso/providers/{id}/discover-oidc` | Fetch OIDC discovery metadata and refresh public JWKS trust material. |
 | `POST` | `/v1/sso/identity-links` | Link verified provider subject to user. |
 | `POST` | `/v1/sso/sessions` | Issue one-time session secret. |
-| `POST` | `/v1/sso/session-exchanges` | Exchange a locally verified OIDC ID token or SAML assertion for a session secret and HttpOnly cookie. |
+| `POST` | `/v1/sso/authentication-requests` | Create bounded OIDC state and nonce for API or browser delivery. |
+| `POST` | `/v1/sso/session-exchanges` | Exchange a bound OIDC ID token or SAML assertion; deliver a session through API JSON or an OIDC browser cookie. |
 | `POST` | `/v1/sso/sessions/{id}/revoke` | Revoke session. |
 | `POST` | `/v1/sso/logout` | Revoke the currently authenticated SSO session. |
 | `POST` | `/v1/api-keys` | Create one-time API key secret. |
@@ -992,7 +993,7 @@ private metadata; in-memory optimistic transactions do not prove SQL locks.
 See the
 [unreleased compatibility note](reference/api-versioning.md#unreleased-role-binding-write-boundary).
 
-Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. When an OIDC `access_token` is supplied, the same endpoint can call either the provider's discovered UserInfo endpoint or a configured operator-controlled provider validation gateway, verify the returned subject, and record any configured group-claim mapping checks without storing the access token. The provider validation gateway receives only non-secret request metadata and an `access_token_present` flag, not the supplied token. `POST /v1/sso/session-exchanges` uses local token/assertion verification and a verified identity link to issue a one-time SSO bearer secret and an HttpOnly cookie for browser clients. OIDC group claim values can map to session-scoped roles through the provider `groups_claim` and `role_mapping`; no permanent role binding is created from token claims. External group synchronization into permanent role bindings is not implemented in this slice.
+Current SSO endpoints model admin-managed provider, identity-link, trust-material, and session records plus API-first session logout. OIDC provider records can include public JWKS material, and SAML provider records can include PEM-encoded assertion signing certificates; both can be rotated through `POST /v1/sso/providers/{id}/trust-material`. OIDC public JWKS can also be refreshed from the configured issuer with `POST /v1/sso/providers/{id}/discover-oidc`. `POST /v1/provider-verifications` can verify a supplied OIDC ID token or SAML assertion locally for issuer, audience, subject, time bounds, and signature. When an OIDC `access_token` is supplied, the same endpoint can call either the provider's discovered UserInfo endpoint or a configured operator-controlled provider validation gateway, verify the returned subject, and record any configured group-claim mapping checks without storing the access token. The provider validation gateway receives only non-secret request metadata and an `access_token_present` flag, not the supplied token. `POST /v1/sso/authentication-requests` creates server-owned OIDC state and nonce. `POST /v1/sso/session-exchanges` consumes a matching OIDC proof and requires local credential verification and a verified identity link; API delivery returns a session secret once in JSON, while OIDC browser delivery uses an HttpOnly cookie. OIDC group claim values can map to session-scoped roles through the provider `groups_claim` and `role_mapping`; no permanent role binding is created from token claims. External group synchronization into permanent role bindings is not implemented in this slice.
 
 #### SSO Provider Registration
 
@@ -1207,65 +1208,105 @@ See the [compatibility note](reference/api-versioning.md#unreleased-sso-identity
 
 #### SSO Credential Exchange
 
-The handler requires the focused exchange command, with no aggregate transport
-fallback. PostgreSQL is required for local evaluation.
+The focused Identity commands require PostgreSQL in local evaluation and
+production. Login reads bounded provider/link/user/grant projections; it does
+not load the retired Ledger or issue idempotency replay receipts.
 
-`POST /v1/sso/session-exchanges` is public and accepts `provider_id`, `subject`,
-and exactly one nonempty `id_token` or `saml_assertion`. It verifies credentials
-against configured local public trust, requires a verified tenant-owned identity
-link and active user, and requires current user or mapped provider-group grants.
-The central `internal/authz` verified-identity policy requires a `passed`
-assessment, a completed verifier with nonempty fully passed credential checks,
-exact current provider/tenant/subject/link/user bindings, and available
-capabilities. Pending, skipped, unknown or absent proof cannot issue a session;
-neither API scopes nor an existing human session substitutes for that proof.
-Cryptographic OIDC/SAML validation and versioned assurance assessment remain
-in their existing ports. Raw credentials, trust material and issued secrets
-do not enter policy.
-It does not perform live provider verification, redirect/callback orchestration,
-or external group synchronization.
+For OIDC, first call `POST /v1/sso/authentication-requests` with `provider_id`
+and optional `delivery` (`api` by default, or `browser`). The selected provider
+must be active, OIDC, and configured with issuer, client ID and public JWKS.
+The response contains public `authentication_request` metadata and a one-time
+`nonce`. State and nonce each contain 32 random bytes in canonical unpadded
+base64url with separate `evylogin_`/`evynonce_` prefixes. Only peppered HMAC
+hashes are stored. Authentication requests expire after five minutes and bind
+the configured provider's complete normalized-JSON trust fingerprint. Every
+provider metadata/trust change invalidates outstanding requests.
 
-The API rejects duplicate/unknown fields, non-object bodies, explicit null
-fields, invalid UTF-8, and NUL-bearing text with `400`. The provider ID is bounded
-at 1 KiB and subject/credential text at 64 KiB each before trimming, within the
-64 KiB request-body limit. Omitted or zero `expires_at` defaults to eight hours;
-explicit expiry must be future and at most twelve hours. Unsupported timestamps
-outside years 1–9999 are rejected.
+Send the nonce to the external provider in its authorization request. Obtain
+a signed ID token through your own OIDC client; Evydence does not implement
+redirect/callback orchestration or authorization-code exchange. Exchange it at
+`POST /v1/sso/session-exchanges` with `provider_id`, `subject`, `id_token`,
+`authentication_request_id` and the same delivery mode:
 
-PostgreSQL reads only the selected provider, tenant-owned link/user, and at most
-256 role bindings. Provider fields retain the stored bounds documented for
-[trust rotation](#sso-trust-rotation); user/link identity fields and schema
-versions are capped at 1 KiB, subject/email/display text at 64 KiB, and status/role
-text at 128 bytes. Grant resource fields are capped at 1 KiB. Locked size checks
-precede link/user metadata transfer. Oversized stored metadata or more than 256
-bindings produces `409`, without truncation, session creation, or a cookie.
+| Delivery | Login state | Session secret |
+| --- | --- | --- |
+| `api` | Creation returns `state_secret` once in JSON; supply it in the exchange body. | Returned once as JSON `secret`; no browser cookie is set. |
+| `browser` | Creation requires one HTTPS `Origin` equal to request `Host`, sets `__Host-evydence_oidc_state`, and omits JSON state. Exchange requires that single cookie and the same-origin check; a body `state_secret` is rejected. | Set only as an HttpOnly, Secure, host-only, SameSite=Strict cookie at `/v1`; omitted from JSON. The host-only login cookie at `/` is cleared after successful exchange. |
 
-Verification happens outside the write transaction. The transaction rechecks
-provider trust, link presence, user state and loaded grants before atomically
-committing verification, session and both audits. A failed assessment persists
-only a safe verification receipt and audit. Nonpassing credential/link proof
-is rejected before user/grant reads. The existing verification-failure response
-is `422`; missing current capabilities returns `403`. Requested session lifetime
-is rechecked after snapshot locks; a session that expires while waiting fails
-with `400` without committing exchange records. A storage/audit/commit failure
-returns no session secret or cookie. Successful exchange returns the existing
-verification/session/secret envelope and sets a Secure, HttpOnly,
-SameSite=Strict cookie scoped to `/v1`.
-Cancellation observed after a successful commit withholds verification/session/
-secret results without undoing committed records or audits.
+Browser cookies require HTTPS, including local browser evaluation. Proxies
+must preserve the public Host. An incidental bearer header cannot bypass login
+origin/state checks. Duplicate state cookies, API requests carrying browser
+state cookies, and mismatched persisted delivery modes fail before issuance.
+Keep state, nonce, ID tokens and issued secrets out of logs, traces, URLs and
+replay receipts. The [API request examples](../examples/oidc-login/README.md)
+use placeholders; they do not prove a provider integration.
 
-This route does not create idempotency receipts. Repeated valid requests may
-issue fresh sessions; no one-time consumption of provider tokens/assertions is
-claimed. Only session hashes are stored. Test-only adapters retain the actual
-local verification/transaction algorithm and map the complete detached public
-verification profile; they do not establish SQL locking or durability. Scoped
-policy, issuance/denial, lifetime/cancellation and signed HTTP coverage live in
-`internal/authz/sso_exchange_policy_test.go`,
-`internal/identity/app/sso_exchange_policy_test.go`, and
-`internal/adapters/httpapi/sso_exchange_authorization_matrix_test.go`.
-This route participates in the complete authorization matrix; EVY-1002's
-required full-suite and production gates passed on source `50f4ad37`. This does
-not establish live-provider identity or provider-token single-use.
+Local OIDC verification permits EdDSA with Ed25519 and RS256 with 2048–8192-bit
+RSA public keys. It requires a unique configured `kid`, matching key type,
+verification-only key usage when declared, and no private JWK material.
+JWT headers/claims must be UTF-8 JSON objects with unique decoded member names
+and canonical unpadded base64url encoding. Critical extensions, unencoded
+payloads, access-token `typ`, duplicate/ambiguous members and unsupported
+algorithms fail. Tokens are limited to 16 KiB; parsing is bounded to depth 32
+and 4096 JSON tokens. The issuer and subject must match exactly. Audience must
+be the single configured client ID (a string or singleton array); additional,
+duplicate or mixed audiences fail. `azp`, when supplied, must match that client.
+`iat` and `exp` are required positive whole-second NumericDates, `iat < exp`,
+and expiry must be future. `iat` may be at most one minute before request
+creation or ahead of verification time. Optional `nbf` must precede expiry and
+may not exceed verification time by more than one minute. The signed nonce
+must match the server-owned request. This is Evydence's bounded validation
+profile, based on [OIDC Core validation](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation)
+and [JWT algorithm/key binding](https://www.rfc-editor.org/rfc/rfc8725.html);
+it is not a claim of supporting every provider or OIDC profile.
+
+A verified tenant identity link, active user and current user or mapped
+provider-group grants are also required. Pending, skipped, unknown or absent
+cryptographic proof cannot issue a session; an existing API key or human
+session cannot substitute for it. Provider groups create session-scoped grants,
+not permanent role bindings. No live provider or group synchronization call is
+made by these login endpoints. SAML continues to accept the current local
+assertion format in API delivery; its standard signature/request/replay work
+remains EVY-1010 and must not be inferred from the OIDC protections.
+
+The API rejects duplicate/unknown fields, non-object bodies, explicit nulls,
+invalid UTF-8 and NUL-bearing text with `400`. Provider/request IDs are bounded
+at 1 KiB, subject/credential input at 64 KiB each, state at 128 bytes, and
+request bodies at 64 KiB; the additional OIDC token bound is 16 KiB. Default
+session expiry is eight hours, reduced when configured maximum lifetime is
+lower; explicit expiry must be future and within that configured maximum.
+Years outside 1–9999 fail. Stored identity/grant projection limits remain in
+force; excess produces `409` without truncation or session issuance.
+
+Signature verification runs outside the write transaction. The transaction
+rechecks current provider trust, link presence, user state and loaded grants,
+then consumes the verified request once under locks. Consumption, safe
+verification receipt, session and audits commit together. A cryptographically
+verified identity/grant denial also consumes its proof and records the denial;
+an invalid signature does not consume request state. Commit failure rolls back
+all effects and permits retry. A committed replay, missing/mismatched state,
+nonce, provider, delivery or expired request returns `401` without a session.
+Invalid credential assessment remains `422`; missing current capabilities is
+`403`. Requested session expiry during a lock wait returns `400`. Request or
+token expiry is rechecked after locks, at the end of the write callback and
+before secret delivery. Cancellation or deadline expiry after a successful
+commit withholds the result without undoing committed records or audits.
+
+Creation retains at most 64 requests per provider, including consumed rows
+until expiry. Overflow returns `429`. Each creation prunes at most 64 expired
+operational rows; evidence, verification receipts, sessions and audit history
+remain untouched. Rate-limit middleware also applies. These fixed bounds and
+public initiation can temporarily exhaust a provider's capacity; deployments
+must account for expected simultaneous login volume.
+
+The migration and client rollout limits are in the
+[upgrade policy](reference/upgrade-compatibility-policy.md#oidc-login-binding-rollout).
+Focused signed fixtures, fault injection, concurrency and deadline tests live
+under `internal/identity/app`, `internal/adapters/httpapi`,
+`internal/adapters/postgres/oidc_authentication_request_test.go` and
+`internal/platform/wiring/oidc_authentication_request_commands_test.go`.
+These fixtures make no real provider calls and do not establish external
+provider conformance.
 
 #### Provider Identity Verification Receipts
 
@@ -3744,9 +3785,10 @@ PostgreSQL uses focused native durable execution. Before reservation and every
 replay, the current tenant-admin guard locks only the tenant root, not state
 rows, audit pages or signing material. The common writer fence precedes tenant
 and audit-chain locks. Fresh generation streams the complete declared
-`tenant-relational-state.v3` metadata profile in one committed read view,
-including append-only decision supersession history and session lifecycle
-metadata. Historical v1/v2 commitment vocabularies remain frozen. The commitment is bounded
+`tenant-relational-state.v4` metadata profile in one committed read view,
+including decision supersession history, session lifecycle and non-secret OIDC
+request metadata. State/nonce hashes are excluded. Historical v1/v2/v3 commitment
+vocabularies remain frozen. The commitment is bounded
 by 32768 rows and 8 MiB of encoded input; overflow returns `409` rather than a
 truncated prefix hash. Credential material, replay bookkeeping and raw object
 payload bytes are excluded. The emitted `backup-manifest.v2.0.0` records the

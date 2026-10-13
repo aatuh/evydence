@@ -698,6 +698,11 @@ bounds used by SSO issuance and admission. It has no legacy transport DTO.
 See the [session lifecycle reference](../reference/configuration.md#sso-session-lifecycle-unreleased)
 for policy configuration and compatibility limits.
 
+Identity also owns the supporting `OIDCAuthenticationRequest` lifecycle value
+in `internal/identity/domain/oidc_authentication_request.go`. It represents
+short-lived, single-use login state; it stores hashes rather than raw state or
+nonce values and has no legacy transport DTO.
+
 | Context | Owns these current domain types | Current implementation and port ownership |
 | --- | --- | --- |
 | Identity and access | `Actor`, `ResourceGrant`, `Tenant`, `Organization`, `HumanUser`, `RoleBinding`, `SSOProvider`, `UserIdentityLink`, `SSOSession`, `APIKey`, `ProviderVerification` | `internal/identity/app.Service`; `IdentityRepository`; identity portions of `EnterpriseRepository` and the Ledger DTO adapter are temporary. |

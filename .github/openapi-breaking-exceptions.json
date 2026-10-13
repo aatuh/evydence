@@ -76,6 +76,34 @@
       "approval_ref": "EVY-1002 repository-controlled prerelease compatibility review",
       "migration_note": "docs/reference/api-versioning.md#evy-1002-prerelease-contract-reconciliation",
       "changelog_note": "CHANGELOG.md#unreleased"
+    },
+    {
+      "id": "evy-1009-prerelease-oidc-delivery-contract",
+      "channel": "prerelease",
+      "kind": "prerelease",
+      "baseline_sha256": "4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364",
+      "changes_sha256": "eb08b999b683594cd4e75043cfa56cabc6c16684fd47c95af8c39c0daeb8a773",
+      "change_count": 206,
+      "change_summary": {
+        "error-code-added": 16,
+        "idempotency-contract-changed": 1,
+        "new-required-request-parameter": 4,
+        "new-required-request-property": 6,
+        "request-body-wrapped-in-one-of": 1,
+        "request-parameter-min-length-increased": 2,
+        "request-property-became-enum": 7,
+        "request-property-became-required": 7,
+        "request-property-enum-value-removed": 3,
+        "request-property-min-items-increased": 1,
+        "request-property-min-length-increased": 50,
+        "response-property-became-optional": 5,
+        "response-property-enum-value-added": 84,
+        "response-property-type-changed": 1,
+        "response-required-property-removed": 18
+      },
+      "approval_ref": "EVY-1009 repository-controlled prerelease compatibility record; no external approval asserted",
+      "migration_note": "docs/reference/api-versioning.md#evy-1009-oidc-login-delivery-contract",
+      "changelog_note": "CHANGELOG.md#unreleased"
     }
   ]
 }

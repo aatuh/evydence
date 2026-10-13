@@ -5,7 +5,6 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
@@ -33,12 +32,19 @@ func TestSSOExchangeRouteAuthorizationMatrix(t *testing.T) {
 	}
 	s.ssoExchangeCommands = ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
 	s.authn = &configuredAuthenticator{actor: domain.Actor{TenantID: owner.actor.TenantID, KeyID: "admin", Scopes: []string{"*", "admin", "identity:admin"}}}
+	var requestID, stateSecret string
 	claims := func() map[string]any {
-		return map[string]any{"iss": provider.Issuer, "aud": provider.ClientID, "sub": "subject-Owner", "email": owner.user.Email, "email_verified": true, "groups": []string{"token-reviewers"}, "exp": peripheralFixtureQueryClock().Add(time.Hour).Unix()}
+		commands := s.ssoExchangeCommands.(ssoSessionFixtureCommands)
+		login, state, nonce, err := commands.BeginOIDCAuthentication(t.Context(), identityapp.BeginOIDCAuthenticationInput{ProviderID: provider.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requestID, stateSecret = login.ID, state
+		return map[string]any{"nonce": nonce, "iss": provider.Issuer, "aud": provider.ClientID, "sub": "subject-Owner", "email": owner.user.Email, "email_verified": true, "groups": []string{"token-reviewers"}, "iat": peripheralFixtureQueryClock().Unix(), "exp": peripheralFixtureQueryClock().Add(time.Hour).Unix()}
 	}
 	request := func(t *testing.T, providerID, subject, token string, want int) *httptest.ResponseRecorder {
 		t.Helper()
-		body, err := json.Marshal(map[string]any{"provider_id": providerID, "subject": subject, "id_token": token})
+		body, err := json.Marshal(map[string]any{"provider_id": providerID, "subject": subject, "id_token": token, "authentication_request_id": requestID, "state_secret": stateSecret})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,8 +61,9 @@ func TestSSOExchangeRouteAuthorizationMatrix(t *testing.T) {
 		}
 		return w
 	}
-	token := signedRouterIDToken(t, private, "exchange-policy", claims())
+	var token string
 	for i := 0; i < 2; i++ {
+		token = signedRouterIDToken(t, private, "exchange-policy", claims())
 		before, err := factory.Snapshot()
 		if err != nil {
 			t.Fatal(err)
@@ -72,12 +79,11 @@ func TestSSOExchangeRouteAuthorizationMatrix(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil || response.Data.Secret == "" || response.Data.Session.TenantID != owner.actor.TenantID || response.Data.Session.UserID != owner.user.ID || response.Data.Session.ProviderID != provider.ID || response.Data.Session.Hash != "" || response.Data.Verification.Result != "passed" {
 			t.Fatal("verified exchange lost bound session or safe public metadata", err)
 		}
-		cookies := w.Result().Cookies()
-		if len(cookies) != 1 || cookies[0].Value != response.Data.Secret || !cookies[0].HttpOnly || !cookies[0].Secure || cookies[0].SameSite != http.SameSiteStrictMode || cookies[0].Path != "/v1" || !cookies[0].Expires.Equal(response.Data.Session.ExpiresAt) {
-			t.Fatal("session cookie does not match its bound lifetime/security contract")
+		if len(w.Result().Cookies()) != 0 {
+			t.Fatal("API secret delivery unexpectedly set a browser cookie")
 		}
 		after, err := factory.Snapshot()
-		if err != nil || len(after.SSOSessions) != len(before.SSOSessions)+1 || len(after.ProviderVerifications) != len(before.ProviderVerifications)+1 || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+2 || len(after.Idempotency) != len(before.Idempotency) || strings.Contains(exchangeTestSnapshotString(t, after), token) || strings.Contains(exchangeTestSnapshotString(t, after), response.Data.Secret) {
+		if err != nil || len(after.SSOSessions) != len(before.SSOSessions)+1 || len(after.ProviderVerifications) != len(before.ProviderVerifications)+1 || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+3 || len(after.Idempotency) != len(before.Idempotency) || strings.Contains(exchangeTestSnapshotString(t, after), token) || strings.Contains(exchangeTestSnapshotString(t, after), response.Data.Secret) {
 			t.Fatal("exchange became replay, stored a secret, or lost atomic effects", err)
 		}
 	}
@@ -94,21 +100,28 @@ func TestSSOExchangeRouteAuthorizationMatrix(t *testing.T) {
 		{"capabilities", func(c map[string]any) { c["groups"] = []string{} }, 403},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			c := claims()
+			tc.edit(c)
 			before, err := factory.Snapshot()
 			if err != nil {
 				t.Fatal(err)
 			}
-			c := claims()
-			tc.edit(c)
 			request(t, provider.ID, "subject-Owner", signedRouterIDToken(t, private, "exchange-policy", c), tc.want)
 			after, err := factory.Snapshot()
-			if err != nil || !reflect.DeepEqual(before.SSOSessions, after.SSOSessions) || len(after.ProviderVerifications) != len(before.ProviderVerifications)+1 || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+1 || !reflect.DeepEqual(before.Idempotency, after.Idempotency) {
+			audits := 1
+			if tc.name == "capabilities" {
+				audits = 2
+			}
+			if err != nil || !reflect.DeepEqual(before.SSOSessions, after.SSOSessions) || len(after.ProviderVerifications) != len(before.ProviderVerifications)+1 || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+audits || !reflect.DeepEqual(before.Idempotency, after.Idempotency) {
 				t.Fatal("denial did not commit only its safe assessment/audit", err)
 			}
 		})
 	}
-	request(t, foreign.provider.ID, "subject-Foreign", token, 422)
+	token = signedRouterIDToken(t, private, "exchange-policy", claims())
+	request(t, foreign.provider.ID, "subject-Foreign", token, 401)
+	token = signedRouterIDToken(t, private, "exchange-policy", claims())
 	request(t, provider.ID, "subject-Foreign", token, 422)
+	_ = claims()
 	request(t, provider.ID, "subject-Owner", "malformed-credential-canary", 422)
 	final, err := factory.Snapshot()
 	if err != nil || len(final.SSOSessions) != 2 || strings.Contains(exchangeTestSnapshotString(t, final), token) || strings.Contains(exchangeTestSnapshotString(t, final), "malformed-credential-canary") {

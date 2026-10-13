@@ -32,6 +32,44 @@ evidence.
 
 ## API Compatibility
 
+### OIDC Login Binding Rollout
+
+Migration `20261013000100_oidc_authentication_requests` adds short-lived
+server-owned login state with provider/tenant ownership, unique state/nonce
+hashes, bounded time fields and consumption markers. It does not rewrite
+providers, identity links, sessions, evidence, verification receipts or audits.
+Plan for the provider-table constraint/DDL lock. Apply the migration before
+starting the updated API and stop older API writers during rollout: older
+binaries can issue sessions without these new proof checks.
+
+OIDC clients must first create `/v1/sso/authentication-requests`, send its nonce
+in the external provider's authorization request, and exchange a matching ID
+token with request ID and API state or browser state cookie. Existing unbound
+OIDC exchange bodies now return `401`. Existing sessions remain subject to
+their captured lifetime, idle, revocation and current identity/grant checks;
+new login state is not backfilled for old tokens. API exchange delivers secrets
+only in JSON; OIDC browser delivery requires explicit `delivery: browser`,
+HTTPS same-origin checks and cookie state, and omits the JSON secret.
+
+EdDSA/Ed25519 and RS256 remain supported with the documented key/time/input
+bounds. Additional audiences, unsupported key usage/algorithms, ambiguous JWT
+JSON and access-token types fail. Provider metadata/trust rotation invalidates
+outstanding login requests; clients must restart the flow after rotation.
+No redirect UI, authorization-code exchange, discovery network request or live
+provider verification is introduced by login initiation/exchange.
+
+The guarded down migration refuses to discard any retained request, including
+consumed or expired rows. Use a forward fix; running older binaries against
+this schema does not retain the new authentication protections. The new
+backup metadata profile is `tenant-relational-state.v4`, which adds non-secret
+request metadata and excludes state/nonce hashes. Historical v1/v2/v3 profiles
+and recorded commitments remain unchanged; the manifest envelope stays
+`backup-manifest.v2.0.0`.
+
+SAML standard assertion binding/replay and authentication failure telemetry
+remain separate backlog work. These rollout notes do not claim real-provider
+interoperability or completion of those features.
+
 The public API is `/v1`. Within a stable release line:
 
 - existing operation IDs, paths, required scopes, idempotency requirements, and

@@ -30,11 +30,13 @@ type LinkSSOIdentityInput struct {
 }
 
 type ExchangeSSOCredentialInput struct {
-	ProviderID    string
-	Subject       string
-	IDToken       string
-	SAMLAssertion string
-	ExpiresAt     time.Time
+	ProviderID              string
+	Subject                 string
+	IDToken                 string
+	SAMLAssertion           string
+	ExpiresAt               time.Time
+	AuthenticationRequestID string
+	StateSecret             string
 }
 
 func (l *Ledger) CreateSSOProvider(ctx context.Context, actor domain.Actor, in CreateSSOProviderInput) (domain.SSOProvider, error) {
@@ -57,6 +59,7 @@ func (l *Ledger) ExchangeSSOCredential(ctx context.Context, in ExchangeSSOCreden
 	verification, session, secret, err := l.legacyIdentityCommands().ExchangeSSOCredential(ctx, identityapp.ExchangeSSOCredentialInput{
 		ProviderID: in.ProviderID, Subject: in.Subject, IDToken: in.IDToken,
 		SAMLAssertion: in.SAMLAssertion, ExpiresAt: in.ExpiresAt,
+		AuthenticationRequestID: in.AuthenticationRequestID, StateSecret: in.StateSecret,
 	})
 	return providerVerificationFromIdentityContext(verification), ssoSessionFromIdentityContext(session), secret, fromIdentityContextError(err)
 }

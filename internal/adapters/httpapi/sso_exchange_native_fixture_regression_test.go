@@ -44,7 +44,7 @@ func (f *ssoExchangeFailureFactory) BeginUnitOfWork(ctx context.Context) (app.Un
 func (u *ssoExchangeFailureUnit) Repositories() app.Repositories {
 	r := u.UnitOfWork.Repositories()
 	if u.factory.phase != "" {
-		r.Identity = ssoExchangeFailureIdentity{IdentityRepository: r.Identity, SSOExchangeReader: r.Identity.(identityapp.SSOExchangeReader), unit: u}
+		r.Identity = ssoExchangeFailureIdentity{IdentityRepository: r.Identity, SSOExchangeReader: r.Identity.(identityapp.SSOExchangeReader), OIDCAuthenticationRequestReader: r.Identity.(identityapp.OIDCAuthenticationRequestReader), OIDCAuthenticationRequestConsumer: r.Identity.(identityapp.OIDCAuthenticationRequestConsumer), unit: u}
 		r.Audit = ssoExchangeFailureAudit{r.Audit, u}
 	}
 	return r
@@ -60,6 +60,8 @@ func (u *ssoExchangeFailureUnit) Commit(ctx context.Context) error {
 type ssoExchangeFailureIdentity struct {
 	app.IdentityRepository
 	identityapp.SSOExchangeReader
+	identityapp.OIDCAuthenticationRequestReader
+	identityapp.OIDCAuthenticationRequestConsumer
 	unit *ssoExchangeFailureUnit
 }
 
@@ -104,7 +106,7 @@ func (r ssoExchangeFailureAudit) Append(ctx context.Context, v domain.AuditChain
 	return v, nil
 }
 
-func signedSSOExchangeNativeFixture(t *testing.T, transactions app.UnitOfWorkFactory) (*repositoryFixture, ssoProviderFixtureScope, string) {
+func signedSSOExchangeNativeFixture(t *testing.T, transactions app.UnitOfWorkFactory) (*repositoryFixture, ssoProviderFixtureScope, string, string, string) {
 	t.Helper()
 	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "fixture-pepper", UnitOfWork: transactions, Now: peripheralFixtureQueryClock})
 	owner := seedProviderVerificationFixture(t, ledger, "Owner")
@@ -118,8 +120,13 @@ func signedSSOExchangeNativeFixture(t *testing.T, transactions app.UnitOfWorkFac
 		t.Fatal(err)
 	}
 	owner.provider = domain.SSOProvider(p)
-	token := signedRouterIDToken(t, priv, "exchange-fixture", map[string]any{"iss": p.Issuer, "aud": p.ClientID, "sub": "subject-Owner", "email": owner.user.Email, "email_verified": true, "groups": []string{"token-reviewers"}, "exp": peripheralFixtureQueryClock().Add(time.Hour).Unix()})
-	return ledger, owner, token
+	loginCommands := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
+	request, state, nonce, err := loginCommands.BeginOIDCAuthentication(t.Context(), identityapp.BeginOIDCAuthenticationInput{ProviderID: p.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := signedRouterIDToken(t, priv, "exchange-fixture", map[string]any{"nonce": nonce, "iss": p.Issuer, "aud": p.ClientID, "sub": "subject-Owner", "email": owner.user.Email, "email_verified": true, "groups": []string{"token-reviewers"}, "iat": peripheralFixtureQueryClock().Unix(), "exp": peripheralFixtureQueryClock().Add(time.Hour).Unix()})
+	return ledger, owner, token, request.ID, state
 }
 
 func TestSSOExchangeNativeFixtureRollsBackEveryLateFailureWithoutCookieOrReplay(t *testing.T) {
@@ -127,7 +134,7 @@ func TestSSOExchangeNativeFixtureRollsBackEveryLateFailureWithoutCookieOrReplay(
 		t.Run(phase, func(t *testing.T) {
 			base := app.NewMemoryUnitOfWorkFactory()
 			factory := &ssoExchangeFailureFactory{UnitOfWorkFactory: base}
-			ledger, owner, token := signedSSOExchangeNativeFixture(t, factory)
+			ledger, owner, token, requestID, stateSecret := signedSSOExchangeNativeFixture(t, factory)
 			server, err := newLegacyServerFixture(ledger)
 			if err != nil {
 				t.Fatal(err)
@@ -138,7 +145,7 @@ func TestSSOExchangeNativeFixtureRollsBackEveryLateFailureWithoutCookieOrReplay(
 				t.Fatal(err)
 			}
 			factory.phase = phase
-			body, err := json.Marshal(map[string]any{"provider_id": owner.provider.ID, "subject": "subject-Owner", "id_token": token})
+			body, err := json.Marshal(map[string]any{"provider_id": owner.provider.ID, "subject": "subject-Owner", "id_token": token, "authentication_request_id": requestID, "state_secret": stateSecret})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -160,8 +167,8 @@ func TestSSOExchangeNativeFixtureDenialsCommitOnlySafeVerification(t *testing.T)
 	for _, denial := range []string{"bad-signature", "missing-link", "deactivated-user"} {
 		t.Run(denial, func(t *testing.T) {
 			base := app.NewMemoryUnitOfWorkFactory()
-			ledger, owner, token := signedSSOExchangeNativeFixture(t, base)
-			in := identityapp.ExchangeSSOCredentialInput{ProviderID: owner.provider.ID, Subject: "subject-Owner", IDToken: token}
+			ledger, owner, token, requestID, stateSecret := signedSSOExchangeNativeFixture(t, base)
+			in := identityapp.ExchangeSSOCredentialInput{ProviderID: owner.provider.ID, Subject: "subject-Owner", IDToken: token, AuthenticationRequestID: requestID, StateSecret: stateSecret}
 			if denial == "bad-signature" {
 				in.IDToken = "malformed-token-canary"
 			}
@@ -186,12 +193,20 @@ func TestSSOExchangeNativeFixtureDenialsCommitOnlySafeVerification(t *testing.T)
 				t.Fatal("denial lost safe receipt or returned session/secret", v, session, err)
 			}
 			after, err := base.Snapshot()
-			if err != nil || len(after.ProviderVerifications) != 1 || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+1 || !reflect.DeepEqual(after.ProviderVerifications[v.ID], app.ProviderVerificationFromIdentity(v)) {
+			audits := 1
+			if denial == "deactivated-user" {
+				audits = 2
+			}
+			if err != nil || len(after.ProviderVerifications) != 1 || len(after.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+audits || !reflect.DeepEqual(after.ProviderVerifications[v.ID], app.ProviderVerificationFromIdentity(v)) {
 				t.Fatal("denial did not commit exactly its complete receipt and audit", err)
 			}
 			if strings.Contains(fmt.Sprint(after), in.IDToken) {
 				t.Fatal("denial retained credential")
 			}
+			if (after.OIDCAuthenticationRequests[requestID].ConsumedAt != nil) != (denial == "deactivated-user") {
+				t.Fatal("denial consumed the wrong proof class")
+			}
+			after.OIDCAuthenticationRequests = before.OIDCAuthenticationRequests
 			after.ProviderVerifications = before.ProviderVerifications
 			after.AuditEntries = before.AuditEntries
 			if !reflect.DeepEqual(before, after) {
@@ -218,7 +233,7 @@ func TestSSOExchangeNativeFixtureRejectsCurrentStateChangesBeforeCommit(t *testi
 	for _, mutation := range []string{"trust", "user", "grants"} {
 		t.Run(mutation, func(t *testing.T) {
 			base := app.NewMemoryUnitOfWorkFactory()
-			ledger, owner, token := signedSSOExchangeNativeFixture(t, base)
+			ledger, owner, token, requestID, stateSecret := signedSSOExchangeNativeFixture(t, base)
 			var changed app.MemoryUnitOfWorkSnapshot
 			credentials := ssoExchangeChangingCredentials{HMACAuthenticationCredentials: fixtureSessionCredentials("fixture-pepper"), change: func() {
 				switch mutation {
@@ -244,7 +259,7 @@ func TestSSOExchangeNativeFixtureRejectsCurrentStateChangesBeforeCommit(t *testi
 				}
 			}}
 			commands := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: credentials, clock: providerVerificationFixtureClock()}
-			v, session, secret, err := commands.ExchangeSSOCredential(t.Context(), identityapp.ExchangeSSOCredentialInput{ProviderID: owner.provider.ID, Subject: "subject-Owner", IDToken: token})
+			v, session, secret, err := commands.ExchangeSSOCredential(t.Context(), identityapp.ExchangeSSOCredentialInput{ProviderID: owner.provider.ID, Subject: "subject-Owner", IDToken: token, AuthenticationRequestID: requestID, StateSecret: stateSecret})
 			if !errors.Is(err, app.ErrConflict) || !reflect.DeepEqual(v, identitydomain.ProviderVerification{}) || !reflect.DeepEqual(session, identitydomain.SSOSession{}) || secret != "" {
 				t.Fatal("changed decision snapshot committed or exposed partial result", v, session, err)
 			}
@@ -256,11 +271,11 @@ func TestSSOExchangeNativeFixtureRejectsCurrentStateChangesBeforeCommit(t *testi
 	}
 }
 
-func TestSSOExchangeNativeFixtureCommitsSignedLoginAndRepeatsWithoutSecretReplay(t *testing.T) {
+func TestSSOExchangeNativeFixtureCommitsSignedLoginAndRejectsProofReplay(t *testing.T) {
 	base := app.NewMemoryUnitOfWorkFactory()
-	ledger, owner, token := signedSSOExchangeNativeFixture(t, base)
+	ledger, owner, token, requestID, stateSecret := signedSSOExchangeNativeFixture(t, base)
 	commands := ssoSessionFixtureCommands{catalogFixtureCommands: catalogFixtureCommands{ledger: ledger}, credentials: fixtureSessionCredentials("fixture-pepper"), clock: providerVerificationFixtureClock()}
-	in := identityapp.ExchangeSSOCredentialInput{ProviderID: owner.provider.ID, Subject: "subject-Owner", IDToken: token}
+	in := identityapp.ExchangeSSOCredentialInput{ProviderID: owner.provider.ID, Subject: "subject-Owner", IDToken: token, AuthenticationRequestID: requestID, StateSecret: stateSecret}
 	before, err := base.Snapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -278,7 +293,7 @@ func TestSSOExchangeNativeFixtureCommitsSignedLoginAndRepeatsWithoutSecretReplay
 		t.Fatal("exchange credential hash does not match issued secret")
 	}
 	stored.Hash = ""
-	if !reflect.DeepEqual(stored, domain.SSOSession(session)) || !reflect.DeepEqual(saved.ProviderVerifications[first.ID], app.ProviderVerificationFromIdentity(first)) || len(saved.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+2 {
+	if !reflect.DeepEqual(stored, domain.SSOSession(session)) || !reflect.DeepEqual(saved.ProviderVerifications[first.ID], app.ProviderVerificationFromIdentity(first)) || len(saved.AuditEntries[owner.actor.TenantID]) != len(before.AuditEntries[owner.actor.TenantID])+3 {
 		t.Fatal("exchange DTO differs from persisted metadata or lost atomic audits")
 	}
 	actor, err := fixtureSessionAuthenticator(ledger, "fixture-pepper", providerVerificationFixtureClock()).Authenticate(t.Context(), secret)
@@ -286,14 +301,14 @@ func TestSSOExchangeNativeFixtureCommitsSignedLoginAndRepeatsWithoutSecretReplay
 		t.Fatal("native exchange secret did not authenticate current group grants", actor, err)
 	}
 	second, next, nextSecret, err := commands.ExchangeSSOCredential(t.Context(), in)
-	if err != nil || second.ID == first.ID || next.ID == session.ID || nextSecret == secret {
+	if !errors.Is(err, app.ErrUnauthorized) || second.ID != "" || next.ID != "" || nextSecret != "" {
 		t.Fatal("repeated exchange reused receipt, session or secret", err)
 	}
 	state, err := base.Snapshot()
-	if err != nil || len(state.Idempotency) != 0 || len(state.SSOSessions) != 2 || len(state.ProviderVerifications) != 2 {
+	if err != nil || len(state.Idempotency) != 0 || len(state.SSOSessions) != 1 || len(state.ProviderVerifications) != 1 {
 		t.Fatal("exchange became an idempotency-replay surface", err)
 	}
-	for _, sensitive := range []string{token, secret, nextSecret} {
+	for _, sensitive := range []string{token, secret, stateSecret} {
 		if strings.Contains(fmt.Sprint(state), sensitive) {
 			t.Fatal("exchange state retained a plaintext credential")
 		}

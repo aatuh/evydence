@@ -291,6 +291,8 @@ func authorizationPolicyForOperation(id string) (routeAuthorizationPolicy, bool)
 		return routeAuthorizationPolicy{Mode: "public-form", TenantRule: "no-tenant-data"}, true
 	case "exchangeSSOCredential":
 		return routeAuthorizationPolicy{Mode: "verified-sso-credential", Actions: []authz.Action{authz.ActionSSOCredentialsExchange}, TenantRule: "verified-identity-tenant"}, true
+	case "beginOIDCAuthentication":
+		return routeAuthorizationPolicy{Mode: "public-login-state", TenantRule: "configured-provider-tenant"}, true
 	case "metrics":
 		p := actionRoutePolicy(authz.ActionTenantMetricsRead, authz.ActionInstanceMetricsRead)
 		p.TenantRule = "tenant-metrics-or-explicit-instance"
@@ -341,7 +343,7 @@ func validateRouteAuthorizationPolicy(op specs.Operation, p routeAuthorizationPo
 			return errors.New("public route borrows an unrelated action")
 		}
 		switch p.Mode {
-		case "public-probe", "public-form":
+		case "public-probe", "public-form", "public-login-state":
 			return nil
 		default:
 			return errors.New("unknown route authentication boundary")

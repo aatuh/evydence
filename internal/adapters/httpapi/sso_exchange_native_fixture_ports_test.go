@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/application"
@@ -12,6 +13,20 @@ import (
 )
 
 type ssoExchangeNativeReader struct{ catalogFixtureCommands }
+
+func (r ssoExchangeNativeReader) ReadOIDCAuthenticationRequest(ctx context.Context, tenant, provider, id string) (identitydomain.OIDCAuthenticationRequest, error) {
+	var out identitydomain.OIDCAuthenticationRequest
+	err := r.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
+		reader, ok := repos.Identity.(identityapp.OIDCAuthenticationRequestReader)
+		if !ok {
+			return app.ErrValidation
+		}
+		var err error
+		out, err = reader.ReadOIDCAuthenticationRequest(ctx, tenant, provider, id)
+		return err
+	})
+	return out, ssoExchangeNativeError(err)
+}
 
 func ssoExchangeNativeError(err error) error {
 	switch {
@@ -87,6 +102,15 @@ func (r ssoExchangeNativeReader) UserGrants(ctx context.Context, tenant, id stri
 type ssoExchangeNativeTransactions struct{ catalogFixtureCommands }
 type ssoExchangeNativeTransaction struct{ repos app.Repositories }
 
+func (tx ssoExchangeNativeTransaction) ConsumeOIDCAuthenticationRequest(ctx context.Context, v identitydomain.OIDCAuthenticationRequest, c application.Clock) (time.Time, error) {
+	consumer, ok := tx.repos.Identity.(identityapp.OIDCAuthenticationRequestConsumer)
+	if !ok {
+		return time.Time{}, identityapp.ErrValidation
+	}
+	at, err := consumer.ConsumeOIDCAuthenticationRequest(ctx, v, c)
+	return at, ssoExchangeNativeError(err)
+}
+
 func (f ssoExchangeNativeTransactions) ExecuteSSOExchange(ctx context.Context, run func(context.Context, identityapp.SSOExchangeTransaction) error) error {
 	return ssoExchangeNativeError(f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
 		if repos.Identity == nil || repos.Audit == nil {
@@ -124,5 +148,49 @@ func (f ssoSessionFixtureCommands) exchangeCommands() (*identityapp.SSOExchangeC
 	if credentials == nil {
 		credentials = fixtureSessionCredentials("test")
 	}
-	return identityapp.NewSSOExchangeCommands(identityapp.SSOExchangeCommandConfig{Reader: ssoExchangeNativeReader{f.catalogFixtureCommands}, Transactions: ssoExchangeNativeTransactions{f.catalogFixtureCommands}, Credentials: credentials, Verifier: app.LocalSSOCredentialVerifier{}, VerificationPolicy: app.LocalSSOVerificationPolicy{}, SessionGrants: ssoExchangeNativeGroupPolicy{}, Clock: clock, IDs: ids})
+	return identityapp.NewSSOExchangeCommands(identityapp.SSOExchangeCommandConfig{Reader: ssoExchangeNativeReader{f.catalogFixtureCommands}, Transactions: ssoExchangeNativeTransactions{f.catalogFixtureCommands}, Credentials: credentials, Verifier: app.LocalSSOCredentialVerifier{}, VerificationPolicy: app.LocalSSOVerificationPolicy{}, SessionGrants: ssoExchangeNativeGroupPolicy{}, Clock: clock, IDs: ids, AuthenticationRequests: ssoExchangeNativeReader{f.catalogFixtureCommands}, ProofCredentials: f.loginCredentials()})
+}
+
+type fixtureOIDCCredentials interface {
+	identityapp.AuthenticationCredentials
+	identityapp.OIDCRequestCredentials
+}
+
+func (f ssoSessionFixtureCommands) loginCredentials() fixtureOIDCCredentials {
+	if c, ok := f.credentials.(fixtureOIDCCredentials); ok {
+		return c
+	}
+	return fixtureSessionCredentials("test")
+}
+
+func (tx ssoExchangeNativeTransaction) ValidateOIDCProvider(ctx context.Context, p identitydomain.SSOProvider) error {
+	w, ok := tx.repos.Identity.(interface {
+		ValidateOIDCProvider(context.Context, identitydomain.SSOProvider) error
+	})
+	if !ok {
+		return identityapp.ErrValidation
+	}
+	return ssoExchangeNativeError(w.ValidateOIDCProvider(ctx, p))
+}
+func (tx ssoExchangeNativeTransaction) InsertOIDCAuthenticationRequest(ctx context.Context, v identitydomain.OIDCAuthenticationRequest, at time.Time) error {
+	w, ok := tx.repos.Identity.(interface {
+		InsertOIDCAuthenticationRequest(context.Context, identitydomain.OIDCAuthenticationRequest, time.Time) error
+	})
+	if !ok {
+		return identityapp.ErrValidation
+	}
+	return ssoExchangeNativeError(w.InsertOIDCAuthenticationRequest(ctx, v, at))
+}
+func (f ssoExchangeNativeTransactions) ExecuteOIDCAuthenticationRequest(ctx context.Context, run func(context.Context, identityapp.OIDCAuthenticationRequestTransaction) error) error {
+	return ssoExchangeNativeError(f.commandLedger(ctx).ExecuteUnitOfWork(ctx, func(ctx context.Context, repos app.Repositories) error {
+		return run(ctx, ssoExchangeNativeTransaction{repos})
+	}))
+}
+func (f ssoSessionFixtureCommands) BeginOIDCAuthentication(ctx context.Context, in identityapp.BeginOIDCAuthenticationInput) (identitydomain.OIDCAuthenticationRequest, string, string, error) {
+	clock, ids := f.clockIDs(false)
+	c, err := identityapp.NewOIDCAuthenticationRequestCommands(identityapp.OIDCAuthenticationRequestCommandConfig{Reader: ssoExchangeNativeReader{f.catalogFixtureCommands}, Transactions: ssoExchangeNativeTransactions{f.catalogFixtureCommands}, Credentials: f.loginCredentials(), Clock: clock, IDs: ids})
+	if err != nil {
+		return identitydomain.OIDCAuthenticationRequest{}, "", "", err
+	}
+	return c.BeginOIDCAuthentication(ctx, in)
 }

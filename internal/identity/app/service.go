@@ -25,6 +25,7 @@ var (
 	ErrForbidden          = application.ErrForbidden
 	ErrNotFound           = errors.New("not found")
 	ErrConflict           = errors.New("conflict")
+	ErrRateLimited        = errors.New("rate limited")
 	ErrVerificationFailed = errors.New("verification failed")
 )
 
@@ -177,7 +178,9 @@ func NewService(config Config) (*Service, error) {
 		Credentials: config.SessionCredentials, Verifier: config.CredentialVerifier,
 		VerificationPolicy: config.VerificationPolicy, SessionGrants: config.SessionGrants,
 		Clock: config.Clock, IDs: config.IDs,
-		SessionPolicy: policy,
+		SessionPolicy:          policy,
+		AuthenticationRequests: serviceOIDCRequestReader{reader: config.Reader},
+		ProofCredentials:       config.Credentials,
 	})
 	if err != nil {
 		return nil, err

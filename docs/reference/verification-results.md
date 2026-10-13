@@ -194,10 +194,11 @@ Source/test evidence: `internal/verification/app/subject_verification.go`,
 with tenant-wide `admin` authorization before reads; human actors need a tenant
 grant. An empty JSON object (or omitted body) is accepted. Non-object bodies,
 unknown fields and duplicate fields are rejected. The command creates
-`backup-manifest.v2.0.0` with `tenant-relational-state.v3` state-hash semantics.
+`backup-manifest.v2.0.0` with `tenant-relational-state.v4` state-hash semantics.
 The response field layout and eight legacy resource-count names are unchanged.
-The v3 profile includes session activity and captured lifetime/idle policy.
-Frozen v1/v2 vocabularies and hash vectors remain available for historical
+The v4 profile adds non-secret OIDC authentication-request metadata; state and
+nonce hashes are excluded. The frozen v3 profile includes session activity and
+captured lifetime/idle policy. Frozen v1/v2/v3 vocabularies and hash vectors remain available for historical
 reproduction; existing manifests and replay receipts are not rewritten.
 
 The commitment covers the full declared tenant-owned relational metadata set in
@@ -219,7 +220,7 @@ manifests retain their original hashes and recorded profile limitations. Failed
 consistency observations remain failed in the generated manifest.
 
 The Verification application context owns the immutable vocabulary: 97
-resources in v1 and 98 in v2. Its profile helpers return fresh resource/column
+resources in v1, 98 in v2/v3, and 99 in v4. Its profile helpers return fresh resource/column
 slices, and header-only SHA-256 regression vectors pin the original vocabulary
 and order. The PostgreSQL adapter consumes those definitions directly and owns
 SQL identifiers, tenant predicates, row keys, fences and bounded streaming.
@@ -595,3 +596,18 @@ what was and was not evaluated. Package redaction excludes raw payloads,
 signature bytes, tokens, private keys, and trust-root material. Refer to the
 [customer package manifest](customer-package-manifest.md) for the manifest
 shape and exclusion rules.
+
+## OIDC Token And Bound-Login Profiles
+
+New local OIDC token assessments use `provider-identity-oidc.v2`; required
+checks pin signature, issuer, audience, authorized party, subject and time
+validation rather than inferring proof from whichever checks are present.
+An exchange with verified server-owned state and nonce uses
+`provider-identity-oidc-bound.v1`, adding the required `nonce_state_binding`
+check. Request consumption and its audit commit with the session or verified
+identity denial. These profiles use the unchanged
+`verification-profile.v1.0.0` envelope format. Historical OIDC v1 receipts
+retain their recorded profiles; metadata-only assessments remain nonpassing
+for credential authority. No provider API call or universal interoperability
+proof is implied. See [the login contract](../api.md#sso-credential-exchange)
+for algorithms, time bounds, state delivery and unsupported orchestration.
