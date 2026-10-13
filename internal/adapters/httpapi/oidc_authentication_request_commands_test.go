@@ -160,8 +160,43 @@ func TestOIDCLoginContractDeclaresRequiredStateAndModeSpecificDelivery(t *testin
 	schemas := asStringAnyMap(t, components["schemas"])
 	request := asStringAnyMap(t, schemas["ExchangeSSOCredentialRequest"])
 	branches, ok := request["oneOf"].([]any)
-	if !ok || len(branches) != 3 {
+	if !ok || len(branches) != 4 {
 		t.Fatal("contract does not require OIDC state for separate API/browser modes")
+	}
+	modes := map[string]bool{}
+	for _, value := range branches {
+		branch := asStringAnyMap(t, value)
+		required := map[string]bool{}
+		for _, field := range branch["required"].([]any) {
+			required[field.(string)] = true
+		}
+		if !required["id_token"] {
+			continue
+		}
+		if !required["authentication_request_id"] {
+			t.Fatal("OIDC branch lost request correlation")
+		}
+		props := asStringAnyMap(t, branch["properties"])
+		delivery := asStringAnyMap(t, props["delivery"])["enum"].([]any)[0].(string)
+		if modes[delivery] {
+			t.Fatal("duplicate OIDC delivery branch", delivery)
+		}
+		modes[delivery] = true
+		if delivery == "api" && !required["state_secret"] {
+			t.Fatal("OIDC API branch lost required state")
+		}
+		if delivery == "browser" {
+			if !required["delivery"] || required["state_secret"] {
+				t.Fatal("OIDC browser branch lost cookie-only delivery")
+			}
+			forbidden := asStringAnyMap(t, branch["not"])["required"].([]any)
+			if len(forbidden) != 1 || forbidden[0] != "state_secret" {
+				t.Fatal("OIDC browser permits body state")
+			}
+		}
+	}
+	if len(modes) != 2 || !modes["api"] || !modes["browser"] {
+		t.Fatal("OIDC delivery mode missing", modes)
 	}
 	for _, name := range []string{"OIDCAuthenticationRequest", "BeginOIDCAuthenticationResponse"} {
 		schema := asStringAnyMap(t, schemas[name])

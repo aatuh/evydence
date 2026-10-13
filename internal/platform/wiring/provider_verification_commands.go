@@ -11,15 +11,25 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
-func BuildProviderVerificationCommands(factory app.UnitOfWorkFactory, client app.ProviderIdentityValidator) (*identityapp.ProviderVerificationCommands, error) {
+func BuildProviderVerificationCommands(factory app.UnitOfWorkFactory, client app.ProviderIdentityValidator, proofCredentials ...identityapp.AuthenticationCredentials) (*identityapp.ProviderVerificationCommands, error) {
 	if factory == nil {
 		return nil, errors.New("provider verification transactions are required")
+	}
+	if len(proofCredentials) > 1 {
+		return nil, identityapp.ErrValidation
+	}
+	var credentials identityapp.AuthenticationCredentials
+	if len(proofCredentials) == 1 {
+		credentials = proofCredentials[0]
+		if credentials == nil {
+			return nil, identityapp.ErrValidation
+		}
 	}
 	var live identityapp.ProviderIdentityValidator
 	if client != nil {
 		live = app.IdentityProviderAPIValidator{Client: client}
 	}
-	return identityapp.NewProviderVerificationCommands(identityapp.ProviderVerificationCommandConfig{Reader: providerReceiptReader{factory}, Transactions: providerReceiptTransactions{factory}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Verifier: app.LocalSSOCredentialVerifier{}, LiveProvider: live, VerificationPolicy: app.LocalSSOVerificationPolicy{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID)})
+	return identityapp.NewProviderVerificationCommands(identityapp.ProviderVerificationCommandConfig{Reader: providerReceiptReader{factory}, Transactions: providerReceiptTransactions{factory}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Verifier: ssoCredentialVerifier{}, LiveProvider: live, VerificationPolicy: app.LocalSSOVerificationPolicy{}, Clock: application.ClockFunc(time.Now), IDs: application.IDGeneratorFunc(application.NewID), SAMLAuthentication: ssoExchangeReader{factory: factory}, ProofCredentials: credentials})
 }
 
 type providerReceiptReader struct{ factory app.UnitOfWorkFactory }
@@ -84,4 +94,8 @@ func (t providerReceiptTransaction) InsertProviderVerification(ctx context.Conte
 }
 func (t providerReceiptTransaction) AppendAudit(ctx context.Context, e application.AuditEvent) (application.AuditReceipt, error) {
 	return t.exchange.AppendAudit(ctx, e)
+}
+
+func (t providerReceiptTransaction) ConsumeSAMLAuthenticationRequest(ctx context.Context, r identitydomain.SAMLAuthenticationRequest, p identitydomain.SAMLAssertionUse, c application.Clock) (time.Time, error) {
+	return t.exchange.ConsumeSAMLAuthenticationRequest(ctx, r, p, c)
 }

@@ -15,9 +15,23 @@ import (
 
 // LocalSSOCredentialVerifier uses configured public trust material only. It
 // owns no Ledger state and makes no provider/network calls.
-type LocalSSOCredentialVerifier struct{}
+type LocalSSOCredentialVerifier struct {
+	SAML identityapp.CredentialVerifier
+}
 
-func (LocalSSOCredentialVerifier) Verify(_ context.Context, request identityapp.CredentialVerificationRequest) (identityapp.CredentialVerificationResult, error) {
+func (v LocalSSOCredentialVerifier) Verify(ctx context.Context, request identityapp.CredentialVerificationRequest) (identityapp.CredentialVerificationResult, error) {
+	if ctx == nil {
+		return identityapp.CredentialVerificationResult{}, identityapp.ErrValidation
+	}
+	if err := ctx.Err(); err != nil {
+		return identityapp.CredentialVerificationResult{}, err
+	}
+	if request.Provider.Type == "saml" {
+		if v.SAML == nil {
+			return identityapp.CredentialVerificationResult{Checks: []identitydomain.VerificationCheck{{Name: "saml_verifier_configured", Result: "failed"}}}, identityapp.ErrVerificationFailed
+		}
+		return v.SAML.Verify(ctx, request)
+	}
 	provider := ssoProviderFromIdentityContext(request.Provider)
 	var checks []domain.VerifyCheck
 	var groups []string
@@ -39,8 +53,6 @@ func (LocalSSOCredentialVerifier) Verify(_ context.Context, request identityapp.
 			issuedAt = time.Unix(claims.IssuedAt, 0).UTC()
 			expiresAt = time.Unix(claims.ExpiresAt, 0).UTC()
 		}
-	case "saml":
-		checks, err = verifySAMLAssertion(provider, request.Subject, request.SAMLAssertion, request.Now)
 	default:
 		return identityapp.CredentialVerificationResult{}, identityapp.ErrValidation
 	}

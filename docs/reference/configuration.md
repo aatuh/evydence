@@ -157,8 +157,9 @@ Its five-minute lifetime and 64 retained requests per provider are fixed
 application bounds, not environment knobs. SAML recipient/NameID settings are
 tenant-owned provider bindings configured through the [SAML login API](../api.md#saml-binding-and-login-requests-unreleased), rather than environment variables.
 SAML uses its own bounded requests, signed assertion profile and state cookie.
-Historical custom receipt migration and the full acceptance gate remain
-EVY-1010 work; authentication failure telemetry remains EVY-1011.
+Standalone SAML receipts require API-delivered request context and consume
+proof without session issuance. Full acceptance remains EVY-1010 work;
+authentication failure telemetry remains EVY-1011.
 
 ## First-Tenant Bootstrap
 

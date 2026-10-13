@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"time"
 
+	"github.com/aatuh/evydence/internal/adapters/identity/saml"
 	"github.com/aatuh/evydence/internal/application"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
@@ -14,18 +16,20 @@ import (
 // these aggregate readers/writers. These oracles are not SQL/provider proof.
 
 type VerifyProviderIdentityInput struct {
-	ProviderType  string
-	ProviderID    string
-	Subject       string
-	IDToken       string
-	SAMLAssertion string
-	AccessToken   string
+	ProviderType                         string
+	ProviderID                           string
+	Subject                              string
+	IDToken                              string
+	SAMLAssertion                        string
+	AccessToken                          string
+	AuthenticationRequestID, StateSecret string
 }
 
 func (l *Ledger) VerifyProviderIdentity(ctx context.Context, actor domain.Actor, in VerifyProviderIdentityInput) (domain.ProviderVerification, error) {
 	record, err := l.verifyProviderIdentity(ctx, actor, identityapp.VerifyProviderIdentityInput{
 		ProviderType: in.ProviderType, ProviderID: in.ProviderID, Subject: in.Subject,
 		IDToken: in.IDToken, SAMLAssertion: in.SAMLAssertion, AccessToken: in.AccessToken,
+		AuthenticationRequestID: in.AuthenticationRequestID, StateSecret: in.StateSecret,
 	})
 	return ProviderVerificationFromIdentity(record), fromIdentityContextError(err)
 }
@@ -62,12 +66,28 @@ func (t localProviderVerificationTransaction) AppendAudit(ctx context.Context, e
 	return t.tx.AppendAudit(ctx, e)
 }
 
+func (t localProviderVerificationTransaction) ConsumeSAMLAuthenticationRequest(ctx context.Context, r identitydomain.SAMLAuthenticationRequest, p identitydomain.SAMLAssertionUse, c application.Clock) (time.Time, error) {
+	if t.tx.repositories == nil {
+		return time.Time{}, identityapp.ErrValidation
+	}
+	consumer, ok := t.tx.repositories.Identity.(identityapp.SAMLAuthenticationRequestConsumer)
+	if !ok {
+		return time.Time{}, identityapp.ErrValidation
+	}
+	at, err := consumer.ConsumeSAMLAuthenticationRequest(ctx, r, p, c)
+	return at, toIdentityContextError(err)
+}
+
 func (l *Ledger) verifyProviderIdentity(ctx context.Context, a identitydomain.Actor, in identityapp.VerifyProviderIdentityInput) (identitydomain.ProviderVerification, error) {
 	var live identityapp.ProviderIdentityValidator
 	if l.providerAPI != nil {
 		live = IdentityProviderAPIValidator{Client: l.providerAPI}
 	}
-	s, err := identityapp.NewProviderVerificationCommands(identityapp.ProviderVerificationCommandConfig{Reader: localProviderVerificationReader{ledgerIdentityReader{l}}, Transactions: localProviderVerificationTransactions{ledgerIdentityTransactions{l}}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Verifier: LocalSSOCredentialVerifier{}, LiveProvider: live, VerificationPolicy: LocalSSOVerificationPolicy{}, Clock: application.ClockFunc(l.now), IDs: application.IDGeneratorFunc(newID)})
+	credentials, err := identityapp.NewHMACAuthenticationCredentials(string(l.pepper))
+	if err != nil {
+		return identitydomain.ProviderVerification{}, err
+	}
+	s, err := identityapp.NewProviderVerificationCommands(identityapp.ProviderVerificationCommandConfig{Reader: localProviderVerificationReader{ledgerIdentityReader{l}}, Transactions: localProviderVerificationTransactions{ledgerIdentityTransactions{l}}, Authorizer: identityapp.NewMembershipWriteAuthorizer(), Verifier: LocalSSOCredentialVerifier{SAML: saml.Verifier{}}, LiveProvider: live, VerificationPolicy: LocalSSOVerificationPolicy{}, Clock: application.ClockFunc(l.now), IDs: application.IDGeneratorFunc(newID), SAMLAuthentication: ledgerSAMLProofReader{l}, ProofCredentials: credentials})
 	if err != nil {
 		return identitydomain.ProviderVerification{}, err
 	}

@@ -225,12 +225,14 @@ func TestProviderReceiptMetadataLocalAndLiveModes(t *testing.T) {
 				in.AccessToken = "access-token-secret"
 			}
 			if mode == "saml" {
-				f.provider.Type = "saml"
-				in.ProviderType = "saml"
-				in.SAMLAssertion = "assertion-secret"
+				c, f, _, a, in = boundSAMLProviderReceiptForTest(t)
+			}
+			wantAudits := 1
+			if mode == "saml" {
+				wantAudits = 2
 			}
 			v, err := c.VerifyProviderIdentity(t.Context(), a, in)
-			if err != nil || len(f.records) != 1 || len(f.audits) != 1 || !reflect.DeepEqual(v, f.records[0]) {
+			if err != nil || len(f.records) != 1 || len(f.audits) != wantAudits || !reflect.DeepEqual(v, f.records[0]) {
 				t.Fatalf("receipt=%#v err=%v", v, err)
 			}
 			want := "passed"
@@ -243,7 +245,11 @@ func TestProviderReceiptMetadataLocalAndLiveModes(t *testing.T) {
 			if f.audits[0].ActorID != a.KeyID || f.audits[0].ActorType != "api_key" || f.audits[0].SubjectID != v.ID || f.audits[0].EntryType != "provider_identity.verified" {
 				t.Fatal("audit attribution mismatch", f.audits)
 			}
-			if f.snapshot.UserLoaded || f.snapshot.UserGrantsLoaded || !f.snapshot.IdentityLinkFound || f.snapshot.Provider.Status != "inactive" {
+			wantStatus := "inactive"
+			if mode == "saml" {
+				wantStatus = "active"
+			}
+			if f.snapshot.UserLoaded || f.snapshot.UserGrantsLoaded || !f.snapshot.IdentityLinkFound || f.snapshot.Provider.Status != wantStatus {
 				t.Fatal("receipt changed login semantics", f.snapshot)
 			}
 			if f.liveCalls > 0 && (f.request.AccessToken != in.AccessToken || f.request.TenantID != a.TenantID || f.request.Issuer != f.provider.Issuer) {

@@ -15,8 +15,12 @@ type SAMLExchangeReader interface {
 }
 
 func (s *SSOExchangeCommands) boundSAMLRequest(ctx context.Context, p identitydomain.SSOProvider, in ExchangeSSOCredentialInput, now time.Time) (identitydomain.SAMLAuthenticationRequest, error) {
+	return boundSAMLAuthenticationRequest(ctx, s.config.SAMLAuthentication, s.config.ProofCredentials, p, in, now)
+}
+
+func boundSAMLAuthenticationRequest(ctx context.Context, reader SAMLExchangeReader, credentials AuthenticationCredentials, p identitydomain.SSOProvider, in ExchangeSSOCredentialInput, now time.Time) (identitydomain.SAMLAuthenticationRequest, error) {
 	id := strings.TrimSpace(in.AuthenticationRequestID)
-	if s.config.SAMLAuthentication == nil || !identitydomain.ValidSAMLID(id) || len(in.StateSecret) != len("evylogin_")+43 || !strings.HasPrefix(in.StateSecret, "evylogin_") || !validIssuedLoginCredential(Credential{Secret: in.StateSecret, Prefix: in.StateSecret[:12], Hash: s.config.ProofCredentials.Hash(in.StateSecret)}, "evylogin_") {
+	if reader == nil || credentials == nil || !identitydomain.ValidSAMLID(id) || len(in.StateSecret) != len("evylogin_")+43 || !strings.HasPrefix(in.StateSecret, "evylogin_") || !validIssuedLoginCredential(Credential{Secret: in.StateSecret, Prefix: in.StateSecret[:12], Hash: credentials.Hash(in.StateSecret)}, "evylogin_") {
 		return identitydomain.SAMLAuthenticationRequest{}, ErrUnauthorized
 	}
 	delivery := in.Delivery
@@ -26,7 +30,7 @@ func (s *SSOExchangeCommands) boundSAMLRequest(ctx context.Context, p identitydo
 	if delivery != "api" && delivery != "browser" {
 		return identitydomain.SAMLAuthenticationRequest{}, ErrValidation
 	}
-	b, err := s.config.SAMLAuthentication.SAMLProviderBindingByID(ctx, p.ID)
+	b, err := reader.SAMLProviderBindingByID(ctx, p.ID)
 	if err != nil {
 		return identitydomain.SAMLAuthenticationRequest{}, authenticationError(ctx)
 	}
@@ -45,11 +49,11 @@ func (s *SSOExchangeCommands) boundSAMLRequest(ctx context.Context, p identitydo
 	if err != nil || bindingFingerprint != fingerprint {
 		return identitydomain.SAMLAuthenticationRequest{}, ErrUnauthorized
 	}
-	r, err := s.config.SAMLAuthentication.ReadSAMLAuthenticationRequest(ctx, p.TenantID, p.ID, id)
+	r, err := reader.ReadSAMLAuthenticationRequest(ctx, p.TenantID, p.ID, id)
 	if err != nil {
 		return identitydomain.SAMLAuthenticationRequest{}, authenticationError(ctx)
 	}
-	if r.ID != id || r.TenantID != p.TenantID || r.ProviderID != p.ID || r.Delivery != delivery || r.Issuer != p.Issuer || r.Audience != p.ClientID || r.Recipient != b.Recipient || r.NameIDFormat != b.NameIDFormat || r.TrustFingerprint != fingerprint || !r.PendingAt(now) || !s.config.ProofCredentials.Equal(r.StateHash, s.config.ProofCredentials.Hash(in.StateSecret)) {
+	if r.ID != id || r.TenantID != p.TenantID || r.ProviderID != p.ID || r.Delivery != delivery || r.Issuer != p.Issuer || r.Audience != p.ClientID || r.Recipient != b.Recipient || r.NameIDFormat != b.NameIDFormat || r.TrustFingerprint != fingerprint || !r.PendingAt(now) || !credentials.Equal(r.StateHash, credentials.Hash(in.StateSecret)) {
 		return identitydomain.SAMLAuthenticationRequest{}, ErrUnauthorized
 	}
 	return r, nil

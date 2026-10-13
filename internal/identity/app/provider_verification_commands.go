@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
@@ -11,6 +12,7 @@ import (
 
 type VerifyProviderIdentityInput struct {
 	ProviderType, ProviderID, Subject, IDToken, SAMLAssertion, AccessToken string
+	AuthenticationRequestID, StateSecret                                   string
 }
 type ProviderIdentityValidationRequest struct {
 	TenantID, ProviderID, ProviderType, Issuer, Subject, GroupsClaim, AccessToken string
@@ -46,6 +48,8 @@ type ProviderVerificationCommandConfig struct {
 	VerificationPolicy ProviderVerificationPolicy
 	Clock              application.Clock
 	IDs                application.IDGenerator
+	SAMLAuthentication SAMLExchangeReader
+	ProofCredentials   AuthenticationCredentials
 }
 type ProviderVerificationCommands struct {
 	config ProviderVerificationCommandConfig
@@ -58,7 +62,7 @@ func NewProviderVerificationCommands(c ProviderVerificationCommandConfig) (*Prov
 	return &ProviderVerificationCommands{c}, nil
 }
 func normalizeProviderVerification(in VerifyProviderIdentityInput) (VerifyProviderIdentityInput, error) {
-	if !validAPIKeyText(in.ProviderType, 128) || !validAPIKeyText(in.ProviderID, 1024) || !validAPIKeyText(in.Subject, 65536) || !validAPIKeyText(in.IDToken, 65536) || !validAPIKeyText(in.SAMLAssertion, 65536) || !validAPIKeyText(in.AccessToken, 16384) {
+	if !validAPIKeyText(in.ProviderType, 128) || !validAPIKeyText(in.ProviderID, 1024) || !validAPIKeyText(in.Subject, 65536) || !validAPIKeyText(in.IDToken, 65536) || !validAPIKeyText(in.SAMLAssertion, 65536) || !validAPIKeyText(in.AccessToken, 16384) || !validAPIKeyText(in.AuthenticationRequestID, 128) || !validAPIKeyText(in.StateSecret, 128) {
 		return in, ErrValidation
 	}
 	in.ProviderType = strings.TrimSpace(in.ProviderType)
@@ -70,8 +74,14 @@ func normalizeProviderVerification(in VerifyProviderIdentityInput) (VerifyProvid
 	if in.ProviderID == "" || in.Subject == "" || (in.ProviderType != "oidc" && in.ProviderType != "saml") || (in.ProviderType == "oidc" && in.SAMLAssertion != "") || (in.ProviderType == "saml" && (in.IDToken != "" || in.AccessToken != "")) {
 		return in, ErrValidation
 	}
+	if (in.AuthenticationRequestID != "" || in.StateSecret != "") && (in.ProviderType != "saml" || in.SAMLAssertion == "") {
+		return in, ErrValidation
+	}
+	if in.ProviderType == "saml" && in.SAMLAssertion != "" && (in.AuthenticationRequestID == "" || in.StateSecret == "") {
+		return in, ErrUnauthorized
+	}
 	for _, label := range []string{in.ProviderType, in.ProviderID, in.Subject} {
-		if containsCredential(label, in.IDToken, in.SAMLAssertion, in.AccessToken) {
+		if containsCredential(label, in.IDToken, in.SAMLAssertion, in.AccessToken, in.StateSecret) {
 			return in, ErrValidation
 		}
 	}
@@ -130,9 +140,27 @@ func (s *ProviderVerificationCommands) VerifyProviderIdentity(ctx context.Contex
 		snapshot.IdentityLink = link
 	}
 	checks := []identitydomain.VerificationCheck{}
+	localRequest := CredentialVerificationRequest{Provider: cloneSSOProvider(p), Subject: in.Subject, IDToken: in.IDToken, SAMLAssertion: in.SAMLAssertion, Now: now}
+	if in.SAMLAssertion != "" {
+		r, err := boundSAMLAuthenticationRequest(ctx, s.config.SAMLAuthentication, s.config.ProofCredentials, p, ExchangeSSOCredentialInput{AuthenticationRequestID: in.AuthenticationRequestID, StateSecret: in.StateSecret, Delivery: "api"}, now)
+		if err != nil {
+			return identitydomain.ProviderVerification{}, err
+		}
+		snapshot.SAMLAuthenticationRequest = &r
+		localRequest.SAMLRequestID, localRequest.SAMLRecipient, localRequest.SAMLNameIDFormat = r.ID, r.Recipient, r.NameIDFormat
+	}
 	limitations := []string{"Verification uses stored provider metadata and configured local token/assertion trust roots; no live provider API or discovery call is made."}
 	if in.IDToken != "" || in.SAMLAssertion != "" {
-		local, verifyErr := s.config.Verifier.Verify(ctx, CredentialVerificationRequest{Provider: cloneSSOProvider(p), Subject: in.Subject, IDToken: in.IDToken, SAMLAssertion: in.SAMLAssertion, Now: now})
+		local, verifyErr := s.config.Verifier.Verify(ctx, localRequest)
+		if in.SAMLAssertion != "" && verifyErr == nil {
+			proof, err := verifiedSAMLAssertionUse(*snapshot.SAMLAuthenticationRequest, local, now)
+			if err != nil {
+				return identitydomain.ProviderVerification{}, err
+			}
+			snapshot.SAMLAssertionUse = &proof
+			snapshot.ProofExpiresAt = proof.ExpiresAt
+			checks = append(checks, identitydomain.VerificationCheck{Name: "saml_request_state_binding", Result: "passed"})
+		}
 		if validProviderValidationResult(ProviderIdentityValidationResult{Checks: local.Checks}) {
 			checks = append(checks, local.Checks...)
 		} else {
@@ -181,9 +209,9 @@ func (s *ProviderVerificationCommands) VerifyProviderIdentity(ctx context.Contex
 		linkResult = "passed"
 	}
 	checks = append(checks, identitydomain.VerificationCheck{Name: "verified_identity_link", Result: linkResult})
-	checks = redactedCredentialChecks(checks, in.IDToken, in.SAMLAssertion, in.AccessToken)
+	checks = redactedCredentialChecks(checks, in.IDToken, in.SAMLAssertion, in.AccessToken, in.StateSecret)
 	for i := range limitations {
-		limitations[i] = redactExactSecrets(limitations[i], in.IDToken, in.SAMLAssertion, in.AccessToken)
+		limitations[i] = redactExactSecrets(limitations[i], in.IDToken, in.SAMLAssertion, in.AccessToken, in.StateSecret)
 	}
 	// Redaction can expand bytes or alter an adapter-supplied check label/state.
 	// Recheck the complete sanitized assessment, not just the original output.
@@ -206,6 +234,21 @@ func (s *ProviderVerificationCommands) VerifyProviderIdentity(ctx context.Contex
 		if err := tx.ValidateSSOExchangeState(ctx, cloneSSOExchangeSnapshot(snapshot)); err != nil {
 			return err
 		}
+		var consumedAt time.Time
+		if snapshot.SAMLAssertionUse != nil {
+			consumer, ok := tx.(SAMLAuthenticationRequestConsumer)
+			if !ok {
+				return ErrValidation
+			}
+			at, err := consumer.ConsumeSAMLAuthenticationRequest(ctx, *snapshot.SAMLAuthenticationRequest, *snapshot.SAMLAssertionUse, s.config.Clock)
+			if err != nil {
+				return err
+			}
+			if !samlExchangeProofFresh(snapshot, at) {
+				return ErrUnauthorized
+			}
+			consumedAt = at
+		}
 		if err := tx.InsertProviderVerification(ctx, cloneProviderVerification(v)); err != nil {
 			return err
 		}
@@ -213,10 +256,22 @@ func (s *ProviderVerificationCommands) VerifyProviderIdentity(ctx context.Contex
 		if err != nil {
 			return err
 		}
+		if snapshot.SAMLAssertionUse != nil {
+			_, err = tx.AppendAudit(ctx, application.AuditEvent{ID: s.config.IDs.NewID("ace"), TenantID: a.TenantID, EntryType: "saml_authentication_request.consumed", SubjectType: "saml_authentication_request", SubjectID: snapshot.SAMLAuthenticationRequest.ID, ActorType: actorType(a), ActorID: actorID(a), OccurredAt: consumedAt})
+			if err != nil {
+				return err
+			}
+		}
+		if snapshot.SAMLAssertionUse != nil && !samlExchangeProofFresh(snapshot, s.config.Clock.Now().UTC()) {
+			return ErrUnauthorized
+		}
 		return ctx.Err()
 	})
 	if err != nil {
 		return identitydomain.ProviderVerification{}, err
+	}
+	if snapshot.SAMLAssertionUse != nil && !samlExchangeProofFresh(snapshot, s.config.Clock.Now().UTC()) {
+		return identitydomain.ProviderVerification{}, ErrUnauthorized
 	}
 	if s.config.VerificationPolicy.ReturnsFailure(v.Result) {
 		return cloneProviderVerification(v), ErrVerificationFailed

@@ -50,7 +50,7 @@ func TestSAMLProviderBindingHTTPUsesFocusedCommandsAndExplicitProjection(t *test
 		t.Fatal(err)
 	}
 	const path = "/v1/sso/providers/provider/saml-binding"
-	for i, body := range []string{`null`, `[]`, `{`, `{} {}`, `{"recipient":null}`, `{"recipient":"https://sp.example.test/consume","recipient":"https://foreign.example.test"}`, `{"recipient":"https://sp.example.test/consume","extra":true}`, `{"recipient":"https://sp.example.test/consume","name_id_format":null}`, `{"Recipient":"https://sp.example.test/consume"}`} {
+	for i, body := range []string{`null`, `[]`, `{`, `{} {}`, `{"recipient":null}`, `{"recipient":"https://sp.example.test/consume","recipient":"https://foreign.example.test"}`, `{"recipient":"https://sp.example.test/consume","extra":true}`, `{"recipient":"https://sp.example.test/consume","name_id_format":null}`, `{"Recipient":"https://sp.example.test/consume"}`, `{"recipient":"https://sp.example.test/consume","name_id_format":""}`, `{"recipient":"https://sp.example.test/consume","name_id_format":" "}`} {
 		postRaw(t, s, secret, path, fmt.Sprintf("bad-saml-binding-%d", i), []byte(body), 400)
 	}
 	if f.guards+f.writes != 0 {

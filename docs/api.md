@@ -1272,8 +1272,9 @@ made by these login endpoints. The focused SAML exchange now requires
 server-owned request context and the bounded signed XML assertion profile;
 unbound historical custom assertions cannot issue sessions. Use the separate
 SAML setup below; OIDC state and cookies cannot substitute for SAML state.
-Migration of the historical standalone SAML receipt path and the complete
-EVY-1010 acceptance gate remain pending. The new login flow does not establish
+Standalone SAML receipts also require this request context and standard profile;
+they consume valid proof without issuing a session. The complete EVY-1010
+acceptance gate remains pending. The new login flow does not establish
 arbitrary-provider interoperability.
 
 #### SAML Binding And Login Requests (Unreleased)
@@ -1288,7 +1289,7 @@ with an `Idempotency-Key` and this strict body:
 The provider must belong to the actor's tenant, be active and type `saml`, and
 contain configured public signing certificates. Recipient is exact HTTPS,
 without userinfo, query or fragment. Omitted NameID format defaults to
-`unspecified`; the other supported formats are SAML 2.0 `persistent`/`transient`
+`unspecified`; an explicitly empty or unsupported format is rejected. The other supported formats are SAML 2.0 `persistent`/`transient`
 and SAML 1.1 `emailAddress`, using their full standard URIs. GET on the same
 path returns the binding. Both operations require current tenant-wide
 administration; foreign/missing records return `404`. Configuration, audit and
@@ -1392,6 +1393,18 @@ verified link only; it does not prove a provider credential. Optional OIDC
 OIDC `access_token` uses the configured live provider validator, if present;
 missing configuration or provider errors cannot become a passed assessment.
 OIDC rejects SAML assertions; SAML rejects ID/access tokens.
+
+When a SAML assertion is supplied, include `authentication_request_id` and
+`state_secret` from SAML initiation with API delivery. The same standard XML
+signature, configured recipient/NameID and signed correlation profile as login
+applies. Verified request/assertion consumption, receipt and audits commit
+together without creating a session. A verified link denial consumes the proof;
+invalid signatures do not. Fresh verification cannot reuse a consumed proof,
+while completed idempotency replay returns the historical receipt after current
+administration/provider checks. Metadata-only inactive assessments remain
+available; credential proof requires an active configured provider and binding.
+Historical custom signatures and unbound assertions cannot produce a passing
+SAML receipt. Neither a receipt nor its replay grants session authority.
 
 The API rejects malformed, duplicate, unknown, trailing or non-object JSON,
 explicit null fields, invalid UTF-8 and NUL text with `400`. Before trimming,

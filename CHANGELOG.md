@@ -20,8 +20,9 @@ Verification, replay consumption, sessions and audits commit together. Signed
 session deadlines and selected-certificate proof expiry are enforced across
 transaction waits. Historical custom assertions cannot issue exchange sessions;
 clients must migrate to the [unreleased SAML contract](docs/reference/api-versioning.md#evy-1010-saml-login-contract-unreleased).
-Standalone historical receipt migration and the complete ticket acceptance
-gate remain pending. These local source checks establish no real-provider
+Standalone SAML receipts now require API-delivered request/state and the same
+standard signed profile, with atomic consumption and no session issuance.
+The complete ticket acceptance gate remains pending. These local source checks establish no real-provider
 interoperability, external approval or release publication.
 
 Added server-owned OIDC login state and nonce with atomic single-use proof

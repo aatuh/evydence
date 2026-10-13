@@ -224,14 +224,22 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"jwks":                      map[string]any{"type": "object", "description": "OIDC public JWKS material. Private keys and provider secrets must not be supplied."},
 		"saml_signing_certificates": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "PEM-encoded SAML assertion signing certificates. Private keys and provider secrets must not be supplied."},
 	}))
-	registry.RegisterSchema("VerifyProviderIdentityRequest", objectSchema(map[string]any{
-		"provider_type":  map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
-		"provider_id":    map[string]any{"type": "string", "maxLength": 1024, "description": "Nonblank tenant-owned provider ID, bounded at 1024 UTF-8 bytes before trimming."},
-		"subject":        map[string]any{"type": "string", "maxLength": 65536, "description": "Nonblank case-sensitive provider subject, bounded at 65536 UTF-8 bytes; cannot contain a supplied credential."},
-		"id_token":       map[string]any{"type": "string", "maxLength": 65536, "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS; bounded at 65536 UTF-8 bytes."},
-		"saml_assertion": map[string]any{"type": "string", "maxLength": 65536, "description": "Optional SAML assertion verified locally against configured SAML signing certificates; bounded at 65536 UTF-8 bytes."},
-		"access_token":   map[string]any{"type": "string", "maxLength": 16384, "description": "Optional OIDC access token used only by the configured live provider validator; bounded at 16384 UTF-8 bytes. It is not persisted and must not be supplied for SAML providers."},
-	}, "provider_type", "provider_id", "subject"))
+	providerReceiptSchema := objectSchema(map[string]any{
+		"provider_type":             map[string]any{"type": "string", "enum": []string{"oidc", "saml"}},
+		"provider_id":               map[string]any{"type": "string", "maxLength": 1024, "description": "Nonblank tenant-owned provider ID, bounded at 1024 UTF-8 bytes before trimming."},
+		"subject":                   map[string]any{"type": "string", "maxLength": 65536, "description": "Nonblank case-sensitive provider subject, bounded at 65536 UTF-8 bytes; cannot contain a supplied credential."},
+		"id_token":                  map[string]any{"type": "string", "maxLength": 65536, "description": "Optional OIDC ID token verified locally against the provider's configured static JWKS; bounded at 65536 UTF-8 bytes."},
+		"saml_assertion":            map[string]any{"type": "string", "maxLength": 65536, "description": "Optional SAML assertion verified locally against configured SAML signing certificates; bounded at 65536 UTF-8 bytes."},
+		"access_token":              map[string]any{"type": "string", "maxLength": 16384, "description": "Optional OIDC access token used only by the configured live provider validator; bounded at 16384 UTF-8 bytes. It is not persisted and must not be supplied for SAML providers."},
+		"authentication_request_id": map[string]any{"type": "string", "minLength": 1, "maxLength": 128, "description": "Required when a SAML assertion is supplied. Unexpired server-owned SAML API request; forbidden for OIDC or metadata-only assessment."},
+		"state_secret":              map[string]any{"type": "string", "minLength": 52, "maxLength": 52, "pattern": "^evylogin_[A-Za-z0-9_-]{43}$", "description": "Required with a SAML assertion, using API-delivered state. Raw state is never retained in the receipt or replay response."},
+	}, "provider_type", "provider_id", "subject")
+	providerReceiptSchema["oneOf"] = []any{
+		map[string]any{"properties": map[string]any{"provider_type": map[string]any{"const": "saml"}, "saml_assertion": map[string]any{"minLength": 1, "pattern": `\S`}, "id_token": map[string]any{"maxLength": 0}, "access_token": map[string]any{"maxLength": 0}}, "required": []string{"saml_assertion", "authentication_request_id", "state_secret"}},
+		map[string]any{"properties": map[string]any{"provider_type": map[string]any{"const": "saml"}, "saml_assertion": map[string]any{"maxLength": 0}, "id_token": map[string]any{"maxLength": 0}, "access_token": map[string]any{"maxLength": 0}}, "not": map[string]any{"anyOf": []any{map[string]any{"required": []string{"authentication_request_id"}}, map[string]any{"required": []string{"state_secret"}}}}},
+		map[string]any{"properties": map[string]any{"provider_type": map[string]any{"const": "oidc"}, "saml_assertion": map[string]any{"maxLength": 0}}, "not": map[string]any{"anyOf": []any{map[string]any{"required": []string{"authentication_request_id"}}, map[string]any{"required": []string{"state_secret"}}}}},
+	}
+	registry.RegisterSchema("VerifyProviderIdentityRequest", providerReceiptSchema)
 	registry.RegisterSchema("VerifyCheck", objectSchema(map[string]any{
 		"name":   map[string]any{"type": "string"},
 		"result": map[string]any{"type": "string", "enum": []string{"passed", "failed", "warning", "skipped", "error"}},

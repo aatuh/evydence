@@ -39,6 +39,9 @@ type MemoryUnitOfWorkSnapshot struct {
 	ProviderVerifications      map[string]domain.ProviderVerification
 	SSOSessions                map[string]domain.SSOSession
 	OIDCAuthenticationRequests map[string]identitydomain.OIDCAuthenticationRequest
+	SAMLProviderBindings       map[string]identitydomain.SAMLProviderBinding
+	SAMLAuthenticationRequests map[string]identitydomain.SAMLAuthenticationRequest
+	SAMLAssertionConsumptions  map[[3]string]memorySAMLAssertionConsumption
 	CustomerPortalAccess       map[string]domain.CustomerPortalAccess
 	Products                   map[string]domain.Product
 	Projects                   map[string]domain.Project
@@ -3822,6 +3825,9 @@ func emptyMemoryUnitOfWorkSnapshot() MemoryUnitOfWorkSnapshot {
 		ProviderVerifications:      map[string]domain.ProviderVerification{},
 		SSOSessions:                map[string]domain.SSOSession{},
 		OIDCAuthenticationRequests: map[string]identitydomain.OIDCAuthenticationRequest{},
+		SAMLProviderBindings:       map[string]identitydomain.SAMLProviderBinding{},
+		SAMLAuthenticationRequests: map[string]identitydomain.SAMLAuthenticationRequest{},
+		SAMLAssertionConsumptions:  map[[3]string]memorySAMLAssertionConsumption{},
 		CustomerPortalAccess:       map[string]domain.CustomerPortalAccess{},
 		Products:                   map[string]domain.Product{},
 		Projects:                   map[string]domain.Project{},
@@ -3945,6 +3951,19 @@ func cloneMemoryUnitOfWorkSnapshot(snapshot MemoryUnitOfWorkSnapshot) (MemoryUni
 	}
 	for id, request := range snapshot.OIDCAuthenticationRequests {
 		cloned.OIDCAuthenticationRequests[id] = cloneMemoryOIDCRequest(request)
+	}
+	for id, b := range snapshot.SAMLProviderBindings {
+		binding, err := cloneMemoryJSON(b)
+		if err != nil {
+			return MemoryUnitOfWorkSnapshot{}, err
+		}
+		cloned.SAMLProviderBindings[id] = binding
+	}
+	for id, r := range snapshot.SAMLAuthenticationRequests {
+		cloned.SAMLAuthenticationRequests[id] = cloneMemorySAMLRequest(r)
+	}
+	for k, v := range snapshot.SAMLAssertionConsumptions {
+		cloned.SAMLAssertionConsumptions[k] = v
 	}
 	cloned.CustomerPortalAccess = make(map[string]domain.CustomerPortalAccess, len(snapshot.CustomerPortalAccess))
 	for id, access := range snapshot.CustomerPortalAccess {

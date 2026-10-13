@@ -12,7 +12,7 @@ import (
 
 func TestEveryRegisteredRouteDeclaresAuthorizationPolicyContract(t *testing.T) {
 	routes := (&Server{}).routeDefinitions()
-	if len(routes) != 190 {
+	if len(routes) != 193 {
 		t.Fatalf("route inventory changed: %d; review every new/removed policy contract", len(routes))
 	}
 	seen := map[string]bool{}
@@ -30,6 +30,19 @@ func TestEveryRegisteredRouteDeclaresAuthorizationPolicyContract(t *testing.T) {
 		}
 		if err := validateRouteAuthorizationPolicy(route.op, policy); err != nil {
 			t.Errorf("%s: %v", route.op.OperationID, err)
+		}
+	}
+	for _, operation := range []string{"configureSAMLProviderBinding", "getSAMLProviderBinding", "beginSAMLAuthentication"} {
+		if !seen[operation] {
+			t.Fatal("missing SAML policy operation", operation)
+		}
+		p, ok := authorizationPolicyForOperation(operation)
+		if operation == "beginSAMLAuthentication" {
+			if !ok || p.Mode != "public-login-state" || p.TenantRule != "configured-provider-tenant" || len(p.Actions) != 0 {
+				t.Fatal("SAML initiation policy drift", p)
+			}
+		} else if !ok || p.Mode != "authenticated-principal" || p.TenantRule != "current-tenant-grant" || !slices.Equal(p.Actions, []authz.Action{authz.ActionMembershipsManage}) {
+			t.Fatal("SAML binding administrator policy drift", p)
 		}
 	}
 }

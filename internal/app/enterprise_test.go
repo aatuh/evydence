@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/domain"
+	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
 
 func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
@@ -107,7 +108,7 @@ func TestEnterpriseIdentityRBACSSOAndAdminSnapshot(t *testing.T) {
 }
 
 func TestSAMLProviderIdentityVerificationUsesConfiguredCertificate(t *testing.T) {
-	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow})
+	ledger := newLegacyLedgerFixture(Config{APIKeyPepper: "test-pepper", Now: fixedNow, UnitOfWork: NewMemoryUnitOfWorkFactory()})
 	ctx := context.Background()
 	_, _, secret, err := ledger.BootstrapTenant(ctx, "Tenant", "admin", []string{"*"})
 	if err != nil {
@@ -139,16 +140,18 @@ func TestSAMLProviderIdentityVerificationUsesConfiguredCertificate(t *testing.T)
 	if _, err := ledger.LinkSSOIdentity(ctx, actor, LinkSSOIdentityInput{UserID: user.ID, ProviderID: provider.ID, Subject: "saml-sub", Email: user.Email, Verified: true}); err != nil {
 		t.Fatalf("identity link: %v", err)
 	}
-	assertion := signedTestSAMLAssertion(t, privateKey, "https://saml-idp.example.test", "saml-client", "saml-sub", fixedNow().Add(-time.Minute), fixedNow().Add(time.Hour))
-	verification, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "saml", ProviderID: provider.ID, Subject: "saml-sub", SAMLAssertion: assertion})
+	request, state := seedOracleSAMLRequest(t, ledger, identitydomain.SSOProvider(provider))
+	assertion := standardOracleSAMLAssertion(t, privateKey, certPEM, request, "saml-sub")
+	verification, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "saml", ProviderID: provider.ID, Subject: "saml-sub", SAMLAssertion: assertion, AuthenticationRequestID: request.ID, StateSecret: state})
 	if err != nil {
 		t.Fatalf("provider verification: %v", err)
 	}
 	if verification.Result != "passed" || !hasVerifyCheck(verification.Checks, "saml_assertion_signature", "passed") {
 		t.Fatalf("verification = %#v", verification)
 	}
-	badAssertion := strings.Replace(assertion, "saml-sub", "other-sub", 1)
-	failed, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "saml", ProviderID: provider.ID, Subject: "saml-sub", SAMLAssertion: badAssertion})
+	request, state = seedOracleSAMLRequest(t, ledger, identitydomain.SSOProvider(provider))
+	badAssertion := strings.Replace(standardOracleSAMLAssertion(t, privateKey, certPEM, request, "saml-sub"), "saml-sub", "other-sub", 1)
+	failed, err := ledger.VerifyProviderIdentity(ctx, actor, VerifyProviderIdentityInput{ProviderType: "saml", ProviderID: provider.ID, Subject: "saml-sub", SAMLAssertion: badAssertion, AuthenticationRequestID: request.ID, StateSecret: state})
 	if !errors.Is(err, ErrVerificationFailed) || failed.Result != "failed" {
 		t.Fatalf("bad assertion verification = %#v err=%v", failed, err)
 	}
@@ -1253,6 +1256,11 @@ func signedTestSAMLAssertion(t *testing.T, privateKey *rsa.PrivateKey, issuer, a
 		`</Conditions>` +
 		`<Signature Algorithm="rsa-sha256"><SignatureValue>` + base64.StdEncoding.EncodeToString(signature) + `</SignatureValue></Signature>` +
 		`</Assertion>`
+}
+
+// Historical fixture signing is retained only to prove format rejection.
+func samlAssertionSignaturePayload(issuer, audience, subject, notBefore, notOnOrAfter string) string {
+	return strings.Join([]string{issuer, audience, subject, notBefore, notOnOrAfter}, "\n")
 }
 
 func hasVerifyCheck(checks []domain.VerifyCheck, name, result string) bool {

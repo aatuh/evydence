@@ -17,20 +17,22 @@ type ProviderVerificationCommands interface {
 
 func decodeProviderVerificationRequest(body []byte) (identityapp.VerifyProviderIdentityInput, error) {
 	var req struct {
-		ProviderType  string `json:"provider_type"`
-		ProviderID    string `json:"provider_id"`
-		Subject       string `json:"subject"`
-		IDToken       string `json:"id_token"`
-		SAMLAssertion string `json:"saml_assertion"`
-		AccessToken   string `json:"access_token"`
+		ProviderType            string `json:"provider_type"`
+		ProviderID              string `json:"provider_id"`
+		Subject                 string `json:"subject"`
+		IDToken                 string `json:"id_token"`
+		SAMLAssertion           string `json:"saml_assertion"`
+		AccessToken             string `json:"access_token"`
+		AuthenticationRequestID string `json:"authentication_request_id"`
+		StateSecret             string `json:"state_secret"`
 	}
 	if err := decodeMembershipJSON(body, &req); err != nil {
 		return identityapp.VerifyProviderIdentityInput{}, err
 	}
-	if err := validateNonNullableObjectFields(body, "provider_type", "provider_id", "subject", "id_token", "saml_assertion", "access_token"); err != nil {
+	if err := validateExactNonNullableObjectFields(body, "provider_type", "provider_id", "subject", "id_token", "saml_assertion", "access_token", "authentication_request_id", "state_secret"); err != nil {
 		return identityapp.VerifyProviderIdentityInput{}, err
 	}
-	return identityapp.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken, SAMLAssertion: req.SAMLAssertion, AccessToken: req.AccessToken}, nil
+	return identityapp.VerifyProviderIdentityInput{ProviderType: req.ProviderType, ProviderID: req.ProviderID, Subject: req.Subject, IDToken: req.IDToken, SAMLAssertion: req.SAMLAssertion, AccessToken: req.AccessToken, AuthenticationRequestID: req.AuthenticationRequestID, StateSecret: req.StateSecret}, nil
 }
 func (s *Server) verifyDurableProviderIdentity(w http.ResponseWriter, r *http.Request) {
 	var in identityapp.VerifyProviderIdentityInput

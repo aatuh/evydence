@@ -117,8 +117,10 @@ semantics are unchanged. The historical baseline, EVY-1009 review and exact
 exception remain untouched; no new external approval is asserted.
 
 Local signed fixtures exercise native HTTP delivery and transactional replay
-protection. Historical standalone SAML receipt migration and full EVY-1010
-acceptance remain pending; this is neither a release nor an interoperability
+protection. Standalone SAML receipts also require API request/state fields and
+consume valid proof with the receipt/audits, without session issuance; metadata
+assessment remains available. Historical custom signature inputs cannot pass.
+Full EVY-1010 acceptance remains pending; this is neither a release nor an interoperability
 claim for an arbitrary IdP.
 
 ## Unreleased Custom Report Template Boundary

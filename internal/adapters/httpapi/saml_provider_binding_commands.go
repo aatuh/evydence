@@ -29,8 +29,8 @@ func samlBindingMetadata(b identitydomain.SAMLProviderBinding) samlProviderBindi
 }
 func decodeSAMLBindingRequest(body []byte) (identityapp.ConfigureSAMLProviderBindingInput, error) {
 	var req struct {
-		Recipient    string `json:"recipient"`
-		NameIDFormat string `json:"name_id_format"`
+		Recipient    string  `json:"recipient"`
+		NameIDFormat *string `json:"name_id_format"`
 	}
 	if err := decodeMembershipJSON(body, &req); err != nil {
 		return identityapp.ConfigureSAMLProviderBindingInput{}, err
@@ -38,7 +38,14 @@ func decodeSAMLBindingRequest(body []byte) (identityapp.ConfigureSAMLProviderBin
 	if err := validateExactNonNullableObjectFields(body, "recipient", "name_id_format"); err != nil {
 		return identityapp.ConfigureSAMLProviderBindingInput{}, err
 	}
-	return identityapp.ConfigureSAMLProviderBindingInput{Recipient: req.Recipient, NameIDFormat: req.NameIDFormat}, nil
+	format := ""
+	if req.NameIDFormat != nil {
+		format = *req.NameIDFormat
+		if _, valid := identitydomain.NormalizeSAMLNameIDFormat(format); !valid || format == "" {
+			return identityapp.ConfigureSAMLProviderBindingInput{}, mapIdentityCommandError(identityapp.ErrValidation)
+		}
+	}
+	return identityapp.ConfigureSAMLProviderBindingInput{Recipient: req.Recipient, NameIDFormat: format}, nil
 }
 func (s *Server) configureSAMLProviderBinding(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

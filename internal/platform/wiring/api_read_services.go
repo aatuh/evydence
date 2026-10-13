@@ -436,7 +436,11 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SAML authentication request commands: %w", err)
 	}
-	options.ProviderVerificationCommands, err = BuildProviderVerificationCommands(store, runtime.ProviderAPI)
+	proofCredentials, err := buildAuthenticationCredentials(pepper, runtime.Production)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create provider proof credentials: %w", err)
+	}
+	options.ProviderVerificationCommands, err = BuildProviderVerificationCommands(store, runtime.ProviderAPI, proofCredentials)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create provider verification commands: %w", err)
 	}
