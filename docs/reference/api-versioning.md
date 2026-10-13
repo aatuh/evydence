@@ -82,8 +82,8 @@ browser cookie. See [the login contract](../api.md#sso-credential-exchange) and
 API delivery returns `data.secret` once in JSON and sets no cookie. Explicit
 OIDC browser delivery returns that secret only through the secure HttpOnly
 session cookie and omits the JSON property. Regenerate clients with the optional
-response property and keep credentials out of logging/replay. SAML continues
-through the API delivery path; its standard assertion binding work is separate.
+response property and keep credentials out of logging/replay. This record
+describes the OIDC rollout; the subsequent SAML contract is documented below.
 
 The [exact compatibility record](openapi-compatibility-reviews/evy-1009.json)
 preserves all 205 EVY-1002 entries and adds only
@@ -94,6 +94,32 @@ The public `v0.1.0-rc.7` baseline and preceding exception remain unchanged.
 The new repository-controlled prerelease record matches that complete exact
 set; regression tests reject added, removed, modified, foreign-baseline and
 stable-channel sets. It asserts no external review or release publication.
+
+## EVY-1010 SAML Login Contract (Unreleased)
+
+SAML session exchange requires a server-created request and matching state,
+delivery mode, signed assertion ID/recipient/InResponseTo and configured trust.
+Old unbound/custom assertion bodies cannot issue sessions. Configure the
+tenant-owned binding, create SAML authentication state, and supply a standard
+signed assertion as described in the [SAML contract](../api.md#saml-binding-and-login-requests-unreleased).
+API delivery returns state/session secrets once; browser delivery uses a
+separate SAML state cookie and omits JSON secrets. OIDC and SAML cookies cannot
+substitute for one another. Client code must retain the public correlation ID,
+use the correct delivery mode and keep credentials out of logs and replay.
+
+The generated contract now contains 193 operations: the previous 190 plus
+binding configuration/read and SAML initiation. Its `oneOf` exchange branches
+describe correlated API and browser SAML input; this is a runtime compatibility
+change even though the selected baseline comparator reports the same 206-entry
+normalized set and digest `eb08b999b683594cd4e75043cfa56cabc6c16684fd47c95af8c39c0daeb8a773`.
+Do not treat an unchanged comparator result as proof that branch-level
+semantics are unchanged. The historical baseline, EVY-1009 review and exact
+exception remain untouched; no new external approval is asserted.
+
+Local signed fixtures exercise native HTTP delivery and transactional replay
+protection. Historical standalone SAML receipt migration and full EVY-1010
+acceptance remain pending; this is neither a release nor an interoperability
+claim for an arbitrary IdP.
 
 ## Unreleased Custom Report Template Boundary
 

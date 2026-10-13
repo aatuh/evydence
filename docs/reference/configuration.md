@@ -154,8 +154,11 @@ OIDC exchange now requires server-owned state/nonce binding and durable
 single-use consumption; use the [login contract](../api.md#sso-credential-exchange)
 and [rollout notes](upgrade-compatibility-policy.md#oidc-login-binding-rollout).
 Its five-minute lifetime and 64 retained requests per provider are fixed
-application bounds, not environment knobs. SAML request/signature/replay work
-and authentication failure telemetry remain EVY-1010/EVY-1011 work.
+application bounds, not environment knobs. SAML recipient/NameID settings are
+tenant-owned provider bindings configured through the [SAML login API](../api.md#saml-binding-and-login-requests-unreleased), rather than environment variables.
+SAML uses its own bounded requests, signed assertion profile and state cookie.
+Historical custom receipt migration and the full acceptance gate remain
+EVY-1010 work; authentication failure telemetry remains EVY-1011.
 
 ## First-Tenant Bootstrap
 

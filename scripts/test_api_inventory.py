@@ -24,6 +24,15 @@ def operation(**overrides: object) -> dict:
 
 
 class APIInventoryTests(unittest.TestCase):
+    def test_saml_state_is_public_without_exempting_other_sso_routes(self) -> None:
+        public = operation(operationId="beginSAMLAuthentication", security=[], **{"x-scopes": []})
+        spec = {"paths": {"/v1/sso/saml-authentication-requests": {"post": public}}}
+        self.assertEqual(api_inventory.validate_spec(spec), [])
+        self.assertEqual(api_inventory.inventory_from_spec(spec)["operations"][0]["auth"], "public-login-state")
+        for path in ("/v1/sso/providers/provider/saml-binding", "/v1/sso/unknown"):
+            failures = api_inventory.validate_spec({"paths": {path: {"post": public}}})
+            self.assertTrue(any("auth/scopes contract" in failure for failure in failures))
+
     def test_inventory_includes_contract_fields(self) -> None:
         spec = {"paths": {"/v1/products": {"get": operation()}}}
 

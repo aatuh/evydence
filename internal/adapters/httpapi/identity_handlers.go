@@ -156,7 +156,11 @@ func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{"verification": verification, "session": session}
 	if in.Delivery == "browser" {
 		setSSOSessionCookie(w, secret, session.ExpiresAt)
-		setOIDCStateCookie(w, "", time.Time{}, true)
+		name := oidcStateCookieName
+		if in.SAMLAssertion != "" {
+			name = samlStateCookieName
+		}
+		setSSOStateCookie(w, name, "", time.Time{}, true)
 	} else {
 		out["secret"] = secret
 	}

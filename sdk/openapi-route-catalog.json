@@ -1,5 +1,5 @@
 {
-  "route_count": 190,
+  "route_count": 193,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -2999,6 +2999,42 @@
       ]
     },
     {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "getSAMLProviderBinding",
+      "path": "/v1/sso/providers/{id}/saml-binding",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SAMLProviderBindingEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "stability": "experimental",
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": true,
+      "method": "POST",
+      "operation_id": "configureSAMLProviderBinding",
+      "path": "/v1/sso/providers/{id}/saml-binding",
+      "request_schema": "#/components/schemas/ConfigureSAMLProviderBindingRequest",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/SAMLProviderBindingEnvelope"
+      ],
+      "scopes": [
+        "identity:admin"
+      ],
+      "stability": "experimental",
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
       "idempotency_key_required": true,
       "method": "POST",
       "operation_id": "updateSSOProviderTrustMaterial",
@@ -3014,6 +3050,22 @@
       "stability": "experimental",
       "success_statuses": [
         "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "POST",
+      "operation_id": "beginSAMLAuthentication",
+      "path": "/v1/sso/saml-authentication-requests",
+      "request_schema": "#/components/schemas/BeginSAMLAuthenticationRequest",
+      "response_schemas": [
+        "#/components/schemas/BeginSAMLAuthenticationEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [],
+      "stability": "experimental",
+      "success_statuses": [
+        "201"
       ]
     },
     {

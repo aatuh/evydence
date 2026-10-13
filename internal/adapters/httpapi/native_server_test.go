@@ -34,6 +34,10 @@ func nativeConstructorOptions() ServerOptions {
 		OIDCAuthenticationRequestCommands: &struct {
 			OIDCAuthenticationRequestCommands
 		}{},
+		SAMLAuthenticationRequestCommands: &struct {
+			SAMLAuthenticationRequestCommands
+		}{},
+		SAMLProviderBindingCommands:  &struct{ SAMLProviderBindingCommands }{},
 		ProviderVerificationCommands: &struct{ ProviderVerificationCommands }{},
 		EvidenceSummaryCommands:      &struct{ EvidenceSummaryCommands }{},
 		GraphSnapshotCommands:        &struct{ GraphSnapshotCommands }{},

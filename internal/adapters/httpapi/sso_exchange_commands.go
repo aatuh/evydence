@@ -30,7 +30,7 @@ func decodeSSOExchangeRequest(body []byte) (identityapp.ExchangeSSOCredentialInp
 	if err := decodeMembershipJSON(body, &req); err != nil {
 		return identityapp.ExchangeSSOCredentialInput{}, err
 	}
-	if err := validateNonNullableObjectFields(body, "provider_id", "subject", "id_token", "saml_assertion", "expires_at", "authentication_request_id", "state_secret", "delivery"); err != nil {
+	if err := validateExactNonNullableObjectFields(body, "provider_id", "subject", "id_token", "saml_assertion", "expires_at", "authentication_request_id", "state_secret", "delivery"); err != nil {
 		return identityapp.ExchangeSSOCredentialInput{}, err
 	}
 	if req.Delivery == "browser" && req.StateSecret != nil {

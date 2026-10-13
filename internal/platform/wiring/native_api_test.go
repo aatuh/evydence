@@ -49,10 +49,17 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 	type operation struct{ id, method, path string }
 	var operations []operation
 	var hasOIDCAuthenticationRequest bool
+	samlOperations := map[string]string{"beginSAMLAuthentication": "POST /v1/sso/saml-authentication-requests", "configureSAMLProviderBinding": "POST /v1/sso/providers/{id}/saml-binding", "getSAMLProviderBinding": "GET /v1/sso/providers/{id}/saml-binding"}
 	for path, methods := range doc.Paths {
 		for method, op := range methods {
 			if op.OperationID != "" {
 				operations = append(operations, operation{op.OperationID, strings.ToUpper(method), path})
+				if expected, ok := samlOperations[op.OperationID]; ok {
+					if expected != strings.ToUpper(method)+" "+path {
+						t.Fatal("native SAML operation changed its contract", op.OperationID)
+					}
+					delete(samlOperations, op.OperationID)
+				}
 				if op.OperationID == "beginOIDCAuthentication" && method == "post" && path == "/v1/sso/authentication-requests" {
 					hasOIDCAuthenticationRequest = true
 				}
@@ -60,8 +67,11 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 		}
 	}
 	sort.Slice(operations, func(i, j int) bool { return operations[i].id < operations[j].id })
-	if len(operations) != 190 {
-		t.Fatalf("native route sweep covers %d operations, expected current contract's 190", len(operations))
+	if len(operations) != 193 {
+		t.Fatalf("native route sweep covers %d operations, expected current contract's 193", len(operations))
+	}
+	if len(samlOperations) != 0 {
+		t.Fatal("native route sweep omits SAML binding/login operations", samlOperations)
 	}
 	if !hasOIDCAuthenticationRequest {
 		t.Fatal("native route sweep omits the OIDC authentication request operation")

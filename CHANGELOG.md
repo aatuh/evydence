@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added tenant-owned SAML recipient/NameID bindings and separate bounded login
+initiation, with standard signed-assertion session exchange (EVY-1010). API and
+browser delivery bind to server-owned state; browser state uses its own cookie.
+Verification, replay consumption, sessions and audits commit together. Signed
+session deadlines and selected-certificate proof expiry are enforced across
+transaction waits. Historical custom assertions cannot issue exchange sessions;
+clients must migrate to the [unreleased SAML contract](docs/reference/api-versioning.md#evy-1010-saml-login-contract-unreleased).
+Standalone historical receipt migration and the complete ticket acceptance
+gate remain pending. These local source checks establish no real-provider
+interoperability, external approval or release publication.
+
 Added server-owned OIDC login state and nonce with atomic single-use proof
 consumption (EVY-1009). Clients first create an authentication request, then
 exchange a matching signed ID token and state within five minutes; unbound,

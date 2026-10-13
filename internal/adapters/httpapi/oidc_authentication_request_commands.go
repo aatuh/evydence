@@ -79,6 +79,10 @@ func (s *Server) beginOIDCAuthentication(w http.ResponseWriter, r *http.Request)
 }
 
 func setOIDCStateCookie(w http.ResponseWriter, secret string, expires time.Time, clear bool) {
+	setSSOStateCookie(w, oidcStateCookieName, secret, expires, clear)
+}
+
+func setSSOStateCookie(w http.ResponseWriter, name, secret string, expires time.Time, clear bool) {
 	maxAge := int(time.Until(expires).Seconds())
 	if maxAge < 1 {
 		maxAge = 1
@@ -87,7 +91,7 @@ func setOIDCStateCookie(w http.ResponseWriter, secret string, expires time.Time,
 		maxAge = -1
 		expires = time.Unix(1, 0)
 	}
-	http.SetCookie(w, &http.Cookie{Name: oidcStateCookieName, Value: secret, Path: "/", Expires: expires.UTC(), MaxAge: maxAge, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
+	http.SetCookie(w, &http.Cookie{Name: name, Value: secret, Path: "/", Expires: expires.UTC(), MaxAge: maxAge, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 }
 
 func bindSSOExchangeDelivery(r *http.Request, in *identityapp.ExchangeSSOCredentialInput) error {
@@ -106,7 +110,7 @@ func bindSSOExchangeDelivery(r *http.Request, in *identityapp.ExchangeSSOCredent
 			return app.ErrUnauthorized
 		}
 		for _, cookie := range parsed {
-			if cookie.Name == oidcStateCookieName {
+			if cookie.Name == oidcStateCookieName || cookie.Name == samlStateCookieName {
 				cookies = append(cookies, cookie)
 			}
 		}
@@ -120,7 +124,11 @@ func bindSSOExchangeDelivery(r *http.Request, in *identityapp.ExchangeSSOCredent
 	if in.Delivery != "browser" {
 		return app.ErrValidation
 	}
-	if len(cookies) != 1 || cookies[0].Value == "" || in.StateSecret != "" || in.AuthenticationRequestID == "" || in.IDToken == "" || in.SAMLAssertion != "" {
+	name := oidcStateCookieName
+	if in.SAMLAssertion != "" && in.IDToken == "" {
+		name = samlStateCookieName
+	}
+	if len(cookies) != 1 || cookies[0].Name != name || cookies[0].Value == "" || in.StateSecret != "" || in.AuthenticationRequestID == "" || (in.IDToken == "") == (in.SAMLAssertion == "") {
 		return app.ErrUnauthorized
 	}
 	in.StateSecret = cookies[0].Value

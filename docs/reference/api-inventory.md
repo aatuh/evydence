@@ -4,14 +4,14 @@ This generated reference is the complete operation-level inventory for the commi
 
 ## Review Summary
 
-- Operations: `190`; every public operation is represented once.
+- Operations: `193`; every public operation is represented once.
 - Candidate stable core: `43` operations; review this count before any stable API promise.
 - Owners, auth modes, scopes, idempotency requirements, schemas, success statuses, and error status contracts are derived from OpenAPI route metadata.
 
 | Stability | Operations |
 | --- | ---: |
 | `core` | 43 |
-| `experimental` | 134 |
+| `experimental` | 137 |
 | `supported` | 13 |
 
 ## Complete Operation Inventory
@@ -186,7 +186,10 @@ This generated reference is the complete operation-level inventory for the commi
 | logoutSSOSession | POST | `/v1/sso/logout` | `supported` | `identity-access` | `bearer` | - | required | EmptyObject | 200:SSOSessionEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createSSOProvider | POST | `/v1/sso/providers` | `experimental` | `identity-access` | `bearer` | identity:admin | required | CreateSSOProviderRequest | 201:SSOProviderEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | refreshSSOProviderOIDCTrustMaterial | POST | `/v1/sso/providers/{id}/discover-oidc` | `experimental` | `identity-access` | `bearer` | identity:admin | required | EmptyObject | 200:SSOProviderEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| getSAMLProviderBinding | GET | `/v1/sso/providers/{id}/saml-binding` | `experimental` | `identity-access` | `bearer` | identity:admin | not required | - | 200:SAMLProviderBindingEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| configureSAMLProviderBinding | POST | `/v1/sso/providers/{id}/saml-binding` | `experimental` | `identity-access` | `bearer` | identity:admin | required | ConfigureSAMLProviderBindingRequest | 200:SAMLProviderBindingEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | updateSSOProviderTrustMaterial | POST | `/v1/sso/providers/{id}/trust-material` | `experimental` | `identity-access` | `bearer` | identity:admin | required | UpdateSSOProviderTrustMaterialRequest | 200:SSOProviderEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| beginSAMLAuthentication | POST | `/v1/sso/saml-authentication-requests` | `experimental` | `identity-access` | `public-login-state` | - | not required | BeginSAMLAuthenticationRequest | 201:BeginSAMLAuthenticationEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | exchangeSSOCredential | POST | `/v1/sso/session-exchanges` | `supported` | `identity-access` | `sso-credential` | - | not required | ExchangeSSOCredentialRequest | 201:SSOCredentialExchangeEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createSSOSession | POST | `/v1/sso/sessions` | `experimental` | `identity-access` | `bearer` | identity:admin | required | CreateSSOSessionRequest | 201:SSOSessionCreateEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | revokeSSOSession | POST | `/v1/sso/sessions/{id}/revoke` | `experimental` | `identity-access` | `bearer` | identity:admin | required | EmptyObject | 200:SSOSessionEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -337,7 +340,10 @@ Every `experimental` operation is an explicit candidate for a maintainer decisio
 | linkSSOIdentity | `identity-access` | review experimental scope |
 | createSSOProvider | `identity-access` | review experimental scope |
 | refreshSSOProviderOIDCTrustMaterial | `identity-access` | review experimental scope |
+| getSAMLProviderBinding | `identity-access` | review experimental scope |
+| configureSAMLProviderBinding | `identity-access` | review experimental scope |
 | updateSSOProviderTrustMaterial | `identity-access` | review experimental scope |
+| beginSAMLAuthentication | `identity-access` | review experimental scope |
 | createSSOSession | `identity-access` | review experimental scope |
 | revokeSSOSession | `identity-access` | review experimental scope |
 | createTransparencyCheckpoint | `integrity-verification` | review experimental scope |

@@ -637,9 +637,11 @@ check does not automatically revoke an already issued session when a certificate
 expires. These local checks make no provider network call and do
 not prove arbitrary-provider interoperability.
 
-HTTP setup, supported-profile documentation and migration of the historical
-custom assertion/standalone receipt path remain EVY-1010 rollout work. This
-native command evidence does not establish a complete public SAML flow.
+The [SAML login contract](../api.md#saml-binding-and-login-requests-unreleased)
+describes native HTTP configuration, initiation, API/browser delivery and the
+supported XML profile. Migration of the historical custom assertion/standalone
+receipt path and the full EVY-1010 acceptance gate remain pending. Local signed
+fixtures do not establish real-provider interoperability.
 
 Source/test evidence: `internal/identity/app/saml_exchange_bindings.go`,
 `internal/identity/app/sso_exchange_commands.go`,

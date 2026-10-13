@@ -21,6 +21,9 @@ func TestBoundedContextOperationOwnershipMetadata(t *testing.T) {
 		"createSSOSession":                    operationOwnerIdentityAccess,
 		"exchangeSSOCredential":               operationOwnerIdentityAccess,
 		"beginOIDCAuthentication":             operationOwnerIdentityAccess,
+		"beginSAMLAuthentication":             operationOwnerIdentityAccess,
+		"configureSAMLProviderBinding":        operationOwnerIdentityAccess,
+		"getSAMLProviderBinding":              operationOwnerIdentityAccess,
 		"revokeSSOSession":                    operationOwnerIdentityAccess,
 		"logoutSSOSession":                    operationOwnerIdentityAccess,
 
@@ -128,7 +131,7 @@ func TestBoundedContextOperationOwnershipMetadata(t *testing.T) {
 		counts[owner]++
 	}
 	for owner, want := range map[string]int{
-		"identity-access":        16,
+		"identity-access":        19,
 		"release-catalog":        21,
 		"evidence-ingestion":     27,
 		"release-ledger":         6,

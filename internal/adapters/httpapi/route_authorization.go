@@ -51,7 +51,7 @@ func authorizationPolicyForOperation(id string) (routeAuthorizationPolicy, bool)
 		return actionRoutePolicy(authz.ActionAPIKeysRead), true
 	case "createAPIKey":
 		return actionRoutePolicy(authz.ActionAPIKeysManage), true
-	case "createOrganization", "createUser", "deactivateUser", "createRoleBinding", "createSSOProvider", "updateSSOProviderTrustMaterial", "refreshSSOProviderOIDCTrustMaterial", "linkSSOIdentity", "createSSOSession", "revokeSSOSession", "verifyProviderIdentity":
+	case "createOrganization", "createUser", "deactivateUser", "createRoleBinding", "createSSOProvider", "updateSSOProviderTrustMaterial", "refreshSSOProviderOIDCTrustMaterial", "linkSSOIdentity", "createSSOSession", "revokeSSOSession", "verifyProviderIdentity", "configureSAMLProviderBinding", "getSAMLProviderBinding":
 		return actionRoutePolicy(authz.ActionMembershipsManage), true
 	case "listRoleBindings":
 		return actionRoutePolicy(authz.ActionRoleBindingsRead), true
@@ -291,7 +291,7 @@ func authorizationPolicyForOperation(id string) (routeAuthorizationPolicy, bool)
 		return routeAuthorizationPolicy{Mode: "public-form", TenantRule: "no-tenant-data"}, true
 	case "exchangeSSOCredential":
 		return routeAuthorizationPolicy{Mode: "verified-sso-credential", Actions: []authz.Action{authz.ActionSSOCredentialsExchange}, TenantRule: "verified-identity-tenant"}, true
-	case "beginOIDCAuthentication":
+	case "beginOIDCAuthentication", "beginSAMLAuthentication":
 		return routeAuthorizationPolicy{Mode: "public-login-state", TenantRule: "configured-provider-tenant"}, true
 	case "metrics":
 		p := actionRoutePolicy(authz.ActionTenantMetricsRead, authz.ActionInstanceMetricsRead)

@@ -128,6 +128,8 @@ type Server struct {
 	outboxReplayCommand               OutboxReplayCommand
 	ssoExchangeCommands               SSOExchangeCommands
 	oidcAuthenticationRequestCommands OIDCAuthenticationRequestCommands
+	samlAuthenticationRequestCommands SAMLAuthenticationRequestCommands
+	samlProviderBindingCommands       SAMLProviderBindingCommands
 	providerVerificationCommands      ProviderVerificationCommands
 	evidenceSummaryCommands           EvidenceSummaryCommands
 	graphSnapshotCommands             GraphSnapshotCommands
@@ -225,6 +227,8 @@ type ServerOptions struct {
 	// SSOExchangeCommands verifies public credentials and commits login directly.
 	SSOExchangeCommands               SSOExchangeCommands
 	OIDCAuthenticationRequestCommands OIDCAuthenticationRequestCommands
+	SAMLAuthenticationRequestCommands SAMLAuthenticationRequestCommands
+	SAMLProviderBindingCommands       SAMLProviderBindingCommands
 	// ProviderVerificationCommands persists admin receipts without Ledger state.
 	ProviderVerificationCommands ProviderVerificationCommands
 	// EvidenceSummaryCommands creates bounded citation reports without Ledger state.
@@ -470,6 +474,9 @@ func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Serv
 	}
 	if opts.SSOProviderCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SSO providers require durable idempotency")
+	}
+	if opts.SAMLProviderBindingCommands != nil && opts.DurableCommandExecutor == nil {
+		return nil, errors.New("focused SAML binding configuration requires durable idempotency")
 	}
 	if opts.SSOIdentityLinkCommands != nil && opts.DurableCommandExecutor == nil {
 		return nil, errors.New("focused SSO identity links require durable idempotency")
@@ -731,6 +738,8 @@ func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Serv
 	server.ssoSessionRevocationCommands = opts.SSOSessionRevocationCommands
 	server.ssoExchangeCommands = opts.SSOExchangeCommands
 	server.oidcAuthenticationRequestCommands = opts.OIDCAuthenticationRequestCommands
+	server.samlAuthenticationRequestCommands = opts.SAMLAuthenticationRequestCommands
+	server.samlProviderBindingCommands = opts.SAMLProviderBindingCommands
 	server.providerVerificationCommands = opts.ProviderVerificationCommands
 	server.evidenceSummaryCommands = opts.EvidenceSummaryCommands
 	server.graphSnapshotCommands = opts.GraphSnapshotCommands
@@ -2393,6 +2402,7 @@ func defaultSuccessStatus(operationID, method string) int {
 		"revokeSSOSession",
 		"refreshSSOProviderOIDCTrustMaterial",
 		"updateSSOProviderTrustMaterial",
+		"configureSAMLProviderBinding",
 		"freezeRelease",
 		"approveRelease",
 		"promoteReleaseCandidate",

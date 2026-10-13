@@ -917,11 +917,14 @@ unchanged; public readiness retains low-detail `503` and `Retry-After` metadata.
 | `GET` | `/v1/role-bindings` | Page tenant-scoped bindings; `identity:admin` (or admin) scope and a tenant-wide grant for human sessions are required. |
 | `POST` | `/v1/sso/providers` | Record OIDC or SAML provider metadata. |
 | `POST` | `/v1/sso/providers/{id}/trust-material` | Rotate OIDC JWKS or SAML signing certificates used for local verification. |
+| `POST` | `/v1/sso/providers/{id}/saml-binding` | Configure the tenant-owned SAML recipient and NameID format. |
+| `GET` | `/v1/sso/providers/{id}/saml-binding` | Read the selected tenant-owned SAML binding. |
 | `POST` | `/v1/sso/providers/{id}/discover-oidc` | Fetch OIDC discovery metadata and refresh public JWKS trust material. |
 | `POST` | `/v1/sso/identity-links` | Link verified provider subject to user. |
 | `POST` | `/v1/sso/sessions` | Issue one-time session secret. |
 | `POST` | `/v1/sso/authentication-requests` | Create bounded OIDC state and nonce for API or browser delivery. |
-| `POST` | `/v1/sso/session-exchanges` | Exchange a bound OIDC ID token or SAML assertion; deliver a session through API JSON or an OIDC browser cookie. |
+| `POST` | `/v1/sso/saml-authentication-requests` | Create bounded SAML request correlation and state for API or browser delivery. |
+| `POST` | `/v1/sso/session-exchanges` | Exchange a bound OIDC ID token or SAML assertion; deliver a session through API JSON or a browser cookie. |
 | `POST` | `/v1/sso/sessions/{id}/revoke` | Revoke session. |
 | `POST` | `/v1/sso/logout` | Revoke the currently authenticated SSO session. |
 | `POST` | `/v1/api-keys` | Create one-time API key secret. |
@@ -1267,10 +1270,72 @@ session cannot substitute for it. Provider groups create session-scoped grants,
 not permanent role bindings. No live provider or group synchronization call is
 made by these login endpoints. The focused SAML exchange now requires
 server-owned request context and the bounded signed XML assertion profile;
-unbound historical custom assertions cannot issue sessions. Its HTTP binding
-configuration and login-initiation flow remain pending EVY-1010 rollout. Do
-not infer a complete SAML login flow from the OIDC endpoints or use the old
-custom assertion examples as a supported exchange contract.
+unbound historical custom assertions cannot issue sessions. Use the separate
+SAML setup below; OIDC state and cookies cannot substitute for SAML state.
+Migration of the historical standalone SAML receipt path and the complete
+EVY-1010 acceptance gate remain pending. The new login flow does not establish
+arbitrary-provider interoperability.
+
+#### SAML Binding And Login Requests (Unreleased)
+
+A tenant administrator configures `POST /v1/sso/providers/{id}/saml-binding`
+with an `Idempotency-Key` and this strict body:
+
+```json
+{"recipient":"https://api.example.test/v1/sso/session-exchanges","name_id_format":"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"}
+```
+
+The provider must belong to the actor's tenant, be active and type `saml`, and
+contain configured public signing certificates. Recipient is exact HTTPS,
+without userinfo, query or fragment. Omitted NameID format defaults to
+`unspecified`; the other supported formats are SAML 2.0 `persistent`/`transient`
+and SAML 1.1 `emailAddress`, using their full standard URIs. GET on the same
+path returns the binding. Both operations require current tenant-wide
+administration; foreign/missing records return `404`. Configuration, audit and
+idempotency receipt commit together. Replay rechecks current authorization;
+changed request bytes conflict. Responses omit internal provider snapshots.
+
+Public `POST /v1/sso/saml-authentication-requests` accepts `provider_id` and
+optional `delivery` (`api` by default, or `browser`). It returns public request
+ID, tenant/provider, issuer, audience, recipient, NameID format and five-minute
+deadline. The ID is the AuthnRequest correlation ID for the caller's external
+SAML client. Evydence does not build/redirect an AuthnRequest or contact an IdP.
+At most 64 retained requests per provider are allowed; overflow returns `429`.
+Trust/binding changes invalidate pending state. Expired operational state uses
+bounded cleanup while immutable evidence, sessions and audits remain retained.
+
+API initiation returns `state_secret` once in JSON. Send the request ID and
+state with `provider_id`, `subject` and raw `saml_assertion` to
+`POST /v1/sso/session-exchanges`. Browser initiation and exchange require one
+HTTPS Origin matching Host; state uses the separate HttpOnly Secure
+SameSite=Strict `__Host-evydence_saml_state` cookie. Browser exchange includes
+`delivery: "browser"` and omits body `state_secret`; the session secret appears
+only in the existing protected session cookie. Duplicate, malformed, mixed
+OIDC/SAML and ambient API state cookies are rejected. Responses use `no-store`.
+These JSON endpoints do not implement a cross-site SAML POST/Redirect callback.
+
+Supported XML is a bare SAML 2.0 Assertion with one direct XML Signature after
+Issuer, one same-document reference to its literal ID, RSA-SHA256/SHA256,
+enveloped transform and exclusive canonicalization without comments or
+parameters. One embedded certificate must match an active configured public
+pin. Verified issuer/audience/subject, NameID namespace, recipient,
+InResponseTo, assertion ID and finite time conditions bind to server context.
+Assertions have at most five minutes of validity, with one-minute issue-time
+skew. XML is bounded at 64 KiB, 1024 tokens, depth 32 and 32 attributes per
+element; the whole JSON body is also limited to 64 KiB. Subject and request ID
+are bounded at 1024 and 128 bytes. Unknown/duplicate/case-aliased/null JSON,
+DTD/comments, ambiguous IDs/signatures and unsupported namespaces are rejected.
+
+Historical custom newline signatures, Response wrappers, encrypted assertions,
+unsolicited login, SHA-1/other algorithms and other canonicalization profiles
+are unsupported. Assertion/request replay state, verification, session and
+audits commit together; a verified identity denial consumes its proof, while
+invalid signatures do not. Failed transactions leave valid proofs retryable.
+Signed session deadlines cap requested/configured expiry. Proof validity also
+ends at the selected certificate's expiry, including across lock waits and
+commit; unrelated rotation pins do not shorten it. Certificate expiry does not
+automatically revoke an already issued session. No provider/group network call,
+MFA assurance or universal interoperability claim is made.
 
 The API rejects duplicate/unknown fields, non-object bodies, explicit nulls,
 invalid UTF-8 and NUL-bearing text with `400`. Provider/request IDs are bounded

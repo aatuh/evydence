@@ -141,9 +141,9 @@
       <p>This page is generated from <code>openapi.yaml</code>. It is a human-readable companion to the committed contract and does not replace route-contract tests.</p>
       <div class="summary-grid">
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
-        <div class="summary-card"><strong>173</strong><span>registered paths</span></div>
-        <div class="summary-card"><strong>190</strong><span>operations</span></div>
-        <div class="summary-card"><strong>397</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>175</strong><span>registered paths</span></div>
+        <div class="summary-card"><strong>193</strong><span>operations</span></div>
+        <div class="summary-card"><strong>404</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -3016,6 +3016,40 @@
               <div><dt>Responses</dt><dd>200 application/json: SSOProviderEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
+          <article class="operation" data-operation data-search="get /v1/sso/providers/{id}/saml-binding get saml provider binding returns the selected tenant-owned saml recipient/nameid binding after current tenant-wide administration and ownership checks. no provider inventory, private trust snapshot, credential or audit mutation is returned or performed. foreign/missing bindings return 404. postgresql is required. getsamlproviderbinding evydence identity:admin">
+            <div class="operation-heading">
+              <span class="method method-get">GET</span>
+              <code>/v1/sso/providers/{id}/saml-binding</code>
+            </div>
+            <h3>Get SAML provider binding</h3>
+            <p>Returns the selected tenant-owned SAML recipient/NameID binding after current tenant-wide administration and ownership checks. No provider inventory, private trust snapshot, credential or audit mutation is returned or performed. Foreign/missing bindings return 404. PostgreSQL is required.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>getSAMLProviderBinding</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>identity:admin</dd></div>
+              <div><dt>Idempotency</dt><dd>not required</dd></div>
+              <div><dt>Request</dt><dd>none</dd></div>
+              <div><dt>Responses</dt><dd>200 application/json: SAMLProviderBindingEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
+          <article class="operation" data-operation data-search="post /v1/sso/providers/{id}/saml-binding configure saml provider binding configures the tenant-owned saml recipient and nameid format without changing oidc provider records. current tenant-wide administration and owned active saml provider checks run before fresh execution and completed replay. recipient is exact https without userinfo/query/fragment; supported nameid formats are explicit. configuration, canonical-hash audit and safe replay commit together. changes invalidate outstanding saml state. strict json rejects unknown/duplicate/case-aliased/null fields within 64 kib; unsafe cookie writes require same origin. foreign/missing providers return 404. public responses omit internal provider trust snapshots. postgresql is required. configuresamlproviderbinding evydence identity:admin">
+            <div class="operation-heading">
+              <span class="method method-post">POST</span>
+              <code>/v1/sso/providers/{id}/saml-binding</code>
+            </div>
+            <h3>Configure SAML provider binding</h3>
+            <p>Configures the tenant-owned SAML recipient and NameID format without changing OIDC provider records. Current tenant-wide administration and owned active SAML provider checks run before fresh execution and completed replay. Recipient is exact HTTPS without userinfo/query/fragment; supported NameID formats are explicit. Configuration, canonical-hash audit and safe replay commit together. Changes invalidate outstanding SAML state. Strict JSON rejects unknown/duplicate/case-aliased/null fields within 64 KiB; unsafe cookie writes require same origin. Foreign/missing providers return 404. Public responses omit internal provider trust snapshots. PostgreSQL is required.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>configureSAMLProviderBinding</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>identity:admin</dd></div>
+              <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
+              <div><dt>Request</dt><dd>application/json: ConfigureSAMLProviderBindingRequest</dd></div>
+              <div><dt>Responses</dt><dd>200 application/json: SAMLProviderBindingEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
           <article class="operation" data-operation data-search="post /v1/sso/providers/{id}/trust-material update sso provider trust material rotates tenant sso provider public trust material for local oidc id-token or saml assertion verification. postgresql uses focused identity commands and one bounded tenant-owned provider read, not ledger state or provider inventories. current tenant-wide administration, input and provider checks run before reservation or completed replay; update, canonical-hash audit and safe replay completion commit together. foreign/missing providers return 404; oversized or ill-typed stored metadata returns 409 without truncation. oidc requires nonempty jwks only; saml requires signing certificates only. strict decoding rejects invalid utf-8, duplicate/unknown fields, trailing json and explicit null fields/items; retained public-key text is nul-free. shared stateless identity normalization rejects private/symmetric jose members and retains supported public jwk fields only; parsed rsa certificates exclude trailing pem blocks. authorized replay preserves normalized public pem and harmless public group names without weakening generic privacy redaction. invalid trust material does not replace current trust or append an audit. no live provider call is made; provider ownership and key custody are not proved. historical records, receipts and backups are not scrubbed or repaired. postgresql is required for local evaluation. updatessoprovidertrustmaterial evydence identity:admin">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
@@ -3033,13 +3067,30 @@
               <div><dt>Responses</dt><dd>200 application/json: SSOProviderEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="post /v1/sso/session-exchanges exchange sso credential exchanges a locally verified oidc id token or saml assertion after checking a verified identity link, active user and current tenant-owned grants. oidc requires an unexpired server-owned authentication_request_id, matching state, signed nonce, current configured provider trust snapshot and delivery mode. a verified proof is consumed atomically with verification/session/audits, including identity denials; replay cannot issue another session. api delivery returns the secret once in json and sets no cookie. oidc browser delivery requires one same https origin and the single __host-evydence_oidc_state cookie, omits the json secret, sets an httponly secure session cookie and clears login state. unknown fields, duplicate keys, supplied nulls, trailing json, non-object, invalid utf-8 and nul-bearing inputs are rejected. credential responses use cache-control: no-store. no credential or secret enters idempotency receipts; no live provider api or group synchronization call is made. the default eight-hour expiry is shortened when the configured maximum is lower; explicit expiry cannot exceed that maximum. issued session policy and committed last-use activity have the same bounds as administrative issuance. postgresql is required for local evaluation. exchangessocredential evydence none">
+          <article class="operation" data-operation data-search="post /v1/sso/saml-authentication-requests begin saml authentication creates five-minute server-owned saml login state for an active configured provider and tenant-owned recipient/nameid binding. at most 64 retained requests per provider are allowed; overflow returns 429 and cleanup is bounded. api delivery returns state_secret once; browser delivery requires one same https origin and uses a separate host-only httponly secure samesite=strict saml state cookie. responses exclude private hashes and use cache-control: no-store. returned id is the authnrequest correlation id; the caller owns its external provider flow. trust/binding changes invalidate outstanding state. this endpoint creates no session, redirects nowhere and makes no provider call. postgresql is required. beginsamlauthentication evydence none">
+            <div class="operation-heading">
+              <span class="method method-post">POST</span>
+              <code>/v1/sso/saml-authentication-requests</code>
+            </div>
+            <h3>Begin SAML authentication</h3>
+            <p>Creates five-minute server-owned SAML login state for an active configured provider and tenant-owned recipient/NameID binding. At most 64 retained requests per provider are allowed; overflow returns 429 and cleanup is bounded. API delivery returns state_secret once; browser delivery requires one same HTTPS Origin and uses a separate host-only HttpOnly Secure SameSite=Strict SAML state cookie. Responses exclude private hashes and use Cache-Control: no-store. Returned ID is the AuthnRequest correlation ID; the caller owns its external provider flow. Trust/binding changes invalidate outstanding state. This endpoint creates no session, redirects nowhere and makes no provider call. PostgreSQL is required.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>beginSAMLAuthentication</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>none</dd></div>
+              <div><dt>Idempotency</dt><dd>not required</dd></div>
+              <div><dt>Request</dt><dd>application/json: BeginSAMLAuthenticationRequest</dd></div>
+              <div><dt>Responses</dt><dd>201 application/json: BeginSAMLAuthenticationEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
+          <article class="operation" data-operation data-search="post /v1/sso/session-exchanges exchange sso credential exchanges a locally verified oidc id token or saml assertion after checking a verified identity link, active user and current tenant-owned grants. oidc requires an unexpired server-owned authentication_request_id, matching state, signed nonce, current configured provider trust snapshot and delivery mode. a verified proof is consumed atomically with verification/session/audits, including identity denials; replay cannot issue another session. api delivery returns the secret once in json and sets no cookie. oidc browser delivery requires one same https origin and the single __host-evydence_oidc_state cookie, omits the json secret, sets an httponly secure session cookie and clears login state. unknown fields, duplicate keys, supplied nulls, trailing json, non-object, invalid utf-8 and nul-bearing inputs are rejected. credential responses use cache-control: no-store. no credential or secret enters idempotency receipts; no live provider api or group synchronization call is made. the default eight-hour expiry is shortened when the configured maximum is lower; explicit expiry cannot exceed that maximum. issued session policy and committed last-use activity have the same bounds as administrative issuance. saml requires its server-owned authentication_request_id and matching state/delivery, configured recipient and nameid format, and a bare signed saml 2.0 assertion in the bounded xml signature profile. rsa-sha256/sha256, enveloped signature and exclusive canonicalization without comments are supported; the embedded certificate must match an active configured public pin. signed assertion id, issuer/audience/subject, recipient, inresponseto and finite time bounds are checked. scoped assertion replay and request consumption commit with verification/session/audits, including verified identity denial. signed sessionnotonorafter caps session lifetime; proof deadlines include selected certificate expiry and are rechecked after locks, writes and commit. saml browser delivery uses only __host-evydence_saml_state with the same origin/cookie rules; mixed, duplicate, malformed or ambient api state cookies are rejected. case-aliased json fields are rejected. saml subject and request ids are bounded at 1024 and 128 bytes respectively. historical custom assertions, saml response wrappers, encryption, unsolicited login and arbitrary algorithms/profiles are unsupported. the caller owns provider orchestration; no universal interoperability claim is made. postgresql is required for local evaluation. exchangessocredential evydence none">
             <div class="operation-heading">
               <span class="method method-post">POST</span>
               <code>/v1/sso/session-exchanges</code>
             </div>
             <h3>Exchange SSO credential</h3>
-            <p>Exchanges a locally verified OIDC ID token or SAML assertion after checking a verified identity link, active user and current tenant-owned grants. OIDC requires an unexpired server-owned authentication_request_id, matching state, signed nonce, current configured provider trust snapshot and delivery mode. A verified proof is consumed atomically with verification/session/audits, including identity denials; replay cannot issue another session. API delivery returns the secret once in JSON and sets no cookie. OIDC browser delivery requires one same HTTPS Origin and the single __Host-evydence_oidc_state cookie, omits the JSON secret, sets an HttpOnly Secure session cookie and clears login state. Unknown fields, duplicate keys, supplied nulls, trailing JSON, non-object, invalid UTF-8 and NUL-bearing inputs are rejected. Credential responses use Cache-Control: no-store. No credential or secret enters idempotency receipts; no live provider API or group synchronization call is made. The default eight-hour expiry is shortened when the configured maximum is lower; explicit expiry cannot exceed that maximum. Issued session policy and committed last-use activity have the same bounds as administrative issuance. PostgreSQL is required for local evaluation.</p>
+            <p>Exchanges a locally verified OIDC ID token or SAML assertion after checking a verified identity link, active user and current tenant-owned grants. OIDC requires an unexpired server-owned authentication_request_id, matching state, signed nonce, current configured provider trust snapshot and delivery mode. A verified proof is consumed atomically with verification/session/audits, including identity denials; replay cannot issue another session. API delivery returns the secret once in JSON and sets no cookie. OIDC browser delivery requires one same HTTPS Origin and the single __Host-evydence_oidc_state cookie, omits the JSON secret, sets an HttpOnly Secure session cookie and clears login state. Unknown fields, duplicate keys, supplied nulls, trailing JSON, non-object, invalid UTF-8 and NUL-bearing inputs are rejected. Credential responses use Cache-Control: no-store. No credential or secret enters idempotency receipts; no live provider API or group synchronization call is made. The default eight-hour expiry is shortened when the configured maximum is lower; explicit expiry cannot exceed that maximum. Issued session policy and committed last-use activity have the same bounds as administrative issuance. SAML requires its server-owned authentication_request_id and matching state/delivery, configured recipient and NameID format, and a bare signed SAML 2.0 Assertion in the bounded XML signature profile. RSA-SHA256/SHA256, enveloped signature and exclusive canonicalization without comments are supported; the embedded certificate must match an active configured public pin. Signed assertion ID, issuer/audience/subject, recipient, InResponseTo and finite time bounds are checked. Scoped assertion replay and request consumption commit with verification/session/audits, including verified identity denial. Signed SessionNotOnOrAfter caps session lifetime; proof deadlines include selected certificate expiry and are rechecked after locks, writes and commit. SAML browser delivery uses only __Host-evydence_saml_state with the same origin/cookie rules; mixed, duplicate, malformed or ambient API state cookies are rejected. Case-aliased JSON fields are rejected. SAML subject and request IDs are bounded at 1024 and 128 bytes respectively. Historical custom assertions, SAML Response wrappers, encryption, unsolicited login and arbitrary algorithms/profiles are unsupported. The caller owns provider orchestration; no universal interoperability claim is made. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>exchangeSSOCredential</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3503,6 +3554,21 @@
             <td>authentication_request, nonce</td>
           </tr>
           <tr>
+            <td><code>BeginSAMLAuthenticationEnvelope</code></td>
+            <td>object</td>
+            <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>BeginSAMLAuthenticationRequest</code></td>
+            <td>object</td>
+            <td>provider_id</td>
+          </tr>
+          <tr>
+            <td><code>BeginSAMLAuthenticationResponse</code></td>
+            <td>object</td>
+            <td>authentication_request</td>
+          </tr>
+          <tr>
             <td><code>BuildAttestation</code></td>
             <td>object</td>
             <td>id, tenant_id, build_id, evidence_id, payload_hash, payload_size, payload_type, predicate_type, subject_digests, signature_count, verification_status, schema_version, created_at</td>
@@ -3591,6 +3657,11 @@
             <td><code>CommercialCollectorDefinitionListEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>ConfigureSAMLProviderBindingRequest</code></td>
+            <td>object</td>
+            <td>recipient</td>
           </tr>
           <tr>
             <td><code>ContainerImage</code></td>
@@ -4204,7 +4275,7 @@
           </tr>
           <tr>
             <td><code>ExchangeSSOCredentialRequest</code></td>
-            <td>oneOf(object, object, object)</td>
+            <td>oneOf(object, object, object, object)</td>
             <td>provider_id, subject</td>
           </tr>
           <tr>
@@ -4884,6 +4955,21 @@
           </tr>
           <tr>
             <td><code>RoleBindingListEnvelope</code></td>
+            <td>object</td>
+            <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>SAMLAuthenticationRequest</code></td>
+            <td>object</td>
+            <td>id, tenant_id, provider_id, delivery, issuer, audience, recipient, name_id_format, created_at, expires_at, schema_version</td>
+          </tr>
+          <tr>
+            <td><code>SAMLProviderBinding</code></td>
+            <td>object</td>
+            <td>tenant_id, provider_id, recipient, name_id_format, schema_version, updated_at</td>
+          </tr>
+          <tr>
+            <td><code>SAMLProviderBindingEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
           </tr>

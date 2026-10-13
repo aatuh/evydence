@@ -232,6 +232,9 @@ func nativeRouteAuthorizationCases() map[string]func(*testing.T) {
 		"receiveIncidentWebhook":            TestSignedIncidentWebhookRouteAuthorizationMatrix,
 		"exchangeSSOCredential":             TestSSOExchangeRouteAuthorizationMatrix,
 		"beginOIDCAuthentication":           TestOIDCAuthenticationRequestRouteUsesConfiguredProviderTenantAndBoundsState,
+		"beginSAMLAuthentication":           TestSAMLPublicLoginRouteDeclaresProviderTenantPolicy,
+		"configureSAMLProviderBinding":      TestSAMLProviderBindingHTTPUsesFocusedCommandsAndExplicitProjection,
+		"getSAMLProviderBinding":            TestSAMLProviderBindingHTTPUsesFocusedCommandsAndExplicitProjection,
 	}
 	for _, tc := range []struct{ operation, path string }{
 		{"craReadinessReport", "/v1/reports/cra-readiness?product_id=%s&release_id=%s"},

@@ -59,6 +59,7 @@ func NewSpecRegistry() *specs.Registry {
 		"required": []string{"type", "title", "status", "detail", "code", "request_id", "retryable", "retry_class"},
 	})
 	registerCriticalSchemas(registry)
+	registerSAMLSchemas(registry)
 	return registry
 }
 
@@ -174,9 +175,9 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"expires_at":  map[string]any{"type": "string", "format": "date-time"},
 	}, "user_id", "provider_id", "expires_at"))
 	exchangeCredentialSchema := objectSchema(map[string]any{
-		"authentication_request_id": map[string]any{"type": "string", "minLength": 1, "maxLength": 1024, "description": "Required for OIDC. ID of an unexpired server-owned request for this provider and delivery mode."},
-		"state_secret":              map[string]any{"type": "string", "minLength": 52, "maxLength": 52, "pattern": "^evylogin_[A-Za-z0-9_-]{43}$", "description": "Required for OIDC API delivery. Browser delivery reads the single host-bound state cookie and rejects a body state secret."},
-		"delivery":                  map[string]any{"type": "string", "enum": []string{"api", "browser"}, "default": "api", "description": "API returns the secret once in JSON and sets no cookie. OIDC browser delivery requires same HTTPS Origin and delivers the secret only in an HttpOnly Secure cookie."},
+		"authentication_request_id": map[string]any{"type": "string", "minLength": 1, "maxLength": 1024, "description": "Required for OIDC and SAML. ID of an unexpired server-owned request for this provider and delivery mode; SAML IDs are at most 128 bytes."},
+		"state_secret":              map[string]any{"type": "string", "minLength": 52, "maxLength": 52, "pattern": "^evylogin_[A-Za-z0-9_-]{43}$", "description": "Required for API delivery. Browser delivery reads the single protocol-specific host-bound state cookie and rejects a body state secret."},
+		"delivery":                  map[string]any{"type": "string", "enum": []string{"api", "browser"}, "default": "api", "description": "API returns the secret once in JSON and sets no cookie. Browser delivery requires same HTTPS Origin and delivers the secret only in an HttpOnly Secure cookie."},
 		"provider_id":               map[string]any{"type": "string", "maxLength": 1024, "description": "Nonblank provider ID, bounded at 1024 UTF-8 bytes before trimming."},
 		"subject":                   map[string]any{"type": "string", "maxLength": 65536, "description": "Nonblank subject, bounded at 65536 UTF-8 bytes before trimming; cannot contain the supplied credential."},
 		"id_token":                  map[string]any{"type": "string", "maxLength": 65536, "description": "OIDC ID token verified locally against configured public JWKS trust material; bounded at 65536 UTF-8 bytes."},
@@ -186,7 +187,8 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	exchangeCredentialSchema["oneOf"] = []any{
 		map[string]any{"required": []string{"id_token", "authentication_request_id", "state_secret"}, "properties": map[string]any{"id_token": map[string]any{"minLength": 1, "maxLength": 16384}, "delivery": map[string]any{"enum": []string{"api"}}, "saml_assertion": map[string]any{"maxLength": 0}}},
 		map[string]any{"required": []string{"id_token", "authentication_request_id", "delivery"}, "properties": map[string]any{"id_token": map[string]any{"minLength": 1, "maxLength": 16384}, "delivery": map[string]any{"enum": []string{"browser"}}, "saml_assertion": map[string]any{"maxLength": 0}}, "not": map[string]any{"required": []string{"state_secret"}}},
-		map[string]any{"required": []string{"saml_assertion"}, "properties": map[string]any{"saml_assertion": map[string]any{"minLength": 1}, "id_token": map[string]any{"maxLength": 0}, "delivery": map[string]any{"enum": []string{"api"}}, "authentication_request_id": map[string]any{"maxLength": 0}}, "not": map[string]any{"required": []string{"state_secret"}}},
+		map[string]any{"required": []string{"saml_assertion", "authentication_request_id", "state_secret"}, "properties": map[string]any{"saml_assertion": map[string]any{"minLength": 1}, "id_token": map[string]any{"maxLength": 0}, "delivery": map[string]any{"enum": []string{"api"}}, "authentication_request_id": map[string]any{"maxLength": 128}, "subject": map[string]any{"maxLength": 1024}}},
+		map[string]any{"required": []string{"saml_assertion", "authentication_request_id", "delivery"}, "properties": map[string]any{"saml_assertion": map[string]any{"minLength": 1}, "id_token": map[string]any{"maxLength": 0}, "delivery": map[string]any{"enum": []string{"browser"}}, "authentication_request_id": map[string]any{"maxLength": 128}, "subject": map[string]any{"maxLength": 1024}}, "not": map[string]any{"required": []string{"state_secret"}}},
 	}
 	registry.RegisterSchema("ExchangeSSOCredentialRequest", exchangeCredentialSchema)
 	registry.RegisterSchema("BeginOIDCAuthenticationRequest", objectSchema(map[string]any{
