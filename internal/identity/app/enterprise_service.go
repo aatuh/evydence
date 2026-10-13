@@ -59,7 +59,11 @@ type CredentialVerificationRequest struct {
 	Subject       string
 	IDToken       string
 	SAMLAssertion string
-	Now           time.Time
+	// SAML bindings come from configured/server-owned login context, never XML.
+	SAMLRecipient    string
+	SAMLRequestID    string
+	SAMLNameIDFormat string
+	Now              time.Time
 }
 
 type CredentialVerificationResult struct {
@@ -71,6 +75,11 @@ type CredentialVerificationResult struct {
 	Nonce     string
 	IssuedAt  time.Time
 	ExpiresAt time.Time
+	// Transient verified SAML fields for durable request/replay binding.
+	SAMLAssertionID  string
+	SAMLInResponseTo string
+	SAMLRecipient    string
+	SessionExpiresAt time.Time
 }
 
 // SSOExchangeSnapshot captures every mutable identity record used to decide an
