@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -33,8 +34,10 @@ type Config struct {
 }
 
 type Store struct {
-	client *minio.Client
-	bucket string
+	client         *minio.Client
+	bucket         string
+	ownedTransport interface{ CloseIdleConnections() }
+	closed         sync.Once
 }
 
 func New(ctx context.Context, cfg Config) (*Store, error) {
@@ -46,10 +49,21 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 	if bucket == "" || strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" {
 		return nil, app.ErrValidation
 	}
+	transport, err := minio.DefaultTransport(cfg.UseSSL)
+	if err != nil {
+		return nil, fmt.Errorf("create s3 transport: %w", err)
+	}
+	opened := false
+	defer func() {
+		if !opened {
+			transport.CloseIdleConnections()
+		}
+	}()
 	client, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		Secure: cfg.UseSSL,
-		Region: region,
+		Creds:     credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
+		Secure:    cfg.UseSSL,
+		Region:    region,
+		Transport: transport,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create s3 client: %w", err)
@@ -61,7 +75,21 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 	if !exists {
 		return nil, fmt.Errorf("s3 bucket %q does not exist", bucket)
 	}
-	return &Store{client: client, bucket: bucket}, nil
+	opened = true
+	return &Store{client: client, bucket: bucket, ownedTransport: transport}, nil
+}
+
+// Close releases only the transport created by New, after all object operations
+// have stopped. Fixtures or borrowed clients without that ownership stay open.
+func (s *Store) Close() error {
+	if s != nil {
+		s.closed.Do(func() {
+			if s.ownedTransport != nil {
+				s.ownedTransport.CloseIdleConnections()
+			}
+		})
+	}
+	return nil
 }
 
 func (s *Store) Put(ctx context.Context, object app.Object) error {

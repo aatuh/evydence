@@ -285,6 +285,9 @@ package-read borrowers before releasing the API writer lease and closing the
 pools. If that wait expires, cleanup reports failure and retains the lease until
 process exit; it does not admit another writer beneath unfinished database work.
 Startup failure uses a live cleanup context even if startup was canceled.
+Runtime-created S3/MinIO transports close after those borrowers drain and before
+writer release, within the same budget. Supplied provider/object ports remain
+borrowed; exposing a `Close` method alone does not transfer ownership.
 
 Evydence does not accept compressed or multipart request bodies. Only an absent
 or `identity` `Content-Encoding` is accepted, so the ingress limit and the

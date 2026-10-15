@@ -64,6 +64,7 @@ func (v *Validator) ValidateProviderIdentity(ctx context.Context, req app.Provid
 	if err != nil {
 		return failed("oidc_issuer_url"), app.ErrValidation
 	}
+	defer client.CloseIdleConnections()
 	discoveryURL := issuer.JoinPath(".well-known", "openid-configuration").String()
 	var discovery discoveryDocument
 	if err := v.getJSON(ctx, client, discoveryURL, "", &discovery); err != nil {

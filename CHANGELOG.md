@@ -13,9 +13,15 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Fixed owned outbound HTTP transport cleanup (EVY-1209): policy clients release
+their cloned pools while retaining borrowed transports, per-call discovery,
+UserInfo and transparency clients close after their flow, and runtime-owned
+S3/MinIO pools close during shutdown or failed construction. Local connection
+and ownership tests cover these boundaries; complete lifecycle acceptance is pending.
+
 Bounded PostgreSQL runtime cleanup (EVY-1209 foundation) now waits for both pools
 before releasing the writer lease and reports cleanup failure to API/worker
-callers. Forced drain keeps resources until process exit. Provider/object-store
+callers. Forced drain keeps resources until process exit. Provider process
 ownership, deployment budgets and complete lifecycle acceptance remain in progress.
 
 Fixed API listener failure shutdown (EVY-1208) to drain admitted requests

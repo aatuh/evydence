@@ -72,6 +72,7 @@ func (f *Fetcher) FetchTransparencyProof(ctx context.Context, req app.Transparen
 	if err != nil {
 		return app.TransparencyProofResult{}, app.ErrValidation
 	}
+	defer client.CloseIdleConnections()
 	endpoint.Path = strings.TrimRight(endpoint.Path, "/") + "/entries/" + url.PathEscape(externalID) + "/inclusion-proof"
 	endpoint.RawQuery = ""
 	endpoint.Fragment = ""

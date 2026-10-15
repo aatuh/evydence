@@ -67,6 +67,7 @@ type Runtime struct {
 	lease              func(context.Context) error
 	closed             sync.Once
 	cleanup            OwnedResources
+	closeObjects       func(context.Context) error
 }
 
 const DefaultCleanupTimeout = 5 * time.Second
@@ -87,6 +88,9 @@ func (r *Runtime) CloseContext(ctx context.Context, timeout time.Duration) error
 	r.closed.Do(func() {
 		if r.Postgres != nil {
 			r.cleanup.Add("postgres_work", r.Postgres.WaitForIdle)
+		}
+		if r.closeObjects != nil {
+			r.cleanup.Add("objects", r.closeObjects)
 		}
 		if r.lease != nil {
 			r.cleanup.Add("writer_lease", r.lease)
@@ -162,6 +166,9 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	runtime.Objects, _, err = OpenObjectStore(ctx, config.ObjectStore)
 	if err != nil {
 		return nil, runtimeAdapterError("open object store", err)
+	}
+	if closer, ok := runtime.Objects.(interface{ Close() error }); ok {
+		runtime.closeObjects = func(context.Context) error { return closer.Close() }
 	}
 	return runtime, nil
 }

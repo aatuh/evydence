@@ -52,6 +52,7 @@ type destinationPolicy struct {
 
 type policyTransport struct {
 	base             http.RoundTripper
+	owned            *http.Transport
 	policy           destinationPolicy
 	maxResponseBytes int64
 }
@@ -90,6 +91,7 @@ func New(cfg Config) (*http.Client, error) {
 		client.Timeout = timeout
 	}
 	base := client.Transport
+	var owned *http.Transport
 	if base == nil {
 		base = http.DefaultTransport
 	}
@@ -99,12 +101,21 @@ func New(cfg Config) (*http.Client, error) {
 		clone.DialContext = policy.dialContext
 		clone.TLSClientConfig = cloneTLSConfig(clone.TLSClientConfig)
 		base = clone
+		owned = clone
 	}
-	client.Transport = policyTransport{base: base, policy: policy, maxResponseBytes: maxResponseBytes}
+	client.Transport = policyTransport{base: base, owned: owned, policy: policy, maxResponseBytes: maxResponseBytes}
 	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return ErrDestinationDenied
 	}
 	return &client, nil
+}
+
+// Close only the clone created by New. A custom supplied RoundTripper remains
+// borrowed even if it happens to expose a CloseIdleConnections method.
+func (p policyTransport) CloseIdleConnections() {
+	if p.owned != nil {
+		p.owned.CloseIdleConnections()
+	}
 }
 
 func cloneTLSConfig(in *tls.Config) *tls.Config {

@@ -65,6 +65,7 @@ func (c *Client) FetchOIDCTrustMaterial(ctx context.Context, req app.OIDCDiscove
 	if err != nil {
 		return app.OIDCDiscoveryResult{}, app.ErrValidation
 	}
+	defer httpClient.CloseIdleConnections()
 	discoveryURL := *issuerURL
 	discoveryURL.Path = strings.TrimRight(discoveryURL.Path, "/") + "/.well-known/openid-configuration"
 	discoveryURL.RawQuery = ""
