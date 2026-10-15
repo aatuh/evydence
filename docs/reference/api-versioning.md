@@ -120,7 +120,7 @@ Local signed fixtures exercise native HTTP delivery and transactional replay
 protection. Standalone SAML receipts also require API request/state fields and
 consume valid proof with the receipt/audits, without session issuance; metadata
 assessment remains available. Historical custom signature inputs cannot pass.
-Full EVY-1010 acceptance remains pending; this is neither a release nor an interoperability
+The full local EVY-1010 production gate passed on 2026-10-15; this is neither a release nor an interoperability
 claim for an arbitrary IdP.
 
 ## Unreleased Custom Report Template Boundary

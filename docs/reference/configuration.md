@@ -158,8 +158,8 @@ application bounds, not environment knobs. SAML recipient/NameID settings are
 tenant-owned provider bindings configured through the [SAML login API](../api.md#saml-binding-and-login-requests-unreleased), rather than environment variables.
 SAML uses its own bounded requests, signed assertion profile and state cookie.
 Standalone SAML receipts require API-delivered request context and consume
-proof without session issuance. Full acceptance remains EVY-1010 work;
-authentication failure telemetry remains EVY-1011.
+proof without session issuance. The full local EVY-1010 production gate passed
+on 2026-10-15. Authentication failure telemetry remains EVY-1011.
 
 ## First-Tenant Bootstrap
 

@@ -641,7 +641,7 @@ The [SAML login contract](../api.md#saml-binding-and-login-requests-unreleased)
 describes native HTTP configuration, initiation, API/browser delivery and the
 supported XML profile. Standalone SAML receipts now use the same server-owned
 context and standard verifier with atomic consumption and no session issuance.
-The full EVY-1010 acceptance gate remains pending. Local signed
+The full local EVY-1010 production gate passed on 2026-10-15. Local signed
 fixtures do not establish real-provider interoperability.
 
 Source/test evidence: `internal/identity/app/saml_exchange_bindings.go`,

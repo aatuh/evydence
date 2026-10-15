@@ -1274,7 +1274,7 @@ unbound historical custom assertions cannot issue sessions. Use the separate
 SAML setup below; OIDC state and cookies cannot substitute for SAML state.
 Standalone SAML receipts also require this request context and standard profile;
 they consume valid proof without issuing a session. The complete EVY-1010
-acceptance gate remains pending. The new login flow does not establish
+acceptance gate passed on 2026-10-15. The new login flow does not establish
 arbitrary-provider interoperability.
 
 #### SAML Binding And Login Requests (Unreleased)
@@ -1398,8 +1398,11 @@ When a SAML assertion is supplied, include `authentication_request_id` and
 `state_secret` from SAML initiation with API delivery. The same standard XML
 signature, configured recipient/NameID and signed correlation profile as login
 applies. Verified request/assertion consumption, receipt and audits commit
-together without creating a session. A verified link denial consumes the proof;
-invalid signatures do not. Fresh verification cannot reuse a consumed proof,
+together without creating a session. Direct application calls consume valid
+proof even when the verified-link check denies the assessment. Failed HTTP
+assessments instead roll back proof consumption with the receipt and audit,
+following the HTTP failure contract below. Invalid signatures never consume
+proof. Fresh verification cannot reuse a consumed proof,
 while completed idempotency replay returns the historical receipt after current
 administration/provider checks. Metadata-only inactive assessments remain
 available; credential proof requires an active configured provider and binding.
