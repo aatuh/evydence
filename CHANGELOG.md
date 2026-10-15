@@ -16,8 +16,9 @@ release artifacts.
 Added independent per-client failure budgets for authentication, public SSO
 and portal actions (EVY-1011), with bounded state, opaque keys, concurrency
 reservations and non-cacheable `429` responses. The general request-limit
-override does not disable failure protection. Full ticket validation remains
-pending; configuration documents process-local scope and recovery behavior.
+override does not disable failure protection. The full local production gate
+passed on 2026-10-15; configuration documents process-local scope and recovery
+behavior. This does not establish external identity-provider interoperability.
 
 Added tenant-owned SAML recipient/NameID bindings and separate bounded login
 initiation, with standard signed-assertion session exchange (EVY-1010). API and
@@ -42,8 +43,8 @@ protection and omits the JSON secret. The exact prerelease compatibility record
 adds that optional response property to the preceding unchanged 205-entry set;
 it is not an external approval or a published release. The new guarded migration
 preserves historical identity/evidence records; backup metadata uses frozen
-v4 semantics while retaining v1/v2/v3 reproduction. SAML standard signature,
-binding/replay and failure telemetry remain separate work. See the
+v4 semantics while retaining v1/v2/v3 reproduction. The subsequent SAML and
+failure-budget entries record their completed local validation. See the
 [rollout policy](docs/reference/upgrade-compatibility-policy.md#oidc-login-binding-rollout).
 
 Hardened the SSO credential transport boundary (EVY-1007): authenticated routes
@@ -53,8 +54,8 @@ API/collector keys cannot authenticate through a session cookie. Unsafe cookie
 Origins are checked before verification or cleanup; unauthorized cookies expire
 with the existing secure attributes. SSO credential responses are `no-store`.
 CSRF regressions now issue real human sessions while retaining their original
-status, replay and denied-effect assertions. Broader lifecycle, OIDC/SAML and
-abuse-resistance work remains incomplete under EVY-1005.
+status, replay and denied-effect assertions. The subsequent lifecycle, OIDC/SAML
+and failure-budget entries complete the local EVY-1005 acceptance checks.
 
 Added bounded session lifecycle behavior (EVY-1008): issuance captures finite
 absolute/idle policy, authentication checks current identity/grants under locks
@@ -63,8 +64,9 @@ Cookie and Bearer paths reject idle, expired, revoked, inactive-user/provider
 and over-lifetime sessions. Session schema v1.1.0 adds policy/activity metadata;
 the migration preserves historical core fields and does not revive old idle
 sessions. See the [configuration and upgrade limits](docs/reference/configuration.md#sso-session-lifecycle-unreleased).
-OIDC/SAML request/proof binding and failure limits remain incomplete; this
-change is not a release or a broader security-readiness claim.
+The subsequent OIDC/SAML and failure-budget entries cover request/proof binding
+and failure limits. This change is not a release or a broader security-readiness
+claim.
 
 Backup metadata commitments now use `tenant-relational-state.v3` to include
 the captured session policy and activity fields. Frozen v1/v2 vocabularies and

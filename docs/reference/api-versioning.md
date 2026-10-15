@@ -68,7 +68,7 @@ clients must obtain a fresh session when the old one no longer qualifies.
 
 See the [configuration reference](configuration.md#sso-session-lifecycle-unreleased)
 for exact bounds, rollout and downgrade limits. OIDC binding/replay is described
-below; SAML binding/signature/replay and failure telemetry remain separate work.
+below; the subsequent SAML and failure-budget sections describe those changes.
 
 ## EVY-1009 OIDC Login Delivery Contract
 
@@ -105,8 +105,9 @@ capacity before work begins; deployments expecting larger bursts must size
 Problem Details response with `Retry-After`. Responses are non-cacheable.
 Credential, subject, or SSO protocol changes cannot select a fresh allowance.
 See [configuration and recovery](configuration.md#authentication-and-portal-failure-limits-unreleased)
-for capacity saturation, trusted proxies, and process-local scope. Full ticket
-acceptance remains pending; this is an unreleased runtime behavior change.
+for capacity saturation, trusted proxies, and process-local scope. The full local
+production gate passed on 2026-10-15. This remains an unreleased runtime behavior
+change; local validation is not external identity-provider verification.
 
 Public `POST /v1/sso/session-exchanges` maps identity lookup, credential-proof,
 and linked-account permission denials to the same generic `401`, replacing

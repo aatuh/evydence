@@ -160,7 +160,7 @@ tenant-owned provider bindings configured through the [SAML login API](../api.md
 SAML uses its own bounded requests, signed assertion profile and state cookie.
 Standalone SAML receipts require API-delivered request context and consume
 proof without session issuance. The full local EVY-1010 production gate passed
-on 2026-10-15. Authentication failure telemetry remains EVY-1011.
+on 2026-10-15. Authentication and portal failure limits are described below.
 
 ## First-Tenant Bootstrap
 
@@ -303,8 +303,10 @@ client identity. Credentials, account names, provider subjects, raw client IPs,
 and tenant identifiers are not retained in limiter keys or added to logs.
 Clients sharing an address share an allowance. Untrusted forwarding headers
 cannot select another client; the trusted-proxy rules above remain authoritative.
-At failure-state capacity, unknown clients receive `429` until a new minute
-releases capacity. Active histories are never evicted to admit another client.
+Failure-state capacity is shared across client/class keys. At capacity, new
+keys receive `429` until a new minute releases capacity, including a new class
+for a client already tracked in another class. Active histories are never evicted
+to admit another key.
 
 Limit responses use generic Problem Details, `Retry-After`, and `no-store`,
 without setting credentials or exposing account existence.
@@ -313,7 +315,8 @@ verification receipts keep their separate contract. Public system
 metadata and the portal review form remain available. These counters are
 bounded process-local state: restart clears them, and they do not claim a shared
 multi-process quota. Keep the supported single API writer and external ingress
-controls. EVY-1011 remains incomplete until its full acceptance checks pass.
+controls. The full local EVY-1011 production gate passed on 2026-10-15; this
+does not establish a distributed quota or external identity-provider verification.
 
 ## Production Rejection Checks
 
