@@ -280,6 +280,12 @@ failure without raw request or provider error details. Resource cleanup and
 deployment termination grace must also be accounted for; the HTTP budget only
 covers request draining.
 
+PostgreSQL cleanup has a separate five-second budget. It waits for command and
+package-read borrowers before releasing the API writer lease and closing the
+pools. If that wait expires, cleanup reports failure and retains the lease until
+process exit; it does not admit another writer beneath unfinished database work.
+Startup failure uses a live cleanup context even if startup was canceled.
+
 Evydence does not accept compressed or multipart request bodies. Only an absent
 or `identity` `Content-Encoding` is accepted, so the ingress limit and the
 route parser count the same bytes. Multipart is rejected because no public

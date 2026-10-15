@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -63,22 +64,38 @@ type Runtime struct {
 	SigningExecutor    app.SigningExecutor
 	TransparencyProofs app.TransparencyProofFetcher
 	SessionPolicy      identitydomain.SessionPolicy
-	lease              func()
+	lease              func(context.Context) error
 	closed             sync.Once
+	cleanup            OwnedResources
 }
 
+const DefaultCleanupTimeout = 5 * time.Second
+
 func (r *Runtime) Close() {
+	if err := r.CloseContext(context.Background(), DefaultCleanupTimeout); err != nil {
+		log.Print("runtime cleanup failed; process exit required")
+	}
+}
+
+// CloseContext follows stopped request/job processing. It bounds cleanup,
+// preserves the writer lease while database work remains, and remembers failure.
+// Callers must exit after a cleanup error instead of reusing this runtime.
+func (r *Runtime) CloseContext(ctx context.Context, timeout time.Duration) error {
 	if r == nil {
-		return
+		return nil
 	}
 	r.closed.Do(func() {
+		if r.Postgres != nil {
+			r.cleanup.Add("postgres_work", r.Postgres.WaitForIdle)
+		}
 		if r.lease != nil {
-			r.lease()
+			r.cleanup.Add("writer_lease", r.lease)
 		}
 		if r.Postgres != nil {
-			r.Postgres.Close()
+			r.cleanup.Add("postgres_pools", func(context.Context) error { r.Postgres.Close(); return nil })
 		}
 	})
+	return r.cleanup.Close(ctx, timeout)
 }
 
 // OpenRuntime applies profile, production, migration, and object-store rules
@@ -120,7 +137,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs, SessionPolicy: sessionPolicy}
 	defer func() {
 		if err != nil {
-			runtime.Close()
+			err = errors.Join(err, runtime.CloseContext(ctx, DefaultCleanupTimeout))
 		}
 	}()
 	if config.Production && config.Process == API {

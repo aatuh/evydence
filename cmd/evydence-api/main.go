@@ -49,7 +49,7 @@ func main() {
 	}
 }
 
-func runWithContext(ctx context.Context) error {
+func runWithContext(ctx context.Context) (runErr error) {
 	identity := runtimeinfo.Current()
 	log.Printf("evydence api build identity %s", identity.String())
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
@@ -126,7 +126,11 @@ func runWithContext(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer runtime.Close()
+	defer func() {
+		if !errors.Is(runErr, errAPIForcedDrain) {
+			runErr = errors.Join(runErr, runtime.CloseContext(ctx, wiring.DefaultCleanupTimeout))
+		}
+	}()
 	var readinessChecks []app.ReadinessCheck
 	pgStore := runtime.Postgres
 	objectStore := runtime.Objects
@@ -636,6 +640,8 @@ func newHTTPServer(addr string, handler http.Handler, config httpRuntimeConfig) 
 	}
 }
 
+var errAPIForcedDrain = errors.New("API forced drain requires process exit; in-flight outcomes may be uncertain")
+
 func serveHTTP(ctx context.Context, server *http.Server, shutdownTimeout time.Duration) error {
 	if ctx == nil || server == nil {
 		return errors.New("API server and context are required")
@@ -689,7 +695,7 @@ func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Print("API drain failed; connections closing; in-flight outcomes may be uncertain")
 		closeErr := server.Close()
-		return errors.Join(serveErr, fmt.Errorf("gracefully shut down API server: %w", err), closeErr)
+		return errors.Join(errAPIForcedDrain, serveErr, fmt.Errorf("gracefully shut down API server: %w", err), closeErr)
 	}
 	if !serveFinished {
 		serveErr = <-errCh

@@ -120,7 +120,9 @@ func runWithArgs(args []string) (runErr error) {
 	if err != nil {
 		return err
 	}
-	defer func() { closeWorkerAfterStop(runErr, runtime.Close) }()
+	defer func() {
+		closeWorkerAfterStop(runErr, func() { runErr = errors.Join(runErr, runtime.CloseContext(ctx, wiring.DefaultCleanupTimeout)) })
+	}()
 	store := runtime.Postgres
 	objectStore := runtime.Objects
 	processor, err := newNativeJobProcessor(store, objectStore)

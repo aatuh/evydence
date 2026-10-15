@@ -95,10 +95,12 @@ func TestStoreAPIWriterLeaseIsExclusive(t *testing.T) {
 		t.Fatalf("first writer lease readiness: %v", err)
 	}
 	if _, err := second.AcquireAPIWriterLease(ctx); err == nil || !strings.Contains(err.Error(), "already active") {
-		releaseFirst()
+		_ = releaseFirst(ctx)
 		t.Fatalf("second lease err=%v, want active writer rejection", err)
 	}
-	releaseFirst()
+	if err := releaseFirst(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if err := first.CheckAPIWriterLease(ctx); err == nil {
 		t.Fatal("released writer lease must fail readiness")
 	}
@@ -106,7 +108,9 @@ func TestStoreAPIWriterLeaseIsExclusive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second lease after release: %v", err)
 	}
-	releaseSecond()
+	if err := releaseSecond(ctx); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestStoreAllocatesConcurrentAuditChainSequencesInTransaction(t *testing.T) {

@@ -181,7 +181,7 @@ func TestHTTPDrainDeadlineCancelsRequestAndReturnsFailure(t *testing.T) {
 	f := startHTTPDrainFixture(t, 25*time.Millisecond, false)
 	requestCtx := awaitHTTPDrainEvent(t, f.entered)
 	f.cancel()
-	if err := awaitHTTPDrainEvent(t, f.done); !errors.Is(err, context.DeadlineExceeded) {
+	if err := awaitHTTPDrainEvent(t, f.done); !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, errAPIForcedDrain) {
 		t.Fatal("deadline not reported as failure", err)
 	}
 	awaitHTTPDrainEvent(t, f.finished)

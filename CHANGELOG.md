@@ -13,6 +13,11 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Bounded PostgreSQL runtime cleanup (EVY-1209 foundation) now waits for both pools
+before releasing the writer lease and reports cleanup failure to API/worker
+callers. Forced drain keeps resources until process exit. Provider/object-store
+ownership, deployment budgets and complete lifecycle acceptance remain in progress.
+
 Fixed API listener failure shutdown (EVY-1208) to drain admitted requests
 before returning the serve error. Signal shutdown retains request contexts
 until completion or the configured deadline; forced closure cancels unfinished

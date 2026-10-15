@@ -163,7 +163,7 @@ func ValidateProductionLoadMode(mode LoadMode) error {
 	return nil
 }
 
-func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(), error) {
+func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(context.Context) error, error) {
 	if s == nil || s.pool == nil {
 		return nil, app.ErrValidation
 	}
@@ -188,18 +188,37 @@ func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(), error) {
 	s.writerLeaseMu.Lock()
 	s.writerLease = conn
 	s.writerLeaseMu.Unlock()
-	releaseCtx := context.WithoutCancel(ctx)
 	var once sync.Once
-	return func() {
+	var releaseErr error
+	return func(releaseCtx context.Context) error {
+		if releaseCtx == nil {
+			return app.ErrValidation
+		}
+		if err := releaseCtx.Err(); err != nil {
+			return err
+		}
 		once.Do(func() {
-			_, _ = conn.Exec(releaseCtx, `SELECT pg_advisory_unlock($1)`, apiWriterLeaseKey)
 			s.writerLeaseMu.Lock()
+			defer s.writerLeaseMu.Unlock()
+			if err := releaseCtx.Err(); err != nil {
+				releaseErr = err
+				return
+			}
+			if _, err := conn.Exec(releaseCtx, `SELECT pg_advisory_unlock($1)`, apiWriterLeaseKey); err != nil {
+				// An uncertain unlock must never put a session-scoped advisory
+				// lock back into the pool. Close that physical connection first.
+				_ = conn.Conn().Close(releaseCtx)
+				releaseErr = errors.New("API writer lease release failed")
+				if releaseCtx.Err() != nil {
+					releaseErr = releaseCtx.Err()
+				}
+			}
 			if s.writerLease == conn {
 				s.writerLease = nil
 			}
-			s.writerLeaseMu.Unlock()
 			conn.Release()
 		})
+		return releaseErr
 	}, nil
 }
 
