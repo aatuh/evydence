@@ -1,5 +1,11 @@
 # Release Evidence Index
 
+The release-style binary gate also writes
+`tmp/black-box-release-artifact/lifecycle/summary.json`, per-case durable receipts
+and Go events for four real-SIGTERM API/worker scenarios. See the
+[release validation contract](release-validation.md#production-readiness-gate)
+for required counts, artifact hash binding and scope limits.
+
 This reference maps each release-candidate evidence artifact to the command
 that creates or verifies it. Keep it with
 [Release candidate checklist](release-candidate.md) and

@@ -13,6 +13,13 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added mandatory release-binary SIGTERM evidence to the release-artifact gate
+(EVY-1209). Four PostgreSQL lock-barrier scenarios verify API completion/rollback
+and idempotent restart, plus worker completion or fenced native retry. The gate
+requires every pass and durable receipt, rejects incomplete evidence, binds
+binary hashes and preserves prior lifecycle artifacts. Full parent production
+acceptance remains pending.
+
 Aligned Helm and production-like Compose termination budgets with daemon drain
 and cleanup (EVY-1209). Helm rejects undersized/invalid budgets, keeps one API
 writer and uses `Recreate` for its rollout; workers can scale and roll normally.

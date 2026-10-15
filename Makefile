@@ -61,6 +61,8 @@ coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_
 test-strategy-check: ## Validate critical behavior test evidence and coverage provenance policy
 	@python3 scripts/test_gate_watchdogs.py
 	@python3 scripts/test_concurrency_stress.py
+	@python3 scripts/test_runtime_lifecycle_check.py
+	@python3 scripts/test_runtime_lifecycle_evidence.py
 	@python3 scripts/test_coverage_check.py
 	@python3 scripts/test_critical_behavior_matrix.py
 	@python3 scripts/critical_behavior_matrix.py --check

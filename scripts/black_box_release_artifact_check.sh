@@ -55,6 +55,12 @@ EVYDENCE_BLACK_BOX_EXPECTED_COMMIT="$build_commit" \
 EVYDENCE_BLACK_BOX_EXPECTED_RELEASE_MANIFEST_DIGEST="$build_release_manifest_digest" \
 scripts/black_box_demo_check.sh >"$workdir/black-box.stdout" 2>"$workdir/black-box.stderr"
 
+EVYDENCE_LIFECYCLE_API_BIN="$release_dir/evydence-api" \
+EVYDENCE_LIFECYCLE_WORKER_BIN="$release_dir/evydence-worker" \
+EVYDENCE_LIFECYCLE_EXPECTED_COMMIT="$build_commit" \
+EVYDENCE_LIFECYCLE_ARTIFACT_DIR="$workdir/lifecycle" \
+sh scripts/runtime_lifecycle_check.sh >"$workdir/lifecycle.stdout" 2>"$workdir/lifecycle.stderr"
+
 python3 - "$workdir" "$release_dir" "$run_dir" <<'PY'
 import hashlib
 import json
@@ -101,6 +107,13 @@ for name in ["evydence", "evydence-api", "evydence-worker", "evydence-migrate"]:
 
 object_files, object_bytes = count_files(object_root)
 demo_json_files = len(list(demo_dir.glob("*.json"))) if demo_dir.exists() else 0
+lifecycle = json.loads((workdir / "lifecycle/summary.json").read_text())
+if lifecycle["status"] != "passed" or len(lifecycle["cases"]) != 4:
+    raise SystemExit("release binary lifecycle evidence is incomplete")
+for binary in lifecycle["binaries"]:
+    name = "evydence-" + binary["name"]
+    if not any(item["name"] == name and item["sha256"] == binary["sha256"] for item in binaries):
+        raise SystemExit("lifecycle binaries do not match the release artifact")
 
 summary = {
     "schema_version": "evydence-black-box-release-artifact.v1.0.0",
@@ -117,12 +130,14 @@ summary = {
         "release_readiness_verified": True,
         "customer_package_created": True,
         "audit_chain_verified": True,
+        "sigterm_lifecycle_cases": len(lifecycle["cases"]),
     },
     "outputs": {
         "summary_path": str(workdir / "black-box-release-artifact-summary.json"),
         "checksums_path": str(release_dir / "SHA256SUMS"),
         "black_box_stdout": str(workdir / "black-box.stdout"),
         "black_box_stderr": str(workdir / "black-box.stderr"),
+        "lifecycle_summary": str(workdir / "lifecycle/summary.json"),
         "demo_json_files": demo_json_files,
         "object_files": object_files,
         "object_bytes": object_bytes,

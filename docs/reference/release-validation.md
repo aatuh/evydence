@@ -97,6 +97,23 @@ black-box flow against release-style local binaries through
 smoke test. See [Production readiness](production-readiness.md) for the
 supported profiles and exit criteria.
 
+The release-artifact gate also runs the four `releasebinary` lifecycle tests in
+`internal/platform/lifecyclecheck`. They send real SIGTERM to the built API and
+worker while native operations are blocked on owned PostgreSQL row locks. API
+tests verify graceful completion or forced rollback, restart/idempotent replay,
+one project/audit/receipt, and writer exclusion during drain. Worker tests verify
+graceful completion or an unacknowledged claim, replacement lease fencing and an
+idempotent native payload retry. The forced-worker fixture advances only its
+isolated claim's expiry timestamp; it does not wait five minutes or change the
+production lease duration.
+
+`tmp/black-box-release-artifact/lifecycle/summary.json` requires all four Go test
+passes plus durable case receipts and binds the API/worker hashes to the release
+directory. Missing, skipped, failed, duplicate or malformed evidence fails the
+gate. Existing artifact directories are preserved by the lifecycle helper.
+These are local release-style binaries with disposable PostgreSQL/filesystem
+storage; they do not establish published-release or live-provider behavior.
+
 `make coverage-check` is intentionally part of the production profile and fails
 early when `EVYDENCE_TEST_DATABASE_URL` is unset. Use `make coverage` for a
 local no-database coverage report that is not release-candidate evidence.
