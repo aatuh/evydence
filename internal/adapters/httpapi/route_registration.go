@@ -26,7 +26,7 @@ func (s *Server) registerRoutes() error {
 		if err := validateRouteAuthorizationPolicy(route.op, policy); err != nil {
 			return err
 		}
-		if err := s.routes.Register(routecontracts.Route{Method: route.method, Pattern: route.path, Handler: route.handler, Operation: route.op}); err != nil {
+		if err := s.routes.Register(routecontracts.Route{Method: route.method, Pattern: route.path, Handler: s.failureLimitedPublicHandler(route.op.OperationID, route.handler), Operation: route.op}); err != nil {
 			return err
 		}
 	}

@@ -23,6 +23,7 @@ api:
   maxInFlightRequests: 256
   maxConcurrentUploads: 8
   rateLimitRequestsPerMinute: 120
+  authenticationFailuresPerMinute: 20
   expensiveTenantRequestsPerMinute: 30
   rateLimitBucketCapacity: 10000
   # Set only to CIDRs of proxies that append and sanitize X-Forwarded-For.

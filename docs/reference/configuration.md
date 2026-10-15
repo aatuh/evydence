@@ -58,8 +58,9 @@ process, or equivalent deployment control.
 | `EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS` | No | `256` | Process-wide simultaneous request cap. Saturation returns a retryable `429` Problem Details response. |
 | `EVYDENCE_HTTP_MAX_CONCURRENT_UPLOADS` | No | `8` | Simultaneous native SBOM, VEX, scan, and OpenAPI-document upload cap. Saturation returns a retryable `429` Problem Details response. |
 | `EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE` | No | `120` | In-process per-client request limit. Set `0` only for controlled local evaluation; retain a reverse-proxy or ingress limit as the primary edge control. |
+| `EVYDENCE_AUTH_FAILURES_PER_MINUTE` | No | `20` | Per-client failure budget for each of credential authentication, public SSO, and portal access. Values must be 1 through 60000; zero cannot disable it. In-flight verification reserves budget until completion. See [failure limits](#authentication-and-portal-failure-limits-unreleased). |
 | `EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE` | No | `30` | Per-tenant, per-route limit for document ingestion, bundle/import/export, report/package generation, diffs, and policy evaluation. Set `0` only for controlled local evaluation. |
-| `EVYDENCE_RATE_LIMIT_BUCKET_CAPACITY` | No | `10000` | Maximum tracked client/tenant-route buckets per in-process limiter. Values must be 1 through 1000000; least-recent buckets are evicted when full. |
+| `EVYDENCE_RATE_LIMIT_BUCKET_CAPACITY` | No | `10000` | Maximum tracked buckets per in-process limiter. Values must be 1 through 1000000. General client/tenant quotas evict least-recent buckets; failure quotas deny new keys while capacity is full, preserving active failure history. |
 | `EVYDENCE_TRUSTED_PROXY_CIDRS` | No | unset | Comma-separated proxy source CIDRs. Evydence uses `X-Forwarded-For` only when the direct TCP peer is in this list; otherwise it rate-limits the direct remote address. |
 | `EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS` | No | `false` | Optional hardening mode for non-VEX parser-backed uploads. When set to `true`, the API stores accepted records and the outbox worker populates parser-derived fields from tenant-prefixed raw payloads after digest verification. VEX documents are normalized during upload and their decisions are always created post-commit by the worker from a versioned normalized request; a stored raw payload adds independent replay verification. |
 | `EVYDENCE_SKIP_MIGRATIONS` | No | unset | Set to `true` only when migrations are applied by a separate release process. API and worker startup still verify that no committed migrations are pending and fail closed if the database is behind. |
@@ -277,6 +278,42 @@ peer is not trusted. It does not treat `Forwarded` or `X-Real-IP` as a client
 identity source. This process-local limiter remains a safety boundary, not a
 substitute for TLS termination, edge DDoS controls, or a shared distributed
 rate limiter when multiple API processes are introduced.
+
+## Authentication And Portal Failure Limits (Unreleased)
+
+`EVYDENCE_AUTH_FAILURES_PER_MINUTE` limits failed work separately for credential
+authentication, public OIDC/SAML initiation and exchange, and token-based portal
+JSON/form access and downloads. These limits remain active when the general
+request limit is zero. Helm exposes `api.authenticationFailuresPerMinute`;
+production-like Compose passes the same environment variable.
+
+Each trusted client and class has a budget in a fixed UTC calendar minute.
+Admission reserves a slot before verification or protected effects. Successful
+completion releases that slot without erasing earlier failures. Every failed
+SSO/portal handler response consumes a slot, including malformed input and
+server errors. Credential failures include invalid/missing/ambiguous credentials
+and unsafe cookie origins; downstream authorization and expensive-tenant quota
+denials after successful authentication do not consume credential failures.
+Concurrent work counts toward the budget, so a burst can receive `429` while
+earlier requests are still running. Size the configured budget for expected
+concurrency; do not rely on credential switching to select a fresh bucket.
+
+Keys use a random process-private HMAC over the class and the existing trusted
+client identity. Credentials, account names, provider subjects, raw client IPs,
+and tenant identifiers are not retained in limiter keys or added to logs.
+Clients sharing an address share an allowance. Untrusted forwarding headers
+cannot select another client; the trusted-proxy rules above remain authoritative.
+At failure-state capacity, unknown clients receive `429` until a new minute
+releases capacity. Active histories are never evicted to admit another client.
+
+Limit responses use generic Problem Details, `Retry-After`, and `no-store`,
+without setting credentials or exposing account existence.
+SSO exchange identity/proof/permission denials use generic `401`; administrative
+verification receipts keep their separate contract. Public system
+metadata and the portal review form remain available. These counters are
+bounded process-local state: restart clears them, and they do not claim a shared
+multi-process quota. Keep the supported single API writer and external ingress
+controls. EVY-1011 remains incomplete until its full acceptance checks pass.
 
 ## Production Rejection Checks
 

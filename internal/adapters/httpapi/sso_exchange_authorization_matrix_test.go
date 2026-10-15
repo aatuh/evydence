@@ -59,6 +59,9 @@ func TestSSOExchangeRouteAuthorizationMatrix(t *testing.T) {
 		if want != 201 && (w.Header().Get("Set-Cookie") != "" || strings.Contains(w.Body.String(), `"data"`) || strings.Contains(w.Body.String(), `"secret"`)) {
 			t.Fatal("denied identity acquired a cookie, secret or public result")
 		}
+		if want == 401 && (!strings.Contains(w.Body.String(), `"detail":"unauthorized"`) || w.Header().Get("Cache-Control") != "no-store") {
+			t.Fatal("public exchange denial exposed identity state or became cacheable")
+		}
 		return w
 	}
 	var token string
@@ -92,12 +95,12 @@ func TestSSOExchangeRouteAuthorizationMatrix(t *testing.T) {
 		edit func(map[string]any)
 		want int
 	}{
-		{"issuer", func(c map[string]any) { c["iss"] = "https://foreign.example.test" }, 422},
-		{"audience", func(c map[string]any) { c["aud"] = "foreign-client" }, 422},
-		{"subject", func(c map[string]any) { c["sub"] = "subject-Foreign" }, 422},
-		{"expiry", func(c map[string]any) { c["exp"] = peripheralFixtureQueryClock().Unix() }, 422},
-		{"email", func(c map[string]any) { c["email_verified"] = false }, 422},
-		{"capabilities", func(c map[string]any) { c["groups"] = []string{} }, 403},
+		{"issuer", func(c map[string]any) { c["iss"] = "https://foreign.example.test" }, 401},
+		{"audience", func(c map[string]any) { c["aud"] = "foreign-client" }, 401},
+		{"subject", func(c map[string]any) { c["sub"] = "subject-Foreign" }, 401},
+		{"expiry", func(c map[string]any) { c["exp"] = peripheralFixtureQueryClock().Unix() }, 401},
+		{"email", func(c map[string]any) { c["email_verified"] = false }, 401},
+		{"capabilities", func(c map[string]any) { c["groups"] = []string{} }, 401},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := claims()
@@ -120,9 +123,9 @@ func TestSSOExchangeRouteAuthorizationMatrix(t *testing.T) {
 	token = signedRouterIDToken(t, private, "exchange-policy", claims())
 	request(t, foreign.provider.ID, "subject-Foreign", token, 401)
 	token = signedRouterIDToken(t, private, "exchange-policy", claims())
-	request(t, provider.ID, "subject-Foreign", token, 422)
+	request(t, provider.ID, "subject-Foreign", token, 401)
 	_ = claims()
-	request(t, provider.ID, "subject-Owner", "malformed-credential-canary", 422)
+	request(t, provider.ID, "subject-Owner", "malformed-credential-canary", 401)
 	final, err := factory.Snapshot()
 	if err != nil || len(final.SSOSessions) != 2 || strings.Contains(exchangeTestSnapshotString(t, final), token) || strings.Contains(exchangeTestSnapshotString(t, final), "malformed-credential-canary") {
 		t.Fatal("foreign or unverified identity acquired a session or leaked a credential", err)

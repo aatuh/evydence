@@ -18,6 +18,7 @@ data:
   EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS: {{ .Values.api.maxInFlightRequests | quote }}
   EVYDENCE_HTTP_MAX_CONCURRENT_UPLOADS: {{ .Values.api.maxConcurrentUploads | quote }}
   EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE: {{ .Values.api.rateLimitRequestsPerMinute | quote }}
+  EVYDENCE_AUTH_FAILURES_PER_MINUTE: {{ .Values.api.authenticationFailuresPerMinute | quote }}
   EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE: {{ .Values.api.expensiveTenantRequestsPerMinute | quote }}
   EVYDENCE_RATE_LIMIT_BUCKET_CAPACITY: {{ .Values.api.rateLimitBucketCapacity | quote }}
   EVYDENCE_TRUSTED_PROXY_CIDRS: {{ .Values.api.trustedProxyCIDRs | quote }}

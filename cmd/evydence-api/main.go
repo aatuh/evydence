@@ -173,6 +173,7 @@ func runWithContext(ctx context.Context) error {
 		return fmt.Errorf("compose API read services: %w", err)
 	}
 	options.RateLimitRequestsPerMinute = httpConfig.RateLimitRequestsPerMinute
+	options.AuthenticationFailuresPerMinute = httpConfig.AuthenticationFailuresPerMinute
 	options.ExpensiveTenantRequestsPerMinute = httpConfig.ExpensiveTenantRequestsPerMinute
 	options.RateLimitBucketCapacity = httpConfig.RateLimitBucketCapacity
 	options.TrustedProxyCIDRs = httpConfig.TrustedProxyCIDRs
@@ -501,6 +502,7 @@ type httpRuntimeConfig struct {
 	MaxInFlightRequests              int
 	MaxConcurrentUploads             int
 	RateLimitRequestsPerMinute       int
+	AuthenticationFailuresPerMinute  int
 	ExpensiveTenantRequestsPerMinute int
 	RateLimitBucketCapacity          int
 	TrustedProxyCIDRs                []string
@@ -550,6 +552,10 @@ func httpRuntimeConfigFromEnv() (httpRuntimeConfig, error) {
 	if err != nil {
 		return httpRuntimeConfig{}, err
 	}
+	authenticationFailures, err := boundedIntEnv("EVYDENCE_AUTH_FAILURES_PER_MINUTE", 20, 1, 60_000)
+	if err != nil {
+		return httpRuntimeConfig{}, err
+	}
 	expensiveTenantRateLimit, err := boundedIntEnv("EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE", 30, 0, 60_000)
 	if err != nil {
 		return httpRuntimeConfig{}, err
@@ -574,6 +580,7 @@ func httpRuntimeConfigFromEnv() (httpRuntimeConfig, error) {
 		MaxInFlightRequests:              maxInFlight,
 		MaxConcurrentUploads:             maxUploads,
 		RateLimitRequestsPerMinute:       rateLimit,
+		AuthenticationFailuresPerMinute:  authenticationFailures,
 		ExpensiveTenantRequestsPerMinute: expensiveTenantRateLimit,
 		RateLimitBucketCapacity:          bucketCapacity,
 		TrustedProxyCIDRs:                trustedProxyCIDRs,

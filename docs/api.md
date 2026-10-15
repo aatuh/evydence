@@ -43,6 +43,15 @@ revoking a database record; permission denials and invalid explicit Bearer
 credentials do not clear an incidental cookie. SSO issuance/exchange and cookie
 cleanup responses include `Cache-Control: no-store`.
 
+Credential verification, public SSO flows and portal token actions have separate
+per-client failure budgets (default 20 per UTC minute), even when general
+request limiting is disabled. In-flight work reserves slots; successful work
+releases them without clearing past failures. Exhaustion or failure-state
+capacity returns generic `429` Problem Details with `Retry-After` and `no-store`
+before verification or protected effects, including for portal form actions.
+No credentials or account identifiers select limiter buckets. See the
+[configuration and recovery contract](reference/configuration.md#authentication-and-portal-failure-limits-unreleased).
+
 SSO cookie and Bearer credentials share bounded absolute and idle lifetimes.
 Authentication commits monotonic activity after checking current session,
 identity and grants; activity does not extend expiry or return a replacement
@@ -1355,8 +1364,10 @@ verified identity/grant denial also consumes its proof and records the denial;
 an invalid signature does not consume request state. Commit failure rolls back
 all effects and permits retry. A committed replay, missing/mismatched state,
 nonce, provider, delivery or expired request returns `401` without a session.
-Invalid credential assessment remains `422`; missing current capabilities is
-`403`. Requested session expiry during a lock wait returns `400`. Request or
+Credential assessment, missing identity and current capability denials also
+return generic `401` at this public exchange, without distinguishing account
+existence. Administrative verification receipts retain their separate error
+contract. Requested session expiry during a lock wait returns `400`. Request or
 token expiry is rechecked after locks, at the end of the write callback and
 before secret delivery. Cancellation or deadline expiry after a successful
 commit withholds the result without undoing committed records or audits.

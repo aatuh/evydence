@@ -13,6 +13,12 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added independent per-client failure budgets for authentication, public SSO
+and portal actions (EVY-1011), with bounded state, opaque keys, concurrency
+reservations and non-cacheable `429` responses. The general request-limit
+override does not disable failure protection. Full ticket validation remains
+pending; configuration documents process-local scope and recovery behavior.
+
 Added tenant-owned SAML recipient/NameID bindings and separate bounded login
 initiation, with standard signed-assertion session exchange (EVY-1010). API and
 browser delivery bind to server-owned state; browser state uses its own cookie.

@@ -25,12 +25,15 @@ type concurrentHTTPResult struct {
 // that arrives before the owner completes; those callers retry below using the
 // same key and receive the one completed response.
 func TestCreateProductConcurrentIdempotencyRetriesOneStoredResponse(t *testing.T) {
+	const callers = 32
 	ledger := newLegacyLedgerFixture(repositoryFixtureConfig{APIKeyPepper: "test", UnitOfWork: newSerializedHTTPFixtureTransactions()})
 	_, _, secret, err := (tenantBootstrapNativeFixture{credentials: fixtureSessionCredentials("test"), clock: providerVerificationFixtureClock()}).BootstrapTestTenant(t, ledger.ExecuteUnitOfWork, "Concurrent HTTP", "admin", []string{"*"})
 	if err != nil {
 		t.Fatalf("bootstrap tenant: %v", err)
 	}
-	server, err := newLegacyServerFixture(ledger)
+	// Size admission for this deliberately concurrent idempotency workload;
+	// strict failure-budget concurrency has dedicated boundary tests.
+	server, err := newLegacyServerFixtureWithOptions(ledger, ServerOptions{AuthenticationFailuresPerMinute: callers})
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
@@ -38,7 +41,6 @@ func TestCreateProductConcurrentIdempotencyRetriesOneStoredResponse(t *testing.T
 	// credential/command lock order while retaining actual key-use writes.
 	server.bindAPIKeyFixtureResources("test", nil)
 
-	const callers = 32
 	body := []byte(`{"name":"Concurrent Payments","slug":"concurrent-payments"}`)
 	ready := make(chan struct{}, callers)
 	start := make(chan struct{})

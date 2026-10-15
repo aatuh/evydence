@@ -150,6 +150,12 @@ func (s *Server) exchangeSSOCredential(w http.ResponseWriter, r *http.Request) {
 	v, result, secret, exchangeErr := s.ssoExchangeCommands.ExchangeSSOCredential(r.Context(), in)
 	verification, session, err := app.ProviderVerificationFromIdentity(v), domain.SSOSession(result), mapIdentityCommandError(exchangeErr)
 	if err != nil {
+		// Public login must not distinguish credential proof, identity presence,
+		// or linked-account permissions. Administrative command errors retain
+		// their own contract; only this anonymous exchange masks these outcomes.
+		if errors.Is(err, app.ErrUnauthorized) || errors.Is(err, app.ErrNotFound) || errors.Is(err, app.ErrForbidden) || errors.Is(err, app.ErrVerificationFailed) {
+			err = app.ErrUnauthorized
+		}
 		writeProblem(w, r, err)
 		return
 	}

@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net"
 	"net/http"
 	"net/netip"
@@ -31,6 +33,9 @@ type ingressControl struct {
 	maxInboundRequestBytes  int64
 	inFlightRequests        chan struct{}
 	concurrentNativeUploads chan struct{}
+	failures                *failureBudget
+	failureKey              [32]byte
+	failureClock            func() time.Time
 }
 
 func newIngressControl(opts ServerOptions) (*ingressControl, error) {
@@ -41,6 +46,17 @@ func newIngressControl(opts ServerOptions) (*ingressControl, error) {
 	bucketCapacity := opts.RateLimitBucketCapacity
 	if bucketCapacity <= 0 {
 		bucketCapacity = defaultRateLimitBucketCapacity
+	}
+	failureLimit := opts.AuthenticationFailuresPerMinute
+	if failureLimit == 0 {
+		failureLimit = 20
+	}
+	if failureLimit < 1 || failureLimit > 60_000 {
+		return nil, app.ErrValidation
+	}
+	var failureKey [32]byte
+	if _, err := rand.Read(failureKey[:]); err != nil {
+		return nil, err
 	}
 	maxURLBytes := opts.MaxURLBytes
 	if maxURLBytes <= 0 {
@@ -66,6 +82,9 @@ func newIngressControl(opts ServerOptions) (*ingressControl, error) {
 		maxInboundRequestBytes:  maxInboundRequestBytes,
 		inFlightRequests:        make(chan struct{}, maxInFlightRequests),
 		concurrentNativeUploads: make(chan struct{}, maxConcurrentUploads),
+		failures:                newFailureBudget(failureLimit, bucketCapacity),
+		failureKey:              failureKey,
+		failureClock:            time.Now,
 	}, nil
 }
 
@@ -187,7 +206,8 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !s.ingress.edgeLimiter.allow(s.clientRateLimitKey(r), time.Now().UTC()) {
+		key := s.ingress.opaqueLimitKey("edge", s.clientRateLimitKey(r))
+		if !s.ingress.edgeLimiter.allow(hex.EncodeToString(key[:]), time.Now().UTC()) {
 			writeProblem(w, r, app.ErrRateLimited)
 			return
 		}
@@ -203,7 +223,8 @@ func (s *Server) allowExpensiveTenantRequest(actor domain.Actor, r *http.Request
 	if !ok {
 		return true
 	}
-	return s.ingress.tenantExpensiveLimiter.allow(actor.TenantID+"\x00"+route, time.Now().UTC())
+	key := s.ingress.opaqueLimitKey("tenant:"+route, actor.TenantID)
+	return s.ingress.tenantExpensiveLimiter.allow(hex.EncodeToString(key[:]), time.Now().UTC())
 }
 
 // expensiveTenantRoute is intentionally a small explicit allowlist. It keeps

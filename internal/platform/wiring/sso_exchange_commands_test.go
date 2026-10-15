@@ -237,7 +237,7 @@ func TestPostgresSSOExchangeDenialsPersistOnlySafeVerificationAndNoCookie(t *tes
 		store, pool := openHTMLReportWiringStore(t)
 		_ = seedSSOExchangeWiring(t, pool)
 		var in identityapp.ExchangeSSOCredentialInput
-		want := 422
+		want := 401
 		var mutation string
 		switch scenario {
 		case "bad credential":
@@ -247,7 +247,6 @@ func TestPostgresSSOExchangeDenialsPersistOnlySafeVerificationAndNoCookie(t *tes
 			mutation = `UPDATE human_users SET status='inactive' WHERE id='user'`
 		case "no grants":
 			mutation = `DELETE FROM role_bindings WHERE id='grant';UPDATE sso_providers SET role_mapping='{}' WHERE id='provider'`
-			want = 403
 		}
 		if mutation != "" {
 			if _, err := pool.Exec(t.Context(), mutation); err != nil {
@@ -269,6 +268,9 @@ func TestPostgresSSOExchangeDenialsPersistOnlySafeVerificationAndNoCookie(t *tes
 		s.Handler().ServeHTTP(w, httptest.NewRequest("POST", "/v1/sso/session-exchanges", bytes.NewReader(body)).WithContext(t.Context()))
 		if w.Code != want || w.Header().Get("Set-Cookie") != "" || !noReload.Intact(t.Context()) || strings.Contains(w.Body.String(), in.IDToken) || exchangeWiringCounts(t, pool) != [4]int{1, 0, audits, 0} {
 			t.Fatal("denied exchange issued credentials or lost safe receipt", scenario, w.Code)
+		}
+		if !strings.Contains(w.Body.String(), `"detail":"unauthorized"`) || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("public exchange denial exposed identity state or became cacheable", scenario)
 		}
 		var result string
 		var checks []byte

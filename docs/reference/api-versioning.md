@@ -95,6 +95,27 @@ The new repository-controlled prerelease record matches that complete exact
 set; regression tests reject added, removed, modified, foreign-baseline and
 stable-channel sets. It asserts no external review or release publication.
 
+## EVY-1011 Authentication Failure Budget (Unreleased)
+
+Authentication, public SSO, and portal token actions have independent per-client
+failure budgets, defaulting to 20 per fixed UTC minute. General request-limit
+overrides do not disable this protection. Concurrent verification reserves
+capacity before work begins; deployments expecting larger bursts must size
+`EVYDENCE_AUTH_FAILURES_PER_MINUTE` accordingly and handle the existing `429`
+Problem Details response with `Retry-After`. Responses are non-cacheable.
+Credential, subject, or SSO protocol changes cannot select a fresh allowance.
+See [configuration and recovery](configuration.md#authentication-and-portal-failure-limits-unreleased)
+for capacity saturation, trusted proxies, and process-local scope. Full ticket
+acceptance remains pending; this is an unreleased runtime behavior change.
+
+Public `POST /v1/sso/session-exchanges` maps identity lookup, credential-proof,
+and linked-account permission denials to the same generic `401`, replacing
+their previous `404`, `422`, and `403` distinctions. Callers must treat `401`
+as an authentication failure without inferring account existence. Malformed
+request validation and browser-origin checks retain their error contracts;
+administrative provider-verification receipts are unchanged. Proof consumption
+and safe denial audits retain their existing transaction semantics.
+
 ## EVY-1010 SAML Login Contract (Unreleased)
 
 SAML session exchange requires a server-created request and matching state,

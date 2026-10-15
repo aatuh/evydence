@@ -34,6 +34,27 @@ func httpAuthenticationCredential(r *http.Request) (string, bool, error) {
 }
 
 func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
+	lease, allowed := s.reserveFailureAttempt(w, r, "credential")
+	if !allowed {
+		return domain.Actor{}, false
+	}
+	failed := true
+	if lease != nil {
+		defer func() { lease.finish(failed) }()
+	}
+	actor, authenticated := s.authenticateCredential(w, r)
+	if !authenticated {
+		return domain.Actor{}, false
+	}
+	failed = false
+	if !s.allowExpensiveTenantRequest(actor, r) {
+		writeProblem(w, r, app.ErrRateLimited)
+		return domain.Actor{}, false
+	}
+	return actor, true
+}
+
+func (s *Server) authenticateCredential(w http.ResponseWriter, r *http.Request) (domain.Actor, bool) {
 	// Reject cross-origin mutations before verifying or clearing ambient cookies.
 	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions && len(r.Header.Values("Authorization")) == 0 && len(r.CookiesNamed(ssoSessionCookieName)) != 0 {
 		if err := validateSSOCookieMutation(r); err != nil {
@@ -64,10 +85,6 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Ac
 			err = app.ErrForbidden
 		}
 		writeProblem(w, r, err)
-		return domain.Actor{}, false
-	}
-	if !s.allowExpensiveTenantRequest(actor, r) {
-		writeProblem(w, r, app.ErrRateLimited)
 		return domain.Actor{}, false
 	}
 	return actor, true

@@ -891,7 +891,7 @@ func TestServerRateLimitReturnsSafeProblem(t *testing.T) {
 }
 
 func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
-	server, _ := testServer(t)
+	base, _ := testServer(t)
 	paths := []string{
 		"/v1/admin/instance",
 		"/v1/api-keys",
@@ -946,6 +946,12 @@ func TestAuthenticatedReadRoutesRejectMissingBearerToken(t *testing.T) {
 		"/v1/source/repositories",
 		"/v1/vex/vex_missing",
 		"/v1/vulnerability-scans/scan_missing",
+	}
+	// Exercise each route's missing-credential response under a budget sized
+	// for the complete sweep; default/saturated admission is tested separately.
+	server, err := derivedServerFixtureWithContext(t.Context(), base, ServerOptions{AuthenticationFailuresPerMinute: len(paths)})
+	if err != nil {
+		t.Fatal(err)
 	}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {

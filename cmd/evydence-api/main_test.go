@@ -257,6 +257,29 @@ func TestIntEnvParsesRateLimitConfiguration(t *testing.T) {
 	}
 }
 
+func TestHTTPRuntimeConfigRequiresBoundedAuthenticationFailureBudget(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  int
+	}{{"", 20}, {"1", 1}, {"60000", 60000}} {
+		t.Run("valid:"+tc.value, func(t *testing.T) {
+			t.Setenv("EVYDENCE_AUTH_FAILURES_PER_MINUTE", tc.value)
+			config, err := httpRuntimeConfigFromEnv()
+			if err != nil || config.AuthenticationFailuresPerMinute != tc.want {
+				t.Fatal("failure budget configuration lost", config.AuthenticationFailuresPerMinute, err)
+			}
+		})
+	}
+	for _, value := range []string{"0", "-1", "60001", "unbounded", "9999999999999999999999999"} {
+		t.Run("invalid:"+value, func(t *testing.T) {
+			t.Setenv("EVYDENCE_AUTH_FAILURES_PER_MINUTE", value)
+			if _, err := httpRuntimeConfigFromEnv(); err == nil || !strings.Contains(err.Error(), "EVYDENCE_AUTH_FAILURES_PER_MINUTE") {
+				t.Fatal("unsafe failure budget accepted", err)
+			}
+		})
+	}
+}
+
 func TestHTTPRuntimeConfigUsesValidatedIngressDefaults(t *testing.T) {
 	t.Setenv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", "120")
 	t.Setenv("EVYDENCE_EXPENSIVE_TENANT_REQUESTS_PER_MINUTE", "30")

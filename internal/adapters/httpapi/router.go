@@ -197,6 +197,9 @@ type ServerOptions struct {
 	// traffic by client address. Forwarded addresses are used only when the
 	// direct remote address belongs to TrustedProxyCIDRs.
 	RateLimitRequestsPerMinute int
+	// AuthenticationFailuresPerMinute bounds failed credential, SSO and portal
+	// attempts per trusted client and class. Zero selects the default of 20.
+	AuthenticationFailuresPerMinute int
 	// ExpensiveTenantRequestsPerMinute bounds storage, parsing, export, and
 	// report-heavy POST operations per authenticated tenant and route.
 	ExpensiveTenantRequestsPerMinute int
