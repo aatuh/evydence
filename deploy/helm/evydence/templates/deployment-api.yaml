@@ -5,6 +5,9 @@ metadata:
   name: {{ include "evydence.fullname" . }}-api
 spec:
   replicas: {{ .Values.api.replicas }}
+  # A replacement cannot become ready until the old writer releases its lease.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "evydence.name" . }}
@@ -15,6 +18,7 @@ spec:
         app.kubernetes.io/name: {{ include "evydence.name" . }}
         app.kubernetes.io/component: api
     spec:
+      terminationGracePeriodSeconds: {{ include "evydence.terminationGrace" (dict "name" "api" "process" .Values.api "cleanup" .Values.cleanupTimeoutSeconds) }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:

@@ -13,6 +13,8 @@ The Helm chart lives at `deploy/helm/evydence`. It deploys the API, worker, serv
   Operators should pin the digest and verify cosign evidence, or build, sign,
   and publish their own image through a controlled registry.
 - External PostgreSQL and S3/MinIO-compatible object storage.
+- Helm; the repository's render checks use the pinned CI tool described in
+  [Release validation](reference/release-validation.md#build-toolchain).
 - A pre-created object-store bucket.
 - A Kubernetes secret containing at least `EVYDENCE_DATABASE_URL` and `EVYDENCE_API_KEY_PEPPER`.
 - A signing setup compatible with `EVYDENCE_SIGNING_KEY_MODE=external`,
@@ -57,6 +59,9 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `api.*TimeoutSeconds`, `api.maxHeaderBytes`, `api.maxURLBytes`, `api.maxInFlightRequests`, `api.maxConcurrentUploads` | Validated API listener, request-target, and concurrency limits. Defaults match the canonical [Configuration](reference/configuration.md#http-ingress-limits-and-proxy-trust). |
 | `api.rateLimitRequestsPerMinute`, `api.expensiveTenantRequestsPerMinute`, `api.rateLimitBucketCapacity`, `api.trustedProxyCIDRs` | Process-local edge and expensive-route limits. Set trusted CIDRs only for ingress proxies that sanitize `X-Forwarded-For`. |
 | `worker.replicas` | Worker replicas. May be scaled with PostgreSQL outbox locking. |
+| `api.shutdownTimeoutSeconds`, `worker.shutdownTimeoutSeconds` | Request/job drain budgets, whole seconds `1..300`, default `30`. |
+| `cleanupTimeoutSeconds` | Shared daemon resource-cleanup budget, whole seconds `1..60`, default `5`. |
+| `api.terminationGracePeriodSeconds`, `worker.terminationGracePeriodSeconds` | Pod grace periods, default `40`; each must cover its drain budget plus cleanup plus a five-second margin. Invalid combinations fail rendering. |
 | `api.resources`, `worker.resources` | Resource requests and limits. |
 | `podSecurityContext`, `containerSecurityContext` | Non-root and least-privilege pod/container defaults. |
 | `worker.probes.*` | Worker exec probes using `evydence-worker healthcheck`. |
@@ -69,13 +74,35 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `env.signingKeyMode` | Production signing mode. Use `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or gateway-backed `pkcs11-hsm`. |
 | `ingress.*` | Optional ingress host and TLS secret. |
 
+## Shutdown And Upgrades
+
+The API uses the `Recreate` deployment strategy: the old writer stops before
+its replacement starts. This introduces planned API downtime during an upgrade.
+A rolling update that waits for a ready replacement can stall because the old
+API still holds the PostgreSQL writer lease. Worker replicas retain normal
+rolling updates and outbox lease fencing.
+
+The defaults allow 30 seconds for request/job drain and five seconds for resource
+cleanup, with a five-second pod margin. For a longer drain, increase the matching
+grace value in the same values file. For example, `api.shutdownTimeoutSeconds=90`
+with `cleanupTimeoutSeconds=10` needs `api.terminationGracePeriodSeconds>=105`;
+the worker then needs at least 45 seconds with its default 30-second drain.
+Do not add a `preStop` delay without adding that delay to the grace period.
+See [Configuration](reference/configuration.md#http-ingress-limits-and-proxy-trust)
+for graceful and forced exit semantics and uncertain in-flight commits.
+
+Before installation, run `make deploy-check` with the prerequisites above.
+It renders the actual chart with valid and invalid lifecycle values and resolves
+the production-like Compose configuration. It does not contact a Kubernetes
+cluster or prove a live rollout, storage integration or backup readiness.
+
 ## Verify
 
 ```sh
-kubectl rollout status deploy/evydence-api
-kubectl rollout status deploy/evydence-worker
+kubectl rollout status deploy/evydence-evydence-api
+kubectl rollout status deploy/evydence-evydence-worker
 kubectl get pods -l app.kubernetes.io/name=evydence
-kubectl port-forward svc/evydence 8080:8080
+kubectl port-forward svc/evydence-evydence 8080:8080
 curl -sS http://localhost:8080/v1/ready
 ```
 

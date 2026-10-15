@@ -560,8 +560,9 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@grep -F 'G-XC2ESEHQ3W' docs/how-to/publish-marketing-site.md >/dev/null
 	@grep -F 'evydence.app' docs/how-to/publish-marketing-site.md >/dev/null
 
-deploy-check: ## Validate deployment and air-gap skeletons exist
+deploy-check: ## Validate deployment assets, rendered Helm and shutdown budgets
 	@python3 scripts/test_local_dependency_images.py
+	@python3 scripts/test_deployment_lifecycle.py
 	@test -f compose.production-like.yml
 	@test -f deploy/helm/evydence/Chart.yaml
 	@test -f deploy/helm/evydence/values.yaml

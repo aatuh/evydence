@@ -74,6 +74,10 @@ services:
   api:
     build: .
     image: ${EVYDENCE_IMAGE:-evydence:local}
+    stop_signal: SIGTERM
+    # Covers the maximum valid drain (300s), cleanup (60s), and 5s margin.
+    # Normal stops finish as soon as the process exits.
+    stop_grace_period: 365s
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -83,6 +87,8 @@ services:
       ENV: production
       EVYDENCE_RUNTIME_PROFILE: postgres
       EVYDENCE_ADDR: :8080
+      EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS: ${EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS:-30}
+      EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS: ${EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS:-5}
       EVYDENCE_AUTH_FAILURES_PER_MINUTE: ${EVYDENCE_AUTH_FAILURES_PER_MINUTE:-20}
       EVYDENCE_API_KEY_PEPPER: ${EVYDENCE_API_KEY_PEPPER:?EVYDENCE_API_KEY_PEPPER is required}
       EVYDENCE_DATABASE_URL: postgres://${POSTGRES_USER:-evydence}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-evydence}?sslmode=disable
@@ -106,6 +112,8 @@ services:
 
   worker:
     image: ${EVYDENCE_IMAGE:-evydence:local}
+    stop_signal: SIGTERM
+    stop_grace_period: 365s
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -113,6 +121,8 @@ services:
         condition: service_completed_successfully
     environment:
       ENV: production
+      EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS: ${EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS:-30}
+      EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS: ${EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS:-5}
       EVYDENCE_RUNTIME_PROFILE: postgres
       EVYDENCE_API_KEY_PEPPER: ${EVYDENCE_API_KEY_PEPPER:?EVYDENCE_API_KEY_PEPPER is required}
       EVYDENCE_DATABASE_URL: postgres://${POSTGRES_USER:-evydence}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-evydence}?sslmode=disable

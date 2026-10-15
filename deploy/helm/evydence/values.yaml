@@ -5,6 +5,9 @@ image:
   tag: ""
   pullPolicy: IfNotPresent
 
+# Shared resource cleanup budget after request/job drain.
+cleanupTimeoutSeconds: 5
+
 api:
   # Keep API replicas at 1 for the current production profile. Production API
   # startup also takes a PostgreSQL advisory writer lease and a second writer
@@ -18,6 +21,8 @@ api:
   writeTimeoutSeconds: 60
   idleTimeoutSeconds: 120
   shutdownTimeoutSeconds: 30
+  # At least shutdownTimeoutSeconds + cleanupTimeoutSeconds + 5.
+  terminationGracePeriodSeconds: 40
   maxHeaderBytes: 16384
   maxURLBytes: 8192
   maxInFlightRequests: 256
@@ -38,6 +43,8 @@ api:
 worker:
   replicas: 1
   pollInterval: 1s
+  shutdownTimeoutSeconds: 30
+  terminationGracePeriodSeconds: 40
   resources:
     requests:
       cpu: 100m

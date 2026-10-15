@@ -16,6 +16,14 @@ corresponding HTTP/2 fixes in integration-adapter transports. `make vuln` scans
 the whole project; a scan of core packages alone does not cover those adapters.
 This changes source-build prerequisites, not existing published release assets.
 
+`make deploy-check`, also included in `make finalize` and `make production-check`,
+requires Docker Compose, Python 3 with PyYAML, and Helm. CI installs Helm v4.3.0
+with a pinned archive SHA-256. Use the [official binary installation guide](https://helm.sh/docs/intro/install/)
+to install the CLI and verify its release signature/checksum. Put it on `PATH`
+or set `HELM_BIN` to the executable path. These checks render the local chart
+and resolve synthetic Compose configuration; they do not start containers or
+contact a cluster. Missing tools fail the gate rather than skip deployment proof.
+
 ## Live test package watchdogs
 
 Complete Go test, race, coverage and PostgreSQL integration gates use a

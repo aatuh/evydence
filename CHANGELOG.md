@@ -13,6 +13,12 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Aligned Helm and production-like Compose termination budgets with daemon drain
+and cleanup (EVY-1209). Helm rejects undersized/invalid budgets, keeps one API
+writer and uses `Recreate` for its rollout; workers can scale and roll normally.
+Deployment checks render the actual chart and resolve Compose using synthetic
+values. Live cluster rollout and release-binary shutdown proof remain separate.
+
 Added explicit process-owned provider cleanup and validated daemon cleanup
 budgets (EVY-1209). Partial startup and normal shutdown close owned gateway/KMS
 clients once under the runtime's shared cleanup deadline; injected clients and

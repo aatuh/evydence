@@ -13,6 +13,7 @@ data:
   EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS: {{ .Values.api.writeTimeoutSeconds | quote }}
   EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS: {{ .Values.api.idleTimeoutSeconds | quote }}
   EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.api.shutdownTimeoutSeconds | quote }}
+  EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS: {{ .Values.cleanupTimeoutSeconds | quote }}
   EVYDENCE_HTTP_MAX_HEADER_BYTES: {{ .Values.api.maxHeaderBytes | quote }}
   EVYDENCE_HTTP_MAX_URL_BYTES: {{ .Values.api.maxURLBytes | quote }}
   EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS: {{ .Values.api.maxInFlightRequests | quote }}
@@ -29,3 +30,4 @@ data:
   EVYDENCE_S3_USE_SSL: {{ .Values.env.s3UseSSL | quote }}
   EVYDENCE_SIGNING_KEY_MODE: {{ .Values.env.signingKeyMode | quote }}
   EVYDENCE_WORKER_POLL_INTERVAL: {{ .Values.worker.pollInterval | quote }}
+  EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.worker.shutdownTimeoutSeconds | quote }}

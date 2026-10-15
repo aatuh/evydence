@@ -113,6 +113,17 @@ export EVYDENCE_API_KEY_PEPPER='replace-with-long-random-pepper'
 docker compose -f compose.production-like.yml up --build
 ```
 
+API and worker containers receive `SIGTERM` on a Compose stop. The committed
+365-second stop grace covers every supported drain budget (up to 300 seconds),
+cleanup budget (up to 60 seconds), and a five-second margin. Normal stops finish
+as soon as the process exits; Compose does not wait out unused grace. Configure
+`EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS`,
+`EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS`, and
+`EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS` using
+[Configuration](../reference/configuration.md). An explicit `docker compose stop
+--timeout` overrides the file's grace; allow the configured drain plus cleanup
+and margin. PostgreSQL and object storage must stay available while daemons drain.
+
 Expected result:
 
 - migrations complete before the API and worker start;

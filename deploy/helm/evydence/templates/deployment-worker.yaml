@@ -15,6 +15,7 @@ spec:
         app.kubernetes.io/name: {{ include "evydence.name" . }}
         app.kubernetes.io/component: worker
     spec:
+      terminationGracePeriodSeconds: {{ include "evydence.terminationGrace" (dict "name" "worker" "process" .Values.worker "cleanup" .Values.cleanupTimeoutSeconds) }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
