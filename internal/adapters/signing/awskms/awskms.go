@@ -6,9 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
@@ -33,17 +36,38 @@ type kmsSigner interface {
 }
 
 type Executor struct {
-	client    kmsSigner
-	keyID     string
-	algorithm types.SigningAlgorithmSpec
-	timeout   time.Duration
+	client     kmsSigner
+	keyID      string
+	algorithm  types.SigningAlgorithmSpec
+	timeout    time.Duration
+	closeOwned func()
+	closed     sync.Once
+}
+
+func (e *Executor) Close() error {
+	if e != nil {
+		e.closed.Do(func() {
+			if e.closeOwned != nil {
+				e.closeOwned()
+			}
+		})
+	}
+	return nil
 }
 
 func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if strings.TrimSpace(cfg.Region) == "" {
 		return nil, app.ErrValidation
 	}
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(strings.TrimSpace(cfg.Region)))
+	transport := awshttp.NewBuildableClient().GetTransport()
+	client := &http.Client{Transport: transport}
+	opened := false
+	defer func() {
+		if !opened {
+			client.CloseIdleConnections()
+		}
+	}()
+	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(strings.TrimSpace(cfg.Region)), config.WithHTTPClient(client))
 	if err != nil {
 		return nil, errors.New("load AWS KMS signing configuration")
 	}
@@ -53,7 +77,13 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 			o.BaseEndpoint = &endpoint
 		})
 	}
-	return NewWithClient(kms.NewFromConfig(awsCfg, options...), cfg)
+	executor, err := NewWithClient(kms.NewFromConfig(awsCfg, options...), cfg)
+	if err != nil {
+		return nil, err
+	}
+	executor.closeOwned = client.CloseIdleConnections
+	opened = true
+	return executor, nil
 }
 
 func NewWithClient(client kmsSigner, cfg Config) (*Executor, error) {

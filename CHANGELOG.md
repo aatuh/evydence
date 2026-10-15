@@ -13,6 +13,12 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added explicit process-owned provider cleanup and validated daemon cleanup
+budgets (EVY-1209). Partial startup and normal shutdown close owned gateway/KMS
+clients once under the runtime's shared cleanup deadline; injected clients and
+transports stay borrowed. Forced drain retains resources until process exit.
+Deployment termination budgets and release-binary acceptance remain in progress.
+
 Fixed owned outbound HTTP transport cleanup (EVY-1209): policy clients release
 their cloned pools while retaining borrowed transports, per-call discovery,
 UserInfo and transparency clients close after their flow, and runtime-owned
@@ -21,8 +27,8 @@ and ownership tests cover these boundaries; complete lifecycle acceptance is pen
 
 Bounded PostgreSQL runtime cleanup (EVY-1209 foundation) now waits for both pools
 before releasing the writer lease and reports cleanup failure to API/worker
-callers. Forced drain keeps resources until process exit. Provider process
-ownership, deployment budgets and complete lifecycle acceptance remain in progress.
+callers. Forced drain keeps resources until process exit. Deployment budgets and
+complete lifecycle acceptance remain in progress.
 
 Fixed API listener failure shutdown (EVY-1208) to drain admitted requests
 before returning the serve error. Signal shutdown retains request contexts

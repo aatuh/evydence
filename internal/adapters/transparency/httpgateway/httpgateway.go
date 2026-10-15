@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -34,6 +35,18 @@ type Fetcher struct {
 	endpoint    string
 	bearerToken string
 	client      *http.Client
+	closed      sync.Once
+}
+
+func (f *Fetcher) Close() error {
+	if f != nil {
+		f.closed.Do(func() {
+			if f.client != nil {
+				f.client.CloseIdleConnections()
+			}
+		})
+	}
+	return nil
 }
 
 type proofRequest struct {

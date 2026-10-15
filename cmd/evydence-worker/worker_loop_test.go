@@ -307,6 +307,14 @@ func TestWorkerShutdownTimeoutValidation(t *testing.T) {
 	}
 }
 
+func TestWorkerInvalidCleanupBudgetFailsBeforeStorage(t *testing.T) {
+	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	t.Setenv("EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS", "61")
+	if err := run(); err == nil || err.Error() != "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS must be an integer between 1 and 60" {
+		t.Fatal("invalid cleanup budget did not fail before storage", err)
+	}
+}
+
 func TestWorkerShutdownCleanupCannotBlockForcedExit(t *testing.T) {
 	for _, err := range []error{nil, errors.New("startup failed"), errWorkerDrainTimeout} {
 		called := 0

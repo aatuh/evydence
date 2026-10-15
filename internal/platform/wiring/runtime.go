@@ -47,6 +47,10 @@ type RuntimeConfig struct {
 	SigningExecutor    app.SigningExecutor
 	TransparencyProofs app.TransparencyProofFetcher
 	SessionPolicy      identitydomain.SessionPolicy
+	CleanupTimeout     time.Duration
+	// CloseOwnedProviders explicitly transfers cleanup of process-created clients.
+	// Ordinary provider ports above remain borrowed when this callback is nil.
+	CloseOwnedProviders func(context.Context) error
 }
 
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
@@ -68,12 +72,18 @@ type Runtime struct {
 	closed             sync.Once
 	cleanup            OwnedResources
 	closeObjects       func(context.Context) error
+	closeProviders     func(context.Context) error
+	cleanupTimeout     time.Duration
 }
 
 const DefaultCleanupTimeout = 5 * time.Second
 
 func (r *Runtime) Close() {
-	if err := r.CloseContext(context.Background(), DefaultCleanupTimeout); err != nil {
+	timeout := DefaultCleanupTimeout
+	if r != nil && r.cleanupTimeout > 0 {
+		timeout = r.cleanupTimeout
+	}
+	if err := r.CloseContext(context.Background(), timeout); err != nil {
 		log.Print("runtime cleanup failed; process exit required")
 	}
 }
@@ -88,6 +98,9 @@ func (r *Runtime) CloseContext(ctx context.Context, timeout time.Duration) error
 	r.closed.Do(func() {
 		if r.Postgres != nil {
 			r.cleanup.Add("postgres_work", r.Postgres.WaitForIdle)
+		}
+		if r.closeProviders != nil {
+			r.cleanup.Add("providers", r.closeProviders)
 		}
 		if r.closeObjects != nil {
 			r.cleanup.Add("objects", r.closeObjects)
@@ -112,6 +125,13 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	cleanupTimeout := config.CleanupTimeout
+	if cleanupTimeout == 0 {
+		cleanupTimeout = DefaultCleanupTimeout
+	}
+	if cleanupTimeout < time.Second || cleanupTimeout > time.Minute {
+		return nil, errors.New("runtime cleanup timeout must be between one and sixty seconds")
 	}
 	sessionPolicy, ok := config.SessionPolicy.Normalized()
 	if !ok {
@@ -139,9 +159,11 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}
 	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs, SessionPolicy: sessionPolicy}
+	runtime.closeProviders = config.CloseOwnedProviders
+	runtime.cleanupTimeout = cleanupTimeout
 	defer func() {
 		if err != nil {
-			err = errors.Join(err, runtime.CloseContext(ctx, DefaultCleanupTimeout))
+			err = errors.Join(err, runtime.CloseContext(ctx, cleanupTimeout))
 		}
 	}()
 	if config.Production && config.Process == API {

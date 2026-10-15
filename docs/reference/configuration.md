@@ -53,6 +53,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS` | No | `60` | Maximum response-write time. Values must be whole seconds from 1 through 900. |
 | `EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS` | No | `120` | Idle keep-alive timeout. Values must be whole seconds from 1 through 3600. |
 | `EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS` | No | `30` | Request drain budget after `SIGINT`, `SIGTERM`, or a permanent listener failure. Values must be whole seconds from 1 through 300. |
+| `EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS` | No | `5` | API/worker daemon resource-cleanup budget after draining; whole seconds from 1 through 60. Invalid values fail before storage opens. |
 | `EVYDENCE_HTTP_MAX_HEADER_BYTES` | No | `16384` | Listener header-size cap in bytes. Values must be 1024 through 1048576. |
 | `EVYDENCE_HTTP_MAX_URL_BYTES` | No | `8192` | Raw request-target cap in bytes, including its query string. Values must be 1024 through 65536. |
 | `EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS` | No | `256` | Process-wide simultaneous request cap. Saturation returns a retryable `429` Problem Details response. |
@@ -280,14 +281,24 @@ failure without raw request or provider error details. Resource cleanup and
 deployment termination grace must also be accounted for; the HTTP budget only
 covers request draining.
 
-PostgreSQL cleanup has a separate five-second budget. It waits for command and
-package-read borrowers before releasing the API writer lease and closing the
-pools. If that wait expires, cleanup reports failure and retains the lease until
-process exit; it does not admit another writer beneath unfinished database work.
-Startup failure uses a live cleanup context even if startup was canceled.
-Runtime-created S3/MinIO transports close after those borrowers drain and before
-writer release, within the same budget. Supplied provider/object ports remain
-borrowed; exposing a `Close` method alone does not transfer ownership.
+Daemon resource cleanup has a separate configurable budget, defaulting to five
+seconds. It waits for command and package-read borrowers, closes process-owned
+provider clients and S3/MinIO transports, releases the API writer lease, then
+closes the PostgreSQL pools. All stages, including nested provider cleanup, share
+one deadline. A cleanup failure stops later stages, reports failure and requires
+process exit. A database wait timeout therefore retains the lease until exit;
+it cannot admit another writer beneath unfinished database work. Startup failure
+uses a live cleanup context even if startup was canceled. Forced request/job
+drain skips resource cleanup and exits with its resources still owned.
+
+Supplied provider/object ports, custom HTTP transports, token sources and
+credentials remain borrowed unless the process explicitly transfers cleanup.
+Standard HTTP transports are cloned and the clone is owned. AWS signing created
+by the process owns its SDK HTTP transport; an injected SDK client stays borrowed.
+SDK-managed shared credential transports are not closed by Evydence. There is no
+separate telemetry exporter resource in the current runtime. The API factory
+registers its own clients before runtime startup, so partial startup cleans those
+clients once. Operator commands retain the default five-second cleanup budget.
 
 Evydence does not accept compressed or multipart request bodies. Only an absent
 or `identity` `Content-Encoding` is accepted, so the ingress limit and the

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -33,6 +34,18 @@ type Validator struct {
 	endpoint    string
 	bearerToken string
 	client      *http.Client
+	closed      sync.Once
+}
+
+func (v *Validator) Close() error {
+	if v != nil {
+		v.closed.Do(func() {
+			if v.client != nil {
+				v.client.CloseIdleConnections()
+			}
+		})
+	}
+	return nil
 }
 
 type validationRequest struct {

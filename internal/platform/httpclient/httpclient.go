@@ -25,6 +25,28 @@ var (
 
 const defaultMaxResponseBytes int64 = 1 << 20
 
+type borrowedTransport struct{ http.RoundTripper }
+
+// CloneOwned copies client settings and creates an owned pool when the base is
+// a standard transport. Custom transports remain borrowed, including cleanup.
+// This helper does not add destination policy; use New for policy-bound clients.
+func CloneOwned(source *http.Client) *http.Client {
+	client := &http.Client{}
+	if source != nil {
+		*client = *source
+	}
+	base := client.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	if transport, ok := base.(*http.Transport); ok {
+		client.Transport = transport.Clone()
+	} else {
+		client.Transport = borrowedTransport{base}
+	}
+	return client
+}
+
 // Resolver is injectable only to make destination-policy tests deterministic.
 // Production uses net.DefaultResolver.
 type Resolver interface {

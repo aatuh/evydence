@@ -13,6 +13,17 @@ import (
 )
 
 func TestClientCloseIdleClosesOwnedCloneAndPreservesBorrowedPool(t *testing.T) {
+	verifyOwnedClone(t, func(borrowed *http.Client) (*http.Client, error) {
+		return New(Config{Client: borrowed, AllowInsecureForLocalhost: true})
+	})
+}
+
+func TestCloneOwnedClosesOnlyOwnedTransport(t *testing.T) {
+	verifyOwnedClone(t, func(borrowed *http.Client) (*http.Client, error) { return CloneOwned(borrowed), nil })
+}
+
+func verifyOwnedClone(t *testing.T, clone func(*http.Client) (*http.Client, error)) {
+	t.Helper()
 	closed := make(chan string, 4)
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -27,7 +38,7 @@ func TestClientCloseIdleClosesOwnedCloneAndPreservesBorrowedPool(t *testing.T) {
 	defer server.Close()
 	borrowed := &http.Client{Transport: &http.Transport{}}
 	defer borrowed.CloseIdleConnections()
-	owned, err := New(Config{Client: borrowed, AllowInsecureForLocalhost: true})
+	owned, err := clone(borrowed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,5 +92,10 @@ func TestClientCloseIdleNeverClosesBorrowedCustomTransport(t *testing.T) {
 	client.CloseIdleConnections()
 	if transport.closes.Load() != 0 {
 		t.Fatal("policy wrapper closed caller-owned custom transport")
+	}
+	copy := CloneOwned(&http.Client{Transport: transport})
+	copy.CloseIdleConnections()
+	if transport.closes.Load() != 0 {
+		t.Fatal("owned clone closed borrowed custom transport")
 	}
 }

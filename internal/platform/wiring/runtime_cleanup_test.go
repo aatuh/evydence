@@ -115,9 +115,18 @@ func TestRuntimeCleanupPartialStartupReleasesWriter(t *testing.T) {
 	if err := os.WriteFile(file, []byte("fixture"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: PostgreSQL, Production: true, DatabaseURL: pool.Config().ConnString(), MigrationsDir: "../../../migrations", SkipMigrations: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: file}})
+	var providers OwnedResources
+	closes := 0
+	providers.Add("provider", func(context.Context) error { closes++; return nil })
+	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: PostgreSQL, Production: true, DatabaseURL: pool.Config().ConnString(), MigrationsDir: "../../../migrations", SkipMigrations: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: file}, CloseOwnedProviders: providers.CloseWithin})
 	if err == nil || runtime != nil {
 		t.Fatal("partial startup unexpectedly succeeded", err)
+	}
+	if err = providers.Close(t.Context(), time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if closes != 1 {
+		t.Fatal("partial startup leaked or double-closed provider", closes)
 	}
 	next, err := postgres.Open(t.Context(), pool.Config().ConnString())
 	if err != nil {
@@ -130,6 +139,49 @@ func TestRuntimeCleanupPartialStartupReleasesWriter(t *testing.T) {
 	}
 	if err = release(t.Context()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRuntimeOwnedProviderCleanupSharesBudgetBeforeWriterRelease(t *testing.T) {
+	_, pool := openHTMLReportWiringStore(t)
+	var providers OwnedResources
+	var runtime *Runtime
+	var providerDeadline time.Time
+	var order []string
+	providers.Add("provider", func(ctx context.Context) error {
+		providerDeadline, _ = ctx.Deadline()
+		if time.Until(providerDeadline) > time.Second {
+			t.Error("provider cleanup reset runtime budget")
+		}
+		if err := runtime.Postgres.CheckAPIWriterLease(ctx); err != nil {
+			t.Error("provider cleanup ran after writer release", err)
+		}
+		order = append(order, "provider")
+		return nil
+	})
+	var err error
+	runtime, err = OpenRuntime(t.Context(), RuntimeConfig{Process: API, Profile: PostgreSQL, Production: true, DatabaseURL: pool.Config().ConnString(), MigrationsDir: "../../../migrations", SkipMigrations: true, ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: t.TempDir()}, CloseOwnedProviders: providers.CloseWithin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.Close()
+	release := runtime.lease
+	runtime.lease = func(ctx context.Context) error {
+		deadline, _ := ctx.Deadline()
+		if !deadline.Equal(providerDeadline) {
+			t.Error("lease cleanup reset budget")
+		}
+		order = append(order, "writer")
+		return release(ctx)
+	}
+	if err = runtime.CloseContext(t.Context(), time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if len(order) != 2 || order[0] != "provider" || order[1] != "writer" {
+		t.Fatal("runtime cleanup dependency order incorrect", order)
+	}
+	if err = runtime.Postgres.CheckReadiness(t.Context()); err == nil {
+		t.Fatal("runtime left owned database open")
 	}
 }
 

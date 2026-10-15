@@ -50,6 +50,10 @@ func main() {
 }
 
 func runWithContext(ctx context.Context) (runErr error) {
+	cleanupTimeout, err := wiring.CleanupTimeoutFromEnv()
+	if err != nil {
+		return err
+	}
 	identity := runtimeinfo.Current()
 	log.Printf("evydence api build identity %s", identity.String())
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
@@ -83,54 +87,59 @@ func runWithContext(ctx context.Context) (runErr error) {
 	if err != nil {
 		return err
 	}
+	var providers wiring.OwnedResources
+	var runtime *wiring.Runtime
+	defer func() { runErr = closeAPIResources(ctx, runErr, runtime, &providers, cleanupTimeout) }()
 	oidcClient := oidcdiscovery.New(oidcdiscovery.Config{
 		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST"),
 		Timeout:                   time.Duration(intEnv("EVYDENCE_OIDC_DISCOVERY_TIMEOUT_SECONDS", 10)) * time.Second,
 	})
+	ownNewProvider(&providers, "oidc_discovery", oidcClient)
 	providerValidator, err := openProviderIdentityValidator()
 	if err != nil {
 		return err
 	}
+	ownNewProvider(&providers, "identity_provider", providerValidator)
 	transparencyFetcher, err := openTransparencyProofFetcher()
 	if err != nil {
 		return err
 	}
+	ownNewProvider(&providers, "transparency_provider", transparencyFetcher)
 	cosignVerifier, err := openCosignVerifier()
 	if err != nil {
 		return err
 	}
+	ownNewProvider(&providers, "verification_provider", cosignVerifier)
 	signer, err := openSigningExecutor(ctx)
 	if err != nil {
 		return err
 	}
+	ownNewProvider(&providers, "signing_provider", signer)
 	startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelStartup()
 	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-	runtime, err := wiring.OpenRuntime(startupCtx, wiring.RuntimeConfig{
-		Process:            wiring.API,
-		Profile:            profile,
-		Production:         production,
-		WorkerOwnedParsers: boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS"),
-		DatabaseURL:        databaseURL,
-		LoadMode:           os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
-		MigrationsDir:      migrationsDir,
-		SkipMigrations:     strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
-		ObjectStore:        wiring.ObjectStoreConfigFromEnv(),
-		Cosign:             cosignVerifier,
-		OIDC:               oidcClient,
-		ProviderAPI:        providerValidator,
-		SigningExecutor:    signer,
-		TransparencyProofs: transparencyFetcher,
-		SessionPolicy:      sessionPolicy,
+	runtime, err = wiring.OpenRuntime(startupCtx, wiring.RuntimeConfig{
+		Process:             wiring.API,
+		Profile:             profile,
+		Production:          production,
+		WorkerOwnedParsers:  boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS"),
+		DatabaseURL:         databaseURL,
+		LoadMode:            os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
+		MigrationsDir:       migrationsDir,
+		SkipMigrations:      strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
+		ObjectStore:         wiring.ObjectStoreConfigFromEnv(),
+		Cosign:              cosignVerifier,
+		OIDC:                oidcClient,
+		ProviderAPI:         providerValidator,
+		SigningExecutor:     signer,
+		TransparencyProofs:  transparencyFetcher,
+		SessionPolicy:       sessionPolicy,
+		CleanupTimeout:      cleanupTimeout,
+		CloseOwnedProviders: providers.CloseWithin,
 	})
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if !errors.Is(runErr, errAPIForcedDrain) {
-			runErr = errors.Join(runErr, runtime.CloseContext(ctx, wiring.DefaultCleanupTimeout))
-		}
-	}()
 	var readinessChecks []app.ReadinessCheck
 	pgStore := runtime.Postgres
 	objectStore := runtime.Objects

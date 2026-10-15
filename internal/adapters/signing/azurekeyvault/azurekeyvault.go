@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/httpclient"
 )
 
 const (
@@ -51,6 +53,18 @@ type Executor struct {
 	algorithm  string
 	apiVersion string
 	client     *http.Client
+	closed     sync.Once
+}
+
+func (e *Executor) Close() error {
+	if e != nil {
+		e.closed.Do(func() {
+			if e.client != nil {
+				e.client.CloseIdleConnections()
+			}
+		})
+	}
+	return nil
 }
 
 type signRequest struct {
@@ -111,11 +125,8 @@ func NewWithCredential(cfg Config) (*Executor, error) {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	client := &http.Client{Timeout: timeout}
-	if cfg.Client != nil {
-		*client = *cfg.Client
-		client.Timeout = timeout
-	}
+	client := httpclient.CloneOwned(cfg.Client)
+	client.Timeout = timeout
 	client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return errors.New("azure Key Vault redirects are not permitted")
 	}

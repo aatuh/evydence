@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -43,6 +46,21 @@ func (o *OwnedResources) Close(root context.Context, timeout time.Duration) erro
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(root), timeout)
 	defer cancel()
+	return o.CloseWithin(ctx)
+}
+
+// CloseWithin consumes an already bounded cleanup context without resetting its
+// cancellation or deadline. Use it when composing owned resource groups.
+func (o *OwnedResources) CloseWithin(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("cleanup context is required")
+	}
+	if _, ok := ctx.Deadline(); !ok {
+		return errors.New("cleanup context requires a deadline")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	o.mu.Lock()
 	if o.err != nil {
 		err := o.err
@@ -74,6 +92,19 @@ func (o *OwnedResources) Close(root context.Context, timeout time.Duration) erro
 		}
 		return ctx.Err()
 	}
+}
+
+func CleanupTimeoutFromEnv() (time.Duration, error) {
+	const name = "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS"
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return DefaultCleanupTimeout, nil
+	}
+	seconds, err := strconv.Atoi(value)
+	if err != nil || seconds < 1 || seconds > 60 {
+		return 0, fmt.Errorf("%s must be an integer between 1 and 60", name)
+	}
+	return time.Duration(seconds) * time.Second, nil
 }
 
 func (o *OwnedResources) run(ctx context.Context) {

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
@@ -36,6 +37,18 @@ type Executor struct {
 	bearerToken string
 	publicKey   ed25519.PublicKey
 	client      *http.Client
+	closed      sync.Once
+}
+
+func (e *Executor) Close() error {
+	if e != nil {
+		e.closed.Do(func() {
+			if e.client != nil {
+				e.client.CloseIdleConnections()
+			}
+		})
+	}
+	return nil
 }
 
 type signRequest struct {

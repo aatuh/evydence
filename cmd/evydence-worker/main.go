@@ -110,18 +110,24 @@ func runWithArgs(args []string) (runErr error) {
 	if err != nil {
 		return err
 	}
+	cleanupTimeout, err := wiring.CleanupTimeoutFromEnv()
+	if err != nil {
+		return err
+	}
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
+	config := workerRuntimeConfig(databaseURL, production)
+	config.CleanupTimeout = cleanupTimeout
+	runtime, err := wiring.OpenRuntime(ctx, config)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		closeWorkerAfterStop(runErr, func() { runErr = errors.Join(runErr, runtime.CloseContext(ctx, wiring.DefaultCleanupTimeout)) })
+		closeWorkerAfterStop(runErr, func() { runErr = errors.Join(runErr, runtime.CloseContext(ctx, cleanupTimeout)) })
 	}()
 	store := runtime.Postgres
 	objectStore := runtime.Objects
