@@ -27,6 +27,7 @@ REQUIRED_BEHAVIOR_IDS = {
     "packages",
     "backup-restore",
     "upgrade",
+    "worker-shutdown",
 }
 
 
@@ -225,6 +226,19 @@ BEHAVIORS = (
         gap("published-version binary and image upgrade rehearsal is intentionally tracked by EVY-1106"),
         RACE_GATE,
         gap("migration prefixes are finite committed SQL states and are validated exhaustively"),
+    ),
+    Behavior(
+        "worker-shutdown",
+        "Bounded worker shutdown and lease recovery",
+        "Signals stop admission; active work drains within one budget, and uncertain work remains lease-fenced and retryable without false acknowledgement.",
+        refs("cmd/evydence-worker/worker_loop_test.go::TestWorkerLoopShutdownAllowsActiveJobToFinishBeforeCancellation"),
+        refs("cmd/evydence-worker/worker_loop_test.go::TestWorkerLoopShutdownDoesNotStartClaimedBatchTail"),
+        refs("cmd/evydence-worker/worker_loop_test.go::TestWorkerLoopShutdownBoundsUncooperativeProcessor"),
+        refs("cmd/evydence-worker/worker_loop_test.go::TestWorkerLoopSignalProcess"),
+        refs("cmd/evydence-worker/worker_loop_postgres_test.go::TestWorkerLoopShutdownPostgresLeaseReclaimAndNativeIdempotency"),
+        gap("release-style binary termination with the full runtime is tracked by EVY-1209 and parent EVY-1201"),
+        RACE_GATE,
+        gap("signal, deadline and lease states use controlled barriers and real storage; parser byte fuzzing does not model process lifetime"),
     ),
 )
 

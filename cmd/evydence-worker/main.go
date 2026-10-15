@@ -92,7 +92,7 @@ func run() error {
 	return runWithArgs(nil)
 }
 
-func runWithArgs(args []string) error {
+func runWithArgs(args []string) (runErr error) {
 	if len(args) > 0 {
 		switch args[0] {
 		case "healthcheck", "--healthcheck":
@@ -106,6 +106,10 @@ func runWithArgs(args []string) error {
 		}
 	}
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
+	shutdownTimeout, err := workerShutdownTimeoutFromEnv()
+	if err != nil {
+		return err
+	}
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
@@ -116,7 +120,7 @@ func runWithArgs(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer runtime.Close()
+	defer func() { closeWorkerAfterStop(runErr, runtime.Close) }()
 	store := runtime.Postgres
 	objectStore := runtime.Objects
 	processor, err := newNativeJobProcessor(store, objectStore)
@@ -126,44 +130,7 @@ func runWithArgs(args []string) error {
 	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
 	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
 	log.Printf("evydence worker started with postgres outbox, configured object store, polling interval %s", pollInterval)
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		jobs, err := store.ClaimJobs(ctx, batchSize)
-		if err != nil {
-			log.Printf("outbox claim failed")
-			if err := waitWorkerPoll(ctx, pollInterval); err != nil {
-				return err
-			}
-			continue
-		}
-		if len(jobs) == 0 {
-			if err := waitWorkerPoll(ctx, pollInterval); err != nil {
-				return err
-			}
-			continue
-		}
-		prioritizePayloadFinalization(jobs)
-		for _, job := range jobs {
-			log.Printf("processing outbox job id=%s kind=%s subject_type=%s subject_id=%s attempt=%d", job.ID, job.Kind, job.SubjectType, job.SubjectID, job.Attempts)
-			if err := processor.Process(ctx, job); err != nil {
-				failure := classifyWorkerFailure(err)
-				log.Printf("outbox job failed id=%s kind=%s class=%s code=%s", job.ID, job.Kind, failure.Class, failure.Code)
-				if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
-					if deferErr := store.DeferJob(ctx, job.ID, job.LeaseToken, failure); deferErr != nil {
-						log.Printf("record outbox deferral failed id=%s", job.ID)
-					}
-				} else if failErr := store.FailJob(ctx, job.ID, job.LeaseToken, failure); failErr != nil {
-					log.Printf("record outbox failure failed id=%s", job.ID)
-				}
-				continue
-			}
-			if err := store.CompleteJob(ctx, job.ID, job.LeaseToken); err != nil {
-				log.Printf("complete outbox job failed id=%s", job.ID)
-			}
-		}
-	}
+	return runWorkerLoop(ctx, store, processor, workerLoopConfig{PollInterval: pollInterval, BatchSize: batchSize, ShutdownTimeout: shutdownTimeout})
 }
 
 // runParserReplay is an explicit operator command that appends a derived

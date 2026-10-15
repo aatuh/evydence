@@ -33,10 +33,23 @@ parser store cannot regain a snapshot fallback. EVY-906 removed the worker's
 whole-state read, snapshot publication and unfenced mutation branches, including
 the old compatibility-test fallbacks. Test fixtures now use the focused ports.
 
-`SIGINT` and `SIGTERM` cancel the worker's runtime/request context and interrupt
-idle polling waits. Runtime resources close when the loop exits. A canceled
-claim that cannot record its outcome remains governed by the existing lease
-expiry/reclaim rules; shutdown does not bypass claim fencing.
+`SIGINT` and `SIGTERM` stop new claims and interrupt idle polling or an in-flight
+claim. Unstarted jobs from the claimed batch stay leased without processing.
+The active job gets up to `EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS` (default
+30 seconds) to finish and record its outcome using a live context. This is one
+shared budget for processing and acknowledgement. A graceful stop exits zero;
+the daemon closes its runtime resources after the loop stops.
+
+At the deadline the job context is canceled, the daemon exits nonzero, and no
+new acknowledgement starts. A failed acknowledgement can be uncertain; a
+database commit already in flight may have succeeded. PostgreSQL remains the
+source of truth. A forced exit relies on the OS to close connections rather
+than waiting indefinitely for a checked-out pool connection. Native handlers
+must honor their contexts; noncooperative calls can survive only until process
+exit. Unfinished and unstarted jobs remain governed by the five-minute lease
+expiry/reclaim rules. A retry verifies existing durable effects idempotently;
+shutdown does not shorten leases, release them without fencing, or promise
+exactly-once execution.
 
 Worker failures use stable, payload-free classes and codes:
 

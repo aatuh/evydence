@@ -13,6 +13,12 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added bounded worker shutdown (EVY-1207): stop claiming and starting batch jobs
+on a signal, drain the active job and its acknowledgement within one configurable
+budget, and leave uncertain claims for fenced lease expiry/reclaim. Graceful
+shutdown succeeds; deadline expiry fails without waiting indefinitely for pool
+cleanup. This does not promise exactly-once job execution.
+
 Expanded deterministic contention validation (EVY-1105) to retain the existing
 idempotency cases and exercise native tenant commands, audit ordering, signing
 rotation, customer packages, credential replacement and worker replicas under

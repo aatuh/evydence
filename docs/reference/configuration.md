@@ -70,6 +70,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_PRINT_BOOTSTRAP_SECRET` | Local only | `true` in `.api.env.example` | Prints the one-time bootstrap secret. Rejected when `ENV=production`. |
 | `EVYDENCE_WORKER_POLL_INTERVAL` | No | `1s` | Worker outbox polling interval. |
 | `EVYDENCE_WORKER_BATCH_SIZE` | No | `10` | Maximum outbox jobs claimed per polling cycle. |
+| `EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS` | No | `30` | Active-job drain and acknowledgement budget after `SIGINT` or `SIGTERM`; whole seconds from 1 through 300. Invalid values reject daemon startup before storage opens. |
 | `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
 | `EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64` | Optional Cosign verification | unset | Base64-encoded operator-managed Sigstore trusted-root JSON, bounded to 1 MiB after decoding. Do not put private keys here. |
 | `EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64` | Optional key-based Cosign verification | unset | Base64-encoded operator-managed PEM public key, bounded to 1 MiB after decoding. It can be configured with or instead of the trusted root. |
