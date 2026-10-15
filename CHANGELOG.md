@@ -17,8 +17,9 @@ Expanded deterministic contention validation (EVY-1105) to retain the existing
 idempotency cases and exercise native tenant commands, audit ordering, signing
 rotation, customer packages, credential replacement and worker replicas under
 the race detector with three scheduler settings. Missing or skipped evidence
-fails the gate. The dedicated CI job and production gate are configured;
-hosted success and required-check enforcement remain separate acceptance work.
+fails the gate. The full local production gate passed on 2026-10-15, including
+all 510 default stress passes. Hosted success and required-check enforcement
+remain separate acceptance work for the dedicated CI job.
 
 Added independent per-client failure budgets for authentication, public SSO
 and portal actions (EVY-1011), with bounded state, opaque keys, concurrency
