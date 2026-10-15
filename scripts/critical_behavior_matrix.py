@@ -343,6 +343,7 @@ def render(behaviors: tuple[Behavior, ...]) -> str:
         "",
         "- `make test-strategy-check` validates every reference, the required behavior set, and the CI coverage-artifact contract.",
         "- `make coverage-check` requires live PostgreSQL, writes `coverage.out`, enforces 80.0% overall Go statement coverage, and enforces 81.0% aggregate coverage for the critical package set below.",
+        "- `make concurrency-stress-check` requires live PostgreSQL and repeats the explicit contention cases under race with CPU settings 1, 2 and 4. It rejects missing or skipped test evidence.",
         "- `make production-check` additionally runs live PostgreSQL and object-store integration, race, security, recovery, benchmark, black-box, and release-artifact checks.",
         "- A percentage is never sufficient evidence by itself. Each P0 invariant must retain explicit positive, negative, and failure-path references in the matrix.",
         "",
@@ -390,6 +391,16 @@ def render(behaviors: tuple[Behavior, ...]) -> str:
         )
     lines.extend(
         [
+            "",
+            "## Repeated Concurrency Gate",
+            "",
+            "Run `make concurrency-stress-check` with `EVYDENCE_TEST_DATABASE_URL` pointing to a disposable local PostgreSQL database. The gate also runs inside `make production-check` and in the separate `Race and Stress` CI job. It preserves EVY-303's application/HTTP/independent-store idempotency cases and adds native catalog, audit sequence, stale revision, signing-key rotation, customer-package generation/access, session replacement and worker-claim coverage. The native paths do not load the retired production Ledger aggregate; retained aggregate tests are compatibility oracles.",
+            "",
+            "`EVYDENCE_CONCURRENCY_STRESS_ITERATIONS` defaults to `10` and accepts integers `1..1000`. Each selected test runs that many times at each of `-cpu=1,2,4` under `-race`, giving 30 passes per test at the default. `-p=1` serializes independent package binaries without changing contention inside tests. Use one iteration for focused development; ticket acceptance uses the default. The per-package watchdog remains 30 minutes. There are no retries that can erase a failure.",
+            "",
+            "The explicit selection in `scripts/concurrency_stress.py` is checked against real test symbols. New native cases use start barriers, a fixed package clock/injected IDs, and a held PostgreSQL row lock rather than sleeps: competing replicas must drain unlocked jobs before the held job is released. Package replay must commit one package, audit and receipt while foreign-tenant requests leave no effect. Existing lifecycle cases cover lease reclamation and immediate credential invalidation after replacement.",
+            "",
+            "`tmp/concurrency-stress/events.jsonl` retains streaming Go test events; `summary.json` records commit, working-tree cleanliness, scheduler/count settings and per-test passes. Missing, skipped, malformed, failed or interrupted evidence fails the gate. CI artifacts include `${{ github.sha }}` in their name. A configured workflow is not proof of a successful hosted run or a required branch-protection context; verify both separately before closing EVY-1105. These tests support the single API writer and worker-contention profile, not multi-writer API safety or production capacity.",
             "",
             "## Flaky-Test Policy",
             "",

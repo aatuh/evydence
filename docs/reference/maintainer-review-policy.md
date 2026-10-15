@@ -9,7 +9,7 @@ certification, complete vulnerability coverage, or a secure-release guarantee.
 
 ## Current Enforcement Status
 
-The live GitHub API settings for `master` were verified on 2026-10-11:
+The live GitHub API settings for `master` were verified on 2026-10-15:
 
 - `Production Check` and `CodeQL Analyze` remain required, bound to GitHub
   Actions (app ID `15368`), with the branch required to be up to date;
@@ -24,6 +24,14 @@ for high-risk paths, not an enforced approval gate. This solo-maintainer setup
 does not require an independent reviewer. The settings snapshot is not proof
 that CI passed on any particular commit, and settings can change after the
 verification date.
+
+EVY-1105 adds a checked-in `Race and Stress` job, alongside the full race suite
+inside the required `Production Check`. The live settings above do **not** yet
+require the new context. Keep EVY-1105 incomplete until the workflow is published,
+its hosted checks pass on the implementation, and `Race and Stress` is added to
+the required GitHub Actions contexts without removing the existing checks or
+up-to-date requirement. Verify the resulting API settings and retain the run
+URLs; local tests and workflow text alone cannot establish that enforcement.
 
 ## Maintainer Bypass Posture
 

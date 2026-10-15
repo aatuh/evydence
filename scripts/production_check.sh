@@ -17,6 +17,7 @@ printf '%s\n' "Running Evydence production readiness checks"
 
 make integration-check
 make release-check
+make concurrency-stress-check
 make coverage-check
 make migration-compatibility-check
 make benchmark-check

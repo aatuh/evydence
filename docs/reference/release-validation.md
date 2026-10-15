@@ -260,6 +260,14 @@ gosec, govulncheck, race tests, OpenAPI/docs/deployment/SDK checks, migration
 compatibility tests, production benchmark evidence, black-box release-style binary evidence,
 and a release manifest signing smoke test.
 
+`make production-check` also runs the repeated
+[concurrency gate](test-strategy.md#repeated-concurrency-gate). A separate
+`Race and Stress` job runs it against its own disposable PostgreSQL service and
+uploads exact-commit `tmp/concurrency-stress/summary.json` and `events.jsonl`.
+The checked-in job does not establish hosted success or branch-protection
+enforcement; the verified settings are recorded in the
+[maintainer review policy](maintainer-review-policy.md#current-enforcement-status).
+
 The workflow preserves `tmp/release-check-summary.txt`, `coverage.out`, and the
 production benchmark summary, black-box release-style binary summary,
 release-style binary checksums, and production-check release manifest/signature

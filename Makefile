@@ -3,7 +3,7 @@ GOTOOLCHAIN ?= go1.26.9
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
-.PHONY: architecture-check
+.PHONY: architecture-check concurrency-stress-check
 GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
@@ -60,9 +60,14 @@ coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_
 
 test-strategy-check: ## Validate critical behavior test evidence and coverage provenance policy
 	@python3 scripts/test_gate_watchdogs.py
+	@python3 scripts/test_concurrency_stress.py
 	@python3 scripts/test_coverage_check.py
 	@python3 scripts/test_critical_behavior_matrix.py
 	@python3 scripts/critical_behavior_matrix.py --check
+
+concurrency-stress-check: ## Repeat native contention cases under race with CPU settings 1,2,4; requires live PostgreSQL
+	@python3 scripts/test_concurrency_stress.py
+	@scripts/concurrency_stress.sh
 
 openapi.yaml: ## Generate committed OpenAPI source
 	@$(GO) run ./cmd/openapi > openapi.yaml

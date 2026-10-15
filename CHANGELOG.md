@@ -13,6 +13,13 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Expanded deterministic contention validation (EVY-1105) to retain the existing
+idempotency cases and exercise native tenant commands, audit ordering, signing
+rotation, customer packages, credential replacement and worker replicas under
+the race detector with three scheduler settings. Missing or skipped evidence
+fails the gate. The dedicated CI job and production gate are configured;
+hosted success and required-check enforcement remain separate acceptance work.
+
 Added independent per-client failure budgets for authentication, public SSO
 and portal actions (EVY-1011), with bounded state, opaque keys, concurrency
 reservations and non-cacheable `429` responses. The general request-limit
