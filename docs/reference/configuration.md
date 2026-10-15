@@ -52,7 +52,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_HTTP_READ_TIMEOUT_SECONDS` | No | `30` | Maximum total request-read time. Values must be whole seconds from 1 through 900. |
 | `EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS` | No | `60` | Maximum response-write time. Values must be whole seconds from 1 through 900. |
 | `EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS` | No | `120` | Idle keep-alive timeout. Values must be whole seconds from 1 through 3600. |
-| `EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS` | No | `30` | Graceful shutdown deadline after `SIGINT` or `SIGTERM`. Values must be whole seconds from 1 through 300. |
+| `EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS` | No | `30` | Request drain budget after `SIGINT`, `SIGTERM`, or a permanent listener failure. Values must be whole seconds from 1 through 300. |
 | `EVYDENCE_HTTP_MAX_HEADER_BYTES` | No | `16384` | Listener header-size cap in bytes. Values must be 1024 through 1048576. |
 | `EVYDENCE_HTTP_MAX_URL_BYTES` | No | `8192` | Raw request-target cap in bytes, including its query string. Values must be 1024 through 65536. |
 | `EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS` | No | `256` | Process-wide simultaneous request cap. Saturation returns a retryable `429` Problem Details response. |
@@ -262,6 +262,23 @@ The API listener applies bounded header, request-target, request-read,
 response-write, idle, and graceful-shutdown limits from the variables above.
 The process rejects an invalid bound or proxy CIDR during startup rather than
 silently falling back to an unbounded setting.
+
+On `SIGINT` or `SIGTERM`, the API closes its listener and idle keep-alive
+connections, then lets admitted requests finish within the shutdown budget.
+Their request contexts survive the signal so a normal response and its durable
+work can complete. A permanent accept failure uses the same drain path before
+returning an error; it cannot trigger immediate runtime cleanup beneath an
+otherwise successful active request. `http.ErrServerClosed` is normal.
+
+At the drain deadline the API closes active connections and cancels their
+request contexts, then returns an error. Handlers and storage/provider calls
+must honor those contexts; a database commit already in flight may have
+succeeded even if the client loses its response. Normal signal shutdown exits
+zero; a serve error, unexpected root deadline, or forced drain failure exits
+nonzero. Fixed lifecycle log messages report drain start, completion, or
+failure without raw request or provider error details. Resource cleanup and
+deployment termination grace must also be accounted for; the HTTP budget only
+covers request draining.
 
 Evydence does not accept compressed or multipart request bodies. Only an absent
 or `identity` `Content-Encoding` is accepted, so the ingress limit and the

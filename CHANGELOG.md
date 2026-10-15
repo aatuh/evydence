@@ -13,6 +13,13 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Fixed API listener failure shutdown (EVY-1208) to drain admitted requests
+before returning the serve error. Signal shutdown retains request contexts
+until completion or the configured deadline; forced closure cancels unfinished
+requests and reports failure. Listener ownership and safe lifecycle status have
+explicit regression tests. Routes, authentication and ingress limits retain
+their existing contracts.
+
 Added bounded worker shutdown (EVY-1207): stop claiming and starting batch jobs
 on a signal, drain the active job and its acknowledgement within one configurable
 budget, and leave uncertain claims for fenced lease expiry/reclaim. Graceful

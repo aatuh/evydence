@@ -637,44 +637,75 @@ func newHTTPServer(addr string, handler http.Handler, config httpRuntimeConfig) 
 }
 
 func serveHTTP(ctx context.Context, server *http.Server, shutdownTimeout time.Duration) error {
-	if ctx == nil {
-		return errors.New("API server context is required")
+	if ctx == nil || server == nil {
+		return errors.New("API server and context are required")
+	}
+	if ctx.Err() != nil {
+		return apiStopError(ctx)
 	}
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", server.Addr)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return apiStopError(ctx)
+		}
 		return err
 	}
 	return serveHTTPOnListener(ctx, server, listener, shutdownTimeout)
 }
 
 func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration) error {
-	if ctx == nil {
-		return errors.New("API server context is required")
+	// This function takes ownership of the supplied listener, including on a
+	// startup failure. Once Serve starts, net/http owns its once-only close.
+	if ctx == nil || server == nil || listener == nil {
+		if listener != nil {
+			_ = listener.Close()
+		}
+		return errors.New("API server, listener and context are required")
+	}
+	if ctx.Err() != nil {
+		closeErr := listener.Close()
+		return errors.Join(apiStopError(ctx), closeErr)
 	}
 	if shutdownTimeout <= 0 {
 		shutdownTimeout = 30 * time.Second
 	}
 	errCh := make(chan error, 1)
 	go func() { errCh <- server.Serve(listener) }()
+	var serveErr error
+	serveFinished := false
 	select {
 	case err := <-errCh:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
-		return err
+		serveErr, serveFinished = err, true
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			_ = server.Close()
-			return fmt.Errorf("gracefully shut down API server: %w", err)
-		}
-		err := <-errCh
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return err
 	}
+	// Serve can fail while accepted connections are still processing. Drain
+	// those requests before the caller closes their storage/provider resources.
+	log.Print("API drain started; new requests stopped")
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Print("API drain failed; connections closing; in-flight outcomes may be uncertain")
+		closeErr := server.Close()
+		return errors.Join(serveErr, fmt.Errorf("gracefully shut down API server: %w", err), closeErr)
+	}
+	if !serveFinished {
+		serveErr = <-errCh
+		if errors.Is(serveErr, http.ErrServerClosed) {
+			serveErr = nil
+		}
+	}
+	log.Print("API drain completed")
+	return errors.Join(serveErr, apiStopError(ctx))
+}
+
+func apiStopError(ctx context.Context) error {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return nil
+	}
+	return ctx.Err()
 }
 
 func intEnv(name string, fallback int) int {

@@ -28,6 +28,7 @@ REQUIRED_BEHAVIOR_IDS = {
     "backup-restore",
     "upgrade",
     "worker-shutdown",
+    "http-shutdown",
 }
 
 
@@ -239,6 +240,19 @@ BEHAVIORS = (
         gap("release-style binary termination with the full runtime is tracked by EVY-1209 and parent EVY-1201"),
         RACE_GATE,
         gap("signal, deadline and lease states use controlled barriers and real storage; parser byte fuzzing does not model process lifetime"),
+    ),
+    Behavior(
+        "http-shutdown",
+        "HTTP admission and bounded request drain",
+        "Admitted requests finish before graceful cleanup; new connections are rejected, and serve/deadline failures cancel or drain work without hiding errors.",
+        refs("cmd/evydence-api/http_lifecycle_test.go::TestHTTPDrainActiveRequestCompletesAndRejectsNewWork"),
+        refs("cmd/evydence-api/http_lifecycle_test.go::TestHTTPDrainDeadlineCancelsRequestAndReturnsFailure"),
+        refs("cmd/evydence-api/http_lifecycle_test.go::TestHTTPDrainServeFailureWaitsForAdmittedRequest"),
+        refs("cmd/evydence-api/http_lifecycle_test.go::TestHTTPDrainStatusOmitsRawFailureDetails"),
+        refs("cmd/evydence-api/http_lifecycle_test.go::TestHTTPDrainClosesIdleKeepAliveConnection"),
+        gap("release-style binary SIGTERM, resource cleanup and durable-state proof are tracked by EVY-1209 and parent EVY-1201"),
+        RACE_GATE,
+        gap("controlled signals, listener failures and connection barriers model lifecycle states; byte fuzzing does not model shutdown ownership"),
     ),
 )
 
