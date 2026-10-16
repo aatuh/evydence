@@ -106,6 +106,14 @@ started. Cancelled owners publish no partial cache result, and each waiting
 caller can cancel independently. Cached failures expire too, permitting recovery
 after a dependency is restored. A backward clock invalidates cache reuse.
 
+The API's `outbox` dependency checks for queued/retrying work at least five
+minutes past `run_after`, or running work with a missing/expired five-minute
+worker lease. Recent eligible work, future scheduled retries and historical
+dead letters/completed jobs do not block readiness. The database query uses
+existence checks over active-work indexes, returns no tenant/job data, and
+does not claim, renew or replay work. An empty queue alone cannot establish
+that a worker is running; this probe detects stalled work once it exists.
+
 Canonical GET/HEAD requests to the three public lifecycle paths are independent
 of application edge quotas and in-flight admission. Startup/readiness have a
 separate eight-request pool; saturation returns a low-detail retryable `503`

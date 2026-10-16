@@ -151,6 +151,7 @@ func runAPI(ctx context.Context) (runErr error) {
 		app.ReadinessCheck{Name: "migrations", Timeout: runtimeReadinessTimeout, FailureDetail: "database migration state is unavailable", Check: func(checkCtx context.Context) error {
 			return pgStore.CheckMigrationState(checkCtx, migrationsDir)
 		}},
+		app.ReadinessCheck{Name: "outbox", Timeout: runtimeReadinessTimeout, FailureDetail: "outbox progress is unavailable", Check: pgStore.CheckOutboxReadiness},
 	)
 	if production {
 		readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "writer_lease", Timeout: runtimeReadinessTimeout, FailureDetail: "API writer lease is unavailable", Check: pgStore.CheckAPIWriterLease})
