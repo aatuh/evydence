@@ -99,6 +99,19 @@ the business response or an existing handler panic.
 | `evydence_operations_total` | Counter | `service`, fixed `operation`, fixed `outcome`. |
 | `evydence_operation_duration_seconds` | Histogram | Same operation dimensions. |
 | `evydence_telemetry_series_overflow_total` | Counter | `service`; explains collapsed HTTP observations. |
+| `evydence_db_pool_connections` | Gauge | `service`, fixed `pool` (`primary` or `package_read`), fixed `state` (`acquired`, `idle`, `constructing`, `maximum`). |
+| `evydence_db_pool_acquires_total` | Counter | `service`, `pool`; successful process-local acquires. |
+| `evydence_db_pool_canceled_acquires_total` | Counter | `service`, `pool`; canceled acquires. |
+| `evydence_db_pool_waited_acquires_total` | Counter | `service`, `pool`; successful acquires which waited, a subset of successful acquires. |
+| `evydence_db_pool_acquire_duration_seconds_total` | Counter | `service`, `pool`; cumulative duration of successful acquires. |
+| `evydence_db_pool_wait_seconds_total` | Counter | `service`, `pool`; cumulative wait time for successful acquires which found the pool empty. |
+| `evydence_queue_jobs` | Gauge | `service`, fixed `state` (`queued`, `retrying`, `running`, `succeeded`, `dead_letter`). |
+| `evydence_queue_attempts` | Gauge | `service`; sum of current attempt numbers on retained jobs. |
+| `evydence_queue_eligible_jobs` | Gauge | `service`; queued/retrying jobs due by `run_after`. |
+| `evydence_queue_overdue_jobs` | Gauge | `service`; queued/retrying jobs at least five minutes past `run_after`. |
+| `evydence_queue_expired_leases` | Gauge | `service`; running jobs with missing or expired five-minute leases. |
+| `evydence_queue_oldest_pending_age_seconds` | Gauge | `service`; creation age of the oldest queued/retrying job, including future scheduled work. |
+| `evydence_queue_oldest_eligible_age_seconds` | Gauge | `service`; creation age of the oldest currently eligible queued/retrying job. |
 
 Registry construction accepts only `api` or `worker` service names and at most
 256 code-owned route templates. A hard budget of 1024 distinct HTTP label
@@ -107,14 +120,34 @@ preserving all request and duration observations. Unknown operations/outcomes
 collapse to finite fallback values. Tenant/resource/job/customer IDs, CVEs,
 trace IDs, URLs, headers, credentials, bodies and raw errors are not labels.
 The registry does not register the global/default Go or process collectors.
-Text output is capped at 8 MiB; a canceled snapshot returns no partial data.
+The private registry's text output is capped at 8 MiB; a canceled snapshot
+returns no partial data.
+
+Authorized native API text scrapes also read a fixed scalar PostgreSQL projection
+through the existing read-only package preparation pool. Its one-second deadline
+includes connection waiting and SQL execution, and respects earlier caller
+cancellation. It neither loads the Ledger nor reads job payloads/identifiers or
+changes claims, attempts, leases, audits or evidence. Failed, canceled, invalid
+or panicking reads publish no partial or cached stale sample. Each scrape owns
+its resource value copy, including concurrent scrapes. Pool statistics are
+process-local; the read pool's activity includes metric scrapes themselves.
+
+Queue gauges cover the shared database, so API and worker targets connected to
+the same database repeat those values: do not sum them across process targets.
+Retained succeeded/dead-letter jobs and current attempt-number sums are gauges,
+not lifetime completion or attempt-event counters. Retention/restore can change
+them. An old future-scheduled retry can raise pending creation age without being
+overdue; use eligibility/overdue/lease signals to diagnose stalled work. Empty
+or future creation timestamps produce zero age. Exact scalar aggregation can
+scan retained history; sufficiently large/contended histories may hit the query
+deadline and make a scrape unavailable. This is no database-capacity guarantee.
 
 Counters and histograms are process-local and reset on restart. Scrape each
 process separately and use reset-aware rates; these measurements are operational
 observations, not durable evidence or audit totals. A scrape reflects previously
 completed requests; its own completed request is recorded after the response.
-Worker scraping and database/queue/storage instrumentation remain pending in
-EVY-1211; dashboard/rule calibration belongs to EVY-1212.
+Worker scraping, storage and other application instrumentation remain pending
+in EVY-1211; dashboard/rule calibration belongs to EVY-1212.
 
 ## Endpoints
 

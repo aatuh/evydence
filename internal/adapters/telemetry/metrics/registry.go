@@ -33,12 +33,15 @@ var (
 type Config struct {
 	Service string
 	// Routes must come from code-owned route contracts, never request paths.
-	Routes []string
+	Routes         []string
+	ResourceReader telemetry.ResourceReader
 }
 
 type httpLabels struct{ method, route, status string }
 
 type Registry struct {
+	service      string
+	resources    telemetry.ResourceReader
 	registry     *prometheus.Registry
 	http         *toolkitmetrics.PrometheusRecorder
 	operations   *prometheus.CounterVec
@@ -56,6 +59,7 @@ func New(cfg Config) (*Registry, error) {
 		return nil, errInvalidConfig
 	}
 	r := &Registry{
+		service: cfg.Service, resources: cfg.ResourceReader,
 		registry: prometheus.NewRegistry(), routes: make(map[string]struct{}, len(cfg.Routes)),
 		httpSeries: make(map[httpLabels]struct{}),
 	}
@@ -188,8 +192,9 @@ func (r *Registry) Observe(_ context.Context, event telemetry.Event) {
 	}
 }
 
-// Snapshot contains only this registry's bounded families. It does not consult
-// the global default registry, open dependencies or retain caller contexts.
+// Snapshot contains only this registry's bounded families. An optional resource
+// reader supplies one deadline-bound scalar projection after authorization by
+// the caller. No global default registry or caller context is retained.
 func (r *Registry) Snapshot(ctx context.Context) (string, error) {
 	if r == nil || ctx == nil {
 		return "", errSnapshot
@@ -200,6 +205,24 @@ func (r *Registry) Snapshot(ctx context.Context) (string, error) {
 	families, err := r.registry.Gather()
 	if err != nil {
 		return "", errSnapshot
+	}
+	if r.resources != nil {
+		resources, err := captureRuntimeResources(ctx, r.resources)
+		if err != nil {
+			return "", err
+		}
+		// A per-scrape collector owns a value copy. Shared mutable gauges would
+		// let concurrent requests mix samples or retain stale values on failure.
+		local := prometheus.NewRegistry()
+		registerer := prometheus.WrapRegistererWith(prometheus.Labels{"service": r.service}, local)
+		if err := registerer.Register(newRuntimeResourceCollector(resources, time.Now())); err != nil {
+			return "", errSnapshot
+		}
+		sampled, err := local.Gather()
+		if err != nil {
+			return "", errSnapshot
+		}
+		families = append(families, sampled...)
 	}
 	var output boundedExposition
 	for _, family := range families {

@@ -653,7 +653,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create role-binding query: %w", err)
 	}
-	options.OperationalMetrics, err = BuildOperationalMetrics(API)
+	options.OperationalMetrics, err = BuildOperationalMetrics(API, store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create operational metrics: %w", err)
 	}
