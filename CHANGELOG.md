@@ -13,35 +13,20 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
-Added mandatory release-binary SIGTERM evidence to the release-artifact gate
-(EVY-1209). Four PostgreSQL lock-barrier scenarios verify API completion/rollback
-and idempotent restart, plus worker completion or fenced native retry. The gate
-requires every pass and durable receipt, rejects incomplete evidence, binds
-binary hashes and preserves prior lifecycle artifacts. Full parent production
-acceptance remains pending.
+Completed bounded resource cleanup and deployment termination controls
+(EVY-1201, EVY-1209). Partial startup and normal shutdown close owned database,
+object and provider resources once under a shared deadline, preserve borrowed
+clients/transports and retain writer ownership through forced process exit.
+Helm rejects invalid termination budgets and uses `Recreate` for the single API
+writer, with planned rollout downtime; workers can scale and roll normally.
+Deployment checks render the actual chart and resolve Compose.
 
-Aligned Helm and production-like Compose termination budgets with daemon drain
-and cleanup (EVY-1209). Helm rejects undersized/invalid budgets, keeps one API
-writer and uses `Recreate` for its rollout; workers can scale and roll normally.
-Deployment checks render the actual chart and resolve Compose using synthetic
-values. Live cluster rollout and release-binary shutdown proof remain separate.
-
-Added explicit process-owned provider cleanup and validated daemon cleanup
-budgets (EVY-1209). Partial startup and normal shutdown close owned gateway/KMS
-clients once under the runtime's shared cleanup deadline; injected clients and
-transports stay borrowed. Forced drain retains resources until process exit.
-Deployment termination budgets and release-binary acceptance remain in progress.
-
-Fixed owned outbound HTTP transport cleanup (EVY-1209): policy clients release
-their cloned pools while retaining borrowed transports, per-call discovery,
-UserInfo and transparency clients close after their flow, and runtime-owned
-S3/MinIO pools close during shutdown or failed construction. Local connection
-and ownership tests cover these boundaries; complete lifecycle acceptance is pending.
-
-Bounded PostgreSQL runtime cleanup (EVY-1209 foundation) now waits for both pools
-before releasing the writer lease and reports cleanup failure to API/worker
-callers. Forced drain keeps resources until process exit. Deployment budgets and
-complete lifecycle acceptance remain in progress.
+The release-artifact gate now requires four real SIGTERM cases with PostgreSQL
+lock barriers, durable receipts and matching binary hashes. They verify API
+completion/rollback and idempotent restart, plus worker completion or fenced
+native retry. The complete local production gate passed on 2026-10-16. This is
+release-style binary evidence; live cluster rollout, external-provider
+interoperability and published operator assets remain separate proof.
 
 Fixed API listener failure shutdown (EVY-1208) to drain admitted requests
 before returning the serve error. Signal shutdown retains request contexts
