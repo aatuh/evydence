@@ -11,6 +11,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 )
 
 type workerQueue interface {
@@ -70,7 +71,9 @@ func runWorkerLoop(ctx context.Context, store workerQueue, processor workerProce
 		if ctx.Err() != nil {
 			return workerStopError(ctx)
 		}
-		jobs, err := store.ClaimJobs(ctx, batchSize)
+		jobs, err := telemetry.Measure(ctx, telemetry.OperationWorkerClaim, func(claimCtx context.Context) ([]postgres.ClaimedJob, error) {
+			return store.ClaimJobs(claimCtx, batchSize)
+		})
 		if err != nil {
 			logging.Emit(ctx, logging.Outbox, logging.Fields{OperationID: "claim_jobs", Result: logging.Failed, Retry: logging.Transient})
 			if err := waitWorkerPoll(ctx, pollInterval); err != nil {
@@ -115,7 +118,9 @@ func drainableWorkerJob(root context.Context, store workerQueue, processor worke
 			drain.cancel()
 		}
 	}()
-	err := drain.call(root, func(ctx context.Context) error { return processor.Process(ctx, job) })
+	err := measureWorkerPhase(root, jobCtx, telemetry.OperationWorkerProcess, job.Attempts, func() error {
+		return drain.call(root, func(ctx context.Context) error { return processor.Process(ctx, job) })
+	})
 	if errors.Is(err, errWorkerDrainTimeout) {
 		fields.Result = logging.Uncertain
 		fields.Retry = logging.Transient
@@ -141,14 +146,22 @@ func drainableWorkerJob(root context.Context, store workerQueue, processor worke
 			fields.Retry = logging.Poisoned
 		}
 		logging.Emit(jobCtx, logging.Outbox, fields)
-		err = drain.call(root, func(ctx context.Context) error {
-			if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
-				return store.DeferJob(ctx, job.ID, job.LeaseToken, failure)
-			}
-			return store.FailJob(ctx, job.ID, job.LeaseToken, failure)
+		operation := telemetry.OperationWorkerFail
+		if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
+			operation = telemetry.OperationWorkerDefer
+		}
+		err = measureWorkerPhase(root, jobCtx, operation, job.Attempts, func() error {
+			return drain.call(root, func(ctx context.Context) error {
+				if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
+					return store.DeferJob(ctx, job.ID, job.LeaseToken, failure)
+				}
+				return store.FailJob(ctx, job.ID, job.LeaseToken, failure)
+			})
 		})
 	} else {
-		err = drain.call(root, func(ctx context.Context) error { return store.CompleteJob(ctx, job.ID, job.LeaseToken) })
+		err = measureWorkerPhase(root, jobCtx, telemetry.OperationWorkerComplete, job.Attempts, func() error {
+			return drain.call(root, func(ctx context.Context) error { return store.CompleteJob(ctx, job.ID, job.LeaseToken) })
+		})
 	}
 	if errors.Is(err, errWorkerDrainTimeout) {
 		fields.Result = logging.Uncertain

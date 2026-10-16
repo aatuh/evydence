@@ -55,7 +55,7 @@ func New(root string) (*Store, error) {
 	return &Store{root: abs}, nil
 }
 
-func (s *Store) Put(ctx context.Context, object app.Object) error {
+func (s *Store) put(ctx context.Context, object app.Object) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -98,13 +98,13 @@ func (s *Store) Put(ctx context.Context, object app.Object) error {
 	return nil
 }
 
-func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
+func (s *Store) readObject(ctx context.Context, key string) (app.Object, error) {
 	return s.get(ctx, key, 0)
 }
 
 var _ app.BoundedObjectReader = (*Store)(nil)
 
-func (s *Store) GetBounded(ctx context.Context, key string, maximum int64) (app.Object, error) {
+func (s *Store) getBounded(ctx context.Context, key string, maximum int64) (app.Object, error) {
 	if maximum < 1 || maximum == math.MaxInt64 {
 		return app.Object{}, app.ErrValidation
 	}
@@ -212,7 +212,7 @@ func readRootObjectFile(ctx context.Context, root *os.Root, name string, maximum
 // metadata without trusting a host path walk. It deliberately does not offer
 // deletion, and callers must treat an omitted object as an inventory gap—not
 // proof that a database-owned object is missing.
-func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
+func (s *Store) listObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
 	if s == nil || s.root == "" || app.ValidateObjectTenantID(tenantID) != nil || cursor < 0 || limit < 1 || limit > 10_000 {
 		return app.ObjectInventoryPage{}, app.ErrValidation
 	}
@@ -291,7 +291,7 @@ func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor
 // StagePayload streams bytes into an isolated tenant staging key while
 // independently calculating the digest and size. The caller's digest is never
 // trusted until it matches the exact staged byte stream.
-func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
+func (s *Store) stagePayload(ctx context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
 	if err := ctx.Err(); err != nil {
 		return app.ObjectPayload{}, err
 	}
@@ -347,7 +347,7 @@ func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, rea
 // FinalizePayload copies a verified staged object to its immutable final key.
 // If a prior worker already copied it before crashing, the final copy is
 // verified and returned instead of being overwritten.
-func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) (app.Object, error) {
+func (s *Store) finalizePayload(ctx context.Context, payload app.ObjectPayload) (app.Object, error) {
 	if err := ctx.Err(); err != nil {
 		return app.Object{}, err
 	}
@@ -358,7 +358,7 @@ func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) 
 		if err := verifyPayloadObject(payload, existing, payload.FinalKey); err != nil {
 			return app.Object{}, err
 		}
-		_ = s.remove(payload.StagingKey)
+		_ = s.removeObject(ctx, payload.StagingKey)
 		return existing, nil
 	} else if !errors.Is(err, app.ErrNotFound) {
 		return app.Object{}, err
@@ -375,7 +375,7 @@ func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) 
 	if err := s.Put(ctx, final); err != nil {
 		return app.Object{}, err
 	}
-	if err := s.remove(payload.StagingKey); err != nil {
+	if err := s.removeObject(ctx, payload.StagingKey); err != nil {
 		return app.Object{}, err
 	}
 	return s.Get(ctx, payload.FinalKey)

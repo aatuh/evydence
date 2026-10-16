@@ -92,7 +92,7 @@ func (s *Store) Close() error {
 	return nil
 }
 
-func (s *Store) Put(ctx context.Context, object app.Object) error {
+func (s *Store) put(ctx context.Context, object app.Object) error {
 	if s == nil || s.client == nil || validateObjectForWrite(object) != nil {
 		return app.ErrValidation
 	}
@@ -110,13 +110,13 @@ func (s *Store) Put(ctx context.Context, object app.Object) error {
 	return nil
 }
 
-func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
+func (s *Store) readObject(ctx context.Context, key string) (app.Object, error) {
 	return s.get(ctx, key, 0)
 }
 
 var _ app.BoundedObjectReader = (*Store)(nil)
 
-func (s *Store) GetBounded(ctx context.Context, key string, maximum int64) (app.Object, error) {
+func (s *Store) getBounded(ctx context.Context, key string, maximum int64) (app.Object, error) {
 	if maximum < 1 || maximum == math.MaxInt64 {
 		return app.Object{}, app.ErrValidation
 	}
@@ -182,7 +182,7 @@ func (s *Store) get(ctx context.Context, key string, maximum int64) (app.Object,
 // cursor intentionally avoids placing a key or digest in reconciliation
 // receipts; because listing can be eventually consistent, callers must not
 // use omission from this result as evidence that an expected object is gone.
-func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
+func (s *Store) listObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
 	if s == nil || s.client == nil || s.bucket == "" || app.ValidateObjectTenantID(tenantID) != nil || cursor < 0 || limit < 1 || limit > 10_000 {
 		return app.ObjectInventoryPage{}, app.ErrValidation
 	}
@@ -223,7 +223,7 @@ func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor
 // StagePayload streams a raw payload to its tenant-scoped staging key while
 // independently counting and hashing bytes. The payload is not eligible for a
 // domain reader until FinalizePayload has copied and verified it.
-func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
+func (s *Store) stagePayload(ctx context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
 	if s == nil || s.client == nil || reader == nil || app.ValidateObjectPayloadForRepository(payload) != nil || payload.Status != app.ObjectPayloadStaged {
 		return app.ObjectPayload{}, app.ErrValidation
 	}
@@ -243,7 +243,7 @@ func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, rea
 		return app.ObjectPayload{}, fmt.Errorf("stage s3 object: %w", err)
 	}
 	if actualDigest != payload.Digest {
-		_ = s.client.RemoveObject(context.WithoutCancel(ctx), s.bucket, payload.StagingKey, minio.RemoveObjectOptions{})
+		_ = s.removeObject(context.WithoutCancel(ctx), payload.StagingKey)
 		return app.ObjectPayload{}, app.ErrValidation
 	}
 	payload.Size = count.n
@@ -257,7 +257,7 @@ func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, rea
 // FinalizePayload performs a server-side copy. Existing final objects are
 // verified first, making the operation safe after a worker crash between copy
 // and lifecycle-state transition.
-func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) (app.Object, error) {
+func (s *Store) finalizePayload(ctx context.Context, payload app.ObjectPayload) (app.Object, error) {
 	if s == nil || s.client == nil || app.ValidateObjectPayloadForRepository(payload) != nil {
 		return app.Object{}, app.ErrValidation
 	}
@@ -265,7 +265,7 @@ func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) 
 		if err := verifyPayloadObject(payload, existing, payload.FinalKey); err != nil {
 			return app.Object{}, err
 		}
-		_ = s.client.RemoveObject(context.WithoutCancel(ctx), s.bucket, payload.StagingKey, minio.RemoveObjectOptions{})
+		_ = s.removeObject(context.WithoutCancel(ctx), payload.StagingKey)
 		return existing, nil
 	} else if !errors.Is(err, app.ErrNotFound) {
 		return app.Object{}, err
@@ -296,7 +296,7 @@ func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) 
 	if err := verifyPayloadObject(payload, object, payload.FinalKey); err != nil {
 		return app.Object{}, err
 	}
-	if err := s.client.RemoveObject(ctx, s.bucket, payload.StagingKey, minio.RemoveObjectOptions{}); err != nil {
+	if err := s.removeObject(ctx, payload.StagingKey); err != nil {
 		return app.Object{}, fmt.Errorf("remove staged s3 object: %w", err)
 	}
 	return object, nil
@@ -317,7 +317,7 @@ func (s *Store) CheckReadiness(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) VerifyObjectRetention(ctx context.Context, req app.ObjectRetentionRequest) (app.ObjectRetentionResult, error) {
+func (s *Store) verifyObjectRetention(ctx context.Context, req app.ObjectRetentionRequest) (app.ObjectRetentionResult, error) {
 	if s == nil || s.client == nil {
 		return app.ObjectRetentionResult{}, app.ErrValidation
 	}

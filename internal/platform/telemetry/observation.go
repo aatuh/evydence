@@ -34,6 +34,9 @@ const (
 	OperationObjectWrite            Operation = "object_write"
 	OperationObjectDelete           Operation = "object_delete"
 	OperationObjectList             Operation = "object_list"
+	OperationObjectStage            Operation = "object_stage"
+	OperationObjectFinalize         Operation = "object_finalize"
+	OperationObjectRetention        Operation = "object_retention"
 	OperationDatabaseAcquire        Operation = "database_acquire"
 )
 
@@ -46,6 +49,7 @@ var operationCatalog = [...]Operation{
 	OperationVerifyAttestation, OperationSigning, OperationVerification,
 	OperationObjectReconciliation, OperationPackageGeneration, OperationObjectRead,
 	OperationObjectWrite, OperationObjectDelete, OperationObjectList,
+	OperationObjectStage, OperationObjectFinalize, OperationObjectRetention,
 	OperationDatabaseAcquire,
 }
 

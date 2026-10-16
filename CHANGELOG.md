@@ -27,7 +27,15 @@ The worker now supports a separate optional private scrape listener with a
 distinct metrics-only bearer credential file, bounded admission and owned
 shutdown alongside its lifecycle listener. It needs no tenant-authentication
 database privileges; loaded credentials require a worker restart for rotation.
-Storage and other application signals remain pending.
+Native object storage now records fixed-operation activity, counts, durations,
+errors and cancellation for reads/writes, inventory, staged/finalized payloads,
+existing cleanup deletes and S3 retention queries. Measurement preserves
+integrity checks, adapter capabilities and returned results; panic unwinding
+keeps the original panic and balances admitted activity. Provider work also
+records balanced activity. Worker claim, processing and completion/failure/defer
+acknowledgements now have distinct measurements; uncertain drain/ack outcomes
+cannot become late metric successes or cause additional acknowledgements.
+Parser/signing/verification/reconciliation/package observations remain pending.
 
 Added `/v1/startup` and shared bounded dependency snapshots for startup,
 readiness and instance-admin diagnostics (EVY-1203). Public liveness remains

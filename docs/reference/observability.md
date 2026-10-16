@@ -98,6 +98,7 @@ the business response or an existing handler panic.
 | `evydence_http_outcomes_total` | Counter | `service`, fixed `outcome`; independent of detailed-series overflow. |
 | `evydence_operations_total` | Counter | `service`, fixed `operation`, fixed `outcome`. |
 | `evydence_operation_duration_seconds` | Histogram | Same operation dimensions. |
+| `evydence_active_operations` | Gauge | `service`, fixed `operation`; currently admitted measured operations. |
 | `evydence_telemetry_series_overflow_total` | Counter | `service`; explains collapsed HTTP observations. |
 | `evydence_db_pool_connections` | Gauge | `service`, fixed `pool` (`primary` or `package_read`), fixed `state` (`acquired`, `idle`, `constructing`, `maximum`). |
 | `evydence_db_pool_acquires_total` | Counter | `service`, `pool`; successful process-local acquires. |
@@ -112,6 +113,36 @@ the business response or an existing handler panic.
 | `evydence_queue_expired_leases` | Gauge | `service`; running jobs with missing or expired five-minute leases. |
 | `evydence_queue_oldest_pending_age_seconds` | Gauge | `service`; creation age of the oldest queued/retrying job, including future scheduled work. |
 | `evydence_queue_oldest_eligible_age_seconds` | Gauge | `service`; creation age of the oldest currently eligible queued/retrying job. |
+
+Native filesystem and S3 adapters measure object reads (including bounded
+reads), writes, inventory, staging, finalization and their existing cleanup
+deletes. The S3 adapter also measures retention queries. Results, errors,
+payload bytes, tenant/digest checks, cancellation and concrete capabilities
+remain unchanged. Readiness checks do not count as business storage work.
+Existing cancellation-independent cleanup retains that policy; measurement does
+not add retries, I/O, background work or a new cancellation boundary.
+
+Each admitted measured operation increments its active gauge and finishes once,
+including concurrent finalization attempts. Normal completion records actual
+success/failure/cancellation and duration. A panic keeps its original value,
+records uncertainty and releases activity; recorder faults do not change the
+call's result. Operation/outcome names are finite, and attempts remain numeric
+measurements. Finalization includes separately measured read/write/delete
+suboperations: nested operations are distinct, so do not sum their durations
+as process wall time. Active storage work measures utilization, not provider
+capacity, available disk/bucket space or a throughput guarantee.
+
+Worker measurements separate `worker_claim`, `worker_process`, `worker_complete`,
+`worker_fail` and `worker_defer`. A successful claim can be an empty poll. A
+successful failure/defer acknowledgement confirms that transition, not successful
+job processing; the queue gauges show retained terminal states. Process and
+acknowledgement phases record their independently confirmed outcomes and actual
+attempt number, with invalid numeric attempts clamped to the unsigned range.
+If a drain deadline expires, or an acknowledgement cannot be confirmed, the
+owner records `uncertain` and preserves the existing lease/exit policy. A late
+noncooperative processor cannot emit a second success or trigger a late
+acknowledgement. Activity gauges cover the owner's admitted phase lifetime;
+they are not a count of arbitrary callbacks surviving a forced-exit boundary.
 
 Registry construction accepts only `api` or `worker` service names and at most
 256 code-owned route templates. A hard budget of 1024 distinct HTTP label
@@ -146,7 +177,8 @@ Counters and histograms are process-local and reset on restart. Scrape each
 process separately and use reset-aware rates; these measurements are operational
 observations, not durable evidence or audit totals. A scrape reflects previously
 completed requests; its own completed request is recorded after the response.
-Storage and other application instrumentation remain pending in EVY-1211;
+Parser/signing/verification/reconciliation/package instrumentation remains
+pending in EVY-1211;
 dashboard/rule calibration belongs to EVY-1212.
 
 ### Worker scraping

@@ -13,6 +13,8 @@ import (
 // Observations wrap borrowed ports only at composition. Provider ownership,
 // configuration, requests, results, errors and cancellation stay unchanged.
 func providerCall[Q, R any](ctx context.Context, call func(context.Context, Q) (R, error), request Q, fields logging.Fields) (R, error) {
+	finish := telemetry.Start(ctx, telemetry.Operation(fields.OperationID))
+	defer finish(telemetry.OutcomeUncertain, 0)
 	start := time.Now()
 	response, err := call(ctx, request)
 	fields.Duration = time.Since(start)
@@ -25,11 +27,7 @@ func providerCall[Q, R any](ctx context.Context, call func(context.Context, Q) (
 		}
 	}
 	logging.Emit(ctx, logging.Provider, fields)
-	outcome := telemetry.OutcomeSucceeded
-	if err != nil {
-		outcome = telemetry.OutcomeFailed
-	}
-	telemetry.Record(ctx, telemetry.Event{Operation: telemetry.Operation(fields.OperationID), Outcome: outcome, Duration: fields.Duration})
+	finish(telemetry.OutcomeForError(err), 0)
 	return response, err
 }
 

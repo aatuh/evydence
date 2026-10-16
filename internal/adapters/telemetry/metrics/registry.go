@@ -49,6 +49,7 @@ type Registry struct {
 	attempts     *prometheus.HistogramVec
 	httpOutcomes *prometheus.CounterVec
 	overflow     prometheus.Counter
+	active       *prometheus.GaugeVec
 	routes       map[string]struct{}
 	mu           sync.Mutex
 	httpSeries   map[httpLabels]struct{}
@@ -78,6 +79,7 @@ func New(cfg Config) (*Registry, error) {
 	r.operations = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "evydence_operations_total", Help: "Completed operational observations by fixed operation and outcome.",
 	}, []string{"operation", "outcome"})
+	r.active = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "evydence_active_operations", Help: "Currently admitted process operations by fixed operation; nested operations are separate observations."}, []string{"operation"})
 	r.durations = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name: "evydence_operation_duration_seconds", Help: "Operational duration in seconds.",
 		Buckets: []float64{0.001, 0.01, 0.1, 0.5, 1, 5, 15, 60},
@@ -92,7 +94,7 @@ func New(cfg Config) (*Registry, error) {
 	r.overflow = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "evydence_telemetry_series_overflow_total", Help: "HTTP observations grouped into the fixed overflow series after the label budget is exhausted.",
 	})
-	for _, collector := range []prometheus.Collector{r.operations, r.durations, r.attempts, r.httpOutcomes, r.overflow} {
+	for _, collector := range []prometheus.Collector{r.operations, r.durations, r.attempts, r.httpOutcomes, r.overflow, r.active} {
 		if registerer.Register(collector) != nil {
 			return nil, errInvalidConfig
 		}
@@ -262,3 +264,15 @@ func (w *boundedExposition) WriteByte(value byte) error {
 func (w *boundedExposition) String() string { return w.builder.String() }
 
 var _ telemetry.Observer = (*Registry)(nil)
+
+func (r *Registry) Begin(operation telemetry.Operation) func() {
+	if r == nil {
+		return func() {}
+	}
+	gauge := r.active.WithLabelValues(string(operation.Canonical()))
+	gauge.Inc()
+	var once sync.Once
+	return func() { once.Do(gauge.Dec) }
+}
+
+var _ telemetry.ActivityObserver = (*Registry)(nil)
