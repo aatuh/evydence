@@ -83,3 +83,17 @@ func TestInvalidLoggingConfigPreventsProcessSideEffects(t *testing.T) {
 		t.Fatal("unsafe startup configuration handling")
 	}
 }
+
+func TestDiagnosticWriterDiscardsRawRuntimeDetails(t *testing.T) {
+	var out bytes.Buffer
+	l, err := New(&out, "api", testIdentity(), Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := DiagnosticWriter(WithLogger(t.Context(), l))
+	raw := []byte("CANARY_TOKEN_BODY_PANIC_DATABASE_URL\nsecond line")
+	n, err := w.Write(raw)
+	if n != len(raw) || err != nil || strings.Contains(out.String(), "CANARY") || strings.Count(out.String(), "\n") != 1 || !strings.Contains(out.String(), "uncertain") {
+		t.Fatal("runtime diagnostic was lost or disclosed")
+	}
+}

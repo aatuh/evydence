@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
@@ -56,6 +56,7 @@ type RuntimeConfig struct {
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
 // focused native services and the worker's job processor compose on these ports.
 type Runtime struct {
+	logContext         context.Context
 	Process            Process
 	Profile            Profile
 	Production         bool
@@ -84,7 +85,7 @@ func (r *Runtime) Close() {
 		timeout = r.cleanupTimeout
 	}
 	if err := r.CloseContext(context.Background(), timeout); err != nil {
-		log.Print("runtime cleanup failed; process exit required")
+		logging.Emit(r.logContext, logging.Cleanup, logging.Fields{Result: logging.Failed})
 	}
 }
 
@@ -158,7 +159,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if err != nil {
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}
-	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs, SessionPolicy: sessionPolicy}
+	runtime := &Runtime{logContext: ctx, Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs, SessionPolicy: sessionPolicy}
 	runtime.closeProviders = config.CloseOwnedProviders
 	runtime.cleanupTimeout = cleanupTimeout
 	defer func() {

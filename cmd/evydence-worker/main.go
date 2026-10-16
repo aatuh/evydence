@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/signal"
 	"sort"
@@ -28,10 +27,11 @@ import (
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
-	"github.com/aatuh/evydence/internal/platform/redaction"
+	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 const defaultMaxWorkerPayloadBytes = 20 << 20
@@ -84,7 +84,7 @@ func workerRuntimeConfig(databaseURL string, production bool) wiring.RuntimeConf
 
 func main() {
 	if err := runWithArgs(os.Args[1:]); err != nil {
-		log.Fatal(redaction.Error(err)) // #nosec G706 -- redaction.Error removes credentials and line breaks before logging.
+		os.Exit(1)
 	}
 }
 
@@ -92,15 +92,19 @@ func run() error {
 	return runWithArgs(nil)
 }
 
-func runWithArgs(args []string) (runErr error) {
+func runWithArgs(args []string) error {
+	return logging.Run(context.Background(), "worker", runtimeinfo.Current(), os.Stderr, os.Getenv, func(ctx context.Context) error { return runWorkerWithContext(ctx, args) })
+}
+
+func runWorkerWithContext(parent context.Context, args []string) (runErr error) {
 	if len(args) > 0 {
 		switch args[0] {
 		case "healthcheck", "--healthcheck":
 			return nil
 		case "reconcile":
-			return runObjectReconciliation(args[1:])
+			return runObjectReconciliationContext(parent, args[1:])
 		case "parser-replay":
-			return runParserReplay(args[1:])
+			return runParserReplayContext(parent, args[1:])
 		default:
 			return fmt.Errorf("unsupported worker command %q", args[0])
 		}
@@ -118,7 +122,7 @@ func runWithArgs(args []string) (runErr error) {
 	if databaseURL == "" {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	config := workerRuntimeConfig(databaseURL, production)
 	config.CleanupTimeout = cleanupTimeout
@@ -137,13 +141,17 @@ func runWithArgs(args []string) (runErr error) {
 	}
 	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
 	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
-	log.Printf("evydence worker started with postgres outbox, configured object store, polling interval %s", pollInterval)
+	logging.Emit(ctx, logging.Command, logging.Fields{OperationID: "outbox_poll", Result: logging.Succeeded})
 	return runWorkerLoop(ctx, store, processor, workerLoopConfig{PollInterval: pollInterval, BatchSize: batchSize, ShutdownTimeout: shutdownTimeout})
 }
 
 // runParserReplay is an explicit operator command that appends a derived
 // normalization record. It cannot edit the source evidence or provider object.
 func runParserReplay(args []string) error {
+	return runParserReplayContext(context.Background(), args)
+}
+
+func runParserReplayContext(parent context.Context, args []string) error {
 	request, err := parseParserReplayArgs(args)
 	if err != nil {
 		return err
@@ -153,7 +161,7 @@ func runParserReplay(args []string) error {
 	if databaseURL == "" {
 		return errors.New("parser-replay requires EVYDENCE_DATABASE_URL")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
+	ctx, cancel := context.WithTimeout(parent, durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
 	defer cancel()
 	runtime, err := openParserReplayRuntime(ctx, workerRuntimeConfig(databaseURL, production))
 	if err != nil {
@@ -183,6 +191,7 @@ func runParserReplay(args []string) error {
 	if err != nil {
 		return errors.New("parser-replay source payload verification failed")
 	}
+	//nolint:contextcheck // Existing size-bounded in-memory parser API has no context; runtime I/O above and persistence below use ctx.
 	result, err := app.ReplayStoredParserEvidence(&state, object, replayRequest)
 	if err != nil {
 		return errors.New("parser-replay rejected requested interpretation")
@@ -224,6 +233,10 @@ func parseParserReplayArgs(args []string) (parserReplayArgs, error) {
 // object. The printed receipt contains safe counters and opaque numeric
 // cursors, not object keys, digests, payload bytes, or provider errors.
 func runObjectReconciliation(args []string) error {
+	return runObjectReconciliationContext(context.Background(), args)
+}
+
+func runObjectReconciliationContext(parent context.Context, args []string) (runErr error) {
 	request, err := parseObjectReconciliationArgs(args)
 	if err != nil {
 		return err
@@ -233,13 +246,13 @@ func runObjectReconciliation(args []string) error {
 	if databaseURL == "" {
 		return errors.New("reconcile requires EVYDENCE_DATABASE_URL")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_RECONCILIATION_TIMEOUT", 10*time.Minute))
+	ctx, cancel := context.WithTimeout(parent, durationEnv("EVYDENCE_RECONCILIATION_TIMEOUT", 10*time.Minute))
 	defer cancel()
 	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
 	if err != nil {
 		return err
 	}
-	defer runtime.Close()
+	defer func() { runErr = errors.Join(runErr, runtime.CloseContext(ctx, wiring.DefaultCleanupTimeout)) }()
 	receipt, err := app.ReconcileObjectPayloads(ctx, runtime.Postgres, runtime.Postgres, runtime.Objects, request)
 	if err != nil {
 		return errors.New("payload reconciliation failed")

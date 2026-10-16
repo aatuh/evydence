@@ -81,3 +81,15 @@ func Run(ctx context.Context, service string, identity runtimeinfo.Identity, out
 	logger.Log(ctx, Shutdown, Fields{Duration: time.Since(start), Result: result})
 	return err
 }
+
+// DiagnosticWriter adapts standard-library internal diagnostics. net/http may
+// supply panic values, URLs and stack traces, so the bytes are discarded and
+// only a fixed failure event is emitted.
+func DiagnosticWriter(ctx context.Context) io.Writer { return diagnosticWriter{ctx} }
+
+type diagnosticWriter struct{ ctx context.Context }
+
+func (w diagnosticWriter) Write(p []byte) (int, error) {
+	Emit(w.ctx, HTTPRequest, Fields{Result: Uncertain})
+	return len(p), nil
+}

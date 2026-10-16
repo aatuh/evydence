@@ -486,7 +486,17 @@ func testWorker(t *testing.T, forced bool) {
 		wait(t, "worker drain status", func() bool {
 			data, err := os.ReadFile(worker.log.Name())
 			must(t, err, "read worker drain status")
-			return bytes.Contains(data, []byte("worker drain started"))
+			for _, line := range bytes.Split(data, []byte("\n")) {
+				var event struct {
+					Service string `json:"service"`
+					Event   string `json:"msg"`
+					Result  string `json:"result_code"`
+				}
+				if json.Unmarshal(line, &event) == nil && event.Service == "worker" && event.Event == "drain" && event.Result == "started" {
+					return true
+				}
+			}
+			return false
 		})
 	}
 	if forced {

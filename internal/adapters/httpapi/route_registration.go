@@ -19,6 +19,7 @@ type routeDef struct {
 
 func (s *Server) registerRoutes() error {
 	for _, route := range s.routeDefinitions() {
+		s.logOperations[route.method+" "+route.path] = route.op.OperationID
 		policy, ok := authorizationPolicyForOperation(route.op.OperationID)
 		if !ok {
 			return errors.New("route lacks authorization policy contract")

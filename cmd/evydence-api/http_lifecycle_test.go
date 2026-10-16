@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -15,6 +14,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 var errDrainTestAccept = errors.New("injected permanent accept failure")
@@ -67,7 +69,7 @@ type httpDrainFixture struct {
 	commits     atomic.Int32
 }
 
-func startHTTPDrainFixture(t *testing.T, timeout time.Duration, failAccept bool) *httpDrainFixture {
+func startHTTPDrainFixture(t *testing.T, timeout time.Duration, failAccept bool, parents ...context.Context) *httpDrainFixture {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -101,7 +103,11 @@ func startHTTPDrainFixture(t *testing.T, timeout time.Duration, failAccept bool)
 		}
 	}), httpRuntimeConfig{})
 	f.server.RegisterOnShutdown(func() { close(f.draining) })
-	ctx, cancel := context.WithCancel(t.Context())
+	parent := t.Context()
+	if len(parents) > 0 {
+		parent = parents[0]
+	}
+	ctx, cancel := context.WithCancel(parent)
 	f.cancel = cancel
 	go func() { f.done <- serveHTTPOnListener(ctx, f.server, f.listener, timeout) }()
 	go func() {
@@ -359,10 +365,11 @@ func TestHTTPDrainAlreadyClosedServerIsNormal(t *testing.T) {
 
 func TestHTTPDrainStatusOmitsRawFailureDetails(t *testing.T) {
 	var diagnostics bytes.Buffer
-	previous := log.Writer()
-	log.SetOutput(&diagnostics)
-	defer log.SetOutput(previous)
-	f := startHTTPDrainFixture(t, time.Second, true)
+	logger, err := logging.New(&diagnostics, "api", runtimeinfo.Current(), logging.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := startHTTPDrainFixture(t, time.Second, true, logging.WithLogger(t.Context(), logger))
 	awaitHTTPDrainEvent(t, f.entered)
 	const secret = "raw-provider-error-private-canary"
 	// Accept waits on this channel. Closing it publishes the injected error
@@ -381,7 +388,7 @@ func TestHTTPDrainStatusOmitsRawFailureDetails(t *testing.T) {
 		t.Fatal("serve failure lost")
 	}
 	awaitHTTPDrainEvent(t, f.response)
-	if output := diagnostics.String(); strings.Contains(output, secret) || !strings.Contains(output, "API drain started") || !strings.Contains(output, "API drain completed") {
+	if output := diagnostics.String(); strings.Contains(output, secret) || !strings.Contains(output, `"msg":"drain"`) || !strings.Contains(output, `"result_code":"started"`) || !strings.Contains(output, `"result_code":"succeeded"`) {
 		t.Fatal("unsafe or missing lifecycle diagnostics", output)
 	}
 }

@@ -17,6 +17,8 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 type lifecycleQueue struct {
@@ -28,7 +30,11 @@ type lifecycleQueue struct {
 
 func TestWorkerLoopSignalProcess(t *testing.T) {
 	if mode := os.Getenv("EVYDENCE_WORKER_SIGNAL_TEST"); mode != "" {
-		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+		logger, err := logging.New(os.Stderr, "worker", runtimeinfo.Current(), logging.Config{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, stop := signal.NotifyContext(logging.WithLogger(context.Background(), logger), syscall.SIGTERM)
 		defer stop()
 		q := &lifecycleQueue{claim: func(context.Context) ([]postgres.ClaimedJob, error) {
 			return []postgres.ClaimedJob{{ID: "active"}, {ID: "tail"}}, nil
@@ -44,7 +50,7 @@ func TestWorkerLoopSignalProcess(t *testing.T) {
 		})
 		config := shutdownLoopConfig()
 		config.ShutdownTimeout = 25 * time.Millisecond
-		err := runWorkerLoop(ctx, q, p, config)
+		err = runWorkerLoop(ctx, q, p, config)
 		if mode == "graceful" && err == nil && q.completions.Load() == 1 && q.claims.Load() == 1 {
 			os.Exit(0)
 		}
@@ -95,7 +101,7 @@ func TestWorkerLoopSignalProcess(t *testing.T) {
 					t.Fatal("forced SIGTERM did not fail distinctly", err, diagnostics.String())
 				}
 			}
-			if !strings.Contains(diagnostics.String(), "worker drain started") {
+			if !strings.Contains(diagnostics.String(), `"msg":"drain"`) || !strings.Contains(diagnostics.String(), `"result_code":"started"`) {
 				t.Fatal("safe drain status missing", diagnostics.String())
 			}
 		})

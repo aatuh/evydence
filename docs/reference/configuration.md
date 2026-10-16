@@ -31,6 +31,8 @@ process, or equivalent deployment control.
 | Variable | Required | Default / Example | Notes |
 |----------|----------|-------------------|-------|
 | `ENV` | Production only | unset locally | Set `ENV=production` to enable production-safety checks. |
+| `EVYDENCE_LOG_LEVEL` | No | `info` | API, worker and migration diagnostics: `debug`, `info`, `warn`, `error` (case-insensitive). Invalid values fail before dependency startup. |
+| `EVYDENCE_LOG_FORMAT` | No | `json` | `json` or `text` (case-insensitive); both retain the same structured fields. Logs go to stderr; command results and explicitly requested local bootstrap credentials retain their separate stdout contract. |
 | `EVYDENCE_ADDR` | No | `:8080` | API bind address. |
 | `EVYDENCE_API_KEY_PEPPER` | Production yes | `change-me-long-random-pepper` | HMAC pepper for API key, session, and portal-token hashes. Use a long random value. |
 | `EVYDENCE_SSO_SESSION_MAX_LIFETIME_SECONDS` | No | `43200` | Integer `60..43200`; maximum absolute lifetime for newly issued SSO sessions. Explicit expiry beyond the configured limit is rejected. |

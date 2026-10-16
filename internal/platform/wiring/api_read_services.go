@@ -147,7 +147,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create public transparency proof commands: %w", err)
 	}
-	options.PublicTransparencyFetchCommands, err = BuildPublicTransparencyFetchCommands(store, runtime.TransparencyProofs)
+	options.PublicTransparencyFetchCommands, err = BuildPublicTransparencyFetchCommands(store, observeTransparency(runtime.TransparencyProofs))
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create public transparency fetch commands: %w", err)
 	}
@@ -187,7 +187,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create signing-key commands: %w", err)
 	}
-	options.SigningOperationCommands, err = BuildSigningOperationCommands(store, runtime.SigningExecutor)
+	options.SigningOperationCommands, err = BuildSigningOperationCommands(store, observeSigningExecutor(runtime.SigningExecutor))
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create signing operation commands: %w", err)
 	}
@@ -203,7 +203,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create DSSE verification: %w", err)
 	}
-	options.CosignVerification, err = BuildCosignVerificationCommands(store, runtime.Objects, runtime.Cosign)
+	options.CosignVerification, err = BuildCosignVerificationCommands(store, runtime.Objects, observeCosign(runtime.Cosign))
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create Cosign verification: %w", err)
 	}
@@ -404,7 +404,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create role binding commands: %w", err)
 	}
-	options.SSOProviderCommands, err = BuildSSOProviderCommands(store, runtime.OIDC)
+	options.SSOProviderCommands, err = BuildSSOProviderCommands(store, observeOIDC(runtime.OIDC))
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create SSO provider commands: %w", err)
 	}
@@ -440,7 +440,7 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create provider proof credentials: %w", err)
 	}
-	options.ProviderVerificationCommands, err = BuildProviderVerificationCommands(store, runtime.ProviderAPI, proofCredentials)
+	options.ProviderVerificationCommands, err = BuildProviderVerificationCommands(store, observeIdentityProvider(runtime.ProviderAPI), proofCredentials)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create provider verification commands: %w", err)
 	}

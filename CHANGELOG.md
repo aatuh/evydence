@@ -13,6 +13,16 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added structured process, HTTP, provider, command and worker diagnostics
+(EVY-1202). API, worker and migration commands default to JSON on stderr, with
+validated levels and an optional text format. Fixed events and typed fields
+exclude arbitrary errors and request/evidence payloads; identifiers use opaque
+references. Dedicated outbox columns preserve correlation across claims without
+changing evidence or idempotency inputs. Audit receipt observations follow a
+confirmed commit. Existing plaintext log consumers must adopt the documented
+schema; stdout command results and explicit local bootstrap-secret output keep
+their existing contracts.
+
 Completed bounded resource cleanup and deployment termination controls
 (EVY-1201, EVY-1209). Partial startup and normal shutdown close owned database,
 object and provider resources once under a shared deadline, preserve borrowed

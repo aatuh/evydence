@@ -712,12 +712,14 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Limitations' docs/assets/reviewer-journey.svg >/dev/null
 
 security-regression-check: ## Run mandatory leakage, parser-limit, archive, authz, SSRF, and package-viewer regressions
-	@$(GO) test ./internal/platform/redaction ./internal/platform/jsonbounds -count=1
+	@$(GO) test ./internal/platform/redaction ./internal/platform/jsonbounds ./internal/platform/logging -count=1
 	@$(GO) test ./internal/app -run '^(TestCustomerPackageRedactionLeakageMatrix|TestSampleCustomerPackageFixtureHasNoRedactionLeakage|TestCustomerPackageArchiveRejectsSensitiveManifestFields|TestCustomerPackageArchiveRejectsOversizedGeneratedReport|TestCustomReportTemplatesAreDataOnlyAndBounded|TestEvidenceLifecycleAuditDetailsRemoveSensitiveCanaries|TestGeneratedReportsRejectOversizedOutput|TestIdempotencyReplayRemovesAllCentralSensitiveFields|TestResourceScopedAuthorizationCoverageInventory)$$' -count=1
 	@$(GO) test ./internal/app/parsers/... -count=1
-	@$(GO) test ./internal/adapters/httpapi -run '^(TestDecodeJSONRejectsStructuralResourceBombs|TestReleaseRiskDecisionHTTPFlow|TestCrossTenantEvidenceReadDenied|TestUnknownJSONFieldReturnsProblem)$$' -count=1
+	@$(GO) test ./internal/adapters/httpapi -run '^(TestDecodeJSONRejectsStructuralResourceBombs|TestReleaseRiskDecisionHTTPFlow|TestCrossTenantEvidenceReadDenied|TestUnknownJSONFieldReturnsProblem|TestRequestLoggingOmitsSecretsAndCorrelatesAuthorizedCommand|TestRequestLoggingCoversEarlyRejectionAndPanicWithoutFalseSuccess|TestRequestLoggingUsesProblemRetryPolicy)$$' -count=1
 	@$(GO) test ./cmd/evydence -run '^(TestCustomerPackageJSONBoundsRejectStructuralBombs|TestVerifyCustomerPackageRejectsUnsafeArchiveShape)$$' -count=1
 	@$(GO) test ./internal/platform/httpclient -count=1
+	@$(GO) test ./cmd/evydence-worker -run '^(TestWorkerLoggingConfigurationFailsBeforeRuntime|TestWorkerLoggingRestoresDurableRequestAndOmitsPayloadLeaseAndFailure|TestHTTPToNativeWorkerLoggingCorrelatesDurableSideEffect)$$' -count=1
+	@$(GO) test ./internal/platform/wiring -run '^TestProviderLoggingCoversEveryPortAndNeverSerializesInputsOutputsOrErrors$$' -count=1
 	@$(MAKE) package-viewer-check
 
 release-asset-smoke-check: ## Verify local release asset checksums, signature, package verification, and failure cases

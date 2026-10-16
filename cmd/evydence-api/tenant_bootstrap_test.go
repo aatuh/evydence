@@ -14,11 +14,43 @@ func TestStartupUsesNativeServicesAndDurableBootstrapWithoutLedger(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var run *ast.FuncDecl
+	var run, wrapper *ast.FuncDecl
 	for _, declaration := range file.Decls {
-		if fn, ok := declaration.(*ast.FuncDecl); ok && fn.Name.Name == "runWithContext" {
-			run = fn
+		if fn, ok := declaration.(*ast.FuncDecl); ok {
+			if fn.Name.Name == "runAPI" {
+				run = fn
+			}
+			if fn.Name.Name == "runWithContext" {
+				wrapper = fn
+			}
 		}
+	}
+	if wrapper == nil || len(wrapper.Body.List) != 1 {
+		t.Fatal("logging startup wrapper missing")
+	}
+	wrapped := false
+	ast.Inspect(wrapper.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		owner, ok := sel.X.(*ast.Ident)
+		if !ok || owner.Name != "logging" || sel.Sel.Name != "Run" {
+			return true
+		}
+		if len(call.Args) == 6 {
+			if callback, ok := call.Args[5].(*ast.Ident); ok && callback.Name == "runAPI" {
+				wrapped = true
+			}
+		}
+		return true
+	})
+	if !wrapped {
+		t.Fatal("native startup no longer executes inside validated logging lifecycle")
 	}
 	if run == nil {
 		t.Fatal("API startup function is missing")

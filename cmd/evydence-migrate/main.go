@@ -4,28 +4,32 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
-	"github.com/aatuh/evydence/internal/platform/redaction"
+	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(redaction.Error(err))
+		os.Exit(1)
 	}
 }
 
 func run() error {
+	return logging.Run(context.Background(), "migrate", runtimeinfo.Current(), os.Stderr, os.Getenv, runMigrations)
+}
+
+func runMigrations(parent context.Context) error {
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
 		return errors.New("EVYDENCE_DATABASE_URL is required")
 	}
 	migrationsDir := envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations")
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 	store, err := postgres.Open(ctx, databaseURL)
 	if err != nil {

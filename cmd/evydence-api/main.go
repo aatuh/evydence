@@ -32,7 +32,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
-	"github.com/aatuh/evydence/internal/platform/redaction"
+	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
@@ -45,17 +45,20 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := runWithContext(ctx); err != nil {
-		log.Fatal(redaction.Error(err))
+		os.Exit(1)
 	}
 }
 
-func runWithContext(ctx context.Context) (runErr error) {
+func runWithContext(ctx context.Context) error {
+	return logging.Run(ctx, "api", runtimeinfo.Current(), os.Stderr, os.Getenv, runAPI)
+}
+
+func runAPI(ctx context.Context) (runErr error) {
 	cleanupTimeout, err := wiring.CleanupTimeoutFromEnv()
 	if err != nil {
 		return err
 	}
 	identity := runtimeinfo.Current()
-	log.Printf("evydence api build identity %s", identity.String())
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	pepper := strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY_PEPPER"))
@@ -157,7 +160,7 @@ func runWithContext(ctx context.Context) (runErr error) {
 		return errors.New("configured object store does not provide readiness checks")
 	}
 	readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "object_store", Timeout: runtimeReadinessTimeout, FailureDetail: "object store access is unavailable", Check: objectReadiness.CheckReadiness})
-	log.Print("evydence api using postgres state store and configured object store")
+	logging.Emit(ctx, logging.Command, logging.Fields{OperationID: "runtime_open", Result: logging.Succeeded})
 	if production {
 		readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(signer)})
 	}
@@ -174,6 +177,9 @@ func runWithContext(ctx context.Context) (runErr error) {
 		cancelBootstrap()
 		if err != nil {
 			return fmt.Errorf("bootstrap tenant: %w", err)
+		}
+		if bootstrap.Created {
+			logging.Emit(ctx, logging.Bootstrap, logging.Fields{TenantID: bootstrap.Tenant.ID, ResourceID: bootstrap.Key.ID, Result: logging.Succeeded})
 		}
 		// Publish any explicitly requested local secret immediately after the
 		// durable commit; later server startup failures cannot hide it.
@@ -194,6 +200,7 @@ func runWithContext(ctx context.Context) (runErr error) {
 	options.MaxInboundRequestBytes = httpConfig.MaxInboundRequestBytes
 	options.MaxInFlightRequests = httpConfig.MaxInFlightRequests
 	options.MaxConcurrentUploads = httpConfig.MaxConcurrentUploads
+	options.Logger = logging.FromContext(ctx)
 	options.BuildIdentity = identity
 	options.PaginationSecret = []byte(pepper)
 	server, err := httpapi.NewNativeServerWithOptionsContext(ctx, options)
@@ -202,7 +209,8 @@ func runWithContext(ctx context.Context) (runErr error) {
 	}
 	addr := envDefault("EVYDENCE_ADDR", ":8080")
 	httpServer := newHTTPServer(addr, server.Handler(), httpConfig)
-	log.Printf("evydence api listening on %s", addr)
+	httpServer.ErrorLog = log.New(logging.DiagnosticWriter(ctx), "", 0)
+	logging.Emit(ctx, logging.Command, logging.Fields{OperationID: "api_listen", Result: logging.Succeeded})
 	return serveHTTP(ctx, httpServer, httpConfig.ShutdownTimeout)
 }
 
@@ -231,7 +239,6 @@ func writeTenantBootstrapResult(output io.Writer, result wiring.TenantBootstrapR
 		}
 		return nil
 	}
-	log.Printf("bootstrapped tenant %s and key %s; set EVYDENCE_PRINT_BOOTSTRAP_SECRET=true for local-only secret output", result.Tenant.ID, result.Key.ID)
 	return nil
 }
 
@@ -639,6 +646,7 @@ func trustedProxyCIDRsFromEnv(name string) ([]string, error) {
 
 func newHTTPServer(addr string, handler http.Handler, config httpRuntimeConfig) *http.Server {
 	return &http.Server{
+		ErrorLog:          log.New(io.Discard, "", 0),
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: config.ReadHeaderTimeout,
@@ -698,11 +706,11 @@ func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.
 	}
 	// Serve can fail while accepted connections are still processing. Drain
 	// those requests before the caller closes their storage/provider resources.
-	log.Print("API drain started; new requests stopped")
+	logging.Emit(ctx, logging.Drain, logging.Fields{Result: logging.Started})
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Print("API drain failed; connections closing; in-flight outcomes may be uncertain")
+		logging.Emit(ctx, logging.Drain, logging.Fields{Result: logging.Uncertain})
 		closeErr := server.Close()
 		return errors.Join(errAPIForcedDrain, serveErr, fmt.Errorf("gracefully shut down API server: %w", err), closeErr)
 	}
@@ -712,7 +720,7 @@ func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.
 			serveErr = nil
 		}
 	}
-	log.Print("API drain completed")
+	logging.Emit(ctx, logging.Drain, logging.Fields{Result: logging.Succeeded})
 	return errors.Join(serveErr, apiStopError(ctx))
 }
 

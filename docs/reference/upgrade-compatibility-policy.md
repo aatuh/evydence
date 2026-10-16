@@ -30,6 +30,23 @@ evidence.
 - Rollback after a migration writes new state requires restoring the matching
   PostgreSQL and object-store backups together.
 
+## Structured Log Rollout (Unreleased)
+
+EVY-1202 changes API, worker and migration diagnostics from free-form text to
+JSON by default. Update collectors/parsers to the
+[operational log schema](observability.md#process-diagnostics), or select the
+structured text format. Stdout command results and the explicit local bootstrap
+credential interface retain their existing contracts.
+
+Apply `20261016000100_outbox_log_correlation` before updated workers start.
+Existing jobs retain empty references; new jobs capture correlation separately
+from payloads and deduplication keys. No historical evidence or audit hash is
+rewritten. Budget the ordinary `ALTER TABLE` lock during the operator-owned
+migration window. Diagnostic columns are not historical backup commitments;
+restoring earlier backups may lose correlation. The isolated round-trip test
+covers representative old rows, not a live production-volume migration or a
+supported release downgrade.
+
 ## API Compatibility
 
 ### OIDC Login Binding Rollout

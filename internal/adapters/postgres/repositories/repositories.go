@@ -22,6 +22,7 @@ import (
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
+	"github.com/aatuh/evydence/internal/platform/logging"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
@@ -1815,11 +1816,11 @@ func (r outbox) Enqueue(ctx context.Context, job app.OutboxJob) error {
 	_, err = r.tx.Exec(ctx, `
 		INSERT INTO outbox_jobs (
 			id, tenant_id, kind, subject_type, subject_id, deduplication_key, payload, status,
-			attempts, max_attempts, run_after, created_at, updated_at
+			attempts, max_attempts, run_after, created_at, updated_at, log_request_id, log_operation_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now(), $9, $10)
 		ON CONFLICT (tenant_id, deduplication_key) DO NOTHING
-	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt)
+	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt, logging.CorrelationFromContext(ctx).RequestID, logging.CorrelationFromContext(ctx).OperationID)
 	return writeError("enqueue outbox job", err)
 }
 
