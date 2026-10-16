@@ -48,6 +48,7 @@ var workerDefinitions = []Definition{
 		Name:               "EVYDENCE_WORKER_METRICS_ADDR",
 		Kind:               Text,
 		Roles:              Worker,
+		MaxBytes:           128,
 		DefaultPolicy:      "loopback default only when metrics token file is configured",
 		DefaultWhenSet:     "EVYDENCE_WORKER_METRICS_TOKEN_FILE",
 		ConditionalDefault: "127.0.0.1:9091",
@@ -57,6 +58,7 @@ var workerDefinitions = []Definition{
 		Name:        "EVYDENCE_WORKER_METRICS_TOKEN_FILE",
 		Kind:        Path,
 		Roles:       Worker,
+		MaxBytes:    4096,
 		Description: "Absolute path to an operator-owned POSIX regular secret file: exactly `evymetrics_` plus 64 lowercase hexadecimal characters, with one optional final LF. Use mode `0600`, `0640` or `0440`; group write and all other-user permissions are rejected. Relative symlink projections must stay inside the configured parent directory. Only the credential hash is retained; rotation/revocation requires replacing the file and restarting/stopping the worker. API/SSO/tenant credentials are not accepted.",
 	},
 	{

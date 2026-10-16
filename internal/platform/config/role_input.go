@@ -60,6 +60,9 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		}
 		input.values[d.Name] = value
 	}
+	if err := validateLocalInput(input); err != nil {
+		return parsedInput{}, err
+	}
 	return input, nil
 }
 

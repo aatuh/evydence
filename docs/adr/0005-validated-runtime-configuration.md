@@ -1,10 +1,10 @@
 # ADR 0005: Validated Runtime Configuration
 
-Status: accepted for the immutable-input, schema-metadata, scalar-parsing and
-role-input foundation of EVY-1214, reviewed 2026-10-16. Complete typed configuration,
-endpoint/cross-field validation, schema coverage, secret resolution, command
-adoption and generated deployment documentation
-remain pending in EVY-1214 through EVY-1217. This is an explanation for developers
+Status: accepted for the immutable-input, schema-metadata, scalar-parsing,
+role-input, typed-projection and local-validation foundation of EVY-1214,
+reviewed 2026-10-16. Endpoint/provider validation, complete schema/SDK coverage,
+secret resolution, command adoption and generated deployment documentation remain
+pending in EVY-1214 through EVY-1217. This is an explanation for developers
 maintaining startup and configuration boundaries.
 
 ## Decision
@@ -73,9 +73,31 @@ role are parsed; inactive provider options within that role are still checked.
 AWS/Google/Azure/GitHub namespace inputs remain captured for their explicit native
 SDK/CI boundaries rather than being treated as unknown project settings.
 
-This is a private intermediate representation, not a public environment accessor
-or the final typed command configuration. Typed projections and dedicated endpoint,
-path, credential and cross-field checks remain required before EVY-1214 closes.
+This is a private intermediate representation, not a public environment accessor.
+Typed configuration now projects all 109 schema options into runtime, API, worker,
+storage, provider and CLI settings. Settings are returned as value copies; CIDRs
+and decoded trust material use accessors that clone slices. Credentials use an
+opaque `Secret` with explicit `Reveal`/`IsSet` access. Every settings container and
+secret redacts string, Go-syntax and JSON formatting. Projection supplies no
+defaults and does not retain mutable parser slices. Tests check each declared
+field's source independently, so identical defaults cannot conceal missing or
+misrouted values. Construction remains package-private until dedicated validation
+is complete.
+
+Local validation rejects SSO idle time beyond the maximum lifetime, blank
+bootstrap names, unsupported API address syntax, multiple production writers,
+the existing development pepper in production, unpaired or malformed revisions,
+and invalid private worker listener configuration. Revision files and metrics
+credentials are syntax-checked without opening them. Metrics and health cannot
+bind the same address/port, including equivalent IPv4-mapped forms. The existing
+metrics address/file bounds are in the schema; revision paths additionally have
+a 4096-byte bound. API numeric port zero remains valid for ephemeral listeners.
+An AST characterization test ties the transitional pepper rejection to the
+existing identity-owned compatibility constant without coupling this package to
+application code. EVY-1216 must retire duplicate startup policy during adoption.
+
+Endpoint, provider, database-connection, credential and remaining path checks,
+plus complete dynamic-name/SDK coverage, remain required before EVY-1214 closes.
 Build-start time remains absent until the command applies its clock. Worker probe
 and offline commands must use their applicable configuration scope during adoption
 rather than acquire unrelated runtime dependencies.

@@ -18,6 +18,7 @@ var runtimeDefinitions = []Definition{
 		Name:        "EVYDENCE_CONFIGURATION_REVISION_FILE",
 		Kind:        Path,
 		Roles:       API | Worker,
+		MaxBytes:    4096,
 		Description: "Absolute path to an operator-owned local regular file containing the desired revision (at most 256 bytes, surrounding whitespace allowed). Symlinked projections must resolve inside the configured parent directory. Missing, invalid or changed content fails startup/readiness; no hot reload. See [configuration freshness](observability.md#configuration-freshness).",
 	},
 	{
