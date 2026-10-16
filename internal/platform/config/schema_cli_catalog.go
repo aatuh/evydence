@@ -1,0 +1,123 @@
+package config
+
+var cliDefinitions = []Definition{
+	{
+		Name:        "CI",
+		Kind:        Boolean,
+		Roles:       CLI,
+		Default:     "false",
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+	{
+		Name:        "EVYDENCE_API_KEY",
+		Kind:        Text,
+		Roles:       CLI,
+		Secret:      true,
+		Description: "Online CLI bearer credential. Never include the value in diagnostics or generated examples.",
+	},
+	{
+		Name:        "EVYDENCE_API_URL",
+		Kind:        URL,
+		Roles:       CLI,
+		Description: "Online CLI API endpoint; offline/help/version commands do not require it.",
+	},
+	{
+		Name:        "EVYDENCE_ARTIFACT_ID",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Optional online CLI resource selection; normal server-side scope authorization still applies.",
+	},
+	{
+		Name:        "EVYDENCE_BUILD_FINISHED_AT",
+		Kind:        Timestamp,
+		Roles:       CLI,
+		Description: "Optional CLI build finish timestamp.",
+	},
+	{
+		Name:          "EVYDENCE_BUILD_STARTED_AT",
+		Kind:          Timestamp,
+		Roles:         CLI,
+		DefaultPolicy: "current UTC command time when unset",
+		Description:   "CLI build start timestamp; absence uses the command clock, not a frozen generated timestamp.",
+	},
+	{
+		Name:        "EVYDENCE_BUILD_STATUS",
+		Kind:        Text,
+		Roles:       CLI,
+		Default:     "passed",
+		Description: "CLI build-evidence status; defaults to passed.",
+	},
+	{
+		Name:        "EVYDENCE_GITHUB_OIDC_SUBJECT",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Captured GitHub OIDC subject used by the CLI evidence command, not independently verified source identity.",
+	},
+	{
+		Name:        "EVYDENCE_PRODUCT_ID",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Optional online CLI resource selection; normal server-side scope authorization still applies.",
+	},
+	{
+		Name:        "EVYDENCE_PROJECT_ID",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Optional online CLI resource selection; normal server-side scope authorization still applies.",
+	},
+	{
+		Name:        "EVYDENCE_RELEASE_ID",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Optional online CLI resource selection; normal server-side scope authorization still applies.",
+	},
+	{
+		Name:        "GITHUB_ACTOR",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+	{
+		Name:        "GITHUB_JOB",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+	{
+		Name:        "GITHUB_REF",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+	{
+		Name:        "GITHUB_REPOSITORY",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+	{
+		Name:        "GITHUB_RUN_ATTEMPT",
+		Kind:        Text,
+		Roles:       CLI,
+		Default:     "1",
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+	{
+		Name:        "GITHUB_RUN_ID",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+	{
+		Name:        "GITHUB_SHA",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+	{
+		Name:        "GITHUB_WORKFLOW_REF",
+		Kind:        Text,
+		Roles:       CLI,
+		Description: "Existing CI/CLI process input; capture does not verify the claimed provider identity.",
+	},
+}

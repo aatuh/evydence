@@ -1,9 +1,10 @@
 # ADR 0005: Validated Runtime Configuration
 
-Status: accepted for the immutable-input foundation of EVY-1214, reviewed
-2026-10-16. Schema completion, secret resolution, command adoption and generated
-deployment documentation remain pending in EVY-1214 through EVY-1217. This is an
-explanation for developers maintaining startup and configuration boundaries.
+Status: accepted for the immutable-input and schema-metadata foundation of
+EVY-1214, reviewed 2026-10-16. Typed parsing/validation, complete schema coverage,
+secret resolution, command adoption and generated deployment documentation
+remain pending in EVY-1214 through EVY-1217. This is an explanation for developers
+maintaining startup and configuration boundaries.
 
 ## Decision
 
@@ -28,6 +29,20 @@ nor values. Validation failures use fixed diagnostics. An internal fingerprint
 supports change detection; it is not an evidence digest, credential identifier
 or public configuration dump. Captured input and returned metadata remain owned
 by the configuration package.
+
+The code-owned catalogue currently records 109 option definitions with process
+roles, value kinds, defaults, secret classification, observed numeric bounds,
+aliases and production restrictions. Conditional defaults remain explicit:
+runtime profile selection is required, while PostgreSQL load mode has different
+defaults inside and outside production. Public metadata access returns sorted
+copies, including owned slices for allowed values and aliases.
+
+A source test scans production Go literals and fails when a selected environment
+name is missing from the catalogue. This guards the current source inventory;
+it does not prove complete data-flow coverage of computed names or every SDK
+credential-chain option. Those boundaries and the typed loader remain required
+before EVY-1214 can close. Catalogue metadata alone does not enforce its rules
+or change a command's current behavior.
 
 ## Required Toolkit Boundary
 
