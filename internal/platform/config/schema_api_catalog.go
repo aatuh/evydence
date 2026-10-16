@@ -54,6 +54,7 @@ var apiDefinitions = []Definition{
 		Kind:        Text,
 		Roles:       API,
 		Default:     "Local Tenant",
+		MaxBytes:    65536,
 		Description: "Tenant name used when bootstrapping an empty store; raw value must be valid UTF-8 without NUL bytes, at most 65,536 bytes, and nonblank after trimming.",
 	},
 	{
@@ -194,6 +195,7 @@ var apiDefinitions = []Definition{
 		Name:        "EVYDENCE_TRUSTED_PROXY_CIDRS",
 		Kind:        CIDRs,
 		Roles:       API,
+		MaxItems:    256,
 		Description: "Comma-separated proxy source CIDRs. Evydence uses `X-Forwarded-For` only when the direct TCP peer is in this list; otherwise it rate-limits the direct remote address.",
 	},
 }

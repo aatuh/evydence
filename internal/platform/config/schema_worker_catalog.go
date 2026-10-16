@@ -45,11 +45,13 @@ var workerDefinitions = []Definition{
 		Description: "Maximum raw object payload size replayed by a worker job.",
 	},
 	{
-		Name:          "EVYDENCE_WORKER_METRICS_ADDR",
-		Kind:          Text,
-		Roles:         Worker,
-		DefaultPolicy: "loopback default only when metrics token file is configured",
-		Description:   "Optional separate `GET/HEAD /metrics` listener. Requires a literal loopback or private IPv4/IPv6 address, nonzero port, no zone and a port/address distinct from the lifecycle listener. Hostnames, public and wildcard binds are rejected before runtime opens. Both metrics variables unset disables the listener. See [worker scraping](observability.md#worker-scraping).",
+		Name:               "EVYDENCE_WORKER_METRICS_ADDR",
+		Kind:               Text,
+		Roles:              Worker,
+		DefaultPolicy:      "loopback default only when metrics token file is configured",
+		DefaultWhenSet:     "EVYDENCE_WORKER_METRICS_TOKEN_FILE",
+		ConditionalDefault: "127.0.0.1:9091",
+		Description:        "Optional separate `GET/HEAD /metrics` listener. Requires a literal loopback or private IPv4/IPv6 address, nonzero port, no zone and a port/address distinct from the lifecycle listener. Hostnames, public and wildcard binds are rejected before runtime opens. Both metrics variables unset disables the listener. See [worker scraping](observability.md#worker-scraping).",
 	},
 	{
 		Name:        "EVYDENCE_WORKER_METRICS_TOKEN_FILE",

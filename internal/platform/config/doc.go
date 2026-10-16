@@ -1,4 +1,5 @@
 // Package config defines bounded, secret-safe process configuration inputs.
-// Schema validation and runtime adoption are delivered in subsequent EVY-1205
-// work; capturing an input alone does not validate a complete runtime.
+// Schema metadata and scalar parsing do not validate a complete runtime.
+// Complete typed configuration, dedicated validation and command adoption remain
+// subsequent EVY-1205 work.
 package config

@@ -1,8 +1,9 @@
 # ADR 0005: Validated Runtime Configuration
 
-Status: accepted for the immutable-input and schema-metadata foundation of
-EVY-1214, reviewed 2026-10-16. Typed parsing/validation, complete schema coverage,
-secret resolution, command adoption and generated deployment documentation
+Status: accepted for the immutable-input, schema-metadata, scalar-parsing and
+role-input foundation of EVY-1214, reviewed 2026-10-16. Complete typed configuration,
+endpoint/cross-field validation, schema coverage, secret resolution, command
+adoption and generated deployment documentation
 remain pending in EVY-1214 through EVY-1217. This is an explanation for developers
 maintaining startup and configuration boundaries.
 
@@ -43,6 +44,41 @@ it does not prove complete data-flow coverage of computed names or every SDK
 credential-chain option. Those boundaries and the typed loader remain required
 before EVY-1214 can close. Catalogue metadata alone does not enforce its rules
 or change a command's current behavior.
+
+The package-owned scalar parser produces booleans, bounded integers/durations,
+canonical choices, masked CIDR prefixes, decoded base64 bytes and UTC timestamps.
+Errors use one fixed diagnostic and return no partially parsed value. Scalar
+formatting and JSON are redacted, including for values not classified as secrets.
+Raw string-like inputs remain unchanged for later dedicated validation: PostgreSQL
+accepts connection strings, S3 accepts `host:port`, and paths require different
+rules from HTTP endpoints. Scalar parsing performs no file or network access and
+does not enforce required roles, aliases, production or cross-field constraints.
+
+The schema retains the existing 65,536-byte tenant-name and 1 MiB decoded Sigstore
+limits. The new parser deliberately limits proxy CIDRs to 256 entries before
+allocation. Explicit booleans accept only `true` or `false`, case-insensitively
+with surrounding whitespace; other spellings fail. Malformed or out-of-range
+numeric inputs fail instead of silently falling back, and seconds conversion
+checks duration overflow. These tightening rules are not adopted by command
+startup until EVY-1216. Missing optional values and dynamic defaults remain the
+responsibility of the role-aware loader rather than this scalar primitive.
+
+The role-input evaluator applies process requirements and schema defaults,
+including production/non-production PostgreSQL modes and the credential-dependent
+worker metrics address. It rejects conflicting nonempty aliases, unknown
+`EVYDENCE_*` names in production, production-forbidden booleans and disallowed
+production choices. Diagnostics and returned input remain redacted, with no
+partially resolved result after failure. Only options belonging to the selected
+role are parsed; inactive provider options within that role are still checked.
+AWS/Google/Azure/GitHub namespace inputs remain captured for their explicit native
+SDK/CI boundaries rather than being treated as unknown project settings.
+
+This is a private intermediate representation, not a public environment accessor
+or the final typed command configuration. Typed projections and dedicated endpoint,
+path, credential and cross-field checks remain required before EVY-1214 closes.
+Build-start time remains absent until the command applies its clock. Worker probe
+and offline commands must use their applicable configuration scope during adoption
+rather than acquire unrelated runtime dependencies.
 
 ## Required Toolkit Boundary
 

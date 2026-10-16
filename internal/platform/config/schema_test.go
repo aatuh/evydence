@@ -96,6 +96,29 @@ func TestSchemaClassifiesSecretAndConditionalConfiguration(t *testing.T) {
 	}
 }
 
+func TestSchemaDefaultsCannotPublishSecretsOrInvalidConditionalValues(t *testing.T) {
+	defs := schemaByName(t)
+	for _, d := range defs {
+		for _, raw := range []string{d.Default, d.ProductionDefault, d.NonProductionDefault, d.ConditionalDefault} {
+			if raw == "" {
+				continue
+			}
+			if d.Secret {
+				t.Fatal("secret default could reach generated configuration", d.Name)
+			}
+			if _, err := parseScalar(d, raw); err != nil {
+				t.Fatal("conditional schema default is invalid", d.Name, err)
+			}
+		}
+		if d.DefaultWhenSet != "" {
+			dependency, ok := defs[d.DefaultWhenSet]
+			if !ok || d.ConditionalDefault == "" || dependency.Roles&d.Roles != d.Roles {
+				t.Fatal("conditional default references an unavailable role input", d.Name)
+			}
+		}
+	}
+}
+
 func TestSchemaMetadataIsSortedAndOwned(t *testing.T) {
 	first := Definitions()
 	if len(first) == 0 || !slices.IsSortedFunc(first, func(a, b Definition) int { return strings.Compare(a.Name, b.Name) }) {

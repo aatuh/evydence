@@ -217,12 +217,14 @@ var providerDefinitions = []Definition{
 		Name:        "EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64",
 		Kind:        Base64,
 		Roles:       API,
+		MaxBytes:    1 << 20,
 		Description: "Base64-encoded operator-managed PEM public key, bounded to 1 MiB after decoding. It can be configured with or instead of the trusted root.",
 	},
 	{
 		Name:        "EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64",
 		Kind:        Base64,
 		Roles:       API,
+		MaxBytes:    1 << 20,
 		Description: "Base64-encoded operator-managed Sigstore trusted-root JSON, bounded to 1 MiB after decoding. Do not put private keys here.",
 	},
 	{

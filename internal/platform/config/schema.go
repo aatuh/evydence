@@ -36,6 +36,10 @@ type Definition struct {
 	Kind                  Kind
 	Default               string
 	DefaultPolicy         string
+	ProductionDefault     string
+	NonProductionDefault  string
+	DefaultWhenSet        string
+	ConditionalDefault    string
 	Roles                 Role
 	Required              Role
 	ProductionRequired    Role
@@ -43,10 +47,14 @@ type Definition struct {
 	ForbiddenInProduction bool
 	Min                   int64
 	Max                   int64
-	Allowed               []string
-	ProductionAllowed     []string
-	Aliases               []string
-	Description           string
+	// MaxBytes bounds raw input, or decoded bytes for Base64; zero uses the
+	// capture byte limit. MaxItems bounds CIDR entries before allocation.
+	MaxBytes          int
+	MaxItems          int
+	Allowed           []string
+	ProductionAllowed []string
+	Aliases           []string
+	Description       string
 }
 
 // Definitions returns sorted, owned metadata for parsing and artifact generation.
