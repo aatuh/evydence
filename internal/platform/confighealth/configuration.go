@@ -105,14 +105,34 @@ func validConfigurationRevision(value string) bool {
 }
 
 func configurationRevisionMatches(path, revision string) bool {
-	// The operator owns the path and its parent directory. Reject special
-	// files before opening; symlinks to local regular projection files are
-	// intentional. Never read arbitrary-size configuration or secret files.
-	info, err := os.Stat(path)
+	// The operator owns the path and its parent directory. Resolve projection
+	// aliases on every refresh, including absolute aliases within that directory.
+	// Both metadata and content access then use a pinned directory handle: a
+	// replacement symlink cannot redirect the open outside that directory.
+	directory, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		return false
+	}
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = root.Close() }()
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return false
+	}
+	name, err := filepath.Rel(directory, resolved)
+	if err != nil || !filepath.IsLocal(name) {
+		return false
+	}
+	// Reject special files and oversized contents before opening, and recheck
+	// the opened inode before a bounded read.
+	info, err := root.Stat(name)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > maxConfigurationRevisionSize {
 		return false
 	}
-	file, err := os.Open(path)
+	file, err := root.Open(name)
 	if err != nil {
 		return false
 	}

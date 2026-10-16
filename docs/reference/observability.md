@@ -219,6 +219,12 @@ file on each dependency refresh. A changed, missing or malformed revision
 blocks startup/readiness; restoring the loaded revision permits recovery after
 cache expiry. The file and parent directory must be operator-controlled and
 on a local filesystem; this mechanism is not a remote configuration reader.
+Content reads are scoped to the configured parent directory with an owned
+directory handle. Relative and absolute symlinks resolving inside that directory
+remain supported, including Kubernetes' nested `..data` projection replacement.
+Symlinks escaping the directory fail initialization or the next refreshed probe,
+even when the outside file contains the expected revision. Keep projected targets
+inside the configured directory when upgrading.
 
 Helm hashes its non-secret ConfigMap data into the loaded revision, projects
 that revision into both daemons as a read-only volume without `subPath`, and annotates API

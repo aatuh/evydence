@@ -127,6 +127,95 @@ func TestConfigurationReadinessFollowsAtomicProjectionSymlink(t *testing.T) {
 	}
 }
 
+func TestConfigurationReadinessRejectsRevisionSymlinkEscapeAndRecovers(t *testing.T) {
+	for _, absolute := range []bool{false, true} {
+		t.Run(strconv.FormatBool(absolute), func(t *testing.T) {
+			parent := t.TempDir()
+			dir := filepath.Join(parent, "projection")
+			if err := os.Mkdir(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			revision := strings.Repeat("a", 64)
+			outside := filepath.Join(parent, "private-outside-revision")
+			file := filepath.Join(dir, "revision")
+			for _, path := range []string{file, outside} {
+				if err := os.WriteFile(path, []byte(revision), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
+			environ := func() []string { return values }
+			probe, err := New(t.Context(), environ)
+			if err != nil {
+				t.Fatal(err)
+			}
+			target := filepath.Join("..", filepath.Base(outside))
+			if absolute {
+				target = outside
+			}
+			next := filepath.Join(dir, "next")
+			if err := os.Symlink(target, next); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Rename(next, file); err != nil {
+				t.Fatal(err)
+			}
+			if err := probe(t.Context()); !errors.Is(err, errConfigurationUnavailable) || strings.Contains(err.Error(), outside) {
+				t.Fatalf("escaping revision remained healthy or disclosed its target: %v", err)
+			}
+			if probe, err := New(t.Context(), environ); probe != nil || !errors.Is(err, errConfigurationUnavailable) {
+				t.Fatal("escaping revision accepted during initialization", err)
+			}
+			if err := os.Remove(file); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(file, []byte(revision), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := probe(t.Context()); err != nil {
+				t.Fatal("in-directory revision restoration did not recover", err)
+			}
+		})
+	}
+}
+
+func TestConfigurationReadinessFollowsKubernetesProjectionDirectorySwap(t *testing.T) {
+	dir := t.TempDir()
+	revision := strings.Repeat("a", 64)
+	for name, value := range map[string]string{"..first": revision, "..second": strings.Repeat("b", 64)} {
+		target := filepath.Join(dir, name)
+		if err := os.Mkdir(target, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(target, "revision"), []byte(value), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("..first", filepath.Join(dir, "..data")); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dir, "revision")
+	if err := os.Symlink(filepath.Join("..data", "revision"), file); err != nil {
+		t.Fatal(err)
+	}
+	values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
+	probe, err := New(t.Context(), func() []string { return values })
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []string{"..second", "..first"} {
+		if err := os.Symlink(target, filepath.Join(dir, "..next")); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(filepath.Join(dir, "..next"), filepath.Join(dir, "..data")); err != nil {
+			t.Fatal(err)
+		}
+		if err := probe(t.Context()); (err != nil) != (target == "..second") {
+			t.Fatalf("projected directory switch to %s: %v", target, err)
+		}
+	}
+}
+
 func TestConfigurationReadinessRejectsIncompleteOrUnsafeRevisionConfig(t *testing.T) {
 	revision := strings.Repeat("a", 64)
 	for _, values := range [][]string{
