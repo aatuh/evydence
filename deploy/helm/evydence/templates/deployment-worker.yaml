@@ -11,6 +11,8 @@ spec:
       app.kubernetes.io/component: worker
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: {{ include "evydence.name" . }}
         app.kubernetes.io/component: worker

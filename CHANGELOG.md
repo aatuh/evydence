@@ -18,8 +18,13 @@ readiness and instance-admin diagnostics (EVY-1203). Public liveness remains
 independent of application quotas and dependency-probe saturation;
 startup/readiness use a separate bounded pool. Responses are not proxy-cacheable,
 and unavailable probes preserve retry metadata. The synthetic `ledger: ok` row
-is removed because it performed no evidence check. Runtime dependency additions
-and deployment probe wiring remain tracked in the open EVY-1203 ticket.
+is removed because it performed no evidence check. Outbox readiness detects
+overdue eligible work and expired worker leases without claiming jobs.
+Configuration readiness detects process-environment drift and an optional
+projected desired revision. Helm maps distinct API lifecycle probes and rolls
+both daemons on chart configuration changes; external Secret changes still
+require an operator rollout. Remaining required-signer checks and final
+validation remain tracked in the open EVY-1203 ticket.
 
 Added structured process, HTTP, provider, command and worker diagnostics
 (EVY-1202). API, worker and migration commands default to JSON on stderr, with

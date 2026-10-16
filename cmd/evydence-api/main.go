@@ -58,6 +58,10 @@ func runAPI(ctx context.Context) (runErr error) {
 	if err != nil {
 		return err
 	}
+	configurationProbe, err := newConfigurationReadiness(ctx, os.Environ)
+	if err != nil {
+		return err
+	}
 	identity := runtimeinfo.Current()
 	production := strings.EqualFold(os.Getenv("ENV"), "production")
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
@@ -147,6 +151,7 @@ func runAPI(ctx context.Context) (runErr error) {
 	pgStore := runtime.Postgres
 	objectStore := runtime.Objects
 	readinessChecks = append(readinessChecks,
+		app.ReadinessCheck{Name: "configuration", Timeout: runtimeReadinessTimeout, FailureDetail: "loaded configuration is unavailable or stale", Check: configurationProbe},
 		app.ReadinessCheck{Name: "postgres", Timeout: runtimeReadinessTimeout, FailureDetail: "database connectivity is unavailable", Check: pgStore.CheckReadiness},
 		app.ReadinessCheck{Name: "migrations", Timeout: runtimeReadinessTimeout, FailureDetail: "database migration state is unavailable", Check: func(checkCtx context.Context) error {
 			return pgStore.CheckMigrationState(checkCtx, migrationsDir)

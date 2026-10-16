@@ -128,6 +128,37 @@ vetted failure text, startup/initialization/drain state, and `checked_at` /
 paths and tenant data remain excluded. These are operational observations,
 not evidence-integrity verification or proof that every business path works.
 
+### Configuration freshness
+
+The API's `configuration` startup/readiness check compares its current process
+environment with a digest captured before runtime composition. It includes
+`ENV`, `EVYDENCE_*`, `AWS_*`, `GOOGLE_*` and `AZURE_*`; it retains no raw secret
+values and exposes neither the digest nor changed variable names. Reordering
+variables or changing unrelated environment entries does not invalidate it.
+Environment-based settings are fixed for the process lifetime; health checks
+do not reload them.
+
+For an external desired-state signal, set both revision variables in the
+[configuration reference](configuration.md). The API reopens the local revision
+file on each dependency refresh. A changed, missing or malformed revision
+blocks startup/readiness; restoring the loaded revision permits recovery after
+cache expiry. The file and parent directory must be operator-controlled and
+on a local filesystem; this mechanism is not a remote configuration reader.
+
+Helm hashes its non-secret ConfigMap data into the loaded revision, projects
+that revision as a read-only volume without `subPath`, and annotates both API
+and worker pod templates with a ConfigMap checksum to trigger replacement on
+chart configuration changes. Detection in an existing API pod depends on
+Kubernetes propagating the projected volume update, then the health cache
+refreshing. The five-second snapshot age bound starts after local projection,
+not at the control-plane update. Normal chart changes also start a rollout.
+
+Without a revision file, an already running process cannot observe changes to
+its parent's environment, external ConfigMaps or Secrets. Separately managed
+Secret updates and out-of-band configuration changes require an operator
+rollout or an explicitly coordinated desired revision. The chart does not
+watch the Kubernetes API or claim to detect those changes automatically.
+
 `GET /v1/version` returns the immutable API build identity: version, commit,
 build time, dirty marker, Go version, and the digest of the pre-build release
 input manifest. Release-candidate packaging includes that manifest in the final

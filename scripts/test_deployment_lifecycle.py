@@ -44,6 +44,8 @@ class DeploymentLifecycleTests(unittest.TestCase):
         self.assertEqual(set(deployments), {"api", "worker"})
         self.assertEqual(deployments["api"]["spec"]["replicas"], 1)
         self.assertEqual(deployments["api"]["spec"]["strategy"], {"type": "Recreate"})
+        self.assertEqual(config["EVYDENCE_API_WRITER_MODE"], "single")
+        self.assertEqual(config["EVYDENCE_API_WRITER_REPLICAS"], "1")
         cleanup = int(config["EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS"])
         for component, variable in [("api", "EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS"),
                                     ("worker", "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS")]:
@@ -57,6 +59,44 @@ class DeploymentLifecycleTests(unittest.TestCase):
         self.assertEqual(config["EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS"], "30")
         for deployment in deployments.values():
             self.assertEqual(deployment["spec"]["template"]["spec"]["terminationGracePeriodSeconds"], 40)
+
+    def test_api_probes_use_distinct_lifecycle_routes_and_bounded_budgets(self):
+        _, deployments = self.manifests()
+        api = deployments["api"]["spec"]["template"]["spec"]["containers"][0]
+        for kind, path in [("startup", "/v1/startup"), ("readiness", "/v1/ready"), ("liveness", "/v1/health")]:
+            probe = api[kind + "Probe"]
+            self.assertEqual(probe["httpGet"], {"path": path, "port": "http"})
+            self.assertGreaterEqual(probe["periodSeconds"], 5)
+            self.assertGreaterEqual(probe["failureThreshold"], 3)
+            self.assertEqual(probe["successThreshold"], 1)
+            if kind != "liveness":
+                self.assertGreater(probe["timeoutSeconds"], 3, "allow the full dependency-refresh budget")
+            else:
+                self.assertEqual(probe["timeoutSeconds"], 2)
+        startup = api["startupProbe"]
+        self.assertGreaterEqual(startup["failureThreshold"] * startup["periodSeconds"], 300)
+
+    def test_config_revision_is_projected_and_rolls_all_configuration_consumers(self):
+        config, deployments = self.manifests()
+        revision = config["EVYDENCE_CONFIGURATION_REVISION"]
+        self.assertRegex(revision, r"^[0-9a-f]{64}$")
+        annotations = []
+        for component in ("api", "worker"):
+            annotations.append(deployments[component]["spec"]["template"]["metadata"]["annotations"]["checksum/config"])
+        self.assertEqual(annotations[0], annotations[1])
+        pod = deployments["api"]["spec"]["template"]["spec"]
+        api = pod["containers"][0]
+        path = next(value["value"] for value in api["env"] if value["name"] == "EVYDENCE_CONFIGURATION_REVISION_FILE")
+        mount = next(value for value in api["volumeMounts"] if value["name"] == "configuration-revision")
+        self.assertTrue(mount["readOnly"])
+        self.assertNotIn("subPath", mount, "subPath mounts do not observe ConfigMap projection updates")
+        volume = next(value for value in pod["volumes"] if value["name"] == mount["name"])
+        self.assertEqual(volume["configMap"]["items"], [{"key": "EVYDENCE_CONFIGURATION_REVISION", "path": "revision"}])
+        self.assertEqual(path, mount["mountPath"] + "/revision")
+        changed, replacement = self.manifests({"api": {"maxInFlightRequests": 512}})
+        self.assertNotEqual(changed["EVYDENCE_CONFIGURATION_REVISION"], revision)
+        for component, previous in zip(("api", "worker"), annotations):
+            self.assertNotEqual(replacement[component]["spec"]["template"]["metadata"]["annotations"]["checksum/config"], previous)
 
     def test_custom_budgets_and_worker_scaling_render(self):
         config, deployments = self.manifests({"cleanupTimeoutSeconds": 60,

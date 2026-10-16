@@ -59,6 +59,15 @@ appear. Responses use `no-store`, and unavailable probes preserve the catalog
 retry policy. Canonical lifecycle probes use admission separate from ordinary
 application requests; this does not exempt other routes from their limits.
 
+The API now reports configuration freshness and outbox progress as readiness
+dependencies. Overdue eligible work or an expired worker lease can change
+readiness to `503`. Helm adds a startup probe and projects a desired non-secret
+configuration revision; chart configuration changes replace both daemons.
+The revision variables are optional outside Helm, but configuring only one,
+or starting with a mismatched/unreadable revision file, fails before runtime
+resources open. This mechanism does not hot-reload settings or watch external
+Secret updates; those require an operator rollout.
+
 See [observability](observability.md#endpoints) for endpoint semantics and
 freshness bounds. Instance diagnostics still require explicit `instance:admin`.
 No evidence, audit, idempotency or backup format changes accompany this HTTP

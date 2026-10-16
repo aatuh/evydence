@@ -2,7 +2,23 @@
 
 This is a how-to guide for controlled self-hosted Kubernetes deployments.
 
-The Helm chart lives at `deploy/helm/evydence`. It deploys the API, worker, service, optional ingress, readiness and liveness probes, and configuration for external PostgreSQL, S3/MinIO object storage, and external signing mode.
+The Helm chart lives at `deploy/helm/evydence`. It deploys the API, worker, service, optional ingress, lifecycle probes, and configuration for external PostgreSQL, S3/MinIO object storage, and external signing mode.
+
+The API startup probe uses `/v1/startup` every five seconds with a five-second
+timeout and 60 failures allowed (five minutes). After startup succeeds,
+readiness uses `/v1/ready` every five seconds with a five-second timeout and
+three consecutive failures; liveness uses `/v1/health` every ten seconds with
+a two-second timeout and three failures. Startup/readiness timeouts exceed the
+three-second dependency refresh budget. The startup allowance does not extend
+the process's own initialization deadlines. See [probe semantics and
+configuration freshness](reference/observability.md#endpoints).
+
+ConfigMap changes alter pod-template checksums for both daemons and trigger a
+rollout. The API also receives a read-only projected desired configuration
+revision, so a still-running pod can report stale configuration after the
+projection updates. The existing single-writer `Recreate` rollout still incurs
+planned downtime. Restart workloads after changing a separately managed Secret;
+the chart does not automatically detect updates to that external object.
 
 ## Prerequisites
 

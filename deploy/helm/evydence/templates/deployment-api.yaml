@@ -14,6 +14,8 @@ spec:
       app.kubernetes.io/component: api
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: {{ include "evydence.name" . }}
         app.kubernetes.io/component: api
@@ -21,6 +23,13 @@ spec:
       terminationGracePeriodSeconds: {{ include "evydence.terminationGrace" (dict "name" "api" "process" .Values.api "cleanup" .Values.cleanupTimeoutSeconds) }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      volumes:
+        - name: configuration-revision
+          configMap:
+            name: {{ include "evydence.fullname" . }}-config
+            items:
+              - key: EVYDENCE_CONFIGURATION_REVISION
+                path: revision
       containers:
         - name: api
           image: "{{ .Values.image.repository }}:{{ $imageTag }}"
@@ -35,6 +44,8 @@ spec:
             - configMapRef:
                 name: {{ include "evydence.fullname" . }}-config
           env:
+            - name: EVYDENCE_CONFIGURATION_REVISION_FILE
+              value: /etc/evydence/config-revision/revision
             - name: EVYDENCE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -45,13 +56,33 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.existingSecret }}
                   key: {{ .Values.env.apiKeyPepperSecretKey }}
+          volumeMounts:
+            - name: configuration-revision
+              mountPath: /etc/evydence/config-revision
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /v1/startup
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+            successThreshold: 1
           readinessProbe:
             httpGet:
               path: /v1/ready
               port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           livenessProbe:
             httpGet:
               path: /v1/health
               port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+            successThreshold: 1
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
