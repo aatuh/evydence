@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,17 @@ import (
 )
 
 func TestWorkerProbePostgresRuntimeRecoversFromObjectOutageAndStops(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		name := "metrics-disabled"
+		if enabled {
+			name = "metrics-enabled"
+		}
+		t.Run(name, func(t *testing.T) { workerProbePostgresRuntime(t, enabled) })
+	}
+}
+
+func workerProbePostgresRuntime(t *testing.T, metricsEnabled bool) {
+	t.Helper()
 	base := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if base == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
@@ -43,12 +55,25 @@ func TestWorkerProbePostgresRuntimeRecoversFromObjectOutageAndStops(t *testing.T
 		t.Fatal(err)
 	}
 	objects := filepath.Join(t.TempDir(), "private-object-root")
+	metricsAddress, metricsFile := "", ""
+	if metricsEnabled {
+		reserved, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		metricsAddress = reserved.Addr().String()
+		if err := reserved.Close(); err != nil {
+			t.Fatal(err)
+		}
+		metricsFile = workerMetricsTokenFixture(t)
+	}
 	for name, value := range map[string]string{
 		"ENV": "production", "EVYDENCE_RUNTIME_PROFILE": "postgres", "EVYDENCE_DATABASE_URL": postgresURLWithSearchPath(t, base, schema),
 		"EVYDENCE_MIGRATIONS_DIR": "../../migrations", "EVYDENCE_SKIP_MIGRATIONS": "false", "EVYDENCE_POSTGRES_LOAD_MODE": "relational_only",
 		"EVYDENCE_OBJECT_STORE": "filesystem", "EVYDENCE_OBJECT_DIR": objects, "EVYDENCE_WORKER_HEALTH_ADDR": address,
 		"EVYDENCE_CONFIGURATION_REVISION": "", "EVYDENCE_CONFIGURATION_REVISION_FILE": "",
 		"EVYDENCE_WORKER_POLL_INTERVAL": "10ms", "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS": "1", "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS": "2",
+		"EVYDENCE_WORKER_METRICS_ADDR": metricsAddress, "EVYDENCE_WORKER_METRICS_TOKEN_FILE": metricsFile,
 	} {
 		t.Setenv(name, value)
 	}
@@ -88,6 +113,27 @@ func TestWorkerProbePostgresRuntimeRecoversFromObjectOutageAndStops(t *testing.T
 		}
 	}
 	waitReady(true)
+	metricsClient := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil}}
+	defer metricsClient.CloseIdleConnections()
+	if metricsEnabled {
+		body, err := workerMetricsRequest(t, metricsClient, metricsAddress)
+		if err != nil || !strings.Contains(body, `evydence_queue_jobs{service="worker",state="queued"} 0`) || !strings.Contains(body, `evydence_db_pool_connections{pool="primary",service="worker"`) {
+			t.Fatal("running worker did not expose its actual database/pool metrics", err)
+		}
+		r, err := http.NewRequestWithContext(t.Context(), "GET", "http://"+metricsAddress+"/metrics", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Header.Set("Authorization", "Bearer evy_PRIVATE_TENANT_KEY")
+		response, err := metricsClient.Do(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusUnauthorized {
+			t.Fatal("tenant key accessed native worker metrics", response.StatusCode)
+		}
+	}
 	for _, mode := range []string{"--startup", "--liveness"} {
 		if err := runWorkerHealthcheck(t.Context(), []string{mode}); err != nil {
 			t.Fatal("initialized worker probe failed", err)
@@ -120,5 +166,10 @@ func TestWorkerProbePostgresRuntimeRecoversFromObjectOutageAndStops(t *testing.T
 	}
 	if err := runWorkerHealthcheck(t.Context(), []string{"--liveness"}); err == nil {
 		t.Fatal("closed worker listener reported liveness")
+	}
+	if metricsEnabled {
+		if _, err := workerMetricsRequest(t, metricsClient, metricsAddress); err == nil {
+			t.Fatal("worker metrics listener survived runtime shutdown")
+		}
 	}
 }

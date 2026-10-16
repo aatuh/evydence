@@ -23,7 +23,11 @@ The recorder does not change provider results or resource ownership. Authorized
 instance text scrapes also read scalar queue and pool measurements through a
 read-only PostgreSQL pool with a one-second deadline. Per-scrape value copies
 avoid mixed/stale gauges; reads neither load the Ledger nor mutate jobs.
-Worker scraping, storage and other application signals remain pending.
+The worker now supports a separate optional private scrape listener with a
+distinct metrics-only bearer credential file, bounded admission and owned
+shutdown alongside its lifecycle listener. It needs no tenant-authentication
+database privileges; loaded credentials require a worker restart for rotation.
+Storage and other application signals remain pending.
 
 Added `/v1/startup` and shared bounded dependency snapshots for startup,
 readiness and instance-admin diagnostics (EVY-1203). Public liveness remains

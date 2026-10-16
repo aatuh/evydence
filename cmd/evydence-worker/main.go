@@ -31,6 +31,7 @@ import (
 	"github.com/aatuh/evydence/internal/platform/confighealth"
 	"github.com/aatuh/evydence/internal/platform/health"
 	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
@@ -125,6 +126,13 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	if err != nil {
 		return err
 	}
+	metricsConfig, err := workerMetricsConfigFromEnv()
+	if err != nil {
+		return err
+	}
+	if metricsConfig.enabled && metricsConfig.address == healthAddress {
+		return errWorkerMetricsConfig
+	}
 	configurationProbe, err := confighealth.New(parent, os.Environ)
 	if err != nil {
 		return err
@@ -147,6 +155,11 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 		closeWorkerAfterStop(runErr, func() { runErr = errors.Join(runErr, runtime.CloseContext(ctx, cleanupTimeout)) })
 	}()
 	store := runtime.Postgres
+	metrics, err := wiring.BuildOperationalMetrics(wiring.Worker, store)
+	if err != nil {
+		return err
+	}
+	ctx = telemetry.WithObserver(ctx, metrics)
 	objectStore := runtime.Objects
 	processor, err := newNativeJobProcessor(store, objectStore)
 	if err != nil {
@@ -172,11 +185,25 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	if err != nil {
 		return errors.New("worker probe listener is unavailable")
 	}
+	var metricsEndpoints []workerMetricsEndpoint
+	if metricsConfig.enabled {
+		handler, err := newWorkerMetricsHandler(metricsConfig, metrics)
+		if err != nil {
+			_ = listener.Close()
+			return err
+		}
+		metricsListener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", metricsConfig.address.String())
+		if err != nil {
+			_ = listener.Close()
+			return errors.New("worker metrics listener is unavailable")
+		}
+		metricsEndpoints = append(metricsEndpoints, workerMetricsEndpoint{listener: metricsListener, handler: handler})
+	}
 	monitor.MarkInitialized()
 	logging.Emit(ctx, logging.Command, logging.Fields{OperationID: "outbox_poll", Result: logging.Succeeded})
 	return runWorkerWithHealth(ctx, listener, monitor, workerProbeTimeout, func(workCtx context.Context) error {
 		return runWorkerLoop(workCtx, store, processor, workerLoopConfig{PollInterval: pollInterval, BatchSize: batchSize, ShutdownTimeout: shutdownTimeout})
-	})
+	}, metricsEndpoints...)
 }
 
 // runParserReplay is an explicit operator command that appends a derived

@@ -146,8 +146,65 @@ Counters and histograms are process-local and reset on restart. Scrape each
 process separately and use reset-aware rates; these measurements are operational
 observations, not durable evidence or audit totals. A scrape reflects previously
 completed requests; its own completed request is recorded after the response.
-Worker scraping, storage and other application instrumentation remain pending
-in EVY-1211; dashboard/rule calibration belongs to EVY-1212.
+Storage and other application instrumentation remain pending in EVY-1211;
+dashboard/rule calibration belongs to EVY-1212.
+
+### Worker scraping
+
+The worker can serve `GET/HEAD /metrics` on a separate optional listener. It
+exposes the worker's own registry and the shared database queue projection,
+without a tenant view or a public API/SDK route. Both metrics variables unset
+leaves this listener disabled. The existing loopback lifecycle listener and its
+healthcheck commands retain their own port and admission pool.
+
+An operator enables scraping with `EVYDENCE_WORKER_METRICS_TOKEN_FILE`, an
+absolute path to a private regular secret file. The default bind is
+`127.0.0.1:9091`; set `EVYDENCE_WORKER_METRICS_ADDR` to a literal private address
+for a monitoring client on the private network. Public, wildcard, hostname and
+zoned binds are rejected. IPv6 addresses use brackets, such as
+`[fd00::10]:9091`. Monitoring traffic crossing an untrusted network needs an
+operator-managed TLS proxy; the listener itself serves HTTP. Private IP binding
+does not encrypt the bearer credential or its response.
+
+Generate a distinct credential on the operator host, outside the checkout
+(this example uses Python 3):
+
+```sh
+install -d -m 700 "$HOME/.config/evydence"
+umask 077
+python3 -c 'import secrets; print("evymetrics_" + secrets.token_hex(32))' > "$HOME/.config/evydence/worker-metrics-token"
+export EVYDENCE_WORKER_METRICS_TOKEN_FILE="$HOME/.config/evydence/worker-metrics-token"
+export EVYDENCE_WORKER_METRICS_ADDR=127.0.0.1:9091
+```
+
+Have the monitoring client load the bearer value from this file without
+placing it in command arguments, logs or a checked-in configuration. The
+credential grants only instance-wide worker metrics reads. It is separate from
+API key/session/collector credentials, is not authenticated through tenant
+roles, and requires no additional worker database identity permissions. The
+file format is `evymetrics_` followed by 64 lowercase hexadecimal characters,
+with at most one final LF. POSIX mode `0600`, `0640` or `0440` is suitable:
+group write and all other-user permissions are forbidden. Bounded reads follow
+relative projected-secret aliases only within the configured parent directory.
+The worker retains a hash, loads the file once at startup, and does no per-request
+credential-file reads. Replace the file and restart the worker to rotate or
+revoke the old value; removing a file does not revoke an already loaded hash.
+The lifecycle configuration monitor does not hot-reload this credential.
+
+Exactly one valid Bearer header is required before snapshot access; cookies,
+tenant/API/SSO keys, duplicate headers and malformed credentials are rejected
+without resource reads. Four scrapes may be active at once. Further requests
+return retryable `503` with `Retry-After`; canceled requests do no new snapshot
+work. The two-second snapshot budget respects earlier request cancellation,
+and its PostgreSQL projection still has its own one-second bound. Invalid,
+failed, oversized or panicking snapshots return no partial data or raw errors.
+All responses use `Cache-Control: no-store`.
+
+The daemon owns both listeners and the worker loop. Failure of either listener
+stops the loop, publishes draining, and closes both listeners. HTTP drains share
+one deadline and overlap the native job drain. A noncooperative handler forces
+the same nonzero-exit boundary as a stuck lifecycle probe, preserving resource
+ownership until process exit. A blocked metrics reader does not block liveness.
 
 ## Endpoints
 
