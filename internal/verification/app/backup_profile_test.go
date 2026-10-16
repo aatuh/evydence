@@ -143,3 +143,18 @@ func TestBackupProfileCommitsSAMLBindingAndReplayMetadataInNewVersion(t *testing
 		t.Fatal("SAML resources are unclassified", required)
 	}
 }
+
+func TestBackupProfilesExcludeOperationalLogReferences(t *testing.T) {
+	for _, profile := range [][]BackupCommitmentResource{BackupCommitmentProfileResourcesV1(), BackupCommitmentProfileResourcesV2(), BackupCommitmentProfileResourcesV3(), BackupCommitmentProfileResourcesV4(), BackupCommitmentProfileResources()} {
+		for _, resource := range profile {
+			if resource.Name != "outbox_jobs" {
+				continue
+			}
+			for _, column := range resource.Columns {
+				if column == "log_request_id" || column == "log_operation_id" {
+					t.Fatal("operational log references changed a frozen evidence profile")
+				}
+			}
+		}
+	}
+}

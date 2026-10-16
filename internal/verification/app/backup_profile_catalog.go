@@ -4,8 +4,9 @@ package app
 // fields or ownership/key rules require a new commitment profile, not silently
 // incorporating new columns. Credential hashes, private keys, replay records,
 // worker payloads/leases/errors and the two compatibility/cache
-// tables are deliberately absent. Remaining non-credential metadata is committed,
-// not copied into a response. Raw object-store payload bytes are not SQL rows.
+// tables are deliberately absent. Operational outbox log references are also
+// outside these frozen profiles. Only declared columns are committed, not copied
+// into a response. Raw object-store payload bytes are not SQL rows.
 const backupCommitmentCatalog = `
 anomaly_reports|id,tenant_id,subject_type,subject_id,result,signals,assumptions,limitations,schema_version,created_at
 api_keys|id,tenant_id,name,prefix,scopes,expires_at,revoked_at,last_used_at,created_at

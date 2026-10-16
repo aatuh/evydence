@@ -217,7 +217,10 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 	// The head table and response view contain only relationships already
 	// committed by decision records and supersessions, not independent history.
 	excludedTables := map[string]bool{"ledger_state": true, "resource_index": true, "schema_migrations": true, "idempotency_records": true, "vulnerability_decision_heads": true, "vulnerability_decision_projection": true}
-	excludedColumns := map[string]bool{"api_keys.hash": true, "customer_portal_access.hash": true, "sso_sessions.hash": true, "oidc_authentication_requests.state_hash": true, "oidc_authentication_requests.nonce_hash": true, "saml_authentication_requests.state_hash": true, "signing_keys.encrypted_private_key": true, "outbox_jobs.payload": true, "outbox_jobs.last_error": true, "outbox_jobs.lease_token": true, "vex_import_reports.failure_detail": true}
+	// Diagnostic correlation is operational metadata, not evidence state. Keep
+	// exact exclusions; the mutation regression below still requires job-state
+	// changes to affect the tenant commitment.
+	excludedColumns := map[string]bool{"api_keys.hash": true, "customer_portal_access.hash": true, "sso_sessions.hash": true, "oidc_authentication_requests.state_hash": true, "oidc_authentication_requests.nonce_hash": true, "saml_authentication_requests.state_hash": true, "signing_keys.encrypted_private_key": true, "outbox_jobs.payload": true, "outbox_jobs.last_error": true, "outbox_jobs.lease_token": true, "outbox_jobs.log_request_id": true, "outbox_jobs.log_operation_id": true, "vex_import_reports.failure_detail": true}
 	rows, err := pool.Query(ctx, `SELECT table_name,column_name FROM information_schema.columns WHERE table_schema=current_schema() ORDER BY table_name,column_name`)
 	if err != nil {
 		t.Fatal(err)
@@ -361,4 +364,48 @@ func TestPostgresBackupGenerationCommitsVersionedManifestAuditAndReplayAtomicall
 	}
 	want++
 	counts()
+}
+
+func TestPostgresBackupCommitmentIgnoresOutboxLogReferencesWithoutOmittingJobState(t *testing.T) {
+	store, pool := openHTMLReportWiringStore(t)
+	ctx := t.Context()
+	exec := func(statement string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, statement, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec(`INSERT INTO tenants(id,name)VALUES('tenant','Backup logs'),('other','Foreign');
+ INSERT INTO outbox_jobs(id,tenant_id,kind,subject_type,subject_id,deduplication_key,payload,status)VALUES
+ ('job','tenant','parse_sbom','sbom','subject','sha256:owner','{}','queued'),
+ ('foreign-job','other','parse_sbom','sbom','foreign-subject','sha256:foreign','{}','queued')`)
+	read := func() string {
+		t.Helper()
+		var commitment verificationapp.BackupStateCommitment
+		err := app.ExecuteUnitOfWork(ctx, store, func(txCtx context.Context, repos app.Repositories) error {
+			var err error
+			commitment, err = repos.Integrity.(verificationapp.BackupStateCommitmentReader).ReadBackupStateCommitment(txCtx, "tenant")
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return commitment.StateHash
+	}
+	original := read()
+	for _, column := range []string{"log_request_id", "log_operation_id"} {
+		// The column identifiers are this fixed allowlist, never operator input.
+		exec("UPDATE outbox_jobs SET "+column+"=$1 WHERE id='job'", "sha256:"+strings.Repeat("a", 64))
+		if read() != original {
+			t.Fatal("operational log reference changed the frozen evidence commitment", column)
+		}
+	}
+	exec(`UPDATE outbox_jobs SET attempts=attempts+1 WHERE tenant_id='other'`)
+	if read() != original {
+		t.Fatal("foreign job state entered the tenant commitment")
+	}
+	exec(`UPDATE outbox_jobs SET attempts=attempts+1 WHERE id='job' AND tenant_id='tenant'`)
+	if read() == original {
+		t.Fatal("excluding correlation also omitted committed job-state metadata")
+	}
 }
