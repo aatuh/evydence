@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/authz"
 )
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +66,7 @@ func (s *Server) readinessDiagnostics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return
@@ -76,6 +78,25 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.Contains(r.Header.Get("Accept"), "text/plain") {
 		body := prometheusMetrics(metrics)
+		if s.operationalMetrics != nil {
+			action, err := authz.AuthorizeMetrics(r.Context(), actor)
+			if err != nil {
+				writeProblem(w, r, mapInstanceAdminQueryError(err))
+				return
+			}
+			if action == authz.ActionInstanceMetricsRead {
+				process, err := s.operationalMetrics.Snapshot(r.Context())
+				if err != nil {
+					writeProblem(w, r, app.ErrDependencyUnavailable)
+					return
+				}
+				if err := authz.Authorize(r.Context(), actor, authz.Request{Action: action}); err != nil {
+					writeProblem(w, r, mapInstanceAdminQueryError(err))
+					return
+				}
+				body += process
+			}
+		}
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(body))

@@ -72,6 +72,50 @@ operation, safe identifiers, duration and typed result/retry class; the provider
 request, response and error remain outside the log schema. Logging does not
 change provider ownership, cancellation or returned results.
 
+## Operational metrics
+
+`GET /v1/metrics` keeps its tenant-scoped JSON and text metrics. Request text
+with `Accept: text/plain`. In the native API runtime, only an actor with explicit
+`instance:admin` also receives the private API process registry. Tenant admin,
+tenant wildcard and another tenant's credentials do not grant this authority.
+Authorization precedes process snapshot access and is checked again before the
+response. JSON does not read the process registry. Responses use
+`Cache-Control: no-store`; snapshot failure produces retryable `503` without
+partial output or raw errors.
+
+The API records HTTP counts and durations using the required toolkit adapter,
+and provider counts and durations for signing, OIDC discovery, provider identity,
+transparency fetch and Cosign verification. Provider wrappers preserve returned
+values/errors, cancellation and port ownership. Request observers also cover
+early denials; an interrupted/panicking response is measured as uncertain, even
+if a success header had already been written. Recorder failure cannot replace
+the business response or an existing handler panic.
+
+| Family | Type | Dimensions |
+| --- | --- | --- |
+| `http_requests_total` | Counter | `service`, normalized `method`, route template, numeric `status`. |
+| `http_request_duration_seconds` | Histogram | Same HTTP dimensions. |
+| `evydence_http_outcomes_total` | Counter | `service`, fixed `outcome`; independent of detailed-series overflow. |
+| `evydence_operations_total` | Counter | `service`, fixed `operation`, fixed `outcome`. |
+| `evydence_operation_duration_seconds` | Histogram | Same operation dimensions. |
+| `evydence_telemetry_series_overflow_total` | Counter | `service`; explains collapsed HTTP observations. |
+
+Registry construction accepts only `api` or `worker` service names and at most
+256 code-owned route templates. A hard budget of 1024 distinct HTTP label
+combinations folds further new combinations into `OTHER` / `unknown` / `0`,
+preserving all request and duration observations. Unknown operations/outcomes
+collapse to finite fallback values. Tenant/resource/job/customer IDs, CVEs,
+trace IDs, URLs, headers, credentials, bodies and raw errors are not labels.
+The registry does not register the global/default Go or process collectors.
+Text output is capped at 8 MiB; a canceled snapshot returns no partial data.
+
+Counters and histograms are process-local and reset on restart. Scrape each
+process separately and use reset-aware rates; these measurements are operational
+observations, not durable evidence or audit totals. A scrape reflects previously
+completed requests; its own completed request is recorded after the response.
+Worker scraping and database/queue/storage instrumentation remain pending in
+EVY-1211; dashboard/rule calibration belongs to EVY-1212.
+
 ## Endpoints
 
 | Endpoint | Purpose | Authority | Result |

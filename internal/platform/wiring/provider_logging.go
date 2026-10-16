@@ -7,6 +7,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 )
 
 // Observations wrap borrowed ports only at composition. Provider ownership,
@@ -24,6 +25,11 @@ func providerCall[Q, R any](ctx context.Context, call func(context.Context, Q) (
 		}
 	}
 	logging.Emit(ctx, logging.Provider, fields)
+	outcome := telemetry.OutcomeSucceeded
+	if err != nil {
+		outcome = telemetry.OutcomeFailed
+	}
+	telemetry.Record(ctx, telemetry.Event{Operation: telemetry.Operation(fields.OperationID), Outcome: outcome, Duration: fields.Duration})
 	return response, err
 }
 

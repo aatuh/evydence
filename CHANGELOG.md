@@ -13,6 +13,15 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added a private native API registry for HTTP and provider counters and duration
+histograms (EVY-1211, in progress). Existing tenant metrics and JSON values
+remain available; only explicit `instance:admin` text scrapes include the
+process-wide measurements. Fixed labels, a hard series budget, bounded text
+output and canary tests protect the operational boundary. Metrics responses are
+not proxy-cacheable, and failed snapshots return no partial data or raw errors.
+The recorder does not change provider results or resource ownership. Worker
+scraping and database/queue/storage signals remain pending in this ticket.
+
 Added `/v1/startup` and shared bounded dependency snapshots for startup,
 readiness and instance-admin diagnostics (EVY-1203). Public liveness remains
 independent of application quotas and dependency-probe saturation;

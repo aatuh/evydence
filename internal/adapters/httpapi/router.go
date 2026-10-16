@@ -38,6 +38,7 @@ const requestIDHeader = "X-Request-ID"
 
 type Server struct {
 	logger                            *logging.Logger
+	operationalMetrics                OperationalMetrics
 	logOperations                     map[string]string
 	authn                             Authenticator
 	apiKeyCommands                    APIKeyCommands
@@ -198,6 +199,9 @@ type Server struct {
 type ServerOptions struct {
 	// Logger emits fixed-schema diagnostics; nil disables operational logging for embedded callers.
 	Logger *logging.Logger
+	// OperationalMetrics records bounded process observations. Nil disables it
+	// for embedded callers; scrapes require explicit instance authority.
+	OperationalMetrics OperationalMetrics
 	// RateLimitRequestsPerMinute bounds unauthenticated and authenticated edge
 	// traffic by client address. Forwarded addresses are used only when the
 	// direct remote address belongs to TrustedProxyCIDRs.
@@ -680,6 +684,7 @@ func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Serv
 	}
 	server := &Server{logger: opts.Logger, mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, metricsQuery: opts.MetricsQuery, retentionQuery: opts.RetentionQuery, incidentReportQuery: opts.IncidentReportQuery, securityUpdateEvidenceQuery: opts.SecurityUpdateEvidenceQuery, craVulnerabilityQuery: opts.CRAVulnerabilityQuery, controlCoverageQuery: opts.ControlCoverageQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, outboxReplayCommand: opts.OutboxReplayCommand, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
+	server.operationalMetrics = opts.OperationalMetrics
 	server.evidencePageQuery = opts.EvidencePageQuery
 	server.missingEvidenceQuery = opts.MissingEvidenceQuery
 	server.releaseReadinessReportQuery = opts.ReleaseReadinessReportQuery

@@ -913,8 +913,12 @@ bytes, and expiry years from 1 through 9999 after UTC normalization. See the
 Readiness, metrics and instance diagnostics require focused Operations queries;
 the handlers have no aggregate fallback. PostgreSQL is required for local
 evaluation. Tenant metrics omit global queue counts unless the actor has the
-explicit `instance:admin` scope. JSON and Prometheus response shapes are
-unchanged; public readiness retains low-detail `503` and `Retry-After` metadata.
+explicit `instance:admin` scope. JSON and tenant-only Prometheus values retain
+their existing shapes. In the native API runtime, an instance-authorized
+`Accept: text/plain` scrape also includes process-wide HTTP and operational
+measurements. Metrics responses use `Cache-Control: no-store`; an unavailable
+process snapshot returns retryable `503` without partial metrics or raw errors.
+Public readiness retains low-detail `503` and `Retry-After` metadata.
 See [observability](reference/observability.md#endpoints) for startup semantics,
 shared-snapshot freshness and independent lifecycle-probe admission.
 

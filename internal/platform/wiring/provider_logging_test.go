@@ -10,12 +10,19 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 type loggingProviderFixture struct {
 	err error
 	ctx context.Context
+}
+
+type providerObservationFixture struct{ events []telemetry.Event }
+
+func (f *providerObservationFixture) Observe(_ context.Context, event telemetry.Event) {
+	f.events = append(f.events, event)
 }
 
 func (f *loggingProviderFixture) Sign(ctx context.Context, r app.SigningRequest) (app.SigningResult, error) {
@@ -48,7 +55,8 @@ func TestProviderLoggingCoversEveryPortAndNeverSerializesInputsOutputsOrErrors(t
 				if err != nil {
 					t.Fatal(err)
 				}
-				ctx := logging.WithRequest(logging.WithLogger(t.Context(), logger), "CANARY_REQUEST")
+				observations := &providerObservationFixture{}
+				ctx := telemetry.WithObserver(logging.WithRequest(logging.WithLogger(t.Context(), logger), "CANARY_REQUEST"), observations)
 				provider := &loggingProviderFixture{err: failure}
 				switch kind {
 				case "signing":
@@ -79,6 +87,24 @@ func TestProviderLoggingCoversEveryPortAndNeverSerializesInputsOutputsOrErrors(t
 				}
 				if provider.ctx != ctx {
 					t.Fatal("provider cancellation/correlation context changed")
+				}
+				wantOperation := map[string]telemetry.Operation{
+					"signing":      telemetry.OperationProviderSign,
+					"oidc":         telemetry.OperationProviderOIDCDiscovery,
+					"identity":     telemetry.OperationProviderIdentity,
+					"transparency": telemetry.OperationProviderTransparency,
+					"cosign":       telemetry.OperationProviderCosign,
+				}[kind]
+				wantOutcome := telemetry.OutcomeSucceeded
+				if failure != nil {
+					wantOutcome = telemetry.OutcomeFailed
+				}
+				if len(observations.events) != 1 {
+					t.Fatal("provider call did not record exactly one operational observation", len(observations.events))
+				}
+				measured := observations.events[0]
+				if measured.Operation != wantOperation || measured.Outcome != wantOutcome || measured.Duration < 0 || measured.Attempt != 0 {
+					t.Fatal("provider observation lost its fixed operation, result or duration", measured)
 				}
 				if strings.Contains(out.String(), "CANARY") {
 					t.Fatal("provider secret leaked")

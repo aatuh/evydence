@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 )
 
 type requestLogKey struct{}
@@ -46,12 +47,17 @@ func (s *Server) observeRequest(next http.Handler) http.Handler {
 		if s.logger != nil {
 			ctx = logging.WithLogger(ctx, s.logger)
 		}
+		if s.operationalMetrics != nil {
+			ctx = telemetry.WithObserver(ctx, s.operationalMetrics)
+		}
+		metricRoute := "unknown"
 		// Resolve only bounded paths to a canonical registered operation. Never log
 		// the URL, query, headers, IP, path variables or an arbitrary unmatched path.
 		if len(r.URL.Path) <= defaultMaxURLBytes {
 			_, pattern := s.mux.Handler(r)
 			if op := s.logOperations[pattern]; op != "" {
 				ctx = logging.WithOperation(ctx, op)
+				metricRoute = pattern
 			}
 		}
 		scope := &requestLogScope{}
@@ -88,6 +94,11 @@ func (s *Server) observeRequest(next http.Handler) http.Handler {
 				fields.Retry = *retry
 			}
 			logging.Emit(ctx, logging.HTTPRequest, fields)
+			metricStatus := fields.Status
+			if !completed {
+				metricStatus = 0
+			}
+			recordHTTPMetrics(s.operationalMetrics, r.Method, metricRoute, metricStatus, fields.Duration)
 		}()
 		next.ServeHTTP(status, r)
 		completed = true
