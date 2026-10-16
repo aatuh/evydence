@@ -91,6 +91,36 @@ early denials; an interrupted/panicking response is measured as uncertain, even
 if a success header had already been written. Recorder failure cannot replace
 the business response or an existing handler panic.
 
+Native evidence parser adapters and actual worker replay calls measure SBOM,
+vulnerability scan, OpenAPI and VEX normalization. The worker's
+`verify_attestation` observation covers attestation parsing during replay; it
+does not assert cryptographic signature verification. Work rejected before
+parsing, such as a foreign-tenant subject, does not count as a parser invocation.
+A successful parse can still be followed by a failed comparison with durable
+state or a failed mutation; the separate worker processing outcome reflects
+that failure. The worker's `sign_bundle` and `verify_subject` jobs inspect
+already-persisted results and do not count as new signing or verification.
+
+Focused signing-operation and Merkle-creation commands measure `signing`,
+including their transaction outcome. Focused verification commands measure
+`verification`, while dispatch to those commands adds no duplicate observation.
+The metric outcome follows the returned error: a failed verification verdict
+which returns an error counts as failed; a normally returned `limited` or
+`not_verified` result counts as an operationally completed command. It does not
+mean the evidence passed verification. Read the durable result, assurance
+profile and limitations to assess evidence.
+
+Release-bundle, evidence-bundle and customer-package commands measure
+`package_generation`, including failed commits. Bundle signing port calls have
+a separate `package_sign` observation: a successful signature can precede a
+failed bundle transaction. Tenant-bound object reconciliation measures
+`object_reconciliation` for both dry-run and apply requests; a successful dry run
+does not mean a repair was applied. These observations preserve the existing
+authorization, idempotency, hashes, redaction, receipts and error contracts.
+Command measurements describe returned outcomes and cannot resolve an ambiguous
+database commit; use the existing durable receipt and replay interfaces when
+deciding whether to retry.
+
 | Family | Type | Dimensions |
 | --- | --- | --- |
 | `http_requests_total` | Counter | `service`, normalized `method`, route template, numeric `status`. |
@@ -98,6 +128,7 @@ the business response or an existing handler panic.
 | `evydence_http_outcomes_total` | Counter | `service`, fixed `outcome`; independent of detailed-series overflow. |
 | `evydence_operations_total` | Counter | `service`, fixed `operation`, fixed `outcome`. |
 | `evydence_operation_duration_seconds` | Histogram | Same operation dimensions. |
+| `evydence_operation_attempt_number` | Histogram | Same operation dimensions; actual worker attempt number is the sample, never a label. |
 | `evydence_active_operations` | Gauge | `service`, fixed `operation`; currently admitted measured operations. |
 | `evydence_telemetry_series_overflow_total` | Counter | `service`; explains collapsed HTTP observations. |
 | `evydence_db_pool_connections` | Gauge | `service`, fixed `pool` (`primary` or `package_read`), fixed `state` (`acquired`, `idle`, `constructing`, `maximum`). |
@@ -140,8 +171,10 @@ acknowledgement phases record their independently confirmed outcomes and actual
 attempt number, with invalid numeric attempts clamped to the unsigned range.
 If a drain deadline expires, or an acknowledgement cannot be confirmed, the
 owner records `uncertain` and preserves the existing lease/exit policy. A late
-noncooperative processor cannot emit a second success or trigger a late
-acknowledgement. Activity gauges cover the owner's admitted phase lifetime;
+noncooperative processor cannot emit a second worker-phase outcome or trigger a
+late acknowledgement. Nested parser/storage measurements retain their own call
+lifetimes and do not confirm a job acknowledgement. Activity gauges cover the
+owner's admitted phase lifetime;
 they are not a count of arbitrary callbacks surviving a forced-exit boundary.
 
 Registry construction accepts only `api` or `worker` service names and at most
@@ -177,9 +210,13 @@ Counters and histograms are process-local and reset on restart. Scrape each
 process separately and use reset-aware rates; these measurements are operational
 observations, not durable evidence or audit totals. A scrape reflects previously
 completed requests; its own completed request is recorded after the response.
-Parser/signing/verification/reconciliation/package instrumentation remains
-pending in EVY-1211;
-dashboard/rule calibration belongs to EVY-1212.
+Application hooks use the caller's context-scoped recorder. Standalone one-shot
+commands, including `reconcile`, do not serve a scrape endpoint or persist the
+new process counters. Existing tenant metrics still expose reconciliation
+receipt totals and last-run age; result and receipt interfaces remain
+authoritative.
+Dashboard/rule calibration belongs to EVY-1212; optional tracing and durable
+worker trace propagation belong to EVY-1213.
 
 ### Worker scraping
 

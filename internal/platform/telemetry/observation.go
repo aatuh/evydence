@@ -27,6 +27,7 @@ const (
 	OperationParseVEX               Operation = "parse_vex"
 	OperationVerifyAttestation      Operation = "verify_attestation"
 	OperationSigning                Operation = "signing"
+	OperationPackageSign            Operation = "package_sign"
 	OperationVerification           Operation = "verification"
 	OperationObjectReconciliation   Operation = "object_reconciliation"
 	OperationPackageGeneration      Operation = "package_generation"
@@ -46,7 +47,7 @@ var operationCatalog = [...]Operation{
 	OperationWorkerClaim, OperationWorkerProcess, OperationWorkerComplete,
 	OperationWorkerFail, OperationWorkerDefer, OperationParseSBOM,
 	OperationParseVulnerabilityScan, OperationParseOpenAPI, OperationParseVEX,
-	OperationVerifyAttestation, OperationSigning, OperationVerification,
+	OperationVerifyAttestation, OperationSigning, OperationPackageSign, OperationVerification,
 	OperationObjectReconciliation, OperationPackageGeneration, OperationObjectRead,
 	OperationObjectWrite, OperationObjectDelete, OperationObjectList,
 	OperationObjectStage, OperationObjectFinalize, OperationObjectRetention,

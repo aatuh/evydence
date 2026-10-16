@@ -98,7 +98,7 @@ func (s *DSSEVerificationCommands) AuthorizeDSSEVerification(ctx context.Context
 	})
 }
 
-func (s *DSSEVerificationCommands) VerifyDSSEAttestationSignature(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
+func (s *DSSEVerificationCommands) verifyDSSEAttestationSignature(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}

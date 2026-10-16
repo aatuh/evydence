@@ -48,7 +48,7 @@ func NewArtifactSignatureVerificationCommands(c ArtifactSignatureVerificationCon
 	}
 	return &ArtifactSignatureVerificationCommands{c}, nil
 }
-func (c *ArtifactSignatureVerificationCommands) VerifyArtifactSignature(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
+func (c *ArtifactSignatureVerificationCommands) verifyArtifactSignature(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}

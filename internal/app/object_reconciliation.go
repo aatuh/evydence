@@ -144,7 +144,7 @@ type ObjectReconciliationMetricsStore interface {
 // a false quarantine. Apply mode plans lifecycle mutations during the scan and
 // commits all of them with the receipt/audit evidence only after every object
 // read succeeds. It never deletes raw storage objects.
-func ReconcileObjectPayloads(ctx context.Context, lifecycle ObjectPayloadLifecycleStore, metadata ObjectPayloadReconciliationStore, objects objectPayloadGetter, request ObjectReconciliationRequest) (ObjectReconciliationReceipt, error) {
+func reconcileObjectPayloads(ctx context.Context, lifecycle ObjectPayloadLifecycleStore, metadata ObjectPayloadReconciliationStore, objects objectPayloadGetter, request ObjectReconciliationRequest) (ObjectReconciliationReceipt, error) {
 	request, now, err := normalizeObjectReconciliationRequest(request)
 	if err != nil {
 		return ObjectReconciliationReceipt{}, err

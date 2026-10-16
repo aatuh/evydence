@@ -34,7 +34,7 @@ type EvidenceBundleSnapshot struct {
 	ObjectLockProofs []map[string]any
 }
 
-func (s *ExportCommands) ExportEvidenceBundle(ctx context.Context, actor identitydomain.Actor, releaseID string, evidenceIDs []string) (packagedomain.EvidenceBundle, error) {
+func (s *ExportCommands) exportEvidenceBundle(ctx context.Context, actor identitydomain.Actor, releaseID string, evidenceIDs []string) (packagedomain.EvidenceBundle, error) {
 	if err := contextError(ctx); err != nil {
 		return packagedomain.EvidenceBundle{}, err
 	}
@@ -131,7 +131,7 @@ func (s *ExportCommands) ExportEvidenceBundle(ctx context.Context, actor identit
 	if strings.TrimSpace(manifestHash) == "" {
 		return packagedomain.EvidenceBundle{}, ErrValidation
 	}
-	signature, err := s.config.Signer.SignPackage(ctx, PackageSigningRequest{
+	signature, err := measurePackageSigning(ctx, s.config.Signer, PackageSigningRequest{
 		TenantID: actor.TenantID, SubjectType: "evidence_bundle", SubjectID: bundleID, PayloadHash: manifestHash, CreatedAt: now,
 	})
 	if err != nil {

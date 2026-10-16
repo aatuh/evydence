@@ -66,7 +66,7 @@ func NewReleaseBundleVerificationCommands(config ReleaseBundleVerificationConfig
 // VerifyReleaseBundle observes authorization, immutable bundle bytes, signing
 // key lifecycle and receipt persistence in the same transaction. Readers must
 // keep the selected resource and public-key rows stable until commit.
-func (s *ReleaseBundleVerificationCommands) VerifyReleaseBundle(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
+func (s *ReleaseBundleVerificationCommands) verifyReleaseBundle(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}

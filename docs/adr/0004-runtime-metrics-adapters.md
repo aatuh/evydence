@@ -1,9 +1,10 @@
 # ADR 0004: Runtime Metrics Adapter Dependencies
 
-Status: accepted for the private metrics adapter unit of EVY-1211, reviewed
-2026-10-16. Dependency resolution, focused tests/race/lint/security and package
-vulnerability checks pass; the full release compatibility gate remains required
-before closing EVY-1211. This reference is for developers maintaining the
+Status: accepted for the native runtime metrics adapter (EVY-1211), reviewed
+2026-10-16. Dependency resolution, focused checks and the complete release
+compatibility gate passed, including full race and live PostgreSQL validation.
+See the [ticket completion record](../../.EVYDENCE_CODEX_BACKLOG.md) for commands,
+results and evidence limits. This reference is for developers maintaining the
 operational metrics adapter.
 
 ## Decision

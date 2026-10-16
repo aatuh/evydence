@@ -51,7 +51,7 @@ func NewEvidenceVerificationCommands(config EvidenceVerificationConfig) (*Eviden
 	}
 	return &EvidenceVerificationCommands{config}, nil
 }
-func (s *EvidenceVerificationCommands) VerifyEvidence(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
+func (s *EvidenceVerificationCommands) verifyEvidence(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}

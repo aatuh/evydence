@@ -14,7 +14,7 @@ It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
 Added a private native API registry for HTTP and provider counters and duration
-histograms (EVY-1211, in progress). Existing tenant metrics and JSON values
+histograms (EVY-1211). Existing tenant metrics and JSON values
 remain available; only explicit `instance:admin` text scrapes include the
 process-wide measurements. Fixed labels, a hard series budget, bounded text
 output and canary tests protect the operational boundary. Metrics responses are
@@ -35,7 +35,13 @@ keeps the original panic and balances admitted activity. Provider work also
 records balanced activity. Worker claim, processing and completion/failure/defer
 acknowledgements now have distinct measurements; uncertain drain/ack outcomes
 cannot become late metric successes or cause additional acknowledgements.
-Parser/signing/verification/reconciliation/package observations remain pending.
+Native parser normalization and worker replay, focused signing/verification
+commands, object reconciliation and package generation now have bounded
+observations. Bundle signing calls are measured separately from generation so
+a successful signature does not conceal a failed transaction. Operational
+completion does not turn a limited verification result into a passing verdict;
+durable assurance profiles and limitations retain their meaning. Dashboard/rule
+calibration and optional tracing remain planned under EVY-1212 and EVY-1213.
 
 Added `/v1/startup` and shared bounded dependency snapshots for startup,
 readiness and instance-admin diagnostics (EVY-1203). Public liveness remains

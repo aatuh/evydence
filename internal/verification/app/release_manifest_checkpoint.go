@@ -39,7 +39,7 @@ func NewReleaseManifestCheckpointCommands(c ReleaseManifestCheckpointConfig) (*R
 	}
 	return &ReleaseManifestCheckpointCommands{c}, nil
 }
-func (s *ReleaseManifestCheckpointCommands) VerifyReleaseManifestCheckpoint(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
+func (s *ReleaseManifestCheckpointCommands) verifyReleaseManifestCheckpoint(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}

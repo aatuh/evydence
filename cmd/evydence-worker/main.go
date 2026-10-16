@@ -533,7 +533,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			return errors.New("parsed sbom is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedSBOM(replayed.Bytes, payloadString(job, "parser_version"))
+			parsed, err := telemetry.Measure(ctx, telemetry.OperationParseSBOM, func(_ context.Context) (replayedSBOM, error) {
+				return parseReplayedSBOM(replayed.Bytes, payloadString(job, "parser_version"))
+			})
 			if err != nil {
 				return err
 			}
@@ -555,7 +557,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			return errors.New("parsed vulnerability scan is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedVulnerabilityScan(replayed.Bytes, job.SubjectID)
+			parsed, err := telemetry.Measure(ctx, telemetry.OperationParseVulnerabilityScan, func(_ context.Context) (replayedVulnerabilityScan, error) {
+				return parseReplayedVulnerabilityScan(replayed.Bytes, job.SubjectID)
+			})
 			if err != nil {
 				return err
 			}
@@ -577,7 +581,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			return errors.New("parsed openapi contract is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedOpenAPIContract(ctx, replayed.Bytes)
+			parsed, err := telemetry.Measure(ctx, telemetry.OperationParseOpenAPI, func(callCtx context.Context) (replayedOpenAPIContract, error) {
+				return parseReplayedOpenAPIContract(callCtx, replayed.Bytes)
+			})
 			if err != nil {
 				return err
 			}
@@ -623,7 +629,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 		var parsed replayedVEX
 		parsedAvailable := false
 		if hasReplayedObject {
-			parsed, err = parseReplayedVEX(replayed.Bytes)
+			parsed, err = telemetry.Measure(ctx, telemetry.OperationParseVEX, func(_ context.Context) (replayedVEX, error) {
+				return parseReplayedVEX(replayed.Bytes)
+			})
 			if err != nil {
 				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 			}
@@ -715,7 +723,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			return errors.New("build attestation verification status is incomplete")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedAttestation(replayed.Bytes)
+			parsed, err := telemetry.Measure(ctx, telemetry.OperationVerifyAttestation, func(_ context.Context) (replayedAttestation, error) {
+				return parseReplayedAttestation(replayed.Bytes)
+			})
 			if err != nil {
 				return err
 			}

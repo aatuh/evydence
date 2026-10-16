@@ -48,7 +48,7 @@ func NewBackupVerificationCommands(c BackupVerificationConfig) (*BackupVerificat
 	}
 	return &BackupVerificationCommands{c}, nil
 }
-func (s *BackupVerificationCommands) VerifyBackupManifest(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
+func (s *BackupVerificationCommands) verifyBackupManifest(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
