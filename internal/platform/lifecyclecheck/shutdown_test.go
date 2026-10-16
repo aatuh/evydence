@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -51,6 +50,7 @@ type fixture struct {
 	requests                                                  sync.WaitGroup
 	t                                                         *testing.T
 	databaseURL, schema, tenant, secret, objects, artifactDir string
+	signerURL                                                 string
 	admin, conn                                               *pgx.Conn
 	store                                                     *postgres.Store
 	children                                                  []*child
@@ -100,6 +100,7 @@ func newFixture(t *testing.T) *fixture {
 	_ = root.Close()
 	must(t, err, "create isolated case artifacts")
 	f := &fixture{t: t, schema: fmt.Sprintf("evy_lifecycle_%d", time.Now().UnixNano()), objects: filepath.Join(directory, "objects"), artifactDir: directory}
+	f.signerURL = newReadinessKMSFixture(t).URL
 	f.admin, err = pgx.Connect(t.Context(), base)
 	must(t, err, "connect fixture admin")
 	t.Cleanup(f.close)
@@ -194,11 +195,14 @@ func (f *fixture) start(kind, label, budget, address string) *child {
 	environment := make([]string, 0, len(os.Environ()))
 	for _, value := range os.Environ() {
 		name, _, _ := strings.Cut(value, "=")
-		if name != "ENV" && !strings.HasPrefix(name, "EVYDENCE_") {
+		if name != "ENV" && !strings.HasPrefix(name, "EVYDENCE_") && !strings.HasPrefix(name, "AWS_") {
 			environment = append(environment, value)
 		}
 	}
-	environment = append(environment, "ENV=production", "EVYDENCE_RUNTIME_PROFILE=postgres", "EVYDENCE_DATABASE_URL="+parsed.String(), "EVYDENCE_POSTGRES_LOAD_MODE=relational_only", "EVYDENCE_SKIP_MIGRATIONS=true", "EVYDENCE_BOOTSTRAP_DISABLED=true", "EVYDENCE_PRINT_BOOTSTRAP_SECRET=false", "EVYDENCE_API_KEY_PEPPER="+fixturePepper, "EVYDENCE_OBJECT_STORE=filesystem", "EVYDENCE_OBJECT_DIR="+f.objects, "EVYDENCE_SIGNING_KEY_MODE=external", "EVYDENCE_SIGNING_EXECUTOR_URL=https://signer.example.invalid/sign", "EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64="+base64.StdEncoding.EncodeToString(make([]byte, 32)), "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS=2", "EVYDENCE_WORKER_POLL_INTERVAL=10ms", "EVYDENCE_WORKER_BATCH_SIZE=1", "EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS="+budget, "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS="+budget)
+	environment = append(environment, "ENV=production", "EVYDENCE_RUNTIME_PROFILE=postgres", "EVYDENCE_DATABASE_URL="+parsed.String(), "EVYDENCE_POSTGRES_LOAD_MODE=relational_only", "EVYDENCE_SKIP_MIGRATIONS=true", "EVYDENCE_BOOTSTRAP_DISABLED=true", "EVYDENCE_PRINT_BOOTSTRAP_SECRET=false", "EVYDENCE_API_KEY_PEPPER="+fixturePepper, "EVYDENCE_OBJECT_STORE=filesystem", "EVYDENCE_OBJECT_DIR="+f.objects,
+		"EVYDENCE_SIGNING_KEY_MODE=aws-kms", "EVYDENCE_AWS_REGION=eu-north-1", "EVYDENCE_AWS_KMS_KEY_ID=alias/lifecycle-fixture", "EVYDENCE_AWS_KMS_ENDPOINT="+f.signerURL,
+		"AWS_ACCESS_KEY_ID=fixture-access", "AWS_SECRET_ACCESS_KEY=fixture-secret", "AWS_EC2_METADATA_DISABLED=true", "AWS_CONFIG_FILE="+os.DevNull, "AWS_SHARED_CREDENTIALS_FILE="+os.DevNull,
+		"EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS=2", "EVYDENCE_WORKER_POLL_INTERVAL=10ms", "EVYDENCE_WORKER_BATCH_SIZE=1", "EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS="+budget, "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS="+budget)
 	migrations, err := filepath.Abs("../../../migrations")
 	must(f.t, err, "resolve migration directory")
 	environment = append(environment, "EVYDENCE_MIGRATIONS_DIR="+migrations)

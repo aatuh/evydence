@@ -114,6 +114,36 @@ existence checks over active-work indexes, returns no tenant/job data, and
 does not claim, renew or replay work. An empty queue alone cannot establish
 that a worker is running; this probe detects stalled work once it exists.
 
+In production, the historical `signing_config` check now probes the required
+signer's operational availability rather than merely checking that an executor
+exists. Probes never create a signature, evidence record or signing receipt:
+
+- AWS KMS uses `DescribeKey` for the configured key, requiring enabled state,
+  signing usage and the configured algorithm. Grant `kms:DescribeKey` on that
+  key in addition to the existing signing/verification permissions.
+- GCP KMS reads the configured default key version, requiring `ENABLED` state
+  and a supported SHA-256 signing algorithm. Grant
+  `cloudkms.cryptoKeyVersions.get` for that version. Health credential exchanges
+  use their caller's context and a separate short-lock token cache; they never
+  wait on the signing path's contextless OAuth refresh. JSON-based ADC uses
+  the pinned Google credential parser; metadata-backed ADC uses its
+  context-aware metadata client. Credential HTTP response reads are capped.
+- Azure Key Vault fetches the configured default key/version's public metadata
+  under a caller-bounded credential exchange. It checks key identity, enabled
+  and validity attributes, signing operations and the supported EC public key.
+  The operation requires `keys/get` access.
+- External/PKCS#11 gateways require an explicit same-origin readiness URL and
+  the small response contract in the [configuration reference](configuration.md).
+  The gateway owns the meaning of its availability report.
+
+GCP and Azure metadata bodies are capped at 64 KiB; AWS uses the pinned SDK's
+typed metadata decoder under the probe deadline.
+Metadata checks observe provider reachability, credentials and the configured
+default key's reported state. They do not prove `Sign` permission, hardware
+custody, every tenant-selected key's availability or successful future signing.
+Public responses contain only the existing safe dependency name/status; raw
+provider errors, URLs, tokens and key identifiers are excluded.
+
 Canonical GET/HEAD requests to the three public lifecycle paths are independent
 of application edge quotas and in-flight admission. Startup/readiness have a
 separate eight-request pool; saturation returns a low-detail retryable `503`

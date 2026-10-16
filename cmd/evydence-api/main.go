@@ -168,7 +168,7 @@ func runAPI(ctx context.Context) (runErr error) {
 	readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "object_store", Timeout: runtimeReadinessTimeout, FailureDetail: "object store access is unavailable", Check: objectReadiness.CheckReadiness})
 	logging.Emit(ctx, logging.Command, logging.Fields{OperationID: "runtime_open", Result: logging.Succeeded})
 	if production {
-		readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing configuration is unavailable", Check: signingConfigurationReadiness(signer)})
+		readinessChecks = append(readinessChecks, app.ReadinessCheck{Name: "signing_config", Timeout: runtimeReadinessTimeout, FailureDetail: "required signing dependency is unavailable", Check: signingConfigurationReadiness(signer)})
 	}
 	bootstrapDisabled := strings.EqualFold(os.Getenv("EVYDENCE_BOOTSTRAP_DISABLED"), "true")
 	printBootstrapSecret := strings.EqualFold(os.Getenv("EVYDENCE_PRINT_BOOTSTRAP_SECRET"), "true")
@@ -301,6 +301,7 @@ func openSigningExecutor(ctx context.Context) (app.SigningExecutor, error) {
 	}
 	executor, err := signinggateway.New(signinggateway.Config{
 		Endpoint:                  endpoint,
+		ReadinessEndpoint:         os.Getenv("EVYDENCE_SIGNING_EXECUTOR_READINESS_URL"),
 		BearerToken:               os.Getenv("EVYDENCE_SIGNING_EXECUTOR_TOKEN"),
 		VerificationPublicKey:     os.Getenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64"),
 		AllowInsecureForLocalhost: outboundLocalhostAllowed("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"),
@@ -454,7 +455,11 @@ func signingConfigurationReadiness(signer app.SigningExecutor) func(context.Cont
 		if signer == nil {
 			return errors.New("signing executor is not configured")
 		}
-		return nil
+		probe, ok := signer.(interface{ CheckReadiness(context.Context) error })
+		if !ok {
+			return errors.New("signing executor does not provide operational readiness")
+		}
+		return probe.CheckReadiness(ctx)
 	}
 }
 

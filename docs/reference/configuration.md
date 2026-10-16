@@ -88,6 +88,7 @@ process, or equivalent deployment control.
 | `EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST` | Local development only | `false` | Allows an HTTP loopback gateway only outside production. `ENV=production` rejects this setting when `true`. |
 | `EVYDENCE_SIGNING_KEY_MODE` | Production yes | `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or `pkcs11-hsm` for production | Production rejects local plaintext signing-key mode. `aws-kms`, `gcp-kms`, and `azure-key-vault` can use built-in provider executors. `pkcs11-hsm` remains an HTTPS signing-gateway profile. |
 | `EVYDENCE_SIGNING_EXECUTOR_URL` | `external` and `pkcs11-hsm` production modes | unset | HTTPS signing gateway used by `POST /v1/signing-operations`. The API sends a canonical request that binds subject metadata and `payload_hash`, never raw payload bytes. |
+| `EVYDENCE_SIGNING_EXECUTOR_READINESS_URL` | Production gateway readiness | unset | Explicit non-mutating GET endpoint on the signing URL's origin (same scheme, host and effective port), with no user information, query or fragment. Must return `200` with exactly `{"status":"ok"}` when required signing dependencies are available; responses are capped at 4096 bytes. Missing configuration keeps production readiness unavailable. Uses the signing bearer token and rejects redirects. |
 | `EVYDENCE_SIGNING_EXECUTOR_TOKEN` | Signing gateway | unset | Optional bearer token for the signing gateway. Store outside source control and logs. |
 | `EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64` | Signing gateway | unset | Required base64-encoded Ed25519 public key. Evydence verifies the gateway signature over the canonical signing-request hash before persisting a receipt. This is public trust material, never a private key. |
 | `EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS` | No | `10` | Timeout for signing gateway requests. |
@@ -97,12 +98,12 @@ process, or equivalent deployment control.
 | `EVYDENCE_AWS_KMS_ENDPOINT` | No | unset | Optional AWS KMS-compatible endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_AWS_KMS_SIGNING_ALGORITHM` | No | `ECDSA_SHA_256` | Supported values are `ECDSA_SHA_256`, `RSASSA_PSS_SHA_256`, and `RSASSA_PKCS1_V1_5_SHA_256` because Evydence signs stored SHA-256 payload hashes. |
 | `EVYDENCE_AWS_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for AWS KMS signing requests. |
-| `EVYDENCE_GCP_KMS_KEY_NAME` | GCP KMS mode | unset | Default GCP Cloud KMS key version resource name. A signing provider `key_ref` can override it. |
+| `EVYDENCE_GCP_KMS_KEY_NAME` | GCP KMS production readiness | unset | Default GCP Cloud KMS key version resource name. Required for the process's metadata readiness probe; a signing provider `key_ref` can still override it for actual signing. |
 | `EVYDENCE_GCP_KMS_ENDPOINT` | No | `https://cloudkms.googleapis.com` | Optional GCP KMS endpoint for tests or controlled private endpoints. |
 | `EVYDENCE_GCP_KMS_TIMEOUT_SECONDS` | No | `10` | Timeout for GCP KMS signing requests. |
 | `EVYDENCE_AZURE_KEY_VAULT_URL` | Azure Key Vault mode | unset | HTTPS Key Vault URL used by the direct Azure Key Vault executor. |
-| `EVYDENCE_AZURE_KEY_VAULT_KEY_NAME` | Azure Key Vault mode | unset | Default Key Vault key name. A signing provider `key_ref` URL can override it. |
-| `EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION` | Azure Key Vault mode | unset | Default Key Vault key version. A signing provider `key_ref` URL can override it. |
+| `EVYDENCE_AZURE_KEY_VAULT_KEY_NAME` | Azure Key Vault production readiness | unset | Default Key Vault key name required for metadata readiness. A signing provider `key_ref` URL can override it for actual signing. |
+| `EVYDENCE_AZURE_KEY_VAULT_KEY_VERSION` | Azure Key Vault production readiness | unset | Default Key Vault key version required for metadata readiness. A signing provider `key_ref` URL can override it for actual signing. |
 | `EVYDENCE_AZURE_KEY_VAULT_ALGORITHM` | No | `ES256` | Azure Key Vault signing algorithm used for the SHA-256 digest. |
 | `EVYDENCE_AZURE_KEY_VAULT_API_VERSION` | No | `7.4` | Azure Key Vault API version. |
 | `EVYDENCE_AZURE_KEY_VAULT_TIMEOUT_SECONDS` | No | `10` | Timeout for Azure Key Vault signing requests. |

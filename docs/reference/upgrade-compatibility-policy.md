@@ -68,6 +68,15 @@ or starting with a mismatched/unreadable revision file, fails before runtime
 resources open. This mechanism does not hot-reload settings or watch external
 Secret updates; those require an operator rollout.
 
+Production `signing_config` now checks the actual signing dependency. Gateways
+need `EVYDENCE_SIGNING_EXECUTOR_READINESS_URL` with the documented read-only
+response contract. Native cloud modes need metadata-read permission; GCP and
+Azure additionally require configured default key/version values for that
+process probe, even when tenant signing requests supply their own key reference.
+Missing probe configuration or provider failure leaves readiness unavailable
+while dependency-free liveness continues. These metadata reads create no test
+signatures and do not establish every key's signing authorization.
+
 See [observability](observability.md#endpoints) for endpoint semantics and
 freshness bounds. Instance diagnostics still require explicit `instance:admin`.
 No evidence, audit, idempotency or backup format changes accompany this HTTP
