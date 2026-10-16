@@ -49,6 +49,7 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 	type operation struct{ id, method, path string }
 	var operations []operation
 	var hasOIDCAuthenticationRequest bool
+	var hasStartup bool
 	samlOperations := map[string]string{"beginSAMLAuthentication": "POST /v1/sso/saml-authentication-requests", "configureSAMLProviderBinding": "POST /v1/sso/providers/{id}/saml-binding", "getSAMLProviderBinding": "GET /v1/sso/providers/{id}/saml-binding"}
 	for path, methods := range doc.Paths {
 		for method, op := range methods {
@@ -63,12 +64,21 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 				if op.OperationID == "beginOIDCAuthentication" && method == "post" && path == "/v1/sso/authentication-requests" {
 					hasOIDCAuthenticationRequest = true
 				}
+				if op.OperationID == "startup" {
+					if method != "get" || path != "/v1/startup" {
+						t.Fatal("native startup operation changed its process-probe contract")
+					}
+					hasStartup = true
+				}
 			}
 		}
 	}
 	sort.Slice(operations, func(i, j int) bool { return operations[i].id < operations[j].id })
-	if len(operations) != 193 {
-		t.Fatalf("native route sweep covers %d operations, expected current contract's 193", len(operations))
+	if len(operations) != 194 {
+		t.Fatalf("native route sweep covers %d operations, expected current contract's 194", len(operations))
+	}
+	if !hasStartup {
+		t.Fatal("native route sweep omits the startup lifecycle operation")
 	}
 	if len(samlOperations) != 0 {
 		t.Fatal("native route sweep omits SAML binding/login operations", samlOperations)
@@ -89,11 +99,19 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 				body = ""
 			}
 			r := httptest.NewRequest(op.method, path, strings.NewReader(body)).WithContext(t.Context())
-			r.Header.Set("Authorization", "Bearer evysso_receipt_fixture")
+			if op.id != "startup" {
+				r.Header.Set("Authorization", "Bearer evysso_receipt_fixture")
+			}
 			r.Header.Set("Idempotency-Key", "sweep-"+op.id)
 			r.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			s.Handler().ServeHTTP(w, r)
+			if op.id == "startup" {
+				var result struct{ Data struct{ Status string } }
+				if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &result) != nil || result.Data.Status != "ok" || w.Header().Get("Cache-Control") != "no-store" {
+					t.Fatal("native startup probe requires credentials or lost its initialized process contract", w.Code, w.Body.String())
+				}
+			}
 			// Public portal APIs use their own package token, not the supplied
 			// administrative SSO bearer. Missing package tokens must still fail.
 			portalTokenRequired := op.id == "accessCustomerPortalPackage" || op.id == "downloadCustomerPortalPackage"
