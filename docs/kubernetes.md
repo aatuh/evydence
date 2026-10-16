@@ -13,6 +13,14 @@ three-second dependency refresh budget. The startup allowance does not extend
 the process's own initialization deadlines. See [probe semantics and
 configuration freshness](reference/observability.md#endpoints).
 
+Worker exec probes query the daemon's private loopback listener. Startup uses
+`evydence-worker healthcheck --startup` every five seconds with 60 failures
+allowed. Readiness uses `evydence-worker healthcheck` every five seconds with
+three failures; both allow six seconds for command startup and the five-second
+client timeout. Liveness uses `evydence-worker healthcheck --liveness` every ten
+seconds with a two-second timeout and three failures. The command now checks
+the running worker; starting a separate process alone cannot report health.
+
 ConfigMap changes alter pod-template checksums for both daemons and trigger a
 rollout. The API also receives a read-only projected desired configuration
 revision, so a still-running pod can report stale configuration after the
@@ -38,6 +46,15 @@ the chart does not automatically detect updates to that external object.
   profile documented in the configuration reference.
 
 The chart does not create databases, buckets, KMS keys, or secrets.
+It loads additional runtime variables, such as S3 credentials and API signing
+gateway settings, from the selected Secret. Set `api.existingSecret` and
+`worker.existingSecret` to separate Secrets when identities differ; each falls
+back to `existingSecret`. Include the required database/pepper keys in each
+selected Secret and grant only the permissions that daemon needs. For example,
+a worker does not need the API's cloud signing credentials. Chart ConfigMap
+settings take precedence over Secret variables; explicit database/pepper key
+references retain their configured key names. Existing external Secret data
+updates still require an operator rollout.
 Use the [external controls matrix](reference/external-controls-matrix.md) to
 track which of those production controls are repo-owned, operator-owned,
 provider-owned, or legal/review-owned for the deployment.
@@ -75,14 +92,15 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `api.*TimeoutSeconds`, `api.maxHeaderBytes`, `api.maxURLBytes`, `api.maxInFlightRequests`, `api.maxConcurrentUploads` | Validated API listener, request-target, and concurrency limits. Defaults match the canonical [Configuration](reference/configuration.md#http-ingress-limits-and-proxy-trust). |
 | `api.rateLimitRequestsPerMinute`, `api.expensiveTenantRequestsPerMinute`, `api.rateLimitBucketCapacity`, `api.trustedProxyCIDRs` | Process-local edge and expensive-route limits. Set trusted CIDRs only for ingress proxies that sanitize `X-Forwarded-For`. |
 | `worker.replicas` | Worker replicas. May be scaled with PostgreSQL outbox locking. |
+| `worker.healthPort` | Private `127.0.0.1` probe port, integer `1..65535`, default `8081`. No Service or published container port is added. |
 | `api.shutdownTimeoutSeconds`, `worker.shutdownTimeoutSeconds` | Request/job drain budgets, whole seconds `1..300`, default `30`. |
 | `cleanupTimeoutSeconds` | Shared daemon resource-cleanup budget, whole seconds `1..60`, default `5`. |
 | `api.terminationGracePeriodSeconds`, `worker.terminationGracePeriodSeconds` | Pod grace periods, default `40`; each must cover its drain budget plus cleanup plus a five-second margin. Invalid combinations fail rendering. |
 | `api.resources`, `worker.resources` | Resource requests and limits. |
 | `podSecurityContext`, `containerSecurityContext` | Non-root and least-privilege pod/container defaults. |
-| `worker.probes.*` | Worker exec probes using `evydence-worker healthcheck`. |
+| `worker.probes.*` | Enable/override startup, readiness and liveness exec commands. Defaults query the running worker with their distinct modes. |
 | `networkPolicy.enabled` | Optional starter NetworkPolicy for API ingress. |
-| `existingSecret` | Secret containing runtime sensitive variables. |
+| `existingSecret`, `api.existingSecret`, `worker.existingSecret` | Shared runtime Secret and optional daemon-specific overrides. Additional variables are loaded through `envFrom`; prefer separate scoped credentials. |
 | `env.databaseURLSecretKey` | Secret key for `EVYDENCE_DATABASE_URL`. |
 | `env.apiKeyPepperSecretKey` | Secret key for `EVYDENCE_API_KEY_PEPPER`. |
 | `env.objectStore` | `s3` or `minio` for cluster deployments. |

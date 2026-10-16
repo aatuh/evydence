@@ -76,6 +76,40 @@ class DeploymentLifecycleTests(unittest.TestCase):
         startup = api["startupProbe"]
         self.assertGreaterEqual(startup["failureThreshold"] * startup["periodSeconds"], 300)
 
+    def test_worker_probes_query_live_daemon_with_distinct_modes(self):
+        config, deployments = self.manifests()
+        self.assertEqual(config["EVYDENCE_WORKER_HEALTH_ADDR"], "127.0.0.1:8081")
+        worker = deployments["worker"]["spec"]["template"]["spec"]["containers"][0]
+        for kind, mode in [("startup", ["--startup"]), ("readiness", []), ("liveness", ["--liveness"])]:
+            probe = worker[kind + "Probe"]
+            self.assertEqual(probe["exec"]["command"], ["evydence-worker", "healthcheck", *mode])
+            self.assertGreaterEqual(probe["periodSeconds"], 5)
+            self.assertGreaterEqual(probe["failureThreshold"], 3)
+            self.assertEqual(probe["successThreshold"], 1)
+            self.assertEqual(probe["timeoutSeconds"], 2 if kind == "liveness" else 6)
+        startup = worker["startupProbe"]
+        self.assertGreaterEqual(startup["failureThreshold"] * startup["periodSeconds"], 300)
+        custom, deployments = self.manifests({"worker": {"healthPort": 18081, "probes": {"enabled": False}}})
+        self.assertEqual(custom["EVYDENCE_WORKER_HEALTH_ADDR"], "127.0.0.1:18081")
+        worker = deployments["worker"]["spec"]["template"]["spec"]["containers"][0]
+        for kind in ("startup", "readiness", "liveness"):
+            self.assertNotIn(kind + "Probe", worker)
+        for invalid in (0, 65536, "8081", True, 8081.5):
+            self.assertNotEqual(self.render({"worker": {"healthPort": invalid}}).returncode, 0)
+
+    def test_runtime_credentials_use_selected_secret_without_overriding_chart_safety(self):
+        for overrides, selected in [({}, {"api": "evydence-secrets", "worker": "evydence-secrets"}),
+                                    ({"api": {"existingSecret": "api-runtime"}, "worker": {"existingSecret": "worker-runtime"}},
+                                     {"api": "api-runtime", "worker": "worker-runtime"})]:
+            _, deployments = self.manifests(overrides)
+            for component in ("api", "worker"):
+                container = deployments[component]["spec"]["template"]["spec"]["containers"][0]
+                self.assertEqual(container["envFrom"][0], {"secretRef": {"name": selected[component]}})
+                self.assertIn("configMapRef", container["envFrom"][-1], "chart safety settings must take precedence")
+                for name in ("EVYDENCE_DATABASE_URL", "EVYDENCE_API_KEY_PEPPER"):
+                    variable = next(value for value in container["env"] if value["name"] == name)
+                    self.assertEqual(variable["valueFrom"]["secretKeyRef"]["name"], selected[component])
+
     def test_config_revision_is_projected_and_rolls_all_configuration_consumers(self):
         config, deployments = self.manifests()
         revision = config["EVYDENCE_CONFIGURATION_REVISION"]
@@ -84,15 +118,16 @@ class DeploymentLifecycleTests(unittest.TestCase):
         for component in ("api", "worker"):
             annotations.append(deployments[component]["spec"]["template"]["metadata"]["annotations"]["checksum/config"])
         self.assertEqual(annotations[0], annotations[1])
-        pod = deployments["api"]["spec"]["template"]["spec"]
-        api = pod["containers"][0]
-        path = next(value["value"] for value in api["env"] if value["name"] == "EVYDENCE_CONFIGURATION_REVISION_FILE")
-        mount = next(value for value in api["volumeMounts"] if value["name"] == "configuration-revision")
-        self.assertTrue(mount["readOnly"])
-        self.assertNotIn("subPath", mount, "subPath mounts do not observe ConfigMap projection updates")
-        volume = next(value for value in pod["volumes"] if value["name"] == mount["name"])
-        self.assertEqual(volume["configMap"]["items"], [{"key": "EVYDENCE_CONFIGURATION_REVISION", "path": "revision"}])
-        self.assertEqual(path, mount["mountPath"] + "/revision")
+        for component in ("api", "worker"):
+            pod = deployments[component]["spec"]["template"]["spec"]
+            container = pod["containers"][0]
+            path = next(value["value"] for value in container["env"] if value["name"] == "EVYDENCE_CONFIGURATION_REVISION_FILE")
+            mount = next(value for value in container["volumeMounts"] if value["name"] == "configuration-revision")
+            self.assertTrue(mount["readOnly"])
+            self.assertNotIn("subPath", mount, "subPath mounts do not observe ConfigMap projection updates")
+            volume = next(value for value in pod["volumes"] if value["name"] == mount["name"])
+            self.assertEqual(volume["configMap"]["items"], [{"key": "EVYDENCE_CONFIGURATION_REVISION", "path": "revision"}])
+            self.assertEqual(path, mount["mountPath"] + "/revision")
         changed, replacement = self.manifests({"api": {"maxInFlightRequests": 512}})
         self.assertNotEqual(changed["EVYDENCE_CONFIGURATION_REVISION"], revision)
         for component, previous in zip(("api", "worker"), annotations):

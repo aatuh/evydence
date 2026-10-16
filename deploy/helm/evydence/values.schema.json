@@ -3,11 +3,13 @@
   "type": "object",
   "required": ["api", "worker", "cleanupTimeoutSeconds"],
   "properties": {
+    "existingSecret": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
     "cleanupTimeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 60},
     "api": {
       "type": "object",
       "required": ["replicas", "shutdownTimeoutSeconds", "terminationGracePeriodSeconds"],
       "properties": {
+        "existingSecret": {"type": "string", "maxLength": 253, "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
         "replicas": {"type": "integer", "const": 1},
         "writerMode": {"type": "string", "enum": ["single", "single-writer"]},
         "shutdownTimeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 300},
@@ -16,8 +18,20 @@
     },
     "worker": {
       "type": "object",
-      "required": ["replicas", "shutdownTimeoutSeconds", "terminationGracePeriodSeconds"],
+      "required": ["replicas", "shutdownTimeoutSeconds", "terminationGracePeriodSeconds", "healthPort", "probes"],
       "properties": {
+        "existingSecret": {"type": "string", "maxLength": 253, "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
+        "healthPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "probes": {
+          "type": "object",
+          "required": ["enabled", "startupCommand", "readinessCommand", "livenessCommand"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "startupCommand": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+            "readinessCommand": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+            "livenessCommand": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+          }
+        },
         "replicas": {"type": "integer", "minimum": 0},
         "shutdownTimeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 300},
         "terminationGracePeriodSeconds": {"type": "integer", "minimum": 1, "maximum": 3600}

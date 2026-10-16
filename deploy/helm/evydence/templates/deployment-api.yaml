@@ -41,6 +41,8 @@ spec:
             - name: http
               containerPort: 8080
           envFrom:
+            - secretRef:
+                name: {{ include "evydence.runtimeSecret" (dict "process" .Values.api "fallback" .Values.existingSecret) }}
             - configMapRef:
                 name: {{ include "evydence.fullname" . }}-config
           env:
@@ -49,12 +51,12 @@ spec:
             - name: EVYDENCE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.existingSecret }}
+                  name: {{ include "evydence.runtimeSecret" (dict "process" .Values.api "fallback" .Values.existingSecret) }}
                   key: {{ .Values.env.databaseURLSecretKey }}
             - name: EVYDENCE_API_KEY_PEPPER
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.existingSecret }}
+                  name: {{ include "evydence.runtimeSecret" (dict "process" .Values.api "fallback" .Values.existingSecret) }}
                   key: {{ .Values.env.apiKeyPepperSecretKey }}
           volumeMounts:
             - name: configuration-revision

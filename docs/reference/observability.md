@@ -165,9 +165,47 @@ without dependency I/O; it does not cancel admitted requests before their
 existing drain deadline. The listener then closes as part of normal shutdown,
 so this does not promise that a new probe can connect during termination.
 
+### Worker lifecycle probes
+
+The worker has a separate loopback-only listener, default `127.0.0.1:8081`.
+It starts after runtime initialization and migration completion, before the
+worker loop can claim jobs. Runtime initialization has a 30-second deadline.
+The listener serves `/v1/health`, `/v1/startup` and `/v1/ready`, with overall
+status only and `meta.process: worker`. It uses the same bounded snapshot cache
+and an eight-request startup/readiness pool; liveness does no dependency I/O.
+The public API's OpenAPI/SDK catalog does not expose this internal listener.
+
+| Command | Observation |
+| --- | --- |
+| `evydence-worker healthcheck` | Running worker readiness: database, schema, object store, outbox progress and configuration freshness. |
+| `evydence-worker healthcheck --startup` | Initialized worker with current database/schema/configuration prerequisites. |
+| `evydence-worker healthcheck --liveness` | Responsive worker probe handler, independent of serving dependencies. |
+
+Commands query the configured local listener and exit zero only for a healthy
+response identifying a worker. An absent worker, another process, a malformed
+reply or a failed dependency check exits nonzero. `--healthcheck` remains an
+alias for the command; startup/liveness flags are mutually exclusive. The client
+has a five-second timeout, a 4096-byte response cap, no ambient proxy and no
+redirect following. It prints no response body or dependency details.
+
+Worker readiness does not suspend job processing. Liveness cannot diagnose a
+failure isolated to business logic; stalled work is observed through outbox
+progress checks. Workers do not require the API writer lease or an API signing
+executor to report ready. Detailed instance diagnostics remain on the API's
+authenticated `/v1/admin/readiness` surface; the worker listener has no detailed
+diagnostic route.
+
+The worker owns and joins its probe server and native work loop. A shutdown
+signal, serving failure or loop exit marks draining before cancelling the work
+root. Listener shutdown overlaps the existing job drain; admitted jobs retain
+their native drain deadline. A noncooperative probe that outlives listener
+shutdown forces a nonzero process exit and preserves the resource-ownership
+boundary, as an unfinished job does. An occupied probe port fails before any
+jobs are claimed. No worker probe port needs to be published outside its pod.
+
 ### Configuration freshness
 
-The API's `configuration` startup/readiness check compares its current process
+The API and worker `configuration` startup/readiness checks compare their process
 environment with a digest captured before runtime composition. It includes
 `ENV`, `EVYDENCE_*`, `AWS_*`, `GOOGLE_*` and `AZURE_*`; it retains no raw secret
 values and exposes neither the digest nor changed variable names. Reordering
@@ -176,16 +214,16 @@ Environment-based settings are fixed for the process lifetime; health checks
 do not reload them.
 
 For an external desired-state signal, set both revision variables in the
-[configuration reference](configuration.md). The API reopens the local revision
+[configuration reference](configuration.md). Each daemon reopens the local revision
 file on each dependency refresh. A changed, missing or malformed revision
 blocks startup/readiness; restoring the loaded revision permits recovery after
 cache expiry. The file and parent directory must be operator-controlled and
 on a local filesystem; this mechanism is not a remote configuration reader.
 
 Helm hashes its non-secret ConfigMap data into the loaded revision, projects
-that revision as a read-only volume without `subPath`, and annotates both API
+that revision into both daemons as a read-only volume without `subPath`, and annotates API
 and worker pod templates with a ConfigMap checksum to trigger replacement on
-chart configuration changes. Detection in an existing API pod depends on
+chart configuration changes. Detection in an existing pod depends on
 Kubernetes propagating the projected volume update, then the health cache
 refreshing. The five-second snapshot age bound starts after local projection,
 not at the control-plane update. Normal chart changes also start a rollout.

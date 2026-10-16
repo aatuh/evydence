@@ -77,6 +77,16 @@ Missing probe configuration or provider failure leaves readiness unavailable
 while dependency-free liveness continues. These metadata reads create no test
 signatures and do not establish every key's signing authorization.
 
+The worker's `healthcheck`/`--healthcheck` command now requires a running worker
+on `EVYDENCE_WORKER_HEALTH_ADDR` (default `127.0.0.1:8081`). It is no longer an
+unconditional-success utility. Use `--startup` and `--liveness` for distinct
+lifecycle checks. Pick a separate loopback port for each worker sharing a
+network namespace; an occupied port prevents claims. Helm provides the three
+exec modes, projects the configuration revision into both daemons, and loads
+runtime Secret variables. Optional per-daemon Secret overrides allow the API
+and worker to use different credentials. Chart safety settings take precedence
+over Secret variables; inspect existing Secret keys before upgrading.
+
 See [observability](observability.md#endpoints) for endpoint semantics and
 freshness bounds. Instance diagnostics still require explicit `instance:admin`.
 No evidence, audit, idempotency or backup format changes accompany this HTTP

@@ -57,8 +57,12 @@ func TestOperatorQueryFixturesPreserveResponsesIsolationAndReadOnlyState(t *test
 	snapshot := domain.InstanceAdminSnapshot{ReportType: "instance_admin_snapshot", TenantCount: 2,
 		ResourceCounts: map[string]int{"tenants": 2, "users": 0, "collectors": 0, "evidence": 3},
 		Limitations:    []string{"Instance admin diagnostics expose operational counts only and not raw evidence payloads or secrets."}, GeneratedAt: resources.now()}
-	diagnostics := map[string]any{"status": "unavailable", "checks": []map[string]string{{"name": "ledger", "status": "ok"}, {"name": "postgres", "status": "unavailable", "detail": "database connectivity is unavailable"}}}
-	public := map[string]any{"status": "unavailable", "checks": []map[string]string{{"name": "ledger", "status": "ok"}, {"name": "postgres", "status": "unavailable"}}}
+	diagnostics := map[string]any{
+		"status": "unavailable", "checks": []map[string]string{{"name": "postgres", "status": "unavailable", "detail": "database connectivity is unavailable"}},
+		"startup_status": "unavailable", "initialized": true, "draining": false,
+		"checked_at": resources.now().Format(time.RFC3339Nano), "valid_until": resources.now().Add(2 * time.Second).Format(time.RFC3339Nano),
+	}
+	public := map[string]any{"status": "unavailable", "checks": []map[string]string{{"name": "postgres", "status": "unavailable"}}}
 	retry := app.DescribeProblem(app.ErrDependencyUnavailable)
 	public["retryable"], public["retry_class"], public["retry_after_seconds"] = retry.Retryable, retry.RetryClass, retry.RetryAfterSeconds
 	requests := []struct {
@@ -105,7 +109,7 @@ func TestOperatorQueryFixturesPreserveResponsesIsolationAndReadOnlyState(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectedReadiness["checks"].([]map[string]string)[1]["detail"] = "modified"
+	projectedReadiness["checks"].([]map[string]string)[0]["detail"] = "modified"
 	for _, request := range requests {
 		out := getRaw(t, server, "fixture-auth", request.path, request.code)
 		want, err := json.Marshal(map[string]any{"data": request.want, "meta": map[string]string{"api_version": "v1"}})

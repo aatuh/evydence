@@ -1,4 +1,4 @@
-package main
+package confighealth
 
 import (
 	"context"
@@ -19,12 +19,12 @@ const (
 
 var errConfigurationUnavailable = errors.New("loaded configuration is unavailable or stale")
 
-// newConfigurationReadiness captures the process environment before runtime
+// New captures the process environment before runtime
 // composition. Only its digest is retained. Operators can additionally project
 // a desired revision through a local regular file; reopening it on each cached
 // health refresh observes Kubernetes' atomic volume projection replacements.
 // This does not reload configuration or query an external configuration API.
-func newConfigurationReadiness(ctx context.Context, environ func() []string) (func(context.Context) error, error) {
+func New(ctx context.Context, environ func() []string) (func(context.Context) error, error) {
 	if environ == nil {
 		return nil, errConfigurationUnavailable
 	}

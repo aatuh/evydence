@@ -322,11 +322,11 @@ func TestWorkerInvalidCleanupBudgetFailsBeforeStorage(t *testing.T) {
 }
 
 func TestWorkerShutdownCleanupCannotBlockForcedExit(t *testing.T) {
-	for _, err := range []error{nil, errors.New("startup failed"), errWorkerDrainTimeout} {
+	for _, err := range []error{nil, errors.New("startup failed"), errWorkerDrainTimeout, errWorkerProbeDrainTimeout} {
 		called := 0
 		closeWorkerAfterStop(err, func() { called++ })
 		want := 1
-		if errors.Is(err, errWorkerDrainTimeout) {
+		if errors.Is(err, errWorkerDrainTimeout) || errors.Is(err, errWorkerProbeDrainTimeout) {
 			want = 0
 		}
 		if called != want {

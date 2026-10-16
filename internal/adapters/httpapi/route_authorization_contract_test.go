@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"slices"
 	"strings"
@@ -12,7 +13,7 @@ import (
 
 func TestEveryRegisteredRouteDeclaresAuthorizationPolicyContract(t *testing.T) {
 	routes := (&Server{}).routeDefinitions()
-	if len(routes) != 193 {
+	if len(routes) != 194 {
 		t.Fatalf("route inventory changed: %d; review every new/removed policy contract", len(routes))
 	}
 	seen := map[string]bool{}
@@ -31,6 +32,12 @@ func TestEveryRegisteredRouteDeclaresAuthorizationPolicyContract(t *testing.T) {
 		if err := validateRouteAuthorizationPolicy(route.op, policy); err != nil {
 			t.Errorf("%s: %v", route.op.OperationID, err)
 		}
+		if route.op.OperationID == "startup" && (route.method != http.MethodGet || route.path != "/v1/startup" || policy.Mode != "public-probe" || policy.TenantRule != "no-tenant-data" || len(policy.Actions) != 0) {
+			t.Fatal("startup route changed its reviewed public process boundary", route, policy)
+		}
+	}
+	if !seen["startup"] {
+		t.Fatal("missing startup lifecycle policy operation")
 	}
 	for _, operation := range []string{"configureSAMLProviderBinding", "getSAMLProviderBinding", "beginSAMLAuthentication"} {
 		if !seen[operation] {

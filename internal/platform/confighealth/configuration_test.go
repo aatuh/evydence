@@ -1,4 +1,4 @@
-package main
+package confighealth
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 func TestConfigurationReadinessDetectsEnvironmentDriftAndRecovery(t *testing.T) {
 	values := []string{"ENV=production", "EVYDENCE_API_KEY_PEPPER=private-pepper", "UNRELATED=first"}
-	probe, err := newConfigurationReadiness(t.Context(), func() []string { return values })
+	probe, err := New(t.Context(), func() []string { return values })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestConfigurationReadinessDetectsProjectedRevisionChanges(t *testing.T) {
 	}
 	write(current + "\n")
 	values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + current, "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
-	probe, err := newConfigurationReadiness(t.Context(), func() []string { return values })
+	probe, err := New(t.Context(), func() []string { return values })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestConfigurationReadinessFollowsAtomicProjectionSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
-	probe, err := newConfigurationReadiness(t.Context(), func() []string { return values })
+	probe, err := New(t.Context(), func() []string { return values })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestConfigurationReadinessRejectsIncompleteOrUnsafeRevisionConfig(t *testin
 		{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=relative"},
 		{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=/missing/private-file"},
 	} {
-		probe, err := newConfigurationReadiness(t.Context(), func() []string { return values })
+		probe, err := New(t.Context(), func() []string { return values })
 		if err == nil || probe != nil || strings.Contains(err.Error(), "private-") {
 			t.Fatalf("unsafe configuration accepted/disclosed: %v", err)
 		}
@@ -147,7 +147,7 @@ func TestConfigurationReadinessIncludesProviderEnvironment(t *testing.T) {
 	for _, name := range []string{"AWS_ACCESS_KEY_ID", "GOOGLE_APPLICATION_CREDENTIALS", "AZURE_TENANT_ID"} {
 		t.Run(name, func(t *testing.T) {
 			values := []string{name + "=private-initial"}
-			probe, err := newConfigurationReadiness(t.Context(), func() []string { return values })
+			probe, err := New(t.Context(), func() []string { return values })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -160,12 +160,12 @@ func TestConfigurationReadinessIncludesProviderEnvironment(t *testing.T) {
 }
 
 func TestConfigurationReadinessRejectsInvalidSourcesBeforeServing(t *testing.T) {
-	if probe, err := newConfigurationReadiness(t.Context(), nil); probe != nil || err == nil {
+	if probe, err := New(t.Context(), nil); probe != nil || err == nil {
 		t.Fatal("nil environment source accepted")
 	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if probe, err := newConfigurationReadiness(canceled, os.Environ); probe != nil || !errors.Is(err, context.Canceled) {
+	if probe, err := New(canceled, os.Environ); probe != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled startup accepted", err)
 	}
 	tooMany := make([]string, 1025)
@@ -178,7 +178,7 @@ func TestConfigurationReadinessRejectsInvalidSourcesBeforeServing(t *testing.T) 
 		{"EVYDENCE_SECRET=" + strings.Repeat("x", 8<<20)},
 		tooMany,
 	} {
-		if probe, err := newConfigurationReadiness(t.Context(), func() []string { return values }); probe != nil || err == nil || strings.Contains(err.Error(), "private-") {
+		if probe, err := New(t.Context(), func() []string { return values }); probe != nil || err == nil || strings.Contains(err.Error(), "private-") {
 			t.Fatalf("invalid environment accepted/disclosed: %v", err)
 		}
 	}
@@ -187,7 +187,7 @@ func TestConfigurationReadinessRejectsInvalidSourcesBeforeServing(t *testing.T) 
 		t.Fatal(err)
 	}
 	values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + strings.Repeat("a", 64), "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
-	if probe, err := newConfigurationReadiness(t.Context(), func() []string { return values }); probe != nil || err == nil {
+	if probe, err := New(t.Context(), func() []string { return values }); probe != nil || err == nil {
 		t.Fatal("initial desired revision mismatch accepted")
 	}
 }

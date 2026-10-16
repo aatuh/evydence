@@ -187,6 +187,12 @@ func (f *fixture) start(kind, label, budget, address string) *child {
 	if !info.Mode().IsRegular() || info.Mode()&0111 == 0 {
 		f.t.Fatal("release binary must be an executable file")
 	}
+	if kind == "worker" && address == "" {
+		reserved, err := net.Listen("tcp", "127.0.0.1:0")
+		must(f.t, err, "reserve worker probe address")
+		address = reserved.Addr().String()
+		must(f.t, reserved.Close(), "release worker probe address")
+	}
 	parsed, err := url.Parse(f.databaseURL)
 	must(f.t, err, "prepare process database scope")
 	query := parsed.Query()
@@ -206,8 +212,11 @@ func (f *fixture) start(kind, label, budget, address string) *child {
 	migrations, err := filepath.Abs("../../../migrations")
 	must(f.t, err, "resolve migration directory")
 	environment = append(environment, "EVYDENCE_MIGRATIONS_DIR="+migrations)
-	if kind == "api" {
+	switch kind {
+	case "api":
 		environment = append(environment, "EVYDENCE_ADDR="+address)
+	case "worker":
+		environment = append(environment, "EVYDENCE_WORKER_HEALTH_ADDR="+address)
 	}
 	log, err := os.OpenFile(filepath.Join(f.artifactDir, strings.ReplaceAll(label, ":", "_")+".log"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	must(f.t, err, "open private process log")
@@ -219,6 +228,29 @@ func (f *fixture) start(kind, label, budget, address string) *child {
 	process := &child{command: command, done: make(chan struct{}), log: log}
 	f.children = append(f.children, process)
 	go func() { process.err = command.Wait(); close(process.done) }()
+	if kind == "worker" {
+		client := &http.Client{Timeout: time.Second, Transport: &http.Transport{}}
+		defer client.CloseIdleConnections()
+		for _, path := range []string{"startup", "ready", "health"} {
+			wait(f.t, "release worker "+path+" probe", func() bool {
+				select {
+				case <-process.done:
+					f.t.Fatal("release worker exited before probes became available; private log: " + process.log.Name())
+				default:
+				}
+				response, err := client.Get("http://" + address + "/v1/" + path)
+				if err != nil {
+					return false
+				}
+				defer response.Body.Close()
+				var body struct {
+					Data struct{ Status string }
+					Meta struct{ Process string }
+				}
+				return json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&body) == nil && response.StatusCode == http.StatusOK && body.Data.Status == "ok" && body.Meta.Process == "worker"
+			})
+		}
+	}
 	return process
 }
 

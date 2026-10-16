@@ -31,7 +31,12 @@ EVYDENCE_S3_REGION: {{ .Values.env.s3Region | quote }}
 EVYDENCE_S3_USE_SSL: {{ .Values.env.s3UseSSL | quote }}
 EVYDENCE_SIGNING_KEY_MODE: {{ .Values.env.signingKeyMode | quote }}
 EVYDENCE_WORKER_POLL_INTERVAL: {{ .Values.worker.pollInterval | quote }}
+EVYDENCE_WORKER_HEALTH_ADDR: {{ printf "127.0.0.1:%v" .Values.worker.healthPort | quote }}
 EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.worker.shutdownTimeoutSeconds | quote }}
+{{- end -}}
+
+{{- define "evydence.runtimeSecret" -}}
+{{- default .fallback .process.existingSecret -}}
 {{- end -}}
 
 {{- define "evydence.terminationGrace" -}}

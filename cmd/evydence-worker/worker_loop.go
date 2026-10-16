@@ -31,10 +31,10 @@ type workerLoopConfig struct {
 var errWorkerDrainTimeout = errors.New("worker shutdown deadline exceeded; unfinished claims await lease expiry")
 
 func closeWorkerAfterStop(err error, closeRuntime func()) {
-	// Pool.Close waits for checked-out connections. Once the job deadline has
-	// expired, it must not hold the daemon open behind a noncooperative call.
+	// Pool.Close waits for checked-out connections. Once a job or probe drain
+	// deadline has expired, it must not wait behind a noncooperative call.
 	// main exits nonzero; the OS closes connections and existing leases expire.
-	if !errors.Is(err, errWorkerDrainTimeout) {
+	if !errors.Is(err, errWorkerDrainTimeout) && !errors.Is(err, errWorkerProbeDrainTimeout) {
 		closeRuntime()
 	}
 }

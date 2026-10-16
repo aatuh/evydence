@@ -9,6 +9,8 @@ image:
 cleanupTimeoutSeconds: 5
 
 api:
+  # Optional daemon-specific runtime Secret; otherwise use existingSecret.
+  existingSecret: ""
   # Keep API replicas at 1 for the current production profile. Production API
   # startup also takes a PostgreSQL advisory writer lease and a second writer
   # fails closed until multi-writer concurrency controls are implemented and
@@ -41,6 +43,9 @@ api:
       memory: 512Mi
 
 worker:
+  existingSecret: ""
+  # Bound to 127.0.0.1 inside the pod; exec probes query this listener.
+  healthPort: 8081
   replicas: 1
   pollInterval: 1s
   shutdownTimeoutSeconds: 30
@@ -53,12 +58,17 @@ worker:
       memory: 512Mi
   probes:
     enabled: true
+    startupCommand:
+      - evydence-worker
+      - healthcheck
+      - --startup
     readinessCommand:
       - evydence-worker
       - healthcheck
     livenessCommand:
       - evydence-worker
       - healthcheck
+      - --liveness
 
 env:
   production: true

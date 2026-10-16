@@ -13,6 +13,7 @@ import (
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
+	"github.com/aatuh/evydence/internal/platform/health"
 )
 
 // Focused services select current transaction projections, never aggregate
@@ -42,7 +43,7 @@ func (f operatorFixtureQueries) now() time.Time {
 }
 
 func (f readinessFixture) Public(ctx context.Context) (map[string]any, error) {
-	service, err := operationsquery.NewReadiness(f.resources.checks)
+	service, err := operationsquery.NewReadinessWithConfig(f.resources.checks, health.Config{Now: f.now})
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func (f readinessFixture) Public(ctx context.Context) (map[string]any, error) {
 }
 
 func (f readinessFixture) Startup(ctx context.Context) (map[string]any, error) {
-	service, err := operationsquery.NewReadiness(f.resources.checks)
+	service, err := operationsquery.NewReadinessWithConfig(f.resources.checks, health.Config{Now: f.now})
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +59,7 @@ func (f readinessFixture) Startup(ctx context.Context) (map[string]any, error) {
 }
 
 func (f readinessFixture) Operator(ctx context.Context, actor domain.Actor) (map[string]any, error) {
-	service, err := operationsquery.NewReadiness(f.resources.checks)
+	service, err := operationsquery.NewReadinessWithConfig(f.resources.checks, health.Config{Now: f.now})
 	if err != nil {
 		return nil, err
 	}

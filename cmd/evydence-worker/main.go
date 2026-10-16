@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/signal"
 	"sort"
@@ -27,6 +28,8 @@ import (
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	"github.com/aatuh/evydence/internal/platform/confighealth"
+	"github.com/aatuh/evydence/internal/platform/health"
 	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
@@ -100,7 +103,7 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	if len(args) > 0 {
 		switch args[0] {
 		case "healthcheck", "--healthcheck":
-			return nil
+			return runWorkerHealthcheck(parent, args[1:])
 		case "reconcile":
 			return runObjectReconciliationContext(parent, args[1:])
 		case "parser-replay":
@@ -118,6 +121,14 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	if err != nil {
 		return err
 	}
+	healthAddress, err := workerHealthAddress()
+	if err != nil {
+		return err
+	}
+	configurationProbe, err := confighealth.New(parent, os.Environ)
+	if err != nil {
+		return err
+	}
 	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
 	if databaseURL == "" {
 		return errors.New("worker requires EVYDENCE_DATABASE_URL")
@@ -126,7 +137,9 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	defer stop()
 	config := workerRuntimeConfig(databaseURL, production)
 	config.CleanupTimeout = cleanupTimeout
-	runtime, err := wiring.OpenRuntime(ctx, config)
+	startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
+	runtime, err := wiring.OpenRuntime(startupCtx, config)
+	cancelStartup()
 	if err != nil {
 		return err
 	}
@@ -141,8 +154,29 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	}
 	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
 	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
+	objectReadiness, ok := objectStore.(interface{ CheckReadiness(context.Context) error })
+	if !ok {
+		return errors.New("configured worker object store does not provide readiness checks")
+	}
+	monitor, err := health.New([]health.Check{
+		{Name: "configuration", Startup: true, Check: configurationProbe},
+		{Name: "postgres", Startup: true, Check: store.CheckReadiness},
+		{Name: "migrations", Startup: true, Check: func(checkCtx context.Context) error { return store.CheckMigrationState(checkCtx, config.MigrationsDir) }},
+		{Name: "outbox", Check: store.CheckOutboxReadiness},
+		{Name: "object_store", Check: objectReadiness.CheckReadiness},
+	}, health.Config{})
+	if err != nil {
+		return err
+	}
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", healthAddress.String())
+	if err != nil {
+		return errors.New("worker probe listener is unavailable")
+	}
+	monitor.MarkInitialized()
 	logging.Emit(ctx, logging.Command, logging.Fields{OperationID: "outbox_poll", Result: logging.Succeeded})
-	return runWorkerLoop(ctx, store, processor, workerLoopConfig{PollInterval: pollInterval, BatchSize: batchSize, ShutdownTimeout: shutdownTimeout})
+	return runWorkerWithHealth(ctx, listener, monitor, workerProbeTimeout, func(workCtx context.Context) error {
+		return runWorkerLoop(workCtx, store, processor, workerLoopConfig{PollInterval: pollInterval, BatchSize: batchSize, ShutdownTimeout: shutdownTimeout})
+	})
 }
 
 // runParserReplay is an explicit operator command that appends a derived

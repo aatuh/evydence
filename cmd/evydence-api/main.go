@@ -32,6 +32,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
 	identityapp "github.com/aatuh/evydence/internal/identity/app"
+	"github.com/aatuh/evydence/internal/platform/confighealth"
 	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
@@ -58,7 +59,7 @@ func runAPI(ctx context.Context) (runErr error) {
 	if err != nil {
 		return err
 	}
-	configurationProbe, err := newConfigurationReadiness(ctx, os.Environ)
+	configurationProbe, err := confighealth.New(ctx, os.Environ)
 	if err != nil {
 		return err
 	}

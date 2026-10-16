@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/health"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 )
 
@@ -2230,6 +2232,14 @@ func TestReplayMergeHelpersCoverParserSideEffects(t *testing.T) {
 }
 
 func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
+	monitor, err := health.New(nil, health.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	monitor.MarkInitialized()
+	server := httptest.NewServer(newWorkerHealthHandler(monitor))
+	defer server.Close()
+	t.Setenv("EVYDENCE_WORKER_HEALTH_ADDR", server.Listener.Addr().String())
 	if err := runWithArgs([]string{"healthcheck"}); err != nil {
 		t.Fatalf("healthcheck: %v", err)
 	}
@@ -2240,7 +2250,7 @@ func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
 		t.Fatalf("unexpected command err=%v", err)
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "")
-	err := run()
+	err = run()
 	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
 		t.Fatalf("missing database err=%v", err)
 	}

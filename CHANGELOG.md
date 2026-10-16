@@ -29,7 +29,10 @@ without creating signatures. Additional metadata permissions and gateway/default
 key settings require operator preparation; metadata health does not prove
 signing authorization. API shutdown publishes draining state before listener
 shutdown while preserving admitted-request completion. Worker lifecycle probes
-and final validation remain tracked in the open EVY-1203 ticket.
+now query a private running-daemon listener and share configuration freshness
+checks with the API. Helm supplies distinct worker modes, revision projection,
+and runtime Secret loading with optional daemon-specific identities. Final
+validation remains tracked in the open EVY-1203 ticket.
 
 Added structured process, HTTP, provider, command and worker diagnostics
 (EVY-1202). API, worker and migration commands default to JSON on stderr, with
