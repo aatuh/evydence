@@ -18,6 +18,10 @@ type routeDef struct {
 }
 
 func (s *Server) registerRoutes() error {
+	// Contract-only generation and runtime construction share this path.
+	if s.logOperations == nil {
+		s.logOperations = make(map[string]string)
+	}
 	for _, route := range s.routeDefinitions() {
 		s.logOperations[route.method+" "+route.path] = route.op.OperationID
 		policy, ok := authorizationPolicyForOperation(route.op.OperationID)
