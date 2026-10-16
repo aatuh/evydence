@@ -9,10 +9,11 @@ certification, complete vulnerability coverage, or a secure-release guarantee.
 
 ## Current Enforcement Status
 
-The live GitHub API settings for `master` were verified on 2026-10-15:
+The live GitHub API settings for `master` were verified on 2026-10-16:
 
-- `Production Check` and `CodeQL Analyze` remain required, bound to GitHub
-  Actions (app ID `15368`), with the branch required to be up to date;
+- `Production Check`, `CodeQL Analyze`, and `Race and Stress` are required,
+  bound to GitHub Actions (app ID `15368`), with the branch required to be up
+  to date;
 - pull-request approvals and CODEOWNERS approvals are not required;
 - linear history and conversation resolution are not required;
 - force pushes and branch deletion remain disabled;
@@ -25,13 +26,14 @@ does not require an independent reviewer. The settings snapshot is not proof
 that CI passed on any particular commit, and settings can change after the
 verification date.
 
-EVY-1105 adds a checked-in `Race and Stress` job, alongside the full race suite
-inside the required `Production Check`. The live settings above do **not** yet
-require the new context. Keep EVY-1105 incomplete until the workflow is published,
-its hosted checks pass on the implementation, and `Race and Stress` is added to
-the required GitHub Actions contexts without removing the existing checks or
-up-to-date requirement. Verify the resulting API settings and retain the run
-URLs; local tests and workflow text alone cannot establish that enforcement.
+EVY-1105 implementation `57cb91a95bbf` is included in published commit
+`d77b612bc721`. Its hosted [Production Check and Race and Stress run](https://github.com/aatuh/evydence/actions/runs/38765165262)
+and [CodeQL run](https://github.com/aatuh/evydence/actions/runs/38765165260)
+passed on that same commit. With explicit maintainer approval, `Race and Stress`
+was added to required checks on 2026-10-16; a subsequent API read verified all
+three Actions bindings and the retained up-to-date requirement. These
+observations establish that commit's hosted results and the dated settings;
+they do not establish CI success for other commits or release artifacts.
 
 ## Maintainer Bypass Posture
 
@@ -45,8 +47,8 @@ When a maintainer bypass is used for an urgent or operational change, the
 maintainer should record the reason in the pull request, release evidence, or a
 follow-up audit note as appropriate. The compensating controls are:
 
-- required `Production Check` and `CodeQL Analyze` CI jobs on normal push and
-  pull-request paths;
+- required `Production Check`, `CodeQL Analyze`, and `Race and Stress` CI jobs
+  on normal push and pull-request paths;
 - project-owned `make production-check`, `make release-acceptance`, and
   release-candidate validation gates for release-affecting changes;
 - signed release artifacts, checksums, OpenAPI checksums, migration checksums,
@@ -128,9 +130,10 @@ commit SHA and service/container images pinned by digest. If an Action or image
 pin is updated, reviewers should verify the upstream tag or digest source and
 record the reason in the pull request or release evidence.
 
-Branch protection retains the live `Production Check` and `CodeQL Analyze`
-checks for runtime correctness and security analysis on non-bypass updates;
-their workflows run on pushes and pull requests.
+Branch protection requires `Production Check`, `CodeQL Analyze`, and
+`Race and Stress` for runtime correctness, security analysis, and deterministic
+contention validation on non-bypass updates. Their workflows run on pushes and
+pull requests.
 
 OpenSSF Scorecard and Scorecard SARIF remain scheduled/manual advisory checks for
 the current release-candidate line. Do not make them required branch-protection

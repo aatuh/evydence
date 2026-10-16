@@ -46,8 +46,11 @@ idempotency cases and exercise native tenant commands, audit ordering, signing
 rotation, customer packages, credential replacement and worker replicas under
 the race detector with three scheduler settings. Missing or skipped evidence
 fails the gate. The full local production gate passed on 2026-10-15, including
-all 510 default stress passes. Hosted success and required-check enforcement
-remain separate acceptance work for the dedicated CI job.
+all 510 default stress passes. Hosted Production Check, Race and Stress, and
+CodeQL passed on published commit `d77b612bc721`. On 2026-10-16, approved
+branch-protection changes added Race and Stress while retaining the existing
+Actions bindings and up-to-date requirement. Administrator bypass remains
+possible. Validation covers the single-writer API and contending workers.
 
 Added independent per-client failure budgets for authentication, public SSO
 and portal actions (EVY-1011), with bounded state, opaque keys, concurrency
