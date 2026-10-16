@@ -9,19 +9,36 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 )
 
-func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
-	writeData(w, http.StatusOK, map[string]string{"status": "ok"})
+func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	writeLifecycleStatus(w, r, map[string]any{"status": "ok"})
+}
+
+func (s *Server) startup(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	status, err := s.readinessQuery.Startup(r.Context())
+	if err != nil {
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
+		return
+	}
+	writeLifecycleStatus(w, r, status)
 }
 
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	status, err := s.readinessQuery.Public(r.Context())
 	if err != nil {
 		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
+	writeLifecycleStatus(w, r, status)
+}
+
+func writeLifecycleStatus(w http.ResponseWriter, r *http.Request, status map[string]any) {
+	w.Header().Set("Cache-Control", "no-store")
 	code := http.StatusOK
 	if status["status"] != "ok" {
 		retry := app.DescribeProblem(app.ErrDependencyUnavailable)
+		recordLogRetry(r.Context(), retry.Retryable)
 		code = http.StatusServiceUnavailable
 		status["retryable"] = retry.Retryable
 		status["retry_class"] = retry.RetryClass
@@ -34,6 +51,7 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) readinessDiagnostics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	actor, ok := s.authenticate(w, r)
 	if !ok {
 		return

@@ -141,9 +141,9 @@
       <p>This page is generated from <code>openapi.yaml</code>. It is a human-readable companion to the committed contract and does not replace route-contract tests.</p>
       <div class="summary-grid">
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
-        <div class="summary-card"><strong>175</strong><span>registered paths</span></div>
-        <div class="summary-card"><strong>193</strong><span>operations</span></div>
-        <div class="summary-card"><strong>404</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>176</strong><span>registered paths</span></div>
+        <div class="summary-card"><strong>194</strong><span>operations</span></div>
+        <div class="summary-card"><strong>406</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -211,13 +211,13 @@
               <div><dt>Responses</dt><dd>200 application/json: OutboxReplayEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/admin/readiness readiness diagnostics returns vetted per-dependency readiness diagnostics. requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. postgresql is required for local evaluation. readinessdiagnostics evydence instance:admin">
+          <article class="operation" data-operation data-search="get /v1/admin/readiness readiness diagnostics returns vetted per-dependency readiness diagnostics, initialization/drain/startup state and shared-snapshot freshness. explicit instance:admin authorization occurs before dependency work or cached diagnostics access. raw errors, credentials, paths and tenant data are excluded. responses use cache-control: no-store. postgresql is required for local evaluation. readinessdiagnostics evydence instance:admin">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/admin/readiness</code>
             </div>
             <h3>Readiness diagnostics</h3>
-            <p>Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. PostgreSQL is required for local evaluation.</p>
+            <p>Returns vetted per-dependency readiness diagnostics, initialization/drain/startup state and shared-snapshot freshness. Explicit instance:admin authorization occurs before dependency work or cached diagnostics access. Raw errors, credentials, paths and tenant data are excluded. Responses use Cache-Control: no-store. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>readinessDiagnostics</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1384,13 +1384,13 @@
               <div><dt>Responses</dt><dd>200 application/json: ExceptionEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/health health returns low-detail liveness status without touching tenant evidence or secret material. health evydence none">
+          <article class="operation" data-operation data-search="get /v1/health health returns dependency-free liveness status without touching tenant evidence or secret material. canonical get/head probes remain independent of application quotas and the dependency-probe pool. http responses use cache-control: no-store. health evydence none">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/health</code>
             </div>
             <h3>Health</h3>
-            <p>Returns low-detail liveness status without touching tenant evidence or secret material.</p>
+            <p>Returns dependency-free liveness status without touching tenant evidence or secret material. Canonical GET/HEAD probes remain independent of application quotas and the dependency-probe pool. HTTP responses use Cache-Control: no-store.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>health</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -1979,13 +1979,13 @@
               <div><dt>Responses</dt><dd>201 application/json: QuestionnaireTemplateEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
-          <article class="operation" data-operation data-search="get /v1/ready readiness runs bounded postgresql, migration, writer-lease, object-store, and signing-configuration probes configured for this process. the public result contains no tenant data, credentials, paths, or raw dependency errors. an unavailable result includes typed dependency retry metadata and retry-after. postgresql is required for local evaluation. ready evydence none">
+          <article class="operation" data-operation data-search="get /v1/ready readiness reports supported-work readiness from the shared short-lived dependency snapshot. concurrent requests coalesce into one caller-owned bounded refresh, without background work. only configured dependency names/statuses are returned; no synthetic ledger check, tenant data, credentials, paths or raw errors. startup/readiness share a separate bounded admission pool; an unavailable result includes typed retry metadata and retry-after. responses use cache-control: no-store. postgresql is required for local evaluation. ready evydence none">
             <div class="operation-heading">
               <span class="method method-get">GET</span>
               <code>/v1/ready</code>
             </div>
             <h3>Readiness</h3>
-            <p>Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After. PostgreSQL is required for local evaluation.</p>
+            <p>Reports supported-work readiness from the shared short-lived dependency snapshot. Concurrent requests coalesce into one caller-owned bounded refresh, without background work. Only configured dependency names/statuses are returned; no synthetic ledger check, tenant data, credentials, paths or raw errors. Startup/readiness share a separate bounded admission pool; an unavailable result includes typed retry metadata and Retry-After. Responses use Cache-Control: no-store. PostgreSQL is required for local evaluation.</p>
             <dl>
               <div><dt>Operation ID</dt><dd><code>ready</code></dd></div>
               <div><dt>Tags</dt><dd>evydence</dd></div>
@@ -3133,6 +3133,23 @@
               <div><dt>Idempotency</dt><dd>Idempotency-Key</dd></div>
               <div><dt>Request</dt><dd>application/json: EmptyObject</dd></div>
               <div><dt>Responses</dt><dd>200 application/json: SSOSessionEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
+          <article class="operation" data-operation data-search="get /v1/startup startup reports initialized runtime plus current database, schema and loaded-configuration prerequisites from the shared bounded dependency snapshot. a serving-only dependency outage does not fail startup. public output excludes dependency inventory, errors, credentials and paths. startup/readiness share a separate bounded admission pool; unavailable responses include typed retry metadata and retry-after. responses use cache-control: no-store. the process binds http only after runtime initialization and migration checks. startup evydence none">
+            <div class="operation-heading">
+              <span class="method method-get">GET</span>
+              <code>/v1/startup</code>
+            </div>
+            <h3>Startup</h3>
+            <p>Reports initialized runtime plus current database, schema and loaded-configuration prerequisites from the shared bounded dependency snapshot. A serving-only dependency outage does not fail startup. Public output excludes dependency inventory, errors, credentials and paths. Startup/readiness share a separate bounded admission pool; unavailable responses include typed retry metadata and Retry-After. Responses use Cache-Control: no-store. The process binds HTTP only after runtime initialization and migration checks.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>startup</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>none</dd></div>
+              <div><dt>Idempotency</dt><dd>not required</dd></div>
+              <div><dt>Request</dt><dd>none</dd></div>
+              <div><dt>Responses</dt><dd>200 application/json: StartupStatusEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/json: StartupStatusEnvelope</dd></div>
             </dl>
           </article>
           <article class="operation" data-operation data-search="post /v1/transparency-checkpoints record external transparency checkpoint records an external transparency or timestamp checkpoint reference for a merkle batch. createtransparencycheckpoint evydence keys:admin">
@@ -5232,6 +5249,16 @@
             <td><code>SourceSnapshotResult</code></td>
             <td>object</td>
             <td>repository</td>
+          </tr>
+          <tr>
+            <td><code>StartupStatus</code></td>
+            <td>object</td>
+            <td>status</td>
+          </tr>
+          <tr>
+            <td><code>StartupStatusEnvelope</code></td>
+            <td>object</td>
+            <td>data, meta</td>
           </tr>
           <tr>
             <td><code>SubjectRef</code></td>

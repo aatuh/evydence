@@ -2391,7 +2391,7 @@ func stabilityForOperation(operationID string) string {
 		"verifyReleaseBundle", "createCustomerPackage", "getCustomerPackage",
 		"downloadCustomerPackage", "verify":
 		return "core"
-	case "health", "ready", "version", "openapi", "metrics",
+	case "health", "startup", "ready", "version", "openapi", "metrics",
 		"createAPIKey", "listAPIKeys", "exchangeSSOCredential", "beginOIDCAuthentication",
 		"logoutSSOSession", "createCustomerPortalAccess",
 		"accessCustomerPortalPackage", "downloadCustomerPortalPackage":

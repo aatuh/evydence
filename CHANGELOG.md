@@ -13,6 +13,14 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Added `/v1/startup` and shared bounded dependency snapshots for startup,
+readiness and instance-admin diagnostics (EVY-1203). Public liveness remains
+independent of application quotas and dependency-probe saturation;
+startup/readiness use a separate bounded pool. Responses are not proxy-cacheable,
+and unavailable probes preserve retry metadata. The synthetic `ledger: ok` row
+is removed because it performed no evidence check. Runtime dependency additions
+and deployment probe wiring remain tracked in the open EVY-1203 ticket.
+
 Added structured process, HTTP, provider, command and worker diagnostics
 (EVY-1202). API, worker and migration commands default to JSON on stderr, with
 validated levels and an optional text format. Fixed events and typed fields

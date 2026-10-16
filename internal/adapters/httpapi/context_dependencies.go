@@ -41,6 +41,7 @@ type EvidencePageQuery interface {
 // Operator details require explicit instance-wide authority in the service.
 type ReadinessQuery interface {
 	Public(context.Context) (map[string]any, error)
+	Startup(context.Context) (map[string]any, error)
 	Operator(context.Context, domain.Actor) (map[string]any, error)
 }
 

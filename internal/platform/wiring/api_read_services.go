@@ -58,7 +58,10 @@ func BuildAPIReadServices(runtime *Runtime, pepper string, readinessChecks []app
 	if runtime.Production && (!configuredChecks["writer_lease"] || !configuredChecks["signing_config"]) {
 		return httpapi.ServerOptions{}, errors.New("production API readiness checks are incomplete")
 	}
-	options.ReadinessQuery = operationsquery.NewReadiness(normalizedChecks)
+	options.ReadinessQuery, err = operationsquery.NewReadiness(normalizedChecks)
+	if err != nil {
+		return httpapi.ServerOptions{}, fmt.Errorf("create process health: %w", err)
+	}
 	options.MetricsQuery, err = BuildMetricsQuery(store)
 	if err != nil {
 		return httpapi.ServerOptions{}, fmt.Errorf("create metrics query: %w", err)

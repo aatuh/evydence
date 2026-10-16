@@ -47,6 +47,23 @@ restoring earlier backups may lose correlation. The isolated round-trip test
 covers representative old rows, not a live production-volume migration or a
 supported release downgrade.
 
+## Lifecycle Probe Rollout (Unreleased)
+
+EVY-1203 adds `/v1/startup`; `/v1/health` remains dependency-free liveness and
+`/v1/ready` retains its readiness status/check envelope. Configured dependency
+names are process-specific; the synthetic `ledger: ok` row is removed because
+it performed no evidence check. Do not use that row as an integrity signal.
+Startup/readiness/diagnostics share a short-lived dependency snapshot, so allow
+the documented refresh/cache window before expecting an outage or recovery to
+appear. Responses use `no-store`, and unavailable probes preserve the catalog
+retry policy. Canonical lifecycle probes use admission separate from ordinary
+application requests; this does not exempt other routes from their limits.
+
+See [observability](observability.md#endpoints) for endpoint semantics and
+freshness bounds. Instance diagnostics still require explicit `instance:admin`.
+No evidence, audit, idempotency or backup format changes accompany this HTTP
+probe transition.
+
 ## API Compatibility
 
 ### OIDC Login Binding Rollout

@@ -1,5 +1,5 @@
 {
-  "route_count": 193,
+  "route_count": 194,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -3116,6 +3116,22 @@
         "identity:admin"
       ],
       "stability": "experimental",
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "startup",
+      "path": "/v1/startup",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/Problem",
+        "#/components/schemas/StartupStatusEnvelope"
+      ],
+      "scopes": [],
+      "stability": "supported",
       "success_statuses": [
         "200"
       ]

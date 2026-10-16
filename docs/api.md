@@ -902,7 +902,8 @@ bytes, and expiry years from 1 through 9999 after UTC normalization. See the
 | Method | Path | Notes |
 |--------|------|-------|
 | `GET` | `/v1/health` | Process liveness; does not probe dependencies. |
-| `GET` | `/v1/ready` | Low-detail dependency readiness; returns `503` if a required dependency is unavailable. |
+| `GET` | `/v1/startup` | Initialized runtime and startup prerequisites; low-detail `200` or retryable `503`. |
+| `GET` | `/v1/ready` | Cached low-detail dependency readiness; returns `503` if a required dependency or probe admission is unavailable. |
 | `GET` | `/v1/version` | Immutable build identity and release-input-manifest digest. |
 | `GET` | `/v1/metrics` | Tenant-safe counts; admin scope required. |
 | `GET` | `/v1/openapi.json` | Generated OpenAPI. |
@@ -914,6 +915,8 @@ the handlers have no aggregate fallback. PostgreSQL is required for local
 evaluation. Tenant metrics omit global queue counts unless the actor has the
 explicit `instance:admin` scope. JSON and Prometheus response shapes are
 unchanged; public readiness retains low-detail `503` and `Retry-After` metadata.
+See [observability](reference/observability.md#endpoints) for startup semantics,
+shared-snapshot freshness and independent lifecycle-probe admission.
 
 ### Identity And Administration
 

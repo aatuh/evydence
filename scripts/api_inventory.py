@@ -54,6 +54,7 @@ OWNER_PREFIXES = (
     ("/v1/audit-", "integrity-verification"),
     ("/v1/verify", "integrity-verification"),
     ("/v1/health", "platform-operations"),
+    ("/v1/startup", "platform-operations"),
     ("/v1/ready", "platform-operations"),
     ("/v1/metrics", "platform-operations"),
     ("/v1/version", "platform-operations"),
@@ -135,7 +136,7 @@ def auth_for_operation(path: str, operation: dict[str, Any]) -> str:
         return "sso-credential"
     if path in {"/v1/sso/authentication-requests", "/v1/sso/saml-authentication-requests"}:
         return "public-login-state"
-    if path in {"/v1/health", "/v1/ready", "/v1/version", "/v1/openapi.json", "/v1/metrics"}:
+    if path in {"/v1/health", "/v1/startup", "/v1/ready", "/v1/version", "/v1/openapi.json", "/v1/metrics"}:
         return "public"
     return ""
 

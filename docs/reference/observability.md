@@ -74,22 +74,51 @@ change provider ownership, cancellation or returned results.
 
 ## Endpoints
 
-`GET /v1/health` is an unauthenticated liveness check. It does not contact
-PostgreSQL, object storage, a signing provider, or tenant evidence.
+| Endpoint | Purpose | Authority | Result |
+| --- | --- | --- | --- |
+| `GET /v1/health` | Process liveness; no dependency I/O. | Public. | `200` while the process can answer its handler. |
+| `GET /v1/startup` | Initialized runtime and configured database/schema/configuration prerequisites. | Public. | `200` when startup prerequisites are available; otherwise `503`. |
+| `GET /v1/ready` | Supported-work readiness across all configured dependencies. | Public. | `200` only when all required checks are available; otherwise `503`. |
+| `GET /v1/admin/readiness` | Vetted dependency and lifecycle diagnostics. | Explicit `instance:admin`. | `200` for an authorized diagnostic read, including an unavailable overall state. |
 
-`GET /v1/ready` is an unauthenticated, low-detail readiness check. When the
-durable API profile is configured, it runs bounded probes for PostgreSQL
-connectivity, migration state, the production API writer lease, object-store
-access, and required signing configuration. It returns `200` only when every
-required check is available and `503` with `"status":"unavailable"` when one
-is not. The response exposes check names and statuses only; it excludes raw
-dependency errors, credentials, database hosts, object-store paths, and tenant
-data.
+The process binds HTTP only after runtime initialization and migration checks.
+During that initialization a startup probe cannot connect; it must allow enough
+startup time before treating that as failure. A later schema/configuration
+prerequisite failure blocks startup and readiness. A serving-only dependency
+outage blocks readiness while liveness and completed startup prerequisites
+remain independent. Liveness cannot detect a failure isolated to unrelated
+business logic; the probe observes whether its handler can respond.
 
-`GET /v1/admin/readiness` returns vetted per-check diagnostic text to a caller
-with the explicit `instance:admin` scope. Tenant admin and ordinary wildcard
-tenant keys are not enough. This diagnostic surface still excludes raw
-dependency errors, credentials, paths, and tenant data.
+Startup returns only status and, when unavailable, typed retry metadata. Public
+readiness retains configured check names/statuses, excluding raw errors,
+credentials, dependency addresses, filesystem paths and tenant data. There is
+no synthetic `ledger: ok` row: a check must represent an actual configured
+probe. Unavailable startup/readiness include `Retry-After` and the existing
+retry policy. All lifecycle and diagnostic responses use `Cache-Control:
+no-store` so an intermediary cannot extend snapshot freshness.
+
+Startup, readiness and authorized diagnostics share a process-local dependency
+snapshot. Default cache reuse is two seconds after a refresh, and the entire
+refresh has a three-second budget. Thus a reused result can reflect work begun
+at most five seconds earlier. Individual probes also have deadlines. Concurrent
+callers coalesce behind one caller-owned refresh; no background refresh is
+started. Cancelled owners publish no partial cache result, and each waiting
+caller can cancel independently. Cached failures expire too, permitting recovery
+after a dependency is restored. A backward clock invalidates cache reuse.
+
+Canonical GET/HEAD requests to the three public lifecycle paths are independent
+of application edge quotas and in-flight admission. Startup/readiness have a
+separate eight-request pool; saturation returns a low-detail retryable `503`
+without more dependency work. Liveness remains independent of that pool. URL,
+body-size and encoding validation still applies. Other methods, escaped aliases
+and unrelated paths retain ordinary application limits.
+
+Diagnostics authorize before dependency work or cached data access. Tenant
+admin and ordinary wildcard tenant keys are insufficient. Instance admins see
+vetted failure text, startup/initialization/drain state, and `checked_at` /
+`valid_until` freshness timestamps when a sample exists. Raw errors, credentials,
+paths and tenant data remain excluded. These are operational observations,
+not evidence-integrity verification or proof that every business path works.
 
 `GET /v1/version` returns the immutable API build identity: version, commit,
 build time, dirty marker, Go version, and the digest of the pre-build release
