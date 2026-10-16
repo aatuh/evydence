@@ -21,7 +21,9 @@ and unavailable probes preserve retry metadata. The synthetic `ledger: ok` row
 is removed because it performed no evidence check. Outbox readiness detects
 overdue eligible work and expired worker leases without claiming jobs.
 Configuration readiness detects process-environment drift and an optional
-projected desired revision. Helm maps distinct API lifecycle probes and rolls
+projected desired revision. Revision symlink targets must stay inside their
+configured parent directory; in-directory projection aliases remain supported.
+Helm maps distinct API lifecycle probes and rolls
 both daemons on chart configuration changes; external Secret changes still
 require an operator rollout. Production signer readiness now reads native cloud
 key metadata or an explicitly configured same-origin gateway readiness endpoint
@@ -31,8 +33,8 @@ signing authorization. API shutdown publishes draining state before listener
 shutdown while preserving admitted-request completion. Worker lifecycle probes
 now query a private running-daemon listener and share configuration freshness
 checks with the API. Helm supplies distinct worker modes, revision projection,
-and runtime Secret loading with optional daemon-specific identities. Final
-validation remains tracked in the open EVY-1203 ticket.
+and runtime Secret loading with optional daemon-specific identities. Local
+validation and compatibility limits are recorded in the EVY-1203 backlog entry.
 
 Added structured process, HTTP, provider, command and worker diagnostics
 (EVY-1202). API, worker and migration commands default to JSON on stderr, with
