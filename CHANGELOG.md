@@ -27,8 +27,9 @@ require an operator rollout. Production signer readiness now reads native cloud
 key metadata or an explicitly configured same-origin gateway readiness endpoint
 without creating signatures. Additional metadata permissions and gateway/default
 key settings require operator preparation; metadata health does not prove
-signing authorization. Remaining lifecycle integration and final validation
-remain tracked in the open EVY-1203 ticket.
+signing authorization. API shutdown publishes draining state before listener
+shutdown while preserving admitted-request completion. Worker lifecycle probes
+and final validation remain tracked in the open EVY-1203 ticket.
 
 Added structured process, HTTP, provider, command and worker diagnostics
 (EVY-1202). API, worker and migration commands default to JSON on stderr, with

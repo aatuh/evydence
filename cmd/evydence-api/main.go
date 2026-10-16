@@ -213,11 +213,15 @@ func runAPI(ctx context.Context) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
 	}
+	readinessLifecycle, ok := options.ReadinessQuery.(interface{ MarkDraining() })
+	if !ok {
+		return errors.New("API readiness lifecycle control is required")
+	}
 	addr := envDefault("EVYDENCE_ADDR", ":8080")
 	httpServer := newHTTPServer(addr, server.Handler(), httpConfig)
 	httpServer.ErrorLog = log.New(logging.DiagnosticWriter(ctx), "", 0)
 	logging.Emit(ctx, logging.Command, logging.Fields{OperationID: "api_listen", Result: logging.Succeeded})
-	return serveHTTP(ctx, httpServer, httpConfig.ShutdownTimeout)
+	return serveHTTP(ctx, httpServer, httpConfig.ShutdownTimeout, readinessLifecycle.MarkDraining)
 }
 
 func tenantBootstrapInputFromEnv() identityapp.BootstrapTenantInput {
@@ -670,7 +674,7 @@ func newHTTPServer(addr string, handler http.Handler, config httpRuntimeConfig) 
 
 var errAPIForcedDrain = errors.New("API forced drain requires process exit; in-flight outcomes may be uncertain")
 
-func serveHTTP(ctx context.Context, server *http.Server, shutdownTimeout time.Duration) error {
+func serveHTTP(ctx context.Context, server *http.Server, shutdownTimeout time.Duration, markDraining func()) error {
 	if ctx == nil || server == nil {
 		return errors.New("API server and context are required")
 	}
@@ -684,10 +688,10 @@ func serveHTTP(ctx context.Context, server *http.Server, shutdownTimeout time.Du
 		}
 		return err
 	}
-	return serveHTTPOnListener(ctx, server, listener, shutdownTimeout)
+	return serveHTTPOnListener(ctx, server, listener, shutdownTimeout, markDraining)
 }
 
-func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration) error {
+func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration, markDraining func()) error {
 	// This function takes ownership of the supplied listener, including on a
 	// startup failure. Once Serve starts, net/http owns its once-only close.
 	if ctx == nil || server == nil || listener == nil {
@@ -717,6 +721,9 @@ func serveHTTPOnListener(ctx context.Context, server *http.Server, listener net.
 	}
 	// Serve can fail while accepted connections are still processing. Drain
 	// those requests before the caller closes their storage/provider resources.
+	if markDraining != nil {
+		markDraining()
+	}
 	logging.Emit(ctx, logging.Drain, logging.Fields{Result: logging.Started})
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer cancel()

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
@@ -23,13 +24,14 @@ var errDrainTestAccept = errors.New("injected permanent accept failure")
 
 type drainTestListener struct {
 	net.Listener
-	closed     chan struct{}
-	fail       chan struct{}
-	accepted   atomic.Bool
-	once       sync.Once
-	closeErr   error
-	closeCalls atomic.Int32
-	failure    error
+	closed      chan struct{}
+	fail        chan struct{}
+	accepted    atomic.Bool
+	once        sync.Once
+	closeErr    error
+	closeCalls  atomic.Int32
+	failure     error
+	beforeClose func()
 }
 
 func (l *drainTestListener) Accept() (net.Conn, error) {
@@ -47,6 +49,9 @@ func (l *drainTestListener) Accept() (net.Conn, error) {
 	return l.Listener.Accept()
 }
 func (l *drainTestListener) Close() error {
+	if l.beforeClose != nil {
+		l.beforeClose()
+	}
 	l.closeCalls.Add(1)
 	l.once.Do(func() { l.closeErr = l.Listener.Close(); close(l.closed) })
 	return l.closeErr
@@ -67,6 +72,7 @@ type httpDrainFixture struct {
 	client      *http.Client
 	releaseOnce sync.Once
 	commits     atomic.Int32
+	readiness   *operationsquery.Readiness
 }
 
 func startHTTPDrainFixture(t *testing.T, timeout time.Duration, failAccept bool, parents ...context.Context) *httpDrainFixture {
@@ -89,6 +95,10 @@ func startHTTPDrainFixture(t *testing.T, timeout time.Duration, failAccept bool,
 	if failAccept {
 		f.listener.fail = make(chan struct{})
 	}
+	f.readiness, err = operationsquery.NewReadiness(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.server = newHTTPServer(listener.Addr().String(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer close(f.finished)
 		f.entered <- r.Context()
@@ -109,7 +119,7 @@ func startHTTPDrainFixture(t *testing.T, timeout time.Duration, failAccept bool,
 	}
 	ctx, cancel := context.WithCancel(parent)
 	f.cancel = cancel
-	go func() { f.done <- serveHTTPOnListener(ctx, f.server, f.listener, timeout) }()
+	go func() { f.done <- serveHTTPOnListener(ctx, f.server, f.listener, timeout, f.readiness.MarkDraining) }()
 	go func() {
 		response, err := f.client.Get("http://" + listener.Addr().String() + "/transaction")
 		var status int
@@ -180,6 +190,29 @@ func TestHTTPDrainActiveRequestCompletesAndRejectsNewWork(t *testing.T) {
 	}
 	if f.listener.closeCalls.Load() != 1 {
 		t.Fatal("listener ownership did not close once", f.listener.closeCalls.Load())
+	}
+}
+
+func TestHTTPDrainMarksReadinessBeforeClosingListener(t *testing.T) {
+	f := startHTTPDrainFixture(t, time.Second, false)
+	awaitHTTPDrainEvent(t, f.entered)
+	var unavailableAtClose atomic.Bool
+	f.listener.beforeClose = func() {
+		status, err := f.readiness.Public(t.Context())
+		unavailableAtClose.Store(err == nil && status["status"] == "unavailable")
+	}
+	before, err := f.readiness.Public(t.Context())
+	if err != nil || before["status"] != "ok" {
+		t.Fatal("fixture was not ready before shutdown", err)
+	}
+	f.cancel()
+	awaitHTTPDrainEvent(t, f.listener.closed)
+	if !unavailableAtClose.Load() {
+		t.Fatal("listener closed before readiness became unavailable")
+	}
+	f.finish()
+	if err := awaitHTTPDrainEvent(t, f.done); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -256,7 +289,7 @@ func TestHTTPDrainRootDeadlineIsNotNormalShutdown(t *testing.T) {
 	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 	defer cancel()
 	server := newHTTPServer(listener.Addr().String(), http.NotFoundHandler(), httpRuntimeConfig{})
-	if err = serveHTTPOnListener(ctx, server, listener, time.Second); !errors.Is(err, context.DeadlineExceeded) {
+	if err = serveHTTPOnListener(ctx, server, listener, time.Second, nil); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal("expired root was silently reported healthy", err)
 	}
 }
@@ -280,7 +313,7 @@ func TestHTTPDrainInvalidInputsCloseOwnedListener(t *testing.T) {
 			case "listener":
 				owned = nil
 			}
-			if err = serveHTTPOnListener(ctx, server, owned, time.Second); err == nil || !strings.Contains(err.Error(), "required") {
+			if err = serveHTTPOnListener(ctx, server, owned, time.Second, nil); err == nil || !strings.Contains(err.Error(), "required") {
 				t.Fatal("missing dependency accepted", err)
 			}
 			if owned != nil {
@@ -311,7 +344,7 @@ func TestHTTPDrainClosesIdleKeepAliveConnection(t *testing.T) {
 	}
 	defer server.Close()
 	done := make(chan error, 1)
-	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second) }()
+	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second, nil) }()
 	conn, err := net.DialTimeout("tcp", listener.Addr().String(), time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -354,7 +387,7 @@ func TestHTTPDrainAlreadyClosedServerIsNormal(t *testing.T) {
 		t.Fatal(err)
 	}
 	owned := &drainTestListener{Listener: listener, closed: make(chan struct{})}
-	if err = serveHTTPOnListener(t.Context(), server, owned, time.Second); err != nil {
+	if err = serveHTTPOnListener(t.Context(), server, owned, time.Second, nil); err != nil {
 		t.Fatal("ErrServerClosed was not normal", err)
 	}
 	awaitHTTPDrainEvent(t, owned.closed)

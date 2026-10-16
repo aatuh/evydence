@@ -330,7 +330,7 @@ func TestServeHTTPOnListenerGracefullyStopsOnCancellation(t *testing.T) {
 	server := newHTTPServer(listener.Addr().String(), http.NotFoundHandler(), httpRuntimeConfig{ShutdownTimeout: time.Second})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second) }()
+	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second, nil) }()
 	cancel()
 	if err := <-done; err != nil {
 		t.Fatalf("serveHTTPOnListener: %v", err)
@@ -353,7 +353,7 @@ func TestHTTPServerIngressLimitsRejectOversizedAndSlowHeaders(t *testing.T) {
 		MaxHeaderBytes:    1 << 10,
 	})
 	done := make(chan error, 1)
-	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second) }()
+	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second, nil) }()
 
 	oversized, err := net.Dial("tcp", listener.Addr().String())
 	if err != nil {

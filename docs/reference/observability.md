@@ -158,6 +158,13 @@ vetted failure text, startup/initialization/drain state, and `checked_at` /
 paths and tenant data remain excluded. These are operational observations,
 not evidence-integrity verification or proof that every business path works.
 
+On a shutdown signal the API marks its readiness service as draining before
+starting listener shutdown. A permanent serving failure also marks draining
+when observed. Draining makes startup/readiness unavailable immediately,
+without dependency I/O; it does not cancel admitted requests before their
+existing drain deadline. The listener then closes as part of normal shutdown,
+so this does not promise that a new probe can connect during termination.
+
 ### Configuration freshness
 
 The API's `configuration` startup/readiness check compares its current process
