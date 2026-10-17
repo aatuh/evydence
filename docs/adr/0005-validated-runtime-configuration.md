@@ -2,8 +2,8 @@
 
 Status: accepted for the immutable-input, schema-metadata, scalar-parsing,
 role-input, typed-projection and local-validation foundation of EVY-1214,
-with HTTP/signing/S3/database-syntax validation reviewed 2026-10-17. Trust-material
-validation, complete schema/SDK coverage,
+with HTTP/signing/S3/database-syntax/Sigstore validation reviewed 2026-10-17.
+Complete schema/SDK coverage,
 secret resolution, command adoption and generated deployment documentation remain
 pending in EVY-1214 through EVY-1217. This is an explanation for developers
 maintaining startup and configuration boundaries.
@@ -174,9 +174,27 @@ must be paired. Unknown `pool_`/`ssl` controls fail; other runtime GUCs remain
 driver/server-owned. These are deliberate tightening rules, not driver defaults
 or proof of an accepted live connection.
 
-Native environment/default and credential resolution, Sigstore trust-material
-validation, remaining path checks and complete dynamic-name/SDK coverage remain
-required before EVY-1214 closes.
+Sigstore trust parsing uses the pinned library's JSON and public-key parsers
+without file access, TUF refresh, network discovery or live trust updates. Each
+supplied root/key is bounded to 1 MiB; the required version label is bounded to
+256 bytes and rejects malformed UTF-8 and control characters. Version labels
+alone do not enable verification. Public keys must contain exactly one PKIX
+`PUBLIC KEY` PEM block, without headers, ignored prefixes, extra blocks or trailing
+content. Supplied bytes are copied before parsing. The opaque result redacts
+formatting/JSON and exposes material explicitly to the trusted adapter; library
+causes never enter configuration diagnostics.
+
+The offline Sigstore adapter now uses this shared parser, intentionally rejecting
+previously ignored PEM content and malformed labels. Existing offline bundle
+verification tests retain their digest, identity, signature and inclusion-proof
+checks. A valid parsed root does not prove that it contains the trust anchors
+needed by a particular bundle or that any evidence has been verified. New receipt
+metadata identifies the actual pinned `sigstore-go.v1.3.0` dependency, correcting
+the stale `v1.1.4` label without rewriting historical receipts. A module-pin test
+guards this metadata against future drift.
+
+Native environment/default and credential resolution, remaining path checks and
+complete dynamic-name/SDK coverage remain required before EVY-1214 closes.
 The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
 settings and can read service, passfile and TLS material while parsing. The
 current PostgreSQL adapter enters that path through `pgxpool.New`. Reusing its
@@ -199,10 +217,13 @@ of the entire applicable configuration.
 
 Using that loader would therefore preserve ambient reads and permit sensitive
 configuration in errors. The project-specific input/validation layer addresses
-those requirements with standard-library capture/parsers and the existing pure
-MinIO identifier validators; no module dependency is added. The pinned MinIO
+those requirements with standard-library capture/parsers and existing pure
+MinIO identifier and Sigstore trust parsers; no module dependency is added.
+The pinned MinIO
 helpers used here have standard-library-only implementations and perform no
-credential, file or network access. This decision does not replace the required
+credential, file or network access. The Sigstore entry points used here likewise
+parse supplied bytes only; its file/TUF/live helpers are not used. This decision
+does not replace the required
 toolkit HTTP foundation, middleware,
 ports, Problem Details or route/OpenAPI contract facilities.
 

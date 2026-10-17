@@ -72,6 +72,9 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 	if err := validateStorageInput(input); err != nil {
 		return parsedInput{}, err
 	}
+	if err := validateSigstoreInput(input); err != nil {
+		return parsedInput{}, err
+	}
 	return input, nil
 }
 

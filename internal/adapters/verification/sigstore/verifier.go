@@ -5,25 +5,20 @@ package sigstore
 
 import (
 	"context"
-	"crypto"
-	"crypto/x509"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
-	"fmt"
 	"strings"
-	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	runtimeconfig "github.com/aatuh/evydence/internal/platform/config"
 
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/verify"
-	"github.com/sigstore/sigstore/pkg/signature"
 )
 
-const LibraryVersion = "sigstore-go.v1.1.4"
+const LibraryVersion = runtimeconfig.SigstoreLibraryVersion
 
 var (
 	ErrVerificationFailed            = errors.New("sigstore verification failed")
@@ -57,43 +52,11 @@ type Verifier struct {
 }
 
 func New(cfg Config) (*Verifier, error) {
-	material := root.TrustedMaterialCollection{}
-	if len(cfg.TrustedRootJSON) > 0 {
-		trustedRoot, err := root.NewTrustedRootFromJSON(cfg.TrustedRootJSON)
-		if err != nil {
-			return nil, fmt.Errorf("parse configured Sigstore trusted root: %w", err)
-		}
-		material = append(material, trustedRoot)
-	}
-	if len(cfg.TrustedPublicKeyPEM) > 0 {
-		keyMaterial, err := trustedPublicKeyMaterial(cfg.TrustedPublicKeyPEM)
-		if err != nil {
-			return nil, err
-		}
-		material = append(material, keyMaterial)
-	}
-	if len(material) == 0 || strings.TrimSpace(cfg.TrustRootVersion) == "" {
-		return nil, errors.New("configured Sigstore trust material and trust-root version are required")
-	}
-	return &Verifier{trustedMaterial: material, trustRootVersion: strings.TrimSpace(cfg.TrustRootVersion)}, nil
-}
-
-func trustedPublicKeyMaterial(encoded []byte) (root.TrustedMaterial, error) {
-	block, _ := pem.Decode(encoded)
-	if block == nil || len(block.Bytes) == 0 {
-		return nil, errors.New("configured Sigstore public key is not PEM")
-	}
-	publicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	trust, err := runtimeconfig.ParseSigstoreTrustMaterial(cfg.TrustedRootJSON, cfg.TrustedPublicKeyPEM, cfg.TrustRootVersion)
 	if err != nil {
-		return nil, fmt.Errorf("parse configured Sigstore public key: %w", err)
+		return nil, err
 	}
-	verifier, err := signature.LoadVerifier(publicKey, crypto.SHA256)
-	if err != nil {
-		return nil, fmt.Errorf("load configured Sigstore public key verifier: %w", err)
-	}
-	return root.NewTrustedPublicKeyMaterial(func(string) (root.TimeConstrainedVerifier, error) {
-		return root.NewExpiringKey(verifier, time.Time{}, time.Time{}), nil
-	}), nil
+	return &Verifier{trustedMaterial: trust.Material(), trustRootVersion: trust.Version()}, nil
 }
 
 func (v *Verifier) VerifyCosign(ctx context.Context, req app.CosignVerificationRequest) (app.CosignVerificationReceipt, error) {

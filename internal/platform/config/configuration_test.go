@@ -46,11 +46,13 @@ func TestConfigurationProjectsTypedRoleSettings(t *testing.T) {
 }
 
 func TestConfigurationReturnedSettingsAndSlicesAreOwned(t *testing.T) {
+	rootData, keyData := trustedRootFixture(t), publicTrustKeyFixture(t)
 	cfg := typedConfiguration(t, API,
 		"EVYDENCE_TRUSTED_PROXY_CIDRS=10.0.0.0/8",
 		"EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64="+base64.StdEncoding.EncodeToString([]byte(strings.Repeat("x", 32))),
-		"EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64=e30=",
-		"EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64=YWJj",
+		"EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64="+base64.StdEncoding.EncodeToString(rootData),
+		"EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64="+base64.StdEncoding.EncodeToString(keyData),
+		"EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION=fixture.v1",
 	)
 	runtime := cfg.Runtime()
 	runtime.LogFormat = "PRIVATE_MUTATION"
@@ -62,17 +64,20 @@ func TestConfigurationReturnedSettingsAndSlicesAreOwned(t *testing.T) {
 	for _, bytes := range [][]byte{p.SigningExecutorPublicKey(), p.SigstoreTrustRootJSON(), p.SigstoreTrustedPublicKeyPEM()} {
 		bytes[0] = 0
 	}
-	if cfg.Runtime().LogFormat != "json" || cfg.API().BootstrapTenant != "Local Tenant" || cfg.API().TrustedProxyCIDRs()[0].String() != "10.0.0.0/8" || string(cfg.Providers().SigningExecutorPublicKey()) != strings.Repeat("x", 32) || string(cfg.Providers().SigstoreTrustRootJSON()) != "{}" || string(cfg.Providers().SigstoreTrustedPublicKeyPEM()) != "abc" {
+	if cfg.Runtime().LogFormat != "json" || cfg.API().BootstrapTenant != "Local Tenant" || cfg.API().TrustedProxyCIDRs()[0].String() != "10.0.0.0/8" || string(cfg.Providers().SigningExecutorPublicKey()) != strings.Repeat("x", 32) || string(cfg.Providers().SigstoreTrustRootJSON()) != string(rootData) || string(cfg.Providers().SigstoreTrustedPublicKeyPEM()) != string(keyData) {
 		t.Fatal("returned settings or slices changed owned configuration")
 	}
 	// Independently projected configurations also own their decoded slices.
-	input, err := parseRoleInput(roleEnvironment(t, API, false, "EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64=e30="), API)
+	input, err := parseRoleInput(roleEnvironment(t, API, false,
+		"EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64="+base64.StdEncoding.EncodeToString(rootData),
+		"EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION=fixture.v1",
+	), API)
 	if err != nil {
 		t.Fatal(err)
 	}
 	projected := projectInput(input)
 	input.values["EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64"].bytes[0] = 0
-	if string(projected.Providers().SigstoreTrustRootJSON()) != "{}" {
+	if string(projected.Providers().SigstoreTrustRootJSON()) != string(rootData) {
 		t.Fatal("typed projection retained a mutable parser slice")
 	}
 }
