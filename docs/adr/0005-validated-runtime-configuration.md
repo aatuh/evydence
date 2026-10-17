@@ -527,11 +527,23 @@ cleanup. The legacy adapter `Open` entry point delegates to preparation and
 prepared open; unadopted runtime callers also enter that explicit owner. API
 startup also prepares the database configuration before provider constructors.
 
-EVY-1216 must adopt validated configuration before entering these explicit SDK
-boundaries, remove project-owned ambient reads, and own the Azure global
-logging/telemetry policy before provider use. This ownership record does not
-assert that command adoption, SDK-global isolation or live provider verification
-has already happened.
+The Azure adapter now clears the SDK's environment-installed raw diagnostic
+listener once during package initialization. The pinned setter is unsynchronized,
+so process initialization owns this mutation before provider goroutines start;
+constructors and request paths do not toggle it. Owned default-credential options
+disable Azure SDK HTTP telemetry. This prevents the SDK's initialized platform
+label from becoming an owned credential request's telemetry header, including
+the Windows `OS` input. The native credential chain, cache and refresh lifecycle
+remain SDK-owned. Borrowed credentials and external developer tools keep their
+own telemetry policies; disabling these owned-pipeline options does not configure
+their internals. Application diagnostics use the structured logger. Production
+still rejects an explicit `AZURE_SDK_GO_LOGGING=all`; non-production requests do
+not reinstate the raw listener.
+
+Fresh-process tests exercise environment-enabled SDK initialization and a local
+managed-identity endpoint, without real provider calls. This policy does not
+establish external provider identity, interoperability or availability. CLI
+adoption and remaining shared ambient-reader retirement remain EVY-1216.
 
 ## Delivery And Compatibility
 
@@ -558,8 +570,8 @@ rejected. Other startup entry points need explicit guard review when adopted.
 
 The shared logger has an explicit configured lifecycle entry point and a fixed
 startup-rejection operation. Its legacy environment entry point remains for
-commands not yet adopted; retiring it is part of EVY-1216. CLI adoption and
-SDK-global policy are still incomplete.
+commands not yet adopted; retiring it is part of EVY-1216. CLI adoption remains
+incomplete.
 
 Typed configurations also retain a private fingerprint of their original captured
 source. Its opaque `SourceIdentity` exposes only equality against another bounded capture;
@@ -583,8 +595,8 @@ removed. Component-test fixtures use the same parser and typed projections.
 The durable native bootstrap, actor/tenant boundaries and shutdown/owned-provider
 cleanup paths retain their existing composition. Malformed explicit values now
 fail with fixed shared errors; unknown local writer modes are rejected, and direct
-cloud modes require their configured key references. SDK-global logging/telemetry
-ownership, CLI adoption and remaining shared legacy retirement are still due.
+cloud modes require their configured key references. CLI adoption and remaining
+shared legacy retirement are still due.
 
 The worker daemon now uses shared preflight and explicit resolution before
 logging startup or opening runtime resources. Typed settings supply its database,

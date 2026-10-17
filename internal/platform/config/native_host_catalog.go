@@ -28,7 +28,7 @@ func nativeHostDefinitions() []NativeDefinition {
 	extensions.Syntax, extensions.MaxItems, extensions.MaxItemBytes, extensions.RejectControl = NativeWindowsExtensions, maxNativeListItems, 4096, true
 	currentDirectory := nativeInput(NativeHost, executable, "NoDefaultCurrentDirectoryInExePath", "windows_skip_current_directory", Text, "Windows executable lookup skips the current directory when this input is present, including when its value is empty; consumers must check Present rather than HasValue.")
 	definitions = append(definitions, extensions, currentDirectory)
-	operatingSystem := nativeInput(NativeHost, "github.com/Azure/azure-sdk-for-go/sdk/azcore@v1.21.1/runtime/policy_telemetry.go:platformInfo", "OS", "windows_sdk_operating_system", Text, "Windows operating-system label read by Azure SDK telemetry initialization; captured syntax does not retroactively freeze SDK initialization. Later provider/transport composition must own telemetry.")
+	operatingSystem := nativeInput(NativeHost, "github.com/Azure/azure-sdk-for-go/sdk/azcore@v1.21.1/runtime/policy_telemetry.go:platformInfo", "OS", "windows_sdk_operating_system", Text, "Windows operating-system label read by Azure SDK telemetry initialization; capture does not retroactively freeze SDK initialization. The Azure adapter disables SDK telemetry for default credentials it constructs; injected credentials and external tools retain their own policies.")
 	operatingSystem.MaxBytes, operatingSystem.RejectControl = 256, true
 	definitions = append(definitions, operatingSystem)
 	for _, entry := range []struct{ name, parameter, source, description string }{

@@ -89,7 +89,9 @@ type keyResponse struct {
 
 func New(cfg Config) (*Executor, error) {
 	if cfg.Credential == nil {
-		credential, err := azidentity.NewDefaultAzureCredential(nil)
+		credential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+			ClientOptions: azcore.ClientOptions{Telemetry: policy.TelemetryOptions{Disabled: true}},
+		})
 		if err != nil {
 			return nil, errors.New("load Azure default credentials")
 		}

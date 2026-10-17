@@ -41,6 +41,13 @@ silent fallbacks. API writer mode accepts only `single` or `single-writer` in al
 profiles; the old unimplemented local experimental mode is rejected. Direct cloud
 signing modes require their configured key references before credential loading.
 
+The Azure adapter disables the native SDK's raw diagnostic listener during
+process initialization and disables SDK telemetry for credentials it constructs.
+`AZURE_SDK_GO_LOGGING=all` is rejected in production and does not enable raw SDK
+diagnostics in other profiles. Injected credentials and external credential tools
+retain their own telemetry policy; their internals are not configured by these
+owned-client options. Structured application events remain the diagnostic path.
+
 Worker `healthcheck` and `--healthcheck` commands capture and validate `ENV`,
 `EVYDENCE_LOG_LEVEL`, `EVYDENCE_LOG_FORMAT` and `EVYDENCE_WORKER_HEALTH_ADDR`
 before querying the loopback worker. Readiness is the default; `--startup` and

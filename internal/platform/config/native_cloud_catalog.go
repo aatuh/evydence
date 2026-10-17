@@ -44,7 +44,7 @@ func nativeAzureDefinitions() []NativeDefinition {
 	credential.ExactChoices = []string{"dev", "prod"}
 	credential.RejectEmpty = true
 	definitions = append(definitions, chain, credential)
-	logging := nativeInput(NativeAzure, "github.com/Azure/azure-sdk-for-go/sdk/internal@v1.12.0/log/log.go:initLogging", "AZURE_SDK_GO_LOGGING", "sdk_logging", Choice, "Native Azure SDK raw stderr logging switch; exact all enables it. Raw SDK logging is forbidden in production; later composition must own the process-global SDK listener before provider use.")
+	logging := nativeInput(NativeAzure, "github.com/Azure/azure-sdk-for-go/sdk/internal@v1.12.0/log/log.go:initLogging", "AZURE_SDK_GO_LOGGING", "sdk_logging", Choice, "Native Azure SDK raw stderr logging switch. The Azure adapter clears the global listener during process initialization in all profiles; production rejects an explicit all request. Application diagnostics use structured events.")
 	logging.Allowed, logging.ProductionAllowed, logging.CaseSensitive = []string{"off", "all"}, []string{"", "off"}, true
 	definitions = append(definitions, logging)
 	const managed = "github.com/AzureAD/microsoft-authentication-library-for-go@v1.7.0/apps/managedidentity/managedidentity.go:GetSource"
