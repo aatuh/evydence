@@ -32,6 +32,16 @@ type databaseBuilder struct {
 }
 
 func parseDatabaseDSN(raw string) (databaseSettings, error) {
+	settings, err := parseDatabaseDSNParts(raw)
+	if err != nil || validateDatabaseRelationships(settings.values, false) != nil {
+		return databaseSettings{}, ErrInvalidValue
+	}
+	return settings, nil
+}
+
+// parseDatabaseDSNParts checks grammar and individual values. Runtime roles
+// apply relationships after native inputs and explicit DSN values are merged.
+func parseDatabaseDSNParts(raw string) (databaseSettings, error) {
 	if len(raw) > maxEnvironmentBytes || !utf8.ValidString(raw) || strings.ContainsRune(raw, 0) {
 		return databaseSettings{}, ErrInvalidValue
 	}
@@ -46,7 +56,7 @@ func parseDatabaseDSN(raw string) (databaseSettings, error) {
 	} else {
 		err = parseDatabaseKeywords(raw, &b)
 	}
-	if err != nil || validateDatabaseSettings(b.values) != nil {
+	if err != nil || validateDatabaseFields(b.values) != nil {
 		return databaseSettings{}, ErrInvalidValue
 	}
 	return databaseSettings{values: b.values}, nil

@@ -114,7 +114,7 @@ matches the pinned AWS helper; malformed additional-tenant entries fail. These
 list bounds and earlier rejections are deliberate tightening rules. Parsed URLs,
 ports and items stay private and redacted alongside exact supplied bytes.
 
-Effective DSN merging, typed native projections, credential resolution and
+Native default/service resolution, typed native projections, credential resolution and
 complete transitive/computed-read coverage remain required. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
 their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
@@ -242,6 +242,23 @@ query overrides without consulting driver defaults, environment or files.
 Native URI handling retains the pinned driver's `net/url` compatibility limits.
 Parsed settings redact formatting and JSON; errors return neither input nor
 partially parsed settings.
+
+Runtime roles now keep separate owned native, explicit-DSN and pre-service
+candidate layers. Individual values are checked before merging; DSN settings
+override captured `PG*` values. Explicit empty passwords clear native passwords,
+while empty DSN users retain pgx's ignored-empty-user behavior. Known certificate/
+key and protocol relationships are checked after the merge, so a certificate in
+the DSN can pair with a captured `PGSSLKEY`. The merged parameter set is bounded
+to 128 entries as well as the explicit parser's 128-pair bound.
+
+A selected service marks this private input as unresolved. Its settings belong
+between native and explicit layers and can fill missing fields or override native
+values. The pure evaluator still rejects contradictions fully specified by the
+DSN; it leaves unknown service-supplied relationships for bounded resolution in
+EVY-1215. It never opens a service file or claims that this candidate is a complete
+driver configuration. Standalone DSN validation retains its strict complete-pair
+checks. Native numeric/duration fields reject surrounding whitespace, including
+inside quoted DSN values, matching the pinned driver/pool parsers.
 
 The grammar limits explicit pairs to 128 and hosts/ports to 16, before allocating
 large query/host collections. Conflicting repeated settings, invalid escapes,

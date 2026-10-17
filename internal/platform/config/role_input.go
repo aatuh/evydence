@@ -22,6 +22,7 @@ type parsedInput struct {
 	production bool
 	values     map[string]scalarValue
 	native     nativeInputs
+	database   databaseInput
 }
 
 func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
@@ -51,7 +52,7 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		}
 		var value scalarValue
 		if raw != "" {
-			value, err = parseScalar(d, raw)
+			value, err = parseRoleValue(d, raw)
 			if err != nil {
 				return parsedInput{}, err
 			}
@@ -66,6 +67,13 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		return parsedInput{}, err
 	}
 	input.native = native
+	if role != CLI {
+		database, err := parseDatabaseInput(input.values["EVYDENCE_DATABASE_URL"].text, native)
+		if err != nil {
+			return parsedInput{}, err
+		}
+		input.database = database
+	}
 	if err := validateLocalInput(input); err != nil {
 		return parsedInput{}, err
 	}
@@ -82,6 +90,24 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		return parsedInput{}, err
 	}
 	return input, nil
+}
+
+func parseRoleValue(d Definition, raw string) (scalarValue, error) {
+	if d.Kind != PostgresDSN {
+		return parseScalar(d, raw)
+	}
+	// Preserve scalar bounds and exact raw bytes while deferring cross-source
+	// relationships until the native and explicit database layers are known.
+	bounds := d
+	bounds.Kind = Text
+	value, err := parseScalar(bounds, raw)
+	if err != nil {
+		return scalarValue{}, err
+	}
+	if _, err := parseDatabaseDSNParts(raw); err != nil {
+		return scalarValue{}, err
+	}
+	return value, nil
 }
 
 func resolveAliases(environment Environment, d Definition) (string, error) {

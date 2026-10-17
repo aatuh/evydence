@@ -40,8 +40,22 @@ var databaseSettingDefinitions = map[string]Definition{
 }
 
 func validateDatabaseSettings(values map[string]string) error {
+	if err := validateDatabaseFields(values); err != nil {
+		return err
+	}
+	return validateDatabaseRelationships(values, false)
+}
+
+func validateDatabaseFields(values map[string]string) error {
 	for key, value := range values {
 		if definition, known := databaseSettingDefinitions[key]; known {
+			switch definition.Kind {
+			case Integer, Seconds, Duration:
+				// pgx/pgxpool parse these values without whitespace trimming.
+				if value != strings.TrimSpace(value) {
+					return ErrInvalidValue
+				}
+			}
 			if definition.Kind == Choice {
 				// Native PostgreSQL choices are case-sensitive.
 				if !slices.Contains(definition.Allowed, value) {
@@ -82,6 +96,12 @@ func validateDatabaseSettings(values map[string]string) error {
 			}
 		}
 	}
+	return nil
+}
+
+// allowIncomplete applies only while an explicitly selected service is still
+// unresolved. Its settings can fill absent values beneath explicit DSN input.
+func validateDatabaseRelationships(values map[string]string, allowIncomplete bool) error {
 	if maximum, exists := values["pool_max_conns"]; exists {
 		maximumCount, _ := strconv.ParseInt(maximum, 10, 32)
 		for _, key := range []string{"pool_min_conns", "pool_min_idle_conns"} {
@@ -93,7 +113,9 @@ func validateDatabaseSettings(values map[string]string) error {
 			}
 		}
 	}
-	if (values["sslcert"] == "") != (values["sslkey"] == "") {
+	_, certPresent := values["sslcert"]
+	_, keyPresent := values["sslkey"]
+	if (!allowIncomplete || (certPresent && keyPresent)) && (values["sslcert"] == "") != (values["sslkey"] == "") {
 		return ErrInvalidValue
 	}
 	if (values["min_protocol_version"] == "3.2" || values["min_protocol_version"] == "latest") && values["max_protocol_version"] == "3.0" {
