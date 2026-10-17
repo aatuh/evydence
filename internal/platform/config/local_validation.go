@@ -31,7 +31,7 @@ func validateLocalInput(input parsedInput) error {
 			return ErrUnsafeProduction
 		}
 	}
-	if input.role == Worker {
+	if input.role == Worker || input.role == WorkerProbe {
 		return validateWorkerListeners(input)
 	}
 	return nil
@@ -63,6 +63,9 @@ func validateWorkerListeners(input parsedInput) error {
 	health, err := netip.ParseAddrPort(strings.TrimSpace(v["EVYDENCE_WORKER_HEALTH_ADDR"].text))
 	if err != nil || health.Port() == 0 || health.Addr().Zone() != "" || !health.Addr().Unmap().IsLoopback() {
 		return ErrInvalidValue
+	}
+	if input.role == WorkerProbe {
+		return nil
 	}
 	address, file := v["EVYDENCE_WORKER_METRICS_ADDR"].text, v["EVYDENCE_WORKER_METRICS_TOKEN_FILE"].text
 	if address == "" && file == "" {

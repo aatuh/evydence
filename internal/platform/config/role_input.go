@@ -33,7 +33,7 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 }
 
 func parseRoleInputDeferred(environment Environment, role Role, deferred map[string]bool) (parsedInput, error) {
-	if role != API && role != Worker && role != Migrate && role != CLI {
+	if !validRole(role) {
 		return parsedInput{}, ErrInvalidRole
 	}
 	definitions := Definitions()
@@ -88,7 +88,7 @@ func parseRoleInputDeferred(environment Environment, role Role, deferred map[str
 			}
 		}
 	}
-	if role != CLI && !deferred["EVYDENCE_DATABASE_URL"] {
+	if role&(API|Worker|Migrate) != 0 && !deferred["EVYDENCE_DATABASE_URL"] {
 		database, err := parseDatabaseInput(input.values["EVYDENCE_DATABASE_URL"].text, native)
 		if err != nil {
 			return parsedInput{}, err

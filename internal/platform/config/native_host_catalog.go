@@ -53,7 +53,7 @@ func nativeHostDefinitions() []NativeDefinition {
 			}
 		}
 		if entry.name == "SSL_CERT_FILE" || entry.name == "SSL_CERT_DIR" {
-			d.Roles = AllRoles
+			d.Roles = API | Worker | Migrate | CLI
 		}
 		definitions = append(definitions, d)
 	}

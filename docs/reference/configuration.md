@@ -28,6 +28,14 @@ process, or equivalent deployment control.
 
 ## Runtime Variables
 
+Worker `healthcheck` and `--healthcheck` commands capture and validate `ENV`,
+`EVYDENCE_LOG_LEVEL`, `EVYDENCE_LOG_FORMAT` and `EVYDENCE_WORKER_HEALTH_ADDR`
+before querying the loopback worker. Readiness is the default; `--startup` and
+`--liveness` select those probes. This client does not require or resolve database,
+runtime-profile, object-storage, provider or metrics settings from the daemon's
+environment. In production, unknown `EVYDENCE_` option names still fail closed.
+HTTP proxies and redirects are disabled for these local requests.
+
 | Variable | Required | Default / Example | Notes |
 |----------|----------|-------------------|-------|
 | `ENV` | Production only | unset locally | Set `ENV=production` to enable production-safety checks. |

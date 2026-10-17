@@ -562,9 +562,17 @@ metrics-file, integer and shutdown parsers are removed. Invalid explicit values
 now fail with shared fixed error classes instead of local diagnostics or silent
 fallbacks. Worker health observes source drift through `ProcessSource` on cached
 refreshes while runtime settings remain frozen. The API still uses the legacy
-health constructor pending its adoption. Healthcheck, parser-replay and reconcile
-operator modes retain their existing paths until their separate adoption units;
-the daemon's full dependency requirements do not apply to healthcheck mode.
+health constructor pending its adoption. Parser-replay and reconcile operator
+modes retain their existing paths until their separate adoption units.
+
+The healthcheck client now has an explicit `WorkerProbe` schema role. It shares
+the daemon's address definition and loopback validation, and uses configured
+logging, without parsing or resolving unrelated runtime or native SDK settings.
+The command dispatch captures once in the same reviewed worker entry point;
+the duplicate ambient address parser and default are removed. Production's
+unknown-project-option check still applies. See the
+[configuration reference](../reference/configuration.md#runtime-variables) for
+the applicable inputs and probe modes.
 
 The native worker processor owns an explicit immutable payload-byte budget.
 Jobs pass it through bounded object replay instead of rereading the environment.

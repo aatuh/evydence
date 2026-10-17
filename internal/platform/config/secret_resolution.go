@@ -53,7 +53,7 @@ func Prepare(environment Environment, role Role) (PreparedInput, error) {
 // input validation. Disabled resolution returns zero settings and performs no I/O.
 // Native SDK defaults/credential lifecycle and provider startup remain separate.
 func Resolve(ctx context.Context, input PreparedInput, enabled bool) (Configuration, error) {
-	if input.role != API && input.role != Worker && input.role != Migrate && input.role != CLI {
+	if !validRole(input.role) {
 		return Configuration{}, ErrInvalidRole
 	}
 	if ctx == nil {

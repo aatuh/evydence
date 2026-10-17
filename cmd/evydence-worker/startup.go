@@ -11,7 +11,11 @@ import (
 )
 
 func runWorkerProcess(ctx context.Context, environment config.Environment, output io.Writer, start func(context.Context, config.Configuration) error) error {
-	input, err := config.Prepare(environment, config.Worker)
+	return runWorkerRoleProcess(ctx, environment, config.Worker, output, start)
+}
+
+func runWorkerRoleProcess(ctx context.Context, environment config.Environment, role config.Role, output io.Writer, start func(context.Context, config.Configuration) error) error {
+	input, err := config.Prepare(environment, role)
 	if err != nil {
 		logging.RejectStartup(ctx, "worker", runtimeinfo.Current(), output)
 		return err

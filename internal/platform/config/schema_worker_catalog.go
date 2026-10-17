@@ -31,7 +31,7 @@ var workerDefinitions = []Definition{
 	{
 		Name:        "EVYDENCE_WORKER_HEALTH_ADDR",
 		Kind:        Text,
-		Roles:       Worker,
+		Roles:       Worker | WorkerProbe,
 		Default:     "127.0.0.1:8081",
 		Description: "Worker lifecycle listener and healthcheck client address. Must be a literal IPv4/IPv6 loopback address with a nonzero port; remote addresses, hostnames and wildcard binds are rejected before storage opens. Set distinct ports for multiple workers in one network namespace. Helm sets the port through `worker.healthPort`.",
 	},

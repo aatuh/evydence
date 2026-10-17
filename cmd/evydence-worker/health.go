@@ -8,9 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/netip"
-	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
@@ -22,20 +20,6 @@ import (
 const workerProbeTimeout = 5 * time.Second
 
 var errWorkerProbeUnavailable = errors.New("worker lifecycle probe is unavailable")
-
-// workerHealthAddress accepts only literal loopback addresses. The worker's
-// operational listener is neither a public API nor a remote probe client.
-func workerHealthAddress() (netip.AddrPort, error) {
-	value := strings.TrimSpace(os.Getenv("EVYDENCE_WORKER_HEALTH_ADDR"))
-	if value == "" {
-		value = "127.0.0.1:8081"
-	}
-	address, err := netip.ParseAddrPort(value)
-	if err != nil || address.Port() == 0 || !address.Addr().Unmap().IsLoopback() || address.Addr().Zone() != "" {
-		return netip.AddrPort{}, errors.New("EVYDENCE_WORKER_HEALTH_ADDR must be a literal loopback address and nonzero port")
-	}
-	return address, nil
-}
 
 func newWorkerHealthHandler(monitor *health.Monitor) http.Handler {
 	admitted := make(chan struct{}, 8)
@@ -103,6 +87,18 @@ func runWorkerHealthcheck(ctx context.Context, args []string) error {
 	if ctx == nil {
 		return errWorkerProbeUnavailable
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return runWorkerWithContext(ctx, append([]string{"healthcheck"}, args...))
+}
+
+// The shared schema validates the captured loopback address before this client
+// can open a connection. It never uses proxies or redirects to remote hosts.
+func runWorkerHealthcheckConfigured(ctx context.Context, args []string, address netip.AddrPort) error {
+	if ctx == nil {
+		return errWorkerProbeUnavailable
+	}
 	flags := flag.NewFlagSet("healthcheck", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	liveness, startup := flags.Bool("liveness", false, ""), flags.Bool("startup", false, "")
@@ -110,10 +106,6 @@ func runWorkerHealthcheck(ctx context.Context, args []string) error {
 		return errors.New("worker healthcheck accepts one of --liveness or --startup, or no flags for readiness")
 	}
 	if err := ctx.Err(); err != nil {
-		return err
-	}
-	address, err := workerHealthAddress()
-	if err != nil {
 		return err
 	}
 	path := "/v1/ready"

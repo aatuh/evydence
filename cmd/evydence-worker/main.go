@@ -98,17 +98,15 @@ func run() error {
 }
 
 func runWithArgs(args []string) error {
-	if len(args) == 0 {
-		return run()
+	if len(args) == 0 || args[0] == "healthcheck" || args[0] == "--healthcheck" {
+		return runWorkerWithContext(context.Background(), args)
 	}
 	return logging.Run(context.Background(), "worker", runtimeinfo.Current(), os.Stderr, os.Getenv, func(ctx context.Context) error { return runWorkerWithContext(ctx, args) })
 }
 
 func runWorkerWithContext(parent context.Context, args []string) (runErr error) {
-	if len(args) > 0 {
+	if len(args) > 0 && args[0] != "healthcheck" && args[0] != "--healthcheck" {
 		switch args[0] {
-		case "healthcheck", "--healthcheck":
-			return runWorkerHealthcheck(parent, args[1:])
 		case "reconcile":
 			return runObjectReconciliationContext(parent, args[1:])
 		case "parser-replay":
@@ -121,6 +119,11 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	if err != nil {
 		logging.RejectStartup(parent, "worker", runtimeinfo.Current(), os.Stderr)
 		return err
+	}
+	if len(args) > 0 {
+		return runWorkerRoleProcess(parent, environment, config.WorkerProbe, os.Stderr, func(ctx context.Context, settings config.Configuration) error {
+			return runWorkerHealthcheckConfigured(ctx, args[1:], settings.Worker().HealthAddress)
+		})
 	}
 	return runWorkerProcess(parent, environment, os.Stderr, runWorkerConfigured)
 }

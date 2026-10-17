@@ -27,7 +27,7 @@ type nativeInputs struct {
 }
 
 func parseNativeInputs(environment Environment, role Role) (nativeInputs, error) {
-	if role != API && role != Worker && role != Migrate && role != CLI {
+	if !validRole(role) {
 		return nativeInputs{}, ErrInvalidRole
 	}
 	input := nativeInputs{values: make(map[string]nativeValue)}

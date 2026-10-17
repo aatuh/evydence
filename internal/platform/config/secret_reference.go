@@ -27,7 +27,7 @@ type secretFileReference struct {
 // parseSecretReferences validates declarations only, without opening a path or
 // resolving a credential. Prepare owns its public preflight composition.
 func parseSecretReferences(environment Environment, role Role) ([]secretFileReference, error) {
-	if role != API && role != Worker && role != Migrate && role != CLI {
+	if !validRole(role) {
 		return nil, ErrInvalidRole
 	}
 	var refs []secretFileReference

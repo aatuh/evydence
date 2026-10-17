@@ -9,8 +9,14 @@ const (
 	Worker
 	Migrate
 	CLI
-	AllRoles = API | Worker | Migrate | CLI
+	// WorkerProbe is the loopback healthcheck client, with no runtime dependencies.
+	WorkerProbe
+	AllRoles = API | Worker | Migrate | CLI | WorkerProbe
 )
+
+func validRole(role Role) bool {
+	return role != 0 && role&^AllRoles == 0 && role&(role-1) == 0
+}
 
 type Kind string
 
