@@ -113,6 +113,7 @@ type NativeGoogleSettings struct {
 // Values are role-filtered before projection and redact ordinary formatting.
 type NativeAzureSettings struct {
 	redactedValue
+	SDKLogging                 NativeOption[string]    `env:"AZURE_SDK_GO_LOGGING"`
 	AdditionallyAllowedTenants NativeOption[[]string]  `env:"AZURE_ADDITIONALLY_ALLOWED_TENANTS"`
 	AuthorityHost              NativeOption[NativeURL] `env:"AZURE_AUTHORITY_HOST"`
 	ClientCertificatePassword  NativeOption[Secret]    `env:"AZURE_CLIENT_CERTIFICATE_PASSWORD"`
@@ -151,6 +152,7 @@ type NativeHostSettings struct {
 	PathExtensions                     NativeOption[[]string]  `env:"PATHEXT"`
 	NoDefaultCurrentDirectoryInExePath NativeOption[string]    `env:"NoDefaultCurrentDirectoryInExePath"`
 	SystemRoot                         NativeOption[string]    `env:"SYSTEMROOT"`
+	OperatingSystem                    NativeOption[string]    `env:"OS"`
 	SystemCertificateFile              NativeOption[string]    `env:"SSL_CERT_FILE"`
 	SystemCertificateDirectories       NativeOption[[]string]  `env:"SSL_CERT_DIR"`
 }

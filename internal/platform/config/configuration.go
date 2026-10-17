@@ -1,8 +1,8 @@
 package config
 
-// Configuration owns typed, role-specific settings. Its constructor remains
-// package-private until all dedicated validation is implemented; this type alone
-// is not proof that an application's complete configuration has been validated.
+// Configuration owns typed, role-specific input settings. Parse validates input
+// without resolving external references. A value does not prove that files,
+// credentials, database defaults or providers have been resolved or are ready.
 type Configuration struct {
 	redactedValue
 	role       Role
@@ -15,6 +15,18 @@ type Configuration struct {
 	cli        CLISettings
 	native     NativeSettings
 	database   databaseInput
+}
+
+// Parse applies role-specific defaults, syntax and local relationship checks to
+// a captured environment. It consults no ambient environment, clock, files,
+// network, listeners or provider loaders. Any failure returns zero settings.
+// External reference/default resolution is a separate prerequisite to startup.
+func Parse(environment Environment, role Role) (Configuration, error) {
+	input, err := parseRoleInput(environment, role)
+	if err != nil {
+		return Configuration{}, err
+	}
+	return projectInput(input), nil
 }
 
 func (c Configuration) Role() Role                  { return c.role }

@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "scope": "Project-owned runtime configuration and deliberate environment reads reachable through the currently wired pgx, AWS default config/KMS credential chain, Google ADC and Azure DefaultAzureCredential, plus Go transport/trust/home/executable lookup inputs. Source-only review at the pinned dependencies.",
+  "limits": [
+    "Hashes record the reviewed source bytes; unit checks pin dependency versions and schema source coverage without fetching SDK source or invoking loaders.",
+    "Broader unused SDK APIs, general Go runtime knobs and arbitrary external credential-tool environments are outside the scalar parser. Their resolution must remain explicitly owned.",
+    "No credential files, environment values, provider commands or external endpoints were read to produce this inventory."
+  ],
+  "sources": [
+    {
+      "source": "cloud.google.com/go/compute/metadata@v0.9.0/metadata.go",
+      "sha256": "5c6df095827610325e11133d1f5773192292547adf19af5003a82e44068e5b0b",
+      "finding": "GCE_METADATA_HOST overrides metadata host and influences OnGCE discovery; include in native credential boundary."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azcore@v1.21.1/runtime/policy_telemetry.go",
+      "sha256": "3edf35fbf32ad81fbe548f3b9c7939592cacca9e80a6bd29c2afc6f08752e9b9",
+      "finding": "A package-level initializer reads OS on Windows to build credential-client User-Agent platform information. Parsing can validate captured input but cannot retroactively freeze this initialization; telemetry/transport ownership must remove ambient influence before provider startup."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/azidentity.go",
+      "sha256": "1f3b90997bb09f5c554ed0842f930cd204607d3563bdf37153a62e425dc65a26",
+      "finding": "Reviewed environment configuration/credential source at the pinned SDK boundary; literal names: AZURE_ADDITIONALLY_ALLOWED_TENANTS, AZURE_AUTHORITY_HOST, AZURE_CLIENT_CERTIFICATE_PASSWORD, AZURE_CLIENT_CERTIFICATE_PATH, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_FEDERATED_TOKEN_FILE, AZURE_PASSWORD, AZURE_REGIONAL_AUTHORITY_NAME, AZURE_TENANT_ID, AZURE_USERNAME. External reference resolution remains separate."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/azure_pipelines_credential.go",
+      "sha256": "77bb6ae5916e3066ea25fa24624c478dc3967f5e0adc7337c235a73352d11b1f",
+      "finding": "Explicit AzurePipelinesCredential reads SYSTEM_OIDCREQUESTURI. It is not part of the current NewDefaultAzureCredential chain and is not constructed by the Evydence adapter; excluded from the selected native input scope."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/default_azure_credential.go",
+      "sha256": "7fa7417dd647645430e57cb250be30ee91a6bc41e4267df6cfc66686263372ce",
+      "finding": "Credential selection uses exact dev/prod values and case-insensitive class names; LookupEnv distinguishes present-empty from absent."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/developer_credential_util_windows.go",
+      "sha256": "9adee8594338b7fe4755ab999d10b5b035a91e569ffcc529f2eb5619ef6f5032",
+      "finding": "buildCmd reads SYSTEMROOT before constructing a developer-credential command."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/environment_credential.go",
+      "sha256": "4ef1a56d5bdba29aa3b8294255117c592c2082ef57c973792c22cd1d15d0a657",
+      "finding": "Certificate chain flag accepts 1 or case-insensitive true; legacy other strings are false. Environment credential constructor reads certificate files; it is not called in capture."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/managed_identity_client.go",
+      "sha256": "32b88df2830648de220576bf7e0b3ea74b677ab22eab423d7ec17748e3b5b0b4",
+      "finding": "Managed identity delegates to MSAL; SDK-local literal getenv inventory alone misses the transitive inputs."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/internal@v1.12.0/log/log.go",
+      "sha256": "7254be894f46c28b4b8c229f2738914e0079e2731890a967916a7e0834b2aa2b",
+      "finding": "Module initialization reads AZURE_SDK_GO_LOGGING; exact all installs a raw timestamp/event/message stderr listener. Native policy must prohibit raw SDK logging in production; later command/provider composition must explicitly neutralize the global SDK logger before use."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/internal@v1.12.0/telemetry/telemetry.go",
+      "sha256": "f9cc0fd0729de0b692d36dc7ec2fddb47bb5292786239889726c79697a84b254",
+      "finding": "Shared telemetry also reads Windows OS during package-level platform-info initialization. Same OS schema field and later explicit telemetry owner apply."
+    },
+    {
+      "source": "github.com/AzureAD/microsoft-authentication-library-for-go@v1.7.0/apps/managedidentity/azure_ml.go",
+      "sha256": "ae658568c50156e3546785fd0ceb0859b4244f7cd80e5de16574bc625dfe4c49",
+      "finding": "Also reads DEFAULT_IDENTITY_CLIENT_ID in managed-identity requests."
+    },
+    {
+      "source": "github.com/AzureAD/microsoft-authentication-library-for-go@v1.7.0/apps/managedidentity/managedidentity.go",
+      "sha256": "3651efd5bb08b1c634736a10de2176039bb380b7a3005154c976b220496f550a",
+      "finding": "Reads IDENTITY_ENDPOINT, IDENTITY_HEADER, IDENTITY_SERVER_THUMBPRINT, MSI_ENDPOINT, MSI_SECRET, IMDS_ENDPOINT; Windows ProgramData also affects paths."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/config@v1.32.20/auth_scheme_preference.go",
+      "sha256": "9fe96e11dfb3c8817588a99f6464e30d8507a1b13eaa09c20da511cf4b263730",
+      "finding": "toAuthSchemePreferenceList splits commas, trims items and skips empty entries without changing case; native syntax preserves this behavior with explicit bounds."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/config@v1.32.20/defaultsmode.go",
+      "sha256": "d68afc1f437aecf0ac0fef1058570de0b3287f52d62ac029f4bbf8cfee64ba02",
+      "finding": "Reviewed environment configuration/credential source at the pinned SDK boundary; literal names: AWS_EXECUTION_ENV. External reference resolution remains separate."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/config@v1.32.20/env_config.go",
+      "sha256": "9cc0e36f93fc3cf21c8f7fb1621c47a42cec43ca9b263ccc766e5ac0db99e58b",
+      "finding": "GetServiceBaseEndpoint computes AWS_ENDPOINT_URL_ plus uppercased SDK ServiceID with spaces replaced by underscores."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/config@v1.32.20/resolve_credentials.go",
+      "sha256": "f7ed86b5e3b98b1d0cb5f4bd588c3bb03e458bc6b0c92970d51c77476db1afbd",
+      "finding": "HTTP container credential destinations allow loopback, ECS 169.254.170.2, EKS 169.254.170.23 and fd00:ec2::23. Hostname resolution and isAllowedHost checks perform I/O and remain outside pure parsing."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/credentials@v1.19.19/logincreds/token.go",
+      "sha256": "d093fbd26a2bc5f9daf32026e874327590f67b7aa3294ac745183a55c9563651",
+      "finding": "Native login cache uses the shared home-directory boundary; file/token resolution is EVY-1215."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/credentials@v1.19.19/processcreds/provider.go",
+      "sha256": "c8c369178bfb889891ea8f0599f63a92d2fd1e83d8ece4bbc8c18ca4913aa9e2",
+      "finding": "Existing process credentials inherit os.Environ for the provider subprocess. Parsing never runs helpers. Child-tool environment and process policy require the explicit EVY-1215/EVY-1216 resolution owner, not unbounded scalar schema expansion."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/credentials@v1.19.19/ssocreds/sso_cached_token.go",
+      "sha256": "f3bfcec076b63abb2efa44e0ee9917e5c5e84ebbeb743e8821ca595db6adb8da",
+      "finding": "SSO cache location uses the shared home-directory boundary; no additional environment name is read in this file."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/feature/ec2/imds@v1.18.25/api_client.go",
+      "sha256": "db445dc20cbe3ec632fd37032ad5f40f01fdf7997ad3025bd98e11f72bea638a",
+      "finding": "IMDS client reads AWS_EC2_METADATA_DISABLED and AWS_EC2_METADATA_SERVICE_ENDPOINT when options are absent; both are declared native inputs. No other environment name occurs here."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/kms@v1.52.2/api_client.go",
+      "sha256": "279510a181335e6b810ea98029ca9d4f09c6eadfc370bed2e4d3303cb881bdb3",
+      "finding": "ServiceID KMS -> AWS_ENDPOINT_URL_KMS."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/signin@v1.1.1/api_client.go",
+      "sha256": "7d066237019357f81f58e889a90cf1eb492584cb5dd9e094942ebe89649fa432",
+      "finding": "ServiceID Signin -> AWS_ENDPOINT_URL_SIGNIN; credential-chain service."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/sso@v1.30.19/api_client.go",
+      "sha256": "5b5c1e013ff24364951fe03b1d9888b52decf207ec63937a270d62c43075416b",
+      "finding": "ServiceID SSO -> AWS_ENDPOINT_URL_SSO; credential-chain service."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/ssooidc@v1.36.2/api_client.go",
+      "sha256": "f86fcafb2b7564b50c3522b871f8e6b687a73cd4d8873dc056417afe2714e4f0",
+      "finding": "ServiceID SSO OIDC -> AWS_ENDPOINT_URL_SSO_OIDC; credential-chain service."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/sts@v1.42.3/api_client.go",
+      "sha256": "dd92a3068d58afdb7e40abd37c0fe0c435c13ecd07d97111a158dd6f161361e5",
+      "finding": "ServiceID STS -> AWS_ENDPOINT_URL_STS; credential-chain service."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2@v1.41.9/aws/defaultsmode.go",
+      "sha256": "5dc9f28de96f3dbe4d1b01c3f8277b358bd77571dd469efcf23594d048ea66ba",
+      "finding": "Native defaults profiles are legacy, standard, in-region, cross-region, mobile and auto."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2@v1.41.9/aws/retryer.go",
+      "sha256": "252b730e189d1b3f00ee1f59175527a1ae939c5a8502e399d7cfb07bb65f8804",
+      "finding": "Native retry choices are standard/adaptive; ParseRetryMode normalizes case."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2@v1.41.9/aws/transport/http/client.go",
+      "sha256": "8ad361ca841e3e768953d1b9dadb9be5a23031c34accccbf8b6020b07e7ee4b2",
+      "finding": "Native AWS BuildableClient defaultHTTPTransport uses net/http.ProxyFromEnvironment."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2@v1.41.9/internal/shareddefaults/shared_config.go",
+      "sha256": "989e6e0c05c74cc05586f42eba38eb6cc97f0fe3caeecd6b34c716b4a257a929",
+      "finding": "UserHomeDir delegates os.UserHomeDir; default AWS credential/config file locations depend on platform home input."
+    },
+    {
+      "source": "github.com/jackc/pgx/v5@v5.9.2/pgconn/config.go",
+      "sha256": "da7909eb1387c4f3c930acf7e066645aee800715142ce743d0c554ff5197458e",
+      "finding": "parseEnvSettings maps 22 PG names; explicit connection settings override native environment; ParseConfig can read service/pass/TLS material."
+    },
+    {
+      "source": "github.com/jackc/pgx/v5@v5.9.2/pgconn/defaults.go",
+      "sha256": "b8857ff610ebaa13cedcfc3f3ef5085df85457d4c584bd6a4976939cdbeecc8c",
+      "finding": "Non-Windows defaultSettings calls user.Current and os.Stat on home TLS files; default port 5432 and target_session_attrs any. This is an OS/filesystem boundary, not pure environment parsing."
+    },
+    {
+      "source": "go@1.26.9/src/crypto/x509/root_unix.go",
+      "sha256": "421c066f193250dc1adaf13fce4779fc3dc576e20faa86e43bc22af6c9536a14",
+      "finding": "SSL_CERT_FILE and colon-separated SSL_CERT_DIR influence system TLS trust loading and file/directory reads."
+    },
+    {
+      "source": "go@1.26.9/src/net/http/transport.go",
+      "sha256": "643bce4b4fb016ed57c18e9d087e6c298faf3263d83728107c6b5cdaa398fe87",
+      "finding": "ProxyFromEnvironment caches the vendored httpproxy.FromEnvironment().ProxyFunc() under sync.Once. Capturing app input does not freeze these ambient native reads."
+    },
+    {
+      "source": "go@1.26.9/src/os/exec/lp_unix.go",
+      "sha256": "5ee781400e1f04ffea869496f161555f31d1af0ca521fb77ef16f54522808746",
+      "finding": "lookPath consults PATH for native executable lookup; the config capture never calls it."
+    },
+    {
+      "source": "go@1.26.9/src/os/exec/lp_windows.go",
+      "sha256": "b43699d7c9c5fa2cfe82edb55be04b509619232ad514a34a11c481d43290a6fd",
+      "finding": "Windows executable lookup reads PATHEXT, presence of NoDefaultCurrentDirectoryInExePath, and case-insensitive path. Suffixes lowercase, add missing leading dots and skip empty entries; absent/empty PATHEXT uses native defaults, nonempty separators-only input yields no suffixes."
+    },
+    {
+      "source": "go@1.26.9/src/os/file.go",
+      "sha256": "85a4adcd383c9947d6133b65ccd01e95b68ce1d07b8474b7b7aad8ca9f3b8139",
+      "finding": "UserHomeDir reads HOME on Unix and USERPROFILE on Windows; source pin matches go.mod Go 1.26.9."
+    },
+    {
+      "source": "go@1.26.9/src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+      "sha256": "e1cde07b566be558b32a4a54cd1e8d9c36ce7d0579706c9495537154f8c1041e",
+      "finding": "Go 1.26.9 transport chooses HTTP_PROXY before http_proxy, HTTPS_PROXY before https_proxy, NO_PROXY before no_proxy; REQUEST_METHOD controls CGI handling."
+    },
+    {
+      "source": "golang.org/x/net@v0.61.0/http/httpproxy/proxy.go",
+      "sha256": "57390aaf1224c46cabce1fc593daeed586d0444fb3ad46436f9ad72dc8c3cae3",
+      "finding": "This separately pinned package chooses lowercase proxy spellings first, unlike Go 1.26.9 vendored net/http proxy behavior. Do not silently swap its FromEnvironment helper for the actual native transport contract."
+    },
+    {
+      "source": "golang.org/x/oauth2@v0.37.0/google/default.go",
+      "sha256": "a0e67a6d6542e90e45af653b4c41681973dec5ce54e447cfd524f59227a31c6d",
+      "finding": "FindDefaultCredentials reads GOOGLE_APPLICATION_CREDENTIALS, then a well-known credentials file, then metadata discovery; Windows APPDATA differs from Unix home fallback."
+    },
+    {
+      "source": "golang.org/x/oauth2@v0.37.0/google/externalaccount/aws.go",
+      "sha256": "9af6d7da0fde7a1a19858de8f5629891961ef878192c76e47a18792f0cdf3c81",
+      "finding": "Reviewed environment configuration/credential source at the pinned SDK boundary; literal names: AWS_ACCESS_KEY_ID, AWS_DEFAULT_REGION, AWS_REGION, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN. External reference resolution remains separate."
+    },
+    {
+      "source": "golang.org/x/oauth2@v0.37.0/google/externalaccount/executablecredsource.go",
+      "sha256": "055223607710f94c6d4ed25fd601f4d3e7d40d2b6c6d850d6f97b8bb5bb8d20d",
+      "finding": "Reviewed environment configuration/credential source at the pinned SDK boundary; literal names: GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES. External reference resolution remains separate."
+    },
+    {
+      "source": "golang.org/x/oauth2@v0.37.0/google/sdk.go",
+      "sha256": "5a6023c614294ed08ce271396a7a6f46fe682ed02afb6ba646555cb250cc8cf1",
+      "finding": "guessUnixHomeDir reads HOME then falls back to OS user lookup."
+    },
+    {
+      "source": "internal/platform/httpclient/httpclient.go",
+      "sha256": "e47d817c8eb0bd90ae4b2a7d98cdc79407e9cc459d1e34810a34da6feebdf980",
+      "finding": "CloneOwned preserves a standard transport proxy; policy-bound New explicitly clears clone.Proxy. Native GCP/Azure paths use CloneOwned."
+    },
+    {
+      "source": "scripts/release_candidate_package.sh",
+      "sha256": "686506b92d7da459e6cfbd2e19fd65298314be2b3edeb38bcea3e31663a1e3ed",
+      "finding": "Existing packaging targets include linux/amd64, linux/arm64, darwin/amd64, darwin/arm64 and windows/amd64 for the declared command list."
+    }
+  ]
+}

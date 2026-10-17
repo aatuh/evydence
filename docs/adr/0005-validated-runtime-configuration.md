@@ -1,11 +1,10 @@
 # ADR 0005: Validated Runtime Configuration
 
-Status: accepted for the immutable-input, schema-metadata, scalar-parsing,
-role-input, typed-projection and local-validation foundation of EVY-1214,
-with HTTP/signing/S3/database-syntax/Sigstore validation reviewed 2026-10-17.
-Complete schema/SDK coverage,
-secret resolution, command adoption and generated deployment documentation remain
-pending in EVY-1214 through EVY-1217. This is an explanation for developers
+Status: accepted for the immutable-input, schema, pure typed parser and
+local/HTTP/signing/S3/database-syntax/Sigstore validation foundation of EVY-1214,
+reviewed and validated 2026-10-17. Secret/default
+resolution, command adoption and generated deployment documentation belong to
+EVY-1215 through EVY-1217. This is an explanation for developers
 maintaining startup and configuration boundaries.
 
 ## Decision
@@ -55,12 +54,26 @@ duplicate, UTF-8, NUL and combined-size protections. Arbitrary `PG*` names remai
 outside the selected input. Tests pin this metadata to the actual module
 requirement and check owned copies independently.
 
-The native catalogue now contains 105 definitions covering 112 distinct names:
-22 PostgreSQL, 50 AWS, three Google, 20 Azure/MSAL and 17 host/transport inputs.
+The native catalogue now contains 107 definitions covering 114 distinct names:
+22 PostgreSQL, 50 AWS, three Google, 21 Azure/MSAL/core and 18 host/transport inputs.
 AWS includes the KMS, STS, SSO, SSO OIDC and Signin endpoint names computed from
 service identifiers. The Google boundary includes metadata-host overrides and
 the external executable opt-in; Azure includes transitive managed-identity inputs.
 These declarations use the existing module pins and add no SDK initialization.
+
+Transitive Azure core coverage includes `AZURE_SDK_GO_LOGGING` and Windows `OS`.
+The shared logger installs a raw stderr listener at package initialization when
+its value is exactly `all`. Input grammar accepts optional empty, `off` or `all`;
+API production policy rejects `all`, including when another signer is selected.
+The Windows OS telemetry label is bounded to 256 bytes and rejects control
+characters. These are intentional earlier rejections. Native production policy
+uses the same schema-owned restrictions as project options; returned metadata
+cannot weaken it.
+
+Capturing these inputs cannot undo SDK package initialization. Later provider
+composition must explicitly own the process-global listener and telemetry before
+SDK clients are used, so an earlier ambient value cannot bypass captured policy.
+The pure parser neither changes SDK globals nor claims to make a provider ready.
 
 The release script includes Windows builds. The host catalogue therefore includes
 `PATHEXT` and `NoDefaultCurrentDirectoryInExePath`, reviewed against the pinned Go
@@ -128,8 +141,7 @@ matches the pinned AWS helper; malformed additional-tenant entries fail. These
 list bounds and earlier rejections are deliberate tightening rules. Parsed URLs,
 ports and items stay private and redacted alongside exact supplied bytes.
 
-Native default/service resolution, credential resolution and
-complete transitive SDK coverage remain required. Native
+Native default/service and credential resolution remain separate. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
 their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
 none of these operations and exposes no generic environment forwarder.
@@ -146,9 +158,20 @@ The guard explicitly recognizes existing reader forwarding to startup logging
 and configuration-freshness probes. These exceptions authorize no new runtime
 environment shim; EVY-1216 must replace the ambient reads. The guard supports a
 small finite source grammar, not arbitrary Go evaluation or every transitive
-SDK credential-chain option. New forms need explicit review and guard coverage;
-remaining SDK boundaries and the typed loader are still required before
-EVY-1214 closes. Catalogue metadata alone does not change command behavior.
+SDK credential-chain option. New forms need explicit review and guard coverage.
+Catalogue metadata alone does not change command behavior.
+
+`testdata/native-boundary-review.json` commits 44 reviewed source records with
+hashes, scope and findings. Their hashes were checked against the actual checkout
+and pinned SDK/toolchain files. Tests require every native schema source to have
+a review record, pin the reviewed dependency versions, and check repository-owned
+boundary hashes without fetching SDK source or invoking loaders. This records the
+currently wired credential paths, including their transitive environment reads;
+it does not assert that arbitrary SDK APIs or subprocess environments are covered.
+For example, explicit `AzurePipelinesCredential` is outside the current default
+Azure chain. Existing process-credential inheritance, external helper execution,
+file-backed profiles, metadata access and native defaults need the bounded
+EVY-1215/EVY-1216 resolution owner. They are not additional parser side effects.
 
 The package-owned scalar parser produces booleans, bounded integers/durations,
 canonical choices, masked CIDR prefixes, decoded base64 bytes and UTC timestamps.
@@ -194,7 +217,7 @@ defaults and does not retain mutable parser slices. Tests check each declared
 field's source independently, so identical defaults cannot conceal missing or
 misrouted values.
 
-Native settings now project all 105 native definitions into PostgreSQL, AWS,
+Native settings now project all 107 native definitions into PostgreSQL, AWS,
 Google, Azure and host groups. Each field has an explicit type and schema tag;
 source-by-source tests check complete coverage and correct scalar/list/URL reads.
 `NativeOption` distinguishes absent input, supplied empty input and an effective
@@ -207,8 +230,16 @@ parsed URLs use a redacted `NativeURL` with explicit `URL()` access, protecting
 proxy userinfo during ordinary formatting. Lists are copied during construction
 and on `Value()` access. URL access returns a value copy; its userinfo type is
 immutable. Configuration also retains owned copies of all private database input
-layers for later bounded resolution. Construction remains package-private until
-the remaining validation and coverage work is complete.
+layers for later bounded resolution.
+
+The public `Parse(Environment, Role)` now composes role parsing/validation with
+owned typed projection. It returns zero settings on failure and reads no ambient
+environment, clock, files or providers. Public-API tests parse captured values
+while ambient inputs are poisoned and reference nonexistent credential/service
+files. Parsed configuration is input validation, not proof that references are
+resolved or a runtime is ready. Native optional/fallback behavior stays intact:
+partial credentials can be completed or bypassed by the SDK's later file/profile
+chain, so parsing does not invent unconditional credential requirements.
 
 Local validation rejects SSO idle time beyond the maximum lifetime, blank
 bootstrap names, unsupported API address syntax, multiple production writers,
@@ -335,10 +366,11 @@ metadata identifies the actual pinned `sigstore-go.v1.3.0` dependency, correctin
 the stale `v1.1.4` label without rewriting historical receipts. A module-pin test
 guards this metadata against future drift.
 
-Remaining native cross-field/production validation, path checks, complete
-SDK boundary review and typed construction remain required before EVY-1214 closes. Native
+Known supplied syntax, project production restrictions and local relationships
+are checked without external resolution. Relationships that depend on service,
+profile or credential files remain explicitly unresolved. Native
 default/credential/file resolution belongs to EVY-1215 and command adoption
-to EVY-1216.
+to EVY-1216; a parsed value cannot authorize startup before that work is complete.
 The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
 settings and can read service, passfile and TLS material while parsing. The
 current PostgreSQL adapter enters that path through `pgxpool.New`. Reusing its

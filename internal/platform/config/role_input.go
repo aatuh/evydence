@@ -57,7 +57,7 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 				return parsedInput{}, err
 			}
 		}
-		if production && ((d.ForbiddenInProduction && value.boolean) || (len(d.ProductionAllowed) > 0 && !slices.Contains(d.ProductionAllowed, value.text))) {
+		if production && violatesProductionPolicy(d, value) {
 			return parsedInput{}, ErrUnsafeProduction
 		}
 		input.values[d.Name] = value
@@ -67,6 +67,16 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		return parsedInput{}, err
 	}
 	input.native = native
+	if production {
+		for _, d := range NativeDefinitions() {
+			if d.Roles&role == 0 {
+				continue
+			}
+			if value, present := native.selected(d); present && violatesProductionPolicy(d.Definition, value.scalar) {
+				return parsedInput{}, ErrUnsafeProduction
+			}
+		}
+	}
 	if role != CLI {
 		database, err := parseDatabaseInput(input.values["EVYDENCE_DATABASE_URL"].text, native)
 		if err != nil {
@@ -90,6 +100,11 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		return parsedInput{}, err
 	}
 	return input, nil
+}
+
+func violatesProductionPolicy(d Definition, value scalarValue) bool {
+	return (d.ForbiddenInProduction && value.boolean) ||
+		(len(d.ProductionAllowed) > 0 && !slices.Contains(d.ProductionAllowed, value.text))
 }
 
 func parseRoleValue(d Definition, raw string) (scalarValue, error) {

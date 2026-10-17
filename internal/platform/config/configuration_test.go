@@ -13,11 +13,11 @@ import (
 
 func typedConfiguration(t *testing.T, role Role, extra ...string) Configuration {
 	t.Helper()
-	input, err := parseRoleInput(roleEnvironment(t, role, false, extra...), role)
+	cfg, err := Parse(roleEnvironment(t, role, false, extra...), role)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return projectInput(input)
+	return cfg
 }
 
 func TestConfigurationProjectsTypedRoleSettings(t *testing.T) {

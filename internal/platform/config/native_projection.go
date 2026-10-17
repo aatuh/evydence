@@ -81,6 +81,7 @@ func projectNative(input nativeInputs) NativeSettings {
 			MetadataHost:     nativeURL(input, "GCE_METADATA_HOST"),
 		},
 		azure: NativeAzureSettings{
+			SDKLogging:                 nativeString(input, "AZURE_SDK_GO_LOGGING"),
 			AdditionallyAllowedTenants: nativeItems(input, "AZURE_ADDITIONALLY_ALLOWED_TENANTS"),
 			AuthorityHost:              nativeURL(input, "AZURE_AUTHORITY_HOST"),
 			ClientCertificatePassword:  nativeSecret(input, "AZURE_CLIENT_CERTIFICATE_PASSWORD"),
@@ -115,6 +116,7 @@ func projectNative(input nativeInputs) NativeSettings {
 			PathExtensions:                     nativeItems(input, "PATHEXT"),
 			NoDefaultCurrentDirectoryInExePath: nativeString(input, "NoDefaultCurrentDirectoryInExePath"),
 			SystemRoot:                         nativeString(input, "SYSTEMROOT"),
+			OperatingSystem:                    nativeString(input, "OS"),
 			SystemCertificateFile:              nativeString(input, "SSL_CERT_FILE"),
 			SystemCertificateDirectories:       nativeItems(input, "SSL_CERT_DIR"),
 		},
