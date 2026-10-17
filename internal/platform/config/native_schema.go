@@ -25,6 +25,12 @@ type NativeDefinition struct {
 	// Fallbacks are lower-priority environment names. Their supplied values are
 	// captured independently; they are not equality-enforcing project aliases.
 	Fallbacks []string
+	// ExactChoices is the subset of Allowed requiring exact case when the
+	// remaining choices permit case folding (e.g. Azure's dev/prod selector).
+	ExactChoices  []string
+	CaseSensitive bool
+	RejectEmpty   bool
+	RejectControl bool
 }
 
 var nativeInputDefinitions = slices.Concat(
@@ -42,6 +48,7 @@ func NativeDefinitions() []NativeDefinition {
 		result[i].ProductionAllowed = slices.Clone(result[i].ProductionAllowed)
 		result[i].Aliases = slices.Clone(result[i].Aliases)
 		result[i].Fallbacks = slices.Clone(result[i].Fallbacks)
+		result[i].ExactChoices = slices.Clone(result[i].ExactChoices)
 	}
 	slices.SortFunc(result, func(a, b NativeDefinition) int {
 		if a.Name < b.Name {
@@ -76,5 +83,6 @@ func nativeInput(boundary NativeBoundary, source, name, parameter string, kind K
 			Description:   description,
 		},
 		Boundary: boundary, Parameter: parameter, Source: source,
+		RejectControl: kind == Path,
 	}
 }

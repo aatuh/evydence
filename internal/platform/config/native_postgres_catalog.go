@@ -44,10 +44,12 @@ func nativePostgresDefinitions() []NativeDefinition {
 		d.DefaultPolicy = "Optional native input beneath explicit connection parameters; driver defaults and file resolution are separate."
 		d.Description = entry.description
 		definitions = append(definitions, NativeDefinition{
-			Definition: d,
-			Boundary:   NativePostgres,
-			Parameter:  entry.parameter,
-			Source:     "github.com/jackc/pgx/v5@v5.9.2/pgconn/config.go:parseEnvSettings",
+			Definition:    d,
+			Boundary:      NativePostgres,
+			Parameter:     entry.parameter,
+			Source:        "github.com/jackc/pgx/v5@v5.9.2/pgconn/config.go:parseEnvSettings",
+			CaseSensitive: d.Kind == Choice,
+			RejectControl: d.Kind == Path,
 		})
 	}
 	return definitions

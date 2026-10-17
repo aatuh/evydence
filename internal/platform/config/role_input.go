@@ -21,6 +21,7 @@ type parsedInput struct {
 	role       Role
 	production bool
 	values     map[string]scalarValue
+	native     nativeInputs
 }
 
 func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
@@ -60,6 +61,11 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		}
 		input.values[d.Name] = value
 	}
+	native, err := parseNativeInputs(environment, role)
+	if err != nil {
+		return parsedInput{}, err
+	}
+	input.native = native
 	if err := validateLocalInput(input); err != nil {
 		return parsedInput{}, err
 	}

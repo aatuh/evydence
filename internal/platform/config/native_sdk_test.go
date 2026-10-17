@@ -132,9 +132,12 @@ func TestNativeFallbackMetadataIsOwnedAndKeepsPrecedence(t *testing.T) {
 		for i := range d.Fallbacks {
 			d.Fallbacks[i] = "PRIVATE_MUTATION"
 		}
+		for i := range d.ExactChoices {
+			d.ExactChoices[i] = "PRIVATE_MUTATION"
+		}
 	}
 	for _, d := range NativeDefinitions() {
-		if slices.Contains(d.Fallbacks, "PRIVATE_MUTATION") {
+		if slices.Contains(d.Fallbacks, "PRIVATE_MUTATION") || slices.Contains(d.ExactChoices, "PRIVATE_MUTATION") {
 			t.Fatal("native fallback metadata shares mutable storage")
 		}
 	}

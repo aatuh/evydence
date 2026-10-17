@@ -67,8 +67,28 @@ as secrets because they can contain credentials. Host inputs now include native
 credential directories, executable search paths and system TLS trust overrides.
 Their captured values are never opened or executed by this phase.
 
-Effective native parsing is still incomplete. Per-field validation, DSN merging,
-credential resolution and complete transitive/computed-read coverage remain required. Native
+The role-input evaluator now includes native primitive parsing. Private typed
+state retains every supplied spelling and its exact bytes, including empty
+values; selection uses the declared first-nonempty fallback order. Bounds,
+UTF-8/NUL checks and fixed diagnostics reuse the shared scalar foundation.
+Implicit formatting and JSON redact both raw and parsed native values.
+
+Native case, empty-value and control-character rules belong to schema metadata.
+PostgreSQL choices and AWS account endpoint modes remain case-sensitive. Azure's
+`dev`/`prod` selector values are exact, while credential class names are
+case-insensitive. An absent Azure selector is allowed; a present empty value
+fails. Native booleans and numbers reject surrounding whitespace. Opaque secret
+bytes remain unchanged; full authorization values can contain spaces but reject
+control characters. This parsing performs no ambient reads or external resolution.
+
+Malformed flags that previously fell back silently now fail: this includes AWS's
+metadata-disable flag and Azure's certificate-chain flag. Native retry counts are
+bounded to 2,147,483,647, seconds conversion checks overflow, and native file
+references have a 4096-byte bound with blank/control-bearing paths rejected.
+These tightening rules apply to the new private evaluator; command adoption is
+still pending. Dedicated endpoint/list validation, effective DSN merging,
+typed native projections, credential resolution and complete transitive/computed-read
+coverage remain required. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
 their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
 none of these operations and exposes no generic environment forwarder.

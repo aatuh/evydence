@@ -38,6 +38,8 @@ func nativeAzureDefinitions() []NativeDefinition {
 	chain.Allowed = []string{"0", "1", "true", "false"}
 	credential := nativeInput(NativeAzure, "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/default_azure_credential.go:NewDefaultAzureCredential", "AZURE_TOKEN_CREDENTIALS", "token_credentials", Choice, "Native credential selection: dev/prod are case-sensitive; credential type names are case-insensitive; present empty input is invalid.")
 	credential.Allowed = []string{"dev", "prod", "EnvironmentCredential", "WorkloadIdentityCredential", "ManagedIdentityCredential", "AzureCLICredential", "AzureDeveloperCLICredential", "AzurePowerShellCredential"}
+	credential.ExactChoices = []string{"dev", "prod"}
+	credential.RejectEmpty = true
 	definitions = append(definitions, chain, credential)
 	const managed = "github.com/AzureAD/microsoft-authentication-library-for-go@v1.7.0/apps/managedidentity/managedidentity.go:GetSource"
 	for _, entry := range []struct {
@@ -58,6 +60,7 @@ func nativeAzureDefinitions() []NativeDefinition {
 		}
 		d := nativeInput(NativeAzure, source, entry.name, entry.parameter, entry.kind, entry.description)
 		d.Secret = entry.name == "IDENTITY_HEADER" || entry.name == "MSI_SECRET"
+		d.RejectControl = d.Secret
 		definitions = append(definitions, d)
 	}
 	return definitions

@@ -56,12 +56,14 @@ func nativeAWSDefinitions() []NativeDefinition {
 			d.Secret, d.Fallbacks = true, []string{"AWS_SECRET_KEY"}
 		case "AWS_SESSION_TOKEN", "AWS_CONTAINER_AUTHORIZATION_TOKEN":
 			d.Secret = true
+			d.RejectControl = true
 		case "AWS_REGION":
 			d.Fallbacks = []string{"AWS_DEFAULT_REGION"}
 		case "AWS_PROFILE":
 			d.Fallbacks = []string{"AWS_DEFAULT_PROFILE"}
 		case "AWS_ACCOUNT_ID_ENDPOINT_MODE":
 			d.Allowed = []string{"preferred", "required", "disabled"}
+			d.CaseSensitive = true
 		case "AWS_DEFAULTS_MODE":
 			d.Allowed = []string{"legacy", "standard", "in-region", "cross-region", "mobile", "auto"}
 		case "AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE":
