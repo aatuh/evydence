@@ -1,10 +1,9 @@
 # ADR 0005: Validated Runtime Configuration
 
-Status: accepted for the immutable-input, schema, pure typed parser and
-local/HTTP/signing/S3/database-syntax/Sigstore validation foundation of EVY-1214,
-reviewed and validated 2026-10-17. Secret/default
-resolution, command adoption and generated deployment documentation belong to
-EVY-1215 through EVY-1217. This is an explanation for developers
+Status: accepted for the EVY-1214 immutable-input/schema/validation foundation
+and EVY-1215 bounded project-secret resolution with explicit native SDK ownership,
+reviewed and validated 2026-10-17. Command adoption and generated deployment
+documentation remain EVY-1216 and EVY-1217. This is an explanation for developers
 maintaining startup and configuration boundaries.
 
 ## Decision
@@ -143,8 +142,9 @@ ports and items stay private and redacted alongside exact supplied bytes.
 
 Native default/service and credential resolution remain separate. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
-their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
-none of these operations and exposes no generic environment forwarder.
+their resolution retains the explicit pgx owner documented below. EVY-1216 must
+adopt validated input before entering that boundary. Capture performs none of
+these operations and exposes no generic environment forwarder.
 
 A source test scans production Go literals and fails when a selected environment
 name is missing from the catalogue. A second AST guard resolves current project
@@ -170,8 +170,9 @@ currently wired credential paths, including their transitive environment reads;
 it does not assert that arbitrary SDK APIs or subprocess environments are covered.
 For example, explicit `AzurePipelinesCredential` is outside the current default
 Azure chain. Existing process-credential inheritance, external helper execution,
-file-backed profiles, metadata access and native defaults need the bounded
-EVY-1215/EVY-1216 resolution owner. They are not additional parser side effects.
+file-backed profiles, metadata access and native defaults retain the SDK owners
+documented below. Command adoption must enter those boundaries explicitly;
+they are not additional parser side effects or project-file safety guarantees.
 
 The package-owned scalar parser produces booleans, bounded integers/durations,
 canonical choices, masked CIDR prefixes, decoded base64 bytes and UTC timestamps.
@@ -329,8 +330,8 @@ to 128 entries as well as the explicit parser's 128-pair bound.
 A selected service marks this private input as unresolved. Its settings belong
 between native and explicit layers and can fill missing fields or override native
 values. The pure evaluator still rejects contradictions fully specified by the
-DSN; it leaves unknown service-supplied relationships for bounded resolution in
-EVY-1215. It never opens a service file or claims that this candidate is a complete
+DSN; it leaves unknown service-supplied relationships for native pgx resolution.
+It never opens a service file or claims that this candidate is a complete
 driver configuration. Standalone DSN validation retains its strict complete-pair
 checks. Native numeric/duration fields reject surrounding whitespace, including
 inside quoted DSN values, matching the pinned driver/pool parsers.
@@ -369,8 +370,9 @@ guards this metadata against future drift.
 Known supplied syntax, project production restrictions and local relationships
 are checked without external resolution. Relationships that depend on service,
 profile or credential files remain explicitly unresolved. Native
-default/credential/file resolution belongs to EVY-1215 and command adoption
-to EVY-1216; a parsed value cannot authorize startup before that work is complete.
+default/credential/file resolution retains the SDK owners documented below;
+EVY-1216 must adopt validated settings before entering them. A parsed value
+cannot establish native credential or provider readiness.
 The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
 settings and can read service, passfile and TLS material while parsing. The
 current PostgreSQL adapter enters that path through `pgxpool.New`. Reusing its
@@ -466,9 +468,9 @@ formatting or JSON. No ambient environment mutation, shell execution or network
 secret fetcher is added.
 
 This boundary resolves project-secret files only. Native SDK/default/credential
-ownership remains separate work in EVY-1215, and actual command adoption remains
-EVY-1216. These helpers do not complete either ticket or authorize unresolved
-native credentials or provider startup.
+resolution retains the explicit owners below. Command adoption and SDK-global
+policy isolation remain EVY-1216; these helpers do not authorize unresolved
+native credentials or establish provider readiness.
 
 Worker metrics use their existing explicit token-file option rather than an
 inline/file alternative. Enabled `Resolve` reads at most 129 bytes within the
