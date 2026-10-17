@@ -1,6 +1,9 @@
 package config
 
-import "slices"
+import (
+	"net/netip"
+	"slices"
+)
 
 // NativeBoundary identifies a separately owned driver/credential boundary.
 // Declaring its inputs does not resolve defaults, files or provider credentials.
@@ -31,6 +34,11 @@ type NativeDefinition struct {
 	CaseSensitive bool
 	RejectEmpty   bool
 	RejectControl bool
+	Syntax        NativeSyntax
+	MaxItemBytes  int
+	// Literal HTTP addresses must match these prefixes when present. Hostname
+	// resolution and the native SDK's destination checks remain separately owned.
+	AllowedHTTPPrefixes []netip.Prefix
 }
 
 var nativeInputDefinitions = slices.Concat(
@@ -49,6 +57,7 @@ func NativeDefinitions() []NativeDefinition {
 		result[i].Aliases = slices.Clone(result[i].Aliases)
 		result[i].Fallbacks = slices.Clone(result[i].Fallbacks)
 		result[i].ExactChoices = slices.Clone(result[i].ExactChoices)
+		result[i].AllowedHTTPPrefixes = slices.Clone(result[i].AllowedHTTPPrefixes)
 	}
 	slices.SortFunc(result, func(a, b NativeDefinition) int {
 		if a.Name < b.Name {
@@ -76,13 +85,17 @@ func nativeInput(boundary NativeBoundary, source, name, parameter string, kind K
 	if kind == Path {
 		maxBytes = 4096
 	}
-	return NativeDefinition{
+	d := NativeDefinition{
 		Definition: Definition{
 			Name: name, Kind: kind, Roles: API, MaxBytes: maxBytes,
 			DefaultPolicy: "Optional native input; native defaults, fallback precedence and external resolution are separately owned.",
 			Description:   description,
 		},
 		Boundary: boundary, Parameter: parameter, Source: source,
-		RejectControl: kind == Path,
+		RejectControl: kind == Path || kind == URL,
 	}
+	if kind == URL {
+		d.EndpointPolicy = TLSBaseEndpoint
+	}
+	return d
 }

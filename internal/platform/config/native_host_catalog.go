@@ -13,6 +13,11 @@ func nativeHostDefinitions() []NativeDefinition {
 		d := nativeInput(NativeHost, proxy, entry.name, entry.name, kind, "Go HTTP transport setting; first nonempty uppercase value takes precedence over its lowercase fallback.")
 		d.Roles, d.Fallbacks = API|Worker|CLI, []string{entry.fallback}
 		d.Secret = kind == URL // Proxy URLs can carry credentials.
+		if kind == URL {
+			d.EndpointPolicy = NativeProxyEndpoint
+		} else {
+			d.Syntax, d.MaxItems, d.MaxItemBytes, d.RejectControl = NativeNoProxy, maxNativeListItems, 4096, true
+		}
 		definitions = append(definitions, d)
 	}
 	cgi := nativeInput(NativeHost, proxy, "REQUEST_METHOD", "cgi", Text, "A nonempty value enables the Go transport's CGI proxy restrictions.")
@@ -33,6 +38,12 @@ func nativeHostDefinitions() []NativeDefinition {
 			kind = Text // Lists need their own bounded native grammar.
 		}
 		d := nativeInput(NativeHost, entry.source, entry.name, entry.parameter, kind, entry.description)
+		if entry.name == "PATH" || entry.name == "SSL_CERT_DIR" {
+			d.Syntax, d.MaxItems, d.MaxItemBytes, d.RejectControl = NativePathList, maxNativeListItems, 4096, true
+			if entry.name == "SSL_CERT_DIR" {
+				d.Syntax = NativeCertDirectories
+			}
+		}
 		if entry.name == "SSL_CERT_FILE" || entry.name == "SSL_CERT_DIR" {
 			d.Roles = AllRoles
 		}

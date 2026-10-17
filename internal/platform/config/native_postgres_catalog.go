@@ -43,14 +43,21 @@ func nativePostgresDefinitions() []NativeDefinition {
 		d.Secret = entry.parameter == "password" || entry.parameter == "sslpassword"
 		d.DefaultPolicy = "Optional native input beneath explicit connection parameters; driver defaults and file resolution are separate."
 		d.Description = entry.description
-		definitions = append(definitions, NativeDefinition{
+		native := NativeDefinition{
 			Definition:    d,
 			Boundary:      NativePostgres,
 			Parameter:     entry.parameter,
 			Source:        "github.com/jackc/pgx/v5@v5.9.2/pgconn/config.go:parseEnvSettings",
 			CaseSensitive: d.Kind == Choice,
 			RejectControl: d.Kind == Path,
-		})
+		}
+		switch entry.parameter {
+		case "host":
+			native.Syntax, native.MaxItemBytes, native.RejectControl = NativePostgresHosts, 4096, true
+		case "port":
+			native.Syntax, native.MaxItemBytes = NativePostgresPorts, 4096
+		}
+		definitions = append(definitions, native)
 	}
 	return definitions
 }

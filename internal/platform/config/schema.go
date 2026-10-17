@@ -21,6 +21,8 @@ const (
 	GatewayEndpoint          EndpointPolicy = "gateway"
 	GatewayReadinessEndpoint EndpointPolicy = "gateway-readiness"
 	APIClientEndpoint        EndpointPolicy = "api-client"
+	NativeIdentityEndpoint   EndpointPolicy = "native-identity"
+	NativeProxyEndpoint      EndpointPolicy = "native-proxy"
 )
 
 const (
@@ -64,7 +66,7 @@ type Definition struct {
 	Min                   int64
 	Max                   int64
 	// MaxBytes bounds raw input, or decoded bytes for Base64; zero uses the
-	// capture byte limit. MaxItems bounds CIDR entries before allocation.
+	// capture byte limit. MaxItems bounds CIDR/native list entries before allocation.
 	MaxBytes          int
 	MaxItems          int
 	Allowed           []string

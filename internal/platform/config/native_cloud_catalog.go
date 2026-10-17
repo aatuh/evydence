@@ -5,6 +5,7 @@ func nativeGoogleDefinitions() []NativeDefinition {
 	executables := nativeInput(NativeGoogle, "golang.org/x/oauth2@v0.37.0/google/externalaccount/executablecredsource.go:getTokenFromExecutableCommand", "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES", "allow_executables", Choice, "Native external-account executable opt-in: only 1 enables execution; capture never executes it.")
 	executables.Allowed = []string{"0", "1"}
 	metadata := nativeInput(NativeGoogle, "cloud.google.com/go/compute/metadata@v0.9.0/metadata.go:OnGCE", "GCE_METADATA_HOST", "metadata_host", Text, "Google metadata host:port override; also affects native metadata discovery.")
+	metadata.Syntax = NativeMetadataHost
 	return []NativeDefinition{credentials, executables, metadata}
 }
 
@@ -29,6 +30,8 @@ func nativeAzureDefinitions() []NativeDefinition {
 	} {
 		d := nativeInput(NativeAzure, identity, entry.name, entry.parameter, entry.kind, entry.description)
 		switch entry.name {
+		case "AZURE_ADDITIONALLY_ALLOWED_TENANTS":
+			d.Syntax, d.MaxItems, d.MaxItemBytes, d.RejectControl = NativeTenants, maxNativeListItems, 4096, true
 		case "AZURE_CLIENT_CERTIFICATE_PASSWORD", "AZURE_CLIENT_SECRET", "AZURE_PASSWORD", "AZURE_USERNAME":
 			d.Secret = true
 		}
@@ -59,8 +62,11 @@ func nativeAzureDefinitions() []NativeDefinition {
 			source = "github.com/AzureAD/microsoft-authentication-library-for-go@v1.7.0/apps/managedidentity/azure_ml.go:createAzureMLAuthRequest"
 		}
 		d := nativeInput(NativeAzure, source, entry.name, entry.parameter, entry.kind, entry.description)
+		if entry.kind == URL {
+			d.EndpointPolicy = NativeIdentityEndpoint
+		}
 		d.Secret = entry.name == "IDENTITY_HEADER" || entry.name == "MSI_SECRET"
-		d.RejectControl = d.Secret
+		d.RejectControl = d.Secret || entry.kind == URL
 		definitions = append(definitions, d)
 	}
 	return definitions

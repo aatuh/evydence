@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"slices"
 	"strings"
 	"unicode"
@@ -10,8 +11,11 @@ import (
 // Presence belongs to the containing map, including explicit empty values.
 type nativeValue struct {
 	redactedValue
-	raw    string
-	scalar scalarValue
+	raw      string
+	scalar   scalarValue
+	endpoint url.URL
+	items    []string
+	ports    []uint16
 }
 
 // nativeInputs is private intermediate state, never a public getenv adapter.
@@ -36,7 +40,7 @@ func parseNativeInputs(environment Environment, role Role) (nativeInputs, error)
 			if !exists {
 				continue
 			}
-			value, err := parseNativeScalar(d, raw)
+			value, err := parseNativeValue(d, raw)
 			if err != nil {
 				return nativeInputs{}, err
 			}

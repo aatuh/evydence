@@ -86,9 +86,36 @@ metadata-disable flag and Azure's certificate-chain flag. Native retry counts ar
 bounded to 2,147,483,647, seconds conversion checks overflow, and native file
 references have a 4096-byte bound with blank/control-bearing paths rejected.
 These tightening rules apply to the new private evaluator; command adoption is
-still pending. Dedicated endpoint/list validation, effective DSN merging,
-typed native projections, credential resolution and complete transitive/computed-read
-coverage remain required. Native
+still pending.
+
+Native endpoint and list syntax now follows schema-owned policies. Native service
+and identity-authority base URLs require HTTPS, matching project-owned KMS base
+endpoints. Credential/metadata endpoints retain their HTTP/HTTPS forms, paths and
+valid queries. Supplied literal HTTP addresses for AWS container credentials must
+match its loopback/ECS/EKS ranges. Hostnames still require the native SDK's
+DNS/destination checks during explicit resolution; parsing performs no lookup.
+Google metadata overrides accept host/port authorities, and relative container
+credential URIs cannot introduce a scheme, authority or fragment.
+
+Proxy input retains host/port shorthand, HTTP/HTTPS and SOCKS5/SOCKS5H, including
+userinfo credentials. Ignored proxy paths/queries now fail. Shared URL checks
+reject ambiguous unbracketed IPv6, malformed brackets/ports, scoped IPv6,
+fragments and invalid query escaping with input-free errors. The unbracketed-IPv6
+fix also covers project-owned base URLs.
+
+PostgreSQL native host/port lists are bounded to 16 entries, sharing the explicit
+DSN host checks and retaining bare IPv6, Unix socket directories and leading-zero
+ports. Other declared lists are bounded to 256 entries before splitting, with
+4096-byte items. PATH uses the target platform separator; Unix certificate
+directories use colons. Empty path-list entries retain native semantics. No-proxy
+rules retain domain suffixes, wildcards, ports, IPs and CIDRs; malformed rules now
+fail instead of being silently ineffective. Auth-scheme whitespace/empty handling
+matches the pinned AWS helper; malformed additional-tenant entries fail. These
+list bounds and earlier rejections are deliberate tightening rules. Parsed URLs,
+ports and items stay private and redacted alongside exact supplied bytes.
+
+Effective DSN merging, typed native projections, credential resolution and
+complete transitive/computed-read coverage remain required. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
 their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
 none of these operations and exposes no generic environment forwarder.

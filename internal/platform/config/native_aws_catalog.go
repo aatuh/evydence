@@ -1,6 +1,9 @@
 package config
 
-import "math"
+import (
+	"math"
+	"net/netip"
+)
 
 func nativeAWSDefinitions() []NativeDefinition {
 	const source = "github.com/aws/aws-sdk-go-v2/config@v1.32.20/env_config.go:NewEnvConfig"
@@ -61,6 +64,19 @@ func nativeAWSDefinitions() []NativeDefinition {
 			d.Fallbacks = []string{"AWS_DEFAULT_REGION"}
 		case "AWS_PROFILE":
 			d.Fallbacks = []string{"AWS_DEFAULT_PROFILE"}
+		case "AWS_AUTH_SCHEME_PREFERENCE":
+			d.Syntax, d.MaxItems, d.MaxItemBytes, d.RejectControl = NativeAuthSchemes, maxNativeListItems, 4096, true
+		case "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI":
+			d.Syntax = NativeRelativeCredential
+		case "AWS_CONTAINER_CREDENTIALS_FULL_URI":
+			d.EndpointPolicy = NativeIdentityEndpoint
+			d.AllowedHTTPPrefixes = []netip.Prefix{
+				netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("::1/128"),
+				netip.MustParsePrefix("169.254.170.2/32"), netip.MustParsePrefix("169.254.170.23/32"),
+				netip.MustParsePrefix("fd00:ec2::23/128"),
+			}
+		case "AWS_EC2_METADATA_SERVICE_ENDPOINT":
+			d.EndpointPolicy = NativeIdentityEndpoint
 		case "AWS_ACCOUNT_ID_ENDPOINT_MODE":
 			d.Allowed = []string{"preferred", "required", "disabled"}
 			d.CaseSensitive = true
