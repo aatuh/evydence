@@ -403,6 +403,39 @@ does not replace the required
 toolkit HTTP foundation, middleware,
 ports, Problem Details or route/OpenAPI contract facilities.
 
+## Secret File Resolution Primitive
+
+EVY-1215 starts with a package-private reader; it is not a public resolver or
+schema reference implementation. Input parsing remains free of filesystem access.
+The primitive accepts a clean absolute path of at most 4096 bytes and an explicit
+content bound, capped by the existing 8 MiB input ceiling. The operator owns the
+configured parent directory. Files must be nonempty and regular, with no execute,
+group-write or other-user permission bits; group-read private files remain
+supported.
+
+Access uses a pinned `os.Root` directory handle. Relative Kubernetes projections
+and absolute aliases are accepted only when their resolved target stays inside
+that parent. Metadata and the opened inode are checked before reading, and the
+inode, permissions and size are checked again afterward. Unix opens are
+nonblocking, so a FIFO substituted between stat and open cannot wait for a peer.
+The bounded reader consumes at most the configured limit plus one sentinel byte,
+discards partial failures, and returns an owned redacted `Secret` with exact raw
+bytes. Format-specific whitespace and credential validation belong to later
+schema-selected resolution.
+
+Cancellation is checked between local filesystem steps and bounded reads. It
+does not spawn a goroutine to abandon an uninterruptible kernel filesystem call.
+Handles close on every return; failures contain no path, contents or underlying
+filesystem error. The current private permission policy is POSIX-specific and
+fails closed elsewhere; no portable ACL support is claimed. Tests cover private
+modes, bounds, cancellation during reads, partial I/O errors, contained/escaping
+symlinks, atomic projection swaps and nonblocking FIFO opens.
+
+Schema references, inline/file conflicts, activation/disabled resolution, native
+SDK credential ownership and the public resolved-configuration boundary still
+belong to the rest of EVY-1215. This primitive does not complete that ticket or
+authorize command/provider startup.
+
 ## Delivery And Compatibility
 
 EVY-1214 owns the inventory, schema, typed parsing and safe diagnostics.
