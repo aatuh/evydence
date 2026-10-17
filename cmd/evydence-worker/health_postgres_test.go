@@ -14,6 +14,13 @@ import (
 )
 
 func TestWorkerProbePostgresRuntimeRecoversFromObjectOutageAndStops(t *testing.T) {
+
+	// Keep this regression independent of which live-service settings happen
+	// to be present in the outer harness. They are not production options.
+	t.Setenv("EVYDENCE_TEST_S3_ENDPOINT", "PRIVATE_UNUSED_S3_ENDPOINT")
+	t.Setenv("EVYDENCE_TEST_S3_ACCESS_KEY_ID", "PRIVATE_UNUSED_S3_ID")
+	t.Setenv("EVYDENCE_TEST_S3_SECRET_ACCESS_KEY", "PRIVATE_UNUSED_S3_SECRET")
+	t.Setenv("EVYDENCE_TEST_S3_USE_SSL", "false")
 	for _, enabled := range []bool{false, true} {
 		name := "metrics-disabled"
 		if enabled {
@@ -29,12 +36,19 @@ func workerProbePostgresRuntime(t *testing.T, metricsEnabled bool) {
 	if base == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
 	}
-	// The harness connection is not a production worker option. Preserve it for
-	// test cleanup while presenting the daemon only its actual runtime inputs.
-	t.Setenv("EVYDENCE_TEST_DATABASE_URL", base)
-	if err := os.Unsetenv("EVYDENCE_TEST_DATABASE_URL"); err != nil {
-		t.Fatal(err)
+	// Harness-only database/S3 inputs are not production worker options.
+	// Preserve the database URL locally and restore every removed entry at
+	// test cleanup; genuine production options retain strict validation.
+	for _, entry := range os.Environ() {
+		name, value, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(name, "EVYDENCE_TEST_") {
+			t.Setenv(name, value)
+			if err := os.Unsetenv(name); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
+
 	admin, err := pgx.Connect(t.Context(), base)
 	if err != nil {
 		t.Fatal(err)
