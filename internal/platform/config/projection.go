@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"net/netip"
 	"slices"
 	"strings"
@@ -17,6 +18,17 @@ func projectInput(input parsedInput) Configuration {
 		storage:   projectStorage(input),
 		providers: projectProvider(input),
 		cli:       projectCLI(input),
+		native:    projectNative(input.native),
+		database:  cloneDatabaseInput(input.database),
+	}
+}
+
+func cloneDatabaseInput(input databaseInput) databaseInput {
+	return databaseInput{
+		native:       databaseSettings{values: maps.Clone(input.native.values)},
+		explicit:     databaseSettings{values: maps.Clone(input.explicit.values)},
+		candidate:    databaseSettings{values: maps.Clone(input.candidate.values)},
+		needsService: input.needsService,
 	}
 }
 

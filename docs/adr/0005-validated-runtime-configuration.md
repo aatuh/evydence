@@ -114,7 +114,7 @@ matches the pinned AWS helper; malformed additional-tenant entries fail. These
 list bounds and earlier rejections are deliberate tightening rules. Parsed URLs,
 ports and items stay private and redacted alongside exact supplied bytes.
 
-Native default/service resolution, typed native projections, credential resolution and
+Native default/service resolution, credential resolution and
 complete transitive/computed-read coverage remain required. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
 their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
@@ -163,8 +163,23 @@ opaque `Secret` with explicit `Reveal`/`IsSet` access. Every settings container 
 secret redacts string, Go-syntax and JSON formatting. Projection supplies no
 defaults and does not retain mutable parser slices. Tests check each declared
 field's source independently, so identical defaults cannot conceal missing or
-misrouted values. Construction remains package-private until dedicated validation
-is complete.
+misrouted values.
+
+Native settings now project all 103 native definitions into PostgreSQL, AWS,
+Google, Azure and host groups. Each field has an explicit type and schema tag;
+source-by-source tests check complete coverage and correct scalar/list/URL reads.
+`NativeOption` distinguishes absent input, supplied empty input and an effective
+first-nonempty value. Explicit zero and false remain effective values. Projection
+adds no SDK defaults or new requirements, and preserves role filtering and native
+fallback order.
+
+All native groups/options redact formatting and JSON. Secret values use `Secret`;
+parsed URLs use a redacted `NativeURL` with explicit `URL()` access, protecting
+proxy userinfo during ordinary formatting. Lists are copied during construction
+and on `Value()` access. URL access returns a value copy; its userinfo type is
+immutable. Configuration also retains owned copies of all private database input
+layers for later bounded resolution. Construction remains package-private until
+the remaining validation and coverage work is complete.
 
 Local validation rejects SSO idle time beyond the maximum lifetime, blank
 bootstrap names, unsupported API address syntax, multiple production writers,

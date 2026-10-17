@@ -13,6 +13,8 @@ type Configuration struct {
 	storage    StorageSettings
 	providers  ProviderSettings
 	cli        CLISettings
+	native     NativeSettings
+	database   databaseInput
 }
 
 func (c Configuration) Role() Role                  { return c.role }
@@ -23,6 +25,7 @@ func (c Configuration) Worker() WorkerSettings      { return c.worker }
 func (c Configuration) Storage() StorageSettings    { return c.storage }
 func (c Configuration) Providers() ProviderSettings { return c.providers }
 func (c Configuration) CLI() CLISettings            { return c.cli }
+func (c Configuration) Native() NativeSettings      { return c.native }
 
 // Secret permits deliberate value access at an adapter boundary while keeping
 // ordinary formatting and JSON safe. The zero value is an absent credential.
