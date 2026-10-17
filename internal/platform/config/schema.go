@@ -36,6 +36,7 @@ const (
 	Base64       Kind = "base64"
 	Timestamp    Kind = "timestamp"
 	S3BucketName Kind = "s3-bucket-name"
+	PostgresDSN  Kind = "postgres-dsn"
 )
 
 // Definition contains code-owned metadata, never resolved operator values.

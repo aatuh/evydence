@@ -158,7 +158,7 @@ func TestScalarParsingPreservesStringInputsForDedicatedValidation(t *testing.T) 
 
 func TestScalarFormattingAndJSONHideAllInput(t *testing.T) {
 	defs := schemaByName(t)
-	v, err := parseScalar(defs["EVYDENCE_DATABASE_URL"], "PRIVATE_PASSWORD")
+	v, err := parseScalar(defs["EVYDENCE_DATABASE_URL"], "host=localhost password=PRIVATE_PASSWORD")
 	if err != nil {
 		t.Fatal(err)
 	}

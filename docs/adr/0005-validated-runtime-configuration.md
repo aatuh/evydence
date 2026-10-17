@@ -2,7 +2,7 @@
 
 Status: accepted for the immutable-input, schema-metadata, scalar-parsing,
 role-input, typed-projection and local-validation foundation of EVY-1214,
-with HTTP/signing/S3 validation reviewed 2026-10-17. Database/trust-material
+with HTTP/signing/S3/database-syntax validation reviewed 2026-10-17. Trust-material
 validation, complete schema/SDK coverage,
 secret resolution, command adoption and generated deployment documentation remain
 pending in EVY-1214 through EVY-1217. This is an explanation for developers
@@ -153,14 +153,36 @@ that exception. Malformed bracketed/unbracketed IPv6 and SDK-invalid domains fai
 before SDK construction. This phase does not establish bucket existence,
 provider identity or retention configuration.
 
-Database syntax/credential checks, Sigstore trust-material validation,
-remaining path checks and complete dynamic-name/SDK coverage remain required
-before EVY-1214 closes.
+Database DSNs now have a dedicated schema kind and pure grammar adapted from the
+pinned pgx URL/keyword parsers. The upstream MIT notice is retained in
+`internal/platform/config/database_dsn.LICENSE`. This layer preserves supported
+quoted/escaped values, Unix sockets, multi-host URLs, `dbname` mapping and URL
+query overrides without consulting driver defaults, environment or files.
+Native URI handling retains the pinned driver's `net/url` compatibility limits.
+Parsed settings redact formatting and JSON; errors return neither input nor
+partially parsed settings.
+
+The grammar limits explicit pairs to 128 and hosts/ports to 16, before allocating
+large query/host collections. Conflicting repeated settings, invalid escapes,
+decoded NUL/malformed UTF-8, fragments and truncated quoted/backslash input fail.
+The structured keyword scanner bounds escape/closing-quote access. Known explicit
+connection/pool/cache/TLS/protocol settings use shared scalar types and bounds;
+native choices remain case-sensitive. Timeout multiplication cannot overflow,
+pool/cache counts cannot be negative, health periods must be positive, supplied
+minimum pool counts cannot exceed a supplied maximum, and TLS cert/key references
+must be paired. Unknown `pool_`/`ssl` controls fail; other runtime GUCs remain
+driver/server-owned. These are deliberate tightening rules, not driver defaults
+or proof of an accepted live connection.
+
+Native environment/default and credential resolution, Sigstore trust-material
+validation, remaining path checks and complete dynamic-name/SDK coverage remain
+required before EVY-1214 closes.
 The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
 settings and can read service, passfile and TLS material while parsing. The
 current PostgreSQL adapter enters that path through `pgxpool.New`. Reusing its
 parser directly in this pure phase would introduce ambient reads and file I/O;
-the database syntax and SDK/file boundary still need explicit ownership.
+the native SDK/file boundary still needs explicit ownership. Pure syntax checks
+do not apply ambient defaults or open referenced pass/service/TLS files.
 Build-start time remains absent until the command applies its clock. Worker probe
 and offline commands must use their applicable configuration scope during adoption
 rather than acquire unrelated runtime dependencies.

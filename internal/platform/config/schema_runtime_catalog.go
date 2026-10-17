@@ -25,7 +25,7 @@ var runtimeDefinitions = []Definition{
 	},
 	{
 		Name:        "EVYDENCE_DATABASE_URL",
-		Kind:        URL,
+		Kind:        PostgresDSN,
 		Roles:       API | Worker | Migrate,
 		Secret:      true,
 		Required:    API | Worker | Migrate,
