@@ -115,17 +115,26 @@ list bounds and earlier rejections are deliberate tightening rules. Parsed URLs,
 ports and items stay private and redacted alongside exact supplied bytes.
 
 Native default/service resolution, credential resolution and
-complete transitive/computed-read coverage remain required. Native
+complete transitive SDK coverage remain required. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
 their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
 none of these operations and exposes no generic environment forwarder.
 
 A source test scans production Go literals and fails when a selected environment
-name is missing from the catalogue. This guards the current source inventory;
-it does not prove complete data-flow coverage of computed names or every SDK
-credential-chain option. Those boundaries and the typed loader remain required
-before EVY-1214 can close. Catalogue metadata alone does not enforce its rules
-or change a command's current behavior.
+name is missing from the catalogue. A second AST guard resolves current project
+`os.Getenv`/`os.LookupEnv` reads and injected string readers through constants,
+bounded concatenation, local helper parameters across package files and finite
+range lists. Every resulting name must belong to the project or native schema.
+Unsupported expressions, unresolvable callers, reader aliases and escaping
+global lists fail the guard. Constant initializers retain their lexical scope.
+
+The guard explicitly recognizes existing reader forwarding to startup logging
+and configuration-freshness probes. These exceptions authorize no new runtime
+environment shim; EVY-1216 must replace the ambient reads. The guard supports a
+small finite source grammar, not arbitrary Go evaluation or every transitive
+SDK credential-chain option. New forms need explicit review and guard coverage;
+remaining SDK boundaries and the typed loader are still required before
+EVY-1214 closes. Catalogue metadata alone does not change command behavior.
 
 The package-owned scalar parser produces booleans, bounded integers/durations,
 canonical choices, masked CIDR prefixes, decoded base64 bytes and UTC timestamps.
@@ -306,8 +315,8 @@ metadata identifies the actual pinned `sigstore-go.v1.3.0` dependency, correctin
 the stale `v1.1.4` label without rewriting historical receipts. A module-pin test
 guards this metadata against future drift.
 
-Pure validation of native inputs, remaining path checks and complete
-dynamic-name/SDK coverage remain required before EVY-1214 closes. Native
+Remaining native cross-field/production validation, path checks, complete
+SDK boundary review and typed construction remain required before EVY-1214 closes. Native
 default/credential/file resolution belongs to EVY-1215 and command adoption
 to EVY-1216.
 The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
