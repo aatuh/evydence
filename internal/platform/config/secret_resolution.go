@@ -95,10 +95,15 @@ func Resolve(ctx context.Context, input PreparedInput, enabled bool) (Configurat
 	if err != nil {
 		return Configuration{}, ErrSecretResolution
 	}
+	configuration := projectInput(parsed)
+	configuration.workerMetricsHash, configuration.workerMetricsEnabled, err = resolveWorkerMetricsSecret(ctx, parsed, remaining)
+	if err != nil {
+		return Configuration{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return Configuration{}, err
 	}
-	return projectInput(parsed), nil
+	return configuration, nil
 }
 
 func secretReferenceActive(ref secretFileReference, input parsedInput) bool {

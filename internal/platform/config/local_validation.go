@@ -68,7 +68,7 @@ func validateWorkerListeners(input parsedInput) error {
 	if address == "" && file == "" {
 		return nil
 	}
-	if file == "" || file != strings.TrimSpace(file) || !filepath.IsAbs(file) {
+	if !validSecretReferencePath(file) {
 		return ErrInvalidValue
 	}
 	metrics, err := netip.ParseAddrPort(address)

@@ -470,6 +470,48 @@ ownership remains separate work in EVY-1215, and actual command adoption remains
 EVY-1216. These helpers do not complete either ticket or authorize unresolved
 native credentials or provider startup.
 
+Worker metrics use their existing explicit token-file option rather than an
+inline/file alternative. Enabled `Resolve` reads at most 129 bytes within the
+remaining materialization budget, accepts exactly `evymetrics_` plus 64 lowercase
+hexadecimal characters and one optional final LF, and retains only SHA-256.
+`WorkerMetricsTokenHash` returns a copied digest and a successful-resolution flag;
+pure `Parse` never sets that flag. Disabled metrics and other process roles do not
+read the file. The shared reader adds inode rechecks and nonblocking Unix opens.
+The new preflight also rejects noncanonical metrics paths, and resolution rejects
+executable secret-file modes; these are intentional tightening of the old command
+reader. EVY-1216 will remove that duplicate reader during command adoption.
+
+## Native Credential Ownership
+
+Native references are separate from project `_FILE` alternatives. The config
+package validates their supplied types, path/URL syntax and input bounds, retains
+their declared precedence, and returns owned typed native settings. Project-secret
+resolution does not open native profiles, consume refresh tokens, initialize
+credential chains or claim that an unresolved PostgreSQL service is complete.
+Nonexistent-file tests cover this separation for each native signing mode.
+
+The current external-resolution owners are:
+
+| Boundary | Resolution owner | Lifetime owner |
+| --- | --- | --- |
+| PostgreSQL service, passfile, TLS material and OS defaults | The pinned pgx parser, currently entered by `internal/adapters/postgres.Open` through `pgxpool.New` | The PostgreSQL adapter owns its pools; native parsing is not a connection-readiness claim. |
+| AWS profiles, shared credentials, web identity, metadata, process/SSO/login credentials | The pinned AWS default chain, currently entered by `internal/adapters/signing/awskms.New` through `config.LoadDefaultConfig` | The executor owns its explicitly constructed HTTP transport and closes it on failed construction or once on close; injected SDK clients remain borrowed. |
+| Google application-default files, external accounts and metadata | The pinned Google ADC loader, currently entered by `internal/adapters/signing/gcpkms.New` through `google.FindDefaultCredentials` | Native token sources retain SDK ownership; the executor owns its cloned KMS HTTP client. Injected token sources remain borrowed. |
+| Azure certificate/workload identity files, managed identity and developer credentials | The pinned Azure default chain, currently entered by `internal/adapters/signing/azurekeyvault.New` through `azidentity.NewDefaultAzureCredential` | The SDK owns credential internals; the executor owns its cloned KMS HTTP client. Injected credentials remain borrowed. |
+
+These SDK references retain native file/discovery/process policies. The project
+reader's private-file permissions, symlink containment and content-byte bounds
+apply to the project-secret files it actually reads; they are not guarantees about
+arbitrary SDK profiles, caches, helper subprocesses or remote credential services.
+No project `_FILE` alternative is implicitly added for a native credential.
+Underlying SDK causes must remain behind the adapters' fixed diagnostics.
+
+EVY-1216 must adopt validated configuration before entering these explicit SDK
+boundaries, remove project-owned ambient reads, and own the Azure global
+logging/telemetry policy before provider use. This ownership record does not
+assert that command adoption, SDK-global isolation or live provider verification
+has already happened.
+
 ## Delivery And Compatibility
 
 EVY-1214 owns the inventory, schema, typed parsing and safe diagnostics.
