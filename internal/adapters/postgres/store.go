@@ -53,7 +53,31 @@ func OpenWithOptions(ctx context.Context, databaseURL string, opts StoreOptions)
 	if err != nil {
 		return nil, err
 	}
-	pool, err := pgxpool.New(ctx, databaseURL)
+	prepared, err := PreparePoolConfig(ctx, databaseURL)
+	if err != nil {
+		return nil, err
+	}
+	return openPrepared(ctx, prepared, loadMode, opts.DisableSnapshotWrites)
+}
+
+// OpenPrepared consumes previously resolved driver settings without entering
+// ambient/native-file parsing again. All created pools remain owned by Store.
+func OpenPrepared(ctx context.Context, prepared PreparedPoolConfig, opts StoreOptions) (*Store, error) {
+	loadMode, err := normalizeLoadMode(opts.LoadMode)
+	if err != nil {
+		return nil, err
+	}
+	return openPrepared(ctx, prepared, loadMode, opts.DisableSnapshotWrites)
+}
+
+func openPrepared(ctx context.Context, prepared PreparedPoolConfig, loadMode LoadMode, disableSnapshotWrites bool) (*Store, error) {
+	if ctx == nil || !prepared.IsPrepared() {
+		return nil, ErrInvalidConfiguration
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, prepared.config.Copy())
 	if err != nil {
 		return nil, fmt.Errorf("open postgres pool: %w", err)
 	}
@@ -73,7 +97,7 @@ func OpenWithOptions(ctx context.Context, databaseURL string, opts StoreOptions)
 		pool.Close()
 		return nil, fmt.Errorf("open package preparation pool: %w", err)
 	}
-	return &Store{pool: pool, packageReadPool: packageReadPool, loadMode: loadMode, disableSnapshotWrites: opts.DisableSnapshotWrites}, nil
+	return &Store{pool: pool, packageReadPool: packageReadPool, loadMode: loadMode, disableSnapshotWrites: disableSnapshotWrites}, nil
 }
 
 func (s *Store) Close() {

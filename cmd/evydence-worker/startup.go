@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/wiring"
@@ -43,4 +44,16 @@ func workerRuntimeConfigFromSettings(settings config.Configuration) wiring.Runti
 			AccessKeyID: storage.S3AccessKeyID.Reveal(), SecretAccessKey: storage.S3SecretAccessKey.Reveal(),
 		},
 	}
+}
+
+// Resolve the owned native driver boundary before opening any runtime resource.
+// The resulting pool configuration is passed through instead of parsed again.
+func prepareWorkerRuntime(ctx context.Context, settings config.Configuration) (wiring.RuntimeConfig, error) {
+	runtime := workerRuntimeConfigFromSettings(settings)
+	prepared, err := postgres.PreparePoolConfig(ctx, runtime.DatabaseURL)
+	if err != nil {
+		return wiring.RuntimeConfig{}, err
+	}
+	runtime.DatabaseConfiguration = prepared
+	return runtime, nil
 }

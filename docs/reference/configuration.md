@@ -44,6 +44,15 @@ listeners, metrics credentials, polling and the other command's timeout do not
 apply. Invalid explicit timeouts now fail before runtime startup rather than
 silently using the default. Cleanup failures make the command fail.
 
+Worker modes that open PostgreSQL and the migration command resolve pgx native
+settings into an owned, private pool configuration before opening connections.
+Native `PG*` inputs, service/password/TLS files and OS defaults retain the pinned
+driver's resolution policy. Pool construction uses copies of that resolved
+configuration. These native files are separate from project `_FILE` secrets;
+the project's private-file permissions, containment and byte limits do not apply
+to arbitrary native driver files. Resolution failures use a fixed diagnostic
+without the connection string, file path or underlying cause.
+
 | Variable | Required | Default / Example | Notes |
 |----------|----------|-------------------|-------|
 | `ENV` | Production only | unset locally | Set `ENV=production` to enable production-safety checks. |

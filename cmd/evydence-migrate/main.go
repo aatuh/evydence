@@ -49,7 +49,11 @@ func applyMigrations(parent context.Context, settings config.Configuration) erro
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 	runtime := settings.Runtime()
-	store, err := postgres.Open(ctx, runtime.DatabaseURL.Reveal())
+	prepared, err := postgres.PreparePoolConfig(ctx, runtime.DatabaseURL.Reveal())
+	if err != nil {
+		return err
+	}
+	store, err := postgres.OpenPrepared(ctx, prepared, postgres.StoreOptions{})
 	if err != nil {
 		return err
 	}

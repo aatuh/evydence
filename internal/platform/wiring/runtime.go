@@ -37,17 +37,20 @@ type RuntimeConfig struct {
 	Production         bool
 	WorkerOwnedParsers bool
 	DatabaseURL        string
-	LoadMode           string
-	MigrationsDir      string
-	SkipMigrations     bool
-	ObjectStore        ObjectStoreConfig
-	Cosign             app.CosignPolicyVerifier
-	OIDC               app.OIDCDiscoveryClient
-	ProviderAPI        app.ProviderIdentityValidator
-	SigningExecutor    app.SigningExecutor
-	TransparencyProofs app.TransparencyProofFetcher
-	SessionPolicy      identitydomain.SessionPolicy
-	CleanupTimeout     time.Duration
+	// DatabaseConfiguration is resolved before provider/resource construction by
+	// adopted commands. Unadopted callers still enter the explicit adapter owner.
+	DatabaseConfiguration postgres.PreparedPoolConfig
+	LoadMode              string
+	MigrationsDir         string
+	SkipMigrations        bool
+	ObjectStore           ObjectStoreConfig
+	Cosign                app.CosignPolicyVerifier
+	OIDC                  app.OIDCDiscoveryClient
+	ProviderAPI           app.ProviderIdentityValidator
+	SigningExecutor       app.SigningExecutor
+	TransparencyProofs    app.TransparencyProofFetcher
+	SessionPolicy         identitydomain.SessionPolicy
+	CleanupTimeout        time.Duration
 	// CloseOwnedProviders explicitly transfers cleanup of process-created clients.
 	// Ordinary provider ports above remain borrowed when this callback is nil.
 	CloseOwnedProviders func(context.Context) error
@@ -155,7 +158,17 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if backend != "" && backend != "file" && backend != "filesystem" && backend != "s3" && backend != "minio" {
 		return nil, errors.New("unsupported EVYDENCE_OBJECT_STORE")
 	}
-	store, err := postgres.OpenWithOptions(ctx, config.DatabaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: config.Production})
+	prepared := config.DatabaseConfiguration
+	if prepared.IsPrepared() && !prepared.Matches(config.DatabaseURL) {
+		return nil, postgres.ErrInvalidConfiguration
+	}
+	if !prepared.IsPrepared() {
+		prepared, err = postgres.PreparePoolConfig(ctx, config.DatabaseURL)
+		if err != nil {
+			return nil, runtimeAdapterError("open PostgreSQL runtime", err)
+		}
+	}
+	store, err := postgres.OpenPrepared(ctx, prepared, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: config.Production})
 	if err != nil {
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}

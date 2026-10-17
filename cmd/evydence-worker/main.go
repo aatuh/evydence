@@ -144,7 +144,10 @@ func runWorkerConfigured(parent context.Context, settings config.Configuration) 
 	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	runtimeConfig := workerRuntimeConfigFromSettings(settings)
+	runtimeConfig, err := prepareWorkerRuntime(ctx, settings)
+	if err != nil {
+		return err
+	}
 	startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
 	runtime, err := wiring.OpenRuntime(startupCtx, runtimeConfig)
 	cancelStartup()
@@ -220,7 +223,11 @@ func runParserReplayContext(parent context.Context, args []string) error {
 func runParserReplayConfigured(parent context.Context, settings config.Configuration, request parserReplayArgs) (runErr error) {
 	ctx, cancel := context.WithTimeout(parent, settings.Worker().ParserReplayTimeout)
 	defer cancel()
-	runtime, err := openParserReplayRuntime(ctx, workerRuntimeConfigFromSettings(settings))
+	runtimeConfig, err := prepareWorkerRuntime(ctx, settings)
+	if err != nil {
+		return err
+	}
+	runtime, err := openParserReplayRuntime(ctx, runtimeConfig)
 	if err != nil {
 		return err
 	}
@@ -303,7 +310,11 @@ func runObjectReconciliationContext(parent context.Context, args []string) error
 func runObjectReconciliationConfigured(parent context.Context, settings config.Configuration, request app.ObjectReconciliationRequest) (runErr error) {
 	ctx, cancel := context.WithTimeout(parent, settings.Worker().ReconciliationTimeout)
 	defer cancel()
-	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfigFromSettings(settings))
+	runtimeConfig, err := prepareWorkerRuntime(ctx, settings)
+	if err != nil {
+		return err
+	}
+	runtime, err := wiring.OpenRuntime(ctx, runtimeConfig)
 	if err != nil {
 		return err
 	}

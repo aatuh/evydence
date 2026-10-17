@@ -496,7 +496,7 @@ The current external-resolution owners are:
 
 | Boundary | Resolution owner | Lifetime owner |
 | --- | --- | --- |
-| PostgreSQL service, passfile, TLS material and OS defaults | The pinned pgx parser, currently entered by `internal/adapters/postgres.Open` through `pgxpool.New` | The PostgreSQL adapter owns its pools; native parsing is not a connection-readiness claim. |
+| PostgreSQL native inputs, service, passfile, TLS material and OS defaults | The pinned pgx parser, entered explicitly by `internal/adapters/postgres.PreparePoolConfig` through `pgxpool.ParseConfig` | The adapter owns opaque prepared settings and both pools. Opening a prepared configuration copies it through `pgxpool.NewWithConfig`; native parsing is not a connection-readiness claim. |
 | AWS profiles, shared credentials, web identity, metadata, process/SSO/login credentials | The pinned AWS default chain, currently entered by `internal/adapters/signing/awskms.New` through `config.LoadDefaultConfig` | The executor owns its explicitly constructed HTTP transport and closes it on failed construction or once on close; injected SDK clients remain borrowed. |
 | Google application-default files, external accounts and metadata | The pinned Google ADC loader, currently entered by `internal/adapters/signing/gcpkms.New` through `google.FindDefaultCredentials` | Native token sources retain SDK ownership; the executor owns its cloned KMS HTTP client. Injected token sources remain borrowed. |
 | Azure certificate/workload identity files, managed identity and developer credentials | The pinned Azure default chain, currently entered by `internal/adapters/signing/azurekeyvault.New` through `azidentity.NewDefaultAzureCredential` | The SDK owns credential internals; the executor owns its cloned KMS HTTP client. Injected credentials remain borrowed. |
@@ -507,6 +507,25 @@ apply to the project-secret files it actually reads; they are not guarantees abo
 arbitrary SDK profiles, caches, helper subprocesses or remote credential services.
 No project `_FILE` alternative is implicitly added for a native credential.
 Underlying SDK causes must remain behind the adapters' fixed diagnostics.
+
+Worker runtime modes and the migration command now prepare PostgreSQL's native
+configuration before opening pools, and runtime composition accepts that owned
+result without repeating native resolution. The wrapper redacts formatting and
+JSON, exposes no credentials or driver mutation API, and matches its explicit
+DSN before runtime use. The pinned driver retains native environment/file/default
+resolution; it has no environment-snapshot option. This phase therefore does not
+claim a replacement parser or project-file guarantees for native references.
+Cancellation is checked before resolution and after successful parsing. The
+native parser is synchronous and has no context API; no detached I/O is used.
+
+The adapter rejects zero/negative ports, invalid pool minima, negative lifetime/
+idle/jitter values and nonpositive health periods in resolved structures before
+pool construction. Native service files can otherwise reach SDK-accepted unsafe
+maintenance settings outside the pure explicit-input evaluator. Prepared opens
+retain the existing separately capped read-only package pool and Store-owned
+cleanup. The legacy adapter `Open` entry point delegates to preparation and
+prepared open; unadopted runtime callers also enter that explicit owner. API
+adoption must move preparation before its provider constructors.
 
 EVY-1216 must adopt validated configuration before entering these explicit SDK
 boundaries, remove project-owned ambient reads, and own the Azure global
