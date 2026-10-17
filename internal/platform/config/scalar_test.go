@@ -34,6 +34,9 @@ func TestScalarParsingUsesSchemaTypesAndBounds(t *testing.T) {
 		{"EVYDENCE_BUILD_STARTED_AT", "2026-10-16T12:34:56+02:00", func(v scalarValue) bool {
 			return v.timestamp.Equal(time.Date(2026, 10, 16, 10, 34, 56, 0, time.UTC)) && v.timestamp.Location() == time.UTC
 		}},
+		{"EVYDENCE_BUILD_FINISHED_AT", "2026-10-16T12:34:56.123456789+02:00", func(v scalarValue) bool {
+			return v.timestamp.Format(time.RFC3339Nano) == "2026-10-16T12:34:56.123456789+02:00"
+		}},
 	} {
 		t.Run(tc.name+"/"+tc.raw, func(t *testing.T) {
 			v, err := parseScalar(defs[tc.name], tc.raw)

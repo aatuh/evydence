@@ -88,7 +88,7 @@ func TestUploadManifestPostsRequests(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":{"id":"ev_1"},"meta":{"api_version":"v1"}}`))
 	}))
 	defer server.Close()
-	if err := uploadManifestRequests(t.Context(), server.Client(), []string{"--url", server.URL, "--api-key", "evy_secret", "--manifest", manifestPath}); err != nil {
+	if err := uploadManifestRequests(t.Context(), server.Client(), captureCLIInput(t), []string{"--url", server.URL, "--api-key", "evy_secret", "--manifest", manifestPath}); err != nil {
 		t.Fatalf("upload manifest: %v", err)
 	}
 	if !saw {
@@ -171,7 +171,7 @@ func TestCIPreflightVerifiesAPIAndManifestWithoutSecretLeakage(t *testing.T) {
 	}))
 	defer server.Close()
 	out, err := captureStdout(t, func() error {
-		return ciPreflight(t.Context(), server.Client(), []string{
+		return ciPreflight(t.Context(), server.Client(), captureCLIInput(t), []string{
 			"--url", server.URL,
 			"--api-key", "evy_secret_should_not_print",
 			"--product-id", "prod_1",
@@ -200,7 +200,7 @@ func TestCIPreflightMapsStableExitCodesAndRedactsSecrets(t *testing.T) {
 	if err := os.WriteFile(badManifest, []byte(`{"requests":[]}`), 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	err := ciPreflight(t.Context(), http.DefaultClient, []string{"--url", "https://example.test", "--api-key", "evy_secret", "--product-id", "prod_1", "--project-id", "proj_1", "--release-id", "rel_1", "--artifact-id", "art_1", "--manifest", badManifest})
+	err := ciPreflight(t.Context(), http.DefaultClient, captureCLIInput(t), []string{"--url", "https://example.test", "--api-key", "evy_secret", "--product-id", "prod_1", "--project-id", "proj_1", "--release-id", "rel_1", "--artifact-id", "art_1", "--manifest", badManifest})
 	assertCLIExitCode(t, err, exitCIPreflightInvalidManifest)
 
 	statusTests := []struct {
@@ -215,14 +215,14 @@ func TestCIPreflightMapsStableExitCodesAndRedactsSecrets(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"code":"TEST","detail":"safe failure"}`, tt.status)
 		}))
-		err := ciPreflight(t.Context(), server.Client(), []string{"--url", server.URL, "--api-key", "evy_secret_should_not_print", "--product-id", "prod_1", "--project-id", "proj_1", "--release-id", "rel_1", "--artifact-id", "art_1", "--manifest", validPreflightManifest(t, dir)})
+		err := ciPreflight(t.Context(), server.Client(), captureCLIInput(t), []string{"--url", server.URL, "--api-key", "evy_secret_should_not_print", "--product-id", "prod_1", "--project-id", "proj_1", "--release-id", "rel_1", "--artifact-id", "art_1", "--manifest", validPreflightManifest(t, dir)})
 		server.Close()
 		assertCLIExitCode(t, err, tt.code)
 		if strings.Contains(err.Error(), "evy_secret_should_not_print") {
 			t.Fatalf("preflight error leaked secret: %v", err)
 		}
 	}
-	assertCLIExitCode(t, ciPreflight(t.Context(), http.DefaultClient, []string{"--url", "https://example.test"}), exitCIPreflightMissingConfig)
+	assertCLIExitCode(t, ciPreflight(t.Context(), http.DefaultClient, captureCLIInput(t), []string{"--url", "https://example.test"}), exitCIPreflightMissingConfig)
 }
 
 func TestUploadManifestValidationRejectsUnsafeInputs(t *testing.T) {
@@ -288,7 +288,7 @@ func TestImportBundleUploadPostsImport(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":{"id":"ebi_1"},"meta":{"api_version":"v1"}}`))
 	}))
 	defer server.Close()
-	if err := uploadEvidenceBundleImport(t.Context(), server.Client(), []string{"--url", server.URL, "--api-key", "evy_secret", "--path", bundlePath}); err != nil {
+	if err := uploadEvidenceBundleImport(t.Context(), server.Client(), captureCLIInput(t), []string{"--url", server.URL, "--api-key", "evy_secret", "--path", bundlePath}); err != nil {
 		t.Fatalf("import bundle: %v", err)
 	}
 	if !saw {
@@ -676,7 +676,7 @@ func TestGitHubActionsUploadBuildRequiresGitHubMetadata(t *testing.T) {
 	t.Setenv("GITHUB_SHA", "")
 	t.Setenv("GITHUB_REPOSITORY", "")
 	t.Setenv("GITHUB_WORKFLOW_REF", "")
-	err := uploadGitHubActionsBuild(t.Context(), http.DefaultClient, []string{"--project-id", "proj_1", "--release-id", "rel_1"})
+	err := uploadGitHubActionsBuild(t.Context(), http.DefaultClient, captureCLIInput(t), []string{"--project-id", "proj_1", "--release-id", "rel_1"})
 	if err == nil || !strings.Contains(err.Error(), "GITHUB_RUN_ID") {
 		t.Fatalf("err=%v, want missing GitHub metadata error", err)
 	}
@@ -734,7 +734,7 @@ func TestGitHubActionsUploadBuildPostsBuildAndAttestationSafely(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err = uploadGitHubActionsBuild(t.Context(), server.Client(), []string{
+	err = uploadGitHubActionsBuild(t.Context(), server.Client(), captureCLIInput(t), []string{
 		"--url", server.URL,
 		"--api-key", "evy_secret",
 		"--project-id", "proj_1",
@@ -775,7 +775,7 @@ func TestGitHubActionsUploadBuildOmitsMissingFinishedAtAndPreservesProvidedPreci
 			if finished != "" {
 				args = append(args, "--finished-at", finished)
 			}
-			if err := uploadGitHubActionsBuild(t.Context(), server.Client(), args); err != nil {
+			if err := uploadGitHubActionsBuild(t.Context(), server.Client(), captureCLIInput(t), args); err != nil {
 				t.Fatal(err)
 			}
 			payload := <-payloads
@@ -803,7 +803,7 @@ func TestReleaseUploadEvidenceDryRunValidatesFilesAndPrintsNextSteps(t *testing.
 	t.Setenv("EVYDENCE_API_KEY", "evy_secret_should_not_print")
 
 	out, err := captureStdout(t, func() error {
-		return uploadReleaseEvidence(t.Context(), http.DefaultClient, []string{
+		return uploadReleaseEvidence(t.Context(), http.DefaultClient, captureCLIInput(t), []string{
 			"--dry-run",
 			"--product-id", "prod_1",
 			"--release-id", "rel_1",
@@ -890,7 +890,7 @@ func TestReleaseUploadEvidenceCreatesMissingResourcesAndUploads(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if err := uploadReleaseEvidence(t.Context(), server.Client(), []string{
+	if err := uploadReleaseEvidence(t.Context(), server.Client(), captureCLIInput(t), []string{
 		"--url", server.URL,
 		"--api-key", "evy_secret",
 		"--create-product",
@@ -917,12 +917,12 @@ func TestReleaseUploadEvidenceCreatesMissingResourcesAndUploads(t *testing.T) {
 func TestReleaseUploadEvidenceRequiresExplicitCreateFlags(t *testing.T) {
 	dir := t.TempDir()
 	sbomPath := writeTestFile(t, dir+"/sbom.json", []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"name":"api"}]}`))
-	err := uploadReleaseEvidence(t.Context(), http.DefaultClient, []string{"--dry-run", "--sbom", sbomPath})
+	err := uploadReleaseEvidence(t.Context(), http.DefaultClient, captureCLIInput(t), []string{"--dry-run", "--sbom", sbomPath})
 	if err == nil || !strings.Contains(err.Error(), "--release-id") {
 		t.Fatalf("missing release err=%v", err)
 	}
 	artifactPath := writeTestFile(t, dir+"/api.tar.gz", []byte("artifact"))
-	err = uploadReleaseEvidence(t.Context(), http.DefaultClient, []string{"--dry-run", "--release-id", "rel_1", "--artifact", artifactPath, "--sbom", sbomPath})
+	err = uploadReleaseEvidence(t.Context(), http.DefaultClient, captureCLIInput(t), []string{"--dry-run", "--release-id", "rel_1", "--artifact", artifactPath, "--sbom", sbomPath})
 	if err == nil || !strings.Contains(err.Error(), "--artifact-id") {
 		t.Fatalf("missing artifact err=%v", err)
 	}
@@ -1034,12 +1034,6 @@ func TestResponseAndURLHelpersValidateInputs(t *testing.T) {
 	}
 	if _, err := responseDataID([]byte(`not-json`)); err == nil {
 		t.Fatal("expected JSON decode error")
-	}
-	if got := atoiDefault(" 3 ", 1); got != 3 {
-		t.Fatalf("atoi configured = %d", got)
-	}
-	if got := atoiDefault("nope", 1); got != 1 {
-		t.Fatalf("atoi fallback = %d", got)
 	}
 	if _, err := cleanOperatorPath("\x00"); err == nil {
 		t.Fatal("expected NUL path error")

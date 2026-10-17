@@ -135,7 +135,10 @@ func parseScalar(d Definition, raw string) (scalarValue, error) {
 		if err != nil {
 			return scalarValue{}, ErrInvalidValue
 		}
-		value.timestamp = parsed.UTC()
+		value.timestamp = parsed
+		if !d.PreserveTimestampOffset {
+			value.timestamp = parsed.UTC()
+		}
 	default:
 		return scalarValue{}, ErrInvalidValue
 	}

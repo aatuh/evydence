@@ -171,7 +171,7 @@ func projectCLI(input parsedInput) CLISettings {
 		GitHubJob:         strings.TrimSpace(v["GITHUB_JOB"].text),
 		GitHubRef:         strings.TrimSpace(v["GITHUB_REF"].text),
 		GitHubRepository:  strings.TrimSpace(v["GITHUB_REPOSITORY"].text),
-		GitHubRunAttempt:  strings.TrimSpace(v["GITHUB_RUN_ATTEMPT"].text),
+		GitHubRunAttempt:  RunAttempt{number: v["GITHUB_RUN_ATTEMPT"].integer, identity: strings.TrimSpace(v["GITHUB_RUN_ATTEMPT"].text)},
 		GitHubRunID:       strings.TrimSpace(v["GITHUB_RUN_ID"].text),
 		GitHubSHA:         strings.TrimSpace(v["GITHUB_SHA"].text),
 		GitHubWorkflowRef: strings.TrimSpace(v["GITHUB_WORKFLOW_REF"].text),

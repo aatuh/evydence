@@ -120,7 +120,17 @@ func violatesProductionPolicy(d Definition, value scalarValue) bool {
 
 func parseRoleValue(d Definition, raw string) (scalarValue, error) {
 	if d.Kind != PostgresDSN {
-		return parseScalar(d, raw)
+		value, err := parseScalar(d, raw)
+		if err == nil && d.Kind == Integer && d.CLICommands != 0 {
+			// Preserve validated CLI identity spelling without changing native
+			// SDK scalar representations or introducing another number parser.
+			value.text = strings.TrimSpace(raw)
+		}
+
+		if err == nil && d.Kind == Timestamp && value.timestamp.IsZero() {
+			return scalarValue{}, ErrInvalidValue
+		}
+		return value, err
 	}
 	// Preserve scalar bounds and exact raw bytes while deferring cross-source
 	// relationships until the native and explicit database layers are known.

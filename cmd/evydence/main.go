@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 )
@@ -38,6 +39,10 @@ func main() {
 }
 
 func run(args []string) error {
+	var input cliInput
+	if isOnlineCLICommand(args) {
+		input.environment, input.captureErr = config.Capture(os.Environ())
+	}
 	if len(args) == 0 {
 		return usage()
 	}
@@ -76,24 +81,24 @@ func run(args []string) error {
 		if len(args) < 2 || args[1] != "upload-build" {
 			return usage()
 		}
-		return uploadGitHubActionsBuild(context.Background(), http.DefaultClient, args[2:])
+		return uploadGitHubActionsBuild(context.Background(), http.DefaultClient, input, args[2:])
 	case "ci":
 		if len(args) < 2 || args[1] != "preflight" {
 			return usage()
 		}
-		return ciPreflight(context.Background(), http.DefaultClient, args[2:])
+		return ciPreflight(context.Background(), http.DefaultClient, input, args[2:])
 	case "import-bundle":
 		if len(args) < 2 || args[1] != "upload" {
 			return usage()
 		}
-		return uploadEvidenceBundleImport(context.Background(), http.DefaultClient, args[2:])
+		return uploadEvidenceBundleImport(context.Background(), http.DefaultClient, input, args[2:])
 	case "upload":
 		if len(args) < 2 {
 			return usage()
 		}
 		switch args[1] {
 		case "manifest":
-			return uploadManifestRequests(context.Background(), http.DefaultClient, args[2:])
+			return uploadManifestRequests(context.Background(), http.DefaultClient, input, args[2:])
 		case "validate-manifest":
 			return validateUploadManifestCommand(args[2:])
 		default:
@@ -105,7 +110,7 @@ func run(args []string) error {
 		}
 		switch args[1] {
 		case "upload-evidence":
-			return uploadReleaseEvidence(context.Background(), http.DefaultClient, args[2:])
+			return uploadReleaseEvidence(context.Background(), http.DefaultClient, input, args[2:])
 		case "manifest":
 			return createReleaseArtifactManifest(args[2:])
 		case "sign":
@@ -1038,172 +1043,144 @@ func cleanOperatorPath(path string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
-func uploadGitHubActionsBuild(ctx context.Context, client *http.Client, args []string) error {
+func uploadGitHubActionsBuild(ctx context.Context, client *http.Client, input cliInput, args []string) error {
 	fs := flag.NewFlagSet("github-actions upload-build", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
+	registerCLIConnectionFlags(fs)
+	fs.String("status", "", "build status")
+	fs.String("started-at", "", "build start time")
+	fs.String("finished-at", "", "build finish time")
+	fs.String("oidc-subject", "", "captured GitHub OIDC subject")
 	var (
-		apiURL          = fs.String("url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
-		apiKey          = fs.String("api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
 		projectID       = fs.String("project-id", "", "Evydence project ID")
 		releaseID       = fs.String("release-id", "", "Evydence release ID")
 		artifactID      = fs.String("artifact-id", "", "Evydence artifact ID")
 		artifactDigest  = fs.String("artifact-digest", "", "artifact digest")
 		attestationPath = fs.String("attestation-path", "", "DSSE attestation JSON path")
-		status          = fs.String("status", envDefault("EVYDENCE_BUILD_STATUS", "passed"), "build status")
-		startedAt       = fs.String("started-at", envDefault("EVYDENCE_BUILD_STARTED_AT", time.Now().UTC().Format(time.RFC3339)), "build start time")
-		finishedAt      = fs.String("finished-at", strings.TrimSpace(os.Getenv("EVYDENCE_BUILD_FINISHED_AT")), "build finish time")
 		parametersHash  = fs.String("parameters-hash", "", "build parameters hash")
 		environmentHash = fs.String("environment-hash", "", "build environment hash")
-		oidcSubject     = fs.String("oidc-subject", strings.TrimSpace(os.Getenv("EVYDENCE_GITHUB_OIDC_SUBJECT")), "captured GitHub OIDC subject")
 	)
 	if err := fs.Parse(args); err != nil {
 		return usage()
 	}
-	if strings.TrimSpace(*apiURL) == "" || strings.TrimSpace(*apiKey) == "" || strings.TrimSpace(*projectID) == "" || strings.TrimSpace(*releaseID) == "" {
+	if fs.NArg() != 0 {
 		return usage()
 	}
-	if (*artifactID == "") != (*artifactDigest == "") {
-		return errors.New("--artifact-id and --artifact-digest must be provided together")
-	}
-	started, err := time.Parse(time.RFC3339, strings.TrimSpace(*startedAt))
-	if err != nil {
-		return errors.New("--started-at must use RFC3339")
-	}
-	var finished *time.Time
-	if strings.TrimSpace(*finishedAt) != "" {
-		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*finishedAt))
-		if err != nil {
-			return errors.New("--finished-at must use RFC3339")
+	return runConfiguredCLI(ctx, input, os.Stderr, fs, config.CLIGitHubBuild, func(ctx context.Context, settings config.CLISettings) error {
+		if strings.TrimSpace(settings.APIURL) == "" || strings.TrimSpace(settings.APIKey.Reveal()) == "" || strings.TrimSpace(*projectID) == "" || strings.TrimSpace(*releaseID) == "" {
+			return usage()
 		}
-		finished = &parsed
-	}
-	outputs := []map[string]string{}
-	if strings.TrimSpace(*artifactID) != "" {
-		outputs = append(outputs, map[string]string{"artifact_id": strings.TrimSpace(*artifactID), "digest": strings.TrimSpace(*artifactDigest)})
-	}
-	runID := envRequired("GITHUB_RUN_ID")
-	runAttempt := envDefault("GITHUB_RUN_ATTEMPT", "1")
-	commitSHA := envRequired("GITHUB_SHA")
-	repository := envRequired("GITHUB_REPOSITORY")
-	workflowRef := envRequired("GITHUB_WORKFLOW_REF")
-	if runID == "" || commitSHA == "" || repository == "" || workflowRef == "" {
-		return errors.New("GITHUB_RUN_ID, GITHUB_SHA, GITHUB_REPOSITORY, and GITHUB_WORKFLOW_REF are required")
-	}
-	payload := map[string]any{
-		"project_id":       strings.TrimSpace(*projectID),
-		"release_id":       strings.TrimSpace(*releaseID),
-		"provider":         "github_actions",
-		"commit_sha":       commitSHA,
-		"repository":       repository,
-		"workflow_ref":     workflowRef,
-		"run_id":           runID,
-		"run_attempt":      atoiDefault(runAttempt, 1),
-		"job_id":           strings.TrimSpace(os.Getenv("GITHUB_JOB")),
-		"actor":            strings.TrimSpace(os.Getenv("GITHUB_ACTOR")),
-		"ref":              strings.TrimSpace(os.Getenv("GITHUB_REF")),
-		"oidc_subject":     strings.TrimSpace(*oidcSubject),
-		"status":           strings.TrimSpace(*status),
-		"started_at":       started.UTC().Format(time.RFC3339),
-		"parameters_hash":  strings.TrimSpace(*parametersHash),
-		"environment_hash": strings.TrimSpace(*environmentHash),
-		"outputs":          outputs,
-	}
-	if finished != nil {
-		payload["finished_at"] = finished
-	}
-	body, err := postEvydence(ctx, client, *apiURL, *apiKey, "/v1/builds", "github-actions-build-"+runID+"-"+runAttempt, payload)
-	if err != nil {
-		return err
-	}
-	buildID, err := responseDataID(body)
-	if err != nil {
-		return err
-	}
-	fmt.Println("build uploaded: " + buildID)
-	if strings.TrimSpace(*attestationPath) == "" {
+		if (*artifactID == "") != (*artifactDigest == "") {
+			return errors.New("--artifact-id and --artifact-digest must be provided together")
+		}
+		started := settings.BuildStartedAt
+		if started.IsZero() {
+			started = time.Now().UTC()
+		}
+		var finished *time.Time
+		if !settings.BuildFinishedAt.IsZero() {
+			value := settings.BuildFinishedAt
+			finished = &value
+		}
+
+		outputs := []map[string]string{}
+		if strings.TrimSpace(*artifactID) != "" {
+			outputs = append(outputs, map[string]string{"artifact_id": strings.TrimSpace(*artifactID), "digest": strings.TrimSpace(*artifactDigest)})
+		}
+		runID := settings.GitHubRunID
+		runAttempt := settings.GitHubRunAttempt.Identity()
+		commitSHA := settings.GitHubSHA
+		repository := settings.GitHubRepository
+		workflowRef := settings.GitHubWorkflowRef
+		if runID == "" || commitSHA == "" || repository == "" || workflowRef == "" {
+			return errors.New("GITHUB_RUN_ID, GITHUB_SHA, GITHUB_REPOSITORY, and GITHUB_WORKFLOW_REF are required")
+		}
+		payload := map[string]any{
+			"project_id":       strings.TrimSpace(*projectID),
+			"release_id":       strings.TrimSpace(*releaseID),
+			"provider":         "github_actions",
+			"commit_sha":       commitSHA,
+			"repository":       repository,
+			"workflow_ref":     workflowRef,
+			"run_id":           runID,
+			"run_attempt":      settings.GitHubRunAttempt.Number(),
+			"job_id":           settings.GitHubJob,
+			"actor":            settings.GitHubActor,
+			"ref":              settings.GitHubRef,
+			"oidc_subject":     settings.GitHubOIDCSubject,
+			"status":           settings.BuildStatus,
+			"started_at":       started.UTC().Format(time.RFC3339),
+			"parameters_hash":  strings.TrimSpace(*parametersHash),
+			"environment_hash": strings.TrimSpace(*environmentHash),
+			"outputs":          outputs,
+		}
+		if finished != nil {
+			payload["finished_at"] = finished
+		}
+		body, err := postEvydence(ctx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/builds", "github-actions-build-"+runID+"-"+runAttempt, payload)
+		if err != nil {
+			return err
+		}
+		buildID, err := responseDataID(body)
+		if err != nil {
+			return err
+		}
+		fmt.Println("build uploaded: " + buildID)
+		if strings.TrimSpace(*attestationPath) == "" {
+			return nil
+		}
+		cleaned, err := cleanOperatorPath(*attestationPath)
+		if err != nil {
+			return err
+		}
+		// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified attestation file.
+		attestation, err := os.ReadFile(cleaned)
+		if err != nil {
+			return err
+		}
+		body, err = postRawEvydence(ctx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/builds/"+buildID+"/attestations", "github-actions-attestation-"+buildID, attestation)
+		if err != nil {
+			return err
+		}
+		attestationID, err := responseDataID(body)
+		if err != nil {
+			return err
+		}
+		fmt.Println("attestation uploaded: " + attestationID)
 		return nil
-	}
-	cleaned, err := cleanOperatorPath(*attestationPath)
-	if err != nil {
-		return err
-	}
-	// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified attestation file.
-	attestation, err := os.ReadFile(cleaned)
-	if err != nil {
-		return err
-	}
-	body, err = postRawEvydence(ctx, client, *apiURL, *apiKey, "/v1/builds/"+buildID+"/attestations", "github-actions-attestation-"+buildID, attestation)
-	if err != nil {
-		return err
-	}
-	attestationID, err := responseDataID(body)
-	if err != nil {
-		return err
-	}
-	fmt.Println("attestation uploaded: " + attestationID)
-	return nil
+	})
 }
 
-func uploadEvidenceBundleImport(ctx context.Context, client *http.Client, args []string) error {
+func uploadEvidenceBundleImport(ctx context.Context, client *http.Client, input cliInput, args []string) error {
 	fs := flag.NewFlagSet("import-bundle upload", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	apiURL := fs.String("url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
-	apiKey := fs.String("api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
+	registerCLIConnectionFlags(fs)
 	path := fs.String("path", "", "evidence bundle JSON path")
 	idem := fs.String("idempotency-key", "", "idempotency key")
 	if err := fs.Parse(args); err != nil {
 		return usage()
 	}
-	if strings.TrimSpace(*apiURL) == "" || strings.TrimSpace(*apiKey) == "" || strings.TrimSpace(*path) == "" {
+	if fs.NArg() != 0 {
 		return usage()
 	}
-	cleaned, err := cleanOperatorPath(*path)
-	if err != nil {
-		return err
-	}
-	// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified import bundle.
-	body, err := os.ReadFile(cleaned)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(*idem) == "" {
-		digest := sha256.Sum256(body)
-		*idem = "import-bundle-" + hex.EncodeToString(digest[:8])
-	}
-	response, err := postRawEvydence(ctx, client, *apiURL, *apiKey, "/v1/evidence-bundles/import", *idem, body)
-	if err != nil {
-		return err
-	}
-	id, err := responseDataID(response)
-	if err != nil {
-		return err
-	}
-	fmt.Println("evidence bundle import recorded: " + id)
-	return nil
-}
-
-func uploadManifestRequests(ctx context.Context, client *http.Client, args []string) error {
-	fs := flag.NewFlagSet("upload manifest", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	apiURL := fs.String("url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
-	apiKey := fs.String("api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
-	manifestPath := fs.String("manifest", "", "upload manifest JSON path")
-	if err := fs.Parse(args); err != nil {
-		return usage()
-	}
-	if strings.TrimSpace(*apiURL) == "" || strings.TrimSpace(*apiKey) == "" || strings.TrimSpace(*manifestPath) == "" {
-		return usage()
-	}
-	manifest, err := readAndValidateUploadManifest(*manifestPath)
-	if err != nil {
-		return err
-	}
-	for _, req := range manifest.Requests {
-		payload, err := req.PayloadBytes()
+	return runConfiguredCLI(ctx, input, os.Stderr, fs, config.CLIUpload, func(ctx context.Context, settings config.CLISettings) error {
+		if strings.TrimSpace(settings.APIURL) == "" || strings.TrimSpace(settings.APIKey.Reveal()) == "" || strings.TrimSpace(*path) == "" {
+			return usage()
+		}
+		cleaned, err := cleanOperatorPath(*path)
 		if err != nil {
 			return err
 		}
-		response, err := postRawEvydence(ctx, client, *apiURL, *apiKey, req.Path, req.IdempotencyKey, payload)
+		// #nosec G304,G703 -- this CLI command intentionally reads a local operator-specified import bundle.
+		body, err := os.ReadFile(cleaned)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(*idem) == "" {
+			digest := sha256.Sum256(body)
+			*idem = "import-bundle-" + hex.EncodeToString(digest[:8])
+		}
+		response, err := postRawEvydence(ctx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/evidence-bundles/import", *idem, body)
 		if err != nil {
 			return err
 		}
@@ -1211,9 +1188,47 @@ func uploadManifestRequests(ctx context.Context, client *http.Client, args []str
 		if err != nil {
 			return err
 		}
-		fmt.Println("uploaded " + req.Path + ": " + id)
+		fmt.Println("evidence bundle import recorded: " + id)
+		return nil
+	})
+}
+
+func uploadManifestRequests(ctx context.Context, client *http.Client, input cliInput, args []string) error {
+	fs := flag.NewFlagSet("upload manifest", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	registerCLIConnectionFlags(fs)
+	manifestPath := fs.String("manifest", "", "upload manifest JSON path")
+	if err := fs.Parse(args); err != nil {
+		return usage()
 	}
-	return nil
+	if fs.NArg() != 0 {
+		return usage()
+	}
+	return runConfiguredCLI(ctx, input, os.Stderr, fs, config.CLIUpload, func(ctx context.Context, settings config.CLISettings) error {
+		if strings.TrimSpace(settings.APIURL) == "" || strings.TrimSpace(settings.APIKey.Reveal()) == "" || strings.TrimSpace(*manifestPath) == "" {
+			return usage()
+		}
+		manifest, err := readAndValidateUploadManifest(*manifestPath)
+		if err != nil {
+			return err
+		}
+		for _, req := range manifest.Requests {
+			payload, err := req.PayloadBytes()
+			if err != nil {
+				return err
+			}
+			response, err := postRawEvydence(ctx, client, settings.APIURL, settings.APIKey.Reveal(), req.Path, req.IdempotencyKey, payload)
+			if err != nil {
+				return err
+			}
+			id, err := responseDataID(response)
+			if err != nil {
+				return err
+			}
+			fmt.Println("uploaded " + req.Path + ": " + id)
+		}
+		return nil
+	})
 }
 
 func validateUploadManifestCommand(args []string) error {
@@ -1255,68 +1270,73 @@ func (e cliExitError) ExitCode() int {
 	return e.code
 }
 
-func ciPreflight(ctx context.Context, client *http.Client, args []string) error {
+func ciPreflight(ctx context.Context, client *http.Client, input cliInput, args []string) error {
 	fs := flag.NewFlagSet("ci preflight", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	apiURL := fs.String("url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
-	apiKey := fs.String("api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
-	productID := fs.String("product-id", strings.TrimSpace(os.Getenv("EVYDENCE_PRODUCT_ID")), "Evydence product ID")
-	projectID := fs.String("project-id", strings.TrimSpace(os.Getenv("EVYDENCE_PROJECT_ID")), "Evydence project ID")
-	releaseID := fs.String("release-id", strings.TrimSpace(os.Getenv("EVYDENCE_RELEASE_ID")), "Evydence release ID")
-	artifactID := fs.String("artifact-id", strings.TrimSpace(os.Getenv("EVYDENCE_ARTIFACT_ID")), "Evydence artifact ID")
+	registerCLIConnectionFlags(fs)
+	fs.String("product-id", "", "Evydence product-id")
+	fs.String("project-id", "", "Evydence project-id")
+	fs.String("release-id", "", "Evydence release-id")
+	fs.String("artifact-id", "", "Evydence artifact-id")
 	manifestPath := fs.String("manifest", "", "upload manifest JSON path")
 	if err := fs.Parse(args); err != nil {
 		return ciExit(exitCIPreflightMissingConfig, "ci preflight configuration is invalid")
 	}
-	if fs.NArg() != 0 || strings.TrimSpace(*apiURL) == "" || strings.TrimSpace(*apiKey) == "" ||
-		strings.TrimSpace(*productID) == "" || strings.TrimSpace(*projectID) == "" ||
-		strings.TrimSpace(*releaseID) == "" || strings.TrimSpace(*artifactID) == "" ||
-		strings.TrimSpace(*manifestPath) == "" {
-		return ciExit(exitCIPreflightMissingConfig, "ci preflight requires url, api key, product id, project id, release id, artifact id, and manifest path")
+	result := runConfiguredCLI(ctx, input, os.Stderr, fs, config.CLIPreflight, func(ctx context.Context, settings config.CLISettings) error {
+		if fs.NArg() != 0 || strings.TrimSpace(settings.APIURL) == "" || strings.TrimSpace(settings.APIKey.Reveal()) == "" ||
+			strings.TrimSpace(settings.ProductID) == "" || strings.TrimSpace(settings.ProjectID) == "" ||
+			strings.TrimSpace(settings.ReleaseID) == "" || strings.TrimSpace(settings.ArtifactID) == "" ||
+			strings.TrimSpace(*manifestPath) == "" {
+			return ciExit(exitCIPreflightMissingConfig, "ci preflight requires url, api key, product id, project id, release id, artifact id, and manifest path")
+		}
+		manifest, err := readAndValidateUploadManifest(*manifestPath)
+		if err != nil {
+			return ciExit(exitCIPreflightInvalidManifest, "ci preflight manifest is invalid: "+err.Error())
+		}
+		if err := validatePreflightManifestIDs(manifest, settings.ProductID, settings.ProjectID, settings.ReleaseID, settings.ArtifactID); err != nil {
+			return ciExit(exitCIPreflightInvalidManifest, err.Error())
+		}
+		productBody, err := getEvydence(ctx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/products/"+url.PathEscape(strings.TrimSpace(settings.ProductID)))
+		if err != nil {
+			return mapCIPreflightAPIError(err)
+		}
+		if err := ensureResponseDataID(productBody, settings.ProductID, "product"); err != nil {
+			return ciExit(exitCIPreflightWrongTenant, err.Error())
+		}
+		projectBody, err := getEvydence(ctx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/projects/"+url.PathEscape(strings.TrimSpace(settings.ProjectID)))
+		if err != nil {
+			return mapCIPreflightAPIError(err)
+		}
+		if err := ensureResponseDataID(projectBody, settings.ProjectID, "project"); err != nil {
+			return ciExit(exitCIPreflightWrongTenant, err.Error())
+		}
+		if err := ensureResponseDataField(projectBody, "product_id", settings.ProductID, "project product"); err != nil {
+			return ciExit(exitCIPreflightWrongTenant, err.Error())
+		}
+		releaseBody, err := getEvydence(ctx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/releases/"+url.PathEscape(strings.TrimSpace(settings.ReleaseID)))
+		if err != nil {
+			return mapCIPreflightAPIError(err)
+		}
+		if err := ensureResponseDataID(releaseBody, settings.ReleaseID, "release"); err != nil {
+			return ciExit(exitCIPreflightWrongTenant, err.Error())
+		}
+		if err := ensureResponseDataField(releaseBody, "product_id", settings.ProductID, "release product"); err != nil {
+			return ciExit(exitCIPreflightWrongTenant, err.Error())
+		}
+		artifactBody, err := getEvydence(ctx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/artifacts/"+url.PathEscape(strings.TrimSpace(settings.ArtifactID)))
+		if err != nil {
+			return mapCIPreflightAPIError(err)
+		}
+		if err := ensureResponseDataID(artifactBody, settings.ArtifactID, "artifact"); err != nil {
+			return ciExit(exitCIPreflightWrongTenant, err.Error())
+		}
+		fmt.Printf("ci preflight ok: product=%s project=%s release=%s artifact=%s manifest_requests=%d\n", strings.TrimSpace(settings.ProductID), strings.TrimSpace(settings.ProjectID), strings.TrimSpace(settings.ReleaseID), strings.TrimSpace(settings.ArtifactID), len(manifest.Requests))
+		return nil
+	})
+	if errors.Is(result, errCLIConfiguration) {
+		return ciExit(exitCIPreflightMissingConfig, "ci preflight configuration is invalid")
 	}
-	manifest, err := readAndValidateUploadManifest(*manifestPath)
-	if err != nil {
-		return ciExit(exitCIPreflightInvalidManifest, "ci preflight manifest is invalid: "+err.Error())
-	}
-	if err := validatePreflightManifestIDs(manifest, *productID, *projectID, *releaseID, *artifactID); err != nil {
-		return ciExit(exitCIPreflightInvalidManifest, err.Error())
-	}
-	productBody, err := getEvydence(ctx, client, *apiURL, *apiKey, "/v1/products/"+url.PathEscape(strings.TrimSpace(*productID)))
-	if err != nil {
-		return mapCIPreflightAPIError(err)
-	}
-	if err := ensureResponseDataID(productBody, *productID, "product"); err != nil {
-		return ciExit(exitCIPreflightWrongTenant, err.Error())
-	}
-	projectBody, err := getEvydence(ctx, client, *apiURL, *apiKey, "/v1/projects/"+url.PathEscape(strings.TrimSpace(*projectID)))
-	if err != nil {
-		return mapCIPreflightAPIError(err)
-	}
-	if err := ensureResponseDataID(projectBody, *projectID, "project"); err != nil {
-		return ciExit(exitCIPreflightWrongTenant, err.Error())
-	}
-	if err := ensureResponseDataField(projectBody, "product_id", *productID, "project product"); err != nil {
-		return ciExit(exitCIPreflightWrongTenant, err.Error())
-	}
-	releaseBody, err := getEvydence(ctx, client, *apiURL, *apiKey, "/v1/releases/"+url.PathEscape(strings.TrimSpace(*releaseID)))
-	if err != nil {
-		return mapCIPreflightAPIError(err)
-	}
-	if err := ensureResponseDataID(releaseBody, *releaseID, "release"); err != nil {
-		return ciExit(exitCIPreflightWrongTenant, err.Error())
-	}
-	if err := ensureResponseDataField(releaseBody, "product_id", *productID, "release product"); err != nil {
-		return ciExit(exitCIPreflightWrongTenant, err.Error())
-	}
-	artifactBody, err := getEvydence(ctx, client, *apiURL, *apiKey, "/v1/artifacts/"+url.PathEscape(strings.TrimSpace(*artifactID)))
-	if err != nil {
-		return mapCIPreflightAPIError(err)
-	}
-	if err := ensureResponseDataID(artifactBody, *artifactID, "artifact"); err != nil {
-		return ciExit(exitCIPreflightWrongTenant, err.Error())
-	}
-	fmt.Printf("ci preflight ok: product=%s project=%s release=%s artifact=%s manifest_requests=%d\n", strings.TrimSpace(*productID), strings.TrimSpace(*projectID), strings.TrimSpace(*releaseID), strings.TrimSpace(*artifactID), len(manifest.Requests))
-	return nil
+	return result
 }
 
 func ciExit(code int, message string) error {
@@ -1587,141 +1607,143 @@ type releaseUploadConfig struct {
 	IdempotencyPrefix string
 }
 
-func uploadReleaseEvidence(ctx context.Context, client *http.Client, args []string) error {
-	cfg, err := parseReleaseUploadConfig(args)
+func uploadReleaseEvidence(ctx context.Context, client *http.Client, input cliInput, args []string) error {
+	cfg, fs, err := parseReleaseUploadConfig(args)
 	if err != nil {
 		return err
 	}
-	artifact, err := releaseUploadArtifactMetadata(cfg.ArtifactPath, cfg.ArtifactName, cfg.ArtifactMediaType)
-	if err != nil {
-		return err
-	}
-	sbomPayload, err := readOptionalJSONPayload(cfg.SBOMPath, "SBOM")
-	if err != nil {
-		return err
-	}
-	scanPayload, err := readOptionalJSONPayload(cfg.ScanPath, "vulnerability scan")
-	if err != nil {
-		return err
-	}
-	vexPayload, err := readOptionalJSONPayload(cfg.VEXPath, "VEX")
-	if err != nil {
-		return err
-	}
-	if len(sbomPayload) == 0 && len(scanPayload) == 0 && len(vexPayload) == 0 && !cfg.CreateBundle {
-		return errors.New("provide at least one evidence file or leave --create-bundle enabled")
-	}
-	if cfg.ArtifactPath != "" && cfg.ArtifactID == "" && !cfg.CreateArtifact {
-		return errors.New("--artifact-id is required when --artifact is supplied unless --create-artifact is set")
-	}
-	if cfg.ReleaseID == "" && !cfg.CreateRelease {
-		return errors.New("--release-id is required unless --create-release is set")
-	}
-	if cfg.ProductID == "" && (cfg.CreateRelease || cfg.CreateProduct) && !cfg.CreateProduct {
-		return errors.New("--product-id is required unless --create-product is set")
-	}
-	if cfg.CreateProduct && (cfg.ProductName == "" || cfg.ProductSlug == "") {
-		return errors.New("--product-name and --product-slug are required with --create-product")
-	}
-	if cfg.CreateRelease && cfg.ReleaseVersion == "" {
-		return errors.New("--release-version is required with --create-release")
-	}
-	if cfg.CreateArtifact && cfg.ArtifactPath == "" {
-		return errors.New("--artifact is required with --create-artifact")
-	}
-	if !cfg.DryRun && (cfg.APIURL == "" || cfg.APIKey == "") {
-		return usage()
-	}
-	if cfg.IdempotencyPrefix == "" {
-		cfg.IdempotencyPrefix = releaseUploadIdempotencyPrefix(cfg, artifact, sbomPayload, scanPayload, vexPayload)
-	}
-	productID := cfg.ProductID
-	if cfg.CreateProduct {
-		id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/products", cfg.IdempotencyPrefix+"-product", map[string]any{
-			"name": cfg.ProductName,
-			"slug": cfg.ProductSlug,
-		}, "<created-product-id>")
+	return runConfiguredCLI(ctx, input, os.Stderr, fs, config.CLIUpload, func(ctx context.Context, settings config.CLISettings) error {
+		cfg.APIURL, cfg.APIKey = settings.APIURL, settings.APIKey.Reveal()
+		artifact, err := releaseUploadArtifactMetadata(cfg.ArtifactPath, cfg.ArtifactName, cfg.ArtifactMediaType)
 		if err != nil {
 			return err
 		}
-		productID = id
-	}
-	releaseID := cfg.ReleaseID
-	if cfg.CreateRelease {
-		if productID == "" {
-			return errors.New("product id is required before creating a release")
-		}
-		id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/releases", cfg.IdempotencyPrefix+"-release", map[string]any{
-			"product_id": productID,
-			"version":    cfg.ReleaseVersion,
-		}, "<created-release-id>")
+		sbomPayload, err := readOptionalJSONPayload(cfg.SBOMPath, "SBOM")
 		if err != nil {
 			return err
 		}
-		releaseID = id
-	}
-	if releaseID == "" {
-		return errors.New("release id is required")
-	}
-	artifactID := cfg.ArtifactID
-	if cfg.CreateArtifact {
-		id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/artifacts", cfg.IdempotencyPrefix+"-artifact", map[string]any{
-			"name":       artifact.Name,
-			"media_type": artifact.MediaType,
-			"digest":     artifact.Digest,
-			"size":       artifact.Size,
-		}, "<created-artifact-id>")
+		scanPayload, err := readOptionalJSONPayload(cfg.ScanPath, "vulnerability scan")
 		if err != nil {
 			return err
 		}
-		artifactID = id
-	}
-	if len(sbomPayload) > 0 {
-		if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/sboms", cfg.IdempotencyPrefix+"-sbom", map[string]any{
-			"release_id":  releaseID,
-			"artifact_id": artifactID,
-			"payload":     json.RawMessage(sbomPayload),
-		}, "<created-sbom-id>"); err != nil {
-			return err
-		}
-	}
-	if len(scanPayload) > 0 {
-		payload, err := buildReleaseUploadScanPayload(scanPayload, releaseID, cfg.TargetRef, cfg.ScanScanner, artifact)
+		vexPayload, err := readOptionalJSONPayload(cfg.VEXPath, "VEX")
 		if err != nil {
 			return err
 		}
-		if _, err := postReleaseUploadRaw(ctx, client, cfg, "/v1/vulnerability-scans", cfg.IdempotencyPrefix+"-scan", payload, "<created-scan-id>"); err != nil {
-			return err
+		if len(sbomPayload) == 0 && len(scanPayload) == 0 && len(vexPayload) == 0 && !cfg.CreateBundle {
+			return errors.New("provide at least one evidence file or leave --create-bundle enabled")
 		}
-	}
-	if len(vexPayload) > 0 {
-		if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/vex", cfg.IdempotencyPrefix+"-vex", map[string]any{
-			"release_id":  releaseID,
-			"artifact_id": artifactID,
-			"payload":     json.RawMessage(vexPayload),
-		}, "<created-vex-id>"); err != nil {
-			return err
+		if cfg.ArtifactPath != "" && cfg.ArtifactID == "" && !cfg.CreateArtifact {
+			return errors.New("--artifact-id is required when --artifact is supplied unless --create-artifact is set")
 		}
-	}
-	if cfg.CreateBundle {
-		if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/release-bundles", cfg.IdempotencyPrefix+"-release-bundle", map[string]any{
-			"release_id": releaseID,
-		}, "<created-release-bundle-id>"); err != nil {
-			return err
+		if cfg.ReleaseID == "" && !cfg.CreateRelease {
+			return errors.New("--release-id is required unless --create-release is set")
 		}
-	}
-	printReleaseUploadNextSteps(cfg.APIURL, releaseID)
-	return nil
+		if cfg.ProductID == "" && (cfg.CreateRelease || cfg.CreateProduct) && !cfg.CreateProduct {
+			return errors.New("--product-id is required unless --create-product is set")
+		}
+		if cfg.CreateProduct && (cfg.ProductName == "" || cfg.ProductSlug == "") {
+			return errors.New("--product-name and --product-slug are required with --create-product")
+		}
+		if cfg.CreateRelease && cfg.ReleaseVersion == "" {
+			return errors.New("--release-version is required with --create-release")
+		}
+		if cfg.CreateArtifact && cfg.ArtifactPath == "" {
+			return errors.New("--artifact is required with --create-artifact")
+		}
+		if !cfg.DryRun && (cfg.APIURL == "" || cfg.APIKey == "") {
+			return usage()
+		}
+		if cfg.IdempotencyPrefix == "" {
+			cfg.IdempotencyPrefix = releaseUploadIdempotencyPrefix(cfg, artifact, sbomPayload, scanPayload, vexPayload)
+		}
+		productID := cfg.ProductID
+		if cfg.CreateProduct {
+			id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/products", cfg.IdempotencyPrefix+"-product", map[string]any{
+				"name": cfg.ProductName,
+				"slug": cfg.ProductSlug,
+			}, "<created-product-id>")
+			if err != nil {
+				return err
+			}
+			productID = id
+		}
+		releaseID := cfg.ReleaseID
+		if cfg.CreateRelease {
+			if productID == "" {
+				return errors.New("product id is required before creating a release")
+			}
+			id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/releases", cfg.IdempotencyPrefix+"-release", map[string]any{
+				"product_id": productID,
+				"version":    cfg.ReleaseVersion,
+			}, "<created-release-id>")
+			if err != nil {
+				return err
+			}
+			releaseID = id
+		}
+		if releaseID == "" {
+			return errors.New("release id is required")
+		}
+		artifactID := cfg.ArtifactID
+		if cfg.CreateArtifact {
+			id, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/artifacts", cfg.IdempotencyPrefix+"-artifact", map[string]any{
+				"name":       artifact.Name,
+				"media_type": artifact.MediaType,
+				"digest":     artifact.Digest,
+				"size":       artifact.Size,
+			}, "<created-artifact-id>")
+			if err != nil {
+				return err
+			}
+			artifactID = id
+		}
+		if len(sbomPayload) > 0 {
+			if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/sboms", cfg.IdempotencyPrefix+"-sbom", map[string]any{
+				"release_id":  releaseID,
+				"artifact_id": artifactID,
+				"payload":     json.RawMessage(sbomPayload),
+			}, "<created-sbom-id>"); err != nil {
+				return err
+			}
+		}
+		if len(scanPayload) > 0 {
+			payload, err := buildReleaseUploadScanPayload(scanPayload, releaseID, cfg.TargetRef, cfg.ScanScanner, artifact)
+			if err != nil {
+				return err
+			}
+			if _, err := postReleaseUploadRaw(ctx, client, cfg, "/v1/vulnerability-scans", cfg.IdempotencyPrefix+"-scan", payload, "<created-scan-id>"); err != nil {
+				return err
+			}
+		}
+		if len(vexPayload) > 0 {
+			if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/vex", cfg.IdempotencyPrefix+"-vex", map[string]any{
+				"release_id":  releaseID,
+				"artifact_id": artifactID,
+				"payload":     json.RawMessage(vexPayload),
+			}, "<created-vex-id>"); err != nil {
+				return err
+			}
+		}
+		if cfg.CreateBundle {
+			if _, err := postReleaseUploadJSON(ctx, client, cfg, "/v1/release-bundles", cfg.IdempotencyPrefix+"-release-bundle", map[string]any{
+				"release_id": releaseID,
+			}, "<created-release-bundle-id>"); err != nil {
+				return err
+			}
+		}
+		printReleaseUploadNextSteps(cfg.APIURL, releaseID)
+		return nil
+	})
 }
 
-func parseReleaseUploadConfig(args []string) (releaseUploadConfig, error) {
+func parseReleaseUploadConfig(args []string) (releaseUploadConfig, *flag.FlagSet, error) {
 	fs := flag.NewFlagSet("release upload-evidence", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	cfg := releaseUploadConfig{CreateBundle: true, ArtifactMediaType: "application/octet-stream", ScanScanner: "generic"}
 	productAlias := ""
 	releaseAlias := ""
-	fs.StringVar(&cfg.APIURL, "url", strings.TrimSpace(os.Getenv("EVYDENCE_API_URL")), "Evydence API URL")
-	fs.StringVar(&cfg.APIKey, "api-key", strings.TrimSpace(os.Getenv("EVYDENCE_API_KEY")), "Evydence API key")
+	registerCLIConnectionFlags(fs)
 	fs.StringVar(&cfg.ProductID, "product-id", "", "existing product id")
 	fs.StringVar(&productAlias, "product", "", "existing product id alias")
 	fs.StringVar(&cfg.ProductName, "product-name", "", "product name used with --create-product")
@@ -1745,13 +1767,11 @@ func parseReleaseUploadConfig(args []string) (releaseUploadConfig, error) {
 	fs.BoolVar(&cfg.DryRun, "dry-run", false, "validate inputs and print planned requests without network calls")
 	fs.StringVar(&cfg.IdempotencyPrefix, "idempotency-prefix", "", "stable idempotency prefix")
 	if err := fs.Parse(args); err != nil {
-		return releaseUploadConfig{}, usage()
+		return releaseUploadConfig{}, nil, usage()
 	}
 	if fs.NArg() != 0 {
-		return releaseUploadConfig{}, usage()
+		return releaseUploadConfig{}, nil, usage()
 	}
-	cfg.APIURL = strings.TrimSpace(cfg.APIURL)
-	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
 	cfg.ProductID = firstNonEmpty(cfg.ProductID, productAlias)
 	cfg.ReleaseID = firstNonEmpty(cfg.ReleaseID, releaseAlias)
 	cfg.ProductName = strings.TrimSpace(cfg.ProductName)
@@ -1763,7 +1783,7 @@ func parseReleaseUploadConfig(args []string) (releaseUploadConfig, error) {
 	cfg.ScanScanner = firstNonEmpty(cfg.ScanScanner, "generic")
 	cfg.TargetRef = strings.TrimSpace(cfg.TargetRef)
 	cfg.IdempotencyPrefix = strings.TrimSpace(cfg.IdempotencyPrefix)
-	return cfg, nil
+	return cfg, fs, nil
 }
 
 type releaseUploadArtifact struct {
@@ -2338,23 +2358,4 @@ func responseDataID(body []byte) (string, error) {
 		return "", errors.New("evydence API response missing data.id")
 	}
 	return decoded.Data.ID, nil
-}
-
-func envRequired(name string) string {
-	return strings.TrimSpace(os.Getenv(name))
-}
-
-func envDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
-}
-
-func atoiDefault(value string, fallback int) int {
-	var out int
-	if _, err := fmt.Sscanf(strings.TrimSpace(value), "%d", &out); err != nil || out <= 0 {
-		return fallback
-	}
-	return out
 }

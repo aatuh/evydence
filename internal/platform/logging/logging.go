@@ -131,7 +131,7 @@ func New(output io.Writer, service string, identity runtimeinfo.Identity, config
 	if output == nil {
 		return nil, errors.New("logging output is required")
 	}
-	if service != "api" && service != "worker" && service != "migrate" {
+	if service != "api" && service != "worker" && service != "migrate" && service != "cli" {
 		return nil, errors.New("unsupported logging service")
 	}
 	options := &slog.HandlerOptions{Level: level}

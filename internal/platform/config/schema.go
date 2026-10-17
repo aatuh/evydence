@@ -59,23 +59,31 @@ const (
 // Zero numeric bounds are meaningful for numeric kinds, not string lengths.
 // DefaultPolicy describes a conditional/dynamic default rather than a literal.
 type Definition struct {
-	Name              string
+	Name string
+	// CLICommands narrows CLI-only input to its consuming commands; zero leaves
+	// shared process options applicable. CLIFlag binds an explicit flag override
+	// to this same definition, never a separate parser or default catalogue.
+	CLICommands       CLICommand
+	CLIFlag           string
 	Kind              Kind
 	EndpointPolicy    EndpointPolicy
 	LocalhostOverride string
 	// PreserveWhitespace keeps explicit blank input for field validation rather
 	// than replacing it with a default. Raw capture is always lossless.
-	PreserveWhitespace   bool
-	Default              string
-	DefaultPolicy        string
-	ProductionDefault    string
-	NonProductionDefault string
-	DefaultWhenSet       string
-	ConditionalDefault   string
-	Roles                Role
-	Required             Role
-	ProductionRequired   Role
-	Secret               bool
+	PreserveWhitespace bool
+	// PreserveTimestampOffset retains an existing timestamp wire contract;
+	// other timestamps normalize to UTC after structured RFC3339 parsing.
+	PreserveTimestampOffset bool
+	Default                 string
+	DefaultPolicy           string
+	ProductionDefault       string
+	NonProductionDefault    string
+	DefaultWhenSet          string
+	ConditionalDefault      string
+	Roles                   Role
+	Required                Role
+	ProductionRequired      Role
+	Secret                  bool
 	// FileOption is the schema-owned private-file alternative for a project
 	// secret. It declares a reference; it does not perform file resolution.
 	FileOption string

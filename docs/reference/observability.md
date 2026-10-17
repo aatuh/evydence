@@ -4,12 +4,14 @@ Evydence exposes low-detail runtime checks for operators. These signals support 
 
 ## Process diagnostics
 
-API, worker and migration commands write structured diagnostics to stderr using
+API, worker, migration and online CLI commands write structured diagnostics to stderr using
 standard-library `slog`. Set `EVYDENCE_LOG_FORMAT=json` (default) or `text` and
 `EVYDENCE_LOG_LEVEL=debug`, `info` (default), `warn`, or `error`; see the
 [configuration reference](configuration.md). Both formats use the same fields.
 Invalid settings stop the process before database/provider startup and produce
-a fixed rejection record without echoing the supplied value.
+a fixed rejection record without echoing the supplied value. Online CLI records
+use the fixed service name `cli`; offline and help operations do not start that
+lifecycle logger.
 
 Each emitted record contains timestamp (`time`), `level`, fixed event (`msg`),
 `service`, exact supported build `version`, `commit`, `build_time`, `dirty`,

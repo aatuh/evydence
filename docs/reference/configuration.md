@@ -48,6 +48,30 @@ diagnostics in other profiles. Injected credentials and external credential tool
 retain their own telemetry policy; their internals are not configured by these
 owned-client options. Structured application events remain the diagnostic path.
 
+Online CLI commands (`github-actions upload-build`, `ci preflight`,
+`import-bundle upload`, `upload manifest`, and `release upload-evidence`) capture
+once and apply shared configuration before reading payloads or making requests.
+Explicit flags override inline environment defaults; an explicit `--api-key`,
+including an empty one, conflicts with `EVYDENCE_API_KEY_FILE` instead of silently
+replacing that credential source. Active key files use the same bounded private
+file checks as other project secrets. Build timestamps and GitHub metadata apply
+only to the build command; resource-selection defaults apply to CI preflight.
+Offline hashing/verification, local manifest/key generation and manifest
+validation do not acquire online dependencies. Help retains its existing usage
+and exit-code behavior without applying configuration or resolving credentials.
+
+Malformed client URLs (including user info, queries and fragments), credentials
+with internal whitespace/control characters, and explicit zero/malformed build
+timestamps fail with fixed diagnostics. `GITHUB_RUN_ATTEMPT` is a strict positive
+integer at most 2147483647, matching the persisted PostgreSQL integer; absence
+uses 1. Valid numeric spelling remains part of the existing build idempotency key
+(for example, `02` stays `02`), while the payload uses numeric 2. An absent build
+start time uses the command clock. Finish timestamps retain their supplied offset
+and fractional precision. CI preflight retains its documented exit-code classes.
+Online commands, including release upload dry runs, validate their applicable
+configuration and write structured lifecycle diagnostics to stderr; command
+results remain on stdout. Dry runs make no network requests.
+
 Worker `healthcheck` and `--healthcheck` commands capture and validate `ENV`,
 `EVYDENCE_LOG_LEVEL`, `EVYDENCE_LOG_FORMAT` and `EVYDENCE_WORKER_HEALTH_ADDR`
 before querying the loopback worker. Readiness is the default; `--startup` and

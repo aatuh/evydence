@@ -542,8 +542,8 @@ not reinstate the raw listener.
 
 Fresh-process tests exercise environment-enabled SDK initialization and a local
 managed-identity endpoint, without real provider calls. This policy does not
-establish external provider identity, interoperability or availability. CLI
-adoption and remaining shared ambient-reader retirement remain EVY-1216.
+establish external provider identity, interoperability or availability. Remaining shared ambient-reader retirement and whole-ticket checks remain
+EVY-1216.
 
 ## Delivery And Compatibility
 
@@ -570,8 +570,8 @@ rejected. Other startup entry points need explicit guard review when adopted.
 
 The shared logger has an explicit configured lifecycle entry point and a fixed
 startup-rejection operation. Its legacy environment entry point remains for
-commands not yet adopted; retiring it is part of EVY-1216. CLI adoption remains
-incomplete.
+legacy callers; retiring it is part of EVY-1216. Online CLI now enters the
+configured lifecycle with the fixed service name `cli`.
 
 Typed configurations also retain a private fingerprint of their original captured
 source. Its opaque `SourceIdentity` exposes only equality against another bounded capture;
@@ -595,8 +595,8 @@ removed. Component-test fixtures use the same parser and typed projections.
 The durable native bootstrap, actor/tenant boundaries and shutdown/owned-provider
 cleanup paths retain their existing composition. Malformed explicit values now
 fail with fixed shared errors; unknown local writer modes are rejected, and direct
-cloud modes require their configured key references. CLI adoption and remaining
-shared legacy retirement are still due.
+cloud modes require their configured key references. Remaining shared legacy
+retirement and whole-ticket validation are still due.
 
 The worker daemon now uses shared preflight and explicit resolution before
 logging startup or opening runtime resources. Typed settings supply its database,
@@ -635,6 +635,27 @@ Legacy processing fixture helpers live in test files and choose an explicit
 budget. The shared
 schema and processor deliberately reject `MaxInt64`: the existing bounded object
 readers require room for a sentinel byte and already reject that unusable value.
+
+Online CLI dispatch captures once in `run`; pure flag parsing still precedes
+application of capture errors, so help preserves its usage/exit contract without
+credential resolution. Schema-owned command scopes and flag bindings feed
+`PrepareCLI` and `Resolve`, then configured logging, before payload reads or
+HTTP operations. Flags replace inline defaults, while a key flag plus a declared
+key file fails explicitly. Offline commands bypass this startup path. Release
+upload dry runs keep their existing optional URL/key requirement and perform
+configuration and input validation without network requests.
+
+The old CLI environment/default/integer fallback helpers are removed. GitHub run
+attempts now use the strict persisted integer bound, with absence defaulting to
+1. A typed value retains the valid original trimmed spelling for existing build
+idempotency keys; it does not normalize `02` to a different key. The number is
+used in JSON payloads. Missing start times use the command clock; finish times
+preserve their existing offset/precision contract through explicit schema
+metadata. Malformed or zero explicit timestamps, malformed URLs and internal
+credential whitespace/control characters fail before the operation. CI exit
+classes and server-side ownership validation are unchanged. Native Go transport
+proxy/trust resolution remains separately owned; this change does not promise
+that an SDK or platform process cache is retroactively frozen.
 
 Commands not yet adopted retain their existing parsing. An input helper
 alone does not prove that startup validates every field or that generated docs

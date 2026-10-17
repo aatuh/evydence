@@ -163,6 +163,9 @@ func TestEveryTypedProjectionReadsItsDeclaredSource(t *testing.T) {
 						ok = actual.Bool()
 					case reflect.TypeFor[int64]():
 						ok = actual.Int() == v.integer
+					case reflect.TypeFor[RunAttempt]():
+						attempt := actual.Interface().(RunAttempt)
+						ok = attempt.Number() == v.integer && attempt.Identity() == v.text
 					case reflect.TypeFor[time.Duration]():
 						ok = actual.Int() == int64(v.duration)
 					case reflect.TypeFor[time.Time]():

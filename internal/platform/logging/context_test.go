@@ -125,3 +125,29 @@ func TestDiagnosticWriterDiscardsRawRuntimeDetails(t *testing.T) {
 		t.Fatal("runtime diagnostic was lost or disclosed")
 	}
 }
+
+func TestConfiguredCLILifecycleUsesFixedServiceAndRedactsOperationError(t *testing.T) {
+	var output bytes.Buffer
+	operationErr := errors.New("PRIVATE_CLI_OPERATION")
+	err := RunConfigured(t.Context(), "cli", testIdentity(), &output, Config{}, func(ctx context.Context) error { return operationErr })
+	if !errors.Is(err, operationErr) || strings.Contains(output.String(), "PRIVATE") {
+		t.Fatal("CLI logger changed the operation error or logged it")
+	}
+	records := strings.Split(strings.TrimSpace(output.String()), "\n")
+	if len(records) != 2 {
+		t.Fatal("CLI lifecycle records missing")
+	}
+	for i, line := range records {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatal(err)
+		}
+		wantResult, wantEvent := "started", "startup"
+		if i == 1 {
+			wantResult, wantEvent = "failed", "shutdown"
+		}
+		if record["service"] != "cli" || record["msg"] != wantEvent || record["result_code"] != wantResult {
+			t.Fatal("CLI lifecycle or service identity changed")
+		}
+	}
+}
