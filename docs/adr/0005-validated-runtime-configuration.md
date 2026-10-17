@@ -23,8 +23,12 @@ captures `ENV`, `CI`, `EVYDENCE_*`, the AWS, Google, Azure and GitHub namespaces
 and declared native PostgreSQL, credential-discovery and host/transport names.
 Unrelated host settings are not configuration values. Capture bounds total input
 to 4096 entries and 8 MiB, selected settings to 1024, and selected names to 256
-bytes. Project names use uppercase ASCII environment syntax. Exact declared
-native spellings also admit lowercase proxy fallbacks and Windows `ProgramData`.
+bytes. Project names use uppercase ASCII environment syntax internally. On Windows,
+capture canonicalizes case-insensitive native names and project namespaces before
+selection, duplicate detection and fingerprinting. Values and empty presence stay
+exact; case collisions fail. On case-sensitive hosts, spellings remain distinct.
+Exact declared native spellings also admit lowercase proxy fallbacks and Windows
+`ProgramData`/`NoDefaultCurrentDirectoryInExePath`.
 NUL and malformed UTF-8 selected input are rejected. Duplicate selected names fail instead of
 depending on process-environment ordering.
 
@@ -51,12 +55,22 @@ duplicate, UTF-8, NUL and combined-size protections. Arbitrary `PG*` names remai
 outside the selected input. Tests pin this metadata to the actual module
 requirement and check owned copies independently.
 
-The native catalogue now contains 103 definitions covering 110 distinct names:
-22 PostgreSQL, 50 AWS, three Google, 20 Azure/MSAL and 15 host/transport inputs.
+The native catalogue now contains 105 definitions covering 112 distinct names:
+22 PostgreSQL, 50 AWS, three Google, 20 Azure/MSAL and 17 host/transport inputs.
 AWS includes the KMS, STS, SSO, SSO OIDC and Signin endpoint names computed from
 service identifiers. The Google boundary includes metadata-host overrides and
 the external executable opt-in; Azure includes transitive managed-identity inputs.
 These declarations use the existing module pins and add no SDK initialization.
+
+The release script includes Windows builds. The host catalogue therefore includes
+`PATHEXT` and `NoDefaultCurrentDirectoryInExePath`, reviewed against the pinned Go
+Windows lookup implementation. `PATHEXT` uses a bounded semicolon-separated list,
+lowercase suffixes with a leading dot, and skips empty items. Suffixes allow ASCII
+letters, digits, dots, underscores and hyphens; path separators, colons, whitespace
+and a bare dot fail earlier than native lookup. No extension defaults are added.
+An effective empty list remains distinct from absent/empty input. The directory
+switch depends on presence even when empty, so its consumer must use `Present()`.
+This captures lookup inputs; it does not run or authorize credential helpers.
 
 Ordered `Fallbacks` retain native precedence separately from conflict-checked
 project aliases. Each supplied spelling remains independently captured, including
@@ -180,7 +194,7 @@ defaults and does not retain mutable parser slices. Tests check each declared
 field's source independently, so identical defaults cannot conceal missing or
 misrouted values.
 
-Native settings now project all 103 native definitions into PostgreSQL, AWS,
+Native settings now project all 105 native definitions into PostgreSQL, AWS,
 Google, Azure and host groups. Each field has an explicit type and schema tag;
 source-by-source tests check complete coverage and correct scalar/list/URL reads.
 `NativeOption` distinguishes absent input, supplied empty input and an effective

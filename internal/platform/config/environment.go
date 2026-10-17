@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/sha256"
 	"errors"
+	"runtime"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -29,6 +30,12 @@ type Environment struct {
 // emptiness for field-specific validation and never consults the process env.
 // All failures return an empty object rather than partially captured secrets.
 func Capture(entries []string) (Environment, error) {
+	return captureEntries(entries, runtime.GOOS == "windows")
+}
+
+// Windows environment keys are case-insensitive. Canonicalize before selection,
+// duplicate detection and fingerprinting; values and empty presence stay exact.
+func captureEntries(entries []string, windows bool) (Environment, error) {
 	if len(entries) > maxEnvironmentEntries {
 		return Environment{}, ErrInvalidEnvironment
 	}
@@ -40,6 +47,9 @@ func Capture(entries []string) (Environment, error) {
 		}
 		bytes += len(entry)
 		name, value, found := strings.Cut(entry, "=")
+		if windows {
+			name = canonicalWindowsEnvironmentName(name)
+		}
 		if !selectedEnvironmentName(name) {
 			continue
 		}
@@ -62,6 +72,20 @@ func Capture(entries []string) (Environment, error) {
 	}
 	copy(e.fingerprint[:], h.Sum(nil))
 	return e, nil
+}
+
+func canonicalWindowsEnvironmentName(name string) string {
+	for _, d := range nativeInputDefinitions {
+		if strings.EqualFold(name, d.Name) {
+			return d.Name
+		}
+		for _, fallback := range d.Fallbacks {
+			if strings.EqualFold(name, fallback) {
+				return fallback
+			}
+		}
+	}
+	return strings.ToUpper(name)
 }
 
 func selectedEnvironmentName(name string) bool {

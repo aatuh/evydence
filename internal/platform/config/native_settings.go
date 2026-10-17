@@ -139,16 +139,18 @@ type NativeAzureSettings struct {
 // Values are role-filtered before projection and redact ordinary formatting.
 type NativeHostSettings struct {
 	redactedValue
-	HTTPProxy                    NativeOption[NativeURL] `env:"HTTP_PROXY"`
-	HTTPSProxy                   NativeOption[NativeURL] `env:"HTTPS_PROXY"`
-	NoProxy                      NativeOption[[]string]  `env:"NO_PROXY"`
-	RequestMethod                NativeOption[string]    `env:"REQUEST_METHOD"`
-	Home                         NativeOption[string]    `env:"HOME"`
-	UserProfile                  NativeOption[string]    `env:"USERPROFILE"`
-	AppData                      NativeOption[string]    `env:"APPDATA"`
-	ProgramData                  NativeOption[string]    `env:"ProgramData"`
-	Path                         NativeOption[[]string]  `env:"PATH"`
-	SystemRoot                   NativeOption[string]    `env:"SYSTEMROOT"`
-	SystemCertificateFile        NativeOption[string]    `env:"SSL_CERT_FILE"`
-	SystemCertificateDirectories NativeOption[[]string]  `env:"SSL_CERT_DIR"`
+	HTTPProxy                          NativeOption[NativeURL] `env:"HTTP_PROXY"`
+	HTTPSProxy                         NativeOption[NativeURL] `env:"HTTPS_PROXY"`
+	NoProxy                            NativeOption[[]string]  `env:"NO_PROXY"`
+	RequestMethod                      NativeOption[string]    `env:"REQUEST_METHOD"`
+	Home                               NativeOption[string]    `env:"HOME"`
+	UserProfile                        NativeOption[string]    `env:"USERPROFILE"`
+	AppData                            NativeOption[string]    `env:"APPDATA"`
+	ProgramData                        NativeOption[string]    `env:"ProgramData"`
+	Path                               NativeOption[[]string]  `env:"PATH"`
+	PathExtensions                     NativeOption[[]string]  `env:"PATHEXT"`
+	NoDefaultCurrentDirectoryInExePath NativeOption[string]    `env:"NoDefaultCurrentDirectoryInExePath"`
+	SystemRoot                         NativeOption[string]    `env:"SYSTEMROOT"`
+	SystemCertificateFile              NativeOption[string]    `env:"SSL_CERT_FILE"`
+	SystemCertificateDirectories       NativeOption[[]string]  `env:"SSL_CERT_DIR"`
 }

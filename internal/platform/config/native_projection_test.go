@@ -37,7 +37,7 @@ func TestEveryNativeDefinitionHasOneTypedField(t *testing.T) {
 			switch {
 			case d.Syntax == NativePostgresPorts:
 				want = reflect.TypeFor[NativeOption[[]uint16]]()
-			case d.Syntax == NativePostgresHosts || d.Syntax == NativePathList || d.Syntax == NativeCertDirectories || d.Syntax == NativeNoProxy || d.Syntax == NativeAuthSchemes || d.Syntax == NativeTenants:
+			case d.Syntax == NativePostgresHosts || d.Syntax == NativePathList || d.Syntax == NativeCertDirectories || d.Syntax == NativeNoProxy || d.Syntax == NativeAuthSchemes || d.Syntax == NativeTenants || d.Syntax == NativeWindowsExtensions:
 				want = reflect.TypeFor[NativeOption[[]string]]()
 			case d.Kind == URL || d.Syntax == NativeMetadataHost || d.Syntax == NativeRelativeCredential:
 				want = reflect.TypeFor[NativeOption[NativeURL]]()

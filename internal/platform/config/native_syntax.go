@@ -23,6 +23,7 @@ const (
 	NativeTenants            NativeSyntax = "tenants"
 	NativeMetadataHost       NativeSyntax = "metadata-host"
 	NativeRelativeCredential NativeSyntax = "relative-credential-uri"
+	NativeWindowsExtensions  NativeSyntax = "windows-executable-extensions"
 	maxNativeListItems                    = 256
 )
 
@@ -112,7 +113,7 @@ func parseNativeSyntax(d NativeDefinition, value *nativeValue) error {
 		separator = string(os.PathListSeparator)
 	case NativeCertDirectories:
 		separator = ":" // Matches Unix x509 roots, independent of PATH syntax.
-	case NativeTenants:
+	case NativeTenants, NativeWindowsExtensions:
 		separator = ";"
 	}
 	if d.MaxItems <= 0 || strings.Count(value.raw, separator)+1 > d.MaxItems {
@@ -168,6 +169,25 @@ func parseNativeSyntax(d NativeDefinition, value *nativeValue) error {
 			}
 		}
 		value.items = parts
+	case NativeWindowsExtensions:
+		for _, item := range parts {
+			if item == "" {
+				continue
+			}
+			item = strings.ToLower(item)
+			if item[0] != '.' {
+				item = "." + item
+			}
+			if len(item) == 1 {
+				return ErrInvalidValue
+			}
+			for _, c := range item[1:] {
+				if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '.' && c != '-' && c != '_' {
+					return ErrInvalidValue
+				}
+			}
+			value.items = append(value.items, item)
+		}
 	default:
 		return ErrInvalidValue
 	}

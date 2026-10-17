@@ -23,6 +23,11 @@ func nativeHostDefinitions() []NativeDefinition {
 	cgi := nativeInput(NativeHost, proxy, "REQUEST_METHOD", "cgi", Text, "A nonempty value enables the Go transport's CGI proxy restrictions.")
 	cgi.Roles = API | Worker | CLI
 	definitions = append(definitions, cgi)
+	const executable = "go@1.26.9/src/os/exec/lp_windows.go:lookPathExts"
+	extensions := nativeInput(NativeHost, executable, "PATHEXT", "windows_executable_extensions", Text, "Semicolon-separated Windows executable suffixes; normalize case and optional leading dots, skip empty items, and apply no native defaults during input parsing.")
+	extensions.Syntax, extensions.MaxItems, extensions.MaxItemBytes, extensions.RejectControl = NativeWindowsExtensions, maxNativeListItems, 4096, true
+	currentDirectory := nativeInput(NativeHost, executable, "NoDefaultCurrentDirectoryInExePath", "windows_skip_current_directory", Text, "Windows executable lookup skips the current directory when this input is present, including when its value is empty; consumers must check Present rather than HasValue.")
+	definitions = append(definitions, extensions, currentDirectory)
 	for _, entry := range []struct{ name, parameter, source, description string }{
 		{"HOME", "unix_home", "go@1.26.9/src/os/file.go:UserHomeDir", "Unix home input used by native AWS/Google credential-file defaults."},
 		{"USERPROFILE", "windows_home", "go@1.26.9/src/os/file.go:UserHomeDir", "Windows home input used by native AWS credential-file defaults."},
