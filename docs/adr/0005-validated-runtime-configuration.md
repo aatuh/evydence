@@ -2,7 +2,8 @@
 
 Status: accepted for the immutable-input, schema-metadata, scalar-parsing,
 role-input, typed-projection and local-validation foundation of EVY-1214,
-reviewed 2026-10-16. Endpoint/provider validation, complete schema/SDK coverage,
+with HTTP/signing validation reviewed 2026-10-17. Database/S3/trust-material
+validation, complete schema/SDK coverage,
 secret resolution, command adoption and generated deployment documentation remain
 pending in EVY-1214 through EVY-1217. This is an explanation for developers
 maintaining startup and configuration boundaries.
@@ -96,8 +97,52 @@ An AST characterization test ties the transitional pepper rejection to the
 existing identity-owned compatibility constant without coupling this package to
 application code. EVY-1216 must retire duplicate startup policy during adoption.
 
-Endpoint, provider, database-connection, credential and remaining path checks,
-plus complete dynamic-name/SDK coverage, remain required before EVY-1214 closes.
+HTTP endpoints now carry schema-owned policies: TLS base endpoints for native
+KMS, guarded gateway endpoints, same-origin gateway readiness endpoints, and
+HTTP/HTTPS base URLs for the self-hosted CLI. URL credentials, fragments, malformed
+ports/escapes, scoped IPv6 and non-IP bracketed hosts fail with fixed diagnostics.
+KMS/CLI base endpoints reject query strings; ordinary gateways retain valid query
+parameters. Readiness rejects query delimiters as well as query values.
+
+Gateway validation calls `httpclient.ValidateStaticEndpoint`, sharing the existing
+request policy's scheme and prohibited literal-address rules. HTTP loopback still
+requires its explicit non-production override. DNS is not resolved during parsing;
+hostnames must pass DNS/rebinding checks again at request time. Native KMS endpoints
+retain operator-controlled HTTPS endpoints, including private emulator endpoints,
+rather than acquiring the gateway policy's destination restrictions.
+
+The signing, identity-validation and transparency gateway constructors also use
+the shared policy for their HTTP exception. This replaces prefix-based loopback
+checks, accepts normalized localhost and mapped IPv4 loopback forms, and rejects
+hostnames such as `127.evil.invalid`. Their HTTPS construction contract remains
+unchanged; request-time destination policy still applies to every request.
+
+Signing validation requires the selected profile's region/key, GCP key-version
+resource, Azure vault/key/version, or external/HSM gateway as applicable. Provided
+inactive endpoint/key settings are still syntax-checked; unused gateways do not
+acquire required credentials or trigger resolution. Gateway verification keys must
+be 32-byte Ed25519 public keys. Header-bound tokens reject internal whitespace and
+control characters. Readiness must match the signing URL's scheme, host and
+effective port. A missing readiness URL remains constructible, preserving the
+existing signing-only contract; it does not establish operational readiness.
+
+These constraints intentionally reject malformed inactive endpoints, native base
+URL queries, noncanonical key-resource paths and invalid header credentials earlier
+than adapter construction. The Azure algorithm uses the schema's `ES256` choice.
+Whitespace-only text normally uses its code-owned default; explicit raw-input
+metadata preserves tenant names, S3 credential bytes and projected revision/metrics
+inputs. In particular, blank projected-file input fails rather than silently
+disabling the feature. This avoids hidden adapter defaults for blank version/status
+settings without normalizing credential bytes.
+
+Database/S3 endpoint and credential checks, Sigstore trust-material validation,
+remaining path checks and complete dynamic-name/SDK coverage remain required
+before EVY-1214 closes.
+The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
+settings and can read service, passfile and TLS material while parsing. The
+current PostgreSQL adapter enters that path through `pgxpool.New`. Reusing its
+parser directly in this pure phase would introduce ambient reads and file I/O;
+the database syntax and SDK/file boundary still need explicit ownership.
 Build-start time remains absent until the command applies its clock. Worker probe
 and offline commands must use their applicable configuration scope during adoption
 rather than acquire unrelated runtime dependencies.

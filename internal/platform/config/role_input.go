@@ -42,7 +42,7 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		if err != nil {
 			return parsedInput{}, err
 		}
-		if raw == "" || (d.Kind != Text && strings.TrimSpace(raw) == "") {
+		if raw == "" || (!d.PreserveWhitespace && strings.TrimSpace(raw) == "") {
 			raw = defaultFor(environment, d, production)
 		}
 		if strings.TrimSpace(raw) == "" && (d.Required&role != 0 || (production && d.ProductionRequired&role != 0)) {
@@ -61,6 +61,12 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 		input.values[d.Name] = value
 	}
 	if err := validateLocalInput(input); err != nil {
+		return parsedInput{}, err
+	}
+	if err := validateEndpointInput(input); err != nil {
+		return parsedInput{}, err
+	}
+	if err := validateSigningInput(input); err != nil {
 		return parsedInput{}, err
 	}
 	return input, nil

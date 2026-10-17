@@ -119,6 +119,21 @@ func TestSchemaDefaultsCannotPublishSecretsOrInvalidConditionalValues(t *testing
 	}
 }
 
+func TestSchemaOwnsHTTPPoliciesAndLocalOverrides(t *testing.T) {
+	defs := schemaByName(t)
+	for _, d := range defs {
+		if d.Kind == URL && d.Name != "EVYDENCE_DATABASE_URL" && d.Name != "EVYDENCE_S3_ENDPOINT" && d.EndpointPolicy == "" {
+			t.Fatal("HTTP option lacks a schema-owned endpoint policy", d.Name)
+		}
+		if d.LocalhostOverride != "" {
+			override, ok := defs[d.LocalhostOverride]
+			if !ok || override.Kind != Boolean || !override.ForbiddenInProduction || override.Roles&d.Roles != d.Roles {
+				t.Fatal("endpoint references an unsafe or unavailable localhost override", d.Name)
+			}
+		}
+	}
+}
+
 func TestSchemaMetadataIsSortedAndOwned(t *testing.T) {
 	first := Definitions()
 	if len(first) == 0 || !slices.IsSortedFunc(first, func(a, b Definition) int { return strings.Compare(a.Name, b.Name) }) {

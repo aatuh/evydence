@@ -14,6 +14,15 @@ const (
 
 type Kind string
 
+type EndpointPolicy string
+
+const (
+	TLSBaseEndpoint          EndpointPolicy = "tls-base"
+	GatewayEndpoint          EndpointPolicy = "gateway"
+	GatewayReadinessEndpoint EndpointPolicy = "gateway-readiness"
+	APIClientEndpoint        EndpointPolicy = "api-client"
+)
+
 const (
 	Text      Kind = "text"
 	Boolean   Kind = "boolean"
@@ -32,8 +41,13 @@ const (
 // Zero numeric bounds are meaningful for numeric kinds, not string lengths.
 // DefaultPolicy describes a conditional/dynamic default rather than a literal.
 type Definition struct {
-	Name                  string
-	Kind                  Kind
+	Name              string
+	Kind              Kind
+	EndpointPolicy    EndpointPolicy
+	LocalhostOverride string
+	// PreserveWhitespace keeps explicit blank input for field validation rather
+	// than replacing it with a default. Raw capture is always lossless.
+	PreserveWhitespace    bool
 	Default               string
 	DefaultPolicy         string
 	ProductionDefault     string

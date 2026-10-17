@@ -84,7 +84,7 @@ func New(cfg Config) (*Executor, error) {
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
 		return nil, app.ErrValidation
 	}
-	if parsed.Scheme != "https" && (!cfg.AllowInsecureForLocalhost || parsed.Scheme != "http" || !localhostHost(parsed.Hostname())) {
+	if parsed.Scheme != "https" && httpclient.ValidateStaticEndpoint(parsed, cfg.AllowInsecureForLocalhost) != nil {
 		return nil, errors.New("signing gateway endpoint must use https")
 	}
 	readinessEndpoint, err := validateReadinessEndpoint(cfg.ReadinessEndpoint, parsed)
@@ -199,11 +199,4 @@ func safeProviderRequestID(value string) string {
 		return ""
 	}
 	return value
-}
-
-func localhostHost(host string) bool {
-	if host == "localhost" {
-		return true
-	}
-	return strings.HasPrefix(host, "127.") || host == "::1"
 }

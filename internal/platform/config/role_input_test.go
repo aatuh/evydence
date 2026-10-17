@@ -17,6 +17,9 @@ func roleEnvironment(t *testing.T, role Role, production bool, extra ...string) 
 		values["ENV"] = "production"
 		if role == API {
 			values["EVYDENCE_API_KEY_PEPPER"] = "PRIVATE_PEPPER"
+			values["EVYDENCE_SIGNING_KEY_MODE"] = "aws-kms"
+			values["EVYDENCE_AWS_REGION"] = "eu-test-1"
+			values["EVYDENCE_AWS_KMS_KEY_ID"] = "PRIVATE_TEST_KEY"
 		}
 	}
 	if role != CLI {

@@ -16,10 +16,11 @@ var cliDefinitions = []Definition{
 		Description: "Online CLI bearer credential. Never include the value in diagnostics or generated examples.",
 	},
 	{
-		Name:        "EVYDENCE_API_URL",
-		Kind:        URL,
-		Roles:       CLI,
-		Description: "Online CLI API endpoint; offline/help/version commands do not require it.",
+		Name:           "EVYDENCE_API_URL",
+		EndpointPolicy: APIClientEndpoint,
+		Kind:           URL,
+		Roles:          CLI,
+		Description:    "Online CLI API endpoint; offline/help/version commands do not require it.",
 	},
 	{
 		Name:        "EVYDENCE_ARTIFACT_ID",

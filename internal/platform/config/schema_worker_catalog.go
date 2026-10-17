@@ -46,6 +46,7 @@ var workerDefinitions = []Definition{
 	},
 	{
 		Name:               "EVYDENCE_WORKER_METRICS_ADDR",
+		PreserveWhitespace: true,
 		Kind:               Text,
 		Roles:              Worker,
 		MaxBytes:           128,
@@ -55,11 +56,12 @@ var workerDefinitions = []Definition{
 		Description:        "Optional separate `GET/HEAD /metrics` listener. Requires a literal loopback or private IPv4/IPv6 address, nonzero port, no zone and a port/address distinct from the lifecycle listener. Hostnames, public and wildcard binds are rejected before runtime opens. Both metrics variables unset disables the listener. See [worker scraping](observability.md#worker-scraping).",
 	},
 	{
-		Name:        "EVYDENCE_WORKER_METRICS_TOKEN_FILE",
-		Kind:        Path,
-		Roles:       Worker,
-		MaxBytes:    4096,
-		Description: "Absolute path to an operator-owned POSIX regular secret file: exactly `evymetrics_` plus 64 lowercase hexadecimal characters, with one optional final LF. Use mode `0600`, `0640` or `0440`; group write and all other-user permissions are rejected. Relative symlink projections must stay inside the configured parent directory. Only the credential hash is retained; rotation/revocation requires replacing the file and restarting/stopping the worker. API/SSO/tenant credentials are not accepted.",
+		Name:               "EVYDENCE_WORKER_METRICS_TOKEN_FILE",
+		PreserveWhitespace: true,
+		Kind:               Path,
+		Roles:              Worker,
+		MaxBytes:           4096,
+		Description:        "Absolute path to an operator-owned POSIX regular secret file: exactly `evymetrics_` plus 64 lowercase hexadecimal characters, with one optional final LF. Use mode `0600`, `0640` or `0440`; group write and all other-user permissions are rejected. Relative symlink projections must stay inside the configured parent directory. Only the credential hash is retained; rotation/revocation requires replacing the file and restarting/stopping the worker. API/SSO/tenant credentials are not accepted.",
 	},
 	{
 		Name:        "EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS",
