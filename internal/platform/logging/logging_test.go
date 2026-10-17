@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
@@ -156,19 +157,24 @@ func TestConcurrentRecordsAreCompleteAndContextIsIsolated(t *testing.T) {
 	}
 }
 
-func TestEnvironmentConfigurationDefaultsAndCase(t *testing.T) {
-	if _, err := ConfigFromEnv(nil); err == nil {
-		t.Fatal("nil reader accepted")
+func TestConfiguredLoggingDefaultsAndCase(t *testing.T) {
+	if _, err := New(nil, "api", testIdentity(), Config{}); err == nil {
+		t.Fatal("nil diagnostic output accepted")
 	}
-	c, err := ConfigFromEnv(func(name string) string {
-		if name == "EVYDENCE_LOG_LEVEL" {
-			return " WARN "
-		}
-		return " TEXT "
-	})
+	defaultLevel, defaultFormat, err := (Config{}).options()
+	if err != nil || defaultLevel.String() != "INFO" || defaultFormat != "json" {
+		t.Fatal("logger defaults changed")
+	}
+	environment, err := config.Capture([]string{"EVYDENCE_LOG_LEVEL= WARN ", "EVYDENCE_LOG_FORMAT= TEXT "})
 	if err != nil {
 		t.Fatal(err)
 	}
+	settings, err := config.Parse(environment, config.CLI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := settings.Runtime()
+	c := Config{Level: runtime.LogLevel, Format: runtime.LogFormat}
 	level, format, err := c.options()
 	if err != nil || level.String() != "WARN" || format != "text" {
 		t.Fatal("environment mapping failed")

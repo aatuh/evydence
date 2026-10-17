@@ -1,5 +1,10 @@
 package config
 
+import (
+	"strconv"
+	"time"
+)
+
 var runtimeDefinitions = []Definition{
 	{
 		Name:        "ENV",
@@ -79,9 +84,9 @@ var runtimeDefinitions = []Definition{
 		Name:        "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS",
 		Kind:        Seconds,
 		Roles:       databaseRoles,
-		Default:     "5",
-		Min:         1,
-		Max:         60,
+		Default:     strconv.FormatInt(int64(DefaultCleanupTimeout/time.Second), 10),
+		Min:         int64(MinCleanupTimeout / time.Second),
+		Max:         int64(MaxCleanupTimeout / time.Second),
 		Description: "API/worker resource-cleanup budget after draining or operator-command execution; whole seconds from 1 through 60. Invalid values fail before storage opens.",
 	},
 	{

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aatuh/evydence/internal/platform/config"
 )
 
 func TestOwnedResourcesNestedCleanupSharesParentDeadline(t *testing.T) {
@@ -48,8 +50,12 @@ func TestCleanupTimeoutConfigurationRejectsUnsafeValues(t *testing.T) {
 		{"0", 0, true}, {"-1", 0, true}, {"61", 0, true}, {"1s", 0, true}, {"private-secret-value", 0, true},
 	} {
 		t.Run(tc.value, func(t *testing.T) {
-			t.Setenv("EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS", tc.value)
-			got, err := CleanupTimeoutFromEnv()
+			environment, err := config.Capture([]string{"EVYDENCE_RUNTIME_PROFILE=postgres", "EVYDENCE_DATABASE_URL=host=fixture", "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS=" + tc.value})
+			if err != nil {
+				t.Fatal(err)
+			}
+			settings, err := config.Parse(environment, config.Worker)
+			got := settings.Runtime().ShutdownCleanupTimeout
 			if got != tc.want || (err != nil) != tc.invalid {
 				t.Fatal("invalid cleanup timeout contract", got, err)
 			}

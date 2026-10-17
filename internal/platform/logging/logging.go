@@ -19,16 +19,6 @@ import (
 
 type Config struct{ Level, Format string }
 
-// ConfigFromEnv validates values without including operator input in errors.
-func ConfigFromEnv(getenv func(string) string) (Config, error) {
-	if getenv == nil {
-		return Config{}, errors.New("logging environment reader is required")
-	}
-	c := Config{Level: getenv("EVYDENCE_LOG_LEVEL"), Format: getenv("EVYDENCE_LOG_FORMAT")}
-	_, _, err := c.options()
-	return c, err
-}
-
 func (c Config) options() (slog.Level, string, error) {
 	var level slog.Level
 	switch strings.ToLower(strings.TrimSpace(c.Level)) {

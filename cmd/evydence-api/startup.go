@@ -41,10 +41,6 @@ func apiRuntimeConfigFromSettings(settings config.Configuration, database postgr
 		DatabaseConfiguration: database, LoadMode: runtime.PostgresLoadMode, MigrationsDir: runtime.MigrationsDir,
 		SkipMigrations: runtime.SkipMigrations, CleanupTimeout: runtime.ShutdownCleanupTimeout,
 		SessionPolicy: sessionPolicyFromSettings(api),
-		ObjectStore: wiring.ObjectStoreConfig{
-			Backend: storage.Kind, Directory: storage.Directory, Endpoint: storage.S3Endpoint, Bucket: storage.S3Bucket,
-			Region: storage.S3Region, UseSSL: storage.S3UseSSL,
-			AccessKeyID: storage.S3AccessKeyID.Reveal(), SecretAccessKey: storage.S3SecretAccessKey.Reveal(),
-		},
+		ObjectStore:   wiring.ObjectStoreConfigFromSettings(storage),
 	}
 }

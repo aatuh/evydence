@@ -152,7 +152,7 @@ func environmentReadNames(files map[string]string) ([]string, error) {
 				return true
 			}
 			call, ok := a.parents[selector].(*ast.CallExpr)
-			if !ok || (call.Fun != selector && !a.reviewedReaderForward(s, call, selector)) || (call.Fun == selector && selector.Sel.Name == "Environ" && !a.reviewedStartupCapture(s, call)) {
+			if !ok || call.Fun != selector || (call.Fun == selector && selector.Sel.Name == "Environ" && !a.reviewedStartupCapture(s, call)) {
 				scopeErr = errUnresolvedEnvironmentRead
 			}
 			return true
@@ -265,20 +265,6 @@ func (a *environmentReadAnalysis) importPath(s *environmentReadScope, selector *
 		return a.imports[s.file][name.Name]
 	}
 	return ""
-}
-
-func (a *environmentReadAnalysis) reviewedReaderForward(s *environmentReadScope, call *ast.CallExpr, reader *ast.SelectorExpr) bool {
-	callee, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	// Existing startup logging and configuration-freshness boundaries only.
-	// EVY-1216 retires ambient reads; this guard does not authorize new shims.
-	path := a.importPath(s, callee)
-	if reader.Sel.Name == "Getenv" && path == "github.com/aatuh/evydence/internal/platform/logging" && callee.Sel.Name == "Run" {
-		return len(call.Args) == 6 && call.Args[4] == reader
-	}
-	return reader.Sel.Name == "Environ" && path == "github.com/aatuh/evydence/internal/platform/confighealth" && callee.Sel.Name == "New" && len(call.Args) == 2 && call.Args[1] == reader
 }
 
 // Reviewed startup and cold freshness snapshots flow into bounded capture only.

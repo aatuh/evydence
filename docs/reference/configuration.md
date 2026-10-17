@@ -34,7 +34,10 @@ before constructing providers, opening storage or listening. HTTP limits,
 session lifetimes, bootstrap input and provider settings use that captured
 configuration. Invalid settings return fixed diagnostics without supplied values
 or underlying causes. Configuration freshness observes source/revision drift;
-it does not reload running settings.
+it does not reload running settings. Legacy environment parsers in shared
+logging, health, object-store wiring and cleanup wiring have been removed;
+programmatic adapter construction retains defensive validation.
+
 
 Explicit malformed booleans, numbers and durations fail startup instead of using
 silent fallbacks. API writer mode accepts only `single` or `single-writer` in all

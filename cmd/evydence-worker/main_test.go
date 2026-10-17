@@ -2324,7 +2324,7 @@ func TestOpenObjectStoreSelectsFilesystemAndRejectsUnsupportedBackend(t *testing
 	}
 
 	t.Setenv("EVYDENCE_OBJECT_STORE", "memory")
-	if store, description, err := openObjectStore(context.Background()); err == nil || store != nil || description != "" || !strings.Contains(err.Error(), "unsupported") {
+	if store, description, err := openObjectStore(context.Background()); err == nil || store != nil || description != "" || !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatalf("unsupported backend store=%T description=%q err=%v", store, description, err)
 	}
 }

@@ -56,17 +56,6 @@ func WithOperation(ctx context.Context, id string) context.Context {
 }
 func Emit(ctx context.Context, event Event, f Fields) { FromContext(ctx).Log(ctx, event, f) }
 
-// Run validates configuration before invoking the process. Failed setup uses a
-// fixed JSON record; arbitrary errors never become log messages or attributes.
-// The caller retains the original error and exit-code decision.
-func Run(ctx context.Context, service string, identity runtimeinfo.Identity, output io.Writer, getenv func(string) string, run func(context.Context) error) error {
-	config, err := ConfigFromEnv(getenv)
-	if err != nil {
-		return rejectSetup(ctx, service, identity, output, err)
-	}
-	return RunConfigured(ctx, service, identity, output, config, run)
-}
-
 // RunConfigured runs a process with explicitly supplied logging options. It
 // consults no environment reader; callers can validate captured configuration
 // before emitting startup records or entering the operation.

@@ -8,11 +8,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/aatuh/evydence/internal/platform/config"
 )
 
 func TestConfigurationReadinessDetectsEnvironmentDriftAndRecovery(t *testing.T) {
 	values := []string{"ENV=production", "EVYDENCE_API_KEY_PEPPER=private-pepper", "UNRELATED=first"}
-	probe, err := New(t.Context(), func() []string { return values })
+	probe, err := readinessProbeFixture(t.Context(), func() []string { return values })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +60,7 @@ func TestConfigurationReadinessDetectsProjectedRevisionChanges(t *testing.T) {
 	}
 	write(current + "\n")
 	values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + current, "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
-	probe, err := New(t.Context(), func() []string { return values })
+	probe, err := readinessProbeFixture(t.Context(), func() []string { return values })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +108,7 @@ func TestConfigurationReadinessFollowsAtomicProjectionSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
-	probe, err := New(t.Context(), func() []string { return values })
+	probe, err := readinessProbeFixture(t.Context(), func() []string { return values })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +147,7 @@ func TestConfigurationReadinessRejectsRevisionSymlinkEscapeAndRecovers(t *testin
 			}
 			values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
 			environ := func() []string { return values }
-			probe, err := New(t.Context(), environ)
+			probe, err := readinessProbeFixture(t.Context(), environ)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -163,7 +165,7 @@ func TestConfigurationReadinessRejectsRevisionSymlinkEscapeAndRecovers(t *testin
 			if err := probe(t.Context()); !errors.Is(err, errConfigurationUnavailable) || strings.Contains(err.Error(), outside) {
 				t.Fatalf("escaping revision remained healthy or disclosed its target: %v", err)
 			}
-			if probe, err := New(t.Context(), environ); probe != nil || !errors.Is(err, errConfigurationUnavailable) {
+			if probe, err := readinessProbeFixture(t.Context(), environ); probe != nil || !errors.Is(err, errConfigurationUnavailable) {
 				t.Fatal("escaping revision accepted during initialization", err)
 			}
 			if err := os.Remove(file); err != nil {
@@ -199,7 +201,7 @@ func TestConfigurationReadinessFollowsKubernetesProjectionDirectorySwap(t *testi
 		t.Fatal(err)
 	}
 	values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
-	probe, err := New(t.Context(), func() []string { return values })
+	probe, err := readinessProbeFixture(t.Context(), func() []string { return values })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +227,7 @@ func TestConfigurationReadinessRejectsIncompleteOrUnsafeRevisionConfig(t *testin
 		{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=relative"},
 		{"EVYDENCE_CONFIGURATION_REVISION=" + revision, "EVYDENCE_CONFIGURATION_REVISION_FILE=/missing/private-file"},
 	} {
-		probe, err := New(t.Context(), func() []string { return values })
+		probe, err := readinessProbeFixture(t.Context(), func() []string { return values })
 		if err == nil || probe != nil || strings.Contains(err.Error(), "private-") {
 			t.Fatalf("unsafe configuration accepted/disclosed: %v", err)
 		}
@@ -236,7 +238,7 @@ func TestConfigurationReadinessIncludesProviderEnvironment(t *testing.T) {
 	for _, name := range []string{"AWS_ACCESS_KEY_ID", "GOOGLE_APPLICATION_CREDENTIALS", "AZURE_TENANT_ID"} {
 		t.Run(name, func(t *testing.T) {
 			values := []string{name + "=private-initial"}
-			probe, err := New(t.Context(), func() []string { return values })
+			probe, err := readinessProbeFixture(t.Context(), func() []string { return values })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -249,12 +251,12 @@ func TestConfigurationReadinessIncludesProviderEnvironment(t *testing.T) {
 }
 
 func TestConfigurationReadinessRejectsInvalidSourcesBeforeServing(t *testing.T) {
-	if probe, err := New(t.Context(), nil); probe != nil || err == nil {
+	if probe, err := readinessProbeFixture(t.Context(), nil); probe != nil || err == nil {
 		t.Fatal("nil environment source accepted")
 	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if probe, err := New(canceled, os.Environ); probe != nil || !errors.Is(err, context.Canceled) {
+	if probe, err := readinessProbeFixture(canceled, os.Environ); probe != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled startup accepted", err)
 	}
 	tooMany := make([]string, 1025)
@@ -267,7 +269,7 @@ func TestConfigurationReadinessRejectsInvalidSourcesBeforeServing(t *testing.T) 
 		{"EVYDENCE_SECRET=" + strings.Repeat("x", 8<<20)},
 		tooMany,
 	} {
-		if probe, err := New(t.Context(), func() []string { return values }); probe != nil || err == nil || strings.Contains(err.Error(), "private-") {
+		if probe, err := readinessProbeFixture(t.Context(), func() []string { return values }); probe != nil || err == nil || strings.Contains(err.Error(), "private-") {
 			t.Fatalf("invalid environment accepted/disclosed: %v", err)
 		}
 	}
@@ -276,7 +278,31 @@ func TestConfigurationReadinessRejectsInvalidSourcesBeforeServing(t *testing.T) 
 		t.Fatal(err)
 	}
 	values := []string{"EVYDENCE_CONFIGURATION_REVISION=" + strings.Repeat("a", 64), "EVYDENCE_CONFIGURATION_REVISION_FILE=" + file}
-	if probe, err := New(t.Context(), func() []string { return values }); probe != nil || err == nil {
+	if probe, err := readinessProbeFixture(t.Context(), func() []string { return values }); probe != nil || err == nil {
 		t.Fatal("initial desired revision mismatch accepted")
 	}
+}
+
+// This fixture supplies the minimal typed daemon inputs; production readiness
+// only accepts settings that command preflight has already validated.
+func readinessProbeFixture(ctx context.Context, environ func() []string) (func(context.Context) error, error) {
+	if ctx == nil || environ == nil {
+		return nil, errConfigurationUnavailable
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	capture := func() (config.Environment, error) {
+		entries := append([]string{"EVYDENCE_RUNTIME_PROFILE=postgres", "EVYDENCE_DATABASE_URL=host=fixture"}, environ()...)
+		return config.Capture(entries)
+	}
+	snapshot, err := capture()
+	if err != nil {
+		return nil, errConfigurationUnavailable
+	}
+	settings, err := config.Parse(snapshot, config.Worker)
+	if err != nil {
+		return nil, errConfigurationUnavailable
+	}
+	return NewConfigured(ctx, settings, func(context.Context) (config.Environment, error) { return capture() })
 }

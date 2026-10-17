@@ -11,6 +11,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	runtimeconfig "github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 )
@@ -80,7 +81,7 @@ type Runtime struct {
 	cleanupTimeout     time.Duration
 }
 
-const DefaultCleanupTimeout = 5 * time.Second
+const DefaultCleanupTimeout = runtimeconfig.DefaultCleanupTimeout
 
 func (r *Runtime) Close() {
 	timeout := DefaultCleanupTimeout
@@ -134,7 +135,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if cleanupTimeout == 0 {
 		cleanupTimeout = DefaultCleanupTimeout
 	}
-	if cleanupTimeout < time.Second || cleanupTimeout > time.Minute {
+	if cleanupTimeout < runtimeconfig.MinCleanupTimeout || cleanupTimeout > runtimeconfig.MaxCleanupTimeout {
 		return nil, errors.New("runtime cleanup timeout must be between one and sixty seconds")
 	}
 	sessionPolicy, ok := config.SessionPolicy.Normalized()

@@ -43,7 +43,7 @@ func TestProcessLogsExactIdentityAndNeverRawErrors(t *testing.T) {
 	for _, rawError := range []error{nil, errors.New("CANARY_RAW_DATABASE_PROVIDER_BODY")} {
 		t.Run(map[bool]string{true: "failure", false: "success"}[rawError != nil], func(t *testing.T) {
 			var out bytes.Buffer
-			err := Run(t.Context(), "worker", testIdentity(), &out, func(string) string { return "" }, func(ctx context.Context) error {
+			err := RunConfigured(t.Context(), "worker", testIdentity(), &out, Config{}, func(ctx context.Context) error {
 				if FromContext(ctx) == nil {
 					t.Fatal("logger missing")
 				}
@@ -78,7 +78,7 @@ func TestProcessLogsExactIdentityAndNeverRawErrors(t *testing.T) {
 func TestInvalidLoggingConfigPreventsProcessSideEffects(t *testing.T) {
 	var out bytes.Buffer
 	called := false
-	err := Run(t.Context(), "api", testIdentity(), &out, func(string) string { return "CANARY_SECRET" }, func(context.Context) error { called = true; return nil })
+	err := RunConfigured(t.Context(), "api", testIdentity(), &out, Config{Level: "CANARY_SECRET"}, func(context.Context) error { called = true; return nil })
 	if err == nil || called || strings.Contains(out.String(), "CANARY") || !strings.Contains(out.String(), "rejected") {
 		t.Fatal("unsafe startup configuration handling")
 	}

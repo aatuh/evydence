@@ -40,6 +40,8 @@ func TestEnvironmentReadGuardResolvesFiniteSources(t *testing.T) {
 
 func TestEnvironmentReadGuardRejectsUnresolvedSources(t *testing.T) {
 	for _, source := range []string{
+		`package main; import "os"; import "github.com/aatuh/evydence/internal/platform/logging"; func run() { logging.Run(nil,"api",identity,nil,os.Getenv,operation) }`,
+		`package main; import "os"; import "github.com/aatuh/evydence/internal/platform/confighealth"; func run() { confighealth.New(nil,os.Environ) }`,
 		`package sample; import "os"; func run() { os.Getenv(os.Args[1]) }`,
 		`package sample; import "os"; func read(name string) string { return os.Getenv(name) }; func run() { read(os.Args[1]) }`,
 		`package sample; import "os"; func read(name string) string { return os.Getenv(name) }; func run() { alias := read; alias("EVYDENCE_LOG_LEVEL") }`,

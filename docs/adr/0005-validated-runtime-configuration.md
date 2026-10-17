@@ -542,8 +542,8 @@ not reinstate the raw listener.
 
 Fresh-process tests exercise environment-enabled SDK initialization and a local
 managed-identity endpoint, without real provider calls. This policy does not
-establish external provider identity, interoperability or availability. Remaining shared ambient-reader retirement and whole-ticket checks remain
-EVY-1216.
+establish external provider identity, interoperability or availability. Whole-ticket
+validation remains EVY-1216.
 
 ## Delivery And Compatibility
 
@@ -568,10 +568,11 @@ cold health observer `confighealth.ProcessSource`. Snapshots that escape through
 helpers, shadow package imports, repeat in loops, or run asynchronously remain
 rejected. Other startup entry points need explicit guard review when adopted.
 
-The shared logger has an explicit configured lifecycle entry point and a fixed
-startup-rejection operation. Its legacy environment entry point remains for
-legacy callers; retiring it is part of EVY-1216. Online CLI now enters the
-configured lifecycle with the fixed service name `cli`.
+The shared logger uses its explicit configured lifecycle entry point and fixed
+startup-rejection operation. Its obsolete environment entry point and reader are
+removed. Online CLI enters this lifecycle with the fixed service name `cli`.
+The logger retains its fixed fallback rejection policy and defensive constructor
+validation; it no longer selects process input.
 
 Typed configurations also retain a private fingerprint of their original captured
 source. Its opaque `SourceIdentity` exposes only equality against another bounded capture;
@@ -582,8 +583,10 @@ reparsing or reloading runtime settings, then applies the existing desired-revis
 file checks. Source failures remain fixed diagnostics, and cancellation is checked
 before observing the source. This path uses the complete shared capture selection,
 including native PostgreSQL and host inputs. API and worker startup now use this
-typed health path. Retiring the unused legacy constructor and its separate
-selector/digest remains part of EVY-1216.
+typed health path. The unused legacy constructor, separate input selector/hash
+and duplicate revision parser are removed. Existing drift, revision-file,
+projection-containment and cancellation tests exercise configured readiness
+through the canonical capture/parser rather than retaining the old constructor.
 
 API startup now captures once, prepares the API role, resolves active project
 secret files and prepares PostgreSQL before configured logging invokes runtime
@@ -595,8 +598,8 @@ removed. Component-test fixtures use the same parser and typed projections.
 The durable native bootstrap, actor/tenant boundaries and shutdown/owned-provider
 cleanup paths retain their existing composition. Malformed explicit values now
 fail with fixed shared errors; unknown local writer modes are rejected, and direct
-cloud modes require their configured key references. Remaining shared legacy
-retirement and whole-ticket validation are still due.
+cloud modes require their configured key references. Whole-ticket validation
+is still due.
 
 The worker daemon now uses shared preflight and explicit resolution before
 logging startup or opening runtime resources. Typed settings supply its database,
@@ -657,9 +660,23 @@ classes and server-side ownership validation are unchanged. Native Go transport
 proxy/trust resolution remains separately owned; this change does not promise
 that an SDK or platform process cache is retroactively frozen.
 
-Commands not yet adopted retain their existing parsing. An input helper
-alone does not prove that startup validates every field or that generated docs
-match production behavior. Changes to accepted values, defaults, aliases or
+The unused wiring environment builders for object storage and cleanup are
+removed. API and worker startup share a pure typed storage projection at the
+infrastructure boundary. Programmatic composition keeps its existing default
+behavior, with object-store and cleanup defaults/bounds owned by the shared
+schema. Adapter/driver constructors retain defensive validation and their
+explicitly documented native resolution owners.
+
+A source guard now rejects finite ambient-reader wrappers in production as well
+as reintroduced legacy parser declarations. Old logging and readiness forwarding
+exceptions are removed from the environment-read analysis; only reviewed command
+startup and cold freshness snapshots remain permitted. Test fixtures supply
+canonical typed settings instead of carrying duplicate production parsers.
+
+Command adoption and parser retirement are implemented; the ticket stays open
+until its required whole-checkout gates pass. These changes do not prove that
+generated documentation and deployments match production behavior; EVY-1217
+still owns that evidence. Changes to accepted values, defaults, aliases or
 production constraints require characterization tests and explicit compatibility
 notes. Offline verification, help and version commands must remain independent
 of unused live dependencies.

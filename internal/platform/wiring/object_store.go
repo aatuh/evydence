@@ -3,13 +3,13 @@ package wiring
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/aatuh/evydence/internal/adapters/objectstore/filesystem"
 	s3store "github.com/aatuh/evydence/internal/adapters/objectstore/s3"
 	"github.com/aatuh/evydence/internal/app"
+	runtimeconfig "github.com/aatuh/evydence/internal/platform/config"
 )
 
 // ObjectStoreConfig is the process configuration shared by API and worker
@@ -26,28 +26,25 @@ type ObjectStoreConfig struct {
 	UseSSL          bool
 }
 
-func ObjectStoreConfigFromEnv() ObjectStoreConfig {
-	return ObjectStoreConfig{
-		Backend:         os.Getenv("EVYDENCE_OBJECT_STORE"),
-		Directory:       os.Getenv("EVYDENCE_OBJECT_DIR"),
-		Endpoint:        os.Getenv("EVYDENCE_S3_ENDPOINT"),
-		AccessKeyID:     os.Getenv("EVYDENCE_S3_ACCESS_KEY_ID"),
-		SecretAccessKey: os.Getenv("EVYDENCE_S3_SECRET_ACCESS_KEY"),
-		Bucket:          os.Getenv("EVYDENCE_S3_BUCKET"),
-		Region:          os.Getenv("EVYDENCE_S3_REGION"),
-		UseSSL:          strings.EqualFold(strings.TrimSpace(os.Getenv("EVYDENCE_S3_USE_SSL")), "true"),
-	}
+// ObjectStoreConfigFromSettings projects already validated values at the
+// infrastructure boundary. It reads no environment or files and adds no defaults.
+func ObjectStoreConfigFromSettings(storage runtimeconfig.StorageSettings) ObjectStoreConfig {
+	return ObjectStoreConfig{Backend: storage.Kind, Directory: storage.Directory, Endpoint: storage.S3Endpoint, AccessKeyID: storage.S3AccessKeyID.Reveal(), SecretAccessKey: storage.S3SecretAccessKey.Reveal(), Bucket: storage.S3Bucket, Region: storage.S3Region, UseSSL: storage.S3UseSSL}
 }
 
 func OpenObjectStore(ctx context.Context, config ObjectStoreConfig) (app.ObjectStore, string, error) {
 	if ctx == nil {
 		return nil, "", errors.New("object-store context is required")
 	}
-	switch strings.ToLower(strings.TrimSpace(config.Backend)) {
-	case "", "file", "filesystem":
+	backend := strings.ToLower(strings.TrimSpace(config.Backend))
+	if backend == "" {
+		backend = runtimeconfig.DefaultObjectStoreBackend
+	}
+	switch backend {
+	case "file", "filesystem":
 		root := strings.TrimSpace(config.Directory)
 		if root == "" {
-			root = filepath.Join("tmp", "objects")
+			root = filepath.FromSlash(runtimeconfig.DefaultObjectDirectory)
 		}
 		store, err := filesystem.New(root)
 		if err != nil {

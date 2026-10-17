@@ -38,11 +38,7 @@ func workerRuntimeConfigFromSettings(settings config.Configuration) wiring.Runti
 		Process: wiring.Worker, Profile: wiring.Profile(runtime.Profile), Production: settings.Production(),
 		DatabaseURL: runtime.DatabaseURL.Reveal(), LoadMode: runtime.PostgresLoadMode,
 		MigrationsDir: runtime.MigrationsDir, SkipMigrations: runtime.SkipMigrations, CleanupTimeout: runtime.ShutdownCleanupTimeout,
-		ObjectStore: wiring.ObjectStoreConfig{
-			Backend: storage.Kind, Directory: storage.Directory, Endpoint: storage.S3Endpoint,
-			Bucket: storage.S3Bucket, Region: storage.S3Region, UseSSL: storage.S3UseSSL,
-			AccessKeyID: storage.S3AccessKeyID.Reveal(), SecretAccessKey: storage.S3SecretAccessKey.Reveal(),
-		},
+		ObjectStore: wiring.ObjectStoreConfigFromSettings(storage),
 	}
 }
 
