@@ -62,13 +62,18 @@ func Emit(ctx context.Context, event Event, f Fields) { FromContext(ctx).Log(ctx
 func Run(ctx context.Context, service string, identity runtimeinfo.Identity, output io.Writer, getenv func(string) string, run func(context.Context) error) error {
 	config, err := ConfigFromEnv(getenv)
 	if err != nil {
-		fallback, _ := New(output, service, identity, Config{})
-		fallback.Log(ctx, Startup, Fields{Result: Rejected})
-		return err
+		return rejectSetup(ctx, service, identity, output, err)
 	}
+	return RunConfigured(ctx, service, identity, output, config, run)
+}
+
+// RunConfigured runs a process with explicitly supplied logging options. It
+// consults no environment reader; callers can validate captured configuration
+// before emitting startup records or entering the operation.
+func RunConfigured(ctx context.Context, service string, identity runtimeinfo.Identity, output io.Writer, config Config, run func(context.Context) error) error {
 	logger, err := New(output, service, identity, config)
 	if err != nil {
-		return err
+		return rejectSetup(ctx, service, identity, output, err)
 	}
 	ctx = WithLogger(ctx, logger)
 	start := time.Now()
@@ -80,6 +85,18 @@ func Run(ctx context.Context, service string, identity runtimeinfo.Identity, out
 	}
 	logger.Log(ctx, Shutdown, Fields{Duration: time.Since(start), Result: result})
 	return err
+}
+
+func rejectSetup(ctx context.Context, service string, identity runtimeinfo.Identity, output io.Writer, err error) error {
+	RejectStartup(ctx, service, identity, output)
+	return err
+}
+
+// RejectStartup emits one fixed JSON rejection record before an operation has
+// started. It accepts no error or configuration payload that could enter logs.
+func RejectStartup(ctx context.Context, service string, identity runtimeinfo.Identity, output io.Writer) {
+	fallback, _ := New(output, service, identity, Config{})
+	fallback.Log(ctx, Startup, Fields{Result: Rejected})
 }
 
 // DiagnosticWriter adapts standard-library internal diagnostics. net/http may

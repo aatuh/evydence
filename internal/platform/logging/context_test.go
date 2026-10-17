@@ -84,6 +84,34 @@ func TestInvalidLoggingConfigPreventsProcessSideEffects(t *testing.T) {
 	}
 }
 
+func TestRunConfiguredUsesCapturedOptionsAndNeverAmbientValues(t *testing.T) {
+	t.Setenv("EVYDENCE_LOG_FORMAT", "CANARY_AMBIENT_FORMAT")
+	t.Setenv("EVYDENCE_LOG_LEVEL", "CANARY_AMBIENT_LEVEL")
+	var out bytes.Buffer
+	want := errors.New("CANARY_OPERATION_FAILURE")
+	called := false
+	err := RunConfigured(t.Context(), "migrate", testIdentity(), &out, Config{Format: "text", Level: "info"}, func(ctx context.Context) error {
+		called = true
+		if FromContext(ctx) == nil {
+			t.Fatal("configured lifecycle lost its logger")
+		}
+		Emit(ctx, Command, Fields{Result: Succeeded})
+		return want
+	})
+	if !called || !errors.Is(err, want) || strings.Contains(out.String(), "CANARY") || strings.HasPrefix(out.String(), "{") || !strings.Contains(out.String(), "result_code=failed") || strings.Count(out.String(), "\n") != 3 {
+		t.Fatal("configured lifecycle reread ambient settings, lost its result or leaked details")
+	}
+}
+
+func TestRunConfiguredRejectsInvalidOptionsBeforeOperation(t *testing.T) {
+	var out bytes.Buffer
+	called := false
+	err := RunConfigured(t.Context(), "migrate", testIdentity(), &out, Config{Format: "CANARY_INVALID"}, func(context.Context) error { called = true; return nil })
+	if err == nil || called || strings.Contains(out.String()+err.Error(), "CANARY") || !strings.Contains(out.String(), "rejected") || strings.Contains(out.String(), "started") {
+		t.Fatal("configured lifecycle accepted invalid settings or disclosed input")
+	}
+}
+
 func TestDiagnosticWriterDiscardsRawRuntimeDetails(t *testing.T) {
 	var out bytes.Buffer
 	l, err := New(&out, "api", testIdentity(), Config{})

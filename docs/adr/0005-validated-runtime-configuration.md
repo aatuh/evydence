@@ -522,7 +522,26 @@ all applicable commands and retire duplicate defaults, parsers and hot-path
 ambient reads. EVY-1217 owns generated examples/references, deployment parity and
 the final runtime evidence required by parent EVY-1205.
 
-Current commands retain their existing parsing until adoption. An input helper
+Migration startup now captures its environment once, prepares the migration
+role and explicitly resolves project secrets before logging process start or
+entering PostgreSQL. It passes owned typed settings into the operation and uses
+the schema's directory/logging defaults. Invalid input emits one fixed JSON
+rejection record without configuration or driver details. Missing/malformed
+settings now retain the shared fixed error classes instead of the old local
+variable-specific diagnostics. The command's local environment-default helper
+is removed; native pgx defaults and references retain their documented owner.
+
+The source guard recognizes a direct `config.Capture(os.Environ())` only in the
+reviewed `run` entry point. Snapshots that escape through raw variables or
+helpers, shadow package imports, repeat in loops, or run asynchronously remain
+rejected. Other startup entry points need explicit guard review when adopted.
+
+The shared logger has an explicit configured lifecycle entry point and a fixed
+startup-rejection operation. Its legacy environment entry point remains for
+commands not yet adopted; retiring it is part of EVY-1216. API, worker, online
+CLI, health and cleanup adoption are still incomplete.
+
+Commands not yet adopted retain their existing parsing. An input helper
 alone does not prove that startup validates every field or that generated docs
 match production behavior. Changes to accepted values, defaults, aliases or
 production constraints require characterization tests and explicit compatibility

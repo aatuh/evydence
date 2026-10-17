@@ -152,7 +152,7 @@ func environmentReadNames(files map[string]string) ([]string, error) {
 				return true
 			}
 			call, ok := a.parents[selector].(*ast.CallExpr)
-			if !ok || (call.Fun != selector && !a.reviewedReaderForward(s, call, selector)) || (call.Fun == selector && selector.Sel.Name == "Environ") {
+			if !ok || (call.Fun != selector && !a.reviewedReaderForward(s, call, selector)) || (call.Fun == selector && selector.Sel.Name == "Environ" && !a.reviewedStartupCapture(s, call)) {
 				scopeErr = errUnresolvedEnvironmentRead
 			}
 			return true
@@ -279,6 +279,47 @@ func (a *environmentReadAnalysis) reviewedReaderForward(s *environmentReadScope,
 		return len(call.Args) == 6 && call.Args[4] == reader
 	}
 	return reader.Sel.Name == "Environ" && path == "github.com/aatuh/evydence/internal/platform/confighealth" && callee.Sel.Name == "New" && len(call.Args) == 2 && call.Args[1] == reader
+}
+
+// A startup snapshot may flow directly into the bounded schema capture only.
+// Raw snapshots, helpers, repeated/looped captures and deferred work stay rejected.
+func (a *environmentReadAnalysis) reviewedStartupCapture(s *environmentReadScope, snapshot *ast.CallExpr) bool {
+	if s.function == nil || s.function.Recv != nil || s.function.Name.Name != "run" || len(snapshot.Args) != 0 {
+		return false
+	}
+	outer, ok := a.parents[snapshot].(*ast.CallExpr)
+	if !ok || len(outer.Args) != 1 || outer.Args[0] != snapshot {
+		return false
+	}
+	capture, ok := outer.Fun.(*ast.SelectorExpr)
+	if !ok || capture.Sel.Name != "Capture" || a.importPath(s, capture) != "github.com/aatuh/evydence/internal/platform/config" {
+		return false
+	}
+	for _, selector := range []*ast.SelectorExpr{capture, snapshot.Fun.(*ast.SelectorExpr)} {
+		name, ok := selector.X.(*ast.Ident)
+		if !ok || len(s.bindings[name.Name]) != 0 || len(a.globals[name.Name]) != 0 {
+			return false
+		}
+		if _, shadowed := s.parameters[name.Name]; shadowed {
+			return false
+		}
+	}
+	count := 0
+	for _, call := range s.calls {
+		if selector, ok := call.Fun.(*ast.SelectorExpr); ok && a.importPath(s, selector) == "os" && selector.Sel.Name == "Environ" {
+			count++
+		}
+	}
+	if count != 1 {
+		return false
+	}
+	for node := ast.Node(snapshot); node != nil && node != s.function; node = a.parents[node] {
+		switch node.(type) {
+		case *ast.ForStmt, *ast.RangeStmt, *ast.FuncLit, *ast.GoStmt, *ast.DeferStmt:
+			return false
+		}
+	}
+	return true
 }
 
 func (a *environmentReadAnalysis) resolve(s *environmentReadScope, expr ast.Expr, depth int) ([]string, error) {

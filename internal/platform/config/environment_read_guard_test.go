@@ -21,6 +21,7 @@ func TestEnvironmentReadGuardResolvesFiniteSources(t *testing.T) {
 		{"injected-reader", `package sample; func config(read func(string) string) { read("EVYDENCE_LOG_LEVEL") }`, []string{"EVYDENCE_LOG_LEVEL"}},
 		{"package-separated-files", `package sample; import "os"; func read(name string) string { return os.Getenv(name) }`, []string{"EVYDENCE_LOG_LEVEL"}},
 		{"constant-lexical-scope", `package sample; import "os"; const prefix = "EVYDENCE_"; const name = prefix + "LOG_LEVEL"; func run() { prefix := "WRONG_"; _ = prefix; os.Getenv(name) }`, []string{"EVYDENCE_LOG_LEVEL"}},
+		{"owned-startup-capture", `package sample; import system "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { environment, err := cfg.Capture(system.Environ()); _ = environment; _ = err }`, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			files := map[string]string{"source.go": tc.source}
@@ -46,6 +47,13 @@ func TestEnvironmentReadGuardRejectsUnresolvedSources(t *testing.T) {
 		`package sample; import "os"; func config(read func(string) string, name string) { read(name) }`,
 		`package sample; func config(read func(string) string) { alias := read; alias("EVYDENCE_LOG_LEVEL") }`,
 		`package sample; import "os"; var names = []string{"ENV"}; func init() { alias := names; alias[0] = os.Args[1] }; func run() { for _, name := range names { os.Getenv(name) } }`,
+		`package sample; import "os"; func run() { consume(os.Environ()) }`,
+		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func helper() { cfg.Capture(os.Environ()) }`,
+		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { entries := os.Environ(); cfg.Capture(entries) }`,
+		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { for { cfg.Capture(os.Environ()) } }`,
+		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { cfg.Capture(os.Environ()); cfg.Capture(os.Environ()) }`,
+		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { cfg := fake(); cfg.Capture(os.Environ()) }`,
+		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { go cfg.Capture(os.Environ()) }`,
 	} {
 		if names, err := environmentReadNames(map[string]string{"source.go": source}); err == nil || len(names) != 0 {
 			t.Fatal("unresolved environment read bypassed the coverage guard")
