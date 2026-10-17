@@ -51,17 +51,20 @@ type Definition struct {
 	LocalhostOverride string
 	// PreserveWhitespace keeps explicit blank input for field validation rather
 	// than replacing it with a default. Raw capture is always lossless.
-	PreserveWhitespace    bool
-	Default               string
-	DefaultPolicy         string
-	ProductionDefault     string
-	NonProductionDefault  string
-	DefaultWhenSet        string
-	ConditionalDefault    string
-	Roles                 Role
-	Required              Role
-	ProductionRequired    Role
-	Secret                bool
+	PreserveWhitespace   bool
+	Default              string
+	DefaultPolicy        string
+	ProductionDefault    string
+	NonProductionDefault string
+	DefaultWhenSet       string
+	ConditionalDefault   string
+	Roles                Role
+	Required             Role
+	ProductionRequired   Role
+	Secret               bool
+	// FileOption is the schema-owned private-file alternative for a project
+	// secret. It declares a reference; it does not perform file resolution.
+	FileOption            string
 	ForbiddenInProduction bool
 	Min                   int64
 	Max                   int64

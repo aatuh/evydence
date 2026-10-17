@@ -10,6 +10,7 @@ var cliDefinitions = []Definition{
 	},
 	{
 		Name:        "EVYDENCE_API_KEY",
+		FileOption:  "EVYDENCE_API_KEY_FILE",
 		Kind:        Text,
 		Roles:       CLI,
 		Secret:      true,

@@ -431,10 +431,19 @@ fails closed elsewhere; no portable ACL support is claimed. Tests cover private
 modes, bounds, cancellation during reads, partial I/O errors, contained/escaping
 symlinks, atomic projection swaps and nonblocking FIFO opens.
 
-Schema references, inline/file conflicts, activation/disabled resolution, native
-SDK credential ownership and the public resolved-configuration boundary still
-belong to the rest of EVY-1215. This primitive does not complete that ticket or
-authorize command/provider startup.
+The eight project-secret definitions now declare their explicit `FileOption`
+alternatives in the same metadata. A package-private pure planner validates
+role-scoped paths, byte bounds and nonempty inline/file conflicts, including
+aliases. It keeps paths in owned redacted records and performs no file access.
+An empty file alternative remains unset; an empty inline value can be replaced
+by a selected file, while a nonempty whitespace value still conflicts. Native
+credential references retain their separate SDK ownership boundary.
+
+Public `Parse` remains inline-only at this intermediate stage; declaring an
+alternative is not runtime support. Activation/disabled resolution, native SDK
+credential ownership, public input composition and the resolved-configuration
+boundary still belong to the rest of EVY-1215. These private primitives do not
+complete that ticket or authorize command/provider startup.
 
 ## Delivery And Compatibility
 

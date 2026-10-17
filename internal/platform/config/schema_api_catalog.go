@@ -10,6 +10,7 @@ var apiDefinitions = []Definition{
 	},
 	{
 		Name:               "EVYDENCE_API_KEY_PEPPER",
+		FileOption:         "EVYDENCE_API_KEY_PEPPER_FILE",
 		Kind:               Text,
 		Roles:              API,
 		Secret:             true,

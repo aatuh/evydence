@@ -6,9 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 )
 
 // ErrSecretResolution carries no reference, file contents or underlying cause.
@@ -25,9 +22,7 @@ func readSecretFile(ctx context.Context, path string, maxBytes int) (Secret, err
 	if err := ctx.Err(); err != nil {
 		return Secret{}, err
 	}
-	if !privateSecretFilesSupported || maxBytes < 1 || maxBytes > maxEnvironmentBytes ||
-		len(path) > 4096 || !utf8.ValidString(path) || path != strings.TrimSpace(path) ||
-		strings.ContainsFunc(path, unicode.IsControl) || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+	if !privateSecretFilesSupported || maxBytes < 1 || maxBytes > maxEnvironmentBytes || !validSecretReferencePath(path) {
 		return Secret{}, ErrSecretResolution
 	}
 	directory, err := filepath.EvalSymlinks(filepath.Dir(path))

@@ -19,6 +19,7 @@ var storageDefinitions = []Definition{
 	},
 	{
 		Name:               "EVYDENCE_S3_ACCESS_KEY_ID",
+		FileOption:         "EVYDENCE_S3_ACCESS_KEY_ID_FILE",
 		PreserveWhitespace: true,
 		Kind:               Text,
 		Roles:              API | Worker,
@@ -45,6 +46,7 @@ var storageDefinitions = []Definition{
 	},
 	{
 		Name:               "EVYDENCE_S3_SECRET_ACCESS_KEY",
+		FileOption:         "EVYDENCE_S3_SECRET_ACCESS_KEY_FILE",
 		PreserveWhitespace: true,
 		Kind:               Text,
 		Roles:              API | Worker,

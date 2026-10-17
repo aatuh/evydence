@@ -157,6 +157,7 @@ var providerDefinitions = []Definition{
 	},
 	{
 		Name:        "EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN",
+		FileOption:  "EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN_FILE",
 		Kind:        Text,
 		Roles:       API,
 		Secret:      true,
@@ -204,6 +205,7 @@ var providerDefinitions = []Definition{
 	},
 	{
 		Name:        "EVYDENCE_SIGNING_EXECUTOR_TOKEN",
+		FileOption:  "EVYDENCE_SIGNING_EXECUTOR_TOKEN_FILE",
 		Kind:        Text,
 		Roles:       API,
 		Secret:      true,
@@ -282,6 +284,7 @@ var providerDefinitions = []Definition{
 	},
 	{
 		Name:        "EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN",
+		FileOption:  "EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN_FILE",
 		Kind:        Text,
 		Roles:       API,
 		Secret:      true,
