@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -41,7 +42,12 @@ func parseScalar(d Definition, raw string) (scalarValue, error) {
 	var value scalarValue
 	trimmed := strings.TrimSpace(raw)
 	switch d.Kind {
-	case Text, URL, Path:
+	case Text, URL:
+		value.text = raw
+	case Path:
+		if raw != "" && (trimmed == "" || strings.ContainsFunc(raw, unicode.IsControl)) {
+			return scalarValue{}, ErrInvalidValue
+		}
 		value.text = raw
 	case PostgresDSN:
 		if _, err := parseDatabaseDSN(raw); err != nil {

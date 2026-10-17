@@ -50,6 +50,7 @@ var runtimeDefinitions = []Definition{
 	{
 		Name:        "EVYDENCE_MIGRATIONS_DIR",
 		Kind:        Path,
+		MaxBytes:    4096,
 		Roles:       API | Worker | Migrate,
 		Default:     "migrations",
 		Description: "Migration directory for API startup and `cmd/evydence-migrate`.",

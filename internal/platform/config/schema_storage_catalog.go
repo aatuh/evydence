@@ -4,6 +4,7 @@ var storageDefinitions = []Definition{
 	{
 		Name:        "EVYDENCE_OBJECT_DIR",
 		Kind:        Path,
+		MaxBytes:    4096,
 		Roles:       API | Worker,
 		Default:     "tmp/objects",
 		Description: "Local raw payload storage root.",

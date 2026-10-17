@@ -140,9 +140,15 @@ The package-owned scalar parser produces booleans, bounded integers/durations,
 canonical choices, masked CIDR prefixes, decoded base64 bytes and UTC timestamps.
 Errors use one fixed diagnostic and return no partially parsed value. Scalar
 formatting and JSON are redacted, including for values not classified as secrets.
-Raw string-like inputs remain unchanged for later dedicated validation: PostgreSQL
-accepts connection strings, S3 accepts `host:port`, and paths require different
-rules from HTTP endpoints. Scalar parsing performs no file or network access and
+Raw string-like inputs remain unchanged for dedicated validation: PostgreSQL
+accepts connection strings and S3 accepts `host:port`. Project paths have explicit
+4096-byte bounds and reject nonempty blank values and control characters before any
+filesystem access. Optional empty values remain valid, including PostgreSQL TLS
+path clearing. The shared path grammar also checks DSN file parameters.
+Otherwise path bytes, spaces and relative-path support are
+preserved; this phase does not establish existence, file permissions or reference
+containment. Earlier rejection of control characters and migration/object paths
+above 4096 bytes is intentional tightening. Scalar parsing performs no file or network access and
 does not enforce required roles, aliases, production or cross-field constraints.
 
 The schema retains the existing 65,536-byte tenant-name and 1 MiB decoded Sigstore
