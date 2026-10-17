@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -23,9 +24,14 @@ type parsedInput struct {
 	values     map[string]scalarValue
 	native     nativeInputs
 	database   databaseInput
+	deferred   map[string]bool
 }
 
 func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
+	return parseRoleInputDeferred(environment, role, nil)
+}
+
+func parseRoleInputDeferred(environment Environment, role Role, deferred map[string]bool) (parsedInput, error) {
 	if role != API && role != Worker && role != Migrate && role != CLI {
 		return parsedInput{}, ErrInvalidRole
 	}
@@ -35,10 +41,14 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 	if production && hasUnknownProjectOption(environment, definitions) {
 		return parsedInput{}, ErrUnknownOption
 	}
-	input := parsedInput{role: role, production: production, values: make(map[string]scalarValue)}
+	input := parsedInput{role: role, production: production, values: make(map[string]scalarValue), deferred: maps.Clone(deferred)}
 	for _, d := range definitions {
 		if d.Roles&role == 0 {
 			continue
+		}
+		if deferred[d.Name] {
+			input.values[d.Name] = scalarValue{}
+			continue // Only a validated, nonconflicting file plan can defer this value.
 		}
 		raw, err := resolveAliases(environment, d)
 		if err != nil {
@@ -77,7 +87,7 @@ func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
 			}
 		}
 	}
-	if role != CLI {
+	if role != CLI && !deferred["EVYDENCE_DATABASE_URL"] {
 		database, err := parseDatabaseInput(input.values["EVYDENCE_DATABASE_URL"].text, native)
 		if err != nil {
 			return parsedInput{}, err
@@ -161,6 +171,9 @@ func hasUnknownProjectOption(environment Environment, definitions []Definition) 
 	known := make(map[string]bool, len(definitions))
 	for _, d := range definitions {
 		known[d.Name] = true
+		if d.FileOption != "" {
+			known[d.FileOption] = true
+		}
 		for _, alias := range d.Aliases {
 			known[alias] = true
 		}

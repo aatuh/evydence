@@ -1,8 +1,8 @@
 package config
 
-// Configuration owns typed, role-specific input settings. Parse validates input
-// without resolving external references. A value does not prove that files,
-// credentials, database defaults or providers have been resolved or are ready.
+// Configuration owns typed, role-specific input settings. Parse validates inline
+// input; Resolve also materializes active project-secret file alternatives.
+// Neither proves that native credentials, database defaults or providers are ready.
 type Configuration struct {
 	redactedValue
 	role       Role
@@ -20,13 +20,17 @@ type Configuration struct {
 // Parse applies role-specific defaults, syntax and local relationship checks to
 // a captured environment. It consults no ambient environment, clock, files,
 // network, listeners or provider loaders. Any failure returns zero settings.
-// External reference/default resolution is a separate prerequisite to startup.
+// Applicable file alternatives require Prepare followed by explicit Resolve.
+// Native reference/default resolution is a separate prerequisite to startup.
 func Parse(environment Environment, role Role) (Configuration, error) {
-	input, err := parseRoleInput(environment, role)
+	input, err := Prepare(environment, role)
 	if err != nil {
 		return Configuration{}, err
 	}
-	return projectInput(input), nil
+	if len(input.references) != 0 {
+		return Configuration{}, ErrUnresolvedSecretReference
+	}
+	return projectInput(input.parsed), nil
 }
 
 func (c Configuration) Role() Role                  { return c.role }

@@ -64,7 +64,9 @@ type Definition struct {
 	Secret               bool
 	// FileOption is the schema-owned private-file alternative for a project
 	// secret. It declares a reference; it does not perform file resolution.
-	FileOption            string
+	FileOption string
+	// FileActivation selects the validated feature that may read this alternative.
+	FileActivation        SecretFileActivation
 	ForbiddenInProduction bool
 	Min                   int64
 	Max                   int64

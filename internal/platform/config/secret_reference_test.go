@@ -10,6 +10,11 @@ import (
 )
 
 func TestSecretReferenceSchemaDeclaresUnambiguousFileOptions(t *testing.T) {
+	activation := map[string]SecretFileActivation{
+		"EVYDENCE_API_KEY": SecretFileAlways, "EVYDENCE_API_KEY_PEPPER": SecretFileAlways, "EVYDENCE_DATABASE_URL": SecretFileAlways,
+		"EVYDENCE_S3_ACCESS_KEY_ID": SecretFileObjectStore, "EVYDENCE_S3_SECRET_ACCESS_KEY": SecretFileObjectStore,
+		"EVYDENCE_SIGNING_EXECUTOR_TOKEN": SecretFileSigningGateway, "EVYDENCE_PROVIDER_VALIDATION_GATEWAY_TOKEN": SecretFileProviderGateway, "EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_TOKEN": SecretFileTransparencyGateway,
+	}
 	known := map[string]bool{}
 	for _, d := range Definitions() {
 		known[d.Name] = true
@@ -20,7 +25,7 @@ func TestSecretReferenceSchemaDeclaresUnambiguousFileOptions(t *testing.T) {
 	count := 0
 	for _, d := range Definitions() {
 		if !d.Secret {
-			if d.FileOption != "" {
+			if d.FileOption != "" || d.FileActivation != SecretFileAlways {
 				t.Fatal("nonsecret option acquired implicit file resolution", d.Name)
 			}
 			continue
@@ -29,6 +34,9 @@ func TestSecretReferenceSchemaDeclaresUnambiguousFileOptions(t *testing.T) {
 			t.Fatal("secret file option is missing or collides with schema ownership", d.Name)
 		}
 		known[d.FileOption] = true
+		if want, ok := activation[d.Name]; !ok || d.FileActivation != want {
+			t.Fatal("secret file activation ownership needs explicit review", d.Name)
+		}
 		count++
 	}
 	if count != 8 {

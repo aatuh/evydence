@@ -31,7 +31,7 @@ func validateStorageInput(input parsedInput) error {
 	region := strings.TrimSpace(v["EVYDENCE_S3_REGION"].text)
 	if kind == "s3" || kind == "minio" {
 		for _, name := range []string{"EVYDENCE_S3_ENDPOINT", "EVYDENCE_S3_BUCKET", "EVYDENCE_S3_ACCESS_KEY_ID", "EVYDENCE_S3_SECRET_ACCESS_KEY"} {
-			if strings.TrimSpace(v[name].text) == "" {
+			if strings.TrimSpace(v[name].text) == "" && !input.deferred[name] {
 				return ErrMissingValue
 			}
 		}

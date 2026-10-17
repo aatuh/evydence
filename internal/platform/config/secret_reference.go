@@ -21,10 +21,11 @@ type secretFileReference struct {
 	fileOption string
 	path       string
 	maxBytes   int
+	activation SecretFileActivation
 }
 
 // parseSecretReferences validates declarations only, without opening a path or
-// resolving a credential. Public input/resolution composition remains separate.
+// resolving a credential. Prepare owns its public preflight composition.
 func parseSecretReferences(environment Environment, role Role) ([]secretFileReference, error) {
 	if role != API && role != Worker && role != Migrate && role != CLI {
 		return nil, ErrInvalidRole
@@ -50,7 +51,7 @@ func parseSecretReferences(environment Environment, role Role) ([]secretFileRefe
 		if maxBytes <= 0 || maxBytes > maxEnvironmentBytes {
 			maxBytes = maxEnvironmentBytes
 		}
-		refs = append(refs, secretFileReference{target: d.Name, fileOption: d.FileOption, path: path, maxBytes: maxBytes})
+		refs = append(refs, secretFileReference{target: d.Name, fileOption: d.FileOption, path: path, maxBytes: maxBytes, activation: d.FileActivation})
 	}
 	return refs, nil
 }

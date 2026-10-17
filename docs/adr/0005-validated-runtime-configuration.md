@@ -405,8 +405,8 @@ ports, Problem Details or route/OpenAPI contract facilities.
 
 ## Secret File Resolution Primitive
 
-EVY-1215 starts with a package-private reader; it is not a public resolver or
-schema reference implementation. Input parsing remains free of filesystem access.
+EVY-1215 uses a package-private reader beneath explicit public resolution.
+Input parsing and preflight remain free of filesystem access.
 The primitive accepts a clean absolute path of at most 4096 bytes and an explicit
 content bound, capped by the existing 8 MiB input ceiling. The operator owns the
 configured parent directory. Files must be nonempty and regular, with no execute,
@@ -439,11 +439,36 @@ An empty file alternative remains unset; an empty inline value can be replaced
 by a selected file, while a nonempty whitespace value still conflicts. Native
 credential references retain their separate SDK ownership boundary.
 
-Public `Parse` remains inline-only at this intermediate stage; declaring an
-alternative is not runtime support. Activation/disabled resolution, native SDK
-credential ownership, public input composition and the resolved-configuration
-boundary still belong to the rest of EVY-1215. These private primitives do not
-complete that ticket or authorize command/provider startup.
+Public `Prepare` validates applicable captured settings and reference declarations
+without I/O. Only the value checks for fields backed by valid, nonconflicting file
+references are deferred; required inline endpoints, keys and other settings still
+fail before reads. Its opaque, owned, redacted `PreparedInput` exposes no startup
+settings. `Parse` remains a pure inline convenience and rejects applicable nonempty
+file alternatives with a fixed unresolved-reference diagnostic.
+
+`Resolve(ctx, prepared, enabled)` requires valid preflight input and a nonnil,
+live context. Disabled resolution returns zero settings without file access.
+Enabled resolution reads only schema-selected active references: object-store
+credentials for S3/MinIO, signing-gateway tokens for a configured gateway without
+a native KMS signer, and validation/transparency tokens for configured gateways.
+Applicable inactive references still receive lexical and source-conflict checks,
+but are not opened. API pepper, database DSN and CLI API-key references follow
+their declared process roles.
+
+Materialized files share an 8 MiB byte budget and each field's tighter bound.
+The effective captured input is bounded again, then undergoes complete validation
+before typed settings are returned. Partial reads, malformed loaded values,
+production violations and size failures return zero settings with fixed errors;
+cancellation retains its standard context error. Opaque S3 credentials preserve
+exact bytes, while DSNs, API secrets and header tokens retain their existing
+field-specific whitespace rules. No supplied file path or content enters errors,
+formatting or JSON. No ambient environment mutation, shell execution or network
+secret fetcher is added.
+
+This boundary resolves project-secret files only. Native SDK/default/credential
+ownership remains separate work in EVY-1215, and actual command adoption remains
+EVY-1216. These helpers do not complete either ticket or authorize unresolved
+native credentials or provider startup.
 
 ## Delivery And Compatibility
 
