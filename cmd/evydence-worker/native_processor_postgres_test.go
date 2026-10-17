@@ -70,7 +70,7 @@ INSERT INTO verification_results(id,tenant_id,subject_type,subject_id,result,che
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := newNativeJobProcessor(store, objects)
+	p, err := newNativeJobProcessor(store, objects, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

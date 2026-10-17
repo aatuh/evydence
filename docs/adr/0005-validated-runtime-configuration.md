@@ -553,6 +553,13 @@ including native PostgreSQL and host inputs. API/worker adoption must replace th
 legacy health constructor and retire its separate selector/digest before EVY-1216
 is complete.
 
+The native worker processor now owns an explicit immutable payload-byte budget.
+Jobs pass it through bounded object replay instead of rereading the environment.
+Legacy processing fixture helpers live in test files and choose an explicit
+budget. Startup still needs the remaining typed daemon adoption. The shared
+schema and processor deliberately reject `MaxInt64`: the existing bounded object
+readers require room for a sentinel byte and already reject that unusable value.
+
 Commands not yet adopted retain their existing parsing. An input helper
 alone does not prove that startup validates every field or that generated docs
 match production behavior. Changes to accepted values, defaults, aliases or

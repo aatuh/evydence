@@ -1999,7 +1999,6 @@ func TestProcessJobWithObjectsFailsSafelyForPayloadProblems(t *testing.T) {
 }
 
 func TestProcessJobWithObjectsRejectsOversizedPayload(t *testing.T) {
-	t.Setenv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", "2")
 	body := []byte("large")
 	hash := digestBytes(body)
 	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
@@ -2012,7 +2011,7 @@ func TestProcessJobWithObjectsRejectsOversizedPayload(t *testing.T) {
 		Payload:   map[string]any{"payload_ref": "tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
 	}
 	object := app.Object{TenantID: "ten_test", Digest: hash, Bytes: body}
-	err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job)
+	err := processJobInternal(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job, true, 2)
 	if err == nil || !strings.Contains(err.Error(), "size limit") {
 		t.Fatalf("err=%v", err)
 	}

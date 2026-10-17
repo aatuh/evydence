@@ -144,7 +144,7 @@ func TestHTTPToNativeWorkerLoggingCorrelatesDurableSideEffect(t *testing.T) {
 	}
 	workerCtx, stop := context.WithCancel(logging.WithLogger(ctx, workerLogger))
 	defer stop()
-	processor, err := newNativeJobProcessor(store, objects)
+	processor, err := newNativeJobProcessor(store, objects, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

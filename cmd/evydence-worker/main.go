@@ -161,7 +161,7 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	}
 	ctx = telemetry.WithObserver(ctx, metrics)
 	objectStore := runtime.Objects
-	processor, err := newNativeJobProcessor(store, objectStore)
+	processor, err := newNativeJobProcessor(store, objectStore, int64(intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes)))
 	if err != nil {
 		return err
 	}
@@ -417,14 +417,6 @@ type payloadFinalizer interface {
 	app.PayloadObjectStore
 }
 
-func processJob(ctx context.Context, state any, job postgres.ClaimedJob) error {
-	return processJobInternal(ctx, state, nil, job, false)
-}
-
-func processJobWithObjects(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob) error {
-	return processJobInternal(ctx, state, objects, job, true)
-}
-
 func completedVEXDecisionJob(ctx context.Context, state any, job postgres.ClaimedJob) (bool, error) {
 	if job.Kind != "parse_vex" || !payloadBool(job, "worker_create_decisions") {
 		return false, nil
@@ -462,12 +454,15 @@ func completedVEXDecisionJob(ctx context.Context, state any, job postgres.Claime
 	return false, nil
 }
 
-func processJobInternal(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob, requireObjectReplay bool) error {
+func processJobInternal(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob, requireObjectReplay bool, maxPayloadBytes int64) error {
 	if ctx == nil {
 		return errors.New("worker context is required")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if !validWorkerPayloadLimit(maxPayloadBytes) {
+		return errors.New("invalid worker payload byte limit")
 	}
 	if state == nil {
 		return errors.New("outbox job handler requires durable state")
@@ -497,7 +492,7 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 	var replayed app.Object
 	var hasReplayedObject bool
 	if requireObjectReplay {
-		object, ok, err := verifyJobObject(ctx, state, objects, job)
+		object, ok, err := verifyJobObject(ctx, state, objects, job, maxPayloadBytes)
 		if err != nil {
 			recordVEXImportReportFailure(ctx, state, job, err)
 			return err
@@ -843,7 +838,10 @@ func requireParserVersion(job postgres.ClaimedJob) error {
 	return nil
 }
 
-func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob) (app.Object, bool, error) {
+func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob, maxBytes int64) (app.Object, bool, error) {
+	if !validWorkerPayloadLimit(maxBytes) {
+		return app.Object{}, false, errors.New("invalid worker payload byte limit")
+	}
 	key := payloadObjectKey(job)
 	if key == "" {
 		return app.Object{}, false, nil
@@ -869,11 +867,10 @@ func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, jo
 			return app.Object{}, false, err
 		}
 	}
-	maxBytes := intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes)
 	var object app.Object
 	var err error
 	if bounded, ok := objects.(app.BoundedObjectReader); ok {
-		object, err = bounded.GetBounded(ctx, key, int64(maxBytes))
+		object, err = bounded.GetBounded(ctx, key, maxBytes)
 		if errors.Is(err, app.ErrConflict) {
 			return app.Object{}, false, errWorkerBoundedPayloadRejected
 		}
@@ -890,7 +887,7 @@ func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, jo
 	if object.TenantID != "" && object.TenantID != job.TenantID {
 		return app.Object{}, false, errors.New("outbox payload object tenant mismatch")
 	}
-	if len(object.Bytes) > maxBytes {
+	if int64(len(object.Bytes)) > maxBytes {
 		return app.Object{}, false, errors.New("outbox payload object exceeds worker size limit")
 	}
 	want := payloadString(job, "payload_hash")

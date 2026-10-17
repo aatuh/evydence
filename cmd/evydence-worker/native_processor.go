@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"time"
 
@@ -23,15 +24,19 @@ type nativeJobObjectStore interface {
 	app.BoundedObjectReader
 }
 type nativeJobProcessor struct {
-	state   nativeJobStateStore
-	objects nativeJobObjectStore
+	state           nativeJobStateStore
+	objects         nativeJobObjectStore
+	maxPayloadBytes int64
 }
 
 // Bounded readers reject both size and metadata constraints with ErrConflict;
 // do not guess the provider-specific cause or keep retrying an invalid object.
 var errWorkerBoundedPayloadRejected = errors.New("outbox payload violates bounded read constraints")
 
-func newNativeJobProcessor(state nativeJobStateStore, objects app.ObjectStore) (*nativeJobProcessor, error) {
+func newNativeJobProcessor(state nativeJobStateStore, objects app.ObjectStore, maxPayloadBytes int64) (*nativeJobProcessor, error) {
+	if !validWorkerPayloadLimit(maxPayloadBytes) {
+		return nil, errors.New("invalid worker payload byte limit")
+	}
 	if missingWorkerPort(state) || missingWorkerPort(objects) {
 		return nil, errors.New("native worker state and object ports are required")
 	}
@@ -39,7 +44,11 @@ func newNativeJobProcessor(state nativeJobStateStore, objects app.ObjectStore) (
 	if !ok {
 		return nil, errors.New("native worker requires bounded payload lifecycle object storage")
 	}
-	return &nativeJobProcessor{state, bounded}, nil
+	return &nativeJobProcessor{state: state, objects: bounded, maxPayloadBytes: maxPayloadBytes}, nil
+}
+
+func validWorkerPayloadLimit(limit int64) bool {
+	return limit > 0 && limit < math.MaxInt64
 }
 func missingWorkerPort(port any) bool {
 	if port == nil {
@@ -57,7 +66,7 @@ func (p *nativeJobProcessor) Process(ctx context.Context, job postgres.ClaimedJo
 	if p == nil {
 		return errors.New("native worker processor is required")
 	}
-	return processJobInternal(ctx, p.state, p.objects, job, true)
+	return processJobInternal(ctx, p.state, p.objects, job, true, p.maxPayloadBytes)
 }
 func supportedWorkerJob(kind string) bool {
 	switch kind {

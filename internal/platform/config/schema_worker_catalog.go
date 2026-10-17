@@ -41,8 +41,8 @@ var workerDefinitions = []Definition{
 		Roles:       Worker,
 		Default:     "20971520",
 		Min:         1,
-		Max:         9223372036854775807,
-		Description: "Maximum raw object payload size replayed by a worker job.",
+		Max:         9223372036854775806,
+		Description: "Maximum raw object payload size replayed by a worker job; leaves room for the bounded reader's extra sentinel byte.",
 	},
 	{
 		Name:               "EVYDENCE_WORKER_METRICS_ADDR",

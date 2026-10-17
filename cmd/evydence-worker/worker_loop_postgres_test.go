@@ -62,7 +62,7 @@ func TestWorkerLoopShutdownPostgresLeaseReclaimAndNativeIdempotency(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
-			native, err := newNativeJobProcessor(store, objects)
+			native, err := newNativeJobProcessor(store, objects, defaultMaxWorkerPayloadBytes)
 			if err != nil {
 				t.Fatal(err)
 			}
