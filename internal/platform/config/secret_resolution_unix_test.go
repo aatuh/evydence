@@ -45,6 +45,9 @@ func TestPrepareAndResolveRequiredSecretFiles(t *testing.T) {
 	if err != nil || cfg.Role() != API || !cfg.Production() || cfg.Runtime().DatabaseURL.Reveal() != "host=PRIVATE_DATABASE dbname=evidence" || cfg.API().KeyPepper.Reveal() != "PRIVATE_PEPPER_VALUE" {
 		t.Fatal("resolved secret values did not pass complete typed validation", err)
 	}
+	if !cfg.SourceIdentity().MatchesSource(e) {
+		t.Fatal("secret materialization replaced the captured source identity")
+	}
 	for _, value := range []any{input, &input, cfg, cfg.API(), cfg.Runtime()} {
 		data, err := json.Marshal(value)
 		if err != nil || strings.Contains(string(data), "PRIVATE") || strings.Contains(fmt.Sprintf("%v %#v", value, value), "PRIVATE") {

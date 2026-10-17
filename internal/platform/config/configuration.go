@@ -20,6 +20,7 @@ type Configuration struct {
 
 	workerMetricsHash    [sha256.Size]byte
 	workerMetricsEnabled bool
+	source               SourceIdentity
 }
 
 // Parse applies role-specific defaults, syntax and local relationship checks to
@@ -47,6 +48,10 @@ func (c Configuration) Storage() StorageSettings    { return c.storage }
 func (c Configuration) Providers() ProviderSettings { return c.providers }
 func (c Configuration) CLI() CLISettings            { return c.cli }
 func (c Configuration) Native() NativeSettings      { return c.native }
+
+// SourceIdentity returns an owned, opaque source identity without retaining the
+// configuration's credential values. It cannot authorize provider startup.
+func (c Configuration) SourceIdentity() SourceIdentity { return c.source }
 
 // WorkerMetricsTokenHash returns an owned digest only after explicit successful
 // resolution of the metrics credential. Parse alone never enables this result.

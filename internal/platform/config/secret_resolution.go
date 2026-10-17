@@ -96,6 +96,7 @@ func Resolve(ctx context.Context, input PreparedInput, enabled bool) (Configurat
 		return Configuration{}, ErrSecretResolution
 	}
 	configuration := projectInput(parsed)
+	configuration.source = sourceIdentity(input.environment)
 	configuration.workerMetricsHash, configuration.workerMetricsEnabled, err = resolveWorkerMetricsSecret(ctx, parsed, remaining)
 	if err != nil {
 		return Configuration{}, err

@@ -25,6 +25,7 @@ type parsedInput struct {
 	native     nativeInputs
 	database   databaseInput
 	deferred   map[string]bool
+	source     SourceIdentity
 }
 
 func parseRoleInput(environment Environment, role Role) (parsedInput, error) {
@@ -41,7 +42,7 @@ func parseRoleInputDeferred(environment Environment, role Role, deferred map[str
 	if production && hasUnknownProjectOption(environment, definitions) {
 		return parsedInput{}, ErrUnknownOption
 	}
-	input := parsedInput{role: role, production: production, values: make(map[string]scalarValue), deferred: maps.Clone(deferred)}
+	input := parsedInput{role: role, production: production, values: make(map[string]scalarValue), deferred: maps.Clone(deferred), source: sourceIdentity(environment)}
 	for _, d := range definitions {
 		if d.Roles&role == 0 {
 			continue

@@ -12,6 +12,7 @@ import (
 func projectInput(input parsedInput) Configuration {
 	return Configuration{
 		role: input.role, production: input.production,
+		source:    input.source,
 		runtime:   projectRuntime(input),
 		api:       projectAPI(input),
 		worker:    projectWorker(input),

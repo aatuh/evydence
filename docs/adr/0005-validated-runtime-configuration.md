@@ -541,6 +541,18 @@ startup-rejection operation. Its legacy environment entry point remains for
 commands not yet adopted; retiring it is part of EVY-1216. API, worker, online
 CLI, health and cleanup adoption are still incomplete.
 
+Typed configurations also retain a private fingerprint of their original captured
+source. Its opaque `SourceIdentity` exposes only equality against another bounded capture;
+secret-file materialization preserves the original declaration's identity. The
+typed health entry point `confighealth.NewConfigured` retains only this identity
+and revision fields, then compares the source without
+reparsing or reloading runtime settings, then applies the existing desired-revision
+file checks. Source failures remain fixed diagnostics, and cancellation is checked
+before observing the source. This path uses the complete shared capture selection,
+including native PostgreSQL and host inputs. API/worker adoption must replace the
+legacy health constructor and retire its separate selector/digest before EVY-1216
+is complete.
+
 Commands not yet adopted retain their existing parsing. An input helper
 alone does not prove that startup validates every field or that generated docs
 match production behavior. Changes to accepted values, defaults, aliases or
