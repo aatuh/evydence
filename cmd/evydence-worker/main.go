@@ -39,8 +39,6 @@ import (
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
-const defaultMaxWorkerPayloadBytes = 20 << 20
-
 var (
 	errParserPayloadReferenceMissing    = errors.New("parser payload reference is missing")
 	errVEXDecisionDependenciesPending   = errors.New("vex decision prerequisites are pending")
@@ -254,8 +252,12 @@ func runParserReplayConfigured(parent context.Context, settings config.Configura
 	if err != nil {
 		return errors.New("parser-replay source evidence not found")
 	}
-	object, err := runtime.objects.Get(ctx, key)
-	if err != nil {
+	bounded, ok := runtime.objects.(app.BoundedObjectReader)
+	if !ok {
+		return errors.New("parser-replay runtime requires bounded payload reads")
+	}
+	object, err := bounded.GetBounded(ctx, key, app.EvidenceDocumentLimit)
+	if err != nil || !app.ValidPayloadSize(int64(len(object.Bytes)), app.EvidenceDocumentLimit) {
 		return errors.New("parser-replay source payload verification failed")
 	}
 	//nolint:contextcheck // Existing size-bounded in-memory parser API has no context; runtime I/O above and persistence below use ctx.
@@ -536,7 +538,7 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 		}
 		if hasReplayedObject {
 			parsed, err := telemetry.Measure(ctx, telemetry.OperationParseSBOM, func(_ context.Context) (replayedSBOM, error) {
-				return parseReplayedSBOM(replayed.Bytes, payloadString(job, "parser_version"))
+				return parseReplayedSBOM(replayed.Bytes, maxPayloadBytes, payloadString(job, "parser_version"))
 			})
 			if err != nil {
 				return err
@@ -560,7 +562,7 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 		}
 		if hasReplayedObject {
 			parsed, err := telemetry.Measure(ctx, telemetry.OperationParseVulnerabilityScan, func(_ context.Context) (replayedVulnerabilityScan, error) {
-				return parseReplayedVulnerabilityScan(replayed.Bytes, job.SubjectID)
+				return parseReplayedVulnerabilityScan(replayed.Bytes, job.SubjectID, maxPayloadBytes)
 			})
 			if err != nil {
 				return err
@@ -632,7 +634,7 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 		parsedAvailable := false
 		if hasReplayedObject {
 			parsed, err = telemetry.Measure(ctx, telemetry.OperationParseVEX, func(_ context.Context) (replayedVEX, error) {
-				return parseReplayedVEX(replayed.Bytes)
+				return parseReplayedVEX(replayed.Bytes, maxPayloadBytes)
 			})
 			if err != nil {
 				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
@@ -657,7 +659,7 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			}
 		}
 		if payloadBool(job, "worker_create_decisions") {
-			normalized, hasNormalized, err := normalizedVEXDecisionRequest(job, vex)
+			normalized, hasNormalized, err := normalizedVEXDecisionRequest(job, vex, maxPayloadBytes)
 			if err != nil {
 				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 			}
@@ -988,19 +990,19 @@ func mergeReplayedSBOM(sbom domain.SBOM, parsed replayedSBOM) (domain.SBOM, bool
 	return sbom, changed
 }
 
-func parseReplayedSBOM(raw []byte, parserVersions ...string) (replayedSBOM, error) {
+func parseReplayedSBOM(raw []byte, maxPayloadBytes int64, parserVersions ...string) (replayedSBOM, error) {
 	parserVersion := ""
 	if len(parserVersions) > 0 {
 		parserVersion = parserVersions[0]
 	}
 	if parserVersion == "" || parserVersion == app.ParserVersionCycloneDXJSON {
-		parsed, err := app.ParseCycloneDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+		parsed, err := app.ParseCycloneDXReplayProjection(raw, maxPayloadBytes)
 		if err != nil {
 			return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 		}
 		return replayedSBOM{SpecVersion: parsed.SpecVersion, ComponentCount: len(parsed.Components), Components: append([]domain.SBOMComponent(nil), parsed.Components...)}, nil
 	}
-	parsed, err := app.ParseSPDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+	parsed, err := app.ParseSPDXReplayProjection(raw, maxPayloadBytes)
 	if err != nil {
 		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 	}
@@ -1070,8 +1072,8 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 	return scan, changed
 }
 
-func parseReplayedVulnerabilityScan(raw []byte, subjectID string) (replayedVulnerabilityScan, error) {
-	doc, err := scannerparser.ParseBounded(raw, scannerparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+func parseReplayedVulnerabilityScan(raw []byte, subjectID string, maxPayloadBytes int64) (replayedVulnerabilityScan, error) {
+	doc, err := scannerparser.ParseBounded(raw, scannerparser.DefaultLimits(maxPayloadBytes))
 	if err != nil {
 		return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
 	}
@@ -1237,27 +1239,27 @@ func mergeReplayedVEX(vex domain.VEXDocument, parsed replayedVEX) (domain.VEXDoc
 	return vex, changed
 }
 
-func parseReplayedVEX(raw []byte) (replayedVEX, error) {
+func parseReplayedVEX(raw []byte, maxPayloadBytes int64) (replayedVEX, error) {
 	var probe struct {
 		BOMFormat string `json:"bomFormat"`
 	}
 	_ = json.Unmarshal(raw, &probe)
 	if strings.EqualFold(strings.TrimSpace(probe.BOMFormat), "cyclonedx") {
-		return parseReplayedCycloneDXVEX(raw)
+		return parseReplayedCycloneDXVEX(raw, maxPayloadBytes)
 	}
-	return parseReplayedOpenVEX(raw)
+	return parseReplayedOpenVEX(raw, maxPayloadBytes)
 }
 
-func parseReplayedOpenVEX(raw []byte) (replayedVEX, error) {
-	doc, err := vexparser.ParseOpenVEX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+func parseReplayedOpenVEX(raw []byte, maxPayloadBytes int64) (replayedVEX, error) {
+	doc, err := vexparser.ParseOpenVEX(raw, vexparser.DefaultLimits(maxPayloadBytes))
 	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
 	return replayedVEXFromParsed(doc), nil
 }
 
-func parseReplayedCycloneDXVEX(raw []byte) (replayedVEX, error) {
-	doc, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+func parseReplayedCycloneDXVEX(raw []byte, maxPayloadBytes int64) (replayedVEX, error) {
+	doc, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(maxPayloadBytes))
 	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
@@ -1292,7 +1294,7 @@ func replayedVEXFromParsed(doc vexparser.Document) replayedVEX {
 	return replayedVEX{Format: doc.Format, Author: doc.Author, StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements, Warnings: warnings, InvalidStatements: invalidStatements}
 }
 
-func normalizedVEXDecisionRequest(job postgres.ClaimedJob, vex domain.VEXDocument) (replayedVEX, bool, error) {
+func normalizedVEXDecisionRequest(job postgres.ClaimedJob, vex domain.VEXDocument, maxPayloadBytes int64) (replayedVEX, bool, error) {
 	schema := payloadString(job, "decision_request_schema")
 	if schema == "" {
 		return replayedVEX{}, false, nil
@@ -1301,7 +1303,7 @@ func normalizedVEXDecisionRequest(job postgres.ClaimedJob, vex domain.VEXDocumen
 		return replayedVEX{}, false, errors.New("normalized vex decision request schema is unsupported")
 	}
 	rows, ok := normalizedVEXRows(job.Payload["decision_statements"])
-	limits := vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes)
+	limits := vexparser.DefaultLimits(maxPayloadBytes)
 	if !ok || len(rows) == 0 || len(rows) > limits.MaxStatements || vex.StatementCount <= 0 || len(rows) > vex.StatementCount {
 		return replayedVEX{}, false, errors.New("normalized vex decision request is invalid")
 	}

@@ -10,6 +10,9 @@ import (
 	"github.com/aatuh/evydence/internal/platform/wiring"
 )
 
+// Explicit test-fixture budget; production obtains its budget from typed settings.
+const defaultMaxWorkerPayloadBytes = 20 << 20
+
 // Legacy fixture helpers select an explicit replay budget. Production composes
 // nativeJobProcessor once and never consults an environment reader per job.
 func processJob(ctx context.Context, state any, job postgres.ClaimedJob) error {

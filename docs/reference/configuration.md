@@ -91,6 +91,14 @@ listeners, metrics credentials, polling and the other command's timeout do not
 apply. Invalid explicit timeouts now fail before runtime startup rather than
 silently using the default. Cleanup failures make the command fail.
 
+The daemon's `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` is captured once and applies
+through both object retrieval and structured SBOM, scanner and VEX replay parsing.
+Changing the environment does not change a running processor. This setting does
+not raise the HTTP request-body limits below. Operator `parser-replay` instead
+uses the existing fixed `EvidenceDocumentLimit` from `internal/app/payload_limits.go`;
+it requires bounded object reads and rejects oversized adapter results before
+appending a derived record. An unbounded storage fallback is not accepted.
+
 Worker modes that open PostgreSQL and the migration command resolve pgx native
 settings into an owned, private pool configuration before opening connections.
 Native `PG*` inputs, service/password/TLS files and OS defaults retain the pinned
@@ -153,7 +161,7 @@ without the connection string, file path or underlying cause.
 | `EVYDENCE_WORKER_POLL_INTERVAL` | No | `1s` | Worker outbox polling interval. |
 | `EVYDENCE_WORKER_BATCH_SIZE` | No | `10` | Maximum outbox jobs claimed per polling cycle. |
 | `EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS` | No | `30` | Active-job drain and acknowledgement budget after `SIGINT` or `SIGTERM`; whole seconds from 1 through 300. Invalid values reject daemon startup before storage opens. |
-| `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Maximum raw object payload size replayed by a worker job. |
+| `EVYDENCE_WORKER_MAX_PAYLOAD_BYTES` | No | `20971520` | Immutable byte budget for worker-job object reads, structured replay parsers and normalized VEX decision inputs. Parser depth, string and item limits remain separately enforced. |
 | `EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64` | Optional Cosign verification | unset | Base64-encoded operator-managed Sigstore trusted-root JSON, bounded to 1 MiB after decoding. Do not put private keys here. |
 | `EVYDENCE_SIGSTORE_TRUSTED_PUBLIC_KEY_PEM_BASE64` | Optional key-based Cosign verification | unset | Base64-encoded operator-managed PEM public key, bounded to 1 MiB after decoding. It can be configured with or instead of the trusted root. |
 | `EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION` | When either Sigstore trust variable is set | unset | Non-secret operator version label recorded in the verification receipt. Missing, malformed, or oversized trust configuration prevents startup. |

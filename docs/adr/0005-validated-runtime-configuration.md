@@ -633,7 +633,13 @@ append-only derived records and durable idempotency remain in the existing
 operation paths.
 
 The native worker processor owns an explicit immutable payload-byte budget.
-Jobs pass it through bounded object replay instead of rereading the environment.
+Jobs pass it through bounded object replay and each structured replay parser,
+including normalized VEX decision inputs, instead of rereading the environment.
+No fixed process fallback truncates a larger configured budget at parsing. Parser
+depth, string and item caps remain unchanged, as do HTTP ingestion limits.
+Operator replay uses the existing domain document limit for bounded reads and
+checks returned object size before interpretation; it never falls back to an
+unbounded reader.
 Legacy processing fixture helpers live in test files and choose an explicit
 budget. The shared
 schema and processor deliberately reject `MaxInt64`: the existing bounded object

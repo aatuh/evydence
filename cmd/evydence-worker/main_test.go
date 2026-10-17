@@ -1224,7 +1224,7 @@ func TestNormalizedVEXDecisionRequestValidatesDecodedShapeAndBounds(t *testing.T
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			job := postgres.ClaimedJob{Payload: map[string]any{"decision_request_schema": tt.schema, "decision_statements": tt.statements}}
-			parsed, ok, err := normalizedVEXDecisionRequest(job, tt.vex)
+			parsed, ok, err := normalizedVEXDecisionRequest(job, tt.vex, defaultMaxWorkerPayloadBytes)
 			if tt.wantOK {
 				if err != nil || !ok || len(parsed.Statements) != 1 || parsed.Statements[0].StatementIndex != 1 {
 					t.Fatalf("normalized request = %#v, %v, %v", parsed, ok, err)
@@ -1482,7 +1482,7 @@ func TestVEXDecisionAuditFailurePersistsOnlyFailedImportReport(t *testing.T) {
 		Decisions: map[string]domain.VulnerabilityDecision{prior.ID: prior},
 		Chain:     map[string][]domain.AuditChainEntry{},
 	}
-	parsed, err := parseReplayedVEX(body)
+	parsed, err := parseReplayedVEX(body, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		t.Fatalf("parse vex fixture: %v", err)
 	}
@@ -1710,7 +1710,7 @@ func TestProcessJobWithObjectsRejectsAmbiguousVEXMappingAfterEmptyComponent(t *t
 
 func TestParseReplayedVEXSupportsCycloneDX(t *testing.T) {
 	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","vulnerabilities":[{"id":"CVE-2026-2001","affects":[{"ref":"pkg:oci/api"}],"analysis":{"state":"resolved","justification":"code_not_reachable","detail":"patched in release artifact","response":["update"]}},{"id":"CVE-2026-2999","analysis":{"state":"unknown"}}]}`)
-	parsed, err := parseReplayedVEX(body)
+	parsed, err := parseReplayedVEX(body, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		t.Fatalf("parse cyclonedx vex replay: %v", err)
 	}
@@ -2523,6 +2523,12 @@ type replayObjectStoreStub struct{ object app.Object }
 
 func (s replayObjectStoreStub) Put(context.Context, app.Object) error           { return nil }
 func (s replayObjectStoreStub) Get(context.Context, string) (app.Object, error) { return s.object, nil }
+func (s replayObjectStoreStub) GetBounded(_ context.Context, _ string, limit int64) (app.Object, error) {
+	if int64(len(s.object.Bytes)) > limit {
+		return app.Object{}, app.ErrConflict
+	}
+	return s.object, nil
+}
 
 func useParserReplayRuntimeStub(t *testing.T, store *replayStoreStub, object app.Object) {
 	t.Helper()
