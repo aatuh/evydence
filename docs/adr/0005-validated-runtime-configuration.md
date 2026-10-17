@@ -19,7 +19,8 @@ explicit filesystem/provider owner.
 
 The input foundation retains selected values privately and preserves explicit
 empty values and raw whitespace for the eventual field-specific parser. It
-captures `ENV`, `CI`, `EVYDENCE_*` and the AWS, Google, Azure and GitHub namespaces.
+captures `ENV`, `CI`, `EVYDENCE_*`, the AWS, Google, Azure and GitHub namespaces,
+and the 22 declared PostgreSQL native environment names.
 Unrelated host settings are not configuration values. Capture bounds total input
 to 4096 entries and 8 MiB, selected settings to 1024, and selected names to 256
 bytes. Selected names use uppercase ASCII environment syntax; NUL and malformed
@@ -32,12 +33,28 @@ supports change detection; it is not an evidence digest, credential identifier
 or public configuration dump. Captured input and returned metadata remain owned
 by the configuration package.
 
-The code-owned catalogue currently records 109 option definitions with process
+The code-owned catalogue currently records 109 project option definitions with process
 roles, value kinds, defaults, secret classification, observed numeric bounds,
 aliases and production restrictions. Conditional defaults remain explicit:
 runtime profile selection is required, while PostgreSQL load mode has different
 defaults inside and outside production. Public metadata access returns sorted
 copies, including owned slices for allowed values and aliases.
+
+`NativeDefinitions` extends the same metadata type with a native boundary,
+target parameter and pinned source. Its first 22 entries describe the complete
+`parseEnvSettings` mapping in `github.com/jackc/pgx/v5 v5.9.2`. They share the
+DSN parameter types, choice sets and bounds. Native inputs remain optional,
+beneath explicit connection parameters. Capturing them preserves exact values,
+explicit emptiness and fingerprint changes with the existing redaction,
+duplicate, UTF-8, NUL and combined-size protections. Arbitrary `PG*` names remain
+outside the selected input. Tests pin this metadata to the actual module
+requirement and check owned copies independently.
+
+Effective native parsing is still incomplete. Per-field validation, DSN merging,
+credential resolution and the remaining SDK catalogue remain required. Native
+PostgreSQL defaults call OS user lookup and inspect home certificate files;
+their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
+none of these operations and exposes no generic environment forwarder.
 
 A source test scans production Go literals and fails when a selected environment
 name is missing from the catalogue. This guards the current source inventory;
@@ -193,8 +210,10 @@ metadata identifies the actual pinned `sigstore-go.v1.3.0` dependency, correctin
 the stale `v1.1.4` label without rewriting historical receipts. A module-pin test
 guards this metadata against future drift.
 
-Native environment/default and credential resolution, remaining path checks and
-complete dynamic-name/SDK coverage remain required before EVY-1214 closes.
+Pure validation of native inputs, remaining path checks and complete
+dynamic-name/SDK coverage remain required before EVY-1214 closes. Native
+default/credential/file resolution belongs to EVY-1215 and command adoption
+to EVY-1216.
 The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
 settings and can read service, passfile and TLS material while parsing. The
 current PostgreSQL adapter enters that path through `pgxpool.New`. Reusing its

@@ -67,7 +67,8 @@ func Capture(entries []string) (Environment, error) {
 func selectedEnvironmentName(name string) bool {
 	return name == "ENV" || name == "CI" || strings.HasPrefix(name, "EVYDENCE_") ||
 		strings.HasPrefix(name, "AWS_") || strings.HasPrefix(name, "GOOGLE_") ||
-		strings.HasPrefix(name, "AZURE_") || strings.HasPrefix(name, "GITHUB_")
+		strings.HasPrefix(name, "AZURE_") || strings.HasPrefix(name, "GITHUB_") ||
+		nativeEnvironmentName(name)
 }
 
 func validEnvironmentName(name string) bool {
