@@ -9,19 +9,16 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
-	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	runtimeconfig "github.com/aatuh/evydence/internal/platform/config"
 )
 
 type Config struct {
@@ -45,8 +42,8 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	bucket := strings.TrimSpace(cfg.Bucket)
-	if bucket == "" || strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" {
+	bucket, err := runtimeconfig.ParseS3BucketName(cfg.Bucket)
+	if err != nil || strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" {
 		return nil, app.ErrValidation
 	}
 	transport, err := minio.DefaultTransport(cfg.UseSSL)
@@ -360,77 +357,11 @@ func (s *Store) verifyObjectRetention(ctx context.Context, req app.ObjectRetenti
 }
 
 func validateEndpointPolicy(endpoint, region string, useSSL bool) (string, string, error) {
-	endpoint = strings.TrimSpace(endpoint)
-	region = strings.TrimSpace(region)
-	if endpoint == "" || strings.Contains(endpoint, "://") || strings.ContainsAny(endpoint, "/?#") {
-		return "", "", app.ErrValidation
-	}
-	for _, r := range endpoint {
-		if unicode.IsSpace(r) || unicode.IsControl(r) {
-			return "", "", app.ErrValidation
-		}
-	}
-	parsed, err := url.Parse("//" + endpoint)
-	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", "", app.ErrValidation
-	}
-	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
-	if host == "" || strings.Contains(host, "%") {
-		return "", "", app.ErrValidation
-	}
-	if port := parsed.Port(); port != "" {
-		value, err := strconv.Atoi(port)
-		if err != nil || value < 1 || value > 65535 {
-			return "", "", app.ErrValidation
-		}
-	}
-	if region != "" && !validS3Region(region) {
-		return "", "", app.ErrValidation
-	}
-	if isAWSS3Endpoint(host) {
-		if !useSSL || region == "" {
-			return "", "", app.ErrValidation
-		}
-	}
-	if !useSSL && !insecureS3EndpointAllowed(host) {
+	endpoint, region, err := runtimeconfig.ValidateS3Endpoint(endpoint, region, useSSL)
+	if err != nil {
 		return "", "", app.ErrValidation
 	}
 	return endpoint, region, nil
-}
-
-func validS3Region(region string) bool {
-	if region == "" || len(region) > 63 || region != strings.TrimSpace(region) {
-		return false
-	}
-	for index, r := range region {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
-			if index == 0 && (r == '-' || r == '_' || r == '.') {
-				return false
-			}
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-func isAWSS3Endpoint(host string) bool {
-	return host == "s3.amazonaws.com" || strings.HasSuffix(host, ".amazonaws.com") || strings.HasSuffix(host, ".amazonaws.com.cn")
-}
-
-func insecureS3EndpointAllowed(host string) bool {
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") || !strings.Contains(host, ".") {
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback() || ip.IsPrivate()
-	}
-	for _, suffix := range []string{".local", ".internal", ".svc", ".svc.cluster.local"} {
-		if strings.HasSuffix(host, suffix) {
-			return true
-		}
-	}
-	return false
 }
 
 func validateObjectForWrite(object app.Object) error {

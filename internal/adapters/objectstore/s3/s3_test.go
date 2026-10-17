@@ -283,6 +283,14 @@ func TestEndpointPolicyAllowsTLSAndPrivateCleartextEndpoints(t *testing.T) {
 	}
 }
 
+func TestEndpointPolicyRejectsNonprivateIPv6Cleartext(t *testing.T) {
+	for _, endpoint := range []string{"[2606:4700:4700::1111]:9000", "[::]:9000", "[ff02::1]:9000"} {
+		if _, _, err := validateEndpointPolicy(endpoint, "", false); !errors.Is(err, app.ErrValidation) {
+			t.Fatal("nonprivate IPv6 endpoint bypassed the TLS requirement", err)
+		}
+	}
+}
+
 func TestNewAcceptsLocalExplicitEndpointPolicy(t *testing.T) {
 	server := &fakeS3Server{objects: map[string]fakeS3Object{}}
 	httpServer := httptest.NewServer(http.HandlerFunc(server.handle))

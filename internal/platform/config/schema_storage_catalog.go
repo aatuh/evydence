@@ -26,9 +26,9 @@ var storageDefinitions = []Definition{
 	},
 	{
 		Name:        "EVYDENCE_S3_BUCKET",
-		Kind:        Text,
+		Kind:        S3BucketName,
 		Roles:       API | Worker,
-		Description: "Bucket must already exist.",
+		Description: "Bucket must already exist. Names use the pinned MinIO SDK's basic S3 bucket grammar after trimming, including its 3 through 63 byte bound.",
 	},
 	{
 		Name:        "EVYDENCE_S3_ENDPOINT",

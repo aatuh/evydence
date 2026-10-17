@@ -2,7 +2,7 @@
 
 Status: accepted for the immutable-input, schema-metadata, scalar-parsing,
 role-input, typed-projection and local-validation foundation of EVY-1214,
-with HTTP/signing validation reviewed 2026-10-17. Database/S3/trust-material
+with HTTP/signing/S3 validation reviewed 2026-10-17. Database/trust-material
 validation, complete schema/SDK coverage,
 secret resolution, command adoption and generated deployment documentation remain
 pending in EVY-1214 through EVY-1217. This is an explanation for developers
@@ -135,7 +135,25 @@ inputs. In particular, blank projected-file input fails rather than silently
 disabling the feature. This avoids hidden adapter defaults for blank version/status
 settings without normalizing credential bytes.
 
-Database/S3 endpoint and credential checks, Sigstore trust-material validation,
+S3 configuration now shares the adapter's endpoint/TLS/region policy under this
+package. The adapter maps validation failures back to its existing application
+error; configuration failures retain fixed, input-free diagnostics. Both paths
+use the pinned MinIO SDK's pure domain and basic bucket-name validators without
+constructing a client. This preserves the existing legacy bucket grammar rather
+than silently replacing it with the SDK's stricter optional grammar.
+
+Selecting `s3` or `minio` requires its endpoint, bucket and both credential fields.
+Provided inactive endpoint/region/bucket settings are still validated; inactive
+storage does not acquire missing credentials or contact a service. Credentials
+retain their exact bytes. Existing private/loopback/cluster cleartext exceptions
+and public TLS/region requirements remain explicit. The public-IPv6 cleartext
+bypass is fixed by classifying IP literals before the single-label hostname
+exception; unspecified, multicast and other non-private IPv6 no longer inherit
+that exception. Malformed bracketed/unbracketed IPv6 and SDK-invalid domains fail
+before SDK construction. This phase does not establish bucket existence,
+provider identity or retention configuration.
+
+Database syntax/credential checks, Sigstore trust-material validation,
 remaining path checks and complete dynamic-name/SDK coverage remain required
 before EVY-1214 closes.
 The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
@@ -159,8 +177,11 @@ of the entire applicable configuration.
 
 Using that loader would therefore preserve ambient reads and permit sensitive
 configuration in errors. The project-specific input/validation layer addresses
-those requirements with the standard library and adds no dependency. This
-decision does not replace the required toolkit HTTP foundation, middleware,
+those requirements with standard-library capture/parsers and the existing pure
+MinIO identifier validators; no module dependency is added. The pinned MinIO
+helpers used here have standard-library-only implementations and perform no
+credential, file or network access. This decision does not replace the required
+toolkit HTTP foundation, middleware,
 ports, Problem Details or route/OpenAPI contract facilities.
 
 ## Delivery And Compatibility

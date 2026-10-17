@@ -43,6 +43,12 @@ func parseScalar(d Definition, raw string) (scalarValue, error) {
 	switch d.Kind {
 	case Text, URL, Path:
 		value.text = raw
+	case S3BucketName:
+		name, err := ParseS3BucketName(raw)
+		if err != nil {
+			return scalarValue{}, err
+		}
+		value.text = name
 	case Boolean:
 		switch {
 		case strings.EqualFold(trimmed, "true"):

@@ -24,17 +24,18 @@ const (
 )
 
 const (
-	Text      Kind = "text"
-	Boolean   Kind = "boolean"
-	Integer   Kind = "integer"
-	Seconds   Kind = "seconds"
-	Duration  Kind = "duration"
-	Choice    Kind = "choice"
-	CIDRs     Kind = "cidrs"
-	URL       Kind = "url"
-	Path      Kind = "path"
-	Base64    Kind = "base64"
-	Timestamp Kind = "timestamp"
+	Text         Kind = "text"
+	Boolean      Kind = "boolean"
+	Integer      Kind = "integer"
+	Seconds      Kind = "seconds"
+	Duration     Kind = "duration"
+	Choice       Kind = "choice"
+	CIDRs        Kind = "cidrs"
+	URL          Kind = "url"
+	Path         Kind = "path"
+	Base64       Kind = "base64"
+	Timestamp    Kind = "timestamp"
+	S3BucketName Kind = "s3-bucket-name"
 )
 
 // Definition contains code-owned metadata, never resolved operator values.
