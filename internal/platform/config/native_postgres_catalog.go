@@ -39,7 +39,7 @@ func nativePostgresDefinitions() []NativeDefinition {
 			d.MaxItems = maxDatabaseHosts
 		}
 		d.Name = entry.name
-		d.Roles = API | Worker | Migrate
+		d.Roles = databaseRoles
 		d.Secret = entry.parameter == "password" || entry.parameter == "sslpassword"
 		d.DefaultPolicy = "Optional native input beneath explicit connection parameters; driver defaults and file resolution are separate."
 		d.Description = entry.description

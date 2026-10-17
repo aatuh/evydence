@@ -539,8 +539,8 @@ rejected. Other startup entry points need explicit guard review when adopted.
 
 The shared logger has an explicit configured lifecycle entry point and a fixed
 startup-rejection operation. Its legacy environment entry point remains for
-commands not yet adopted; retiring it is part of EVY-1216. API, online CLI and
-worker operator-command adoption are still incomplete.
+commands not yet adopted; retiring it is part of EVY-1216. API and online CLI
+adoption are still incomplete.
 
 Typed configurations also retain a private fingerprint of their original captured
 source. Its opaque `SourceIdentity` exposes only equality against another bounded capture;
@@ -562,8 +562,7 @@ metrics-file, integer and shutdown parsers are removed. Invalid explicit values
 now fail with shared fixed error classes instead of local diagnostics or silent
 fallbacks. Worker health observes source drift through `ProcessSource` on cached
 refreshes while runtime settings remain frozen. The API still uses the legacy
-health constructor pending its adoption. Parser-replay and reconcile operator
-modes retain their existing paths until their separate adoption units.
+health constructor pending its adoption.
 
 The healthcheck client now has an explicit `WorkerProbe` schema role. It shares
 the daemon's address definition and loopback validation, and uses configured
@@ -573,6 +572,19 @@ the duplicate ambient address parser and default are removed. Production's
 unknown-project-option check still applies. See the
 [configuration reference](../reference/configuration.md#runtime-variables) for
 the applicable inputs and probe modes.
+
+Parser-replay and reconciliation now select `WorkerReplay` and
+`WorkerReconcile` scopes at that same dispatch boundary, after parsing their
+operator arguments. Both use shared database/storage validation and explicit
+project-secret resolution before opening resources. Only the selected
+operation's timeout applies; daemon listener, polling, metrics and revision-file
+settings are not dependencies. Their immutable runtime settings include the
+cleanup budget. Replay now returns cleanup failures and closes partial runtime
+ports when a cleanup callback is available. The worker's ambient runtime builder,
+duration/default helpers and legacy logging entry point are removed; legacy
+object-store construction fixtures remain only in tests. Actor/tenant scoping,
+append-only derived records and durable idempotency remain in the existing
+operation paths.
 
 The native worker processor owns an explicit immutable payload-byte budget.
 Jobs pass it through bounded object replay instead of rereading the environment.

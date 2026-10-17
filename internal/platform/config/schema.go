@@ -11,7 +11,15 @@ const (
 	CLI
 	// WorkerProbe is the loopback healthcheck client, with no runtime dependencies.
 	WorkerProbe
-	AllRoles = API | Worker | Migrate | CLI | WorkerProbe
+	WorkerReplay
+	WorkerReconcile
+	AllRoles = API | Worker | Migrate | CLI | WorkerProbe | WorkerReplay | WorkerReconcile
+)
+
+const (
+	workerOperatorRoles = WorkerReplay | WorkerReconcile
+	runtimeRoles        = API | Worker | workerOperatorRoles
+	databaseRoles       = runtimeRoles | Migrate
 )
 
 func validRole(role Role) bool {

@@ -14,6 +14,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/config"
 )
 
 func TestRunObjectReconciliationDryRunAndApplyWithLivePostgres(t *testing.T) {
@@ -162,17 +163,28 @@ func TestRunObjectReconciliationDryRunAndApplyWithLivePostgres(t *testing.T) {
 }
 
 func TestRunObjectReconciliationRejectsUnsafeRuntimeConfiguration(t *testing.T) {
+	// Harness-only database/S3 inputs are not production command options.
+	// Register cleanup before removing them from this command's environment.
+	for _, entry := range os.Environ() {
+		name, value, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(name, "EVYDENCE_TEST_") {
+			t.Setenv(name, value)
+			if err := os.Unsetenv(name); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://unused.invalid/evydence")
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_POSTGRES_LOAD_MODE", "not-a-load-mode")
-	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); err == nil {
+	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatal("invalid postgres load mode was accepted")
 	}
 
 	t.Setenv("ENV", "production")
 	t.Setenv("EVYDENCE_POSTGRES_LOAD_MODE", "snapshot_preferred")
-	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); err == nil {
-		t.Fatal("unsafe production load mode was accepted")
+	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); !errors.Is(err, config.ErrUnsafeProduction) {
+		t.Fatalf("unsafe production load mode error=%v", err)
 	}
 
 	t.Setenv("ENV", "")
@@ -183,7 +195,7 @@ func TestRunObjectReconciliationRejectsUnsafeRuntimeConfiguration(t *testing.T) 
 
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
 	t.Setenv("EVYDENCE_OBJECT_STORE", "unsupported")
-	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); err == nil || !strings.Contains(err.Error(), "EVYDENCE_OBJECT_STORE") || strings.Contains(err.Error(), "private-password") {
+	if err := runObjectReconciliation([]string{"--tenant", "ten_runtime"}); !errors.Is(err, config.ErrInvalidValue) || strings.Contains(err.Error(), "private-password") {
 		t.Fatalf("unsafe object-store selection err=%v", err)
 	}
 }

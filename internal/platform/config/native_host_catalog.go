@@ -11,7 +11,7 @@ func nativeHostDefinitions() []NativeDefinition {
 			kind = Text // Native grammar includes host suffixes, ports, IPs and wildcards.
 		}
 		d := nativeInput(NativeHost, proxy, entry.name, entry.name, kind, "Go HTTP transport setting; first nonempty uppercase value takes precedence over its lowercase fallback.")
-		d.Roles, d.Fallbacks = API|Worker|CLI, []string{entry.fallback}
+		d.Roles, d.Fallbacks = runtimeRoles|CLI, []string{entry.fallback}
 		d.Secret = kind == URL // Proxy URLs can carry credentials.
 		if kind == URL {
 			d.EndpointPolicy = NativeProxyEndpoint
@@ -21,7 +21,7 @@ func nativeHostDefinitions() []NativeDefinition {
 		definitions = append(definitions, d)
 	}
 	cgi := nativeInput(NativeHost, proxy, "REQUEST_METHOD", "cgi", Text, "A nonempty value enables the Go transport's CGI proxy restrictions.")
-	cgi.Roles = API | Worker | CLI
+	cgi.Roles = runtimeRoles | CLI
 	definitions = append(definitions, cgi)
 	const executable = "go@1.26.9/src/os/exec/lp_windows.go:lookPathExts"
 	extensions := nativeInput(NativeHost, executable, "PATHEXT", "windows_executable_extensions", Text, "Semicolon-separated Windows executable suffixes; normalize case and optional leading dots, skip empty items, and apply no native defaults during input parsing.")
@@ -53,7 +53,7 @@ func nativeHostDefinitions() []NativeDefinition {
 			}
 		}
 		if entry.name == "SSL_CERT_FILE" || entry.name == "SSL_CERT_DIR" {
-			d.Roles = API | Worker | Migrate | CLI
+			d.Roles = databaseRoles | CLI
 		}
 		definitions = append(definitions, d)
 	}

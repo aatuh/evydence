@@ -22,7 +22,7 @@ func ParseS3BucketName(raw string) (string, error) {
 }
 
 func validateStorageInput(input parsedInput) error {
-	if input.role != API && input.role != Worker {
+	if input.role&runtimeRoles == 0 {
 		return nil
 	}
 	v := input.values

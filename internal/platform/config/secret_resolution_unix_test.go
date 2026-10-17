@@ -119,7 +119,7 @@ func TestResolveActiveObjectStoreFilesPreserveCredentialBytes(t *testing.T) {
 	id, key := filepath.Join(dir, "PRIVATE_ID"), filepath.Join(dir, "PRIVATE_KEY")
 	writePrivateSecret(t, id, " PRIVATE_ID ")
 	writePrivateSecret(t, key, "PRIVATE_KEY\n")
-	for _, role := range []Role{API, Worker} {
+	for _, role := range []Role{API, Worker, WorkerReplay, WorkerReconcile} {
 		e := preparedSecretEnvironment(t, "EVYDENCE_DATABASE_URL=host=db", "EVYDENCE_API_KEY_PEPPER=PRIVATE_PEPPER", "EVYDENCE_OBJECT_STORE=s3", "EVYDENCE_S3_ENDPOINT=storage.internal:9000", "EVYDENCE_S3_BUCKET=evidence", "EVYDENCE_S3_ACCESS_KEY_ID_FILE="+id, "EVYDENCE_S3_SECRET_ACCESS_KEY_FILE="+key)
 		input, err := Prepare(e, role)
 		if err != nil {

@@ -63,7 +63,7 @@ type parserReplayStore interface {
 type parserReplayRuntime struct {
 	store   parserReplayStore
 	objects app.ObjectStore
-	close   func()
+	close   func(context.Context, time.Duration) error
 }
 
 var openParserReplayRuntime = func(ctx context.Context, config wiring.RuntimeConfig) (parserReplayRuntime, error) {
@@ -71,20 +71,7 @@ var openParserReplayRuntime = func(ctx context.Context, config wiring.RuntimeCon
 	if err != nil {
 		return parserReplayRuntime{}, err
 	}
-	return parserReplayRuntime{store: runtime.Postgres, objects: runtime.Objects, close: runtime.Close}, nil
-}
-
-func workerRuntimeConfig(databaseURL string, production bool) wiring.RuntimeConfig {
-	return wiring.RuntimeConfig{
-		Process:        wiring.Worker,
-		Profile:        wiring.Profile(os.Getenv("EVYDENCE_RUNTIME_PROFILE")),
-		Production:     production,
-		DatabaseURL:    databaseURL,
-		LoadMode:       os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
-		MigrationsDir:  envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations"),
-		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
-		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
-	}
+	return parserReplayRuntime{store: runtime.Postgres, objects: runtime.Objects, close: runtime.CloseContext}, nil
 }
 
 func main() {
@@ -98,19 +85,36 @@ func run() error {
 }
 
 func runWithArgs(args []string) error {
-	if len(args) == 0 || args[0] == "healthcheck" || args[0] == "--healthcheck" {
-		return runWorkerWithContext(context.Background(), args)
-	}
-	return logging.Run(context.Background(), "worker", runtimeinfo.Current(), os.Stderr, os.Getenv, func(ctx context.Context) error { return runWorkerWithContext(ctx, args) })
+	return runWorkerWithContext(context.Background(), args)
 }
 
 func runWorkerWithContext(parent context.Context, args []string) (runErr error) {
-	if len(args) > 0 && args[0] != "healthcheck" && args[0] != "--healthcheck" {
+	role, start := config.Worker, runWorkerConfigured
+	if len(args) > 0 {
 		switch args[0] {
+		case "healthcheck", "--healthcheck":
+			role = config.WorkerProbe
+			start = func(ctx context.Context, settings config.Configuration) error {
+				return runWorkerHealthcheckConfigured(ctx, args[1:], settings.Worker().HealthAddress)
+			}
 		case "reconcile":
-			return runObjectReconciliationContext(parent, args[1:])
+			request, err := parseObjectReconciliationArgs(args[1:])
+			if err != nil {
+				return err
+			}
+			role = config.WorkerReconcile
+			start = func(ctx context.Context, settings config.Configuration) error {
+				return runObjectReconciliationConfigured(ctx, settings, request)
+			}
 		case "parser-replay":
-			return runParserReplayContext(parent, args[1:])
+			request, err := parseParserReplayArgs(args[1:])
+			if err != nil {
+				return err
+			}
+			role = config.WorkerReplay
+			start = func(ctx context.Context, settings config.Configuration) error {
+				return runParserReplayConfigured(ctx, settings, request)
+			}
 		default:
 			return fmt.Errorf("unsupported worker command %q", args[0])
 		}
@@ -120,12 +124,7 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 		logging.RejectStartup(parent, "worker", runtimeinfo.Current(), os.Stderr)
 		return err
 	}
-	if len(args) > 0 {
-		return runWorkerRoleProcess(parent, environment, config.WorkerProbe, os.Stderr, func(ctx context.Context, settings config.Configuration) error {
-			return runWorkerHealthcheckConfigured(ctx, args[1:], settings.Worker().HealthAddress)
-		})
-	}
-	return runWorkerProcess(parent, environment, os.Stderr, runWorkerConfigured)
+	return runWorkerRoleProcess(parent, environment, role, os.Stderr, start)
 }
 
 func runWorkerConfigured(parent context.Context, settings config.Configuration) (runErr error) {
@@ -215,25 +214,23 @@ func runParserReplay(args []string) error {
 }
 
 func runParserReplayContext(parent context.Context, args []string) error {
-	request, err := parseParserReplayArgs(args)
-	if err != nil {
-		return err
-	}
-	production := strings.EqualFold(os.Getenv("ENV"), "production")
-	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
-	if databaseURL == "" {
-		return errors.New("parser-replay requires EVYDENCE_DATABASE_URL")
-	}
-	ctx, cancel := context.WithTimeout(parent, durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
+	return runWorkerWithContext(parent, append([]string{"parser-replay"}, args...))
+}
+
+func runParserReplayConfigured(parent context.Context, settings config.Configuration, request parserReplayArgs) (runErr error) {
+	ctx, cancel := context.WithTimeout(parent, settings.Worker().ParserReplayTimeout)
 	defer cancel()
-	runtime, err := openParserReplayRuntime(ctx, workerRuntimeConfig(databaseURL, production))
+	runtime, err := openParserReplayRuntime(ctx, workerRuntimeConfigFromSettings(settings))
 	if err != nil {
 		return err
 	}
-	if runtime.store == nil || runtime.objects == nil || runtime.close == nil {
+	if runtime.close == nil {
 		return errors.New("parser-replay runtime is incomplete")
 	}
-	defer runtime.close()
+	defer func() { runErr = errors.Join(runErr, runtime.close(ctx, settings.Runtime().ShutdownCleanupTimeout)) }()
+	if runtime.store == nil || runtime.objects == nil {
+		return errors.New("parser-replay runtime is incomplete")
+	}
 	store := runtime.store
 	state, ok, err := store.LoadParserReplayState(ctx, request.TenantID, request.EvidenceID, request.ParserVersion)
 	if err != nil || !ok {
@@ -299,23 +296,20 @@ func runObjectReconciliation(args []string) error {
 	return runObjectReconciliationContext(context.Background(), args)
 }
 
-func runObjectReconciliationContext(parent context.Context, args []string) (runErr error) {
-	request, err := parseObjectReconciliationArgs(args)
-	if err != nil {
-		return err
-	}
-	production := strings.EqualFold(os.Getenv("ENV"), "production")
-	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
-	if databaseURL == "" {
-		return errors.New("reconcile requires EVYDENCE_DATABASE_URL")
-	}
-	ctx, cancel := context.WithTimeout(parent, durationEnv("EVYDENCE_RECONCILIATION_TIMEOUT", 10*time.Minute))
+func runObjectReconciliationContext(parent context.Context, args []string) error {
+	return runWorkerWithContext(parent, append([]string{"reconcile"}, args...))
+}
+
+func runObjectReconciliationConfigured(parent context.Context, settings config.Configuration, request app.ObjectReconciliationRequest) (runErr error) {
+	ctx, cancel := context.WithTimeout(parent, settings.Worker().ReconciliationTimeout)
 	defer cancel()
-	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
+	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfigFromSettings(settings))
 	if err != nil {
 		return err
 	}
-	defer func() { runErr = errors.Join(runErr, runtime.CloseContext(ctx, wiring.DefaultCleanupTimeout)) }()
+	defer func() {
+		runErr = errors.Join(runErr, runtime.CloseContext(ctx, settings.Runtime().ShutdownCleanupTimeout))
+	}()
 	receipt, err := app.ReconcileObjectPayloads(ctx, runtime.Postgres, runtime.Postgres, runtime.Objects, request)
 	if err != nil {
 		return errors.New("payload reconciliation failed")
@@ -2383,30 +2377,7 @@ func validWorkerDigest(value string) bool {
 	return err == nil
 }
 
-func envDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
-}
-
-func durationEnv(name string, fallback time.Duration) time.Duration {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := time.ParseDuration(value)
-	if err != nil || parsed <= 0 {
-		return fallback
-	}
-	return parsed
-}
-
 func digestBytes(body []byte) string {
 	sum := sha256.Sum256(body)
 	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {
-	return wiring.OpenObjectStore(ctx, wiring.ObjectStoreConfigFromEnv())
 }

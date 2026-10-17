@@ -33,7 +33,7 @@ func TestNativePostgresSchemaPreservesDriverBoundary(t *testing.T) {
 		if d.Boundary != NativePostgres {
 			continue
 		}
-		if d.Source != "github.com/jackc/pgx/v5@v5.9.2/pgconn/config.go:parseEnvSettings" || d.Roles != API|Worker|Migrate || d.Required != 0 || d.ProductionRequired != 0 || d.Default != "" || d.DefaultPolicy == "" || d.Description == "" || d.MaxBytes <= 0 {
+		if d.Source != "github.com/jackc/pgx/v5@v5.9.2/pgconn/config.go:parseEnvSettings" || d.Roles != API|Worker|Migrate|WorkerReplay|WorkerReconcile || d.Required != 0 || d.ProductionRequired != 0 || d.Default != "" || d.DefaultPolicy == "" || d.Description == "" || d.MaxBytes <= 0 {
 			t.Fatal("native input acquired invented requirements/defaults or lost its source", d.Name)
 		}
 		if _, duplicate := seen[d.Name]; duplicate {

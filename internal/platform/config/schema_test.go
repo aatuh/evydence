@@ -58,14 +58,14 @@ func TestSchemaCapturesExistingIngressAndLifecycleContracts(t *testing.T) {
 	if defs["EVYDENCE_WORKER_HEALTH_ADDR"].Default != "127.0.0.1:8081" || defs["EVYDENCE_WORKER_POLL_INTERVAL"].Default != "1s" || defs["EVYDENCE_WORKER_BATCH_SIZE"].Default != "10" || defs["EVYDENCE_WORKER_MAX_PAYLOAD_BYTES"].Default != "20971520" {
 		t.Fatal("worker defaults changed")
 	}
-	if defs["EVYDENCE_DATABASE_URL"].Required != API|Worker|Migrate || defs["EVYDENCE_API_KEY_PEPPER"].ProductionRequired != API {
+	if defs["EVYDENCE_DATABASE_URL"].Required != API|Worker|Migrate|WorkerReplay|WorkerReconcile || defs["EVYDENCE_API_KEY_PEPPER"].ProductionRequired != API {
 		t.Fatal("process-specific requirements changed")
 	}
 }
 
 func TestSchemaPreservesExplicitRuntimeProfileSelection(t *testing.T) {
 	d := schemaByName(t)["EVYDENCE_RUNTIME_PROFILE"]
-	if d.Default != "" || d.Required != API|Worker || !slices.Equal(d.Allowed, []string{"postgres"}) {
+	if d.Default != "" || d.Required != API|Worker|WorkerReplay|WorkerReconcile || !slices.Equal(d.Allowed, []string{"postgres"}) {
 		t.Fatal("schema silently supplied a runtime profile that existing startup requires explicitly")
 	}
 }

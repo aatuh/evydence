@@ -36,6 +36,14 @@ runtime-profile, object-storage, provider or metrics settings from the daemon's
 environment. In production, unknown `EVYDENCE_` option names still fail closed.
 HTTP proxies and redirects are disabled for these local requests.
 
+Worker `parser-replay` and `reconcile` commands require the PostgreSQL runtime
+profile and database settings. They share storage, migration, load-mode, logging
+and cleanup configuration with the daemon, including active database and S3
+secret-file alternatives. Each validates its own operation timeout; daemon
+listeners, metrics credentials, polling and the other command's timeout do not
+apply. Invalid explicit timeouts now fail before runtime startup rather than
+silently using the default. Cleanup failures make the command fail.
+
 | Variable | Required | Default / Example | Notes |
 |----------|----------|-------------------|-------|
 | `ENV` | Production only | unset locally | Set `ENV=production` to enable production-safety checks. |
@@ -68,7 +76,9 @@ HTTP proxies and redirects are disabled for these local requests.
 | `EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS` | No | `60` | Maximum response-write time. Values must be whole seconds from 1 through 900. |
 | `EVYDENCE_HTTP_IDLE_TIMEOUT_SECONDS` | No | `120` | Idle keep-alive timeout. Values must be whole seconds from 1 through 3600. |
 | `EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS` | No | `30` | Request drain budget after `SIGINT`, `SIGTERM`, or a permanent listener failure. Values must be whole seconds from 1 through 300. |
-| `EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS` | No | `5` | API/worker daemon resource-cleanup budget after draining; whole seconds from 1 through 60. Invalid values fail before storage opens. |
+| `EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS` | No | `5` | API/worker resource-cleanup budget after draining or operator-command execution; whole seconds from 1 through 60. Invalid values fail before storage opens. |
+| `EVYDENCE_PARSER_REPLAY_TIMEOUT` | No | `2m` | Positive Go duration for worker `parser-replay`; malformed or nonpositive values fail before runtime opens. |
+| `EVYDENCE_RECONCILIATION_TIMEOUT` | No | `10m` | Positive Go duration for worker `reconcile`; malformed or nonpositive values fail before runtime opens. |
 | `EVYDENCE_HTTP_MAX_HEADER_BYTES` | No | `16384` | Listener header-size cap in bytes. Values must be 1024 through 1048576. |
 | `EVYDENCE_HTTP_MAX_URL_BYTES` | No | `8192` | Raw request-target cap in bytes, including its query string. Values must be 1024 through 65536. |
 | `EVYDENCE_HTTP_MAX_IN_FLIGHT_REQUESTS` | No | `256` | Simultaneous ordinary application request cap. Saturation returns a retryable `429` Problem Details response. Canonical lifecycle probes use separate admission; see [observability](observability.md#endpoints). |
