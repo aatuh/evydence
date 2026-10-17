@@ -11,6 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/health"
 )
 
@@ -213,9 +214,10 @@ func TestWorkerProbeCommandValidatesLocalAddressFlagsAndCancellation(t *testing.
 }
 
 func TestWorkerProbeMainRejectsBadHealthConfigurationBeforeStorage(t *testing.T) {
-	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	t.Setenv("EVYDENCE_DATABASE_URL", "host=PRIVATE_DATABASE")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_WORKER_HEALTH_ADDR", "0.0.0.0:8081")
-	if err := runWorkerWithContext(t.Context(), nil); err == nil || !strings.Contains(err.Error(), "EVYDENCE_WORKER_HEALTH_ADDR") {
+	if err := runWorkerWithContext(t.Context(), nil); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatal("invalid listener configuration reached storage validation", err)
 	}
 }

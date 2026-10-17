@@ -17,6 +17,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
@@ -298,14 +299,16 @@ func TestWorkerShutdownTimeoutValidation(t *testing.T) {
 		{"0", 0, true}, {"-1", 0, true}, {"301", 0, true}, {"1s", 0, true}, {"huge-secret-input", 0, true}, {"999999999999999999999999999", 0, true},
 	} {
 		t.Run(tc.value, func(t *testing.T) {
-			t.Setenv("EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS", tc.value)
-			got, err := workerShutdownTimeoutFromEnv()
+			settings, err := config.Parse(workerCapturedEnvironment(t, "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS="+tc.value), config.Worker)
+			got := settings.Worker().ShutdownTimeout
 			if (err != nil) != tc.invalid || got != tc.want {
 				t.Fatal("invalid budget contract", got, err)
 			}
 			if tc.invalid {
-				t.Setenv("EVYDENCE_DATABASE_URL", "")
-				if err := run(); err == nil || err.Error() != "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS must be an integer between 1 and 300" {
+				t.Setenv("EVYDENCE_DATABASE_URL", "host=PRIVATE_DATABASE")
+				t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
+				t.Setenv("EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS", tc.value)
+				if err := run(); !errors.Is(err, config.ErrInvalidValue) {
 					t.Fatal("invalid budget did not fail before storage", err)
 				}
 			}
@@ -314,9 +317,10 @@ func TestWorkerShutdownTimeoutValidation(t *testing.T) {
 }
 
 func TestWorkerInvalidCleanupBudgetFailsBeforeStorage(t *testing.T) {
-	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	t.Setenv("EVYDENCE_DATABASE_URL", "host=PRIVATE_DATABASE")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS", "61")
-	if err := run(); err == nil || err.Error() != "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS must be an integer between 1 and 60" {
+	if err := run(); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatal("invalid cleanup budget did not fail before storage", err)
 	}
 }

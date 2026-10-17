@@ -29,6 +29,12 @@ func workerProbePostgresRuntime(t *testing.T, metricsEnabled bool) {
 	if base == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
 	}
+	// The harness connection is not a production worker option. Preserve it for
+	// test cleanup while presenting the daemon only its actual runtime inputs.
+	t.Setenv("EVYDENCE_TEST_DATABASE_URL", base)
+	if err := os.Unsetenv("EVYDENCE_TEST_DATABASE_URL"); err != nil {
+		t.Fatal(err)
+	}
 	admin, err := pgx.Connect(t.Context(), base)
 	if err != nil {
 		t.Fatal(err)

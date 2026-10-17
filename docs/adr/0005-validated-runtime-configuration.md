@@ -531,15 +531,16 @@ settings now retain the shared fixed error classes instead of the old local
 variable-specific diagnostics. The command's local environment-default helper
 is removed; native pgx defaults and references retain their documented owner.
 
-The source guard recognizes a direct `config.Capture(os.Environ())` only in the
-reviewed `run` entry point. Snapshots that escape through raw variables or
+The source guard recognizes direct `config.Capture(os.Environ())` calls in the
+reviewed `run` and worker `runWorkerWithContext` entry points, and in the owned
+cold health observer `confighealth.ProcessSource`. Snapshots that escape through raw variables or
 helpers, shadow package imports, repeat in loops, or run asynchronously remain
 rejected. Other startup entry points need explicit guard review when adopted.
 
 The shared logger has an explicit configured lifecycle entry point and a fixed
 startup-rejection operation. Its legacy environment entry point remains for
-commands not yet adopted; retiring it is part of EVY-1216. API, worker, online
-CLI, health and cleanup adoption are still incomplete.
+commands not yet adopted; retiring it is part of EVY-1216. API, online CLI and
+worker operator-command adoption are still incomplete.
 
 Typed configurations also retain a private fingerprint of their original captured
 source. Its opaque `SourceIdentity` exposes only equality against another bounded capture;
@@ -553,10 +554,22 @@ including native PostgreSQL and host inputs. API/worker adoption must replace th
 legacy health constructor and retire its separate selector/digest before EVY-1216
 is complete.
 
-The native worker processor now owns an explicit immutable payload-byte budget.
+The worker daemon now uses shared preflight and explicit resolution before
+logging startup or opening runtime resources. Typed settings supply its database,
+object store, polling, batch, payload, shutdown, cleanup and listener options.
+Metrics use only the resolved hash and the shared token grammar; the old daemon
+metrics-file, integer and shutdown parsers are removed. Invalid explicit values
+now fail with shared fixed error classes instead of local diagnostics or silent
+fallbacks. Worker health observes source drift through `ProcessSource` on cached
+refreshes while runtime settings remain frozen. The API still uses the legacy
+health constructor pending its adoption. Healthcheck, parser-replay and reconcile
+operator modes retain their existing paths until their separate adoption units;
+the daemon's full dependency requirements do not apply to healthcheck mode.
+
+The native worker processor owns an explicit immutable payload-byte budget.
 Jobs pass it through bounded object replay instead of rereading the environment.
 Legacy processing fixture helpers live in test files and choose an explicit
-budget. Startup still needs the remaining typed daemon adoption. The shared
+budget. The shared
 schema and processor deliberately reject `MaxInt64`: the existing bounded object
 readers require room for a sentinel byte and already reject that unusable value.
 

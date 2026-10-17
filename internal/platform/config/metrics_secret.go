@@ -18,15 +18,24 @@ func resolveWorkerMetricsSecret(ctx context.Context, input parsedInput, remainin
 	if err != nil {
 		return empty, false, err
 	}
-	const prefix = "evymetrics_"
 	token := strings.TrimSuffix(secret.value, "\n")
-	if len(token) != len(prefix)+64 || !strings.HasPrefix(token, prefix) {
+	if !ValidWorkerMetricsToken(token) {
 		return empty, false, ErrSecretResolution
+	}
+	return sha256.Sum256([]byte(token)), true, nil
+}
+
+// ValidWorkerMetricsToken validates the distinct metrics-only credential grammar.
+// It performs no I/O and exposes neither the supplied token nor its hash.
+func ValidWorkerMetricsToken(token string) bool {
+	const prefix = "evymetrics_"
+	if len(token) != len(prefix)+64 || !strings.HasPrefix(token, prefix) {
+		return false
 	}
 	for _, c := range token[len(prefix):] {
 		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return empty, false, ErrSecretResolution
+			return false
 		}
 	}
-	return sha256.Sum256([]byte(token)), true, nil
+	return true
 }

@@ -10,6 +10,8 @@ import (
 
 	"github.com/aatuh/api-toolkit/v3/httpx"
 	authshared "github.com/aatuh/api-toolkit/v3/middleware/auth/shared"
+
+	platformconfig "github.com/aatuh/evydence/internal/platform/config"
 )
 
 const workerMetricsSnapshotTimeout = 2 * time.Second
@@ -56,7 +58,7 @@ func newWorkerMetricsHandler(config workerMetricsConfig, source workerMetricsSna
 			return
 		}
 		token, present, err := authshared.ParseBearerToken(headers[0])
-		if err != nil || !present || !validWorkerMetricsToken(token) {
+		if err != nil || !present || !platformconfig.ValidWorkerMetricsToken(token) {
 			reject(http.StatusUnauthorized)
 			return
 		}

@@ -18,6 +18,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/health"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 )
@@ -2136,13 +2137,12 @@ func TestWorkerHelpersValidatePayloadHashAndEnv(t *testing.T) {
 	if got := durationEnv("EVYDENCE_WORKER_TEST_DURATION", time.Second); got != time.Second {
 		t.Fatalf("durationEnv fallback = %s", got)
 	}
-	t.Setenv("EVYDENCE_WORKER_TEST_INT", "7")
-	if got := intEnv("EVYDENCE_WORKER_TEST_INT", 10); got != 7 {
-		t.Fatalf("intEnv configured = %d", got)
+	settings, err := config.Parse(workerCapturedEnvironment(t, "EVYDENCE_WORKER_BATCH_SIZE=7"), config.Worker)
+	if err != nil || settings.Worker().BatchSize != 7 {
+		t.Fatal("configured batch size was not parsed", err)
 	}
-	t.Setenv("EVYDENCE_WORKER_TEST_INT", "0")
-	if got := intEnv("EVYDENCE_WORKER_TEST_INT", 10); got != 10 {
-		t.Fatalf("intEnv fallback = %d", got)
+	if _, err := config.Parse(workerCapturedEnvironment(t, "EVYDENCE_WORKER_BATCH_SIZE=0"), config.Worker); !errors.Is(err, config.ErrInvalidValue) {
+		t.Fatal("invalid explicit batch size silently fell back", err)
 	}
 }
 
@@ -2250,7 +2250,7 @@ func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "")
 	err = run()
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+	if !errors.Is(err, config.ErrMissingValue) {
 		t.Fatalf("missing database err=%v", err)
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://invalid-host.invalid/evydence")
@@ -2266,7 +2266,7 @@ func TestWorkerRejectsLocalMemoryProfileBeforeOpeningStorage(t *testing.T) {
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "local_memory")
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
 	err := run()
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") || strings.Contains(err.Error(), "private-password") {
+	if !errors.Is(err, config.ErrInvalidValue) || strings.Contains(err.Error(), "private-password") {
 		t.Fatalf("worker profile error = %v", err)
 	}
 }

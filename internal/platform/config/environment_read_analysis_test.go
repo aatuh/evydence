@@ -281,10 +281,15 @@ func (a *environmentReadAnalysis) reviewedReaderForward(s *environmentReadScope,
 	return reader.Sel.Name == "Environ" && path == "github.com/aatuh/evydence/internal/platform/confighealth" && callee.Sel.Name == "New" && len(call.Args) == 2 && call.Args[1] == reader
 }
 
-// A startup snapshot may flow directly into the bounded schema capture only.
+// Reviewed startup and cold freshness snapshots flow into bounded capture only.
 // Raw snapshots, helpers, repeated/looped captures and deferred work stay rejected.
 func (a *environmentReadAnalysis) reviewedStartupCapture(s *environmentReadScope, snapshot *ast.CallExpr) bool {
-	if s.function == nil || s.function.Recv != nil || s.function.Name.Name != "run" || len(snapshot.Args) != 0 {
+	if s.function == nil || s.function.Recv != nil || len(snapshot.Args) != 0 {
+		return false
+	}
+	startup := s.function.Name.Name == "run" || (s.file.Name.Name == "main" && s.function.Name.Name == "runWorkerWithContext")
+	freshness := s.file.Name.Name == "confighealth" && s.function.Name.Name == "ProcessSource"
+	if !startup && !freshness {
 		return false
 	}
 	outer, ok := a.parents[snapshot].(*ast.CallExpr)

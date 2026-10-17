@@ -3,10 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
@@ -38,19 +34,6 @@ func closeWorkerAfterStop(err error, closeRuntime func()) {
 	if !errors.Is(err, errWorkerDrainTimeout) && !errors.Is(err, errWorkerProbeDrainTimeout) {
 		closeRuntime()
 	}
-}
-
-func workerShutdownTimeoutFromEnv() (time.Duration, error) {
-	const name = "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS"
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return 30 * time.Second, nil
-	}
-	seconds, err := strconv.Atoi(value)
-	if err != nil || seconds < 1 || seconds > 300 {
-		return 0, fmt.Errorf("%s must be an integer between 1 and 300", name)
-	}
-	return time.Duration(seconds) * time.Second, nil
 }
 
 // A signal is a successful stop; an unexpected root deadline is a failure.

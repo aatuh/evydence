@@ -28,6 +28,7 @@ import (
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/confighealth"
 	"github.com/aatuh/evydence/internal/platform/health"
 	"github.com/aatuh/evydence/internal/platform/logging"
@@ -93,10 +94,13 @@ func main() {
 }
 
 func run() error {
-	return runWithArgs(nil)
+	return runWorkerWithContext(context.Background(), nil)
 }
 
 func runWithArgs(args []string) error {
+	if len(args) == 0 {
+		return run()
+	}
 	return logging.Run(context.Background(), "worker", runtimeinfo.Current(), os.Stderr, os.Getenv, func(ctx context.Context) error { return runWorkerWithContext(ctx, args) })
 }
 
@@ -113,40 +117,34 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 			return fmt.Errorf("unsupported worker command %q", args[0])
 		}
 	}
-	production := strings.EqualFold(os.Getenv("ENV"), "production")
-	shutdownTimeout, err := workerShutdownTimeoutFromEnv()
+	environment, err := config.Capture(os.Environ())
 	if err != nil {
+		logging.RejectStartup(parent, "worker", runtimeinfo.Current(), os.Stderr)
 		return err
 	}
-	cleanupTimeout, err := wiring.CleanupTimeoutFromEnv()
-	if err != nil {
-		return err
-	}
-	healthAddress, err := workerHealthAddress()
-	if err != nil {
-		return err
-	}
-	metricsConfig, err := workerMetricsConfigFromEnv()
+	return runWorkerProcess(parent, environment, os.Stderr, runWorkerConfigured)
+}
+
+func runWorkerConfigured(parent context.Context, settings config.Configuration) (runErr error) {
+	worker := settings.Worker()
+	shutdownTimeout, cleanupTimeout := worker.ShutdownTimeout, settings.Runtime().ShutdownCleanupTimeout
+	healthAddress := worker.HealthAddress
+	metricsConfig, err := workerMetricsConfigFromSettings(settings)
 	if err != nil {
 		return err
 	}
 	if metricsConfig.enabled && metricsConfig.address == healthAddress {
 		return errWorkerMetricsConfig
 	}
-	configurationProbe, err := confighealth.New(parent, os.Environ)
+	configurationProbe, err := confighealth.NewConfigured(parent, settings, confighealth.ProcessSource)
 	if err != nil {
 		return err
 	}
-	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
-	if databaseURL == "" {
-		return errors.New("worker requires EVYDENCE_DATABASE_URL")
-	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	config := workerRuntimeConfig(databaseURL, production)
-	config.CleanupTimeout = cleanupTimeout
+	runtimeConfig := workerRuntimeConfigFromSettings(settings)
 	startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
-	runtime, err := wiring.OpenRuntime(startupCtx, config)
+	runtime, err := wiring.OpenRuntime(startupCtx, runtimeConfig)
 	cancelStartup()
 	if err != nil {
 		return err
@@ -161,12 +159,11 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	}
 	ctx = telemetry.WithObserver(ctx, metrics)
 	objectStore := runtime.Objects
-	processor, err := newNativeJobProcessor(store, objectStore, int64(intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes)))
+	processor, err := newNativeJobProcessor(store, objectStore, worker.MaxPayloadBytes)
 	if err != nil {
 		return err
 	}
-	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
-	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
+	pollInterval, batchSize := worker.PollInterval, int(worker.BatchSize)
 	objectReadiness, ok := objectStore.(interface{ CheckReadiness(context.Context) error })
 	if !ok {
 		return errors.New("configured worker object store does not provide readiness checks")
@@ -174,7 +171,9 @@ func runWorkerWithContext(parent context.Context, args []string) (runErr error) 
 	monitor, err := health.New([]health.Check{
 		{Name: "configuration", Startup: true, Check: configurationProbe},
 		{Name: "postgres", Startup: true, Check: store.CheckReadiness},
-		{Name: "migrations", Startup: true, Check: func(checkCtx context.Context) error { return store.CheckMigrationState(checkCtx, config.MigrationsDir) }},
+		{Name: "migrations", Startup: true, Check: func(checkCtx context.Context) error {
+			return store.CheckMigrationState(checkCtx, runtimeConfig.MigrationsDir)
+		}},
 		{Name: "outbox", Check: store.CheckOutboxReadiness},
 		{Name: "object_store", Check: objectReadiness.CheckReadiness},
 	}, health.Config{})
@@ -2394,18 +2393,6 @@ func durationEnv(name string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	parsed, err := time.ParseDuration(value)
-	if err != nil || parsed <= 0 {
-		return fallback
-	}
-	return parsed
-}
-
-func intEnv(name string, fallback int) int {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed <= 0 {
 		return fallback
 	}

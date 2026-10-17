@@ -22,6 +22,8 @@ func TestEnvironmentReadGuardResolvesFiniteSources(t *testing.T) {
 		{"package-separated-files", `package sample; import "os"; func read(name string) string { return os.Getenv(name) }`, []string{"EVYDENCE_LOG_LEVEL"}},
 		{"constant-lexical-scope", `package sample; import "os"; const prefix = "EVYDENCE_"; const name = prefix + "LOG_LEVEL"; func run() { prefix := "WRONG_"; _ = prefix; os.Getenv(name) }`, []string{"EVYDENCE_LOG_LEVEL"}},
 		{"owned-startup-capture", `package sample; import system "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { environment, err := cfg.Capture(system.Environ()); _ = environment; _ = err }`, nil},
+		{"owned-worker-entry-capture", `package main; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func runWorkerWithContext() { cfg.Capture(os.Environ()) }`, nil},
+		{"owned-cold-health-source", `package confighealth; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func ProcessSource() { cfg.Capture(os.Environ()) }`, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			files := map[string]string{"source.go": tc.source}
@@ -54,6 +56,8 @@ func TestEnvironmentReadGuardRejectsUnresolvedSources(t *testing.T) {
 		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { cfg.Capture(os.Environ()); cfg.Capture(os.Environ()) }`,
 		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { cfg := fake(); cfg.Capture(os.Environ()) }`,
 		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func run() { go cfg.Capture(os.Environ()) }`,
+		`package sample; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func ProcessSource() { cfg.Capture(os.Environ()) }`,
+		`package confighealth; import "os"; import cfg "github.com/aatuh/evydence/internal/platform/config"; func unrelatedSource() { cfg.Capture(os.Environ()) }`,
 	} {
 		if names, err := environmentReadNames(map[string]string{"source.go": source}); err == nil || len(names) != 0 {
 			t.Fatal("unresolved environment read bypassed the coverage guard")

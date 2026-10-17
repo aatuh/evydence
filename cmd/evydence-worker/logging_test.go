@@ -10,15 +10,17 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 func TestWorkerLoggingConfigurationFailsBeforeRuntime(t *testing.T) {
-	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	t.Setenv("EVYDENCE_DATABASE_URL", "host=PRIVATE_DATABASE")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_LOG_FORMAT", "CANARY_SECRET")
 	err := run()
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_LOG_FORMAT") || strings.Contains(err.Error(), "CANARY_SECRET") {
+	if !errors.Is(err, config.ErrInvalidValue) || strings.Contains(err.Error(), "CANARY_SECRET") {
 		t.Fatal("logging was not safely validated before runtime")
 	}
 }

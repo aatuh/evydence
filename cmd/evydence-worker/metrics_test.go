@@ -29,7 +29,7 @@ func protectedWorkerMetricsHandler(t *testing.T, source *workerMetricsFixture) h
 	t.Helper()
 	t.Setenv("EVYDENCE_WORKER_METRICS_ADDR", "")
 	t.Setenv("EVYDENCE_WORKER_METRICS_TOKEN_FILE", workerMetricsTokenFixture(t))
-	cfg, err := workerMetricsConfigFromEnv()
+	cfg, err := workerMetricsConfigFixture(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestWorkerMetricsCredentialRotationRevokesOldValueAfterRestart(t *testing.T
 	t.Setenv("EVYDENCE_WORKER_METRICS_ADDR", "")
 	t.Setenv("EVYDENCE_WORKER_METRICS_TOKEN_FILE", file)
 	source := &workerMetricsFixture{}
-	config, err := workerMetricsConfigFromEnv()
+	config, err := workerMetricsConfigFixture(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestWorkerMetricsCredentialRotationRevokesOldValueAfterRestart(t *testing.T
 	if err := os.WriteFile(file, []byte(rotated), 0600); err != nil {
 		t.Fatal(err)
 	}
-	config, err = workerMetricsConfigFromEnv()
+	config, err = workerMetricsConfigFixture(t)
 	if err != nil {
 		t.Fatal(err)
 	}
