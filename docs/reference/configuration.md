@@ -28,6 +28,19 @@ process, or equivalent deployment control.
 
 ## Runtime Variables
 
+API startup captures its environment once and validates shared settings and
+active project-secret files, then prepares native PostgreSQL configuration,
+before constructing providers, opening storage or listening. HTTP limits,
+session lifetimes, bootstrap input and provider settings use that captured
+configuration. Invalid settings return fixed diagnostics without supplied values
+or underlying causes. Configuration freshness observes source/revision drift;
+it does not reload running settings.
+
+Explicit malformed booleans, numbers and durations fail startup instead of using
+silent fallbacks. API writer mode accepts only `single` or `single-writer` in all
+profiles; the old unimplemented local experimental mode is rejected. Direct cloud
+signing modes require their configured key references before credential loading.
+
 Worker `healthcheck` and `--healthcheck` commands capture and validate `ENV`,
 `EVYDENCE_LOG_LEVEL`, `EVYDENCE_LOG_FORMAT` and `EVYDENCE_WORKER_HEALTH_ADDR`
 before querying the loopback worker. Readiness is the default; `--startup` and
@@ -70,7 +83,7 @@ without the connection string, file path or underlying cause.
 | `EVYDENCE_CONFIGURATION_REVISION_FILE` | With revision | unset; Helm sets `/etc/evydence/config-revision/revision` | Absolute path to an operator-owned local regular file containing the desired revision (at most 256 bytes, surrounding whitespace allowed). Symlinked projections must resolve inside the configured parent directory. Missing, invalid or changed content fails startup/readiness; no hot reload. See [configuration freshness](observability.md#configuration-freshness). |
 | `EVYDENCE_DATABASE_URL` | API and worker yes | `postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable` | PostgreSQL durable state, projections, migrations, and persisted outbox jobs. Connection settings alone do not select the runtime profile. |
 | `EVYDENCE_POSTGRES_LOAD_MODE` | No | `snapshot_preferred` locally, `relational_only` when `ENV=production` | PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-only startup reads, refuses snapshot fallback modes, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks. |
-| `EVYDENCE_API_WRITER_MODE` | No | `single` | API writer concurrency mode. Production supports only `single` or `single-writer` until multi-writer concurrency controls are implemented. |
+| `EVYDENCE_API_WRITER_MODE` | No | `single` | API writer concurrency mode: `single` or `single-writer` in all profiles. Production also requires exactly one declared API writer replica. |
 | `EVYDENCE_API_WRITER_REPLICAS` | No | unset, chart sets `1` | Optional self-declared API writer replica count used by startup safety checks. Production rejects values other than `1`. |
 | `EVYDENCE_OBJECT_STORE` | No | `filesystem` | Supported values are `filesystem`, `s3`, and `minio`. |
 | `EVYDENCE_OBJECT_DIR` | Filesystem object store | `./tmp/objects` | Local raw payload storage root. |

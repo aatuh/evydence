@@ -8,22 +8,34 @@ import (
 	"testing"
 
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 )
 
 func TestBootstrapInputPreservesRawOperatorValueForBoundedValidation(t *testing.T) {
-	// NUL cannot appear in an OS environment value; the core input test
-	// covers that case directly instead.
-	for _, raw := range []string{" Tenant ", strings.Repeat(" ", 65536) + "a", string([]byte{0xff})} {
-		t.Setenv("EVYDENCE_BOOTSTRAP_TENANT", raw)
-		input := tenantBootstrapInputFromEnv()
+	for _, raw := range []string{" Tenant ", strings.Repeat("a", 65536)} {
+		settings, err := config.Parse(apiCapturedEnvironment(t, "EVYDENCE_BOOTSTRAP_TENANT="+raw), config.API)
+		if err != nil {
+			t.Fatal(err)
+		}
+		input := tenantBootstrapInputFromSettings(settings.API())
 		if input.TenantName != raw || input.APIKeyName != "local-admin" || len(input.Scopes) != 1 || input.Scopes[0] != "*" {
-			t.Fatal("operator bootstrap input was trimmed before its raw byte bound")
+			t.Fatal("typed bootstrap projection trimmed raw operator input")
 		}
 	}
-	t.Setenv("EVYDENCE_BOOTSTRAP_TENANT", "")
-	if input := tenantBootstrapInputFromEnv(); input.TenantName != "Local Tenant" {
-		t.Fatal("unset bootstrap name lost its default")
+	settings, err := config.Parse(apiCapturedEnvironment(t, "EVYDENCE_BOOTSTRAP_TENANT="), config.API)
+	if err != nil || tenantBootstrapInputFromSettings(settings.API()).TenantName != "Local Tenant" {
+		t.Fatal("unset bootstrap name lost its canonical default", err)
+	}
+	for _, raw := range []string{strings.Repeat(" ", 65536) + "a", string([]byte{0xff}), " "} {
+		e, err := apiTestEnvironment("EVYDENCE_BOOTSTRAP_TENANT=" + raw)
+		var rejected config.Configuration
+		if err == nil {
+			rejected, err = config.Parse(e, config.API)
+		}
+		if (!errors.Is(err, config.ErrInvalidValue) && !errors.Is(err, config.ErrInvalidEnvironment)) || rejected.Role() != 0 {
+			t.Fatal("unsafe raw bootstrap input reached startup", err)
+		}
 	}
 }
 

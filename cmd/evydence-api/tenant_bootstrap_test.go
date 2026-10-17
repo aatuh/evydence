@@ -14,46 +14,99 @@ func TestStartupUsesNativeServicesAndDurableBootstrapWithoutLedger(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var run, wrapper *ast.FuncDecl
-	for _, declaration := range file.Decls {
-		if fn, ok := declaration.(*ast.FuncDecl); ok {
-			if fn.Name.Name == "runAPI" {
-				run = fn
+	startup, err := parser.ParseFile(token.NewFileSet(), "startup.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	functions := map[string]*ast.FuncDecl{}
+	signingConstructorBound := false
+	for _, source := range []*ast.File{file, startup} {
+		for _, declaration := range source.Decls {
+			if fn, ok := declaration.(*ast.FuncDecl); ok {
+				functions[fn.Name.Name] = fn
 			}
-			if fn.Name.Name == "runWithContext" {
-				wrapper = fn
+			if group, ok := declaration.(*ast.GenDecl); ok && group.Tok == token.VAR {
+				for _, spec := range group.Specs {
+					value, ok := spec.(*ast.ValueSpec)
+					if !ok || len(value.Names) != 1 || value.Names[0].Name != "newAPISigningExecutor" || len(value.Values) != 1 {
+						continue
+					}
+					constructor, ok := value.Values[0].(*ast.Ident)
+					signingConstructorBound = ok && constructor.Name == "openSigningExecutorConfigured"
+				}
 			}
 		}
 	}
-	if wrapper == nil || len(wrapper.Body.List) != 1 {
-		t.Fatal("logging startup wrapper missing")
+	if !signingConstructorBound {
+		t.Fatal("production signing factory is not bound to its typed provider constructor")
 	}
-	wrapped := false
-	ast.Inspect(wrapper.Body, func(node ast.Node) bool {
+	run, entry, process := functions["runAPIConfigured"], functions["run"], functions["runAPIProcess"]
+	if run == nil || entry == nil || process == nil {
+		t.Fatal("typed API startup composition is missing")
+	}
+	var entryStages []string
+	ast.Inspect(entry.Body, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
+		if selector, ok := call.Fun.(*ast.SelectorExpr); ok && selector.Sel.Name == "Capture" {
+			entryStages = append(entryStages, "Capture")
 		}
-		owner, ok := sel.X.(*ast.Ident)
-		if !ok || owner.Name != "logging" || sel.Sel.Name != "Run" {
-			return true
-		}
-		if len(call.Args) == 6 {
-			if callback, ok := call.Args[5].(*ast.Ident); ok && callback.Name == "runAPI" {
-				wrapped = true
+		if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "runAPIProcess" {
+			entryStages = append(entryStages, "runAPIProcess")
+			callback, ok := call.Args[3].(*ast.Ident)
+			if !ok || callback.Name != "runAPIConfigured" {
+				t.Fatal("entry point bypasses typed runtime callback")
 			}
 		}
 		return true
 	})
-	if !wrapped {
-		t.Fatal("native startup no longer executes inside validated logging lifecycle")
+	if len(entryStages) != 2 || entryStages[0] != "Capture" || entryStages[1] != "runAPIProcess" {
+		t.Fatal("entry point does not capture once before shared startup")
 	}
-	if run == nil {
-		t.Fatal("API startup function is missing")
+	var stages []string
+	ast.Inspect(process.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		switch selector.Sel.Name {
+		case "Prepare", "Resolve", "PreparePoolConfig":
+			stages = append(stages, selector.Sel.Name)
+		case "RunConfigured":
+			stages = append(stages, selector.Sel.Name)
+			callback, ok := call.Args[5].(*ast.FuncLit)
+			if !ok || len(callback.Body.List) != 1 {
+				t.Fatal("configured logging callback is missing")
+			}
+			statement, ok := callback.Body.List[0].(*ast.ReturnStmt)
+			if !ok || len(statement.Results) != 1 {
+				t.Fatal("logging callback does not return runtime result")
+			}
+			invoke, ok := statement.Results[0].(*ast.CallExpr)
+			if !ok {
+				t.Fatal("runtime callback invocation is missing")
+			}
+			id, ok := invoke.Fun.(*ast.Ident)
+			if !ok || id.Name != "start" || len(invoke.Args) != 3 {
+				t.Fatal("typed runtime is outside configured lifecycle")
+			}
+		}
+		return true
+	})
+	wanted := []string{"Prepare", "Resolve", "PreparePoolConfig", "RunConfigured"}
+	if len(stages) != len(wanted) {
+		t.Fatal("startup validation stage count changed")
+	}
+	for i, name := range wanted {
+		if stages[i] != name {
+			t.Fatal("API resources can start before complete preflight")
+		}
 	}
 	ast.Inspect(file, func(node ast.Node) bool {
 		selector, ok := node.(*ast.SelectorExpr)
@@ -62,6 +115,18 @@ func TestStartupUsesNativeServicesAndDurableBootstrapWithoutLedger(t *testing.T)
 		}
 		switch selector.Sel.Name {
 		case "NewLedger", "NewLedgerWithContext", "HasTenants", "BootstrapTenant", "NewServer", "NewServerWithOptions", "NewServerWithOptionsContext":
+			// BootstrapTenant is also the shared APISettings value field. Only
+			// that field read in its typed projection is exempt from the ban on
+			// legacy aggregate selectors (including escaped method values).
+			projection := functions["tenantBootstrapInputFromSettings"]
+			if selector.Sel.Name == "BootstrapTenant" && projection != nil && selector.Pos() >= projection.Body.Pos() && selector.End() <= projection.Body.End() {
+				owner, field := selector.X.(*ast.Ident)
+				parameter := projection.Type.Params.List[0]
+				kind, typed := parameter.Type.(*ast.SelectorExpr)
+				if field && owner.Name == "settings" && typed && kind.Sel.Name == "APISettings" {
+					return true
+				}
+			}
 			t.Errorf("API entry point retains legacy selector %s", selector.Sel.Name)
 		case "Config", "Ledger":
 			if owner, ok := selector.X.(*ast.Ident); ok && owner.Name == "app" {
@@ -85,13 +150,13 @@ func TestStartupUsesNativeServicesAndDurableBootstrapWithoutLedger(t *testing.T)
 			name = id.Name
 		}
 		switch name {
-		case "ResolveRuntimeProfile", "OpenRuntime", "BuildTenantBootstrapCommands", "BootstrapFirstTenant", "writeTenantBootstrapResult", "BuildAPIReadServices", "NewNativeServerWithOptionsContext":
+		case "NewConfigured", "openProviderIdentityValidatorConfigured", "openTransparencyProofFetcherConfigured", "openCosignVerifierConfigured", "newAPISigningExecutor", "apiRuntimeConfigFromSettings", "OpenRuntime", "BuildTenantBootstrapCommands", "BootstrapFirstTenant", "writeTenantBootstrapResult", "BuildAPIReadServices", "NewNativeServerWithOptionsContext":
 			counts[name]++
 			positions[name] = call.Pos()
 		}
 		return true
 	})
-	sequence := []string{"ResolveRuntimeProfile", "OpenRuntime", "BuildTenantBootstrapCommands", "BootstrapFirstTenant", "writeTenantBootstrapResult", "BuildAPIReadServices", "NewNativeServerWithOptionsContext"}
+	sequence := []string{"NewConfigured", "openProviderIdentityValidatorConfigured", "openTransparencyProofFetcherConfigured", "openCosignVerifierConfigured", "newAPISigningExecutor", "apiRuntimeConfigFromSettings", "OpenRuntime", "BuildTenantBootstrapCommands", "BootstrapFirstTenant", "writeTenantBootstrapResult", "BuildAPIReadServices", "NewNativeServerWithOptionsContext"}
 	var previous token.Pos
 	for _, name := range sequence {
 		if counts[name] != 1 || positions[name] <= previous {

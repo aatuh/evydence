@@ -525,7 +525,7 @@ maintenance settings outside the pure explicit-input evaluator. Prepared opens
 retain the existing separately capped read-only package pool and Store-owned
 cleanup. The legacy adapter `Open` entry point delegates to preparation and
 prepared open; unadopted runtime callers also enter that explicit owner. API
-adoption must move preparation before its provider constructors.
+startup also prepares the database configuration before provider constructors.
 
 EVY-1216 must adopt validated configuration before entering these explicit SDK
 boundaries, remove project-owned ambient reads, and own the Azure global
@@ -558,8 +558,8 @@ rejected. Other startup entry points need explicit guard review when adopted.
 
 The shared logger has an explicit configured lifecycle entry point and a fixed
 startup-rejection operation. Its legacy environment entry point remains for
-commands not yet adopted; retiring it is part of EVY-1216. API and online CLI
-adoption are still incomplete.
+commands not yet adopted; retiring it is part of EVY-1216. CLI adoption and
+SDK-global policy are still incomplete.
 
 Typed configurations also retain a private fingerprint of their original captured
 source. Its opaque `SourceIdentity` exposes only equality against another bounded capture;
@@ -569,9 +569,22 @@ and revision fields, then compares the source without
 reparsing or reloading runtime settings, then applies the existing desired-revision
 file checks. Source failures remain fixed diagnostics, and cancellation is checked
 before observing the source. This path uses the complete shared capture selection,
-including native PostgreSQL and host inputs. API/worker adoption must replace the
-legacy health constructor and retire its separate selector/digest before EVY-1216
-is complete.
+including native PostgreSQL and host inputs. API and worker startup now use this
+typed health path. Retiring the unused legacy constructor and its separate
+selector/digest remains part of EVY-1216.
+
+API startup now captures once, prepares the API role, resolves active project
+secret files and prepares PostgreSQL before configured logging invokes runtime
+composition. Providers, storage and the listener cannot be constructed through
+that callback until preflight succeeds. Typed values supply ingress/rate controls,
+session policy, bootstrap input, storage and provider clients. The API's legacy
+environment/default/scalar/CIDR/base64 parsers and separate startup policy are
+removed. Component-test fixtures use the same parser and typed projections.
+The durable native bootstrap, actor/tenant boundaries and shutdown/owned-provider
+cleanup paths retain their existing composition. Malformed explicit values now
+fail with fixed shared errors; unknown local writer modes are rejected, and direct
+cloud modes require their configured key references. SDK-global logging/telemetry
+ownership, CLI adoption and remaining shared legacy retirement are still due.
 
 The worker daemon now uses shared preflight and explicit resolution before
 logging startup or opening runtime resources. Typed settings supply its database,
@@ -580,8 +593,7 @@ Metrics use only the resolved hash and the shared token grammar; the old daemon
 metrics-file, integer and shutdown parsers are removed. Invalid explicit values
 now fail with shared fixed error classes instead of local diagnostics or silent
 fallbacks. Worker health observes source drift through `ProcessSource` on cached
-refreshes while runtime settings remain frozen. The API still uses the legacy
-health constructor pending its adoption.
+refreshes while runtime settings remain frozen.
 
 The healthcheck client now has an explicit `WorkerProbe` schema role. It shares
 the daemon's address definition and loopback validation, and uses configured
