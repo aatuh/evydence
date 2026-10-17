@@ -94,7 +94,7 @@ func TestNativePostgresSchemaUsesPinnedSourceAndExplicitBounds(t *testing.T) {
 
 func TestCaptureOwnsDeclaredPostgresInputsWithoutReadingAmbient(t *testing.T) {
 	t.Setenv("PGPASSWORD", "PRIVATE_AMBIENT_PASSWORD")
-	entries := []string{"PGUNRELATED=PRIVATE_UNRELATED", "PATH=PRIVATE_UNRELATED_PATH"}
+	entries := []string{"PGUNRELATED=PRIVATE_UNRELATED", "EDITOR=PRIVATE_UNRELATED_EDITOR"}
 	for name := range expectedPostgresEnvironment {
 		entries = append(entries, name+"= PRIVATE_"+name+" ")
 	}
@@ -107,7 +107,7 @@ func TestCaptureOwnsDeclaredPostgresInputsWithoutReadingAmbient(t *testing.T) {
 			t.Fatal("native input was dropped, changed or read from the ambient process", name)
 		}
 	}
-	for _, name := range []string{"PGUNRELATED", "PATH"} {
+	for _, name := range []string{"PGUNRELATED", "EDITOR"} {
 		if _, ok := e.lookup(name); ok {
 			t.Fatal("capture broadened to undeclared host inputs", name)
 		}

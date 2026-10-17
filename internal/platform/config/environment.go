@@ -77,6 +77,11 @@ func validEnvironmentName(name string) bool {
 	}
 	for i := range len(name) {
 		c := name[i]
+		// Some declared platform inputs use mixed/lower case. Keep project
+		// names uppercase while preserving these exact native spellings.
+		if c >= 'a' && c <= 'z' && nativeEnvironmentName(name) {
+			continue
+		}
 		if c != '_' && (c < 'A' || c > 'Z') && (i == 0 || c < '0' || c > '9') {
 			return false
 		}

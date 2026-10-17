@@ -15,7 +15,7 @@ func TestCaptureOwnsSelectedInputWithoutReadingAmbientEnvironment(t *testing.T) 
 	input := []string{
 		"ENV=production", "EVYDENCE_DATABASE_URL= PRIVATE_DATABASE_SECRET ",
 		"EVYDENCE_EMPTY=", "AWS_REGION=eu-test-1", "GOOGLE_APPLICATION_CREDENTIALS=/PRIVATE_GOOGLE",
-		"AZURE_TENANT_ID=PRIVATE_AZURE", "GITHUB_TOKEN=PRIVATE_GITHUB", "CI=true", "PATH=PRIVATE_PATH",
+		"AZURE_TENANT_ID=PRIVATE_AZURE", "GITHUB_TOKEN=PRIVATE_GITHUB", "CI=true", "EDITOR=PRIVATE_EDITOR",
 	}
 	e, err := Capture(input)
 	if err != nil {
@@ -28,7 +28,7 @@ func TestCaptureOwnsSelectedInputWithoutReadingAmbientEnvironment(t *testing.T) 
 	if value, ok := e.lookup("EVYDENCE_EMPTY"); !ok || value != "" {
 		t.Fatal("explicit empty input lost its presence")
 	}
-	for _, name := range []string{"PATH", "EVYDENCE_AMBIENT_ONLY", "EVYDENCE_UNSET"} {
+	for _, name := range []string{"EDITOR", "EVYDENCE_AMBIENT_ONLY", "EVYDENCE_UNSET"} {
 		if _, ok := e.lookup(name); ok {
 			t.Fatal("capture read ambient or unrelated input")
 		}
@@ -103,11 +103,11 @@ func TestEnvironmentFormattingAndJSONNeverExposeCapturedInput(t *testing.T) {
 }
 
 func TestEnvironmentFingerprintAndNamesAreStableOwnedValues(t *testing.T) {
-	first, err := Capture([]string{"EVYDENCE_B=two=parts", "ENV=production", "EVYDENCE_A=one", "PATH=first"})
+	first, err := Capture([]string{"EVYDENCE_B=two=parts", "ENV=production", "EVYDENCE_A=one", "EDITOR=first"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := Capture([]string{"PATH=second", "EVYDENCE_A=one", "EVYDENCE_B=two=parts", "ENV=production"})
+	second, err := Capture([]string{"EDITOR=second", "EVYDENCE_A=one", "EVYDENCE_B=two=parts", "ENV=production"})
 	if err != nil || first.fingerprint != second.fingerprint {
 		t.Fatal("input ordering or unrelated environment changed the fingerprint", err)
 	}

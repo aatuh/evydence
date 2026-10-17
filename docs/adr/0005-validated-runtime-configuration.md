@@ -20,11 +20,12 @@ explicit filesystem/provider owner.
 The input foundation retains selected values privately and preserves explicit
 empty values and raw whitespace for the eventual field-specific parser. It
 captures `ENV`, `CI`, `EVYDENCE_*`, the AWS, Google, Azure and GitHub namespaces,
-and the 22 declared PostgreSQL native environment names.
+and declared native PostgreSQL, credential-discovery and host/transport names.
 Unrelated host settings are not configuration values. Capture bounds total input
 to 4096 entries and 8 MiB, selected settings to 1024, and selected names to 256
-bytes. Selected names use uppercase ASCII environment syntax; NUL and malformed
-UTF-8 selected input are rejected. Duplicate selected names fail instead of
+bytes. Project names use uppercase ASCII environment syntax. Exact declared
+native spellings also admit lowercase proxy fallbacks and Windows `ProgramData`.
+NUL and malformed UTF-8 selected input are rejected. Duplicate selected names fail instead of
 depending on process-environment ordering.
 
 The input's string, Go-syntax and JSON representations disclose neither names
@@ -41,7 +42,7 @@ defaults inside and outside production. Public metadata access returns sorted
 copies, including owned slices for allowed values and aliases.
 
 `NativeDefinitions` extends the same metadata type with a native boundary,
-target parameter and pinned source. Its first 22 entries describe the complete
+target parameter and pinned source. Its PostgreSQL entries describe the complete
 `parseEnvSettings` mapping in `github.com/jackc/pgx/v5 v5.9.2`. They share the
 DSN parameter types, choice sets and bounds. Native inputs remain optional,
 beneath explicit connection parameters. Capturing them preserves exact values,
@@ -50,8 +51,24 @@ duplicate, UTF-8, NUL and combined-size protections. Arbitrary `PG*` names remai
 outside the selected input. Tests pin this metadata to the actual module
 requirement and check owned copies independently.
 
+The native catalogue now contains 103 definitions covering 110 distinct names:
+22 PostgreSQL, 50 AWS, three Google, 20 Azure/MSAL and 15 host/transport inputs.
+AWS includes the KMS, STS, SSO, SSO OIDC and Signin endpoint names computed from
+service identifiers. The Google boundary includes metadata-host overrides and
+the external executable opt-in; Azure includes transitive managed-identity inputs.
+These declarations use the existing module pins and add no SDK initialization.
+
+Ordered `Fallbacks` retain native precedence separately from conflict-checked
+project aliases. Each supplied spelling remains independently captured, including
+explicit empty values. In the pinned Go 1.26.9 transport, uppercase proxy values
+precede lowercase fallbacks. The separately pinned `x/net` helper reverses that
+order; using its ambient loader would change behavior. Proxy URLs are classified
+as secrets because they can contain credentials. Host inputs now include native
+credential directories, executable search paths and system TLS trust overrides.
+Their captured values are never opened or executed by this phase.
+
 Effective native parsing is still incomplete. Per-field validation, DSN merging,
-credential resolution and the remaining SDK catalogue remain required. Native
+credential resolution and complete transitive/computed-read coverage remain required. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
 their resolution needs an explicit owner in EVY-1215/EVY-1216. Capture performs
 none of these operations and exposes no generic environment forwarder.
