@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Render deployment contracts without starting containers or contacting a cluster."""
+import base64
 import json
 import os
 from pathlib import Path
@@ -182,6 +183,46 @@ class DeploymentLifecycleTests(unittest.TestCase):
                     result = self.render({component: {"terminationGracePeriodSeconds": invalid}})
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("terminationGracePeriodSeconds", result.stderr)
+
+    def compose_services(self, overrides=None):
+        env = {key: value for key, value in os.environ.items()
+               if not key.startswith(("EVYDENCE_", "MINIO_", "POSTGRES_"))}
+        env.update({"POSTGRES_PASSWORD": "fixture-only", "MINIO_ROOT_PASSWORD": "fixture-only",
+                    "EVYDENCE_API_KEY_PEPPER": "fixture-only"})
+        env.update(overrides or {})
+        result = subprocess.run(["docker", "compose", "--env-file", os.devnull, "-f",
+            str(ROOT / "compose.production-like.yml"), "config", "--format", "json"],
+            env=env, check=True, capture_output=True, text=True, timeout=20)
+        return json.loads(result.stdout)["services"]
+
+    def test_compose_external_signing_settings_reach_only_the_api(self):
+        expected = {
+            "EVYDENCE_SIGNING_EXECUTOR_URL": "https://signer.example.test/sign",
+            "EVYDENCE_SIGNING_EXECUTOR_READINESS_URL": "https://signer.example.test/ready",
+            "EVYDENCE_SIGNING_EXECUTOR_TOKEN": "fixture-signing-token",
+            "EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64": base64.b64encode(bytes(32)).decode(),
+            "EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS": "17",
+            "EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST": "false",
+        }
+        services = self.compose_services(expected)
+        api = services["api"]["environment"]
+        self.assertEqual(api["EVYDENCE_SIGNING_KEY_MODE"], "external")
+        for name, value in expected.items():
+            with self.subTest(variable=name):
+                self.assertEqual(api.get(name), value)
+                for component in ("worker", "migrate"):
+                    self.assertNotIn(name, services[component]["environment"])
+        defaults = self.compose_services()["api"]["environment"]
+        self.assertEqual(defaults.get("EVYDENCE_SIGNING_EXECUTOR_TIMEOUT_SECONDS"), "10")
+        self.assertEqual(defaults.get("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST"), "false")
+        for name in ("EVYDENCE_SIGNING_EXECUTOR_URL", "EVYDENCE_SIGNING_EXECUTOR_TOKEN",
+                     "EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64"):
+            self.assertEqual(defaults.get(name), "", "required settings must not acquire example credentials")
+
+    def test_compose_migration_uses_production_validation(self):
+        services = self.compose_services()
+        for component in ("api", "worker", "migrate"):
+            self.assertEqual(services[component]["environment"].get("ENV"), "production", component)
 
     def test_compose_grace_covers_default_and_maximum_supported_budgets(self):
         for maximum in (False, True):
