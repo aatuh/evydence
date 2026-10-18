@@ -99,7 +99,7 @@ func TestSchemaClassifiesSecretAndConditionalConfiguration(t *testing.T) {
 func TestSchemaDefaultsCannotPublishSecretsOrInvalidConditionalValues(t *testing.T) {
 	defs := schemaByName(t)
 	for _, d := range defs {
-		for _, raw := range []string{d.Default, d.ProductionDefault, d.NonProductionDefault, d.ConditionalDefault} {
+		for _, raw := range []string{d.Default, d.ProductionDefault, d.NonProductionDefault, d.ConditionalDefault, d.ProductionExample} {
 			if raw == "" {
 				continue
 			}

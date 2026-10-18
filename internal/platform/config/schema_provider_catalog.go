@@ -223,6 +223,7 @@ var providerDefinitions = []Definition{
 	},
 	{
 		Name:              "EVYDENCE_SIGNING_KEY_MODE",
+		ProductionExample: "external",
 		ProductionAllowed: []string{"external", "aws-kms", "aws_kms", "gcp-kms", "gcp_kms", "azure-key-vault", "azure_key_vault", "pkcs11-hsm", "pkcs11_hsm"},
 		Kind:              Choice,
 		Roles:             API,

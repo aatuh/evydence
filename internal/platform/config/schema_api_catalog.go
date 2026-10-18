@@ -44,11 +44,12 @@ var apiDefinitions = []Definition{
 		Description: "Per-client failure budget for each of credential authentication, public SSO, and portal access. Values must be 1 through 60000; zero cannot disable it. In-flight verification reserves budget until completion. See [failure limits](#authentication-and-portal-failure-limits-unreleased).",
 	},
 	{
-		Name:        "EVYDENCE_BOOTSTRAP_DISABLED",
-		Kind:        Boolean,
-		Roles:       API,
-		Default:     "false",
-		Description: "Set to `true` to prevent startup bootstrap on an empty store.",
+		Name:              "EVYDENCE_BOOTSTRAP_DISABLED",
+		ProductionExample: "true",
+		Kind:              Boolean,
+		Roles:             API,
+		Default:           "false",
+		Description:       "Set to `true` to prevent startup bootstrap on an empty store.",
 	},
 	{
 		Name:               "EVYDENCE_BOOTSTRAP_TENANT",

@@ -64,11 +64,12 @@ var workerDefinitions = []Definition{
 		Description:        "Absolute path to an operator-owned POSIX regular secret file: exactly `evymetrics_` plus 64 lowercase hexadecimal characters, with one optional final LF. Use mode `0600`, `0640` or `0440`; group write and all other-user permissions are rejected. Relative symlink projections must stay inside the configured parent directory. Only the credential hash is retained; rotation/revocation requires replacing the file and restarting/stopping the worker. API/SSO/tenant credentials are not accepted.",
 	},
 	{
-		Name:        "EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS",
-		Kind:        Boolean,
-		Roles:       API,
-		Default:     "false",
-		Description: "Optional hardening mode for non-VEX parser-backed uploads. When set to `true`, the API stores accepted records and the outbox worker populates parser-derived fields from tenant-prefixed raw payloads after digest verification. VEX documents are normalized during upload and their decisions are always created post-commit by the worker from a versioned normalized request; a stored raw payload adds independent replay verification.",
+		Name:              "EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS",
+		ProductionExample: "true",
+		Kind:              Boolean,
+		Roles:             API,
+		Default:           "false",
+		Description:       "Optional hardening mode for non-VEX parser-backed uploads. When set to `true`, the API stores accepted records and the outbox worker populates parser-derived fields from tenant-prefixed raw payloads after digest verification. VEX documents are normalized during upload and their decisions are always created post-commit by the worker from a versioned normalized request; a stored raw payload adds independent replay verification.",
 	},
 	{
 		Name:        "EVYDENCE_WORKER_POLL_INTERVAL",

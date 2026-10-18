@@ -7,11 +7,12 @@ import (
 
 var runtimeDefinitions = []Definition{
 	{
-		Name:        "ENV",
-		Kind:        Choice,
-		Roles:       AllRoles,
-		Allowed:     []string{"", "development", "staging", "production", "test", "local"},
-		Description: "Production-safety selector. Unset retains the non-production development profile.",
+		Name:              "ENV",
+		ProductionExample: "production",
+		Kind:              Choice,
+		Roles:             AllRoles,
+		Allowed:           []string{"", "development", "staging", "production", "test", "local"},
+		Description:       "Production-safety selector. Unset retains the non-production development profile.",
 	},
 	{
 		Name:               "EVYDENCE_CONFIGURATION_REVISION",
@@ -73,12 +74,13 @@ var runtimeDefinitions = []Definition{
 		Description:          "PostgreSQL state load mode. Supported values are `snapshot_preferred`, `relational_preferred`, and `relational_only`. Production defaults to relational-only startup reads, refuses snapshot fallback modes, and disables compatibility snapshot writes; snapshots remain available for local compatibility and non-production migration checks.",
 	},
 	{
-		Name:        "EVYDENCE_RUNTIME_PROFILE",
-		Kind:        Choice,
-		Roles:       runtimeRoles,
-		Required:    runtimeRoles,
-		Allowed:     []string{"postgres"},
-		Description: "The only supported runtime profile, including local evaluation. Retired `local_memory` input fails before opening resources and explains the PostgreSQL migration.",
+		Name:              "EVYDENCE_RUNTIME_PROFILE",
+		ProductionExample: "postgres",
+		Kind:              Choice,
+		Roles:             runtimeRoles,
+		Required:          runtimeRoles,
+		Allowed:           []string{"postgres"},
+		Description:       "The only supported runtime profile, including local evaluation. Retired `local_memory` input fails before opening resources and explains the PostgreSQL migration.",
 	},
 	{
 		Name:        "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS",

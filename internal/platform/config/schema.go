@@ -75,15 +75,18 @@ type Definition struct {
 	// other timestamps normalize to UTC after structured RFC3339 parsing.
 	PreserveTimestampOffset bool
 	Default                 string
-	DefaultPolicy           string
-	ProductionDefault       string
-	NonProductionDefault    string
-	DefaultWhenSet          string
-	ConditionalDefault      string
-	Roles                   Role
-	Required                Role
-	ProductionRequired      Role
-	Secret                  bool
+	// ProductionExample is an explicit example-profile selection, not a runtime
+	// default. Secret selections must remain empty, like every secret default.
+	ProductionExample    string
+	DefaultPolicy        string
+	ProductionDefault    string
+	NonProductionDefault string
+	DefaultWhenSet       string
+	ConditionalDefault   string
+	Roles                Role
+	Required             Role
+	ProductionRequired   Role
+	Secret               bool
 	// FileOption is the schema-owned private-file alternative for a project
 	// secret. It declares a reference; it does not perform file resolution.
 	FileOption string
