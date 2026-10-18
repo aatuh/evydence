@@ -1,9 +1,9 @@
 GO ?= go
-GOTOOLCHAIN ?= go1.26.9
+GOTOOLCHAIN ?= go1.27.2
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
-.PHONY: architecture-check concurrency-stress-check config-generate config-check deployment-config-check
+.PHONY: support-matrix-check architecture-check concurrency-stress-check config-generate config-check deployment-config-check
 GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
@@ -210,7 +210,12 @@ config-check: ## Fail when generated configuration sections have drifted
 	@$(GO) run ./cmd/config-artifacts --check
 	@$(GO) test ./internal/platform/configartifact -run '^TestHelm(Bounds|SecretFileOptions)MatchRuntimeSchema$$' -count=1 -timeout=5m
 
-docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+support-matrix-check: ## Check declared Go, tool, build, CI and reference selections
+	@python3 scripts/test_support_matrix.py
+	@python3 scripts/test_support_matrix_artifacts.py
+	@python3 scripts/support_matrix.py --check
+
+docs-check: support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md

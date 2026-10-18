@@ -6,18 +6,24 @@ import re
 import subprocess
 import unittest
 
+import support_matrix as support
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class GateWatchdogTests(unittest.TestCase):
-    def test_project_gates_and_container_use_the_exact_module_toolchain(self):
+    def test_project_gates_and_container_use_the_exact_preferred_toolchain(self):
         source = (ROOT / "go.mod").read_text(encoding="utf-8")
         versions = re.findall(r"^go (\d+\.\d+\.\d+)$", source, re.MULTILINE)
         self.assertEqual(len(versions), 1, "go.mod must select an exact patch release")
-        version = versions[0]
+        policy = support.load_policy(ROOT)
+        self.assertEqual(versions[0], policy["go"]["minimum"])
+        preferred = re.findall(r"^toolchain go(\d+\.\d+\.\d+)$", source, re.MULTILINE)
+        self.assertEqual(preferred, [policy["go"]["current"]])
+        version = preferred[0]
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertTrue(f"GOTOOLCHAIN ?= go{version}\n" in makefile,
-                        "Make gates must default to the module's exact patch toolchain")
+                        "Make gates must default to the module's exact preferred patch toolchain")
         dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
         self.assertRegex(dockerfile.splitlines()[0],
                          rf"^FROM golang:{re.escape(version)}-alpine3\.23@sha256:[a-f0-9]{{64}} AS build$")

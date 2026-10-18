@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate declared build policy and emit data; this does not prove qualification."""
+"""Validate support policy and build drift; emit data, not qualification proof."""
 import argparse
 import contextlib
 import json
@@ -144,7 +144,7 @@ def main(argv=None, *, root=ROOT, stdout=None, stderr=None):
     stderr = sys.stderr if stderr is None else stderr
     parser = Parser(prog="support_matrix", description=__doc__)
     group = parser.add_mutually_exclusive_group()
-    for flag in ("validate", "go-minimum", "go-current", "go-versions", "release-plan"):
+    for flag in ("validate", "check", "render", "go-minimum", "go-current", "go-versions", "release-plan"):
         group.add_argument("--" + flag, action="store_true")
     group.add_argument("--tool-version", choices=GO_TOOLS + ARCHIVE_TOOLS)
     group.add_argument("--tool-sha256", choices=ARCHIVE_TOOLS)
@@ -158,7 +158,17 @@ def main(argv=None, *, root=ROOT, stdout=None, stderr=None):
         return 0 if result.code == 0 else 2
     try:
         policy = load_policy(root)
-        if args.go_minimum:
+        if args.check:
+            from support_matrix_artifacts import check_artifacts
+            failures = check_artifacts(policy, root=root)
+            if failures:
+                stderr.write("\n".join("support matrix: " + item for item in failures) + "\n")
+                return 1
+            result = "support matrix artifacts are current"
+        elif args.render:
+            from support_matrix_artifacts import render_matrix
+            result = render_matrix(policy)
+        elif args.go_minimum:
             result = policy["go"]["minimum"]
         elif args.go_current:
             result = policy["go"]["current"]

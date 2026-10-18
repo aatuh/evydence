@@ -5,6 +5,14 @@ future stable releases. It is an operator compatibility policy, not legal
 compliance proof, certification, complete SBOM proof, authoritative scanner
 coverage, or a secure-release guarantee.
 
+## Build And Platform Changes (Unreleased)
+
+The [toolchain/platform reference](toolchain-platform-support.md) owns the exact
+minimum/current source compilers, build defaults and target matrix. Check it
+before replacing a binary, container builder or SDK wrapper. Cross-built CLI
+archives do not establish additional supported server platforms. Existing
+published release commitments are not rewritten by a source toolchain update.
+
 ## Supported Upgrade Paths
 
 | Source | Target | Policy |

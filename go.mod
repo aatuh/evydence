@@ -2,6 +2,8 @@ module github.com/aatuh/evydence
 
 go 1.26.9
 
+toolchain go1.27.2
+
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1

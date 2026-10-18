@@ -4,17 +4,16 @@ This reference describes the project-owned release validation profile. It is evi
 
 ## Build toolchain
 
-Source builds require Go 1.26.9 or a later patched toolchain. Project-owned Make
-targets default to `GOTOOLCHAIN=go1.26.9`, matching `go.mod`, CI's
-`go-version-file`, and the digest-pinned Alpine 3.23 Docker builder. An explicit
-`GOTOOLCHAIN` override is allowed; its owner must verify that version against the
-current vulnerability database. A newer minor version can still be unpatched.
-Go 1.26.9 addresses the October 8, 2026 standard-library security release;
-see the [official release history](https://go.dev/doc/devel/release).
-The source dependency graph also selects `golang.org/x/net` v0.60.0 for the
-corresponding HTTP/2 fixes in integration-adapter transports. `make vuln` scans
-the whole project; a scan of core packages alone does not cover those adapters.
-This changes source-build prerequisites, not existing published release assets.
+The [toolchain/platform policy](toolchain-platform-support.md) owns exact minimum
+and current Go selections, pinned QA tools, source-only SDK delivery and platform
+targets. Make and the Docker builder select its current compiler; CI also tests
+the minimum explicitly. Toolchain updates must pass the declared gates before
+support-matrix completion. Historical published assets retain their original
+source/compiler commitments.
+
+`make vuln` scans the whole project; a scan of core packages alone does not
+cover integration adapters. Keep standard-library and module fixes in the same
+reviewed dependency graph rather than assuming a newer minor version is patched.
 
 `make deploy-check`, also included in `make finalize` and `make production-check`,
 requires Docker Compose, Python 3 with PyYAML, and Helm. CI installs Helm v4.3.0

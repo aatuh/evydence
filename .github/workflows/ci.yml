@@ -12,6 +12,32 @@ permissions:
   contents: read
 
 jobs:
+  go-compatibility:
+    name: Go Compatibility (${{ matrix.go }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        go: ['1.26.9', '1.27.2']
+    env:
+      # Pin the selected compiler; go.mod's preferred toolchain must not
+      # silently upgrade the minimum-version compatibility run.
+      GOTOOLCHAIN: local
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up selected Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Test complete package set with selected compiler
+        run: |
+          go version
+          go test ./... -timeout=30m
+
   production-check:
     name: Production Check
     runs-on: ubuntu-latest

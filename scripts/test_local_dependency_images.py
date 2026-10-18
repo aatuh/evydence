@@ -4,6 +4,8 @@ from pathlib import Path
 import re
 import unittest
 
+import support_matrix as support
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = ROOT / "deploy/local-dependencies/Dockerfile"
@@ -24,7 +26,11 @@ class LocalDependencyImageTests(unittest.TestCase):
         self.assertEqual(len(external), 3)
         for line in external:
             self.assertRegex(line, r"@sha256:[a-f0-9]{64} AS [a-z-]+$")
-        version = re.search(r"^go (\S+)$", (ROOT / "go.mod").read_text(), re.M)[1]
+        policy = support.load_policy(ROOT)
+        module = (ROOT / "go.mod").read_text()
+        self.assertEqual(re.findall(r"^go (\S+)$", module, re.M), [policy["go"]["minimum"]])
+        self.assertEqual(re.findall(r"^toolchain (\S+)$", module, re.M), ["go" + policy["go"]["current"]])
+        version = policy["go"]["current"]
         self.assertContains(f"FROM golang:{version}-alpine3.23@sha256:", source)
         self.assertIn("GOTOOLCHAIN=local", source)
         self.assertIn("GOSUMDB=sum.golang.org", source)
