@@ -1,10 +1,10 @@
 # ADR 0005: Validated Runtime Configuration
 
-Status: accepted for the EVY-1214 immutable-input/schema/validation foundation
-and EVY-1215 bounded project-secret resolution with explicit native SDK ownership,
-reviewed and validated 2026-10-17. Command adoption and generated deployment
-documentation remain EVY-1216 and EVY-1217. This is an explanation for developers
-maintaining startup and configuration boundaries.
+Status: accepted for the EVY-1214 immutable-input/schema/validation foundation,
+EVY-1215 bounded project-secret resolution and EVY-1216 runtime adoption with
+explicit native SDK ownership, reviewed and validated 2026-10-18. Generated
+deployment documentation and parity remain EVY-1217. This is an explanation for
+developers maintaining startup and configuration boundaries.
 
 ## Decision
 
@@ -142,9 +142,9 @@ ports and items stay private and redacted alongside exact supplied bytes.
 
 Native default/service and credential resolution remain separate. Native
 PostgreSQL defaults call OS user lookup and inspect home certificate files;
-their resolution retains the explicit pgx owner documented below. EVY-1216 must
-adopt validated input before entering that boundary. Capture performs none of
-these operations and exposes no generic environment forwarder.
+their resolution retains the explicit pgx owner documented below. Applicable
+commands now adopt validated input before entering that boundary. Capture performs
+none of these operations and exposes no generic environment forwarder.
 
 A source test scans production Go literals and fails when a selected environment
 name is missing from the catalogue. A second AST guard resolves current project
@@ -154,9 +154,9 @@ range lists. Every resulting name must belong to the project or native schema.
 Unsupported expressions, unresolvable callers, reader aliases and escaping
 global lists fail the guard. Constant initializers retain their lexical scope.
 
-The guard explicitly recognizes existing reader forwarding to startup logging
-and configuration-freshness probes. These exceptions authorize no new runtime
-environment shim; EVY-1216 must replace the ambient reads. The guard supports a
+Reader-forwarding exceptions for startup logging and configuration-freshness
+probes have been removed. The adoption guard permits only the reviewed startup
+and cold-freshness environment snapshots. The read analysis supports a
 small finite source grammar, not arbitrary Go evaluation or every transitive
 SDK credential-chain option. New forms need explicit review and guard coverage.
 Catalogue metadata alone does not change command behavior.
@@ -194,8 +194,8 @@ limits. The new parser deliberately limits proxy CIDRs to 256 entries before
 allocation. Explicit booleans accept only `true` or `false`, case-insensitively
 with surrounding whitespace; other spellings fail. Malformed or out-of-range
 numeric inputs fail instead of silently falling back, and seconds conversion
-checks duration overflow. These tightening rules are not adopted by command
-startup until EVY-1216. Missing optional values and dynamic defaults remain the
+checks duration overflow. Applicable command startup now adopts these
+tightening rules. Missing optional values and dynamic defaults remain the
 responsibility of the role-aware loader rather than this scalar primitive.
 
 The role-input evaluator applies process requirements and schema defaults,
@@ -250,9 +250,9 @@ credentials are syntax-checked without opening them. Metrics and health cannot
 bind the same address/port, including equivalent IPv4-mapped forms. The existing
 metrics address/file bounds are in the schema; revision paths additionally have
 a 4096-byte bound. API numeric port zero remains valid for ephemeral listeners.
-An AST characterization test ties the transitional pepper rejection to the
-existing identity-owned compatibility constant without coupling this package to
-application code. EVY-1216 must retire duplicate startup policy during adoption.
+An AST characterization test ties the shared pepper rejection to the existing
+identity-owned compatibility constant without coupling this package to
+application code. Duplicate command startup policy has been retired.
 
 HTTP endpoints now carry schema-owned policies: TLS base endpoints for native
 KMS, guarded gateway endpoints, same-origin gateway readiness endpoints, and
@@ -371,17 +371,18 @@ Known supplied syntax, project production restrictions and local relationships
 are checked without external resolution. Relationships that depend on service,
 profile or credential files remain explicitly unresolved. Native
 default/credential/file resolution retains the SDK owners documented below;
-EVY-1216 must adopt validated settings before entering them. A parsed value
-cannot establish native credential or provider readiness.
+applicable commands now adopt validated settings before entering them. A parsed
+value cannot establish native credential or provider readiness.
 The pinned `github.com/jackc/pgx/v5 v5.9.2` parser reads 22 `PG*` environment
 settings and can read service, passfile and TLS material while parsing. The
-current PostgreSQL adapter enters that path through `pgxpool.New`. Reusing its
-parser directly in this pure phase would introduce ambient reads and file I/O;
-the native SDK/file boundary still needs explicit ownership. Pure syntax checks
-do not apply ambient defaults or open referenced pass/service/TLS files.
-Build-start time remains absent until the command applies its clock. Worker probe
-and offline commands must use their applicable configuration scope during adoption
-rather than acquire unrelated runtime dependencies.
+PostgreSQL adapter enters that path explicitly through `PreparePoolConfig`,
+then opens copied prepared settings with `pgxpool.NewWithConfig`. Reusing its
+parser directly in the pure phase would introduce ambient reads and file I/O;
+the native SDK/file boundary therefore retains its separate owner. Pure syntax
+checks do not apply ambient defaults or open referenced pass/service/TLS files.
+Build-start time remains absent until the command applies its clock. Worker probes
+use their health/logging scope; offline commands bypass online startup
+configuration rather than acquire unrelated runtime dependencies.
 
 ## Required Toolkit Boundary
 
@@ -468,9 +469,10 @@ formatting or JSON. No ambient environment mutation, shell execution or network
 secret fetcher is added.
 
 This boundary resolves project-secret files only. Native SDK/default/credential
-resolution retains the explicit owners below. Command adoption and SDK-global
-policy isolation remain EVY-1216; these helpers do not authorize unresolved
-native credentials or establish provider readiness.
+resolution retains the explicit owners below. Applicable commands now resolve
+project secrets before startup effects, with SDK-global policy isolation owned
+separately as described below. These helpers do not authorize unresolved native
+credentials or establish provider readiness.
 
 Worker metrics use their existing explicit token-file option rather than an
 inline/file alternative. Enabled `Resolve` reads at most 129 bytes within the
@@ -481,7 +483,7 @@ pure `Parse` never sets that flag. Disabled metrics and other process roles do n
 read the file. The shared reader adds inode rechecks and nonblocking Unix opens.
 The new preflight also rejects noncanonical metrics paths, and resolution rejects
 executable secret-file modes; these are intentional tightening of the old command
-reader. EVY-1216 will remove that duplicate reader during command adoption.
+reader. Command adoption has removed that duplicate reader.
 
 ## Native Credential Ownership
 
@@ -524,7 +526,7 @@ pool construction. Native service files can otherwise reach SDK-accepted unsafe
 maintenance settings outside the pure explicit-input evaluator. Prepared opens
 retain the existing separately capped read-only package pool and Store-owned
 cleanup. The legacy adapter `Open` entry point delegates to preparation and
-prepared open; unadopted runtime callers also enter that explicit owner. API
+prepared open; programmatic callers also enter that explicit owner. API
 startup also prepares the database configuration before provider constructors.
 
 The Azure adapter now clears the SDK's environment-installed raw diagnostic
@@ -542,14 +544,14 @@ not reinstate the raw listener.
 
 Fresh-process tests exercise environment-enabled SDK initialization and a local
 managed-identity endpoint, without real provider calls. This policy does not
-establish external provider identity, interoperability or availability. Whole-ticket
-validation remains EVY-1216.
+establish external provider identity, interoperability or availability.
+Whole-ticket checks exercise the owned process policy and local fixtures.
 
 ## Delivery And Compatibility
 
 EVY-1214 owns the inventory, schema, typed parsing and safe diagnostics.
-EVY-1215 owns bounded secret references. EVY-1216 must adopt those definitions in
-all applicable commands and retire duplicate defaults, parsers and hot-path
+EVY-1215 owns bounded secret references. EVY-1216 adopts those definitions in
+all applicable commands and retires duplicate defaults, parsers and hot-path
 ambient reads. EVY-1217 owns generated examples/references, deployment parity and
 the final runtime evidence required by parent EVY-1205.
 
@@ -679,13 +681,13 @@ exceptions are removed from the environment-read analysis; only reviewed command
 startup and cold freshness snapshots remain permitted. Test fixtures supply
 canonical typed settings instead of carrying duplicate production parsers.
 
-Command adoption and parser retirement are implemented; the ticket stays open
-until its required whole-checkout gates pass. These changes do not prove that
-generated documentation and deployments match production behavior; EVY-1217
-still owns that evidence. Changes to accepted values, defaults, aliases or
-production constraints require characterization tests and explicit compatibility
-notes. Offline verification, help and version commands must remain independent
-of unused live dependencies.
+Command adoption and parser retirement are complete, with the required command,
+live PostgreSQL and whole-checkout checks recorded in the backlog. These checks
+do not prove that generated documentation and deployments match production
+behavior; EVY-1217 still owns that evidence. Changes to accepted values, defaults,
+aliases or production constraints require characterization tests and explicit
+compatibility notes. Offline verification and help remain independent of unused
+live dependencies.
 
 The canonical operator reference remains
 [`docs/reference/configuration.md`](../reference/configuration.md). This ADR
