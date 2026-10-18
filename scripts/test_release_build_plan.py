@@ -117,6 +117,38 @@ esac
         # signs, connects to a database or removes repository files.
         self.stub("rm", '#!/bin/sh\nprintf forbidden > "$PLAN_TEST_MARKER"\nexit 91\n')
 
+    def test_release_only_options_are_consumed_before_child_commands(self):
+        for alias in ("canonical", "legacy"):
+            with self.subTest(alias=alias):
+                self.prepare_gate_result("unchanged")
+                self.marker.unlink(missing_ok=True)
+                if alias == "canonical":
+                    git = self.bin / "git"
+                    git.write_text(git.read_text().replace('refs/tags/"*) exit 1', 'refs/tags/"*) exit 0', 1))
+                self.environment.update(EVYDENCE_RELEASE_ALLOW_EXISTING_TAG="1",
+                                        RELEASE_SIGNING_PRIVATE_KEY_B64="PRIVATE_INVALID")
+                if alias == "legacy":
+                    self.environment["RELEASE_SIGNING_PRIVATE_KEY_B64"] = self.environment["EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64"]
+                    self.environment["EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64"] = ""
+                guard = ('#!/bin/sh\n'
+                         'if [ "${EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64+x}'
+                         '${RELEASE_SIGNING_PRIVATE_KEY_B64+x}'
+                         '${EVYDENCE_RELEASE_ALLOW_EXISTING_TAG+x}'
+                         '${signing_key_b64+x}${release_allow_existing_tag+x}" ]; then exit 89; fi\n')
+                # All native preflight and validation children must be clear,
+                # including empty exports and inherited internal variable names.
+                self.environment.update(signing_key_b64="PRIVATE_INHERITED",
+                                        release_allow_existing_tag="PRIVATE_INHERITED")
+                for name in ("git", "go", "make"):
+                    path = self.bin / name
+                    path.write_text(path.read_text().replace("#!/bin/sh\n", guard, 1))
+                result = self.run_plan("v0.0.0-rc.1401")
+                self.assertEqual(result.returncode, 91, result.stderr)
+                self.assertEqual(self.marker.read_text(), "forbidden")
+                self.assertNotIn("PRIVATE", result.stdout + result.stderr)
+                key = base64.b64encode(bytes(64)).decode()
+                self.assertNotIn(key, result.stdout + result.stderr)
+
     def test_dirty_source_after_validation_stops_before_artifact_changes(self):
         self.prepare_gate_result("dirty")
         result = self.run_plan("v0.0.0-rc.1401")

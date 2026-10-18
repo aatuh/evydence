@@ -245,6 +245,12 @@ tags, missing live PostgreSQL configuration, missing signing material, and
 existing local tags unless a CI tag build explicitly sets
 `EVYDENCE_RELEASE_ALLOW_EXISTING_TAG=1`.
 
+Normal packaging consumes the signing-key aliases and existing-tag override into
+shell-local values before invoking Git, Go or Make. Those release-only exports
+are cleared from validation and runtime child environments; production commands
+retain their strict rejection of unknown `EVYDENCE_*` options. Key validation
+and signing receive the signing material explicitly.
+
 For a lightweight local smoke check that does not require a clean worktree,
 live PostgreSQL, release signing credentials, or GitHub Releases, run:
 

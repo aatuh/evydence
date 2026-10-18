@@ -20,6 +20,12 @@ if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
   echo "release candidate tag must look like v0.1.0-rc.1" >&2
   exit 2
 fi
+# Keep release-only settings out of compiler, validation and runtime children.
+signing_key_b64="${EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64:-${RELEASE_SIGNING_PRIVATE_KEY_B64:-}}"
+release_allow_existing_tag="${EVYDENCE_RELEASE_ALLOW_EXISTING_TAG:-}"
+export -n signing_key_b64 release_allow_existing_tag
+unset EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64 RELEASE_SIGNING_PRIVATE_KEY_B64 EVYDENCE_RELEASE_ALLOW_EXISTING_TAG
+
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "release candidate packaging must run inside a git checkout" >&2
   exit 2
@@ -30,7 +36,7 @@ if [[ -n "$initial_status" ]]; then
   exit 2
 fi
 if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
-  if [[ "${EVYDENCE_RELEASE_ALLOW_EXISTING_TAG:-}" != "1" ]]; then
+  if [[ "$release_allow_existing_tag" != "1" ]]; then
     echo "release candidate tag already exists locally: ${tag}" >&2
     exit 2
   fi
@@ -49,7 +55,6 @@ if [[ -z "${EVYDENCE_TEST_DATABASE_URL:-}" ]]; then
   exit 2
 fi
 
-signing_key_b64="${EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64:-${RELEASE_SIGNING_PRIVATE_KEY_B64:-}}"
 if [[ -z "$signing_key_b64" ]]; then
   echo "EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64 or RELEASE_SIGNING_PRIVATE_KEY_B64 is required" >&2
   exit 2
