@@ -126,7 +126,8 @@ export EVYDENCE_SIGNING_EXECUTOR_TOKEN='<gateway-credential>'
 docker compose -f compose.production-like.yml up --build
 ```
 
-Gateway settings are passed only to the API. An optional
+Gateway settings and the API pepper are passed only to the API. The worker
+receives its database and object-store credentials. An optional
 `EVYDENCE_SIGNING_EXECUTOR_READINESS_URL` must use the signing endpoint's origin;
 the timeout defaults to the runtime schema's value. Native KMS profiles need a
 deployment override supplying their provider-specific configuration and

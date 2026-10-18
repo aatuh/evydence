@@ -20,6 +20,15 @@ func TestDeploymentWorkerStartup(t *testing.T) {
 	for _, source := range deploymentcheck.ServerSources {
 		t.Run(source.Name+"-"+source.Mode, func(t *testing.T) {
 			fixture := deploymentcheck.Load(t, source.Name, "worker", source.Mode)
+			for _, definition := range config.Definitions() {
+				if definition.Secret && definition.Roles&config.Worker == 0 {
+					for _, name := range []string{definition.Name, definition.FileOption} {
+						if fixture.Environment[name] != "" {
+							t.Fatalf("worker deployment receives an out-of-role credential: %s", name)
+						}
+					}
+				}
+			}
 			for _, role := range []config.Role{config.Worker, config.WorkerReplay, config.WorkerReconcile} {
 				t.Run(fmt.Sprint(role), func(t *testing.T) {
 					environment := fixture.Input(t, nil)
