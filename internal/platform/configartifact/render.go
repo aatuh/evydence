@@ -123,7 +123,7 @@ func renderReference(definitions []config.Definition, native []config.NativeDefi
 		}
 		lines = append(lines, referenceRow(d, "", helm))
 		if d.FileOption != "" {
-			file := config.Definition{Name: d.FileOption, Kind: config.Path, Roles: d.Roles, Secret: true, Description: "Private-file alternative for `" + d.Name + "`; unset the inline value. Runtime resolution retains the documented file checks."}
+			file := config.Definition{Name: d.FileOption, Kind: config.Path, Roles: d.Roles, CLICommands: d.CLICommands, Secret: true, Description: "Private-file alternative for `" + d.Name + "`; unset the inline value. Runtime resolution retains the documented file checks."}
 			lines = append(lines, referenceRow(file, "", helm))
 		}
 	}
@@ -138,6 +138,21 @@ func renderReference(definitions []config.Definition, native []config.NativeDefi
 		}
 		if d.CaseSensitive {
 			notes += " Choices are case-sensitive."
+		}
+		if d.Parameter != "" {
+			notes += " Native parameter: " + code(d.Parameter) + "."
+		}
+		if d.Syntax != "" {
+			notes += " Syntax: " + code(string(d.Syntax)) + "."
+		}
+		if len(d.ExactChoices) != 0 {
+			notes += " Exact-case choices: " + choices(d.ExactChoices) + "."
+		}
+		if d.RejectEmpty {
+			notes += " Present empty input is rejected."
+		}
+		if d.RejectControl {
+			notes += " Control characters are rejected."
 		}
 		if d.MaxItemBytes > 0 {
 			notes += " Item bytes <= " + strconv.Itoa(d.MaxItemBytes) + "."
@@ -169,6 +184,9 @@ func referenceRow(d config.Definition, extra string, helm bool) string {
 	}
 	if d.CLIFlag != "" {
 		notes += " CLI flag: " + code("--"+d.CLIFlag) + "."
+	}
+	if d.CLICommands != 0 {
+		notes += " CLI commands: " + cliCommands(d.CLICommands) + "."
 	}
 	if extra != "" {
 		notes += " " + extra
@@ -262,6 +280,23 @@ func code(value string) string {
 }
 
 func oneLine(value string) string { return strings.Join(strings.Fields(value), " ") }
+
+func cliCommands(mask config.CLICommand) string {
+	var result []string
+	for _, command := range []struct {
+		mask config.CLICommand
+		name string
+	}{
+		{config.CLIUpload, "upload commands"},
+		{config.CLIGitHubBuild, "github-actions upload-build"},
+		{config.CLIPreflight, "ci preflight"},
+	} {
+		if mask&command.mask != 0 {
+			result = append(result, code(command.name))
+		}
+	}
+	return strings.Join(result, ", ")
+}
 
 func roles(mask config.Role) string {
 	var result []string

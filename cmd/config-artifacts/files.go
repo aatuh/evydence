@@ -73,7 +73,7 @@ func readArtifact(parent *os.Root, name string) ([]byte, os.FileInfo, error) {
 	if err != nil || !info.Mode().IsRegular() || info.Size() > configartifact.MaxArtifactBytes {
 		return nil, nil, errArtifactFile
 	}
-	file, err := parent.Open(name)
+	file, err := openArtifactFile(parent, name)
 	if err != nil {
 		return nil, nil, errArtifactFile
 	}

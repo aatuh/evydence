@@ -3,7 +3,7 @@ GOTOOLCHAIN ?= go1.26.9
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
-.PHONY: architecture-check concurrency-stress-check
+.PHONY: architecture-check concurrency-stress-check config-generate config-check
 GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
@@ -203,7 +203,13 @@ quality-scorecard-check: ## Validate evidence-backed quality scorecard
 error-catalog-check: ## Validate generated error-code docs and SDK types
 	@python3 scripts/generate_error_catalog.py
 
-docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check ## Validate canonical docs exist and avoid forbidden product claims
+config-generate: ## Regenerate owned configuration sections from the runtime schema
+	@$(GO) run ./cmd/config-artifacts --write
+
+config-check: ## Fail when generated configuration sections have drifted
+	@$(GO) run ./cmd/config-artifacts --check
+
+docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
