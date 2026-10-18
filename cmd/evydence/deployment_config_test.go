@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -85,7 +86,7 @@ func TestDeploymentCLIImportCommand(t *testing.T) {
 				_, _ = fmt.Fprint(w, `{"data":{"id":"fixture-import"}}`)
 			}))
 			defer server.Close()
-			fixture.Install(t, map[string]string{"EVYDENCE_API_URL": server.URL})
+			fixture.Install(t, os.Environ(), map[string]string{"EVYDENCE_API_URL": server.URL})
 			payload := writeTestFile(t, filepath.Join(t.TempDir(), "bundle.json"), []byte(`{"manifest":{}}`))
 			output, err := captureStdout(t, func() error { return run([]string{"import-bundle", "upload", "--path", payload}) })
 			if err != nil || calls.Load() != 1 {

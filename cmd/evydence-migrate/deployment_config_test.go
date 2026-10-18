@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
 
@@ -88,7 +89,7 @@ func TestDeploymentMigrationCommandRejectsBeforeDatabase(t *testing.T) {
 			} else {
 				overrides["EVYDENCE_DATABASE_URL"] = dsn
 			}
-			fixture.Install(t, overrides)
+			fixture.Install(t, os.Environ(), overrides)
 			err := run()
 			if !errors.Is(err, config.ErrUnknownOption) || connections.Load() != 0 {
 				t.Fatal("actual migration command reached its database before rejecting configuration")

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
@@ -35,7 +36,7 @@ func TestDeploymentAPIStartup(t *testing.T) {
 			}
 			fixture.CheckDiagnostics(t, output.String(), err)
 			t.Run("actual-command-preflight", func(t *testing.T) {
-				fixture.Install(t, map[string]string{"EVYDENCE_HTTP_READ_TIMEOUT_SECONDS": "0"})
+				fixture.Install(t, os.Environ(), map[string]string{"EVYDENCE_HTTP_READ_TIMEOUT_SECONDS": "0"})
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // Keeps any regressed post-preflight startup inert.
 				err := runWithContext(ctx)

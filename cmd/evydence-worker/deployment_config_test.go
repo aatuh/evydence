@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
 
@@ -111,7 +112,7 @@ func TestDeploymentWorkerProbeCommand(t *testing.T) {
 				_, _ = w.Write([]byte(`{"data":{"status":"ok"},"meta":{"process":"worker"}}`))
 			}))
 			defer server.Close()
-			fixture.Install(t, map[string]string{
+			fixture.Install(t, os.Environ(), map[string]string{
 				"EVYDENCE_WORKER_HEALTH_ADDR": server.Listener.Addr().String(),
 				"EVYDENCE_DATABASE_URL":       "PRIVATE_UNUSED_DSN", "EVYDENCE_DATABASE_URL_FILE": "/PRIVATE_UNUSED_FILE",
 				"EVYDENCE_RUNTIME_PROFILE": "local_memory", "EVYDENCE_WORKER_BATCH_SIZE": "0",

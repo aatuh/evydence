@@ -129,7 +129,7 @@ func (fixture *Fixture) CheckDiagnostics(t *testing.T, diagnostics string, err e
 
 // Install isolates real command capture from the developer/CI process settings.
 // HOME, PATH and other platform-owned inputs are left intact.
-func (fixture *Fixture) Install(t *testing.T, overrides map[string]string) {
+func (fixture *Fixture) Install(t *testing.T, current []string, overrides map[string]string) {
 	t.Helper()
 	for _, definition := range config.NativeDefinitions() {
 		if definition.Boundary != config.NativeHost {
@@ -141,7 +141,7 @@ func (fixture *Fixture) Install(t *testing.T, overrides map[string]string) {
 			}
 		}
 	}
-	for _, entry := range os.Environ() {
+	for _, entry := range current {
 		name, _, _ := strings.Cut(entry, "=")
 		if name == "ENV" || name == "CI" || strings.HasPrefix(name, "EVYDENCE_") || strings.HasPrefix(name, "GITHUB_") {
 			t.Setenv(name, "")
