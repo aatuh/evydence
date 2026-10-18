@@ -108,7 +108,8 @@ func TestNativeSDKSourcePinsMatchModuleAndToolchain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pins := map[string]string{"go": module.Go.Version}
+	versions := nativeGoPolicy(t)
+	pins := map[string]string{"go": versions[len(versions)-1]}
 	for _, d := range module.Require {
 		pins[d.Mod.Path] = d.Mod.Version
 	}

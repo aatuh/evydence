@@ -87,7 +87,7 @@ This captures lookup inputs; it does not run or authorize credential helpers.
 
 Ordered `Fallbacks` retain native precedence separately from conflict-checked
 project aliases. Each supplied spelling remains independently captured, including
-explicit empty values. In the pinned Go 1.26.9 transport, uppercase proxy values
+explicit empty values. In both declared Go toolchains, uppercase proxy values
 precede lowercase fallbacks. The separately pinned `x/net` helper reverses that
 order; using its ambient loader would change behavior. Proxy URLs are classified
 as secrets because they can contain credentials. Host inputs now include native
@@ -167,12 +167,25 @@ small finite source grammar, not arbitrary Go evaluation or every transitive
 SDK credential-chain option. New forms need explicit review and guard coverage.
 Catalogue metadata alone does not change command behavior.
 
-`testdata/native-boundary-review.json` commits 44 reviewed source records with
-hashes, scope and findings. Their hashes were checked against the actual checkout
-and pinned SDK/toolchain files. Tests require every native schema source to have
-a review record, pin the reviewed dependency versions, and check repository-owned
-boundary hashes without fetching SDK source or invoking loaders. This records the
-currently wired credential paths, including their transitive environment reads;
+`testdata/native-boundary-review.json` commits reviewed source records with
+hashes, scope and findings. The catalogue identifies the current Go version in
+`release/support-matrix.json`; the review retains separate minimum and current
+records for TLS roots, transport/proxy environment inputs, home lookup, executable
+lookup, and Unix/Windows path-list grammar. Go 1.26.9 owns Unix TLS overrides in
+`crypto/x509/root_unix.go`; Go 1.27.2 moves loading to `crypto/x509/root.go` and
+uses `filepath.SplitList`. Windows/macOS/iOS platform trust remains native when
+no override is supplied, or when the native
+`GODEBUG=x509sslcertoverrideplatform=0` switch selects it. Capturing a declared
+input does not freeze global Go runtime state.
+
+Tests require every native schema source to have a review record, pin SDK
+versions and repository-owned boundary hashes, and require equivalent boundary
+coverage for every declared Go version. Each compiler run compares its actual
+`GOROOT` source bytes with its committed review hashes. These checks fetch no
+SDK source and invoke no native loaders. Source review and portable grammar
+tests do not establish native Windows/macOS runtime support or complete current
+Go qualification; the support-matrix ticket owns that separate validation.
+This records the currently wired credential paths, including their transitive environment reads;
 it does not assert that arbitrary SDK APIs or subprocess environments are covered.
 For example, explicit `AzurePipelinesCredential` is outside the current default
 Azure chain. Existing process-credential inheritance, external helper execution,

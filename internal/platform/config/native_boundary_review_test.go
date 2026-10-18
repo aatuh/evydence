@@ -1,15 +1,27 @@
 package config
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/mod/modfile"
 )
+
+type nativeBoundarySource struct {
+	Source     string `json:"source"`
+	SHA256     string `json:"sha256"`
+	Finding    string `json:"finding"`
+	GoBoundary string `json:"go_boundary,omitempty"`
+}
 
 func TestNativeBoundaryReviewMatchesPinnedSources(t *testing.T) {
 	data, err := os.ReadFile("testdata/native-boundary-review.json")
@@ -17,15 +29,11 @@ func TestNativeBoundaryReviewMatchesPinnedSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	var review struct {
-		Version int    `json:"schema_version"`
-		Scope   string `json:"scope"`
-		Sources []struct {
-			Source  string `json:"source"`
-			SHA256  string `json:"sha256"`
-			Finding string `json:"finding"`
-		} `json:"sources"`
+		Version int                    `json:"schema_version"`
+		Scope   string                 `json:"scope"`
+		Sources []nativeBoundarySource `json:"sources"`
 	}
-	if err := json.Unmarshal(data, &review); err != nil || review.Version != 1 || review.Scope == "" || len(review.Sources) == 0 {
+	if err := json.Unmarshal(data, &review); err != nil || review.Version != 2 || review.Scope == "" || len(review.Sources) == 0 {
 		t.Fatal("native boundary review is missing or malformed", err)
 	}
 	data, err = os.ReadFile("../../../go.mod")
@@ -36,7 +44,7 @@ func TestNativeBoundaryReviewMatchesPinnedSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pins := map[string]string{"go": module.Go.Version}
+	pins := map[string]string{}
 	for _, requirement := range module.Require {
 		pins[requirement.Mod.Path] = requirement.Mod.Version
 	}
@@ -59,7 +67,7 @@ func TestNativeBoundaryReviewMatchesPinnedSources(t *testing.T) {
 		dependency, rest, external := strings.Cut(entry.Source, "@")
 		if external {
 			version, _, hasPath := strings.Cut(rest, "/")
-			if !hasPath || pins[dependency] != version {
+			if !hasPath || (dependency != "go" && pins[dependency] != version) {
 				t.Fatal("reviewed native boundary dependency changed; review its environment inputs", entry.Source)
 			}
 			continue
@@ -75,6 +83,30 @@ func TestNativeBoundaryReviewMatchesPinnedSources(t *testing.T) {
 		if hex.EncodeToString(actual[:]) != entry.SHA256 {
 			t.Fatal("repository boundary source changed; refresh the scoped source review", entry.Source)
 		}
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	data, err = exec.CommandContext(ctx, "go", "env", "-json", "GOROOT", "GOVERSION").Output()
+	if err != nil {
+		t.Fatal("cannot locate the selected Go source tree", err)
+	}
+	var toolchain struct{ GOROOT, GOVERSION string }
+	if err := json.Unmarshal(data, &toolchain); err != nil || toolchain.GOROOT == "" || toolchain.GOVERSION != runtime.Version() {
+		t.Fatal("selected Go command differs from the test compiler", err)
+	}
+	goRoot, err := os.OpenRoot(toolchain.GOROOT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := goRoot.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := validateNativeGoReview(review.Sources, nativeGoPolicy(t), NativeDefinitions(), strings.TrimPrefix(runtime.Version(), "go"), func(path string) ([]byte, error) {
+		return goRoot.ReadFile(filepath.FromSlash(path))
+	}); err != nil {
+		t.Fatal(err)
 	}
 	for _, definition := range NativeDefinitions() {
 		source, _, _ := strings.Cut(definition.Source, ":")
