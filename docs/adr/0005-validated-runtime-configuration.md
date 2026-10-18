@@ -1,10 +1,11 @@
 # ADR 0005: Validated Runtime Configuration
 
-Status: accepted for the EVY-1214 immutable-input/schema/validation foundation,
-EVY-1215 bounded project-secret resolution and EVY-1216 runtime adoption with
-explicit native SDK ownership, reviewed and validated 2026-10-18. Generated
-deployment documentation and parity remain EVY-1217. This is an explanation for
-developers maintaining startup and configuration boundaries.
+Status: accepted for shared runtime configuration, bounded project-secret
+resolution, explicit native SDK ownership, schema-generated operator artifacts
+and rendered deployment parity. EVY-1214 through EVY-1217 and parent EVY-1205
+were reviewed and validated locally on 2026-10-18; the root backlog records the
+exact source and checks. This is an explanation for developers maintaining
+startup and configuration boundaries.
 
 ## Decision
 
@@ -111,8 +112,7 @@ Malformed flags that previously fell back silently now fail: this includes AWS's
 metadata-disable flag and Azure's certificate-chain flag. Native retry counts are
 bounded to 2,147,483,647, seconds conversion checks overflow, and native file
 references have a 4096-byte bound with blank/control-bearing paths rejected.
-These tightening rules apply to the new private evaluator; command adoption is
-still pending.
+Applicable commands adopt these tightening rules through the shared evaluator.
 
 Native endpoint and list syntax now follows schema-owned policies. Native service
 and identity-authority base URLs require HTTPS, matching project-owned KMS base
@@ -681,13 +681,14 @@ exceptions are removed from the environment-read analysis; only reviewed command
 startup and cold freshness snapshots remain permitted. Test fixtures supply
 canonical typed settings instead of carrying duplicate production parsers.
 
-Command adoption and parser retirement are complete, with the required command,
-live PostgreSQL and whole-checkout checks recorded in the backlog. These checks
-do not prove that generated documentation and deployments match production
-behavior; EVY-1217 still owns that evidence. Changes to accepted values, defaults,
-aliases or production constraints require characterization tests and explicit
-compatibility notes. Offline verification and help remain independent of unused
-live dependencies.
+Command adoption, parser retirement, generated artifacts and rendered startup
+parity are complete, with command, drift, deployment and full production-check
+evidence recorded in the backlog. Rendered Helm/Compose inputs and local release
+binaries exercise the checked process roles and shutdown behavior; they do not
+establish a live Kubernetes rollout or cloud-provider operation. Changes to
+accepted values, defaults, aliases or production constraints require
+characterization tests and explicit compatibility notes. Offline verification
+and help remain independent of unused live dependencies.
 
 The canonical operator reference remains
 [`docs/reference/configuration.md`](../reference/configuration.md). This ADR
