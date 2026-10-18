@@ -12,15 +12,19 @@ ARTIFACTS = (
     "go.mod", "tools/go.mod", "tools/go.sum", "Makefile", "Dockerfile", "deploy/local-dependencies/Dockerfile",
     ".github/workflows/ci.yml", ".github/workflows/container-image.yml",
     ".github/workflows/release-artifacts.yml", "README.md",
+    "docs/github-actions/release-evidence-workflow.yml",
+    "docs/github-actions/quickstart-release-evidence.yml",
+    "docs/gitlab/evydence-release-evidence.gitlab-ci.yml",
     "docs/reference/toolchain-platform-support.md",
 )
 MAX_ARTIFACT_BYTES = 512 * 1024
+SETUP_GO = "actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c"
 START = "<!-- BEGIN GENERATED SUPPORT MATRIX -->"
 END = "<!-- END GENERATED SUPPORT MATRIX -->"
 
 
 class UniqueLoader(yaml.BaseLoader):
-    """GitHub's YAML scalars stay strings (including the `on` key)."""
+    """Keep CI scalars as strings, including GitHub's `on` key."""
     def construct_mapping(self, node, deep=False):
         result = {}
         for key_node, value_node in node.value:
@@ -145,9 +149,28 @@ def check_artifacts(policy, *, root=None, read_text=None):
     check(len(set(bases)) == 1, "Dockerfiles: Go builder digest disagreement")
     check(len(set(runtimes)) == 1, "Dockerfiles: runtime digest disagreement")
 
+    gitlab_name = "docs/gitlab/evydence-release-evidence.gitlab-ci.yml"
+    try:
+        template = yaml.load(sources[gitlab_name], Loader=UniqueLoader)
+        if not isinstance(template, dict):
+            raise ValueError("invalid template")
+        check(set(template) == {"stages", "variables", "build", "evydence:evidence"},
+              gitlab_name + ": unreviewed job or template structure")
+        check(template["variables"].get("GOTOOLCHAIN") == "local", gitlab_name + ": implicit toolchain switching")
+        for key in ("build", "evydence:evidence"):
+            job = template[key]
+            check(bool(bases) and job.get("image") == bases[0], gitlab_name + ": " + key + ": Go builder drift")
+            check(job.get("variables", {}).get("GOTOOLCHAIN", "local") == "local" and "inherit" not in job,
+                  gitlab_name + ": " + key + ": compiler environment override")
+            script = job["script"]
+            check(isinstance(script, list) and all(isinstance(command, str) and "GOTOOLCHAIN" not in command for command in script),
+                  gitlab_name + ": " + key + ": script compiler override")
+    except (yaml.YAMLError, KeyError, ValueError, TypeError, AttributeError, RecursionError):
+        failures.append(gitlab_name + ": invalid template")
+
     workflows = {}
     for name in ARTIFACTS:
-        if not name.endswith(".yml"):
+        if not name.endswith(".yml") or name == gitlab_name:
             continue
         try:
             workflow = yaml.load(sources[name], Loader=UniqueLoader)
@@ -159,6 +182,7 @@ def check_artifacts(policy, *, root=None, read_text=None):
                 for step in job.get("steps", []):
                     if str(step.get("uses", "")).startswith("actions/setup-go@"):
                         setup_jobs.append(key)
+                        check(step.get("uses") == SETUP_GO, name + ": unreviewed compiler setup action")
                         settings = step.get("with", {})
                         if key == "go-compatibility" and name.endswith("/ci.yml"):
                             check(settings.get("go-version") == "${{ matrix.go }}" and "go-version-file" not in settings, name + ": compatibility compiler drift")
@@ -172,6 +196,8 @@ def check_artifacts(policy, *, root=None, read_text=None):
                 ".github/workflows/ci.yml": ["production-check", "race-and-stress", "go-compatibility"],
                 ".github/workflows/container-image.yml": ["publish-image", "sign-image"],
                 ".github/workflows/release-artifacts.yml": ["package"],
+                "docs/github-actions/release-evidence-workflow.yml": ["release-evidence"],
+                "docs/github-actions/quickstart-release-evidence.yml": ["evydence-release-evidence"],
             }
             check(sorted(setup_jobs) == sorted(expected[name]), name + ": missing or duplicate compiler setup")
         except (yaml.YAMLError, ValueError, TypeError, AttributeError, RecursionError):

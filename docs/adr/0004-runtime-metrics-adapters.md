@@ -18,7 +18,7 @@ Use concrete dependencies only in `internal/adapters/telemetry/metrics`:
   the v3 API foundation, so this change does not migrate to toolkit v4.
 - `github.com/prometheus/client_golang v1.25.0` supplies private registries,
   counters and histograms. Its Go 1.26 requirement fits this repository's
-  Go 1.26.9 toolchain. Breaking query-client API changes in that release do not
+  Go 1.26.9 module minimum. Breaking query-client API changes in that release do not
   affect the collector packages selected here.
 - `github.com/prometheus/common v0.72.1` supplies standard text exposition.
   This is the current patch release of the v0.72 line required by client v1.25.

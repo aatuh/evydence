@@ -74,6 +74,12 @@ the pinned action reads the preferred directive before setting `local` for
 subsequent commands. Operators evaluating an override must use an installed supported
 compiler and retain its actual `go version` with their validation evidence.
 
+The repository's GitHub Actions CI examples use that same reviewed setup action
+and preferred module compiler. The GitLab example pins the current Go builder
+image and digest, with `GOTOOLCHAIN=local` in both jobs. The drift check covers
+these executable examples as well as the project workflows; local validation
+does not establish a hosted GitLab or GitHub run.
+
 The minimum retains the patched older supported Go branch because dependency
 floors require Go 1.26. Current qualification targets the patched Go 1.27 branch.
 The [Go release history](https://go.dev/doc/devel/release) owns patch/security
@@ -104,6 +110,9 @@ Review Docker Official Image manifest digests, retaining immutable pins and the
 matching builder/runtime Alpine release. Weekly Dependabot updates cover Go
 modules (including `/tools`), Actions and Docker; manually review QA tool pins at least monthly and
 when a relevant security fix is released. Never switch a tool to `latest`.
+The setup action's checked commit binds the reviewed version-file behavior;
+when updating it, review compiler selection and update all workflows, examples
+and the drift check together.
 
 Run focused drift, source-review and regression checks during the change. Before
 closing the support-matrix ticket, run the complete minimum/current Go tests,
