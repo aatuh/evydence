@@ -290,8 +290,8 @@
     },
     {
       "source": "scripts/release_candidate_package.sh",
-      "sha256": "53f5a01aadd4c0936262b4fdcafcb1a1caae88469015d10734e425c64520e3b8",
-      "finding": "Validated support-policy queries own target and command argv lists. Normal packaging requires the declared current compiler and the existing clean-tree, live-dependency, production-check and signing preflight. Only Linux/amd64 includes server commands; other declared targets build the CLI. Read-only --plan avoids Git/Go/Make/provider/signing work. Archive arrays replace wildcard selection; the pre-build manifest commits the policy digest. No external publication or native-platform qualification is implied."
+      "sha256": "2360c00b52eac264ecf4d67ad4bd8acd383514cc1b649c5c25002fed750de885",
+      "finding": "Validated support-policy queries own target and command argv lists. Normal packaging requires the declared current compiler and the existing clean-tree, live-dependency, production-check and signing preflight. Only Linux/amd64 includes server commands; other declared targets build the CLI. Read-only --plan avoids Git/Go/Make/provider/signing work. Archive arrays replace wildcard selection; the pre-build manifest commits the policy digest. No external publication or native-platform qualification is implied. Source identity captures the clean initial commit and rechecks both HEAD and worktree after the production gate, before artifact replacement. Git-status failures stop preflight/packaging rather than being mistaken for a clean tree."
     }
   ]
 }

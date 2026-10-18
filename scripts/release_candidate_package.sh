@@ -24,7 +24,8 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "release candidate packaging must run inside a git checkout" >&2
   exit 2
 fi
-if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+initial_status="$(git status --porcelain --untracked-files=all)"
+if [[ -n "$initial_status" ]]; then
   echo "release candidate packaging requires a clean worktree" >&2
   exit 2
 fi
@@ -34,6 +35,7 @@ if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
     exit 2
   fi
 fi
+build_commit="$(git rev-parse --verify HEAD)"
 expected_go="$(python3 scripts/support_matrix.py --go-current)"
 build_go_version="$(go env GOVERSION)"
 if [[ "$build_go_version" != "go${expected_go}" ]]; then
@@ -71,6 +73,13 @@ PY
 echo "Packaging Evydence release candidate ${tag}"
 make production-check
 
+validated_commit="$(git rev-parse --verify HEAD)"
+validated_status="$(git status --porcelain --untracked-files=all)"
+if [[ "$validated_commit" != "$build_commit" || -n "$validated_status" ]]; then
+  echo "release candidate source changed during validation" >&2
+  exit 2
+fi
+
 distdir="dist/${tag}"
 workdir="tmp/release-candidate/${tag}"
 rm -rf "$distdir" "$workdir"
@@ -78,7 +87,6 @@ install -m 755 -d "$distdir" "$workdir"
 archives=()
 archive_paths=()
 
-build_commit="$(git rev-parse --verify HEAD)"
 build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 build_manifest="$workdir/release-build-manifest.json"
 python3 - "$tag" "$build_commit" "$build_time" "$build_go_version" "$build_manifest" <<'PY'

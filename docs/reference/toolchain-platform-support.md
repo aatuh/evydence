@@ -52,7 +52,9 @@ scripts/release_candidate_package.sh --plan
 This emits JSON from the validated policy without Git, Go, Make, database or
 provider calls. Normal packaging requires the declared current compiler and
 keeps the full production gate, live dependency configuration, signing and
-checksum checks. Normal packaging uses a Linux amd64 build host for its signing
+checksum checks. It rechecks the initial commit and clean worktree after that
+gate, before replacing artifact files; a changed source or failed Git check stops
+packaging. Normal packaging uses a Linux amd64 build host for its signing
 CLI. Container builders serialize Go packages and bound compiler parallelism.
 Only the Linux amd64 archive contains the API, worker and
 migration commands; the other declared archives contain the CLI. Their existing

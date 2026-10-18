@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the real packaging entry point without builds or signing material."""
+import base64
 import json
 import os
 from pathlib import Path
@@ -84,6 +85,73 @@ esac
         result = self.run_plan("v0.0.0-rc.1401")
         self.assertEqual(result.returncode, 2)
         self.assertIn("EVYDENCE_TEST_DATABASE_URL is required", result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def prepare_gate_result(self, mode):
+        self.prepare_clean_checkout("go"+support.load_policy(ROOT)["go"]["current"])
+        self.environment.update(PLAN_TEST_MODE=mode, PLAN_TEST_STATE=str(self.root / "gate-finished"),
+                                EVYDENCE_TEST_DATABASE_URL="unused-test-fixture",
+                                EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64=base64.b64encode(bytes(64)).decode())
+        self.stub("git", '''#!/bin/sh
+case "$*" in
+  "rev-parse -q --verify refs/tags/"*) exit 1 ;;
+  "rev-parse --verify HEAD")
+    if [ -f "$PLAN_TEST_STATE" ] && [ "$PLAN_TEST_MODE" = head ]; then
+      printf '%s\\n' bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    else
+      printf '%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    fi ;;
+  "status --porcelain --untracked-files=all")
+    if [ -f "$PLAN_TEST_STATE" ] && [ "$PLAN_TEST_MODE" = git-error ]; then
+      exit 93
+    fi
+    if [ -f "$PLAN_TEST_STATE" ] && [ "$PLAN_TEST_MODE" = dirty ]; then
+      printf '%s\\n' ' M source.go'
+    fi ;;
+  *) exit 0 ;;
+esac
+''')
+        self.stub("make", '#!/bin/sh\n[ "$*" = production-check ] || exit 92\nprintf finished > "$PLAN_TEST_STATE"\n')
+        # Any attempt to replace artifacts is intercepted, including when the
+        # real script has no post-gate source guard. This fixture never builds,
+        # signs, connects to a database or removes repository files.
+        self.stub("rm", '#!/bin/sh\nprintf forbidden > "$PLAN_TEST_MARKER"\nexit 91\n')
+
+    def test_dirty_source_after_validation_stops_before_artifact_changes(self):
+        self.prepare_gate_result("dirty")
+        result = self.run_plan("v0.0.0-rc.1401")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("source changed during validation", result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_changed_commit_after_validation_stops_before_artifact_changes(self):
+        self.prepare_gate_result("head")
+        result = self.run_plan("v0.0.0-rc.1401")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("source changed during validation", result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_unchanged_source_reaches_the_intercepted_artifact_phase(self):
+        self.prepare_gate_result("unchanged")
+        result = self.run_plan("v0.0.0-rc.1401")
+        self.assertEqual(result.returncode, 91, result.stderr)
+        self.assertEqual(self.marker.read_text(), "forbidden")
+
+    def test_git_failure_after_validation_stops_before_artifact_changes(self):
+        self.prepare_gate_result("git-error")
+        result = self.run_plan("v0.0.0-rc.1401")
+        self.assertEqual(result.returncode, 93, result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_git_status_failure_prevents_validation_work(self):
+        self.stub("git", '''#!/bin/sh
+case "$*" in
+  "status --porcelain --untracked-files=all") exit 94 ;;
+  *) exit 0 ;;
+esac
+''')
+        result = self.run_plan("v0.0.0-rc.1401")
+        self.assertEqual(result.returncode, 94, result.stderr)
         self.assertFalse(self.marker.exists())
 
 
