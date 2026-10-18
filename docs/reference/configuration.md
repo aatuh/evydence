@@ -42,8 +42,8 @@ make config-check
 ```
 
 `config-check` is read-only and also runs through `make docs-check`. It fails on
-drift or invalid section markers and compares exposed Helm integer bounds with
-the runtime schema. Generation requires explicit `--write` through
+drift or invalid section markers and compares exposed Helm integer bounds and
+secret-file option roles with the runtime schema. Generation requires explicit `--write` through
 `config-generate`; it replaces only marked sections and retains surrounding
 operator explanations and existing file permission bits. The command reads no
 runtime configuration, resolves no credentials and prints no document contents

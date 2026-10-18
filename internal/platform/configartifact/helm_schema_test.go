@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -52,10 +53,48 @@ func TestHelmBoundsMatchRuntimeSchema(t *testing.T) {
 }
 
 type helmSchemaProperty struct {
-	Type       string                     `json:"type"`
-	Minimum    *int64                     `json:"minimum"`
-	Maximum    *int64                     `json:"maximum"`
-	Properties map[string]json.RawMessage `json:"properties"`
+	Type                 string                     `json:"type"`
+	Minimum              *int64                     `json:"minimum"`
+	Maximum              *int64                     `json:"maximum"`
+	AdditionalProperties *bool                      `json:"additionalProperties"`
+	Properties           map[string]json.RawMessage `json:"properties"`
+}
+
+func TestHelmSecretFileOptionsMatchRuntimeSchema(t *testing.T) {
+	body, err := os.ReadFile("../../../deploy/helm/evydence/values.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, process := range []struct {
+		name string
+		role config.Role
+	}{{"api", config.API}, {"worker", config.Worker}} {
+		t.Run(process.name, func(t *testing.T) {
+			property, err := helmProperty(body, []string{process.name, "secretFiles"})
+			if err != nil || property.Type != "object" || property.AdditionalProperties == nil || *property.AdditionalProperties {
+				t.Fatal("chart secretFiles must declare a closed role-scoped map", err)
+			}
+			var expected, actual []string
+			for _, definition := range config.Definitions() {
+				// These core files use the chart's existing custom Secret key
+				// selectors instead of a second mapping in secretFiles.
+				if definition.Name == "EVYDENCE_DATABASE_URL" || definition.Name == "EVYDENCE_API_KEY_PEPPER" {
+					continue
+				}
+				if definition.Roles&process.role != 0 && definition.FileOption != "" {
+					expected = append(expected, definition.FileOption)
+				}
+			}
+			for name := range property.Properties {
+				actual = append(actual, name)
+			}
+			slices.Sort(actual)
+			slices.Sort(expected)
+			if !slices.Equal(actual, expected) {
+				t.Fatalf("chart file options differ from runtime role: got %v want %v", actual, expected)
+			}
+		})
+	}
 }
 
 func helmProperty(body []byte, fields []string) (helmSchemaProperty, error) {

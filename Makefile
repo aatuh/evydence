@@ -208,7 +208,7 @@ config-generate: ## Regenerate owned configuration sections from the runtime sch
 
 config-check: ## Fail when generated configuration sections have drifted
 	@$(GO) run ./cmd/config-artifacts --check
-	@$(GO) test ./internal/platform/configartifact -run '^TestHelmBoundsMatchRuntimeSchema$$' -count=1 -timeout=5m
+	@$(GO) test ./internal/platform/configartifact -run '^TestHelm(Bounds|SecretFileOptions)MatchRuntimeSchema$$' -count=1 -timeout=5m
 
 docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f README.md

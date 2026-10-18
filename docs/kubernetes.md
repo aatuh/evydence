@@ -40,18 +40,20 @@ the chart does not automatically detect updates to that external object.
 - Helm; the repository's render checks use the pinned CI tool described in
   [Release validation](reference/release-validation.md#build-toolchain).
 - A pre-created object-store bucket.
-- A Kubernetes secret containing at least `EVYDENCE_DATABASE_URL` and `EVYDENCE_API_KEY_PEPPER`.
+- Runtime Secrets containing database and object-store credentials for each
+  daemon, plus the API pepper and its selected signing configuration.
 - A signing setup compatible with `EVYDENCE_SIGNING_KEY_MODE=external`,
   `aws-kms`, `gcp-kms`, `azure-key-vault`, or the gateway-backed `pkcs11-hsm`
   profile documented in the configuration reference.
 
 The chart does not create databases, buckets, KMS keys, or secrets.
-It loads additional runtime variables, such as S3 credentials and API signing
-gateway settings, from the selected Secret. Set `api.existingSecret` and
+Its default `secretSource: env` loads additional runtime variables, such as S3
+credentials and API signing gateway settings, from the selected Secret. Set `api.existingSecret` and
 `worker.existingSecret` to separate Secrets when identities differ; each falls
-back to `existingSecret`. Include the required database/pepper keys in each
-selected Secret and grant only the permissions that daemon needs. For example,
-a worker does not need the API's cloud signing credentials. Chart ConfigMap
+back to `existingSecret`. The API requires its database and pepper keys; the
+worker requires a database key and does not consume the API pepper. Grant only
+the permissions each daemon needs, including separately scoped object-store
+credentials. A worker does not need the API's cloud signing credentials. Chart ConfigMap
 settings take precedence over Secret variables; explicit database/pepper key
 references retain their configured key names. Existing external Secret data
 updates still require an operator rollout.
@@ -71,6 +73,78 @@ kubectl create secret generic evydence-secrets \
 ```
 
 Store real values in your secret manager or sealed-secret process. Do not commit rendered secrets.
+
+## Project Private Credential Files
+
+Set a daemon's `secretSource: files` to mount credentials from its selected
+`existingSecret` without loading that Secret through `envFrom`. The chart emits
+the supported `_FILE` variables and omits their inline database/pepper sources.
+Files use a read-only mount at `/etc/evydence/private` with mode `0440`. An
+explicit positive `podSecurityContext.fsGroup` is required so the non-root
+process can read the private group-readable projection. Kubernetes applies
+[volume group ownership and supplementary groups](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/)
+through that pod setting.
+
+Create separate API and worker Secrets from operator-managed files, for example:
+
+```sh
+kubectl create secret generic evydence-api-files \
+  --from-file=EVYDENCE_DATABASE_URL=/secure/api-database-url \
+  --from-file=EVYDENCE_API_KEY_PEPPER=/secure/api-pepper \
+  --from-file=EVYDENCE_S3_ACCESS_KEY_ID=/secure/api-s3-access-key-id \
+  --from-file=EVYDENCE_S3_SECRET_ACCESS_KEY=/secure/api-s3-secret-access-key
+kubectl create secret generic evydence-worker-files \
+  --from-file=EVYDENCE_DATABASE_URL=/secure/worker-database-url \
+  --from-file=EVYDENCE_S3_ACCESS_KEY_ID=/secure/worker-s3-access-key-id \
+  --from-file=EVYDENCE_S3_SECRET_ACCESS_KEY=/secure/worker-s3-secret-access-key
+```
+
+Use a values file containing the following selections; retain the image,
+object-store and provider settings from your deployment:
+
+```yaml
+podSecurityContext:
+  fsGroup: 2000
+api:
+  secretSource: files
+  existingSecret: evydence-api-files
+  environmentSecret: evydence-api-options
+worker:
+  secretSource: files
+  existingSecret: evydence-worker-files
+```
+
+The optional daemon-specific `environmentSecret` supplies other runtime
+variables, such as signing URL/public trust material and native provider inputs.
+For the example above, create `evydence-api-options` with your selected signing
+configuration before installing. It must differ from the projected credential
+Secret. Keep inline variables unset for credentials supplied as files; conflicting
+sources fail process validation before startup. The chart ConfigMap still takes
+precedence over these environment Secrets. Native SDK credential files retain
+their separately documented ownership; this mode projects project-secret
+alternatives only.
+
+Database files retain `env.databaseURLSecretKey`; the API pepper file retains
+`env.apiKeyPepperSecretKey`. Each daemon's `secretFiles` map selects additional
+file options and their Secret keys. Defaults select both S3 credential files;
+the API also permits the signing, provider-validation and transparency gateway
+token file options. Add a selected token key to the API credential Secret and
+its mapping when needed, for example:
+
+```yaml
+api:
+  secretFiles:
+    EVYDENCE_SIGNING_EXECUTOR_TOKEN_FILE: signing-token
+```
+
+Only named keys are projected, and every selected key must exist, following
+Kubernetes [Secret item projection](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/).
+Worker file maps reject API-only token and pepper options. File contents must
+meet the [private secret-file policy](reference/configuration.md#private-secret-files).
+Processes capture active credentials at startup; restart workloads to rotate
+them. Projected file updates do not reload running credentials, and separately
+managed Secret changes do not trigger an automatic chart rollout. Render checks
+exercise the manifests; they do not prove a live cluster's permissions or rollout.
 
 ## Install Or Upgrade
 
@@ -100,7 +174,10 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `podSecurityContext`, `containerSecurityContext` | Non-root and least-privilege pod/container defaults. |
 | `worker.probes.*` | Enable/override startup, readiness and liveness exec commands. Defaults query the running worker with their distinct modes. |
 | `networkPolicy.enabled` | Optional starter NetworkPolicy for API ingress. |
-| `existingSecret`, `api.existingSecret`, `worker.existingSecret` | Shared runtime Secret and optional daemon-specific overrides. Additional variables are loaded through `envFrom`; prefer separate scoped credentials. |
+| `existingSecret`, `api.existingSecret`, `worker.existingSecret` | Shared runtime Secret and optional daemon-specific overrides. Default mode loads environment variables; file mode projects selected credentials. Prefer separate scoped credentials. |
+| `api.secretSource`, `worker.secretSource` | Default `env` or opt-in `files` with private role-scoped projections. |
+| `api.environmentSecret`, `worker.environmentSecret` | Optional additional runtime environment Secret, before the chart ConfigMap. In file mode it must differ from the projected Secret. |
+| `api.secretFiles`, `worker.secretFiles` | Additional supported file-option names mapped to keys in the selected credential Secret. Database/API-pepper keys retain the existing selectors below. |
 | `env.databaseURLSecretKey` | Secret key for `EVYDENCE_DATABASE_URL`. |
 | `env.apiKeyPepperSecretKey` | Secret key for `EVYDENCE_API_KEY_PEPPER`. |
 | `env.objectStore` | `s3` or `minio` for cluster deployments. |
@@ -114,6 +191,8 @@ these declared bounds with the runtime schema, including the shared cleanup and
 worker drain budgets. `make deploy-check` also exercises invalid Helm overrides.
 General and expensive-route quotas retain their supported zero values; the
 separate authentication-failure budget cannot be disabled with zero.
+The same configuration check compares allowed file-map options with the
+runtime's process roles.
 
 
 ## Runtime Configuration Schema

@@ -39,6 +39,29 @@ EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.worker.shutdownTimeoutSecon
 {{- default .fallback .process.existingSecret -}}
 {{- end -}}
 
+{{/* Schema-supported file options only; no secret values enter templates. */}}
+{{- define "evydence.secretFiles" -}}
+{{- $files := dict "EVYDENCE_DATABASE_URL_FILE" .root.Values.env.databaseURLSecretKey -}}
+{{- if eq .name "api" -}}
+{{- $_ := set $files "EVYDENCE_API_KEY_PEPPER_FILE" .root.Values.env.apiKeyPepperSecretKey -}}
+{{- end -}}
+{{- range $option, $key := .process.secretFiles -}}
+{{- $_ := set $files $option $key -}}
+{{- end -}}
+{{- toYaml $files -}}
+{{- end -}}
+
+{{- define "evydence.validateSecretFiles" -}}
+{{- $pod := default dict .root.Values.podSecurityContext -}}
+{{- if not (gt (int64 (default 0 $pod.fsGroup)) 0) -}}
+{{- fail "file secretSource requires a positive podSecurityContext.fsGroup" -}}
+{{- end -}}
+{{- $selected := include "evydence.runtimeSecret" (dict "process" .process "fallback" .root.Values.existingSecret) -}}
+{{- if eq .process.environmentSecret $selected -}}
+{{- fail "file secretSource requires environmentSecret to differ from the projected Secret" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "evydence.terminationGrace" -}}
 {{- $minimum := add (int64 .process.shutdownTimeoutSeconds) (int64 .cleanup) 5 -}}
 {{- $grace := int64 .process.terminationGracePeriodSeconds -}}

@@ -107,9 +107,100 @@ class DeploymentLifecycleTests(unittest.TestCase):
                 container = deployments[component]["spec"]["template"]["spec"]["containers"][0]
                 self.assertEqual(container["envFrom"][0], {"secretRef": {"name": selected[component]}})
                 self.assertIn("configMapRef", container["envFrom"][-1], "chart safety settings must take precedence")
-                for name in ("EVYDENCE_DATABASE_URL", "EVYDENCE_API_KEY_PEPPER"):
+                expected = ("EVYDENCE_DATABASE_URL", "EVYDENCE_API_KEY_PEPPER") if component == "api" else ("EVYDENCE_DATABASE_URL",)
+                for name in expected:
                     variable = next(value for value in container["env"] if value["name"] == name)
                     self.assertEqual(variable["valueFrom"]["secretKeyRef"]["name"], selected[component])
+                if component == "worker":
+                    self.assertNotIn("EVYDENCE_API_KEY_PEPPER", {value["name"] for value in container["env"]})
+
+    def test_private_secret_projection_is_role_scoped_and_avoids_inline_sources(self):
+        _, deployments = self.manifests({
+            "podSecurityContext": {"fsGroup": 2000},
+            "env": {"databaseURLSecretKey": "private-database", "apiKeyPepperSecretKey": "private-pepper"},
+            "api": {"secretSource": "files", "existingSecret": "api-files",
+                    "environmentSecret": "api-options",
+                    "secretFiles": {"EVYDENCE_SIGNING_EXECUTOR_TOKEN_FILE": "gateway-token"}},
+            "worker": {"secretSource": "files", "existingSecret": "worker-files"},
+        })
+        for component in ("api", "worker"):
+            with self.subTest(component=component):
+                pod = deployments[component]["spec"]["template"]["spec"]
+                container = pod["containers"][0]
+                self.assertEqual(pod["securityContext"]["fsGroup"], 2000)
+                secrets = [item["secretRef"]["name"] for item in container["envFrom"] if "secretRef" in item]
+                self.assertEqual(secrets, ["api-options"] if component == "api" else [])
+                self.assertIn("configMapRef", container["envFrom"][-1])
+                expected = {
+                    "EVYDENCE_DATABASE_URL_FILE": "private-database",
+                    "EVYDENCE_S3_ACCESS_KEY_ID_FILE": "EVYDENCE_S3_ACCESS_KEY_ID",
+                    "EVYDENCE_S3_SECRET_ACCESS_KEY_FILE": "EVYDENCE_S3_SECRET_ACCESS_KEY",
+                }
+                if component == "api":
+                    expected.update({"EVYDENCE_API_KEY_PEPPER_FILE": "private-pepper",
+                                     "EVYDENCE_SIGNING_EXECUTOR_TOKEN_FILE": "gateway-token"})
+                variables = {item["name"]: item for item in container["env"]}
+                self.assertEqual(len(variables), len(container["env"]), "duplicate credential sources")
+                for name in expected:
+                    self.assertEqual(variables[name], {"name": name, "value": "/etc/evydence/private/" + name})
+                    self.assertNotIn(name.removesuffix("_FILE"), variables)
+                projected = next(item for item in pod["volumes"] if item["name"] == "runtime-secrets")["secret"]
+                self.assertEqual(projected["secretName"], component + "-files")
+                self.assertEqual(projected["defaultMode"], 0o440)
+                self.assertEqual({item["path"]: item["key"] for item in projected["items"]}, expected)
+                mount = next(item for item in container["volumeMounts"] if item["name"] == "runtime-secrets")
+                self.assertEqual(mount, {"name": "runtime-secrets", "mountPath": "/etc/evydence/private", "readOnly": True})
+                if component == "worker":
+                    self.assertNotIn("EVYDENCE_API_KEY_PEPPER", variables)
+                    self.assertNotIn("EVYDENCE_API_KEY_PEPPER_FILE", variables)
+
+    def test_worker_does_not_require_an_api_pepper_key_reference(self):
+        _, deployments = self.manifests()
+        for component in ("api", "worker"):
+            container = deployments[component]["spec"]["template"]["spec"]["containers"][0]
+            variables = {item["name"]: item for item in container["env"]}
+            self.assertIn("EVYDENCE_DATABASE_URL", variables)
+            self.assertEqual("EVYDENCE_API_KEY_PEPPER" in variables, component == "api")
+            self.assertNotIn("EVYDENCE_DATABASE_URL_FILE", variables)
+            self.assertNotIn("runtime-secrets", {item["name"] for item in container["volumeMounts"]})
+
+    def test_file_secret_source_requires_private_group_and_distinct_environment_secret(self):
+        for component in ("api", "worker"):
+            for group in (None, 0, -1, "2000", True, 1.5, 4294967295):
+                with self.subTest(component=component, group=group):
+                    result = self.render({component: {"secretSource": "files"}, "podSecurityContext": {"fsGroup": group}})
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("fsGroup", result.stderr)
+            result = self.render({component: {"secretSource": "files"}, "podSecurityContext": None})
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("fsGroup", result.stderr)
+            for selected in ("evydence-secrets", "custom-files"):
+                overrides = {"secretSource": "files", "environmentSecret": selected}
+                if selected != "evydence-secrets":
+                    overrides["existingSecret"] = selected
+                result = self.render({"podSecurityContext": {"fsGroup": 2000}, component: overrides})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("environmentSecret", result.stderr)
+
+    def test_secret_source_options_reject_unsupported_keys_roles_and_types(self):
+        cases = [
+            ("api", {"secretSource": "PRIVATE_UNKNOWN"}),
+            ("worker", {"secretSource": None}),
+            ("api", {"secretFiles": {"EVYDENCE_UNKNOWN_FILE": "key"}}),
+            ("worker", {"secretFiles": {"EVYDENCE_API_KEY_PEPPER_FILE": "pepper"}}),
+            ("worker", {"secretFiles": {"EVYDENCE_SIGNING_EXECUTOR_TOKEN_FILE": "token"}}),
+            ("api", {"secretFiles": {"EVYDENCE_S3_ACCESS_KEY_ID_FILE": "../key"}}),
+            ("api", {"secretFiles": {"EVYDENCE_S3_ACCESS_KEY_ID_FILE": ""}}),
+            ("api", {"secretFiles": {"EVYDENCE_S3_ACCESS_KEY_ID_FILE": True}}),
+            ("api", {"environmentSecret": "../secret"}),
+        ]
+        for component, overrides in cases:
+            with self.subTest(component=component, overrides=overrides):
+                self.assertNotEqual(self.render({component: overrides}).returncode, 0)
+        for key in ("databaseURLSecretKey", "apiKeyPepperSecretKey"):
+            for invalid in ("../key", "", True, None):
+                with self.subTest(key=key, value=invalid):
+                    self.assertNotEqual(self.render({"env": {key: invalid}}).returncode, 0)
 
     def test_config_revision_is_projected_and_rolls_all_configuration_consumers(self):
         config, deployments = self.manifests()

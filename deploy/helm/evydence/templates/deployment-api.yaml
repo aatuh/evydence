@@ -1,4 +1,9 @@
 {{- $imageTag := required "image.tag is required for Evydence release installs" .Values.image.tag -}}
+{{- $fileSource := eq .Values.api.secretSource "files" -}}
+{{- $files := include "evydence.secretFiles" (dict "root" . "process" .Values.api "name" "api") | fromYaml -}}
+{{- if $fileSource -}}
+{{- include "evydence.validateSecretFiles" (dict "root" . "process" .Values.api) -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,6 +35,17 @@ spec:
             items:
               - key: EVYDENCE_CONFIGURATION_REVISION
                 path: revision
+        {{- if $fileSource }}
+        - name: runtime-secrets
+          secret:
+            secretName: {{ include "evydence.runtimeSecret" (dict "process" .Values.api "fallback" .Values.existingSecret) }}
+            defaultMode: 0440
+            items:
+              {{- range $option, $key := $files }}
+              - key: {{ $key | quote }}
+                path: {{ $option | quote }}
+              {{- end }}
+        {{- end }}
       containers:
         - name: api
           image: "{{ .Values.image.repository }}:{{ $imageTag }}"
@@ -41,13 +57,25 @@ spec:
             - name: http
               containerPort: 8080
           envFrom:
+            {{- if .Values.api.environmentSecret }}
+            - secretRef:
+                name: {{ .Values.api.environmentSecret | quote }}
+            {{- end }}
+            {{- if not $fileSource }}
             - secretRef:
                 name: {{ include "evydence.runtimeSecret" (dict "process" .Values.api "fallback" .Values.existingSecret) }}
+            {{- end }}
             - configMapRef:
                 name: {{ include "evydence.fullname" . }}-config
           env:
             - name: EVYDENCE_CONFIGURATION_REVISION_FILE
               value: /etc/evydence/config-revision/revision
+            {{- if $fileSource }}
+            {{- range $option, $key := $files }}
+            - name: {{ $option }}
+              value: {{ printf "/etc/evydence/private/%s" $option | quote }}
+            {{- end }}
+            {{- else }}
             - name: EVYDENCE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -58,10 +86,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "evydence.runtimeSecret" (dict "process" .Values.api "fallback" .Values.existingSecret) }}
                   key: {{ .Values.env.apiKeyPepperSecretKey }}
+            {{- end }}
           volumeMounts:
             - name: configuration-revision
               mountPath: /etc/evydence/config-revision
               readOnly: true
+            {{- if $fileSource }}
+            - name: runtime-secrets
+              mountPath: /etc/evydence/private
+              readOnly: true
+            {{- end }}
           startupProbe:
             httpGet:
               path: /v1/startup

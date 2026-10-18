@@ -11,6 +11,16 @@ cleanupTimeoutSeconds: 5
 api:
   # Optional daemon-specific runtime Secret; otherwise use existingSecret.
   existingSecret: ""
+  # env preserves inline Secret variables; files projects private credentials.
+  # files requires an explicit positive podSecurityContext.fsGroup.
+  secretSource: env
+  # Optional separate Secret for provider/native settings, before chart config.
+  environmentSecret: ""
+  # Additional file-option -> selected Secret key mappings. Database and API
+  # pepper files use env.databaseURLSecretKey / env.apiKeyPepperSecretKey.
+  secretFiles:
+    EVYDENCE_S3_ACCESS_KEY_ID_FILE: EVYDENCE_S3_ACCESS_KEY_ID
+    EVYDENCE_S3_SECRET_ACCESS_KEY_FILE: EVYDENCE_S3_SECRET_ACCESS_KEY
   # Keep API replicas at 1 for the current production profile. Production API
   # startup also takes a PostgreSQL advisory writer lease and a second writer
   # fails closed until multi-writer concurrency controls are implemented and
@@ -44,6 +54,11 @@ api:
 
 worker:
   existingSecret: ""
+  secretSource: env
+  environmentSecret: ""
+  secretFiles:
+    EVYDENCE_S3_ACCESS_KEY_ID_FILE: EVYDENCE_S3_ACCESS_KEY_ID
+    EVYDENCE_S3_SECRET_ACCESS_KEY_FILE: EVYDENCE_S3_SECRET_ACCESS_KEY
   # Bound to 127.0.0.1 inside the pod; exec probes query this listener.
   healthPort: 8081
   replicas: 1
