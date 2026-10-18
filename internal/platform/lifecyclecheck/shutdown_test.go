@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -50,7 +51,7 @@ type fixture struct {
 	requests                                                  sync.WaitGroup
 	t                                                         *testing.T
 	databaseURL, schema, tenant, secret, objects, artifactDir string
-	signerURL                                                 string
+	signerURL, signerCAFile                                   string
 	admin, conn                                               *pgx.Conn
 	store                                                     *postgres.Store
 	children                                                  []*child
@@ -100,7 +101,7 @@ func newFixture(t *testing.T) *fixture {
 	_ = root.Close()
 	must(t, err, "create isolated case artifacts")
 	f := &fixture{t: t, schema: fmt.Sprintf("evy_lifecycle_%d", time.Now().UnixNano()), objects: filepath.Join(directory, "objects"), artifactDir: directory}
-	f.signerURL = newReadinessKMSFixture(t).URL
+	f.configureSigner()
 	f.admin, err = pgx.Connect(t.Context(), base)
 	must(t, err, "connect fixture admin")
 	t.Cleanup(f.close)
@@ -177,6 +178,49 @@ func (f *fixture) close() {
 	}
 }
 
+func (f *fixture) configureSigner() {
+	f.t.Helper()
+	server := newReadinessTLSKMSFixture(f.t)
+	root, err := os.OpenRoot(f.artifactDir)
+	must(f.t, err, "open private signer trust directory")
+	err = root.WriteFile("signer-ca.pem", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600)
+	closeErr := root.Close()
+	must(f.t, err, "write fixture signer trust")
+	must(f.t, closeErr, "close fixture signer trust directory")
+	f.signerURL, f.signerCAFile = server.URL, filepath.Join(f.artifactDir, "signer-ca.pem")
+}
+
+func (f *fixture) processEnvironment(kind, label, budget, address string) []string {
+	f.t.Helper()
+	parsed, err := url.Parse(f.databaseURL)
+	must(f.t, err, "prepare process database scope")
+	query := parsed.Query()
+	query.Set("application_name", f.schema+"_"+label)
+	parsed.RawQuery = query.Encode()
+	environment := make([]string, 0, len(os.Environ()))
+	for _, value := range os.Environ() {
+		name, _, _ := strings.Cut(value, "=")
+		if name != "ENV" && name != "SSL_CERT_FILE" && !strings.HasPrefix(name, "EVYDENCE_") && !strings.HasPrefix(name, "AWS_") {
+			environment = append(environment, value)
+		}
+	}
+	environment = append(environment, "ENV=production", "EVYDENCE_RUNTIME_PROFILE=postgres", "EVYDENCE_DATABASE_URL="+parsed.String(), "EVYDENCE_POSTGRES_LOAD_MODE=relational_only", "EVYDENCE_SKIP_MIGRATIONS=true", "EVYDENCE_BOOTSTRAP_DISABLED=true", "EVYDENCE_PRINT_BOOTSTRAP_SECRET=false", "EVYDENCE_API_KEY_PEPPER="+fixturePepper, "EVYDENCE_OBJECT_STORE=filesystem", "EVYDENCE_OBJECT_DIR="+f.objects,
+		"EVYDENCE_SIGNING_KEY_MODE=aws-kms", "EVYDENCE_AWS_REGION=eu-north-1", "EVYDENCE_AWS_KMS_KEY_ID=alias/lifecycle-fixture", "EVYDENCE_AWS_KMS_ENDPOINT="+f.signerURL,
+		"AWS_ACCESS_KEY_ID=fixture-access", "AWS_SECRET_ACCESS_KEY=fixture-secret", "AWS_EC2_METADATA_DISABLED=true", "AWS_CONFIG_FILE="+os.DevNull, "AWS_SHARED_CREDENTIALS_FILE="+os.DevNull,
+		"SSL_CERT_FILE="+f.signerCAFile,
+		"EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS=2", "EVYDENCE_WORKER_POLL_INTERVAL=10ms", "EVYDENCE_WORKER_BATCH_SIZE=1", "EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS="+budget, "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS="+budget)
+	migrations, err := filepath.Abs("../../../migrations")
+	must(f.t, err, "resolve migration directory")
+	environment = append(environment, "EVYDENCE_MIGRATIONS_DIR="+migrations)
+	switch kind {
+	case "api":
+		environment = append(environment, "EVYDENCE_ADDR="+address)
+	case "worker":
+		environment = append(environment, "EVYDENCE_WORKER_HEALTH_ADDR="+address)
+	}
+	return environment
+}
+
 func (f *fixture) start(kind, label, budget, address string) *child {
 	f.t.Helper()
 	variable := "EVYDENCE_LIFECYCLE_" + strings.ToUpper(kind) + "_BIN"
@@ -193,31 +237,7 @@ func (f *fixture) start(kind, label, budget, address string) *child {
 		address = reserved.Addr().String()
 		must(f.t, reserved.Close(), "release worker probe address")
 	}
-	parsed, err := url.Parse(f.databaseURL)
-	must(f.t, err, "prepare process database scope")
-	query := parsed.Query()
-	query.Set("application_name", f.schema+"_"+label)
-	parsed.RawQuery = query.Encode()
-	environment := make([]string, 0, len(os.Environ()))
-	for _, value := range os.Environ() {
-		name, _, _ := strings.Cut(value, "=")
-		if name != "ENV" && !strings.HasPrefix(name, "EVYDENCE_") && !strings.HasPrefix(name, "AWS_") {
-			environment = append(environment, value)
-		}
-	}
-	environment = append(environment, "ENV=production", "EVYDENCE_RUNTIME_PROFILE=postgres", "EVYDENCE_DATABASE_URL="+parsed.String(), "EVYDENCE_POSTGRES_LOAD_MODE=relational_only", "EVYDENCE_SKIP_MIGRATIONS=true", "EVYDENCE_BOOTSTRAP_DISABLED=true", "EVYDENCE_PRINT_BOOTSTRAP_SECRET=false", "EVYDENCE_API_KEY_PEPPER="+fixturePepper, "EVYDENCE_OBJECT_STORE=filesystem", "EVYDENCE_OBJECT_DIR="+f.objects,
-		"EVYDENCE_SIGNING_KEY_MODE=aws-kms", "EVYDENCE_AWS_REGION=eu-north-1", "EVYDENCE_AWS_KMS_KEY_ID=alias/lifecycle-fixture", "EVYDENCE_AWS_KMS_ENDPOINT="+f.signerURL,
-		"AWS_ACCESS_KEY_ID=fixture-access", "AWS_SECRET_ACCESS_KEY=fixture-secret", "AWS_EC2_METADATA_DISABLED=true", "AWS_CONFIG_FILE="+os.DevNull, "AWS_SHARED_CREDENTIALS_FILE="+os.DevNull,
-		"EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS=2", "EVYDENCE_WORKER_POLL_INTERVAL=10ms", "EVYDENCE_WORKER_BATCH_SIZE=1", "EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS="+budget, "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS="+budget)
-	migrations, err := filepath.Abs("../../../migrations")
-	must(f.t, err, "resolve migration directory")
-	environment = append(environment, "EVYDENCE_MIGRATIONS_DIR="+migrations)
-	switch kind {
-	case "api":
-		environment = append(environment, "EVYDENCE_ADDR="+address)
-	case "worker":
-		environment = append(environment, "EVYDENCE_WORKER_HEALTH_ADDR="+address)
-	}
+	environment := f.processEnvironment(kind, label, budget, address)
 	log, err := os.OpenFile(filepath.Join(f.artifactDir, strings.ReplaceAll(label, ":", "_")+".log"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	must(f.t, err, "open private process log")
 	command := exec.CommandContext(f.t.Context(), binary) // #nosec G702 -- Execute the gate-selected regular binary directly, with no shell or user request arguments.

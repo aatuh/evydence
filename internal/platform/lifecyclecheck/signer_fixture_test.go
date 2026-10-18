@@ -8,12 +8,50 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/signing/awskms"
+	"github.com/aatuh/evydence/internal/platform/config"
 )
+
+func TestReleaseFixtureEnvironmentUsesProductionSchema(t *testing.T) {
+	t.Setenv("SSL_CERT_FILE", "/ambient/certificate-file")
+	for _, tc := range []struct {
+		kind string
+		role config.Role
+	}{{"api", config.API}, {"worker", config.Worker}} {
+		t.Run(tc.kind, func(t *testing.T) {
+			directory := t.TempDir()
+			f := &fixture{t: t, databaseURL: "postgres://fixture:fixture-password@127.0.0.1:5432/fixture?sslmode=disable", schema: "fixture", objects: filepath.Join(directory, "objects"), artifactDir: directory}
+			f.configureSigner()
+			environment := f.processEnvironment(tc.kind, "initial", "2", "127.0.0.1:8080")
+			captured, err := config.Capture(environment)
+			if err != nil {
+				t.Fatal("fixture environment could not be captured", err)
+			}
+			if _, err := config.Prepare(captured, tc.role); err != nil {
+				t.Fatal("fixture rejected by production preflight", err)
+			}
+			if tc.role == config.API {
+				for i, value := range environment {
+					if strings.HasPrefix(value, "EVYDENCE_AWS_KMS_ENDPOINT=") {
+						environment[i] = "EVYDENCE_AWS_KMS_ENDPOINT=http://127.0.0.1:8081"
+					}
+				}
+				captured, err = config.Capture(environment)
+				if err != nil {
+					t.Fatal("negative control could not be captured", err)
+				}
+				if _, err := config.Prepare(captured, tc.role); err == nil {
+					t.Fatal("production accepted an insecure signing endpoint")
+				}
+			}
+		})
+	}
+}
 
 func TestReleaseFixtureSignerProvidesReadinessWithoutSigning(t *testing.T) {
 	server := newReadinessKMSFixture(t)
@@ -45,7 +83,20 @@ func TestReleaseFixtureSignerProvidesReadinessWithoutSigning(t *testing.T) {
 
 func newReadinessKMSFixture(t *testing.T) *httptest.Server {
 	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(readinessKMSHandler())
+	t.Cleanup(server.Close)
+	return server
+}
+
+func newReadinessTLSKMSFixture(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewTLSServer(readinessKMSHandler())
+	t.Cleanup(server.Close)
+	return server
+}
+
+func readinessKMSHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-amz-json-1.1")
 		var input struct {
 			KeyID string `json:"KeyId"`
@@ -56,7 +107,5 @@ func newReadinessKMSFixture(t *testing.T) *httptest.Server {
 			return
 		}
 		_, _ = w.Write([]byte(`{"KeyMetadata":{"KeyId":"fixture-key","Enabled":true,"KeyState":"Enabled","KeyUsage":"SIGN_VERIFY","SigningAlgorithms":["ECDSA_SHA_256"]}}`))
-	}))
-	t.Cleanup(server.Close)
-	return server
+	})
 }
