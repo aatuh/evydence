@@ -35,12 +35,18 @@ required=(
   "evydence-release-manifest.json"
   "evydence-release-manifest.sig.json"
   "evydence-release-manifest.sig"
-  "evydence_${tag}_linux_amd64.tar.gz"
-  "evydence_${tag}_linux_arm64.tar.gz"
-  "evydence_${tag}_darwin_amd64.tar.gz"
-  "evydence_${tag}_darwin_arm64.tar.gz"
-  "evydence_${tag}_windows_amd64.zip"
 )
+targets_text="$(python3 scripts/support_matrix.py --release-targets)"
+mapfile -t targets <<<"$targets_text"
+for target in "${targets[@]}"; do
+  goos="${target%/*}"
+  goarch="${target#*/}"
+  suffix="tar.gz"
+  if [[ "$goos" == "windows" ]]; then
+    suffix="zip"
+  fi
+  required+=("evydence_${tag}_${goos}_${goarch}.${suffix}")
+done
 for file in "${required[@]}"; do
   if [[ ! -f "$distdir/$file" ]]; then
     echo "release candidate artifact missing: $distdir/$file" >&2

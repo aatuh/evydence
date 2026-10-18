@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"os"
 	"strings"
@@ -33,8 +34,17 @@ func TestLibraryVersionMatchesPinnedDependency(t *testing.T) {
 }
 
 func TestNewRejectsTrailingTrustMaterial(t *testing.T) {
-	curve := elliptic.P256()
-	der, err := x509.MarshalPKIXPublicKey(&ecdsa.PublicKey{Curve: curve, X: curve.Params().Gx, Y: curve.Params().Gy})
+	encoded, err := hex.DecodeString("04" +
+		"6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
+		"4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicKey, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
 		t.Fatal(err)
 	}

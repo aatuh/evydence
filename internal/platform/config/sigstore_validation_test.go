@@ -7,6 +7,7 @@ import (
 	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -19,8 +20,17 @@ import (
 
 func publicTrustKeyFixture(t *testing.T) []byte {
 	t.Helper()
-	curve := elliptic.P256()
-	key := &ecdsa.PublicKey{Curve: curve, X: curve.Params().Gx, Y: curve.Params().Gy}
+	// The same public P-256 generator point as the previous coordinate fixture.
+	encoded, err := hex.DecodeString("04" +
+		"6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
+		"4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
 	der, err := x509.MarshalPKIXPublicKey(key)
 	if err != nil {
 		t.Fatal(err)

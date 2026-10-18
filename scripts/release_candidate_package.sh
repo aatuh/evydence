@@ -4,6 +4,13 @@ set -euo pipefail
 repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_root"
 
+if [[ "${1:-}" == "--plan" && "$#" == 1 ]]; then
+  exec python3 scripts/support_matrix.py --release-plan
+fi
+if [[ "$#" != 1 ]]; then
+  echo "usage: scripts/release_candidate_package.sh <vX.Y.Z-rc.N> | --plan" >&2
+  exit 2
+fi
 tag="${1:-}"
 if [[ -z "$tag" ]]; then
   echo "usage: scripts/release_candidate_package.sh <vX.Y.Z-rc.N>" >&2
@@ -27,6 +34,14 @@ if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
     exit 2
   fi
 fi
+expected_go="$(python3 scripts/support_matrix.py --go-current)"
+build_go_version="$(go env GOVERSION)"
+if [[ "$build_go_version" != "go${expected_go}" ]]; then
+  echo "release candidate packaging requires the declared current Go compiler" >&2
+  exit 2
+fi
+targets_text="$(python3 scripts/support_matrix.py --release-targets)"
+mapfile -t targets <<<"$targets_text"
 if [[ -z "${EVYDENCE_TEST_DATABASE_URL:-}" ]]; then
   echo "EVYDENCE_TEST_DATABASE_URL is required for release candidate packaging" >&2
   exit 2
@@ -60,12 +75,11 @@ distdir="dist/${tag}"
 workdir="tmp/release-candidate/${tag}"
 rm -rf "$distdir" "$workdir"
 install -m 755 -d "$distdir" "$workdir"
+archives=()
+archive_paths=()
 
-commands=(evydence evydence-api evydence-worker evydence-migrate)
-targets=(linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64)
 build_commit="$(git rev-parse --verify HEAD)"
 build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-build_go_version="$(go env GOVERSION)"
 build_manifest="$workdir/release-build-manifest.json"
 python3 - "$tag" "$build_commit" "$build_time" "$build_go_version" "$build_manifest" <<'PY'
 import hashlib
@@ -96,6 +110,7 @@ manifest = {
     "go_version": go_version,
     "materials": [
         {"path": "openapi.yaml", "digest": sha256(root / "openapi.yaml")},
+        {"path": "release/support-matrix.json", "digest": sha256(root / "release/support-matrix.json")},
         *migrations,
     ],
     "limitations": [
@@ -110,6 +125,8 @@ build_release_manifest_digest="sha256:$(sha256sum "$build_manifest" | awk '{prin
 api_ldflags="$(EVYDENCE_BUILD_VERSION="$tag" EVYDENCE_BUILD_COMMIT="$build_commit" EVYDENCE_BUILD_TIME="$build_time" EVYDENCE_BUILD_DIRTY=false EVYDENCE_BUILD_GO_VERSION="$build_go_version" EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST="$build_release_manifest_digest" sh scripts/build_ldflags.sh)"
 
 for target in "${targets[@]}"; do
+  commands_text="$(python3 scripts/support_matrix.py --commands "$target")"
+  mapfile -t commands <<<"$commands_text"
   goos="${target%/*}"
   goarch="${target#*/}"
   outdir="${workdir}/evydence_${tag}_${goos}_${goarch}"
@@ -131,10 +148,14 @@ for target in "${targets[@]}"; do
   done
   cp LICENSE README.md CHANGELOG.md "$outdir/"
   if [[ "$goos" == "windows" ]]; then
-    (cd "$workdir" && zip -qr "${repo_root}/${distdir}/evydence_${tag}_${goos}_${goarch}.zip" "evydence_${tag}_${goos}_${goarch}")
+    archive="evydence_${tag}_${goos}_${goarch}.zip"
+    (cd "$workdir" && zip -qr "${repo_root}/${distdir}/${archive}" "evydence_${tag}_${goos}_${goarch}")
   else
-    tar -C "$workdir" -czf "${distdir}/evydence_${tag}_${goos}_${goarch}.tar.gz" "evydence_${tag}_${goos}_${goarch}"
+    archive="evydence_${tag}_${goos}_${goarch}.tar.gz"
+    tar -C "$workdir" -czf "${distdir}/${archive}" "evydence_${tag}_${goos}_${goarch}"
   fi
+  archives+=("$archive")
+  archive_paths+=("${distdir}/${archive}")
 done
 
 cp openapi.yaml "$distdir/openapi.yaml"
@@ -154,8 +175,7 @@ rm -f "$distdir/release-notes.md.bak"
 python3 scripts/release_evidence_metadata.py "$tag" "$distdir"
 
 (cd "$distdir" && sha256sum \
-  evydence_${tag}_*.tar.gz \
-  evydence_${tag}_*.zip \
+  "${archives[@]}" \
   openapi.yaml \
   openapi.sha256 \
   evydence-release-sbom.cdx.json \
@@ -177,8 +197,7 @@ tar -xzf "${distdir}/evydence_${tag}_linux_amd64.tar.gz" -C "$signing_dir"
 cli="${signing_dir}/evydence_${tag}_linux_amd64/evydence"
 "$cli" release manifest \
   --out "$distdir/evydence-release-manifest.json" \
-  "$distdir"/evydence_${tag}_*.tar.gz \
-  "$distdir"/evydence_${tag}_*.zip \
+  "${archive_paths[@]}" \
   "$distdir/openapi.yaml" \
   "$distdir/openapi.sha256" \
   "$distdir/evydence-release-sbom.cdx.json" \

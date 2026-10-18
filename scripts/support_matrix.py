@@ -62,7 +62,7 @@ def parse_policy(raw):
                             parse_constant=invalid_constant)
     except (ValueError, UnicodeError, RecursionError):
         raise PolicyError() from None
-    keys(policy, ("schema_version", "go", "tools", "release", "sdk"))
+    keys(policy, ("schema_version", "go", "tools", "tool_build_dependencies", "release", "sdk"))
     require(policy["schema_version"] == "evydence-support-policy.v1")
     go = policy["go"]
     keys(go, ("minimum", "current"))
@@ -80,6 +80,8 @@ def parse_policy(raw):
         pinned_version(tools[name]["version"], "v" if name == "helm" else "")
         digest = tools[name]["linux_amd64_sha256"]
         require(type(digest) is str and re.fullmatch(r"[a-f0-9]{64}", digest) is not None)
+    keys(policy["tool_build_dependencies"], ("golang.org/x/tools",))
+    pinned_version(policy["tool_build_dependencies"]["golang.org/x/tools"], "v")
     release = policy["release"]
     keys(release, ("cli_targets", "runtime_targets", "server_targets", "server_commands", "cli_command"))
     target_list(release["cli_targets"], TARGETS)
@@ -144,10 +146,11 @@ def main(argv=None, *, root=ROOT, stdout=None, stderr=None):
     stderr = sys.stderr if stderr is None else stderr
     parser = Parser(prog="support_matrix", description=__doc__)
     group = parser.add_mutually_exclusive_group()
-    for flag in ("validate", "check", "render", "go-minimum", "go-current", "go-versions", "release-plan"):
+    for flag in ("validate", "check", "render", "go-minimum", "go-current", "go-versions", "release-plan", "release-targets"):
         group.add_argument("--" + flag, action="store_true")
     group.add_argument("--tool-version", choices=GO_TOOLS + ARCHIVE_TOOLS)
     group.add_argument("--tool-sha256", choices=ARCHIVE_TOOLS)
+    group.add_argument("--commands", choices=sorted(TARGETS))
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             args = parser.parse_args(argv)
@@ -176,6 +179,14 @@ def main(argv=None, *, root=ROOT, stdout=None, stderr=None):
             result = json.dumps(go_versions(policy))
         elif args.release_plan:
             result = json.dumps(release_plan(policy))
+        elif args.release_targets:
+            result = "\n".join(policy["release"]["cli_targets"])
+        elif args.commands:
+            row = next((row for row in release_plan(policy) if row["target"] == args.commands), None)
+            if row is None:
+                stderr.write("support policy: unsupported release target\n")
+                return 2
+            result = "\n".join(row["commands"])
         elif args.tool_version:
             result = policy["tools"][args.tool_version]["version"]
         elif args.tool_sha256:

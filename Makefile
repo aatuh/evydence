@@ -4,9 +4,6 @@ export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
 .PHONY: support-matrix-check architecture-check concurrency-stress-check config-generate config-check deployment-config-check
-GOLANGCI_LINT_VERSION ?= v2.11.4
-GOSEC_VERSION ?= v2.25.0
-GOVULNCHECK_VERSION ?= v1.2.0
 
 TAG ?=
 BUILD_VERSION ?= dev
@@ -25,10 +22,10 @@ build-api: ## Build evydence-api with injected immutable build identity
 	@mkdir -p bin
 	@EVYDENCE_BUILD_VERSION='$(BUILD_VERSION)' EVYDENCE_BUILD_COMMIT='$(BUILD_COMMIT)' EVYDENCE_BUILD_TIME='$(BUILD_TIME)' EVYDENCE_BUILD_DIRTY='$(BUILD_DIRTY)' EVYDENCE_BUILD_GO_VERSION='$(BUILD_GO_VERSION)' EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST='$(BUILD_RELEASE_MANIFEST_DIGEST)' sh -c '$(GO) build -trimpath -ldflags "$$(sh scripts/build_ldflags.sh)" -o bin/evydence-api ./cmd/evydence-api'
 
-tools: ## Install local QA tools
-	@$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
-	@$(GO) install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
-	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+tools: ## Install QA tools from the isolated, checksum-locked tool module
+	@GOWORK=off $(GO) -C tools install -mod=readonly github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	@GOWORK=off $(GO) -C tools install -mod=readonly github.com/securego/gosec/v2/cmd/gosec
+	@GOWORK=off $(GO) -C tools install -mod=readonly golang.org/x/vuln/cmd/govulncheck
 
 fmt: ## Format Go files
 	@$(GO) fmt ./...
@@ -213,6 +210,8 @@ config-check: ## Fail when generated configuration sections have drifted
 support-matrix-check: ## Check declared Go, tool, build, CI and reference selections
 	@python3 scripts/test_support_matrix.py
 	@python3 scripts/test_support_matrix_artifacts.py
+	@python3 scripts/test_release_build_plan.py
+	@bash -n scripts/release_candidate_package.sh scripts/release_candidate_validate.sh
 	@python3 scripts/support_matrix.py --check
 
 docs-check: support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims

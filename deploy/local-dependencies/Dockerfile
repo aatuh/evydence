@@ -3,7 +3,7 @@
 # Source revisions are verified by Go's checksum database; base images are
 # immutable Docker Official Images indices Go index verified on 2026-10-18; runtime index on 2026-10-11.
 FROM golang:1.27.2-alpine3.23@sha256:9e45f0eb4a63ed37ad6e604950407558b7c738e34e015ae77a5d4ad369cde079 AS toolchain
-ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOSUMDB=sum.golang.org
+ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOSUMDB=sum.golang.org GOFLAGS=-p=1 GOMAXPROCS=2
 WORKDIR /build
 
 # RELEASE.2025-10-15T17-29-55Z, commit 9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a.

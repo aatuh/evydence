@@ -214,7 +214,7 @@
       "source": "go@1.27.2/src/crypto/x509/root.go",
       "sha256": "bcad6caaa9c0780b87b0509e112600996514184abe1e304bf468e200cacb6223",
       "go_boundary": "tls_roots",
-      "finding": "loadSystemRoots moved to root.go. SSL_CERT_FILE and SSL_CERT_DIR can select on-disk roots on Windows, Darwin and iOS as well as Unix. On those platform-verifier systems no override retains systemPool; GODEBUG=x509sslcertoverrideplatform=0 also retains it. loadOnDiskRoots uses filepath.SplitList, reads files/directories and skips same-directory symlinks. Native global initialization and GODEBUG retain their own owner; input capture does not freeze or invoke them."
+      "finding": "loadSystemRoots moved to root.go. SSL_CERT_FILE and SSL_CERT_DIR can select on-disk roots on Windows, Darwin and iOS as well as Unix. On those platform-verifier systems no override retains systemPool; GODEBUG=x509sslcertoverrideplatform=0 also retains it. loadOnDiskRoots uses filepath.SplitList, reads files/directories and skips same-directory symlinks. Native global initialization and GODEBUG retain their own owner; input capture does not freeze or invoke them. The internal Go compatibility table marks x509sslcertoverrideplatform Changed27 Old0: the retained module Go1.26.9 minimum keeps platform roots by default even with compiler1.27.2; native GODEBUG can explicitly opt in."
     },
     {
       "source": "go@1.27.2/src/net/http/transport.go",
@@ -290,8 +290,8 @@
     },
     {
       "source": "scripts/release_candidate_package.sh",
-      "sha256": "686506b92d7da459e6cfbd2e19fd65298314be2b3edeb38bcea3e31663a1e3ed",
-      "finding": "Existing packaging targets include linux/amd64, linux/arm64, darwin/amd64, darwin/arm64 and windows/amd64 for the declared command list."
+      "sha256": "53f5a01aadd4c0936262b4fdcafcb1a1caae88469015d10734e425c64520e3b8",
+      "finding": "Validated support-policy queries own target and command argv lists. Normal packaging requires the declared current compiler and the existing clean-tree, live-dependency, production-check and signing preflight. Only Linux/amd64 includes server commands; other declared targets build the CLI. Read-only --plan avoids Git/Go/Make/provider/signing work. Archive arrays replace wildcard selection; the pre-build manifest commits the policy digest. No external publication or native-platform qualification is implied."
     }
   ]
 }

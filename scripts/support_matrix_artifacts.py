@@ -9,7 +9,7 @@ import yaml
 
 
 ARTIFACTS = (
-    "go.mod", "Makefile", "Dockerfile", "deploy/local-dependencies/Dockerfile",
+    "go.mod", "tools/go.mod", "tools/go.sum", "Makefile", "Dockerfile", "deploy/local-dependencies/Dockerfile",
     ".github/workflows/ci.yml", ".github/workflows/container-image.yml",
     ".github/workflows/release-artifacts.yml", "README.md",
     "docs/reference/toolchain-platform-support.md",
@@ -47,6 +47,9 @@ def render_matrix(policy):
     for name, tool in policy["tools"].items():
         digest = tool.get("linux_amd64_sha256", "Go module checksum database")
         lines.append(f'| `{name}` | `{tool["version"]}` | `{digest}` |')
+    lines += ["", "| QA build dependency | Exact version |", "| --- | --- |"]
+    for name, version in policy["tool_build_dependencies"].items():
+        lines.append(f"| `{name}` | `{version}` |")
     lines += ["", "| SDK language | Delivery |", "| --- | --- |"]
     for language, delivery in policy["sdk"].items():
         lines.append(f"| {language} | `{delivery}` |")
@@ -97,13 +100,35 @@ def check_artifacts(policy, *, root=None, read_text=None):
     check(re.findall(r"^go\s+(\S+)\s*$", sources["go.mod"], re.M) == [minimum], "go.mod: minimum drift")
     check(re.findall(r"^toolchain\s+(\S+)\s*$", sources["go.mod"], re.M) == ["go" + current], "go.mod: preferred toolchain drift")
     make = sources["Makefile"]
-    defaults = {"GOTOOLCHAIN": "go" + current, "GOLANGCI_LINT_VERSION": policy["tools"]["golangci_lint"]["version"],
-                "GOSEC_VERSION": policy["tools"]["gosec"]["version"], "GOVULNCHECK_VERSION": policy["tools"]["govulncheck"]["version"]}
+    defaults = {"GOTOOLCHAIN": "go" + current}
     for key, value in defaults.items():
         check(re.findall(r"^" + key + r"\s*\?=\s*(\S+)\s*$", make, re.M) == [value], "Makefile: " + key + " drift")
         assignments = re.findall(r"^(?:(?:export|override)\s+)?" + key + r"\s*([?:+!]?=)", make, re.M)
         check(assignments == ["?="], "Makefile: conflicting " + key + " assignments")
     check("export GOTOOLCHAIN\n" in make, "Makefile: toolchain not exported")
+
+    tool_mod = sources["tools/go.mod"]
+    check(re.findall(r"^go\s+(\S+)\s*$", tool_mod, re.M) == [minimum], "tools/go.mod: minimum drift")
+    check(re.findall(r"^toolchain\s+(\S+)\s*$", tool_mod, re.M) == ["go" + current], "tools/go.mod: preferred compiler drift")
+    check(not re.search(r"^\s*(?:replace|exclude)\b", tool_mod, re.M), "tools/go.mod: dependency graph override")
+    tool_packages = {
+        "golangci_lint": ("github.com/golangci/golangci-lint/v2", "cmd/golangci-lint"),
+        "gosec": ("github.com/securego/gosec/v2", "cmd/gosec"),
+        "govulncheck": ("golang.org/x/vuln", "cmd/govulncheck"),
+    }
+    expected_modules = {module: policy["tools"][name]["version"] for name, (module, _) in tool_packages.items()}
+    expected_modules.update(policy["tool_build_dependencies"])
+    # go mod tidy validates/canonicalizes this module; drift checks require the
+    # canonical dependency bindings and prohibit replacement/exclusion bypasses.
+    for module, version in expected_modules.items():
+        matches = re.findall(r"^\s+" + re.escape(module) + r" (\S+)(?: // indirect)?$", tool_mod, re.M)
+        check(matches == [version], "tools/go.mod: pinned dependency drift")
+        check(re.search(r"^" + re.escape(module + " " + version) + r" h1:[A-Za-z0-9+/=]+$", sources["tools/go.sum"], re.M) is not None,
+              "tools/go.sum: missing pinned module checksum")
+    for module, command in tool_packages.values():
+        package = module + "/" + command
+        check(re.search(r"^\s+" + re.escape(package) + r"$", tool_mod, re.M) is not None, "tools/go.mod: missing tool declaration")
+        check("GOWORK=off $(GO) -C tools install -mod=readonly " + package in make, "Makefile: tool installation bypasses locked graph")
 
     bases = []
     runtimes = []

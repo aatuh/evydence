@@ -26,13 +26,23 @@ class SupportArtifactTests(unittest.TestCase):
     def test_repository_build_inputs_match_the_declared_policy(self):
         self.assertEqual(self.check(), [])
 
+    def test_qa_installation_uses_the_locked_tool_graph(self):
+        recipe = self.files["Makefile"].split("\ntools:", 1)[1].split("\nfmt:", 1)[0]
+        for package in ("github.com/golangci/golangci-lint/v2/cmd/golangci-lint",
+                        "github.com/securego/gosec/v2/cmd/gosec", "golang.org/x/vuln/cmd/govulncheck"):
+            self.assertIn("GOWORK=off $(GO) -C tools install -mod=readonly " + package, recipe)
+        self.assertNotIn("@$(", recipe, "versioned install must not discard the locked dependency graph")
+
     def test_changed_inputs_are_rejected_independently(self):
         self.assertEqual(self.check(), [], "mutation controls require a valid baseline")
         mutations = [
             ("go.mod", "go 1.26.9", "go 1.26.8"),
             ("go.mod", "toolchain go1.27.2", "toolchain go1.27.1"),
             ("Makefile", "GOTOOLCHAIN ?= go1.27.2", "GOTOOLCHAIN ?= go1.26.9"),
-            ("Makefile", "GOSEC_VERSION ?= v2.25.0", "GOSEC_VERSION ?= latest"),
+            ("tools/go.mod", "github.com/securego/gosec/v2 v2.29.0", "github.com/securego/gosec/v2 latest"),
+            ("tools/go.mod", "golang.org/x/tools v0.52.0", "golang.org/x/tools v0.49.0"),
+            ("tools/go.mod", "toolchain go1.27.2", "toolchain go1.27.1"),
+            ("tools/go.mod", "\nrequire (", "\nreplace golang.org/x/tools => ../PRIVATE\nrequire ("),
             ("Makefile", "export GOTOOLCHAIN\n", "export GOTOOLCHAIN\nGOTOOLCHAIN := go1.26.9\n"),
             ("Dockerfile", "golang:1.27.2-", "golang:1.26.9-"),
             ("Dockerfile", "GOTOOLCHAIN=local", "GOTOOLCHAIN=auto"),
@@ -93,7 +103,8 @@ class SupportArtifactTests(unittest.TestCase):
     def test_policy_change_cannot_leave_old_artifacts_in_place(self):
         for mutate in (lambda p: p["go"].update(current="1.27.3"),
                        lambda p: p["go"].update(minimum="1.26.10"),
-                       lambda p: p["tools"]["gosec"].update(version="v2.26.0")):
+                       lambda p: p["tools"]["gosec"].update(version="v2.26.0"),
+                       lambda p: p["tool_build_dependencies"].update({"golang.org/x/tools": "v0.51.0"})):
             policy = copy.deepcopy(self.policy)
             mutate(policy)
             self.assertTrue(artifacts.check_artifacts(policy, read_text=self.files.__getitem__))

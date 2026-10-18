@@ -137,8 +137,11 @@ on Unix and semicolons on Windows. Windows quotes protect embedded semicolons
 and are removed from typed items; Unix quotes remain literal. Raw bytes and
 empty entries stay exact, and count/item-size limits apply before decoding.
 Native loaders own whether a supplied trust override is used. In particular,
-Go 1.27 enables certificate-file/directory overrides on Windows and macOS;
-declared toolchain support and qualification are separate from this input grammar.
+Go 1.27 adds certificate-file/directory overrides on Windows, macOS and iOS,
+subject to the binary's Go compatibility defaults and native `GODEBUG` policy.
+The module's Go 1.26.9 minimum retains the older platform-root default even when
+compiled with Go 1.27.2. Declared toolchain support and qualification are separate
+from this input grammar.
 No-proxy
 rules retain domain suffixes, wildcards, ports, IPs and CIDRs; malformed rules now
 fail instead of being silently ineffective. Auth-scheme whitespace/empty handling
@@ -175,8 +178,11 @@ lookup, and Unix/Windows path-list grammar. Go 1.26.9 owns Unix TLS overrides in
 `crypto/x509/root_unix.go`; Go 1.27.2 moves loading to `crypto/x509/root.go` and
 uses `filepath.SplitList`. Windows/macOS/iOS platform trust remains native when
 no override is supplied, or when the native
-`GODEBUG=x509sslcertoverrideplatform=0` switch selects it. Capturing a declared
-input does not freeze global Go runtime state.
+`GODEBUG=x509sslcertoverrideplatform=0` switch selects it. Go 1.27's compatibility
+table records this setting as changed in Go 1.27 with old value `0`; the retained
+module minimum therefore selects the old default. An operator can explicitly
+change the native setting. See [Go compatibility defaults](https://go.dev/doc/godebug).
+Capturing a declared input does not freeze global Go runtime state.
 
 Tests require every native schema source to have a review record, pin SDK
 versions and repository-owned boundary hashes, and require equivalent boundary

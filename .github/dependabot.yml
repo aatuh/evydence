@@ -8,6 +8,14 @@ updates:
     labels:
       - dependencies
       - go
+  - package-ecosystem: gomod
+    directory: /tools
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
   - package-ecosystem: github-actions
     directory: /
     schedule:

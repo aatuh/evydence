@@ -23,11 +23,15 @@ Python 3 with PyYAML, alongside the existing project tools.
 
 | QA tool | Exact version | Linux amd64 archive SHA-256 |
 | --- | --- | --- |
-| `golangci_lint` | `v2.11.4` | `Go module checksum database` |
-| `gosec` | `v2.25.0` | `Go module checksum database` |
-| `govulncheck` | `v1.2.0` | `Go module checksum database` |
+| `golangci_lint` | `v2.15.0` | `Go module checksum database` |
+| `gosec` | `v2.29.0` | `Go module checksum database` |
+| `govulncheck` | `v1.9.0` | `Go module checksum database` |
 | `helm` | `v4.3.0` | `86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb` |
 | `oasdiff` | `1.29.1` | `541f7c66c933495fceef24eaf5c48aa66c19069f366f7bd0a60a6a4820c5e533` |
+
+| QA build dependency | Exact version |
+| --- | --- |
+| `golang.org/x/tools` | `v0.52.0` |
 
 | SDK language | Delivery |
 | --- | --- |
@@ -35,6 +39,26 @@ Python 3 with PyYAML, alongside the existing project tools.
 | python | `source-wrapper` |
 | typescript | `source-wrapper` |
 <!-- END GENERATED SUPPORT MATRIX -->
+
+## Release build plan
+
+Inspect the current command plan without starting builds or reading signing
+material:
+
+```sh
+scripts/release_candidate_package.sh --plan
+```
+
+This emits JSON from the validated policy without Git, Go, Make, database or
+provider calls. Normal packaging requires the declared current compiler and
+keeps the full production gate, live dependency configuration, signing and
+checksum checks. Normal packaging uses a Linux amd64 build host for its signing
+CLI. Container builders serialize Go packages and bound compiler parallelism.
+Only the Linux amd64 archive contains the API, worker and
+migration commands; the other declared archives contain the CLI. Their existing
+archive and CLI filenames remain stable. The pre-build manifest also commits
+the support policy digest. Release packaging/qualification is still required;
+plan inspection alone does not prove binary builds or runtime support.
 
 ## Version selection
 
@@ -65,12 +89,18 @@ publishing manifests or additional OS/runtime qualification for those examples.
 ## Updating the policy
 
 Change policy data and its checked build/CI/documentation inputs in the same
-reviewed change. Keep exact QA tool versions; Go tools use module/checksum-db
-verification, and downloaded Helm/oasdiff archives require their declared
+reviewed change. `tools/go.mod` and `tools/go.sum` isolate the QA dependency graph
+from application dependencies; `make tools` installs from that graph with
+workspace overrides disabled and module edits forbidden. Update both lock files
+alongside the declared tool versions and build-dependency pin. Keep exact QA tool versions; Go tools use module/checksum-db
+verification. The shared `golang.org/x/tools` pin lets standalone gosec read
+current Go export data; its released isolated dependency graph cannot read
+Go 1.27.2 exports. The same engine with this parser already runs in the pinned
+golangci-lint graph. Downloaded Helm/oasdiff archives require their declared
 SHA-256. Inspect official release notes, dependency floors and security fixes.
 Review Docker Official Image manifest digests, retaining immutable pins and the
 matching builder/runtime Alpine release. Weekly Dependabot updates cover Go
-modules, Actions and Docker; manually review QA tool pins at least monthly and
+modules (including `/tools`), Actions and Docker; manually review QA tool pins at least monthly and
 when a relevant security fix is released. Never switch a tool to `latest`.
 
 Run focused drift, source-review and regression checks during the change. Before

@@ -17,12 +17,13 @@ def policy_fixture():
         "schema_version": "evydence-support-policy.v1",
         "go": {"minimum": "1.26.9", "current": "1.27.2"},
         "tools": {
-            "golangci_lint": {"version": "v2.11.4"},
-            "gosec": {"version": "v2.25.0"},
-            "govulncheck": {"version": "v1.2.0"},
+            "golangci_lint": {"version": "v2.15.0"},
+            "gosec": {"version": "v2.29.0"},
+            "govulncheck": {"version": "v1.9.0"},
             "helm": {"version": "v4.3.0", "linux_amd64_sha256": "a" * 64},
             "oasdiff": {"version": "1.29.1", "linux_amd64_sha256": "b" * 64},
         },
+        "tool_build_dependencies": {"golang.org/x/tools": "v0.52.0"},
         "release": {
             "cli_targets": ["linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64", "windows/amd64"],
             "runtime_targets": ["linux/amd64"],
@@ -62,6 +63,8 @@ class SupportPolicyTests(unittest.TestCase):
             lambda p: p["tools"]["gosec"].update(version="latest"),
             lambda p: p["tools"]["helm"].update(linux_amd64_sha256="PRIVATE_DIGEST"),
             lambda p: p["tools"].pop("govulncheck"),
+            lambda p: p["tool_build_dependencies"].update({"golang.org/x/tools": "latest"}),
+            lambda p: p["tool_build_dependencies"].update({"PRIVATE_MODULE": "v0.52.0"}),
             lambda p: p["release"]["cli_targets"].append("../../PRIVATE"),
             lambda p: p["release"]["cli_targets"].append("linux/amd64"),
             lambda p: p["release"].update(cli_targets=[]),
@@ -146,7 +149,7 @@ class SupportPolicyCommandTests(unittest.TestCase):
 
     def test_queries_return_only_validated_deterministic_data(self):
         for args, expected in ((["--go-minimum"], "1.26.9\n"), (["--go-current"], "1.27.2\n"),
-                               (["--tool-version", "gosec"], "v2.25.0\n"),
+                               (["--tool-version", "gosec"], "v2.29.0\n"),
                                (["--tool-sha256", "helm"], "a" * 64 + "\n"),
                                (["--validate"], "support policy is valid\n")):
             self.assertEqual(self.run_command(args), (0, expected, ""))
@@ -155,9 +158,26 @@ class SupportPolicyCommandTests(unittest.TestCase):
         self.assertEqual(json.loads(data), support.release_plan(support.parse_policy(json.dumps(policy_fixture()).encode())))
         self.assertEqual(self.run_command(["--go-versions"]), (0, '["1.26.9", "1.27.2"]\n', ""))
 
+    def test_release_queries_preserve_target_order_and_command_ownership(self):
+        self.assertEqual(self.run_command(["--release-targets"]),
+                         (0, "linux/amd64\nlinux/arm64\ndarwin/amd64\ndarwin/arm64\nwindows/amd64\n", ""))
+        for target in policy_fixture()["release"]["cli_targets"]:
+            commands = "evydence\n"
+            if target == "linux/amd64":
+                commands += "evydence-api\nevydence-worker\nevydence-migrate\n"
+            self.assertEqual(self.run_command(["--commands", target]), (0, commands, ""))
+        policy = policy_fixture()
+        policy["release"]["cli_targets"] = ["linux/amd64"]
+        (self.root / "release/support-matrix.json").write_text(json.dumps(policy))
+        code, output, errors = self.run_command(["--commands", "darwin/arm64"])
+        self.assertEqual((code, output), (2, ""))
+        self.assertIn("unsupported release target", errors)
+
     def test_invalid_flags_and_selectors_fail_before_policy_access(self):
         for args in (["--PRIVATE", "PRIVATE_VALUE"], ["--tool-version", "PRIVATE_TOOL"],
-                     ["--go-current", "--go-minimum"], ["--tool-sha256", "gosec"]):
+                     ["--go-current", "--go-minimum"], ["--tool-sha256", "gosec"],
+                     ["--commands", "PRIVATE_TARGET"], ["--commands", "linux/amd64;PRIVATE"],
+                     ["--commands", "linux/amd64", "--release-targets"]):
             with self.subTest(args=args), patch.object(support, "load_policy") as load:
                 code, output, errors = self.run_command(args)
                 self.assertEqual(code, 2)

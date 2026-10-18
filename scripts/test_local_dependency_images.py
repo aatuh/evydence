@@ -48,6 +48,13 @@ class LocalDependencyImageTests(unittest.TestCase):
             fixture = re.search(rf"^FROM ({prefix}[^ ]+) AS", source, re.M)[1]
             self.assertContains(f"FROM {fixture}", application)
 
+    def test_go_builds_bound_package_and_compiler_parallelism(self):
+        for path in (ROOT / "Dockerfile", DOCKERFILE):
+            with self.subTest(path=str(path.relative_to(ROOT))):
+                source = path.read_text()
+                self.assertIn("GOFLAGS=-p=1", source)
+                self.assertIn("GOMAXPROCS=2", source)
+
     def test_fixture_build_context_excludes_unrelated_files(self):
         self.assertEqual((DOCKERFILE.parent / ".dockerignore").read_text().splitlines(),
                          ["*", "!Dockerfile"])

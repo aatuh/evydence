@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Exercise the real packaging entry point without builds or signing material."""
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+
+import support_matrix as support
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "scripts/release_candidate_package.sh"
+
+
+class ReleaseBuildPlanTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        self.marker = self.root / "unexpected-command"
+        self.environment = dict(os.environ)
+        self.environment.update(PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
+                                EVYDENCE_TEST_DATABASE_URL="",
+                                EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="",
+                                RELEASE_SIGNING_PRIVATE_KEY_B64="")
+        for name in ("git", "go", "make"):
+            self.stub(name, '#!/bin/sh\nprintf unexpected > "$PLAN_TEST_MARKER"\nexit 91\n')
+        self.environment["PLAN_TEST_MARKER"] = str(self.marker)
+
+    def stub(self, name, source):
+        path = self.bin / name
+        path.write_text(source)
+        path.chmod(0o700)
+
+    def run_plan(self, *args):
+        return subprocess.run(["bash", str(SCRIPT), *args], cwd=self.root,
+                              env=self.environment, capture_output=True, text=True, timeout=10)
+
+    def test_plan_is_read_only_and_matches_the_actual_policy(self):
+        result = self.run_plan("--plan")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), support.release_plan(support.load_policy(ROOT)))
+        self.assertEqual(result.stderr, "")
+        self.assertFalse(self.marker.exists(), "plan must not use Git, Go, Make or signing material")
+
+    def test_unknown_extra_plan_arguments_fail_before_external_commands(self):
+        result = self.run_plan("--plan", "PRIVATE_ARGUMENT")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertNotIn("PRIVATE", result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_unsafe_tags_fail_before_external_commands(self):
+        for tag in ("../PRIVATE", "/PRIVATE", "v0.0.0-rc.1;PRIVATE", "v0.0.0-rc.$(PRIVATE)", "v0.0.0-rc.1\nPRIVATE"):
+            with self.subTest(tag=tag):
+                result = self.run_plan(tag)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, "")
+                self.assertNotIn("PRIVATE", result.stderr)
+                self.assertFalse(self.marker.exists())
+
+    def prepare_clean_checkout(self, version):
+        self.stub("git", '''#!/bin/sh
+case "$*" in
+  "rev-parse -q --verify refs/tags/"*) exit 1 ;;
+  *) exit 0 ;;
+esac
+''')
+        self.stub("go", '#!/bin/sh\n[ "$*" = "env GOVERSION" ] || exit 92\nprintf "%s\\n" "'+version+'"\n')
+
+    def test_wrong_compiler_is_rejected_before_dependency_or_signing_work(self):
+        self.prepare_clean_checkout("go1.26.9")
+        result = self.run_plan("v0.0.0-rc.1401")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("requires the declared current Go compiler", result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def test_current_compiler_still_requires_live_dependency_configuration(self):
+        self.prepare_clean_checkout("go"+support.load_policy(ROOT)["go"]["current"])
+        result = self.run_plan("v0.0.0-rc.1401")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("EVYDENCE_TEST_DATABASE_URL is required", result.stderr)
+        self.assertFalse(self.marker.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

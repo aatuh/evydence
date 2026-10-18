@@ -13,6 +13,13 @@ before replacing a binary, container builder or SDK wrapper. Cross-built CLI
 archives do not establish additional supported server platforms. Existing
 published release commitments are not rewritten by a source toolchain update.
 
+New candidate archives include API, worker and migration executables only for
+Linux amd64. Other declared platform archives retain the `evydence` CLI and
+existing archive filenames; they do not include unsupported server commands.
+Review operator installation scripts that previously selected another server
+binary from a cross-built archive. Historical assets keep their original bytes.
+
+
 ## Supported Upgrade Paths
 
 | Source | Target | Policy |
