@@ -39,7 +39,7 @@ func nativeHostDefinitions() []NativeDefinition {
 		{"PATH", "executable_search_path", "go@1.26.9/src/os/exec/lp_unix.go:lookPath", "Native external credential helper search path; capture never executes a helper."},
 		{"SYSTEMROOT", "windows_system_root", "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/developer_credential_util_windows.go:buildCmd", "Windows system directory used by native developer credentials."},
 		{"SSL_CERT_FILE", "system_certificate_file", "go@1.26.9/src/crypto/x509/root_unix.go:loadSystemRoots", "Unix system TLS trust-file override; resolution has a separate file owner."},
-		{"SSL_CERT_DIR", "system_certificate_directories", "go@1.26.9/src/crypto/x509/root_unix.go:loadSystemRoots", "Colon-separated Unix system TLS trust-directory override."},
+		{"SSL_CERT_DIR", "system_certificate_directories", "go@1.26.9/src/crypto/x509/root_unix.go:loadSystemRoots", "Platform-separated native TLS trust directories: colon on Unix, semicolon with native quote handling on Windows. Native resolution owns whether the running platform/toolchain uses this input."},
 	} {
 		kind := Path
 		if entry.name == "PATH" || entry.name == "SSL_CERT_DIR" {

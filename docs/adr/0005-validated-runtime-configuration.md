@@ -131,9 +131,15 @@ fix also covers project-owned base URLs.
 
 PostgreSQL native host/port lists are bounded to 16 entries, sharing the explicit
 DSN host checks and retaining bare IPv6, Unix socket directories and leading-zero
-ports. Other declared lists are bounded to 256 entries before splitting, with
-4096-byte items. PATH uses the target platform separator; Unix certificate
-directories use colons. Empty path-list entries retain native semantics. No-proxy
+ports. Other declared lists are bounded to 256 entries with 4096-byte items.
+PATH and certificate-directory lists use the target platform separator: colons
+on Unix and semicolons on Windows. Windows quotes protect embedded semicolons
+and are removed from typed items; Unix quotes remain literal. Raw bytes and
+empty entries stay exact, and count/item-size limits apply before decoding.
+Native loaders own whether a supplied trust override is used. In particular,
+Go 1.27 enables certificate-file/directory overrides on Windows and macOS;
+declared toolchain support and qualification are separate from this input grammar.
+No-proxy
 rules retain domain suffixes, wildcards, ports, IPs and CIDRs; malformed rules now
 fail instead of being silently ineffective. Auth-scheme whitespace/empty handling
 matches the pinned AWS helper; malformed additional-tenant entries fail. These

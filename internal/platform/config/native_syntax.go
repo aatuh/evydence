@@ -28,6 +28,10 @@ const (
 )
 
 func parseNativeValue(d NativeDefinition, raw string) (nativeValue, error) {
+	return parseNativeValueWithPathListSeparator(d, raw, os.PathListSeparator)
+}
+
+func parseNativeValueWithPathListSeparator(d NativeDefinition, raw string, pathListSeparator byte) (nativeValue, error) {
 	value, err := parseNativeScalar(d, raw)
 	if err != nil || raw == "" {
 		return value, err
@@ -39,7 +43,7 @@ func parseNativeValue(d NativeDefinition, raw string) (nativeValue, error) {
 		}
 		value.endpoint = *endpoint
 	}
-	if err := parseNativeSyntax(d, &value); err != nil {
+	if err := parseNativeSyntax(d, &value, pathListSeparator); err != nil {
 		return nativeValue{}, err
 	}
 	return value, nil
@@ -85,7 +89,7 @@ func parseNativeEndpoint(d NativeDefinition, raw string) (*url.URL, error) {
 	return u, nil
 }
 
-func parseNativeSyntax(d NativeDefinition, value *nativeValue) error {
+func parseNativeSyntax(d NativeDefinition, value *nativeValue, pathListSeparator byte) error {
 	switch d.Syntax {
 	case "":
 		return nil
@@ -107,12 +111,16 @@ func parseNativeSyntax(d NativeDefinition, value *nativeValue) error {
 		value.endpoint = *u
 		return nil
 	}
+	if d.Syntax == NativePathList || d.Syntax == NativeCertDirectories {
+		items, err := parseNativePathItems(value.raw, pathListSeparator, d.MaxItems, d.MaxItemBytes)
+		if err != nil {
+			return err
+		}
+		value.items = items
+		return nil
+	}
 	separator := ","
 	switch d.Syntax {
-	case NativePathList:
-		separator = string(os.PathListSeparator)
-	case NativeCertDirectories:
-		separator = ":" // Matches Unix x509 roots, independent of PATH syntax.
 	case NativeTenants, NativeWindowsExtensions:
 		separator = ";"
 	}
@@ -139,13 +147,6 @@ func parseNativeSyntax(d NativeDefinition, value *nativeValue) error {
 			}
 			value.ports = append(value.ports, uint16(n))
 		}
-	case NativePathList, NativeCertDirectories:
-		for _, item := range parts {
-			if item != "" && strings.TrimSpace(item) == "" {
-				return ErrInvalidValue
-			}
-		}
-		value.items = parts // Empty PATH entries retain native current-dir semantics.
 	case NativeAuthSchemes, NativeNoProxy:
 		for _, item := range parts {
 			item = strings.TrimSpace(item)
