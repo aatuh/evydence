@@ -442,8 +442,10 @@ for graceful and forced exit semantics and uncertain in-flight commits.
 
 Before installation, run `make deploy-check` with the prerequisites above.
 It renders the actual chart with valid and invalid lifecycle values and resolves
-the production-like Compose configuration. It does not contact a Kubernetes
-cluster or prove a live rollout, storage integration or backup readiness.
+the production-like Compose configuration. It also runs the
+[deployment startup matrix](reference/release-validation.md#deployment-runtime-configuration)
+with rendered inputs and private projection fixtures. It does not contact a
+Kubernetes cluster or prove a live rollout, storage integration or backup readiness.
 
 ## Verify
 

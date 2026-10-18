@@ -290,15 +290,20 @@ class DeploymentLifecycleTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("terminationGracePeriodSeconds", result.stderr)
 
-    def compose_services(self, overrides=None):
+    def compose_services(self, overrides=None, compose_override=None):
         env = {key: value for key, value in os.environ.items()
                if not key.startswith(("EVYDENCE_", "MINIO_", "POSTGRES_"))}
         env.update({"POSTGRES_PASSWORD": "fixture-only", "MINIO_ROOT_PASSWORD": "fixture-only",
                     "EVYDENCE_API_KEY_PEPPER": "fixture-only"})
         env.update(overrides or {})
-        result = subprocess.run(["docker", "compose", "--env-file", os.devnull, "-f",
-            str(ROOT / "compose.production-like.yml"), "config", "--format", "json"],
-            env=env, check=True, capture_output=True, text=True, timeout=20)
+        with tempfile.TemporaryDirectory(prefix="evydence-compose-config-") as directory:
+            command = ["docker", "compose", "--env-file", os.devnull, "-f", str(ROOT / "compose.production-like.yml")]
+            if compose_override is not None:
+                override = Path(directory) / "override.json"
+                override.write_text(json.dumps(compose_override))
+                command += ["-f", str(override)]
+            result = subprocess.run(command + ["config", "--format", "json"],
+                env=env, check=True, capture_output=True, text=True, timeout=20)
         return json.loads(result.stdout)["services"]
 
     def test_compose_external_signing_settings_reach_only_the_api(self):

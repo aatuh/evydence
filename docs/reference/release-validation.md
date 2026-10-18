@@ -24,6 +24,25 @@ or set `HELM_BIN` to the executable path. These checks render the local chart
 and resolve synthetic Compose configuration; they do not start containers or
 contact a cluster. Missing tools fail the gate rather than skip deployment proof.
 
+## Deployment runtime configuration
+
+`make deployment-config-check` runs the `deployment`-tagged startup tests and is
+required by `make deploy-check`. Normal unit tests do not acquire these external
+tool dependencies. The matrix renders fresh chart/Compose configuration with
+fake operator Secrets, applies the rendered environment and named projections,
+and exercises API, worker, worker-operator, migration and online CLI startup.
+Worker probes and a CLI import also execute their command dispatch against owned
+loopback HTTP fixtures. Migration rejection counts connections to an owned
+non-PostgreSQL endpoint, which cannot execute database work.
+
+Private projections use contained `..data` links and exact private file modes in
+test-owned directories. Cases cover production rejection, source conflicts,
+malformed loaded values, unsafe file permissions, snapshot stability and fixed
+diagnostics. The migration file case renders an operator Compose override; the
+base stack does not ship that file profile. These tests do not start containers,
+connect to provider services, prove a live cluster's projection ownership or
+replace the existing live PostgreSQL/release-binary gates.
+
 ## Live test package watchdogs
 
 Complete Go test, race, coverage and PostgreSQL integration gates use a

@@ -3,7 +3,7 @@ GOTOOLCHAIN ?= go1.26.9
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
-.PHONY: architecture-check concurrency-stress-check config-generate config-check
+.PHONY: architecture-check concurrency-stress-check config-generate config-check deployment-config-check
 GOLANGCI_LINT_VERSION ?= v2.11.4
 GOSEC_VERSION ?= v2.25.0
 GOVULNCHECK_VERSION ?= v1.2.0
@@ -569,9 +569,13 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@grep -F 'G-XC2ESEHQ3W' docs/how-to/publish-marketing-site.md >/dev/null
 	@grep -F 'evydence.app' docs/how-to/publish-marketing-site.md >/dev/null
 
+deployment-config-check: ## Verify rendered inputs through actual command startup paths; requires Helm and Compose
+	@$(GO) test -tags=deployment ./internal/platform/deploymentcheck ./cmd/evydence-api ./cmd/evydence-worker ./cmd/evydence-migrate ./cmd/evydence -run '^TestDeployment' -count=1 -timeout=10m
+
 deploy-check: ## Validate deployment assets, rendered Helm and shutdown budgets
 	@python3 scripts/test_local_dependency_images.py
 	@python3 scripts/test_deployment_lifecycle.py
+	@$(MAKE) deployment-config-check
 	@test -f compose.production-like.yml
 	@test -f deploy/helm/evydence/Chart.yaml
 	@test -f deploy/helm/evydence/values.yaml
