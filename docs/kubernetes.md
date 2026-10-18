@@ -108,6 +108,13 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `env.signingKeyMode` | Production signing mode. Use `external`, `aws-kms`, `gcp-kms`, `azure-key-vault`, or gateway-backed `pkcs11-hsm`. |
 | `ingress.*` | Optional ingress host and TLS secret. |
 
+The chart schema rejects missing, null, non-integer and out-of-range values for
+the exposed API numeric settings before rendering. `make config-check` compares
+these declared bounds with the runtime schema, including the shared cleanup and
+worker drain budgets. `make deploy-check` also exercises invalid Helm overrides.
+General and expensive-route quotas retain their supported zero values; the
+separate authentication-failure budget cannot be disabled with zero.
+
 
 ## Runtime Configuration Schema
 

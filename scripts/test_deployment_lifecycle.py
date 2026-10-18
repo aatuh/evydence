@@ -168,6 +168,21 @@ class DeploymentLifecycleTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("cleanupTimeoutSeconds", result.stderr)
 
+    def test_api_numeric_settings_reject_invalid_types_and_out_of_range_values(self):
+        fields = ("readHeaderTimeoutSeconds", "readTimeoutSeconds", "writeTimeoutSeconds",
+                  "idleTimeoutSeconds", "maxHeaderBytes", "maxURLBytes", "maxInFlightRequests",
+                  "maxConcurrentUploads", "rateLimitRequestsPerMinute", "authenticationFailuresPerMinute",
+                  "expensiveTenantRequestsPerMinute", "rateLimitBucketCapacity")
+        for field in fields:
+            for invalid in (-1, 9223372036854775807, "5", True, 1.5, None):
+                with self.subTest(field=field, value=invalid):
+                    result = self.render({"api": {field: invalid}})
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(field, result.stderr)
+        # General/expensive-route quotas retain the runtime's supported zero;
+        # the separate authentication-failure budget remains strictly positive.
+        self.manifests({"api": {"rateLimitRequestsPerMinute": 0, "expensiveTenantRequestsPerMinute": 0}})
+
     def test_second_api_writer_and_missing_image_tag_stay_rejected(self):
         result = self.render({"api": {"replicas": 2}})
         self.assertNotEqual(result.returncode, 0)
