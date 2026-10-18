@@ -1,0 +1,32 @@
+{
+  "schema_version": "evydence-support-policy.v1",
+  "go": {
+    "minimum": "1.26.9",
+    "current": "1.27.2"
+  },
+  "tools": {
+    "golangci_lint": {"version": "v2.11.4"},
+    "gosec": {"version": "v2.25.0"},
+    "govulncheck": {"version": "v1.2.0"},
+    "helm": {
+      "version": "v4.3.0",
+      "linux_amd64_sha256": "86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb"
+    },
+    "oasdiff": {
+      "version": "1.29.1",
+      "linux_amd64_sha256": "541f7c66c933495fceef24eaf5c48aa66c19069f366f7bd0a60a6a4820c5e533"
+    }
+  },
+  "release": {
+    "cli_targets": ["linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64", "windows/amd64"],
+    "runtime_targets": ["linux/amd64"],
+    "server_targets": ["linux/amd64"],
+    "server_commands": ["evydence-api", "evydence-worker", "evydence-migrate"],
+    "cli_command": "evydence"
+  },
+  "sdk": {
+    "go": "source-wrapper",
+    "python": "source-wrapper",
+    "typescript": "source-wrapper"
+  }
+}
