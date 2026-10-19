@@ -26,7 +26,8 @@ class PackagingRecipeTests(unittest.TestCase):
     def checkout(self, name):
         root = self.root / name
         for filename in set(release_artifacts.BUILD_MATERIALS) | {
-                'scripts/support_matrix.py', 'docs/reference/release-notes-template.md',
+                'scripts/support_matrix.py', 'scripts/reproducible_build.py',
+                'docs/reference/release-notes-template.md',
                 'LICENSE', 'README.md', 'CHANGELOG.md'}:
             output = root / filename
             output.parent.mkdir(parents=True, exist_ok=True)
@@ -58,13 +59,40 @@ elif a and a[0]=='build':
  with open('build-requests.jsonl','a') as out:out.write(json.dumps({'args':a,'goos':os.environ.get('GOOS'),'goarch':os.environ.get('GOARCH'),'cgo':os.environ.get('CGO_ENABLED'),'goflags':os.environ.get('GOFLAGS'),'experiment':os.environ.get('GOEXPERIMENT'),'secret_present':any(k in os.environ for k in ['GH_TOKEN','EVYDENCE_TEST_DATABASE_URL','EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64'])})+'\\n')
  target=Path(a[a.index('-o')+1]);target.parent.mkdir(parents=True,exist_ok=True)
  target.write_bytes(('fixture '+a[-1]+' '+a[a.index('-ldflags')+1]).encode())
+ if Path('candidate-change').exists() and 'release-candidate' in str(target):
+  target.write_bytes(target.read_bytes()+b' DIFFERENT_FINAL_BUILD')
  if Path('source-change-mode').exists():Path('source-changed').write_text('yes')
 else:raise SystemExit(92)
 ''',
-            'make': '''from pathlib import Path
-Path('coverage.out').write_text('fixture coverage')
-Path('tmp').mkdir(exist_ok=True)
-Path('tmp/release-check-summary.txt').write_text('fixture validation')
+            'make': '''import json,subprocess,sys
+from pathlib import Path
+sys.path.insert(0,str(Path.cwd()/'scripts'))
+import release_artifacts,reproducible_build,support_matrix
+arguments=[item for item in sys.argv[1:] if not item.startswith('--')]
+if arguments[0]=='production-check':
+ Path('coverage.out').write_text('fixture coverage')
+ Path('tmp').mkdir(exist_ok=True)
+ Path('tmp/release-check-summary.txt').write_text('fixture validation')
+elif arguments[0]=='reproducible-build-check':
+ tag=next(item.split('=',1)[1] for item in arguments if item.startswith('TAG='))
+ bundle=Path('tmp/repro-reference')
+ result=subprocess.run([sys.executable,'scripts/release_build.py','--tag',tag,
+   '--output',str(bundle/'archives'),'--work',str(bundle/'work'),'--expected-commit','a'*40])
+ if result.returncode:raise SystemExit(result.returncode)
+ manifest=json.loads((bundle/'work/release-build-manifest.json').read_text())
+ report={'schema_version':reproducible_build.REPORT_SCHEMA,'source_commit':'a'*40,'tag':tag,
+         'source_date_epoch':manifest['source_date_epoch'],'go_version':manifest['go_version'],
+         'build_recipe_version':release_artifacts.RECIPE_VERSION,
+         'artifacts':reproducible_build.artifact_inventory(bundle,support_matrix.load_policy(),tag)}
+ (bundle/reproducible_build.REPORT_NAME).write_text(json.dumps(report))
+ comparison=reproducible_build.compare_bundles(bundle,bundle,tag,'a'*40)
+ assert comparison['passed']
+ comparison.setdefault('verified_artifacts',report['artifacts'])
+ comparison.setdefault('go_version',manifest['go_version'])
+ comparison.setdefault('build_recipe_version',manifest['build_recipe_version'])
+ comparison.setdefault('source_date_epoch',manifest['source_date_epoch'])
+ print(json.dumps(comparison))
+else:raise SystemExit(92)
 ''',
         }
         for name, code in programs.items():
@@ -100,7 +128,10 @@ Path('tmp/release-check-summary.txt').write_text('fixture validation')
         for archive in archives:
             self.assertEqual(archive.read_bytes(), (b / archive.name).read_bytes(), archive.name)
         builds = [json.loads(line) for line in (first / 'build-requests.jsonl').read_text().splitlines()]
-        self.assertEqual(len(builds), 8)
+        final_builds = [request for request in builds
+                        if 'release-candidate' in request['args'][request['args'].index('-o') + 1]]
+        self.assertEqual(len(final_builds), 8)
+        self.assertEqual(len(builds), 16)  # Eight reference fixtures, then eight actual package payloads.
         for request in builds:
             self.assertIn('-trimpath', request['args'])
             self.assertIn('-buildvcs=false', request['args'])
@@ -119,6 +150,14 @@ Path('tmp/release-check-summary.txt').write_text('fixture validation')
                 self.assertEqual(result.returncode, 93 if mode == 'git-error' else 2, result.stderr)
                 self.assertFalse((root / 'artifact-phase-finished').exists())
                 self.assertFalse((root / 'dist' / TAG / 'evydence-release-manifest.sig.json').exists())
+
+    def test_mismatching_final_payload_stops_before_evidence_or_signing(self):
+        root, environment = self.checkout('different-final-payload')
+        (root / 'candidate-change').write_text('different final build')
+        result = self.run_package(root, environment)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertFalse((root / 'artifact-phase-finished').exists())
+        self.assertFalse((root / 'dist' / TAG / 'evydence-release-manifest.sig.json').exists())
 
 
 if __name__ == '__main__':

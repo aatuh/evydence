@@ -72,20 +72,34 @@ def unique_object(pairs):
     return result
 
 
-def read_report(bundle):
-    if Path(bundle).is_symlink():
-        raise ValueError('invalid artifact bundle')
-    handle, size = artifacts.regular_file(Path(bundle) / REPORT_NAME)
+def read_json(path):
+    handle, size = artifacts.regular_file(Path(path))
     with handle:
         if size > MAX_REPORT_BYTES:
             raise ValueError('oversized artifact report')
         data = handle.read(MAX_REPORT_BYTES + 1)
     if len(data) > MAX_REPORT_BYTES:
         raise ValueError('oversized artifact report')
-    report = json.loads(data, object_pairs_hook=unique_object)
+    try:
+        report = json.loads(data, object_pairs_hook=unique_object)
+    except RecursionError:
+        raise ValueError('invalid artifact report') from None
     if not isinstance(report, dict):
         raise ValueError('invalid artifact report')
     return report
+
+
+def read_report(bundle):
+    if Path(bundle).is_symlink():
+        raise ValueError('invalid artifact bundle')
+    return read_json(Path(bundle) / REPORT_NAME)
+
+
+def valid_record(record, kind):
+    return (isinstance(record, dict) and set(record) == {'kind', 'bytes', 'sha256'}
+            and record['kind'] == kind and type(record['bytes']) is int
+            and 0 <= record['bytes'] <= artifacts.MAX_FILE_BYTES
+            and isinstance(record['sha256'], str) and re.fullmatch(r'[a-f0-9]{64}', record['sha256']) is not None)
 
 
 def compare_bundles(first, second, tag, commit):
@@ -115,10 +129,7 @@ def compare_bundles(first, second, tag, commit):
         inventory = {}
         for path, kind in paths.items():
             record = records.get(path)
-            if (not isinstance(record, dict) or record.get('kind') != kind
-                    or type(record.get('bytes')) is not int or not 0 <= record['bytes'] <= artifacts.MAX_FILE_BYTES
-                    or not isinstance(record.get('sha256'), str)
-                    or re.fullmatch(r'[a-f0-9]{64}', record['sha256']) is None):
+            if not valid_record(record, kind):
                 differences.append({'artifact': path, 'reason': slot + '_record_invalid'})
                 continue
             try:
@@ -141,9 +152,55 @@ def compare_bundles(first, second, tag, commit):
                 differences.append({'artifact': path, 'reason': 'artifact_bytes_differ'})
     return {'schema_version': 'evydence.reproducible-comparison.v1', 'scope': 'artifact-byte-equality',
             'source_commit': commit, 'tag': tag, 'passed': not differences,
+            'go_version': 'go' + policy['go']['current'], 'build_recipe_version': artifacts.RECIPE_VERSION,
+            'source_date_epoch': reports[0].get('source_date_epoch')
+                if type(reports[0].get('source_date_epoch')) is int and 0 <= reports[0]['source_date_epoch'] < 2**32 else None,
+            'verified_artifacts': inventories[0] if not differences else {},
             'artifact_count': compared, 'expected_artifact_count': len(paths), 'differences': differences,
             'observed_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'limitations': ['Artifact equality does not independently authenticate runner identities or artifact provenance.']}
+
+
+def verify_candidate(archives, work, comparison, tag, commit):
+    """Bind the actual signable payload to a successful, byte-backed comparison."""
+    artifacts.validate_coordinates(tag, commit)
+    policy = support_matrix.load_policy()
+    proof = read_json(comparison)
+    paths = artifact_paths(policy, tag)
+    expected = {'schema_version': 'evydence.reproducible-comparison.v1', 'scope': 'artifact-byte-equality',
+                'source_commit': commit, 'tag': tag, 'go_version': 'go' + policy['go']['current'],
+                'build_recipe_version': artifacts.RECIPE_VERSION}
+    if (any(proof.get(key) != value for key, value in expected.items()) or proof.get('passed') is not True
+            or proof.get('differences') != [] or type(proof.get('artifact_count')) is not int
+            or proof['artifact_count'] != len(paths) or type(proof.get('expected_artifact_count')) is not int
+            or proof['expected_artifact_count'] != len(paths)):
+        raise ValueError('invalid successful comparison proof')
+    epoch = proof.get('source_date_epoch')
+    timestamp = artifacts.checked_epoch(epoch)
+    records = proof.get('verified_artifacts')
+    if not isinstance(records, dict) or set(records) != set(paths):
+        raise ValueError('invalid verified artifact set')
+    differences = []
+    for path, kind in paths.items():
+        if not valid_record(records[path], kind):
+            raise ValueError('invalid verified artifact record')
+        prefix, relative = path.split('/', 1)
+        directory = archives if prefix == 'archives' else work
+        try:
+            actual = file_record(directory, relative, kind)
+        except (OSError, ValueError):
+            differences.append({'artifact': path, 'reason': 'candidate_bytes_unreadable'})
+            continue
+        if actual != records[path]:
+            differences.append({'artifact': path, 'reason': 'candidate_bytes_differ_from_verified_comparison'})
+    manifest = read_json(Path(work) / 'release-build-manifest.json')
+    identity = {'schema_version': 'evydence-release-build-manifest.v1', 'tag': tag, 'commit': commit,
+                'go_version': expected['go_version'], 'build_recipe_version': artifacts.RECIPE_VERSION,
+                'source_date_epoch': epoch, 'build_time': timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')}
+    if type(manifest.get('source_date_epoch')) is not int or any(manifest.get(key) != value for key, value in identity.items()):
+        differences.append({'control': 'candidate_build_identity', 'reason': 'mismatch'})
+    return {'schema_version': 'evydence.candidate-byte-binding.v1', 'source_commit': commit, 'tag': tag,
+            'passed': not differences, 'artifact_count': len(paths), 'differences': differences}
 
 
 def build_bundle(root, bundle, tag, commit, *, environment=None):
@@ -199,7 +256,11 @@ def main(argv=None):
     compare.add_argument('--output', type=Path)
     repeat = commands.add_parser('repeat')
     repeat.add_argument('--output-root', required=True, type=Path)
-    for command in [build, compare, repeat]:
+    verify = commands.add_parser('verify-candidate')
+    verify.add_argument('--archives', required=True, type=Path)
+    verify.add_argument('--work', required=True, type=Path)
+    verify.add_argument('--comparison', required=True, type=Path)
+    for command in [build, compare, repeat, verify]:
         command.add_argument('--tag', required=True)
         command.add_argument('--expected-commit', required=True)
     args = parser.parse_args(argv)
@@ -213,8 +274,10 @@ def main(argv=None):
             if args.output:
                 with args.output.open('x', encoding='utf-8') as output:
                     output.write(json.dumps(result, indent=2, sort_keys=True) + '\n')
-        else:
+        elif args.command == 'repeat':
             result = repeat_builds(ROOT, args.output_root, args.tag, args.expected_commit)
+        else:
+            result = verify_candidate(args.archives, args.work, args.comparison, args.tag, args.expected_commit)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0 if result['passed'] else 1
     except (OSError, ValueError, subprocess.SubprocessError, support_matrix.PolicyError):

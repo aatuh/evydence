@@ -150,7 +150,7 @@ esac
         self.stub("make", '''#!/bin/sh
 case "$*" in
   production-check) printf finished > "$PLAN_TEST_STATE" ;;
-  "reproducible-build-check TAG=v0.0.0-rc.1401") exit 0 ;;
+  "--silent --no-print-directory reproducible-build-check TAG=v0.0.0-rc.1401") exit 0 ;;
   *) exit 92 ;;
 esac
 ''')
@@ -216,7 +216,7 @@ esac
         self.stub("make", '''#!/bin/sh
 case "$*" in
   production-check) printf finished > "$PLAN_TEST_STATE" ;;
-  "reproducible-build-check TAG=v0.0.0-rc.1401") exit 94 ;;
+  "--silent --no-print-directory reproducible-build-check TAG=v0.0.0-rc.1401") exit 94 ;;
   *) exit 92 ;;
 esac
 ''')

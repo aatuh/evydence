@@ -14,6 +14,13 @@ binaries across five platform archives. The comparison requires exactly
 It rereads the actual files and checks both their recorded digests and equality.
 Matching report text without matching bytes cannot pass.
 
+A successful comparison carries its verified artifact inventory. Candidate
+packaging captures that proof in a private temporary file and checks the actual
+rebuilt signable archives, binaries and manifest against it. Changed final bytes,
+an invalid proof, or a wrong build identity stop packaging before signing. The
+operator log records the retained proof path; unrelated ambient compiler inputs
+cannot replace the inventory.
+
 The recipe requires a clean checkout of the expected commit and the declared
 current Go compiler. It pins CGO off, baseline architecture settings, no optional
 Go experiments, workspace configuration off, readonly modules, PGO off, trimmed
@@ -92,6 +99,19 @@ candidate script also runs `make reproducible-build-check TAG=<candidate>` after
 its normal production gate and before replacing artifacts or signing. A failure
 stops the candidate. Production validation and signing are still mandatory;
 the unsigned build command is not a replacement for either.
+
+The final payload binding can also be checked without building:
+
+```sh
+python3 scripts/reproducible_build.py verify-candidate \
+  --tag v0.0.0-rc.1402 --expected-commit <full-source-commit> \
+  --archives dist/v0.0.0-rc.1402 --work tmp/release-candidate/v0.0.0-rc.1402 \
+  --comparison <successful-comparison.json>
+```
+
+Comparison reports from before the verified-inventory field was introduced are
+not sufficient for this signing precondition. Preserve historical artifacts and
+run a fresh comparison for new candidate packaging.
 
 To examine downloaded bundles without compiling:
 

@@ -92,7 +92,8 @@ if [[ "$validated_commit" != "$build_commit" || -n "$validated_status" ]]; then
   exit 2
 fi
 
-make reproducible-build-check TAG="$tag"
+repro_comparison="$(mktemp "${TMPDIR:-/tmp}/evydence-release-comparison.XXXXXXXX")"
+make --silent --no-print-directory reproducible-build-check TAG="$tag" > "$repro_comparison"
 
 distdir="dist/${tag}"
 workdir="tmp/release-candidate/${tag}"
@@ -122,6 +123,11 @@ if [[ "$packaged_commit" != "$build_commit" || -n "$packaged_status" ]]; then
   echo "release candidate source changed during artifact build" >&2
   exit 2
 fi
+
+python3 scripts/reproducible_build.py verify-candidate \
+  --archives "$distdir" --work "$workdir" --comparison "$repro_comparison" \
+  --tag "$tag" --expected-commit "$build_commit"
+printf 'release candidate bytes match comparison: %s\n' "$repro_comparison"
 
 cp openapi.yaml "$distdir/openapi.yaml"
 cp "$build_manifest" "$distdir/release-build-manifest.json"

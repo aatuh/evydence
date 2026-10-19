@@ -32,10 +32,16 @@ class ReproducibilityTests(unittest.TestCase):
 
     def bundle(self, name):
         directory = self.root / name
-        for path in repro.artifact_paths(self.policy, TAG):
+        for path, kind in repro.artifact_paths(self.policy, TAG).items():
             output = directory / path
             output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_bytes(('fixture bytes ' + path).encode())
+            if kind == 'build-manifest':
+                output.write_text(json.dumps({'schema_version': 'evydence-release-build-manifest.v1',
+                    'tag': TAG, 'commit': COMMIT, 'go_version': 'go1.27.2',
+                    'build_recipe_version': release_artifacts.RECIPE_VERSION,
+                    'source_date_epoch': 1700000000, 'build_time': '2023-11-14T22:13:20Z'}))
+            else:
+                output.write_bytes(('fixture bytes ' + path).encode())
         report = dict(schema_version=repro.REPORT_SCHEMA, source_commit=COMMIT, tag=TAG,
                       source_date_epoch=1700000000, go_version='go1.27.2',
                       build_recipe_version=release_artifacts.RECIPE_VERSION,
@@ -202,6 +208,87 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertFalse(json.loads(output.read_text())['passed'])
         self.assertNotIn('PRIVATE', result.stdout + result.stderr)
+
+    def test_successful_comparison_exposes_only_verified_artifact_inventory(self):
+        result = self.compare()
+        report = json.loads((self.first / repro.REPORT_NAME).read_text())
+        self.assertEqual(result['verified_artifacts'], report['artifacts'])
+        path = next(iter(repro.artifact_paths(self.policy, TAG)))
+        (self.second / path).write_text('changed bytes')
+        self.assertEqual(self.compare()['verified_artifacts'], {})
+
+    def test_actual_signable_payload_must_match_verified_comparison(self):
+        proof = self.root / 'comparison.json'
+        proof.write_text(json.dumps(self.compare()))
+        result = repro.verify_candidate(self.first / 'archives', self.first / 'work', proof, TAG, COMMIT)
+        self.assertTrue(result['passed'])
+        path = next(path for path, kind in repro.artifact_paths(self.policy, TAG).items() if kind == 'archive')
+        (self.first / path).write_text('PRIVATE_CHANGED_CANDIDATE')
+        result = repro.verify_candidate(self.first / 'archives', self.first / 'work', proof, TAG, COMMIT)
+        self.assertFalse(result['passed'])
+        self.assertNotIn('PRIVATE', json.dumps(result))
+
+    def test_candidate_binding_rejects_failed_wrong_source_or_malformed_proofs(self):
+        original = self.compare()
+        proof = self.root / 'comparison.json'
+        for field, value in [('passed', False), ('source_commit', 'b' * 40), ('schema_version', 'PRIVATE'),
+                             ('artifact_count', True), ('differences', [{'PRIVATE': 'SECRET'}]),
+                             ('verified_artifacts', {}), ('go_version', 'go1.26.9'),
+                             ('source_date_epoch', True)]:
+            with self.subTest(field=field):
+                data = copy.deepcopy(original)
+                data[field] = value
+                proof.write_text(json.dumps(data))
+                with self.assertRaises(ValueError) as error:
+                    repro.verify_candidate(self.first / 'archives', self.first / 'work', proof, TAG, COMMIT)
+                self.assertNotIn('PRIVATE', str(error.exception))
+
+    def test_candidate_build_identity_is_validated_even_with_matching_file_record(self):
+        result = self.compare()
+        path = 'work/release-build-manifest.json'
+        manifest = json.loads((self.first / path).read_text())
+        manifest['commit'] = 'b' * 40
+        (self.first / path).write_text(json.dumps(manifest))
+        result['verified_artifacts'][path] = repro.artifact_inventory(self.first, self.policy, TAG)[path]
+        proof = self.root / 'comparison.json'
+        proof.write_text(json.dumps(result))
+        verification = repro.verify_candidate(self.first / 'archives', self.first / 'work', proof, TAG, COMMIT)
+        self.assertFalse(verification['passed'])
+        self.assertIn({'control': 'candidate_build_identity', 'reason': 'mismatch'}, verification['differences'])
+
+    def test_candidate_binding_cli_fails_when_final_bytes_change(self):
+        proof = self.root / 'comparison.json'
+        proof.write_text(json.dumps(self.compare()))
+        arguments = [sys.executable, str(Path(repro.__file__)), 'verify-candidate', '--archives',
+                     str(self.first / 'archives'), '--work', str(self.first / 'work'),
+                     '--comparison', str(proof), '--tag', TAG, '--expected-commit', COMMIT]
+        result = subprocess.run(arguments, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        path = next(path for path, kind in repro.artifact_paths(self.policy, TAG).items() if kind == 'binary')
+        (self.first / path).write_text('PRIVATE_CHANGED_BINARY')
+        result = subprocess.run(arguments, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(json.loads(result.stdout)['passed'])
+        self.assertNotIn('PRIVATE', result.stdout + result.stderr)
+
+    def test_candidate_binding_rejects_deep_json_without_tracebacks(self):
+        proof = self.root / 'comparison.json'
+        proof.write_text('[' * 2000 + '"PRIVATE_VALUE"' + ']' * 2000)
+        result = subprocess.run([sys.executable, str(Path(repro.__file__)), 'verify-candidate',
+            '--archives', str(self.first / 'archives'), '--work', str(self.first / 'work'),
+            '--comparison', str(proof), '--tag', TAG, '--expected-commit', COMMIT],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 2)
+        self.assertNotIn('PRIVATE', result.stdout + result.stderr)
+        self.assertNotIn('Traceback', result.stderr)
+
+    def test_decoder_recursion_errors_are_normalized(self):
+        proof = self.root / 'comparison.json'
+        proof.write_text('{}')
+        with mock.patch.object(repro.json, 'loads', side_effect=RecursionError('PRIVATE_DECODER')):
+            with self.assertRaises(ValueError) as error:
+                repro.read_json(proof)
+        self.assertNotIn('PRIVATE', str(error.exception))
 
 
 if __name__ == '__main__':
