@@ -310,8 +310,8 @@ func TestMonitorWaiterCancellationDoesNotCancelRefreshOwner(t *testing.T) {
 		case err := <-ownerResult:
 			t.Fatal("owner never started a dependency check", err)
 		case <-ctx.Done():
-			<-ownerResult
-			t.Fatal("owner never started a dependency check")
+			ownerErr := <-ownerResult
+			t.Fatal("owner never started a dependency check", ctx.Err(), ownerErr)
 		}
 		waiter, stopWaiter := context.WithCancel(ctx)
 		waiterResult := make(chan error, 1)

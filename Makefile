@@ -3,7 +3,7 @@ GOTOOLCHAIN ?= go1.27.2
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
-.PHONY: support-matrix-check architecture-check concurrency-stress-check config-generate config-check deployment-config-check
+.PHONY: support-matrix-check architecture-check concurrency-stress-check config-generate config-check deployment-config-check lint-policy-check
 
 TAG ?=
 BUILD_VERSION ?= dev
@@ -31,7 +31,11 @@ fmt: ## Format Go files
 	@$(GO) fmt ./...
 
 lint: ## Run golangci-lint when installed
-	@golangci-lint run ./...
+	@$(MAKE) lint-policy-check
+	@golangci-lint run --max-same-issues=0 --max-issues-per-linter=0 ./...
+
+lint-policy-check: ## Prove request-cookie filtering retains response-cookie security alerts
+	@python3 scripts/lint_policy_check.py
 
 vuln: ## Run govulncheck when installed
 	@govulncheck ./...

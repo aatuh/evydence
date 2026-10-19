@@ -54,6 +54,14 @@ linters:
       - common-false-positives
       - legacy
     rules:
+      # Request.AddCookie sends only name/value; response attributes do not
+      # travel in Cookie headers. Keep SetCookie alerts active in all files.
+      # make lint-policy-check verifies both production and test responses.
+      - path: _test\.go$
+        linters:
+          - gosec
+        text: "G124:"
+        source: '^\s*[A-Za-z_][A-Za-z_0-9]*\.AddCookie\(&http\.Cookie\{'
       - path: _test\.go
         linters:
           - gosec

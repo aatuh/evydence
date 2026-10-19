@@ -114,6 +114,15 @@ The setup action's checked commit binds the reviewed version-file behavior;
 when updating it, review compiler selection and update all workflows, examples
 and the drift check together.
 
+`make lint` runs `make lint-policy-check` before the full, uncapped analysis.
+The control executes a request Cookie-header characterization and requires
+gosec to report deliberately insecure `Set-Cookie` responses in production and
+test fixtures. A test-only G124 filter covers inline `Request.AddCookie` calls:
+response attributes are absent from request Cookie headers. It does not filter
+response-cookie construction. Fixtures live as `.go.txt` data and are compiled
+only in an isolated temporary module. The receipt is
+`tmp/lint-policy-check/summary.json`; missing response findings fail the check.
+
 Run focused drift, source-review and regression checks during the change. Before
 closing the support-matrix ticket, run the complete minimum/current Go tests,
 `make docs-check`, and the required release gate with its real live dependencies.

@@ -127,7 +127,10 @@ func TestAPIProductionStartupUsesTypedConfigurationWithLivePostgres(t *testing.T
 		stop()
 		if !joined {
 			select {
-			case <-done:
+			case err := <-done:
+				if err != nil {
+					t.Error("API startup fixture cleanup failed", err)
+				}
 			case <-time.After(10 * time.Second):
 				t.Error("API startup fixture did not join")
 			}

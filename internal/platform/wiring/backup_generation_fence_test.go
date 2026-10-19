@@ -71,8 +71,8 @@ func TestPostgresBackupAndAuditViewsFencePrecedesTenantLock(t *testing.T) {
 					if _, err := leader.Exec(ctx, `SELECT id FROM tenants WHERE id='tenant'FOR UPDATE NOWAIT`); err != nil {
 						cancel()
 						_ = leader.Rollback(context.WithoutCancel(ctx))
-						<-done
-						t.Fatal("tenant row lock preceded common fence", err)
+						readerErr := <-done
+						t.Fatal("tenant row lock preceded common fence", err, readerErr)
 					}
 					if err := leader.Commit(ctx); err != nil {
 						t.Fatal(err)
