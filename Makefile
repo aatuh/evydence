@@ -15,6 +15,8 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
 .PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check test-strategy-check domain-context-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check security-regression-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fault-injection-check integration-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
+.PHONY: repository-controls-test repository-controls-check
+
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
@@ -218,7 +220,15 @@ support-matrix-check: ## Check declared Go, tool, build, CI and reference select
 	@bash -n scripts/release_candidate_package.sh scripts/release_candidate_validate.sh
 	@python3 scripts/support_matrix.py --check
 
-docs-check: support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+repository-controls-test: ## Test GitHub control verification without credentials or network
+	@bash -n scripts/verify_github_controls.sh
+	@python3 scripts/test_github_controls.py
+
+repository-controls-check: ## Inspect live GitHub controls using the operator's gh credentials
+	@scripts/verify_github_controls.sh
+
+docs-check: repository-controls-test support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+	@test -f docs/reference/repository-controls.md
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
