@@ -79,14 +79,18 @@ and retain the separate release-validation evidence.
 
 ## Verified observation
 
-On 2026-10-19 at 09:17:31 UTC, the live script exited `0`: all 18 required
+On 2026-10-19 at 09:30:20 UTC, the live script exited `0`: all 18 required
 observations passed for remote `master`
 `d77b612bc72192f9ef97283c83aa5e9d7bb26aab`, with one human writer and zero
 required independent approvals. GitHub returned active tag ruleset `25392663`
 with no bypass actors. This replaced the earlier administrator-bypass posture;
 the three existing app-bound required checks and strict master enforcement
-were preserved. The ticket's completion evidence retains the report with the
-verifier source identity and local validation results.
+were preserved. The [sanitized provider report](repository-controls-2026-10-19T093020Z.json)
+records clean local verifier source `3a60efa5ff61a5fb3611b61a085484043f4e08ed`
+and verifier SHA-256
+`a7b0470ab91c3f2f6878c27606f496e041f5e25c9254e75b125ef20d4efc14c8`.
+The root backlog retains local validation and archive evidence. This report
+does not establish hosted CI success for that unpublished verifier commit.
 
 ## Refresh and limitations
 

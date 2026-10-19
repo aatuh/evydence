@@ -1,0 +1,165 @@
+{
+  "branch": "master",
+  "controls": {
+    "administration_visibility": {
+      "state": "passed"
+    },
+    "administrator_enforcement": {
+      "state": "passed"
+    },
+    "branch_deletion_blocked": {
+      "state": "passed"
+    },
+    "code_scanning": {
+      "state": "passed"
+    },
+    "conversation_resolution": {
+      "state": "passed"
+    },
+    "dependabot_alerts": {
+      "state": "passed"
+    },
+    "dependabot_security_updates": {
+      "state": "passed"
+    },
+    "force_pushes_blocked": {
+      "state": "passed"
+    },
+    "local_provenance": {
+      "state": "passed"
+    },
+    "maintainer_model": {
+      "state": "passed"
+    },
+    "private_reporting": {
+      "state": "passed"
+    },
+    "pull_requests": {
+      "state": "passed"
+    },
+    "release_tags": {
+      "state": "passed"
+    },
+    "remote_source_identity": {
+      "state": "passed"
+    },
+    "repository_identity": {
+      "state": "passed"
+    },
+    "required_checks": {
+      "state": "passed"
+    },
+    "secret_scanning": {
+      "state": "passed"
+    },
+    "secret_scanning_push_protection": {
+      "state": "passed"
+    }
+  },
+  "expected_required_checks": [
+    {
+      "app_id": 15368,
+      "context": "Production Check"
+    },
+    {
+      "app_id": 15368,
+      "context": "CodeQL Analyze"
+    },
+    {
+      "app_id": 15368,
+      "context": "Race and Stress"
+    }
+  ],
+  "local_source": {
+    "commit": "3a60efa5ff61a5fb3611b61a085484043f4e08ed",
+    "dirty": false,
+    "verifier_sha256": "a7b0470ab91c3f2f6878c27606f496e041f5e25c9254e75b125ef20d4efc14c8"
+  },
+  "maintainer_model": {
+    "human_writers": 1,
+    "mode": "solo",
+    "required_approvals": 0
+  },
+  "observations": {
+    "branch": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "code_scanning": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "dependabot_alerts": {
+      "http_status": 204,
+      "state": "received"
+    },
+    "private_reporting": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "remote_head": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "repository": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "ruleset_25392663": {
+      "http_status": 200,
+      "state": "received"
+    }
+  },
+  "observed_at": "2026-10-19T09:30:20.655667+00:00",
+  "observed_optional_controls": {
+    "codeowner_approval_required": false,
+    "signed_commits_required": false
+  },
+  "observed_settings": {
+    "master": {
+      "administrator_enforcement": true,
+      "codeowner_approval": false,
+      "conversation_resolution": true,
+      "dismiss_stale_reviews": true,
+      "last_push_approval": false,
+      "pull_requests_required": true,
+      "required_approvals": 0,
+      "required_checks": [
+        {
+          "app_id": 15368,
+          "context": "Production Check",
+          "present": true
+        },
+        {
+          "app_id": 15368,
+          "context": "CodeQL Analyze",
+          "present": true
+        },
+        {
+          "app_id": 15368,
+          "context": "Race and Stress",
+          "present": true
+        }
+      ],
+      "strict_checks": true
+    },
+    "release_tags": {
+      "checked_ruleset_ids": [
+        25392663
+      ],
+      "rulesets_inspected": 1
+    },
+    "security": {
+      "code_scanning": "passed",
+      "dependabot_alerts": "passed",
+      "dependabot_security_updates": "passed",
+      "private_reporting": "passed",
+      "secret_scanning": "passed",
+      "secret_scanning_push_protection": "passed"
+    }
+  },
+  "passed": true,
+  "remote_head": "d77b612bc72192f9ef97283c83aa5e9d7bb26aab",
+  "repository": "aatuh/evydence",
+  "schema_version": "evydence.repository-controls.v1"
+}
