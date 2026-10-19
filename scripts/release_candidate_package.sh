@@ -26,6 +26,13 @@ release_allow_existing_tag="${EVYDENCE_RELEASE_ALLOW_EXISTING_TAG:-}"
 export -n signing_key_b64 release_allow_existing_tag
 unset EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64 RELEASE_SIGNING_PRIVATE_KEY_B64 EVYDENCE_RELEASE_ALLOW_EXISTING_TAG
 
+for archive_tool in tar zip sha256sum; do
+  if ! command -v "$archive_tool" >/dev/null 2>&1; then
+    echo "release candidate packaging requires archive tool: $archive_tool" >&2
+    exit 2
+  fi
+done
+
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "release candidate packaging must run inside a git checkout" >&2
   exit 2

@@ -335,10 +335,16 @@ same release-candidate package script used locally. The package job has
 read-only `GITHUB_TOKEN` permissions and the release signing secret only; the
 separate draft-release publication job downloads the packaged evidence artifact
 and uses `EVYDENCE_RELEASE_PUBLISH_TOKEN` only when publishing is explicitly
-enabled or a release tag is pushed. It packages self-contained release archives
-for the CLI, API, worker, and migration commands on Linux, macOS, and Windows
-targets. The script runs `make production-check` against disposable PostgreSQL
-before building artifacts.
+enabled or a release tag is pushed. It packages the commands and targets declared
+in the [toolchain and platform policy](toolchain-platform-support.md#release-build-plan).
+Only the Linux amd64 archive includes the API, worker and migration commands;
+the other declared targets contain the CLI. The script runs
+`make production-check` against disposable PostgreSQL before building artifacts.
+
+Normal local packaging requires `tar`, `zip` and `sha256sum` on `PATH`, alongside
+the existing Bash, Python, Git, Make and current Go prerequisites. It checks the
+archive tools before validation or artifact replacement. The read-only `--plan`
+command requires no archive tools.
 
 The workflow requires this repository secret:
 

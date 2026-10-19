@@ -24,7 +24,7 @@ under `dist/<tag>/` after `make production-check` passes.
 
 | Artifact | Created By | Verification Use |
 | --- | --- | --- |
-| `evydence_<os>_<arch>.tar.gz` or `.zip` | `scripts/release_candidate_package.sh` | Operator installs the API, worker, migration command, and CLI from the release archive for the matching platform. |
+| `evydence_<tag>_<os>_<arch>.tar.gz` or `.zip` | `scripts/release_candidate_package.sh` | Verify the commands declared in the [platform policy](toolchain-platform-support.md#release-build-plan): the CLI for each declared target, plus API, worker and migration commands for Linux amd64. |
 | `SHA256SUMS` | `scripts/release_candidate_package.sh` | Verify every release archive byte-for-byte before extraction or redistribution. |
 | `openapi.yaml` | `cmd/openapi` through the release package script | Preserve the exact public API contract shipped with the release. |
 | `openapi.sha256` | `scripts/release_candidate_package.sh` | Verify the shipped OpenAPI contract has not drifted from the release evidence set. |

@@ -4,6 +4,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -28,7 +29,7 @@ class ReleaseBuildPlanTests(unittest.TestCase):
                                 EVYDENCE_TEST_DATABASE_URL="",
                                 EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="",
                                 RELEASE_SIGNING_PRIVATE_KEY_B64="")
-        for name in ("git", "go", "make"):
+        for name in ("git", "go", "make", "tar", "zip", "sha256sum"):
             self.stub(name, '#!/bin/sh\nprintf unexpected > "$PLAN_TEST_MARKER"\nexit 91\n')
         self.environment["PLAN_TEST_MARKER"] = str(self.marker)
 
@@ -85,6 +86,41 @@ esac
         result = self.run_plan("v0.0.0-rc.1401")
         self.assertEqual(result.returncode, 2)
         self.assertIn("EVYDENCE_TEST_DATABASE_URL is required", result.stderr)
+        self.assertFalse(self.marker.exists())
+
+    def isolate_runtime_path(self):
+        for name in ("bash", "dirname", "python3"):
+            executable = shutil.which(name)
+            self.assertIsNotNone(executable, name)
+            (self.bin / name).symlink_to(executable)
+        self.environment["PATH"] = str(self.bin)
+
+    def test_missing_archive_tool_stops_before_validation_or_artifact_writes(self):
+        self.isolate_runtime_path()
+        for missing in ("zip", "tar", "sha256sum"):
+            with self.subTest(missing=missing):
+                self.prepare_gate_result("unchanged")
+                self.marker.unlink(missing_ok=True)
+                gate_state = Path(self.environment["PLAN_TEST_STATE"])
+                gate_state.unlink(missing_ok=True)
+                for name in ("tar", "zip", "sha256sum"):
+                    self.stub(name, '#!/bin/sh\nprintf unexpected > "$PLAN_TEST_MARKER"\nexit 91\n')
+                (self.bin / missing).unlink()
+                result = self.run_plan("v0.0.0-rc.1401")
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("requires archive tool: " + missing, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertFalse(gate_state.exists(), "missing tools must stop before the production gate")
+                self.assertFalse(self.marker.exists(), "missing tools must stop before artifact writes")
+
+    def test_plan_does_not_require_archive_tools(self):
+        self.isolate_runtime_path()
+        for name in ("tar", "zip", "sha256sum"):
+            (self.bin / name).unlink()
+        result = self.run_plan("--plan")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), support.release_plan(support.load_policy(ROOT)))
+        self.assertEqual(result.stderr, "")
         self.assertFalse(self.marker.exists())
 
     def prepare_gate_result(self, mode):
