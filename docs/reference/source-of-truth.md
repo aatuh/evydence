@@ -23,6 +23,7 @@ product-boundary language across the docs.
 | Bounded-context ownership and package retirement | `docs/adr/0003-bounded-contexts.md` | Current owner map, allowed dependencies/events, transition paths, and the retirement sequence for `internal/domain` and `internal/app.Ledger`. |
 | Go, QA tool and platform selections | `release/support-matrix.json` and `docs/reference/toolchain-platform-support.md` | `make support-matrix-check` checks build/CI selections and generated reference rows; ticket evidence owns actual qualification. |
 | Release validation | `docs/reference/release-validation.md` | Canonical release gate behavior. |
+| Reproducible release payloads | `docs/reference/reproducible-builds.md` and `scripts/release_build.py` | Shared unsigned build recipe, source-derived identity time, normalized archives, actual-byte comparison and independent-runner evidence boundaries. |
 | Test strategy and critical behavior evidence | `docs/reference/test-strategy.md` | Coverage floors, behavior-to-test matrix, deterministic fixture policy, and exact-commit CI evidence provenance. |
 | Release-candidate evidence | `docs/reference/release-candidate.md` | Canonical release-candidate artifact checklist. |
 | Release evidence artifact map | `docs/reference/release-evidence-index.md` | Maps each release artifact to generation and verification commands. |

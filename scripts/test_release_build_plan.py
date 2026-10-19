@@ -147,7 +147,13 @@ case "$*" in
   *) exit 0 ;;
 esac
 ''')
-        self.stub("make", '#!/bin/sh\n[ "$*" = production-check ] || exit 92\nprintf finished > "$PLAN_TEST_STATE"\n')
+        self.stub("make", '''#!/bin/sh
+case "$*" in
+  production-check) printf finished > "$PLAN_TEST_STATE" ;;
+  "reproducible-build-check TAG=v0.0.0-rc.1401") exit 0 ;;
+  *) exit 92 ;;
+esac
+''')
         # Any attempt to replace artifacts is intercepted, including when the
         # real script has no post-gate source guard. This fixture never builds,
         # signs, connects to a database or removes repository files.
@@ -204,6 +210,19 @@ esac
         result = self.run_plan("v0.0.0-rc.1401")
         self.assertEqual(result.returncode, 91, result.stderr)
         self.assertEqual(self.marker.read_text(), "forbidden")
+
+    def test_failed_reproducibility_gate_stops_before_artifact_replacement_or_signing(self):
+        self.prepare_gate_result("unchanged")
+        self.stub("make", '''#!/bin/sh
+case "$*" in
+  production-check) printf finished > "$PLAN_TEST_STATE" ;;
+  "reproducible-build-check TAG=v0.0.0-rc.1401") exit 94 ;;
+  *) exit 92 ;;
+esac
+''')
+        result = self.run_plan("v0.0.0-rc.1401")
+        self.assertEqual(result.returncode, 94, result.stderr)
+        self.assertFalse(self.marker.exists(), "failed comparison must preserve artifacts and stop signing")
 
     def test_git_failure_after_validation_stops_before_artifact_changes(self):
         self.prepare_gate_result("git-error")

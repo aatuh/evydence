@@ -20,8 +20,14 @@ permissions:
   contents: read
 
 jobs:
+  verify-reproducible-builds:
+    uses: ./.github/workflows/reproducible-builds.yml
+    with:
+      tag: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+
   package:
     name: Package Signed Release Artifacts
+    needs: verify-reproducible-builds
     runs-on: ubuntu-latest
     permissions:
       contents: read

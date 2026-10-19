@@ -92,6 +92,8 @@ if [[ "$validated_commit" != "$build_commit" || -n "$validated_status" ]]; then
   exit 2
 fi
 
+make reproducible-build-check TAG="$tag"
+
 distdir="dist/${tag}"
 workdir="tmp/release-candidate/${tag}"
 rm -rf "$distdir" "$workdir"
@@ -99,84 +101,27 @@ install -m 755 -d "$distdir" "$workdir"
 archives=()
 archive_paths=()
 
-build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+python3 scripts/release_build.py --tag "$tag" --output "$distdir" \
+  --work "$workdir" --expected-commit "$build_commit"
 build_manifest="$workdir/release-build-manifest.json"
-python3 - "$tag" "$build_commit" "$build_time" "$build_go_version" "$build_manifest" <<'PY'
-import hashlib
-import json
-import sys
-from pathlib import Path
-
-tag, commit, build_time, go_version, output = sys.argv[1:]
-root = Path.cwd()
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return "sha256:" + digest.hexdigest()
-
-migrations = [
-    {"path": str(path), "digest": sha256(path)}
-    for path in sorted((root / "migrations").rglob("*"))
-    if path.is_file()
-]
-manifest = {
-    "schema_version": "evydence-release-build-manifest.v1",
-    "tag": tag,
-    "commit": commit,
-    "build_time": build_time,
-    "go_version": go_version,
-    "materials": [
-        {"path": "openapi.yaml", "digest": sha256(root / "openapi.yaml")},
-        {"path": "release/support-matrix.json", "digest": sha256(root / "release/support-matrix.json")},
-        *migrations,
-    ],
-    "limitations": [
-        "This pre-build manifest binds source and release inputs used to inject API runtime identity.",
-        "The final signed evydence-release-manifest.json additionally covers packaged binaries and release artifacts.",
-        "It is not a certification, legal compliance conclusion, or secure-release guarantee.",
-    ],
-}
-Path(output).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-PY
-build_release_manifest_digest="sha256:$(sha256sum "$build_manifest" | awk '{print $1}')"
-api_ldflags="$(EVYDENCE_BUILD_VERSION="$tag" EVYDENCE_BUILD_COMMIT="$build_commit" EVYDENCE_BUILD_TIME="$build_time" EVYDENCE_BUILD_DIRTY=false EVYDENCE_BUILD_GO_VERSION="$build_go_version" EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST="$build_release_manifest_digest" sh scripts/build_ldflags.sh)"
-
 for target in "${targets[@]}"; do
-  commands_text="$(python3 scripts/support_matrix.py --commands "$target")"
-  mapfile -t commands <<<"$commands_text"
   goos="${target%/*}"
   goarch="${target#*/}"
-  outdir="${workdir}/evydence_${tag}_${goos}_${goarch}"
-  mkdir -p "$outdir"
-  for command in "${commands[@]}"; do
-    suffix=""
-    if [[ "$goos" == "windows" ]]; then
-      suffix=".exe"
-    fi
-    if [[ "$command" == "evydence-api" ]]; then
-      GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-        go build -trimpath -ldflags "-s -w $api_ldflags" \
-        -o "${outdir}/${command}${suffix}" "./cmd/${command}"
-    else
-      GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-        go build -trimpath -ldflags "-s -w" \
-        -o "${outdir}/${command}${suffix}" "./cmd/${command}"
-    fi
-  done
-  cp LICENSE README.md CHANGELOG.md "$outdir/"
+  suffix="tar.gz"
   if [[ "$goos" == "windows" ]]; then
-    archive="evydence_${tag}_${goos}_${goarch}.zip"
-    (cd "$workdir" && zip -qr "${repo_root}/${distdir}/${archive}" "evydence_${tag}_${goos}_${goarch}")
-  else
-    archive="evydence_${tag}_${goos}_${goarch}.tar.gz"
-    tar -C "$workdir" -czf "${distdir}/${archive}" "evydence_${tag}_${goos}_${goarch}"
+    suffix="zip"
   fi
+  archive="evydence_${tag}_${goos}_${goarch}.${suffix}"
   archives+=("$archive")
   archive_paths+=("${distdir}/${archive}")
 done
+
+packaged_commit="$(git rev-parse --verify HEAD)"
+packaged_status="$(git status --porcelain --untracked-files=all)"
+if [[ "$packaged_commit" != "$build_commit" || -n "$packaged_status" ]]; then
+  echo "release candidate source changed during artifact build" >&2
+  exit 2
+fi
 
 cp openapi.yaml "$distdir/openapi.yaml"
 cp "$build_manifest" "$distdir/release-build-manifest.json"

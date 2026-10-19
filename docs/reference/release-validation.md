@@ -4,6 +4,10 @@ This reference describes the project-owned release validation profile. It is evi
 
 ## Build toolchain
 
+The [reproducible payload reference](reproducible-builds.md) owns the shared
+unsigned recipe, fixed source-time build identity, archive normalization,
+local/independent-runner evidence and comparison gate before candidate signing.
+
 The [toolchain/platform policy](toolchain-platform-support.md) owns exact minimum
 and current Go selections, pinned QA tools, source-only SDK delivery and platform
 targets. Make and the Docker builder select its current compiler; CI also tests

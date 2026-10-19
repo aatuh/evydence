@@ -16,6 +16,9 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check test-strategy-check domain-context-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check security-regression-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fault-injection-check integration-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
 .PHONY: repository-controls-test repository-controls-check
+.PHONY: release-repro-policy-test reproducible-build-check
+
+REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -220,6 +223,16 @@ support-matrix-check: ## Check declared Go, tool, build, CI and reference select
 	@bash -n scripts/release_candidate_package.sh scripts/release_candidate_validate.sh
 	@python3 scripts/support_matrix.py --check
 
+release-repro-policy-test: ## Test deterministic release recipes and comparison with tiny fixtures
+	@python3 scripts/test_release_artifacts.py
+	@python3 scripts/test_release_build.py
+	@python3 scripts/test_release_packaging_recipe.py
+	@python3 scripts/test_reproducible_build.py
+	@python3 scripts/test_release_repro_policy.py
+
+reproducible-build-check: ## Compare two clean local worktrees and separate build caches; requires TAG
+	@python3 scripts/reproducible_build.py repeat --tag "$(TAG)" --expected-commit "$(BUILD_COMMIT)" --output-root "$(REPRODUCIBLE_BUILD_ROOT)"
+
 repository-controls-test: ## Test GitHub control verification without credentials or network
 	@bash -n scripts/verify_github_controls.sh
 	@python3 scripts/test_github_controls.py
@@ -227,7 +240,8 @@ repository-controls-test: ## Test GitHub control verification without credential
 repository-controls-check: ## Inspect live GitHub controls using the operator's gh credentials
 	@scripts/verify_github_controls.sh
 
-docs-check: repository-controls-test support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: release-repro-policy-test repository-controls-test support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md
 	@test -f README.md
 	@test -f .production.env.example
