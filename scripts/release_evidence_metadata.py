@@ -7,9 +7,47 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import uuid
+
+
+MAX_MODULE_METADATA_BYTES = 8 * 1024 * 1024
+MAX_MODULE_RECORDS = 4096
+PROJECT_MODULE = "github.com/aatuh/evydence"
+MODULE_PATH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._~-]*(?:/[A-Za-z0-9][A-Za-z0-9._~-]*)*")
+MODULE_VERSION = re.compile(
+    r"v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+incompatible)?"
+)
+
+
+def module_metadata_error() -> ValueError:
+    return ValueError("invalid release module metadata")
+
+
+def module_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise module_metadata_error()
+        value[key] = item
+    return value
+
+
+def module_path(value):
+    if type(value) is not str or not 1 <= len(value) <= 1024 or MODULE_PATH.fullmatch(value) is None:
+        raise module_metadata_error()
+    return value
+
+
+def module_version(value, *, main=False):
+    if main and value == "":
+        return value
+    if type(value) is not str or not 1 <= len(value) <= 256 or MODULE_VERSION.fullmatch(value) is None:
+        raise module_metadata_error()
+    return value
 
 
 def run(args: list[str]) -> str:
@@ -25,26 +63,44 @@ def sha256(path: Path) -> str:
 
 
 def go_modules() -> list[dict[str, str]]:
-    raw = subprocess.check_output(["go", "list", "-m", "-json", "all"], text=True)
-    decoder = json.JSONDecoder()
-    modules: list[dict[str, str]] = []
-    idx = 0
-    while idx < len(raw):
-        while idx < len(raw) and raw[idx].isspace():
-            idx += 1
-        if idx >= len(raw):
-            break
-        obj, idx = decoder.raw_decode(raw, idx)
-        path = str(obj.get("Path", "")).strip()
-        if not path:
-            continue
-        version = str(obj.get("Version", "")).strip()
-        replacement = obj.get("Replace")
-        if isinstance(replacement, dict):
-            version = str(replacement.get("Version") or replacement.get("Path") or version).strip()
-        modules.append({"path": path, "version": version})
-    modules.sort(key=lambda item: (item["path"], item["version"]))
-    return modules
+    try:
+        raw = subprocess.check_output(["go", "list", "-m", "-json", "all"], text=True,
+                                      stderr=subprocess.DEVNULL, timeout=120)
+        if type(raw) is not str or len(raw.encode("utf-8")) > MAX_MODULE_METADATA_BYTES:
+            raise module_metadata_error()
+        decoder = json.JSONDecoder(object_pairs_hook=module_object)
+        modules = {}
+        idx = 0
+        records = 0
+        while idx < len(raw):
+            while idx < len(raw) and raw[idx].isspace():
+                idx += 1
+            if idx >= len(raw):
+                break
+            obj, idx = decoder.raw_decode(raw, idx)
+            records += 1
+            if type(obj) is not dict or records > MAX_MODULE_RECORDS:
+                raise module_metadata_error()
+            path = module_path(obj.get("Path"))
+            if "Replace" in obj:
+                replacement = obj["Replace"]
+                if type(replacement) is not dict:
+                    raise module_metadata_error()
+                # Local replacements do not identify a locked public module and
+                # must never turn a private filesystem path into a version.
+                path = module_path(replacement.get("Path"))
+                version = module_version(replacement.get("Version"))
+            else:
+                version = module_version(obj.get("Version", ""),
+                                         main=path == PROJECT_MODULE and obj.get("Main") is True)
+            if path in modules:
+                raise module_metadata_error()
+            modules[path] = version
+        if not modules:
+            raise module_metadata_error()
+        return [{"path": path, "version": version} for path, version in sorted(modules.items())]
+    except (OSError, subprocess.SubprocessError, ValueError, UnicodeError, RecursionError):
+        raise module_metadata_error() from None
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -74,7 +130,11 @@ def main() -> int:
     commit = run(["git", "rev-parse", "HEAD"])
     commit_date = run(["git", "show", "-s", "--format=%cI", "HEAD"])
     go_version = run(["go", "version"])
-    modules = go_modules()
+    try:
+        modules = go_modules()
+    except ValueError:
+        print("release evidence metadata: invalid module metadata", file=sys.stderr)
+        return 2
 
     sbom = {
         "bomFormat": "CycloneDX",

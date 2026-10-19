@@ -13,6 +13,11 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Release module metadata now rejects unversioned local replacements, duplicate
+identities and malformed coordinates before writing evidence (EVY-1403).
+Versioned remote replacements identify the effective module. Private build
+paths and raw module-parser errors are excluded from exported metadata.
+
 Release payloads now use a shared reproducible build recipe (EVY-1402).
 API build time is the source commit's fixed UTC committer time. The pre-build
 manifest adds `build_recipe_version` and `source_date_epoch`, and material paths

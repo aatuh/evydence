@@ -17,6 +17,7 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
 .PHONY: repository-controls-test repository-controls-check
 .PHONY: release-repro-policy-test reproducible-build-check
+.PHONY: release-evidence-policy-test
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 
@@ -230,6 +231,11 @@ release-repro-policy-test: ## Test deterministic release recipes and comparison 
 	@python3 scripts/test_reproducible_build.py
 	@python3 scripts/test_release_repro_policy.py
 
+release-evidence-policy-test: ## Test release subject parsing and public SBOM metadata offline
+	@python3 scripts/test_release_evidence_metadata.py
+	@python3 scripts/test_release_subjects.py
+	@python3 scripts/test_release_sbom.py
+
 reproducible-build-check: ## Compare two clean local worktrees and separate build caches; requires TAG
 	@python3 scripts/reproducible_build.py repeat --tag "$(TAG)" --expected-commit "$(BUILD_COMMIT)" --output-root "$(REPRODUCIBLE_BUILD_ROOT)"
 
@@ -240,7 +246,7 @@ repository-controls-test: ## Test GitHub control verification without credential
 repository-controls-check: ## Inspect live GitHub controls using the operator's gh credentials
 	@scripts/verify_github_controls.sh
 
-docs-check: release-repro-policy-test repository-controls-test support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md
 	@test -f README.md
