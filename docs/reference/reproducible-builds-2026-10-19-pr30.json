@@ -1,0 +1,168 @@
+{
+  "actual_downloaded_bytes_reverified": true,
+  "comparison": {
+    "artifact_count": 14,
+    "build_recipe_version": "evydence-release-build.v1",
+    "differences": [],
+    "expected_artifact_count": 14,
+    "go_version": "go1.27.2",
+    "limitations": [
+      "Artifact equality does not independently authenticate runner identities or artifact provenance."
+    ],
+    "observed_at": "2026-10-19T16:45:40.582420+00:00",
+    "passed": true,
+    "schema_version": "evydence.reproducible-comparison.v1",
+    "scope": "artifact-byte-equality",
+    "source_commit": "21734361bf5c280de4907df78bb042d88044a791",
+    "source_date_epoch": 1792426894,
+    "tag": "v0.0.0-rc.0",
+    "verified_artifacts": {
+      "archives/evydence_v0.0.0-rc.0_darwin_amd64.tar.gz": {
+        "bytes": 4098778,
+        "kind": "archive",
+        "sha256": "a5dd27335b20ab9dc4d1cec41cacb69246db07b783ee4ef439645472c0f32d2f"
+      },
+      "archives/evydence_v0.0.0-rc.0_darwin_arm64.tar.gz": {
+        "bytes": 3775818,
+        "kind": "archive",
+        "sha256": "b560348477df9e877322715fe7513ad4887b1100db95701f1d99704f1727551f"
+      },
+      "archives/evydence_v0.0.0-rc.0_linux_amd64.tar.gz": {
+        "bytes": 32957794,
+        "kind": "archive",
+        "sha256": "ec36de3f7df2338402f842d4d89154f68a344898bd90c87a653a68b2c4b261c9"
+      },
+      "archives/evydence_v0.0.0-rc.0_linux_arm64.tar.gz": {
+        "bytes": 3629431,
+        "kind": "archive",
+        "sha256": "8aca93d166ded331515e8bf071abba19ef3fec540fb12c4952ff7713c465d438"
+      },
+      "archives/evydence_v0.0.0-rc.0_windows_amd64.zip": {
+        "bytes": 10508891,
+        "kind": "archive",
+        "sha256": "97ed897ecb466293d1e8dd2cd783096f58815002563571e022e8b23c4e17bd23"
+      },
+      "work/evydence_v0.0.0-rc.0_darwin_amd64/evydence": {
+        "bytes": 10313200,
+        "kind": "binary",
+        "sha256": "927dd1795f3c9beac1c812a92e90cf732ebdba85efbc77e04e796c8a66de67ae"
+      },
+      "work/evydence_v0.0.0-rc.0_darwin_arm64/evydence": {
+        "bytes": 9604962,
+        "kind": "binary",
+        "sha256": "b1a939ad84c8a6b5fd62d1fda6f135caa5ce611be928d93c13a6f6a7a0c49343"
+      },
+      "work/evydence_v0.0.0-rc.0_linux_amd64/evydence": {
+        "bytes": 10084476,
+        "kind": "binary",
+        "sha256": "d4c7ec1eb4ef1a6dc4f7184a052e863f4e3b9617394474ef96d538e62efd41e6"
+      },
+      "work/evydence_v0.0.0-rc.0_linux_amd64/evydence-api": {
+        "bytes": 48357500,
+        "kind": "binary",
+        "sha256": "a057054740b150684d92d6c3f9209439a4029b6bd6b2542a36eb047b389b1b4b"
+      },
+      "work/evydence_v0.0.0-rc.0_linux_amd64/evydence-migrate": {
+        "bytes": 15118460,
+        "kind": "binary",
+        "sha256": "c5af19ff70ffd2061a5b3051cb8ef5b636ade9af9c9b8759a3d1098dfb23c0b4"
+      },
+      "work/evydence_v0.0.0-rc.0_linux_amd64/evydence-worker": {
+        "bytes": 22753404,
+        "kind": "binary",
+        "sha256": "445bc35cb1159ec31f7d1132cf3c5134c323f1135b8d6961a14d66daa063165b"
+      },
+      "work/evydence_v0.0.0-rc.0_linux_arm64/evydence": {
+        "bytes": 9306236,
+        "kind": "binary",
+        "sha256": "742e09fb3230ca322af93d0712dc8d47f76f8b5f9e67d4f63e9d53afeebf8490"
+      },
+      "work/evydence_v0.0.0-rc.0_windows_amd64/evydence.exe": {
+        "bytes": 10371072,
+        "kind": "binary",
+        "sha256": "5eaadaa416627052323a6bcaae2b8646f4fc59e02b5200481ff4b68ec4976157"
+      },
+      "work/release-build-manifest.json": {
+        "bytes": 27473,
+        "kind": "build-manifest",
+        "sha256": "37e69d4deb663c8da27ae1ef21addee74dd8000bf4359bb90005949f11e2d1ca"
+      }
+    }
+  },
+  "executed_source_commit": "21734361bf5c280de4907df78bb042d88044a791",
+  "jobs": [
+    {
+      "completed_at": "2026-10-19T16:26:15Z",
+      "conclusion": "success",
+      "head_sha": "efced49e2837c5369f0a89f4a6b46e5b6ceba512",
+      "html_url": "https://github.com/aatuh/evydence/actions/runs/39284809966/job/118167639401",
+      "id": 118167639401,
+      "name": "Reproducible Build (first)",
+      "run_id": 39284809966,
+      "runner_id": 1000009355,
+      "runner_name": "GitHub Actions 1000009355",
+      "started_at": "2026-10-19T16:21:40Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-19T16:32:41Z",
+      "conclusion": "success",
+      "head_sha": "efced49e2837c5369f0a89f4a6b46e5b6ceba512",
+      "html_url": "https://github.com/aatuh/evydence/actions/runs/39284809966/job/118167640116",
+      "id": 118167640116,
+      "name": "Reproducible Build (second)",
+      "run_id": 39284809966,
+      "runner_id": 1000009360,
+      "runner_name": "GitHub Actions 1000009360",
+      "started_at": "2026-10-19T16:26:17Z",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-10-19T16:33:11Z",
+      "conclusion": "success",
+      "head_sha": "efced49e2837c5369f0a89f4a6b46e5b6ceba512",
+      "html_url": "https://github.com/aatuh/evydence/actions/runs/39284809966/job/118173308754",
+      "id": 118173308754,
+      "name": "Reproducible Build Comparison",
+      "run_id": 39284809966,
+      "runner_id": 1000009361,
+      "runner_name": "GitHub Actions 1000009361",
+      "started_at": "2026-10-19T16:32:44Z",
+      "status": "completed"
+    }
+  ],
+  "limitations": [
+    "Assignments are provider-reported; no physical hardware independence or provenance attestation is claimed.",
+    "PR merge source has the identical tree to the qualified local head, with distinct Git commit/time metadata.",
+    "Local fixture candidate tag v0.0.0-rc.14021 and hosted tag v0.0.0-rc.0 have different identities; no cross-identity byte equality is claimed.",
+    "Only eight binaries, five archives and one pre-build manifest are compared."
+  ],
+  "local_candidate": {
+    "archive_manifest_sha256": "9c1804442d2bb89adf5070df2f64fe3a66cfc9810ce17c44c06f4c9191debae0",
+    "checks": {
+      "make release-acceptance": 0,
+      "make release-candidate-check TAG=v0.0.0-rc.14021": 0
+    },
+    "ended_at": "2026-10-19T13:16:34.908225+00:00",
+    "final_payload_binding_passed": true,
+    "fixture_private_key_deleted": true,
+    "fixture_signing_only": true,
+    "source_commit": "efced49e2837c5369f0a89f4a6b46e5b6ceba512",
+    "tag": "v0.0.0-rc.14021"
+  },
+  "observed_at": "2026-10-19T16:45:40.583129+00:00",
+  "pr": 30,
+  "pr_head_commit": "efced49e2837c5369f0a89f4a6b46e5b6ceba512",
+  "provider_artifact_ids": {
+    "release-repro-comparison": 12202509806,
+    "release-repro-first": 12201729083,
+    "release-repro-second": 12202229575
+  },
+  "schema_version": "evydence.reproducibility-qualification.v1",
+  "source_date_epoch": 1792426894,
+  "source_tree": "36636f5463e9cb9844be13f96d474c7732de0d15",
+  "tag": "v0.0.0-rc.0",
+  "ticket": "EVY-1402",
+  "workflow_run": 39284809966,
+  "workflow_url": "https://github.com/aatuh/evydence/actions/runs/39284809966"
+}

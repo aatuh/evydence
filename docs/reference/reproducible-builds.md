@@ -1,8 +1,8 @@
 # Reproducible release payloads
 
 This reference is for maintainers comparing unsigned release payloads from an
-exact source commit. It describes the build recipe and evidence boundaries;
-it is not a claim that independent runner qualification has already passed.
+exact source commit. It describes the build recipe, observed qualification and
+evidence boundaries.
 The root backlog owns EVY-1402 completion and its actual validation evidence.
 
 ## Scope and identity
@@ -135,6 +135,24 @@ IDs, the exact checkout commit, both bundles and the successful comparison.
 Verify provider job results; two local runs or invented runner labels are
 insufficient. See GitHub's [reusable workflow semantics](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)
 for how the release workflow calls the comparison at its own source commit.
+
+## Observed qualification
+
+The [PR #30 comparison job](https://github.com/aatuh/evydence/actions/runs/39284809966/job/118173308754)
+passed on 19 October 2026. Its two build jobs used distinct assigned GitHub
+runner IDs, disabled build-cache restoration and produced matching bytes for
+all 14 outputs. Both downloaded bundles were reread locally and matched the
+hosted inventory. The [retained qualification record](reproducible-builds-2026-10-19-pr30.json)
+contains the job/runner IDs, artifact digests, compiler, recipe and source epoch.
+
+The hosted tag was `v0.0.0-rc.0`, using PR merge checkout
+`21734361bf5c280de4907df78bb042d88044a791`. Its source tree equals the qualified
+PR head `efced49e2837c5369f0a89f4a6b46e5b6ceba512`. The normal local signed
+fixture candidate used that head and tag `v0.0.0-rc.14021`; its production,
+repeatability, final-payload binding and release-acceptance gates passed.
+These different commit/tag identities were qualified separately. Provider job
+assignments do not establish physical hardware independence or provenance
+attestation. The root backlog owns ticket completion and remaining checks.
 
 ## Excluded evidence and compatibility
 

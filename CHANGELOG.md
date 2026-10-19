@@ -13,6 +13,17 @@ This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
 release artifacts.
 
+Release payloads now use a shared reproducible build recipe (EVY-1402).
+API build time is the source commit's fixed UTC committer time. The pre-build
+manifest adds `build_recipe_version` and `source_date_epoch`, and material paths
+are source-relative. Archive ordering, ownership, modes and timestamps are
+normalized; Windows ZIP entries are uncompressed, increasing archive size.
+Candidate packaging compares all fourteen unsigned outputs from two fresh
+builds and checks final payload bytes against that inventory before signing.
+Separate hosted jobs also compare their actual outputs. See
+[reproducibility scope and qualification](docs/reference/reproducible-builds.md)
+for exact source identities, retained evidence and excluded metadata.
+
 Added a private native API registry for HTTP and provider counters and duration
 histograms (EVY-1211). Existing tenant metrics and JSON values
 remain available; only explicit `instance:admin` text scrapes include the
