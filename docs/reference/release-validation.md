@@ -71,6 +71,13 @@ Never suppress restore errors or edit the dump to make a recovery test pass.
 
 ## Default Local Profile
 
+Publisher identity and provider custody are checked separately by
+`make release-signing-check`; its offline regression subset is
+`make release-signing-policy-test`. The required environment and credential
+locations, exact identity constraints and current rollout limits belong to
+[release signing](../release-signing.md). A missing live protection is a failed
+identity gate, even when ordinary local release acceptance passes.
+
 Run the default release gate from the repository root:
 
 ```sh

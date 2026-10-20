@@ -289,9 +289,19 @@
       "finding": "CloneOwned preserves a standard transport proxy; policy-bound New explicitly clears clone.Proxy. Native GCP/Azure paths use CloneOwned."
     },
     {
-      "source": "scripts/release_candidate_package.sh",
-      "sha256": "bb88e7c547c13ca263bda0768ba1484dc4ef8951e32011a0aa664457a5004ade",
-      "finding": "EVY-1403 source review: retains unconditional production and final reproducibility-byte binding. The scanner path joins signing aliases and tag override as an unexported shell local; all release-only EVYDENCE exports are cleared before runtime/Go/Make children. A checksum/recipe/version scanner preflight occurs before expensive validation. Metadata gets the scanner by explicit argv, rechecks all 13 software subjects before signing, and includes every individual SBOM and evidence index in SHA256SUMS and the signed manifest. Fixed candidate paths and file-based ephemeral signing remain. Offline pipeline and release-only-environment regressions cover these changes; this inventory does not assert current-source live qualification."
+      "source": "scripts/container_evidence.py",
+      "sha256": "85ee82179db5af0a92591373a178407157f33215d9f9bc97a375074f7636f430",
+      "finding": "Reviewed container producer metadata and immutable OCI subject verification. Source materials include the signing verifier/policy; hosted source/workflow SHA assertions stay distinct. Only the fixed pinned scanner is executed with its restricted environment; no signing/publishing credentials are required by generation."
+    },
+    {
+      "source": "scripts/public_release_verify.sh",
+      "sha256": "2c38db9787456e70e1c3243b05e656b177c7d52b98e1f0787a9a27d4dba2bb4c",
+      "finding": "Reviewed publisher trust before CLI execution: fixed policy pins legacy manifest/public-key and requires GitHub certificate identity/issuer/ref/commit for new assets. Manifest-listed byte hashes precede extraction/execution. Downloaded CLI gets only private HOME/TMPDIR, fixed PATH and bounded Go runtime settings, excluding caller credentials. Operator gh authentication is used only for provider reads/verification."
+    },
+    {
+      "source": "scripts/release_artifacts.py",
+      "sha256": "562f4fa6558085d5a5633f4eae37570bdcf2dab1453b88a0cf931a92cb033d54",
+      "finding": "Reviewed source-relative build materials and filesystem recipe; signing policy/verifier are included in the pre-build manifest. Existing structured coordinate, normalized archive, no-follow regular-file and size/hash controls remain unchanged."
     },
     {
       "source": "scripts/release_build.py",
@@ -299,14 +309,14 @@
       "finding": "Unsigned build-only subprocess boundary. Parent environment reads are allowlisted to PATH, HOME, USER, LOGNAME, TMPDIR, GOTMPDIR, GOCACHE, GOMODCACHE, SSL_CERT_FILE and SSL_CERT_DIR. Go compiler/toolchain, workspace, experiment, architecture, CGO, GC and parallelism settings are pinned; global/system Git configuration is disabled for these commands. Provider tokens, signing aliases, test database configuration and ambient GOFLAGS are omitted. HOME, PATH, cache directories and certificate paths remain trusted operator inputs; this is not a sandbox against hostile local tools or credential files. The selected compiler, clean expected Git commit, fixed source epoch and readonly module graph govern the shared recipe. Before/after source guards and fake compiler regressions cover environment isolation and source changes. These are build-tool inputs, not new production-native configuration names."
     },
     {
-      "source": "scripts/release_artifacts.py",
-      "sha256": "c0035dd6d1b9190cdb62118f8ac4b840612e5f9689b16b2bb47ff857236df1e8",
-      "finding": "EVY-1403 source review: source-relative build materials now include the evidence generator, parser/adapter code and pinned isolated tool module locks. No new ambient environment reads or credential lookup. Manifest values remain validated explicit source/tag/compiler/time inputs; material parents and final regular files reject symlinks. Existing normalized archive modes/order/time, allowlisted payloads, FIFO/nonregular rejection and no-overwrite behavior remain. Actual source fields and archive behavior are covered by the fixture policy checks; image and hosted publication qualification are separate."
+      "source": "scripts/release_candidate_package.sh",
+      "sha256": "bb88e7c547c13ca263bda0768ba1484dc4ef8951e32011a0aa664457a5004ade",
+      "finding": "EVY-1403 source review: retains unconditional production and final reproducibility-byte binding. The scanner path joins signing aliases and tag override as an unexported shell local; all release-only EVYDENCE exports are cleared before runtime/Go/Make children. A checksum/recipe/version scanner preflight occurs before expensive validation. Metadata gets the scanner by explicit argv, rechecks all 13 software subjects before signing, and includes every individual SBOM and evidence index in SHA256SUMS and the signed manifest. Fixed candidate paths and file-based ephemeral signing remain. Offline pipeline and release-only-environment regressions cover these changes; this inventory does not assert current-source live qualification."
     },
     {
-      "source": "scripts/reproducible_build.py",
-      "sha256": "5612068941830e6749964eecaeef2b9048c73b69ed0abb1acdbe0e5cc23e0e57",
-      "finding": "Build/repeat reads the operator environment only through release_build.build_environment; local repetition substitutes a fresh GOCACHE for each clean owned worktree. Git commands use the filtered environment and cleanup never forces removal. Reports contain fixed source/tool metadata and relative expected artifact paths/digests, not cache paths or provider credentials. Actual bytes are checked against bounded duplicate-key-rejecting reports; missing, unexpected, malformed, symlinked or tampered records fail. Local output-directory disclosure is limited to operator stderr. Byte equality does not authenticate runner identity; actual hosted jobs remain separate required evidence. Fixture tests cover separate caches, preserved failed worktrees, report/CLI failures and immutable outputs. Successful comparisons expose only their fully validated byte inventory. The verify-candidate path requires exact successful-proof schema/source/compiler/recipe/counts, source epoch, closed artifact set and strict digest/size types, rereads the actual final payload files, and validates the actual pre-build identity. Changed payloads or malformed proofs fail before signing; tests cover a mismatching final build, malformed/failed/wrong-source proofs, CLI failure and redacted diagnostics. Decoder recursion failures are normalized to fixed invalid-report errors; a synthetic decoder-failure regression and deep-input CLI characterization cover this error boundary."
+      "source": "scripts/release_candidate_validate.sh",
+      "sha256": "1ec3f661e9915fca4720fcc05751635814b65df536064ce1542a7230d1bb4fb5",
+      "finding": "Operator validation uses fixed RC tag-derived directories and the support matrix. Existing checksum/signature/alias and release-language checks remain; the strict evidence verifier now reopens all actual software subjects against current Git HEAD. No signing key is received by this validator from normal packaging. Go release verification and file/CLI operations remain separate from runtime configuration; unknown/missing/tampered evidence fails rather than relaxing the profile."
     },
     {
       "source": "scripts/release_evidence_metadata.py",
@@ -314,29 +324,14 @@
       "finding": "Operator metadata generator, not a production configuration loader. Git and Go list children receive release_build.build_environment, fixed args, suppressed raw stderr and timeouts. Typed bounded module identities reject duplicates, local replacements and malformed versions; remote replacements identify their effective source. Only validated public Git/source/compiler and GitHub repository/run/workflow SHA fields are serialized. The pinned scanner is checksum/recipe/version checked, receives private HOME/config and no parent credentials, and scans fixed actual subject files. Metadata files are written exclusively only after complete generation. Fixed errors and canary fixtures cover parser/scanner failure. No provider/signing identity authentication is inferred."
     },
     {
-      "source": "scripts/release_evidence_tools.py",
-      "sha256": "2290d59b8423dc62a7a9e43f44ad3e24b98c8f8aaa506728b9f5d29721617011",
-      "finding": "Operator-only tool installation. Source version and both Go checksums are pinned. An isolated bootstrap module verifies cached upstream source as a dependency before copying; locked dependency verification and CGO-disabled/current-policy-Go compilation follow under the filtered build environment. HOME/PATH/cache/certificate locations remain trusted operator inputs. No signing/provider/database exports are forwarded. Private failed builds remain for diagnosis; completed binary hashes bind to the tool recipe and existing or tampered installs are not silently overwritten. Source-only review is distinct from the separate real installer and advisory observations."
-    },
-    {
-      "source": "scripts/release_scanner.py",
-      "sha256": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
-      "finding": "Closed scanner subprocess boundary: fixed version or offline file/OCI scan argv, fixed catalogers/output, private HOME/TMP/config, no ambient parent credentials/Go flags, one worker, bounded stdout and process deadline. stderr is suppressed and failures use a fixed diagnostic; owned failed processes are killed/reaped. Local/vendor/remote license discovery and app updates are disabled. Go/APK records and optional Alpine OS metadata are curated by release_sbom; both Go and APK inventory are required for the supported image. The full external CLI and its remaining OpenPGP advisory are outside the restricted-use claim."
-    },
-    {
-      "source": "scripts/release_subjects.py",
-      "sha256": "9277bcaf990a597ab39c451a58c4226838a4371e545ac81e895ec9ec08f1ddf5",
-      "finding": "No ambient credential/config lookup. The versioned support matrix determines exact archive names and executable/document entries. Standard TAR/ZIP parsers, regular-file/no-follow opens, explicit directory/member allowlists, byte/entry limits and private extracted executable files govern reads. Links, traversal, duplicates, missing entries and oversize payloads fail; payloads are never executed here. Public results serialize subject names/sizes/digests, not private staging paths. Small malicious-archive fixtures and actual-byte checks cover the boundary."
-    },
-    {
-      "source": "scripts/release_sbom.py",
-      "sha256": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
-      "finding": "Pure public evidence projection with no filesystem, subprocess or environment access. It retains validated Go/APK names, versions and canonical package URLs plus a vetted Alpine OS descriptor. Scanner file records, arbitrary properties, paths and credentials are not copied. Duplicate equivalent package coordinates merge and conflicts fail. CycloneDX subject names/SHA-256, Syft version, adapter version and explicit coverage limits are fixed by the closed profile; negative/canary fixtures cover scope and digest substitution. Alpine APK URLs permit only arch/distro and optional upstream package name, each closed and bounded; split-package origin is preserved without arbitrary qualifiers or paths."
-    },
-    {
       "source": "scripts/release_evidence_profile.py",
       "sha256": "b6ce367db11cf16d36d4a1e56fd27b713551d43616e745581626b8217c23c5d4",
       "finding": "Pure bounded JSON/source/material/SLSA-style evidence profile. Duplicate JSON keys and nonstandard constants fail. Source-relative material names, digest/size types, exact software subjects, evidence hashes, workflow-definition SHA and numeric run URL are validated. Private paths and unvalidated provider fields are excluded. Read verification regenerates canonical index/statement expectations against caller-derived actual payloads; coherently rehashed substituted evidence fails. Legacy compatibility is explicit and limited to the committed historical repository/tag/commit identity. These producer fields do not authenticate provider execution or signing authority."
+    },
+    {
+      "source": "scripts/release_evidence_tools.py",
+      "sha256": "2290d59b8423dc62a7a9e43f44ad3e24b98c8f8aaa506728b9f5d29721617011",
+      "finding": "Operator-only tool installation. Source version and both Go checksums are pinned. An isolated bootstrap module verifies cached upstream source as a dependency before copying; locked dependency verification and CGO-disabled/current-policy-Go compilation follow under the filtered build environment. HOME/PATH/cache/certificate locations remain trusted operator inputs. No signing/provider/database exports are forwarded. Private failed builds remain for diagnosis; completed binary hashes bind to the tool recipe and existing or tampered installs are not silently overwritten. Source-only review is distinct from the separate real installer and advisory observations."
     },
     {
       "source": "scripts/release_evidence_verify.py",
@@ -349,19 +344,29 @@
       "finding": "No environment or provider access. The bounded single-image OCI TAR envelope admits only layout/index/referenced content-addressed blobs and a consistent optional Docker compatibility index. It validates actual blob hashes/sizes, supported media types, compressed/expanded layer digests, aggregate expansion, Linux amd64 configuration and expected source/version labels. Outer links, traversal, duplicates and unreferenced payloads fail. The parser never extracts layer files onto the host and never serializes image Env or private config fields; fixed errors cover malformed compressed bytes."
     },
     {
-      "source": "scripts/container_evidence.py",
-      "sha256": "dcd3a4420fbdefd0f63f947e83df6ec747b77b61add19bf5d05b0c41b76f3349",
-      "finding": "Structured generate/verify CLI for actual OCI image subjects. Generation checks clean exact source before/after work using the filtered Git environment, records only allowlisted relative source/tool materials, and checks the pinned scanner install. Scanner children use the closed environment; only validated GitHub run/repository/workflow SHA enters public provenance. Output paths are operator inputs; existing metadata and symlinked roots fail rather than overwrite. Verification is scanner/provider independent and reopens actual OCI bytes and bounded metadata. Builder/workflow/source fields remain producer assertions, with signing/provider controls separate."
+      "source": "scripts/release_sbom.py",
+      "sha256": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
+      "finding": "Pure public evidence projection with no filesystem, subprocess or environment access. It retains validated Go/APK names, versions and canonical package URLs plus a vetted Alpine OS descriptor. Scanner file records, arbitrary properties, paths and credentials are not copied. Duplicate equivalent package coordinates merge and conflicts fail. CycloneDX subject names/SHA-256, Syft version, adapter version and explicit coverage limits are fixed by the closed profile; negative/canary fixtures cover scope and digest substitution. Alpine APK URLs permit only arch/distro and optional upstream package name, each closed and bounded; split-package origin is preserved without arbitrary qualifiers or paths."
     },
     {
-      "source": "scripts/public_release_verify.sh",
-      "sha256": "ed0c5540ba7ff9dc1731489c7fc4abf4c181441369f755d1f0a8c2b7208b7b68",
-      "finding": "Authenticated gh download is an explicit operator/provider boundary. Repository/tag and legacy-option syntax are checked, and legacy mode requires the committed historical identity. A bounded Python checksum stage rejects external release/migration paths before hashing. The strict profile checks actual binary/archive subjects before extracting or executing the downloaded CLI, then verifies signed-manifest/checksum membership for every subject evidence file. Legacy mode preserves its limited old shape/signature checks without granting new SBOM assurance. Provider credentials used by gh are not serialized; hostile local tools and independent publisher identity are outside this source-only claim."
+      "source": "scripts/release_scanner.py",
+      "sha256": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
+      "finding": "Closed scanner subprocess boundary: fixed version or offline file/OCI scan argv, fixed catalogers/output, private HOME/TMP/config, no ambient parent credentials/Go flags, one worker, bounded stdout and process deadline. stderr is suppressed and failures use a fixed diagnostic; owned failed processes are killed/reaped. Local/vendor/remote license discovery and app updates are disabled. Go/APK records and optional Alpine OS metadata are curated by release_sbom; both Go and APK inventory are required for the supported image. The full external CLI and its remaining OpenPGP advisory are outside the restricted-use claim."
     },
     {
-      "source": "scripts/release_candidate_validate.sh",
-      "sha256": "1ec3f661e9915fca4720fcc05751635814b65df536064ce1542a7230d1bb4fb5",
-      "finding": "Operator validation uses fixed RC tag-derived directories and the support matrix. Existing checksum/signature/alias and release-language checks remain; the strict evidence verifier now reopens all actual software subjects against current Git HEAD. No signing key is received by this validator from normal packaging. Go release verification and file/CLI operations remain separate from runtime configuration; unknown/missing/tampered evidence fails rather than relaxing the profile."
+      "source": "scripts/release_signing.py",
+      "sha256": "8920963930a440bd29c11a485cad2e179f250948d3748633cf15a5437b4edbfc",
+      "finding": "Reviewed local public identity controller: source-owned closed policy and exact repository/issuer/workflow/ref/SHA, bounded revocation list, legacy content/key pins and actual file hashes. GitHub read-only metadata and names-only secret inventories use bounded gh subprocess output/deadlines and minimal auth environment. Provider settings are verified, never mutated. Workflow context is compared to trusted runner metadata and live reviewer/master-only rules; it is not a standalone certificate. Unknown flags/provider errors cannot echo raw credentials."
+    },
+    {
+      "source": "scripts/release_subjects.py",
+      "sha256": "9277bcaf990a597ab39c451a58c4226838a4371e545ac81e895ec9ec08f1ddf5",
+      "finding": "No ambient credential/config lookup. The versioned support matrix determines exact archive names and executable/document entries. Standard TAR/ZIP parsers, regular-file/no-follow opens, explicit directory/member allowlists, byte/entry limits and private extracted executable files govern reads. Links, traversal, duplicates, missing entries and oversize payloads fail; payloads are never executed here. Public results serialize subject names/sizes/digests, not private staging paths. Small malicious-archive fixtures and actual-byte checks cover the boundary."
+    },
+    {
+      "source": "scripts/reproducible_build.py",
+      "sha256": "5612068941830e6749964eecaeef2b9048c73b69ed0abb1acdbe0e5cc23e0e57",
+      "finding": "Build/repeat reads the operator environment only through release_build.build_environment; local repetition substitutes a fresh GOCACHE for each clean owned worktree. Git commands use the filtered environment and cleanup never forces removal. Reports contain fixed source/tool metadata and relative expected artifact paths/digests, not cache paths or provider credentials. Actual bytes are checked against bounded duplicate-key-rejecting reports; missing, unexpected, malformed, symlinked or tampered records fail. Local output-directory disclosure is limited to operator stderr. Byte equality does not authenticate runner identity; actual hosted jobs remain separate required evidence. Fixture tests cover separate caches, preserved failed worktrees, report/CLI failures and immutable outputs. Successful comparisons expose only their fully validated byte inventory. The verify-candidate path requires exact successful-proof schema/source/compiler/recipe/counts, source epoch, closed artifact set and strict digest/size types, rereads the actual final payload files, and validates the actual pre-build identity. Changed payloads or malformed proofs fail before signing; tests cover a mismatching final build, malformed/failed/wrong-source proofs, CLI failure and redacted diagnostics. Decoder recursion failures are normalized to fixed invalid-report errors; a synthetic decoder-failure regression and deep-input CLI characterization cover this error boundary."
     }
   ]
 }

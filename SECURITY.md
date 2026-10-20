@@ -23,7 +23,18 @@ authoritative vulnerability results, or release security. Deployment IAM,
 network controls, identity-provider configuration, key custody, backups, and
 external review remain outside this repository's unilateral control.
 
+## Public Release Verification
+
+For public artifact publisher identity, use the versioned
+[release signing policy](docs/release-signing.md). A byte-consistent signature
+with an embedded key alone does not authenticate a publisher. The policy binds
+new releases to the expected repository, workflow, protected ref, issuer and
+source commit, with a narrow pinned historical exception and explicit revoked
+sources. Its custody, incident and rotation instructions distinguish implemented
+verification from required live provider controls and publication evidence.
+
 ## Reporting A Vulnerability
+
 
 If you believe you found a vulnerability, use GitHub private vulnerability
 reporting for this repository when the "Report a vulnerability" button is

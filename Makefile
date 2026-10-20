@@ -235,7 +235,17 @@ release-repro-policy-test: ## Test deterministic release recipes and comparison 
 	@python3 scripts/test_reproducible_build.py
 	@python3 scripts/test_release_repro_policy.py
 
-release-evidence-policy-test: ## Test release subject parsing and public SBOM metadata offline
+.PHONY: release-signing-policy-test release-signing-check
+
+release-signing-policy-test: ## Test release publisher trust and protected workflow policy offline
+	@python3 scripts/test_release_signing.py
+	@python3 scripts/test_public_release_evidence.py
+	@python3 scripts/test_release_evidence_workflows.py
+
+release-signing-check: release-signing-policy-test ## Verify live release environment approval, branch and credential custody rules
+	@python3 scripts/release_signing.py check-provider
+
+release-evidence-policy-test: release-signing-policy-test ## Test release subject parsing and public SBOM metadata offline
 	@python3 scripts/test_release_evidence_tools.py
 	@python3 scripts/test_release_evidence_metadata.py
 	@python3 scripts/test_release_subjects.py
@@ -243,10 +253,8 @@ release-evidence-policy-test: ## Test release subject parsing and public SBOM me
 	@python3 scripts/test_release_evidence_profile.py
 	@python3 scripts/test_release_scanner.py
 	@python3 scripts/test_release_evidence_pipeline.py
-	@python3 scripts/test_public_release_evidence.py
 	@python3 scripts/test_release_oci.py
 	@python3 scripts/test_container_evidence.py
-	@python3 scripts/test_release_evidence_workflows.py
 
 release-evidence-tools: ## Build checksum-pinned release SBOM tooling in an isolated tool directory
 	@python3 scripts/release_evidence_tools.py --output-root "$(RELEASE_EVIDENCE_TOOLS_ROOT)"

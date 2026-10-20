@@ -35,6 +35,7 @@ under `dist/<tag>/` after `make production-check` passes.
 | `evydence-release-manifest.json` | `./evydence release manifest` through the package script | List release artifacts, hashes, OpenAPI checksum, migration checksum, and release metadata. |
 | `evydence-release-manifest.sig.json` | `./evydence release sign` through the package script | Verify the release manifest signature with the release public key. |
 | `evydence-release-manifest.sig` | Copied from `evydence-release-manifest.sig.json` by the package script | Scorecard-compatible alias for the signed manifest metadata. Use the `.sig.json` file with the Evydence CLI verifier. |
+| `evydence-release-attestations.sigstore.json` | Protected Release Artifacts attestation job, after packaging | Authenticate the manifest and signature using the exact issuer/workflow/ref/source policy before any downloaded CLI executes. Historical RC.7 has pinned legacy content instead. |
 | `evydence-release-sbom.cdx.json` | `scripts/release_evidence_metadata.py` | Source-module catalog with coverage limits; individual artifact SBOMs provide the byte bindings. |
 | `evydence-sbom-<subject-name-sha256>.cdx.json` | `scripts/release_evidence_metadata.py` and pinned Syft | One CycloneDX 1.6 inventory for each supported binary/archive, bound to its actual SHA-256 digest. |
 | `evydence-release-evidence-index.json` | `scripts/release_evidence_metadata.py` | Map all eight binaries and five archives to their SBOM and provenance file digests. |
@@ -124,11 +125,12 @@ EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-r
 ```
 
 The explicit legacy profile is restricted to the recorded repository/tag/commit.
-The helper downloads assets with `gh`, checks bounded release/migration checksum
-paths, validates the old in-toto shape and verifies the signed manifest using the
-released CLI. It does not grant artifact-bound SBOM assurance. The default
-public verifier requires the new profile and checks actual subjects before
-executing a downloaded CLI.
+The helper downloads assets with `gh`, requires the pinned manifest/public-key
+fingerprints, checks manifest-bound files and bounded release/migration checksum
+paths, and validates the old in-toto shape and signature. It does not grant
+artifact-bound SBOM or protected keyless workflow assurance. The default public
+verifier requires the new identity/profile and checks actual subjects before
+executing a downloaded CLI. See [publisher identity and custody](../release-signing.md).
 
 For local release asset smoke validation without live GitHub Releases or full
 release-candidate packaging, run:
@@ -141,17 +143,19 @@ The smoke check verifies a synthetic release asset set, checksum mismatch
 failure, missing-asset failure, signed manifest verification, tampered manifest failure,
 sample customer package verification output, and wrong expected package ID failure.
 
-To verify the last checked public container image digest and workflow identity,
-run:
+To inspect the last checked historical public container image digest, run:
 
 ```sh
 docker buildx imagetools inspect ghcr.io/aatuh/evydence:v0.1.0-rc.5 \
   --format '{{json .Manifest.Digest}}'
-cosign verify \
-  --certificate-identity-regexp 'https://github.com/aatuh/evydence/.github/workflows/container-image.yml@.*' \
-  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-  ghcr.io/aatuh/evydence@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888
 ```
+
+This historical digest predates the new exact workflow/ref/source profile;
+inspection alone does not authenticate its publisher. Use the canonical
+[`cosign verify` command for new containers](../release-signing.md#verify-new-container-identities)
+with an independently selected digest and source commit. Historical signatures
+need their own reviewed identity profile, without granting new protected-workflow
+assurance through a wildcard.
 
 Expected digest:
 `sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888`.

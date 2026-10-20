@@ -74,6 +74,14 @@ for asset in "${required[@]}"; do
   fi
 done
 
+identity_args=(verify-public --dist "$workdir" --repository "$repo" --tag "$tag" --expected-commit "$commit")
+if [[ "$legacy_evidence" == "1" ]]; then
+  identity_args+=(--legacy)
+fi
+# Authenticate the publisher and every manifest-listed file before extracting
+# or executing any downloaded payload. A self-selected key is not an authority.
+python3 scripts/release_signing.py "${identity_args[@]}"
+
 python3 scripts/release_evidence_verify.py --checksums-only \
   --dist "$workdir" --tag "$tag" --expected-commit "$commit"
 
@@ -90,7 +98,9 @@ if [[ ! -f "$archive" ]]; then
 fi
 tar -C "$workdir" -xzf "$archive"
 cli="$workdir/evydence_${tag}_linux_amd64/evydence"
-"$cli" release verify \
+mkdir -m 700 "$workdir/cli-home"
+/usr/bin/env -i PATH=/usr/bin:/bin HOME="$workdir/cli-home" TMPDIR="$workdir" \
+  GOMAXPROCS=1 GOMEMLIMIT=512MiB GOGC=50 "$cli" release verify \
   --manifest "$workdir/evydence-release-manifest.json" \
   --signature "$workdir/evydence-release-manifest.sig.json"
 

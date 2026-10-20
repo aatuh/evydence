@@ -1,0 +1,7 @@
+{
+  "algorithm": "Ed25519",
+  "manifest_hash": "sha256:ee9ccd12b1840a468b6baab17f558a170454ef2baf6647a921aa8784162bf872",
+  "public_key": "eetnyGLRv4vr3Y5cCkgZNRP88mmjBGl5O5xvL+z72B4=",
+  "schema_version": "evydence-release-signature.v1.0.0",
+  "signature": "S7egFaeXMqfKrWf2dgs6u4kc3jf9BD2hvPGK8kUDSR41stsOQ7gnyOgci00kUUYPsiOEfm3bfHzTqgwHSZlyBA=="
+}

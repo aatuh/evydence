@@ -16,6 +16,7 @@ import unittest
 import release_artifacts
 import release_evidence_profile as profile
 import release_sbom
+import release_signing
 import release_subjects
 
 
@@ -29,10 +30,13 @@ class PublicReleaseEvidenceTests(unittest.TestCase):
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         self.root, self.dist, self.tag = fixture.root, fixture.dist, TAG
+        self.marker = self.root / 'cli-executed'
         name = 'evydence_' + TAG + '_linux_amd64'
         directory = self.root / name
         (directory / 'evydence').write_text(
-            '#!/usr/bin/python3\nimport os,pathlib\npathlib.Path(os.environ["FIXTURE_CLI_MARKER"]).write_text("executed")\n')
+            '#!/usr/bin/python3\nimport os,pathlib\npathlib.Path(' + repr(str(self.marker)) + ').write_text('
+            '"credentials-present" if any(k in os.environ for k in ["GH_TOKEN", "AWS_SECRET_ACCESS_KEY", '
+            '"EVYDENCE_DATABASE_URL"]) else "clean")\n')
         archive = self.dist / (name + '.tar.gz')
         archive.unlink()
         release_artifacts.write_archive(directory, archive, 1700000000,
@@ -58,19 +62,24 @@ class PublicReleaseEvidenceTests(unittest.TestCase):
         (self.dist / 'migrations.sha256').write_text(self.sha(migration) + '  ' + migration.relative_to(ROOT).as_posix() + '\n')
         for filename in ['evydence-release-manifest.sig.json', 'evydence-release-manifest.sig']:
             (self.dist / filename).write_text('signature fixture\n')
+        (self.dist / release_signing.BUNDLE_NAME).write_text('attestation fixture\n')
         self.bind_files()
-        self.marker = self.root / 'cli-executed'
         binary_directory = self.root / 'bin'
         binary_directory.mkdir()
         gh = binary_directory / 'gh'
-        gh.write_text('#!' + sys.executable + '''
-import os,pathlib,shutil,sys
+        gh.write_text(('#!' + sys.executable + '''
+import json,os,pathlib,shutil,sys
 args=sys.argv[1:]
 if args[:2]==['release','download']:
  shutil.copytree(os.environ['FIXTURE_RELEASE_SOURCE'],args[args.index('--dir')+1],dirs_exist_ok=True)
 elif args[0]=='api':print('a'*40)
+elif args[:2]==['attestation','verify']:
+ expected={'--repo':'aatuh/evydence','--cert-identity':'https://github.com/aatuh/evydence/.github/workflows/release-artifacts.yml@refs/heads/master','--cert-oidc-issuer':'https://token.actions.githubusercontent.com','--source-ref':'refs/heads/master','--source-digest':'a'*40,'--signer-digest':'a'*40}
+ if any(flag not in args or args[args.index(flag)+1]!=value for flag,value in expected.items()) or '--deny-self-hosted-runners' not in args:raise SystemExit(92)
+ if pathlib.Path(DENY_FILE).exists():
+  print('SECRET_CANARY',file=sys.stderr);raise SystemExit(93)
 else:raise SystemExit(92)
-''')
+''').replace('DENY_FILE', repr(str(self.root / 'deny-attestation'))))
         gh.chmod(0o700)
         self.environment = dict(os.environ, PATH=str(binary_directory) + os.pathsep + os.environ['PATH'],
                                 FIXTURE_RELEASE_SOURCE=str(self.dist), FIXTURE_CLI_MARKER=str(self.marker),
@@ -81,13 +90,14 @@ else:raise SystemExit(92)
 
     def bind_files(self):
         excluded = {'SHA256SUMS', 'evydence-release-manifest.json',
-                    'evydence-release-manifest.sig.json', 'evydence-release-manifest.sig'}
+                    'evydence-release-manifest.sig.json', 'evydence-release-manifest.sig', release_signing.BUNDLE_NAME}
         files = sorted(path for path in self.dist.iterdir() if path.name not in excluded)
         (self.dist / 'SHA256SUMS').write_text(''.join(self.sha(path) + '  ' + path.name + '\n' for path in files))
         files.append(self.dist / 'SHA256SUMS')
         (self.dist / 'evydence-release-manifest.json').write_text(json.dumps({
             'schema_version': 'evydence-release-artifacts.v1.0.0',
-            'artifacts': [{'path': path.name, 'sha256': self.sha(path)} for path in files]}))
+            'generated_at': '2026-10-20T00:00:00Z',
+            'artifacts': [{'path': path.name, 'digest': 'sha256:' + self.sha(path), 'size': path.stat().st_size} for path in files]}))
 
     def invoke(self):
         return subprocess.run(['bash', str(ROOT / 'scripts/public_release_verify.sh'), self.tag],
@@ -98,6 +108,37 @@ else:raise SystemExit(92)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('release evidence subjects verified: 13', result.stdout)
         self.assertTrue(self.marker.exists())
+
+    def test_unattested_release_is_rejected_before_downloaded_cli_execution(self):
+        # Artifact checksums and self-selected signature keys do not establish
+        # publisher identity, even when every subject is internally consistent.
+        (self.dist / release_signing.BUNDLE_NAME).unlink()
+        result = self.invoke()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.marker.exists())
+
+    def test_rejected_attestation_never_executes_cli_or_echoes_provider_output(self):
+        (self.root / 'deny-attestation').touch()
+        result = self.invoke()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.marker.exists())
+        self.assertNotIn('SECRET_CANARY', result.stdout + result.stderr)
+
+    def test_downloaded_cli_receives_no_parent_credentials(self):
+        self.environment.update(GH_TOKEN='SECRET_CANARY', AWS_SECRET_ACCESS_KEY='SECRET_CANARY',
+                                EVYDENCE_DATABASE_URL='SECRET_CANARY')
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.marker.read_text(), 'clean')
+
+    def test_rehashed_checksums_do_not_override_authenticated_manifest(self):
+        original = (self.dist / release_signing.MANIFEST_NAME).read_bytes()
+        (self.dist / 'release-notes.md').write_text('coherently rehashed substitute\n')
+        self.bind_files()
+        (self.dist / release_signing.MANIFEST_NAME).write_bytes(original)
+        result = self.invoke()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.marker.exists())
 
     def test_missing_index_fails_before_executing_downloaded_payload(self):
         (self.dist / profile.INDEX_NAME).unlink()

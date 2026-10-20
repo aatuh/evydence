@@ -26,6 +26,7 @@ BUILD_MATERIALS = (
     'scripts/release_evidence_metadata.py', 'scripts/release_subjects.py', 'scripts/release_sbom.py',
     'scripts/release_evidence_profile.py', 'scripts/release_scanner.py', 'scripts/release_evidence_verify.py',
     'scripts/release_evidence_tools.py', 'release/tools/syft.go.mod', 'release/tools/syft.go.sum',
+    'scripts/release_signing.py', 'release/signing-policy.json',
 )
 DOCUMENTS = {'LICENSE', 'README.md', 'CHANGELOG.md'}
 MAX_FILE_BYTES = 1024 * 1024 * 1024

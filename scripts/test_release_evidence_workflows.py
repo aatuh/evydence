@@ -17,6 +17,86 @@ class EvidenceWorkflowTests(unittest.TestCase):
     def workflow(self, name):
         return yaml.load((ROOT / '.github/workflows' / name).read_text(), Loader=yaml.BaseLoader)
 
+    def test_release_authority_is_protected_and_uses_ephemeral_manifest_keys(self):
+        workflow = self.workflow('release-artifacts.yml')
+        self.assertNotIn('push', workflow['on'])
+        self.assertNotIn('secrets.EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64', str(workflow))
+        package = workflow['jobs']['package']
+        self.assertEqual(package['environment'], 'release-production')
+        self.assertIn('refs/heads/master', package['if'])
+        self.assertIn('github.ref_protected', package['if'])
+        scripts = '\n'.join(step.get('run', '') for step in package['steps'])
+        self.assertIn('release_signing.py preflight', scripts)
+        self.assertIn('release keygen', scripts)
+        self.assertIn('trap ', scripts)
+
+    def test_release_attestation_precedes_publication_and_pins_official_action(self):
+        jobs = self.workflow('release-artifacts.yml')['jobs']
+        attest = jobs['attest-release']
+        self.assertEqual(attest['environment'], 'release-production')
+        self.assertEqual(attest['permissions']['id-token'], 'write')
+        step = next(step for step in attest['steps'] if step.get('uses', '').startswith('actions/attest@'))
+        self.assertEqual(step['uses'], 'actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6')
+        self.assertIn('evydence-release-manifest.json', step['with']['subject-path'])
+        self.assertIn('evydence-release-manifest.sig.json', step['with']['subject-path'])
+        publish = jobs['publish-draft-release']
+        self.assertIn('attest-release', publish['needs'])
+        self.assertEqual(publish['environment'], 'release-production')
+        self.assertIn('release_signing.py verify-public', '\n'.join(s.get('run', '') for s in publish['steps']))
+
+    def test_container_checks_out_trusted_workflow_source_before_reading_secrets(self):
+        jobs = self.workflow('container-image.yml')['jobs']
+        for name in ['publish-image', 'sign-image']:
+            self.assertEqual(jobs[name]['environment'], 'release-production')
+            self.assertIn('github.ref_protected', jobs[name]['if'])
+        steps = jobs['publish-image']['steps']
+        checkout = next(step for step in steps if step.get('uses', '').startswith('actions/checkout@'))
+        self.assertEqual(checkout['with']['ref'], '${{ github.sha }}')
+        guard = next(i for i,s in enumerate(steps) if 'release_signing.py preflight' in s.get('run', ''))
+        secret = next(i for i,s in enumerate(steps) if 'EVYDENCE_GHCR_PUBLISH_TOKEN' in str(s.get('env', {})))
+        self.assertLess(guard, secret)
+        scripts = '\n'.join(s.get('run', '') for s in jobs['sign-image']['steps'])
+        self.assertNotIn('--certificate-identity-regexp', scripts)
+        self.assertIn('--certificate-identity ', scripts)
+        self.assertIn('--certificate-github-workflow-sha', scripts)
+
+    def test_release_key_generation_does_not_inherit_release_only_settings(self):
+        job = self.workflow('release-artifacts.yml')['jobs']['package']
+        script = next(s['run'] for s in job['steps'] if s['name'] == 'Package signed release candidate')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary);(root/'bin').mkdir();(root/'scripts').mkdir()
+            go = root/'bin/go'
+            go.write_text('''#!/usr/bin/python3
+import os,pathlib,sys
+if any(k.startswith('EVYDENCE_RELEASE_') for k in os.environ):raise SystemExit(93)
+for flag,value in [('--private-out','FIXTURE_KEY'),('--public-out','FIXTURE_PUBLIC')]:
+ p=pathlib.Path(sys.argv[sys.argv.index(flag)+1]);p.write_text(value);p.chmod(0o600)
+''');go.chmod(0o700)
+            package = root/'scripts/release_candidate_package.sh'
+            package.write_text('''#!/usr/bin/python3
+import os,pathlib,sys
+assert os.environ['EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64']=='FIXTURE_KEY'
+assert os.environ['EVYDENCE_RELEASE_SYFT']=='/qualified/scanner'
+assert os.environ['EVYDENCE_RELEASE_ALLOW_EXISTING_TAG']=='1'
+pathlib.Path('packaged').touch()
+''');package.chmod(0o700)
+            environment = dict(os.environ, PATH=str(root/'bin')+os.pathsep+os.environ['PATH'],
+                               RUNNER_TEMP=str(root), RELEASE_TAG='v0.0.0-rc.1404',
+                               EVYDENCE_RELEASE_SYFT='/qualified/scanner')
+            for key,value in job.get('env',{}).items():
+                if '${{' not in value: environment[key] = value
+            result = subprocess.run(['bash','-c',script],cwd=root,env=environment,capture_output=True,text=True,timeout=5)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertTrue((root/'packaged').exists())
+            self.assertEqual(list(root.glob('evydence-manifest-key.*')),[])
+
+    def test_release_packager_provisions_both_required_live_dependencies(self):
+        job = self.workflow('release-artifacts.yml')['jobs']['package']
+        self.assertIn('EVYDENCE_TEST_S3_ENDPOINT', job['env'])
+        setup = next(i for i,s in enumerate(job['steps']) if 'make local-minio-image' in s.get('run',''))
+        package = next(i for i,s in enumerate(job['steps']) if s['name']=='Package signed release candidate')
+        self.assertLess(setup,package)
+
     def run_validation(self, name, step_name, ref, tag):
         workflow = self.workflow(name)
         job = workflow['jobs']['publish-image' if name == 'container-image.yml' else 'package']

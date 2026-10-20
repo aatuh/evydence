@@ -31,6 +31,7 @@ MATERIALS = (
     '.github/workflows/container-image.yml', 'scripts/build_ldflags.sh',
     'scripts/container_evidence.py', 'scripts/release_oci.py', 'scripts/release_scanner.py',
     'scripts/release_sbom.py', 'scripts/release_evidence_tools.py', 'scripts/release_evidence_profile.py',
+    'scripts/release_signing.py', 'release/signing-policy.json',
 )
 LIMITATIONS = [
     'This is not a SLSA level claim, legal compliance proof, certification, complete SBOM proof, '

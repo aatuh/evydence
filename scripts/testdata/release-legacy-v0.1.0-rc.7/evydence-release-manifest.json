@@ -1,0 +1,81 @@
+{
+  "artifacts": [
+    {
+      "digest": "sha256:b4e2266bb767e3bae56cc9d96542dbca839d9d6590bc140fe0ab5105ebedee8a",
+      "path": "evydence_v0.1.0-rc.7_darwin_amd64.tar.gz",
+      "size": 18935020
+    },
+    {
+      "digest": "sha256:15cd5c19de99b53f2cde0cb199a0f0980234d30c9cedcda0d6f95022a47e7f65",
+      "path": "evydence_v0.1.0-rc.7_darwin_arm64.tar.gz",
+      "size": 17443707
+    },
+    {
+      "digest": "sha256:91b9513ce0a96a231a3c1b06829ad8e3adc4bf19dcdf33e9041db4ffa41108a8",
+      "path": "evydence_v0.1.0-rc.7_linux_amd64.tar.gz",
+      "size": 18572609
+    },
+    {
+      "digest": "sha256:f8ce122746c133a3ca099d177749c5e3e3847b14bfd376477845aa98f6680a61",
+      "path": "evydence_v0.1.0-rc.7_linux_arm64.tar.gz",
+      "size": 16691638
+    },
+    {
+      "digest": "sha256:a7cd3f9c30b953b8fc6751529018121aa31cc9c944583075a9ef4f4b4d1e88a7",
+      "path": "evydence_v0.1.0-rc.7_windows_amd64.zip",
+      "size": 18969523
+    },
+    {
+      "digest": "sha256:4c4ebb9e25a17f40a77ad206e927660cde68aa63dec45be3982f51c2541a6364",
+      "path": "openapi.yaml",
+      "size": 429858
+    },
+    {
+      "digest": "sha256:ecf006135afaa5e9fb23b6dcdb3e51a2d373ca10eadea342bc00f740b4dee07c",
+      "path": "openapi.sha256",
+      "size": 79
+    },
+    {
+      "digest": "sha256:344d42533d342f999c81a6e3f4eb369e4cc8030e2b1d640f92a1f080721ffb29",
+      "path": "evydence-release-sbom.cdx.json",
+      "size": 49124
+    },
+    {
+      "digest": "sha256:91e4db7ce26ac974e38086160a9a24cc9d786a2fcc088945e212f068f63797ac",
+      "path": "evydence-release-provenance.json",
+      "size": 2237
+    },
+    {
+      "digest": "sha256:5dc3ad86dea660071bcf2618cdc9dc42c53eb6cdf37a85b15b0757a8c25f9f89",
+      "path": "evydence-release-provenance.intoto.jsonl",
+      "size": 2108
+    },
+    {
+      "digest": "sha256:d4992262eac24b9e48aa7f51e09aeffa981d7cb24483808c7c563a866c2e9663",
+      "path": "coverage.out",
+      "size": 844159
+    },
+    {
+      "digest": "sha256:94e69559692879fe792a2482f7f38de40fce5c314e7326fb8313b8544840419c",
+      "path": "release-check-summary.txt",
+      "size": 186
+    },
+    {
+      "digest": "sha256:58d1fbc3b96f878e72fb2c524a83cc0b1820d6a99a411b36ba511eb6ca1d41c1",
+      "path": "migrations.sha256",
+      "size": 8092
+    },
+    {
+      "digest": "sha256:c7ad124af5c7e8f125d2e984f0f14c8b3d3617c416193798461ee3b22a785572",
+      "path": "release-notes.md",
+      "size": 2840
+    },
+    {
+      "digest": "sha256:6a28793d4671d59ebd6a6d52dfa209a4b87121f2b3e4a9514b251dcefa91d711",
+      "path": "SHA256SUMS",
+      "size": 1332
+    }
+  ],
+  "generated_at": "2026-06-01T17:00:02Z",
+  "schema_version": "evydence-release-artifacts.v1.0.0"
+}

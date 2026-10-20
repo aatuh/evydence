@@ -28,6 +28,7 @@ product-boundary language across the docs.
 | Test strategy and critical behavior evidence | `docs/reference/test-strategy.md` | Coverage floors, behavior-to-test matrix, deterministic fixture policy, and exact-commit CI evidence provenance. |
 | Release-candidate evidence | `docs/reference/release-candidate.md` | Canonical release-candidate artifact checklist. |
 | Release evidence artifact map | `docs/reference/release-evidence-index.md` | Maps each release artifact to generation and verification commands. |
+| Release publisher identity and custody | `docs/release-signing.md` and `release/signing-policy.json` | Exact issuer/workflow/ref/source policy, protected environment, legacy pins, credential custody, revocation and rollout evidence limits. |
 | Production profiles and exit criteria | `docs/reference/production-readiness.md`, `docs/reference/production-exit-review.md`, and `docs/reference/stable-v0.1.0-exit-criteria.md` | Do not broaden status elsewhere without updating these. |
 | Design-partner pilot checklist | `docs/how-to/pilot-deployment-checklist.md` | Narrow copy-paste checklist for one controlled self-hosted pilot profile. |
 | Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | CODEOWNERS is an ownership reference; the policy owns high-risk self-review expectations and links to provider verification. |

@@ -41,7 +41,7 @@ EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)" \
 
 The target runs `scripts/release_candidate_package.sh`, which requires a clean
 worktree, a release-candidate tag such as `v0.1.0-rc.1`, no existing local tag
-unless the CI tag workflow explicitly allows it, live PostgreSQL through
+unless the protected master publication workflow explicitly allows it, live PostgreSQL through
 `EVYDENCE_TEST_DATABASE_URL`, a verified pinned scanner installation selected
 by `EVYDENCE_RELEASE_SYFT`, and release signing material. It runs
 `make production-check`, builds the release archive matrix, writes checksums,
@@ -86,16 +86,21 @@ evidence, and record that image digest with deployment evidence. If no image
 workflow evidence exists for a tag, operators must build and publish images into
 their own registry for Helm or air-gapped deployment flows.
 
-The release packaging workflow keeps the repository `GITHUB_TOKEN` read-only and
+The release packaging workflow keeps `GITHUB_TOKEN` contents access read-only and
 separates package generation from draft-release publication. Creating or
 updating the draft GitHub release happens in a separate job and requires the
 `EVYDENCE_RELEASE_PUBLISH_TOKEN` secret with only the release-publication scope
 the maintainer account approves for that workflow. The container image workflow
 also keeps `GITHUB_TOKEN` from receiving package-write permissions; publishing
 to GHCR requires `EVYDENCE_GHCR_PUBLISH_TOKEN`, and only the separate signing
-job receives `id-token: write` for keyless cosign signing. Both secrets are
-external repository settings and must not be printed in logs, committed to
-files, or included in release evidence.
+job receives `id-token: write` for keyless cosign signing. Artifact publication
+also has a separate keyless attestation job with the narrowly scoped token
+permissions described in [release signing](../release-signing.md). Publishing
+tokens belong in the reviewed `release-production` environment, with no
+repository-scoped signing key. Provider migration is required before this
+profile can run; secret values must not be printed, committed or included in
+release evidence. Dispatch from protected `master`, with a reviewed existing
+RC tag at that exact commit; tag-push signing is no longer supported.
 
 ## Deployment Constraints
 
