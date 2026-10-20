@@ -74,12 +74,41 @@ This is a human approval gate, without an independent-review claim.
 Administrators retain authority to edit provider settings; API observations
 do not prove immutable governance or historical approval decisions.
 
-Create environment secrets `EVYDENCE_RELEASE_PUBLISH_TOKEN` and
-`EVYDENCE_GHCR_PUBLISH_TOKEN` through GitHub Settings. The former needs only
-the approved release-publication permissions; the latter needs the intended
-GHCR package publication/signing permissions. Review token scope, expiration
-and recovery ownership with the maintainer. The automated check sees secret
-names and custody locations, not token values or their effective grants.
+After the approved environment exists, the account owner creates two publisher
+tokens and enters them there:
+
+1. For `EVYDENCE_RELEASE_PUBLISH_TOKEN`, create a
+   [fine-grained token](https://github.com/settings/personal-access-tokens/new?name=Evydence%20release%20publisher&target_name=aatuh&expires_in=30&contents=write).
+   Select **Only select repositories → aatuh/evydence** and **Contents → Read and
+   write**, with a bounded expiration and recorded recovery owner. The link
+   pre-fills the name, owner, 30-day lifetime and permission; repository selection
+   still needs review in GitHub. The workflow uses an existing tag on the trusted
+   master source. GitHub additionally requires Workflows write permission when a
+   release target modifies workflows relative to the default branch; keep this
+   profile's target on the current reviewed master source. See
+   [release API permissions](https://docs.github.com/en/rest/releases/releases#create-a-release).
+2. For `EVYDENCE_GHCR_PUBLISH_TOKEN`, create a
+   [classic token with `write:packages`](https://github.com/settings/tokens/new?scopes=write:packages).
+   Set a bounded expiration and confirm the intended package owner. This scope
+   includes package reads; this profile does not need `repo` or `delete:packages`.
+   GitHub's [container authentication guide](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic)
+   documents the scope-only link, which avoids the UI's automatic broad `repo`
+   selection. Classic package-token access follows the account's package grants;
+   it is not limited to one repository by a fine-grained repository selector.
+3. Run these commands interactively in the owner's terminal. Each command prompts
+   for its token; the value stays out of shell command arguments and history:
+
+   ```sh
+   gh secret set EVYDENCE_RELEASE_PUBLISH_TOKEN --repo aatuh/evydence --env release-production
+   gh secret set EVYDENCE_GHCR_PUBLISH_TOKEN --repo aatuh/evydence --env release-production
+   ```
+
+GitHub Settings is an alternative entry path. Existing Actions secret values
+cannot be retrieved through the API. Do not copy the operator's broad `gh` login
+token into publication jobs. Review scope, expiration and recovery ownership
+with the maintainer; the automated check sees secret names and custody locations,
+not token values or their effective grants. No token-entry or publication success
+is established by these instructions.
 
 Once environment entries are confirmed, remove their repository-scoped copies
 and retire `EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64` from repository Actions
