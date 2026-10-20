@@ -27,6 +27,7 @@ required=(
   "evydence-release-sbom.cdx.json"
   "evydence-release-provenance.json"
   "evydence-release-provenance.intoto.jsonl"
+  "evydence-release-evidence-index.json"
   "migrations.sha256"
   "release-build-manifest.json"
   "coverage.out"
@@ -62,6 +63,8 @@ go run ./cmd/evydence release verify \
   --manifest "$distdir/evydence-release-manifest.json" \
   --signature "$distdir/evydence-release-manifest.sig.json" >/dev/null
 cmp -s "$distdir/evydence-release-manifest.sig.json" "$distdir/evydence-release-manifest.sig"
+python3 scripts/release_evidence_verify.py --dist "$distdir" --tag "$tag" \
+  --expected-commit "$(git rev-parse --verify HEAD)"
 
 grep -Fi "Controlled self-hosted production candidate" "$distdir/release-notes.md" >/dev/null
 grep -Fi "not legal compliance proof" "$distdir/release-notes.md" >/dev/null

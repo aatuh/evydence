@@ -52,7 +52,7 @@ For the same verification from a clean temporary directory, use the checked
 helper:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.7
+EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-rc.7
 ```
 
 Expected result: the helper downloads the public GitHub Release assets,

@@ -69,6 +69,8 @@ class ReleaseSBOMTests(unittest.TestCase):
         self.assertEqual(component['hashes'], [{'alg': 'SHA-256', 'content': subject['sha256']}])
         self.assertEqual(bom['components'], components)
         self.assertIn(release_sbom.SYFT_VERSION, json.dumps(bom['metadata']['tools']))
+        self.assertIn({'type': 'application', 'name': 'Evydence release evidence adapter', 'version': '1'},
+                      bom['metadata']['tools']['components'])
         release_sbom.verify_bom(bom, subject)
         wrong = copy.deepcopy(bom)
         wrong['metadata']['component']['hashes'][0]['content'] = '0' * 64
@@ -78,6 +80,36 @@ class ReleaseSBOMTests(unittest.TestCase):
         del missing['metadata']['component']
         with self.assertRaises(ValueError):
             release_sbom.verify_bom(missing, subject)
+
+    def test_container_profile_includes_go_and_alpine_packages_without_host_metadata(self):
+        scanner = self.scanner_bom()
+        scanner['components'].append({'type': 'library', 'name': 'busybox', 'version': '1.37.0-r30',
+            'purl': 'pkg:apk/alpine/busybox@1.37.0-r30?arch=x86_64&distro=alpine-3.23.2',
+            'properties': [{'name': 'path', 'value': '/PRIVATE_CANARY'}]})
+        scanner['components'].append({'type': 'operating-system', 'name': 'alpine', 'version': '3.23.2',
+                                      'properties': [{'name': 'path', 'value': '/PRIVATE_CANARY'}]})
+        components = release_sbom.public_components(scanner, allow_apk=True)
+        self.assertEqual(len(components), 4)
+        self.assertIn({'type': 'operating-system', 'name': 'alpine', 'version': '3.23.2'}, components)
+        self.assertNotIn('PRIVATE_CANARY', json.dumps(components))
+        subject = {'name': 'ghcr.io/aatuh/evydence:v0.0.0-rc.1403', 'kind': 'container', 'sha256': 'a' * 64}
+        bom = release_sbom.bound_bom(subject, components)
+        self.assertEqual(bom['metadata']['component']['type'], 'container')
+        release_sbom.verify_bom(bom, subject)
+        with self.assertRaises(ValueError):
+            release_sbom.public_components(scanner)
+
+    def test_container_package_url_qualifiers_are_bounded_public_platform_coordinates(self):
+        base = 'pkg:apk/alpine/busybox@1.37.0-r30'
+        for suffix in ['?token=SECRET_CANARY', '?arch=x86_64&distro=/PRIVATE_CANARY',
+                       '?arch=x86_64&arch=noarch&distro=alpine-3.23.2',
+                       '?arch=x86_64&distro=alpine-3.23.2#PRIVATE_CANARY']:
+            with self.subTest(suffix=suffix):
+                scanner = self.scanner_bom()
+                scanner['components'].append({'type': 'library', 'name': 'busybox', 'version': '1.37.0-r30',
+                                               'purl': base + suffix})
+                with self.assertRaises(ValueError):
+                    release_sbom.public_components(scanner, allow_apk=True)
 
 
 if __name__ == '__main__':

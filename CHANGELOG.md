@@ -18,6 +18,18 @@ identities and malformed coordinates before writing evidence (EVY-1403).
 Versioned remote replacements identify the effective module. Private build
 paths and raw module-parser errors are excluded from exported metadata.
 
+Release tooling now generates an individual CycloneDX SBOM for every supported
+binary/archive and the Linux amd64 image, plus SLSA-style provenance and an
+artifact-to-evidence index (EVY-1403). Verification checks actual digests before
+signing or executing downloaded release tools. The pinned Syft source build
+uses the current project Go compiler and reviewed dependency locks. Coverage
+limits and its remaining advisory are recorded in the
+[supply-chain reference](docs/reference/release-supply-chain.md).
+Public verification defaults to the new format; the historical RC.7 profile
+requires explicit, source-pinned opt-in. Workflow dispatch inputs now pass
+through validated environment variables. Publication verifies tag/source
+identity and preserves existing release assets.
+
 Release payloads now use a shared reproducible build recipe (EVY-1402).
 API build time is the source commit's fixed UTC committer time. The pre-build
 manifest adds `build_recipe_version` and `source_date_epoch`, and material paths

@@ -92,6 +92,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Code of conduct](../CODE_OF_CONDUCT.md): participation expectations for public project spaces.
 - [Trademarks](../TRADEMARKS.md): conservative use of the Evydence name and modified-build naming rules.
 - [Release evidence](../RELEASE_EVIDENCE.md): release evidence routing, local acceptance checks, and limits of release validation.
+- [Release SBOM and provenance profile](reference/release-supply-chain.md): pinned tools, actual artifact/image subjects, coverage limits and historical compatibility.
 - [Changelog](../CHANGELOG.md): unreleased and future public-release notes.
 - [CODEOWNERS](../CODEOWNERS): expected maintainer ownership for high-trust code, release, deployment, and claim surfaces.
 

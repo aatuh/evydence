@@ -146,8 +146,11 @@ To verify the public release assets from a clean temporary directory on Linux
 amd64, run:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.7
+EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-rc.7
 ```
+
+RC.7 uses the historical metadata profile. The explicit compatibility setting
+verifies that release's existing evidence and grants no artifact-bound SBOM assurance.
 
 The VEX-first evidence flow to evaluate first is:
 

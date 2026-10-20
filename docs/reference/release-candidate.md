@@ -17,7 +17,7 @@ Before creating a release-candidate tag, collect:
 - `coverage.out` and the total coverage summary;
 - `openapi.yaml` plus an OpenAPI checksum;
 - migration checksum output for the directory or per-file migration checksums;
-- release SBOM metadata and release provenance metadata;
+- per-binary/archive SBOMs, SLSA-style provenance and their evidence index;
 - signed release artifact manifest and manifest signature;
 - checksums for every published binary, container image digest, chart package,
   and release archive;
@@ -33,17 +33,25 @@ Run from a clean checkout with a disposable PostgreSQL database:
 
 ```sh
 set -a; . ./.test.env; set +a
-export EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)"
-make release-candidate-check TAG=<vX.Y.Z-rc.N>
+release_scanner="$(make --silent --no-print-directory release-evidence-tools RELEASE_EVIDENCE_TOOLS_ROOT="${TMPDIR:-/tmp}/evydence-release-tools")"
+EVYDENCE_RELEASE_SYFT="$release_scanner" \
+EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)" \
+  make release-candidate-check TAG=<vX.Y.Z-rc.N>
 ```
 
 The target runs `scripts/release_candidate_package.sh`, which requires a clean
 worktree, a release-candidate tag such as `v0.1.0-rc.1`, no existing local tag
 unless the CI tag workflow explicitly allows it, live PostgreSQL through
-`EVYDENCE_TEST_DATABASE_URL`, and release signing material. It runs
+`EVYDENCE_TEST_DATABASE_URL`, a verified pinned scanner installation selected
+by `EVYDENCE_RELEASE_SYFT`, and release signing material. It runs
 `make production-check`, builds the release archive matrix, writes checksums,
-generates release SBOM and provenance metadata, signs the release manifest,
+generates and checks artifact-bound SBOM/provenance metadata, signs the complete evidence set,
 verifies the manifest signature, and validates the release-note language.
+
+The scanner setting is consumed before production validation and passed only to
+the metadata generator. It is not an application configuration variable. See
+[the SBOM and provenance profile](release-supply-chain.md) for tool locks,
+coverage limits, container verification and historical compatibility.
 
 Do not tag from a run where live PostgreSQL checks, migration compatibility,
 coverage threshold enforcement, OpenAPI checks, docs checks, deployment checks,

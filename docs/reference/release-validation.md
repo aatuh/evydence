@@ -234,26 +234,32 @@ auditor/regulator acceptance.
 The local packaging gate is:
 
 ```sh
-set -a; . ./.test.env; set +a
-export EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)"
 make release-candidate-check TAG=<vX.Y.Z-rc.N>
 ```
+
+Prepare the database, scoped signing setting and pinned scanner using the
+[canonical candidate commands](release-candidate.md#required-commands).
 
 `scripts/release_candidate_package.sh` creates `dist/<tag>/` with the
 release archives, `SHA256SUMS`, `openapi.sha256`, `migrations.sha256`,
 `release-build-manifest.json`,
-release SBOM metadata, release provenance metadata, `coverage.out`,
+per-binary/archive SBOMs, their evidence index, SLSA-style provenance, `coverage.out`,
 `release-check-summary.txt`, checked release notes, signed release manifest,
 and manifest signature. It refuses dirty worktrees, invalid release-candidate
-tags, missing live PostgreSQL configuration, missing signing material, and
+tags, missing live PostgreSQL configuration, missing signing material or a
+verified `EVYDENCE_RELEASE_SYFT` installation, and
 existing local tags unless a CI tag build explicitly sets
 `EVYDENCE_RELEASE_ALLOW_EXISTING_TAG=1`.
 
-Normal packaging consumes the signing-key aliases and existing-tag override into
+Normal packaging consumes the signing-key aliases, scanner setting and existing-tag override into
 shell-local values before invoking Git, Go or Make. Those release-only exports
 are cleared from validation and runtime child environments; production commands
 retain their strict rejection of unknown `EVYDENCE_*` options. Key validation
 and signing receive the signing material explicitly.
+
+The [release supply-chain profile](release-supply-chain.md) owns scanner
+versions, subject names, schema limits and coverage exclusions. Metadata is
+checked against all eight binary and five archive digests before signing.
 
 For a lightweight local smoke check that does not require a clean worktree,
 live PostgreSQL, release signing credentials, or GitHub Releases, run:
@@ -344,11 +350,15 @@ in the [toolchain and platform policy](toolchain-platform-support.md#release-bui
 Only the Linux amd64 archive includes the API, worker and migration commands;
 the other declared targets contain the CLI. The script runs
 `make production-check` against disposable PostgreSQL before building artifacts.
+The publication job verifies the downloaded subjects again, requires the Git
+tag to identify the packaged source commit and refuses to overwrite existing
+assets. A rebuild needs a new release-candidate tag rather than asset clobbering.
 
 Normal local packaging requires `tar`, `zip` and `sha256sum` on `PATH`, alongside
 the existing Bash, Python, Git, Make and current Go prerequisites. It checks the
 archive tools before validation or artifact replacement. The read-only `--plan`
-command requires no archive tools.
+command requires no archive tools. Prepare the separately pinned SBOM scanner
+as shown in the [candidate commands](release-candidate.md#required-commands).
 
 The workflow requires this repository secret:
 
@@ -379,6 +389,8 @@ minimum release-publication scope needed for the repository. Maintainers publish
 a draft as a prerelease only after the workflow artifact and release assets are
 verified. Manual runs can upload only the workflow artifact unless
 `upload_draft_release` is enabled.
+Publication also requires an existing source-matching Git tag. A manual run
+can retain packaged CI evidence while tag creation and publication remain pending.
 
 The container image workflow similarly keeps `GITHUB_TOKEN` from receiving
 package-write permissions. GHCR publication requires
@@ -386,6 +398,8 @@ package-write permissions. GHCR publication requires
 through `id-token: write`, but that permission is scoped to the image-signing
 job rather than the build/push job. These secrets are repository settings, not
 release evidence artifacts, and must not be logged or committed.
+The image workflow stages blobs by digest, creates the requested tag after
+SBOM/provenance verification and rechecks the subject in the signing job.
 
 The canonical artifact map is
 [Release evidence index](release-evidence-index.md). Keep that page aligned

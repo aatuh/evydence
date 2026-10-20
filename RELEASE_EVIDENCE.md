@@ -33,6 +33,9 @@ candidate packaging gate. It requires a clean worktree, live PostgreSQL, and
 release signing material, then writes release archives, checksums, OpenAPI and
 migration checksums, coverage output, release-check summary, checked release
 notes, a signed release manifest, and a manifest signature under `dist/<tag>/`.
+The pinned scanner and per-artifact SBOM/provenance contract are documented in
+[`the release supply-chain reference`](docs/reference/release-supply-chain.md).
+The final signed manifest includes the individual SBOMs and their evidence index.
 
 GitHub release and GHCR publication use explicit repository secrets instead of
 broad `GITHUB_TOKEN` write permissions: `EVYDENCE_RELEASE_PUBLISH_TOKEN` for the

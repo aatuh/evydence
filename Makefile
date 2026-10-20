@@ -17,9 +17,10 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
 .PHONY: repository-controls-test repository-controls-check
 .PHONY: release-repro-policy-test reproducible-build-check
-.PHONY: release-evidence-policy-test
+.PHONY: release-evidence-policy-test release-evidence-tools
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
+RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -170,8 +171,10 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'ghcr.io/$${{ github.repository }}' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'cosign sign --yes' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'cosign verify' .github/workflows/container-image.yml >/dev/null
-	@grep -F -- '--provenance=true' .github/workflows/container-image.yml >/dev/null
-	@grep -F -- '--sbom=true' .github/workflows/container-image.yml >/dev/null
+	@grep -F -- '--provenance=false' .github/workflows/container-image.yml >/dev/null
+	@grep -F -- '--sbom=false' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'scripts/container_evidence.py generate' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'scripts/container_evidence.py verify' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'https://evydence.app' .github/workflows/marketing-site-pages.yml >/dev/null
 	@grep -F 'G-XC2ESEHQ3W' Makefile >/dev/null
 	@grep -F 'actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e' .github/workflows/marketing-site-pages.yml >/dev/null
@@ -189,6 +192,7 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F '*.pem' .dockerignore >/dev/null
 
 release-truth-check: ## Validate current release metadata against public docs and helper defaults
+	@python3 -m unittest discover -s scripts -p test_check_release_truth.py
 	@scripts/check_release_truth.py
 
 persistence-decomposition-check: ## Validate generated persistence decomposition inventory
@@ -232,9 +236,20 @@ release-repro-policy-test: ## Test deterministic release recipes and comparison 
 	@python3 scripts/test_release_repro_policy.py
 
 release-evidence-policy-test: ## Test release subject parsing and public SBOM metadata offline
+	@python3 scripts/test_release_evidence_tools.py
 	@python3 scripts/test_release_evidence_metadata.py
 	@python3 scripts/test_release_subjects.py
 	@python3 scripts/test_release_sbom.py
+	@python3 scripts/test_release_evidence_profile.py
+	@python3 scripts/test_release_scanner.py
+	@python3 scripts/test_release_evidence_pipeline.py
+	@python3 scripts/test_public_release_evidence.py
+	@python3 scripts/test_release_oci.py
+	@python3 scripts/test_container_evidence.py
+	@python3 scripts/test_release_evidence_workflows.py
+
+release-evidence-tools: ## Build checksum-pinned release SBOM tooling in an isolated tool directory
+	@python3 scripts/release_evidence_tools.py --output-root "$(RELEASE_EVIDENCE_TOOLS_ROOT)"
 
 reproducible-build-check: ## Compare two clean local worktrees and separate build caches; requires TAG
 	@python3 scripts/reproducible_build.py repeat --tag "$(TAG)" --expected-commit "$(BUILD_COMMIT)" --output-root "$(REPRODUCIBLE_BUILD_ROOT)"

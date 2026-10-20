@@ -35,12 +35,22 @@ under `dist/<tag>/` after `make production-check` passes.
 | `evydence-release-manifest.json` | `./evydence release manifest` through the package script | List release artifacts, hashes, OpenAPI checksum, migration checksum, and release metadata. |
 | `evydence-release-manifest.sig.json` | `./evydence release sign` through the package script | Verify the release manifest signature with the release public key. |
 | `evydence-release-manifest.sig` | Copied from `evydence-release-manifest.sig.json` by the package script | Scorecard-compatible alias for the signed manifest metadata. Use the `.sig.json` file with the Evydence CLI verifier. |
-| `evydence-release-sbom.cdx.json` | `scripts/release_evidence_metadata.py` | Record release SBOM metadata and limitations; this does not prove SBOM completeness. |
-| `evydence-release-provenance.json` | `scripts/release_evidence_metadata.py` | Record build/release provenance metadata and limitations; this does not prove provider trust by itself. |
-| `evydence-release-provenance.intoto.jsonl` | `scripts/release_evidence_metadata.py` | Scorecard-compatible in-toto statement with the same Evydence release provenance limitations. This is not a SLSA level claim. |
+| `evydence-release-sbom.cdx.json` | `scripts/release_evidence_metadata.py` | Source-module catalog with coverage limits; individual artifact SBOMs provide the byte bindings. |
+| `evydence-sbom-<subject-name-sha256>.cdx.json` | `scripts/release_evidence_metadata.py` and pinned Syft | One CycloneDX 1.6 inventory for each supported binary/archive, bound to its actual SHA-256 digest. |
+| `evydence-release-evidence-index.json` | `scripts/release_evidence_metadata.py` | Map all eight binaries and five archives to their SBOM and provenance file digests. |
+| `evydence-release-provenance.json` | `scripts/release_evidence_metadata.py` | Version 2 summary of the source, shared SLSA-style statement and limitations; provider identity is a separate verification decision. |
+| `evydence-release-provenance.intoto.jsonl` | `scripts/release_evidence_metadata.py` | In-toto Statement v1 with SLSA provenance v1 predicate and actual artifact digests. This is not a SLSA level claim. |
 | `release-notes.md` | Tag-specific release notes or `docs/reference/release-notes-template.md` | State supported profile, upgrade notes, assumptions, limitations, and unresolved hardening work. |
 | `ghcr.io/aatuh/evydence:<tag>` | `.github/workflows/container-image.yml` | Optional project-owned image publication path for a release tag. Verify by digest and cosign workflow identity; do not deploy by mutable tag alone. |
 | `evydence-container-image-manifest.json` | `.github/workflows/container-image.yml` | Records the image digest, source commit, cosign verification file, assumptions, and limitations for the image workflow run. |
+| `image.oci.tar` | Container workflow's OCI exporter | Transport the supported image's manifest/config/layers for offline digest and source-label checks. |
+| `evydence-container-sbom.cdx.json` | `scripts/container_evidence.py` and pinned Syft | Bind recognized Go/APK components and the Alpine OS descriptor to the immutable image manifest digest. |
+| `evydence-container-provenance.intoto.jsonl` | `scripts/container_evidence.py` | Record the image subject, workflow/source commits, Dockerfile and tool locks, parameters and limitations. |
+| `evydence-container-evidence-index.json` | `scripts/container_evidence.py` | Map the image subject to its SBOM and provenance digests; verification reopens the actual OCI layout. |
+
+The [SBOM and provenance profile](release-supply-chain.md) defines the exact
+formats, tool versions, coverage limits and verification commands. Historical
+public assets listed below retain their original metadata format.
 
 ## Current Public Release Candidate
 
@@ -110,12 +120,15 @@ To verify the already-published public release from a clean temporary directory,
 run:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.7
+EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-rc.7
 ```
 
-The helper downloads the release assets with `gh`, checks the public checksums,
-validates the in-toto statement shape, extracts the released Linux amd64 CLI,
-and verifies the signed manifest with that released binary.
+The explicit legacy profile is restricted to the recorded repository/tag/commit.
+The helper downloads assets with `gh`, checks bounded release/migration checksum
+paths, validates the old in-toto shape and verifies the signed manifest using the
+released CLI. It does not grant artifact-bound SBOM assurance. The default
+public verifier requires the new profile and checks actual subjects before
+executing a downloaded CLI.
 
 For local release asset smoke validation without live GitHub Releases or full
 release-candidate packaging, run:

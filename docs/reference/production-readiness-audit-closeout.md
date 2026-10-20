@@ -175,3 +175,8 @@ The fresh audit found no new repo-local remediation that is not already covered
 by completed tickets or existing external blockers. If a later audit finds a
 new repository-local issue, add it to the traceability matrix and backlog before
 claiming internal closure.
+
+The command quoted in the historical audit predates the artifact-bound profile.
+Current RC.7 verification needs the explicit compatibility setting documented in
+[the release evidence index](release-evidence-index.md); it does not establish
+per-artifact SBOM binding for those historical assets.

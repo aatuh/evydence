@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise real packaging through archive creation with fake build/validation tools."""
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import tempfile
 import unittest
 
 import release_artifacts
+import release_evidence_tools
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +41,10 @@ class PackagingRecipeTests(unittest.TestCase):
             'from pathlib import Path\nPath("artifact-phase-finished").write_text("yes")\nraise SystemExit(91)\n')
         (root / 'bin').mkdir()
         programs = {
+            'syft': '''import json,sys
+if sys.argv[1:] != ['version','-o','json']:raise SystemExit(92)
+print(json.dumps({'application':'syft','version':'1.54.1','gitCommit':'b254e6d92f28c3868a755f62fb3ca8f26e9fee76','goVersion':'go1.27.2','platform':'linux/amd64'}))
+''',
             'git': '''import os,sys
 from pathlib import Path
 a=sys.argv[1:]
@@ -64,12 +70,13 @@ elif a and a[0]=='build':
  if Path('source-change-mode').exists():Path('source-changed').write_text('yes')
 else:raise SystemExit(92)
 ''',
-            'make': '''import json,subprocess,sys
+            'make': '''import json,os,subprocess,sys
 from pathlib import Path
 sys.path.insert(0,str(Path.cwd()/'scripts'))
 import release_artifacts,reproducible_build,support_matrix
 arguments=[item for item in sys.argv[1:] if not item.startswith('--')]
 if arguments[0]=='production-check':
+ if any(key in os.environ for key in ['EVYDENCE_RELEASE_SYFT','EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64','EVYDENCE_RELEASE_ALLOW_EXISTING_TAG']):raise SystemExit(94)
  Path('coverage.out').write_text('fixture coverage')
  Path('tmp').mkdir(exist_ok=True)
  Path('tmp/release-check-summary.txt').write_text('fixture validation')
@@ -99,11 +106,30 @@ else:raise SystemExit(92)
             path = root / 'bin' / name
             path.write_text('#!' + sys.executable + '\n' + code)
             path.chmod(0o700)
+        (root / 'bin/installation.json').write_text(json.dumps({
+            'schema': 'evydence-release-tool.v1', 'recipe_sha256': release_evidence_tools.recipe_digest(),
+            'binary_sha256': hashlib.sha256((root / 'bin/syft').read_bytes()).hexdigest(),
+        }))
         environment = dict(os.environ, PATH=str(root / 'bin') + os.pathsep + os.environ['PATH'],
                            GOFLAGS='-tags=PRIVATE', GOEXPERIMENT='PRIVATE', GH_TOKEN='PRIVATE_SECRET',
                            EVYDENCE_TEST_DATABASE_URL='unused-fixture',
+                           EVYDENCE_RELEASE_SYFT=str(root / 'bin/syft'),
                            EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64=base64.b64encode(bytes(64)).decode())
         return root, environment
+
+    def test_missing_or_substituted_scanner_stops_before_expensive_validation(self):
+        for mode in ['missing', 'substituted']:
+            with self.subTest(mode=mode):
+                root, environment = self.checkout('preflight-' + mode)
+                if mode == 'missing':
+                    del environment['EVYDENCE_RELEASE_SYFT']
+                else:
+                    with (root / 'bin/syft').open('ab') as output:
+                        output.write(b'\n# substituted scanner\n')
+                result = self.run_package(root, environment)
+                self.assertEqual(result.returncode, 2)
+                self.assertFalse((root / 'coverage.out').exists())
+                self.assertFalse((root / 'artifact-phase-finished').exists())
 
     def run_package(self, root, environment):
         return subprocess.run(['bash', str(root / 'scripts/release_candidate_package.sh'), TAG],

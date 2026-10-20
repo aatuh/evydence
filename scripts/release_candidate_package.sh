@@ -23,8 +23,9 @@ fi
 # Keep release-only settings out of compiler, validation and runtime children.
 signing_key_b64="${EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64:-${RELEASE_SIGNING_PRIVATE_KEY_B64:-}}"
 release_allow_existing_tag="${EVYDENCE_RELEASE_ALLOW_EXISTING_TAG:-}"
-export -n signing_key_b64 release_allow_existing_tag
-unset EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64 RELEASE_SIGNING_PRIVATE_KEY_B64 EVYDENCE_RELEASE_ALLOW_EXISTING_TAG
+release_syft="${EVYDENCE_RELEASE_SYFT:-}"
+export -n signing_key_b64 release_allow_existing_tag release_syft
+unset EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64 RELEASE_SIGNING_PRIVATE_KEY_B64 EVYDENCE_RELEASE_ALLOW_EXISTING_TAG EVYDENCE_RELEASE_SYFT
 
 for archive_tool in tar zip sha256sum; do
   if ! command -v "$archive_tool" >/dev/null 2>&1; then
@@ -81,6 +82,12 @@ if len(decoded) != 64:
     print("release signing key must decode to a 64-byte Ed25519 private key", file=sys.stderr)
     sys.exit(2)
 PY
+
+if [[ -z "$release_syft" ]]; then
+  echo "EVYDENCE_RELEASE_SYFT is required; prepare it with make release-evidence-tools" >&2
+  exit 2
+fi
+python3 scripts/release_evidence_tools.py --verify-executable "$release_syft"
 
 echo "Packaging Evydence release candidate ${tag}"
 make production-check
@@ -143,7 +150,14 @@ rm -f "$distdir/release-notes.md.bak"
 
 (cd "$distdir" && sha256sum openapi.yaml > openapi.sha256)
 (cd "$repo_root" && find migrations -type f -print | LC_ALL=C sort | xargs sha256sum > "$distdir/migrations.sha256")
-python3 scripts/release_evidence_metadata.py "$tag" "$distdir"
+python3 scripts/release_evidence_metadata.py "$tag" "$distdir" --syft "$release_syft"
+python3 scripts/release_evidence_verify.py --dist "$distdir" --tag "$tag" --expected-commit "$build_commit"
+evidence_names=(evydence-release-evidence-index.json)
+evidence_paths=("$distdir/evydence-release-evidence-index.json")
+for evidence_path in "$distdir"/evydence-sbom-*.cdx.json; do
+  evidence_names+=("${evidence_path##*/}")
+  evidence_paths+=("$evidence_path")
+done
 
 (cd "$distdir" && sha256sum \
   "${archives[@]}" \
@@ -152,6 +166,7 @@ python3 scripts/release_evidence_metadata.py "$tag" "$distdir"
   evydence-release-sbom.cdx.json \
   evydence-release-provenance.json \
   evydence-release-provenance.intoto.jsonl \
+  "${evidence_names[@]}" \
   release-build-manifest.json \
   coverage.out \
   release-check-summary.txt \
@@ -174,6 +189,7 @@ cli="${signing_dir}/evydence_${tag}_linux_amd64/evydence"
   "$distdir/evydence-release-sbom.cdx.json" \
   "$distdir/evydence-release-provenance.json" \
   "$distdir/evydence-release-provenance.intoto.jsonl" \
+  "${evidence_paths[@]}" \
   "$distdir/release-build-manifest.json" \
   "$distdir/coverage.out" \
   "$distdir/release-check-summary.txt" \

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real packaging entry point without builds or signing material."""
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,9 @@ import tempfile
 import unittest
 
 import support_matrix as support
+import release_evidence_tools
+import release_scanner
+import release_sbom
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +36,14 @@ class ReleaseBuildPlanTests(unittest.TestCase):
         for name in ("git", "go", "make", "tar", "zip", "sha256sum"):
             self.stub(name, '#!/bin/sh\nprintf unexpected > "$PLAN_TEST_MARKER"\nexit 91\n')
         self.environment["PLAN_TEST_MARKER"] = str(self.marker)
+        self.stub('syft', '#!/usr/bin/python3\nimport json\nprint(' + repr(json.dumps({
+            'application': 'syft', 'version': release_sbom.SYFT_VERSION,
+            'gitCommit': release_scanner.SYFT_SOURCE_COMMIT, 'goVersion': release_scanner.SCANNER_GO_VERSION,
+            'platform': 'linux/amd64'})) + ')\n')
+        (self.bin / 'installation.json').write_text(json.dumps({
+            'schema': 'evydence-release-tool.v1', 'recipe_sha256': release_evidence_tools.recipe_digest(),
+            'binary_sha256': hashlib.sha256((self.bin / 'syft').read_bytes()).hexdigest()}))
+        self.environment['EVYDENCE_RELEASE_SYFT'] = str(self.bin / 'syft')
 
     def stub(self, name, source):
         path = self.bin / name
@@ -176,11 +188,12 @@ esac
                          'if [ "${EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64+x}'
                          '${RELEASE_SIGNING_PRIVATE_KEY_B64+x}'
                          '${EVYDENCE_RELEASE_ALLOW_EXISTING_TAG+x}'
+                         '${EVYDENCE_RELEASE_SYFT+x}${release_syft+x}'
                          '${signing_key_b64+x}${release_allow_existing_tag+x}" ]; then exit 89; fi\n')
                 # All native preflight and validation children must be clear,
                 # including empty exports and inherited internal variable names.
                 self.environment.update(signing_key_b64="PRIVATE_INHERITED",
-                                        release_allow_existing_tag="PRIVATE_INHERITED")
+                                        release_allow_existing_tag="PRIVATE_INHERITED", release_syft="PRIVATE_INHERITED")
                 for name in ("git", "go", "make"):
                     path = self.bin / name
                     path.write_text(path.read_text().replace("#!/bin/sh\n", guard, 1))

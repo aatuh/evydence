@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 METADATA_PATH = ROOT / "release/current.json"
@@ -90,6 +92,16 @@ def git_commit_exists(commit: str) -> bool:
     return run_git("cat-file", "-e", f"{commit}^{{commit}}").returncode == 0
 
 
+def container_dispatch_valid(workflow: dict) -> bool:
+    """New image publication must explicitly select its source and destination."""
+    try:
+        inputs = workflow['on']['workflow_dispatch']['inputs']
+        return all(inputs[name]['required'] == 'true' and 'default' not in inputs[name]
+                   for name in ('ref', 'image_tag'))
+    except (KeyError, TypeError):
+        return False
+
+
 def main() -> int:
     metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
     current = metadata["current_public_release"]
@@ -161,10 +173,6 @@ def main() -> int:
         "docs/reference/production-exit-review.md": [tag, current_command],
         "docs/reference/production-gate-troubleshooting.md": [current_command],
         "examples/end-to-end-release-evidence/README.md": [current_command],
-        ".github/workflows/container-image.yml": [
-            f"such as {tag}",
-            f'default: "{tag}"',
-        ],
         "scripts/public_release_verify.sh": [
             f'TAG:-{tag}',
             f"release candidate tag must look like {tag}",
@@ -175,6 +183,10 @@ def main() -> int:
     for path, texts in required_current_refs.items():
         for text in texts:
             require_text(path, text, failures)
+
+    workflow = yaml.load(read('.github/workflows/container-image.yml'), Loader=yaml.BaseLoader)
+    require(container_dispatch_valid(workflow),
+            'container image dispatch must require explicit ref and image_tag without defaults', failures)
 
     require_text("README.md", "source snapshot (which is not a release)", failures)
     require_text(
