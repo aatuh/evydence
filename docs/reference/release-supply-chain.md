@@ -2,8 +2,10 @@
 
 This reference is for release maintainers and artifact verifiers. It defines
 `evydence-release-evidence.v1`, implemented by the release evidence scripts.
-EVY-1403 final qualification remains incomplete; this document
-does not establish that existing public releases contain this profile.
+The [2026-10-20 local qualification](release-supply-chain-2026-10-20-local.json)
+records source commit `af20e46a52ea95580bd24a780940dbd4d0e4c575` and fixture tag
+`v0.0.0-rc.1403`. It covers local candidate and image builds; it does
+not establish that existing public releases contain this profile.
 
 ## Artifact identities
 

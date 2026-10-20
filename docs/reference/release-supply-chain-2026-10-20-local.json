@@ -1,0 +1,304 @@
+{
+  "actual_image": {
+    "builder_stopped": true,
+    "checks": {
+      "actual Dockerfile OCI build": 0,
+      "actual image wrong SBOM subject rejected": 0,
+      "container_evidence.py generate": 0,
+      "container_evidence.py verify": 0
+    },
+    "os_descriptors": 1,
+    "package_coordinates": 157,
+    "public_components": 158,
+    "subject": {
+      "bytes": 1817,
+      "kind": "container",
+      "name": "ghcr.io/aatuh/evydence:v0.0.0-rc.1403-local",
+      "platform": "linux/amd64",
+      "sha256": "cf045c9e4910377e4361792c86d09066122ba9ac6c657a6384fd0626e785d3ab",
+      "source_commit": "af20e46a52ea95580bd24a780940dbd4d0e4c575"
+    }
+  },
+  "additional_actual_artifact_checks": {
+    "actual 13 artifact subjects and bounded checksums": 0,
+    "actual release missing SBOM rejected": 0,
+    "actual release wrong SBOM subject rejected": 0,
+    "exported JSON excludes host paths and fixture private key": 0,
+    "make release-acceptance": 0,
+    "make release-asset-smoke-check": 0,
+    "make release-candidate-check TAG=v0.0.0-rc.1403": 0
+  },
+  "archive": {
+    "availability": "Machine-local evidence; not a public download",
+    "bytes": 1178327897,
+    "files": 286,
+    "manifest_sha256": "92cda4a399861871e5e23b6e30eba1b9d0db2cd937d223b2977ad326206f7d82",
+    "name": "evy-1403-qualified-af20e46a52ea-qx3htutn"
+  },
+  "binary_and_archive_subjects": [
+    {
+      "bytes": 4099727,
+      "kind": "archive",
+      "name": "evydence_v0.0.0-rc.1403_darwin_amd64.tar.gz",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-66517367931c9e42cfe10172c270d99f43ddf3fd75ca75c5ae20cceef7ddf83f.cdx.json",
+        "sha256": "4bf424b23624b198356f172bc708088b4a0258f1fa2b12662ba02d1e1d78b088"
+      },
+      "sha256": "b4c7723166b8ffafa6c5da1ca26e335c772a5c5f35dc2343f3b5fae429367d24"
+    },
+    {
+      "bytes": 10313200,
+      "kind": "binary",
+      "name": "evydence_v0.0.0-rc.1403_darwin_amd64/evydence",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-6fc8104bf95ae794214c5af48fa11a22550aa7d6d0dea4aefcc9de1ccf7096b8.cdx.json",
+        "sha256": "276f968b350e2321b35390a20deee5817208e60d675cd1c8fe4d918f6f7f3a27"
+      },
+      "sha256": "927dd1795f3c9beac1c812a92e90cf732ebdba85efbc77e04e796c8a66de67ae"
+    },
+    {
+      "bytes": 3776546,
+      "kind": "archive",
+      "name": "evydence_v0.0.0-rc.1403_darwin_arm64.tar.gz",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-2239490fc85226440699e5aebbfd1127865e55ed8214fc7d2e493ad3d07aea1f.cdx.json",
+        "sha256": "cb95e944bf5e0804c375b24398a6726eb2ebaca7b7ffeb9c0b71dc4368ed391c"
+      },
+      "sha256": "2724cc6231d8372a382b52b59c3933fd97175babc2dfbf065b173fd13b234c80"
+    },
+    {
+      "bytes": 9604962,
+      "kind": "binary",
+      "name": "evydence_v0.0.0-rc.1403_darwin_arm64/evydence",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-026b26d7bd1b568e58c1edb8a24933114aa49d21c1997cc6e8385a5f50cd749f.cdx.json",
+        "sha256": "ab233bf3a8f88c3d77abfa8f0e6dcd31c9a4d58e5d728bfd41c405e619a4116d"
+      },
+      "sha256": "b1a939ad84c8a6b5fd62d1fda6f135caa5ce611be928d93c13a6f6a7a0c49343"
+    },
+    {
+      "bytes": 32958110,
+      "kind": "archive",
+      "name": "evydence_v0.0.0-rc.1403_linux_amd64.tar.gz",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-aedc54a730a516279fe6852b235a854d4f61f576f78533e4c66ff7dba784c40c.cdx.json",
+        "sha256": "8027ba1fd6b4a91f82d59b3fc96d96e1fe74f0146cf3e7a6a0619f513b431f23"
+      },
+      "sha256": "b2da6e043b13f36fa5cf4a2b2c4194ca3d844984295511a6ca36b80c702007de"
+    },
+    {
+      "bytes": 10084476,
+      "kind": "binary",
+      "name": "evydence_v0.0.0-rc.1403_linux_amd64/evydence",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-8c4293df0d05cfd4781c1266148705c26b05c72c36a244db303e693832d52364.cdx.json",
+        "sha256": "e5ecf070e94e644be3dff037d3f37d37a8764c5ba763efe08c8227bcb740e23d"
+      },
+      "sha256": "d4c7ec1eb4ef1a6dc4f7184a052e863f4e3b9617394474ef96d538e62efd41e6"
+    },
+    {
+      "bytes": 48357500,
+      "kind": "binary",
+      "name": "evydence_v0.0.0-rc.1403_linux_amd64/evydence-api",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-c832c31431020cc72d3208f7fbf83d3c5eef331031c1804af97531bfa63dbabe.cdx.json",
+        "sha256": "8c238fae44dd2d19dff456719bf99a158ff9b80d5aad2cd242439e718f242444"
+      },
+      "sha256": "17c1f790a86d52e2569946aef81ca422016489870785db21e4f9a46b00ec5904"
+    },
+    {
+      "bytes": 15118460,
+      "kind": "binary",
+      "name": "evydence_v0.0.0-rc.1403_linux_amd64/evydence-migrate",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-c2815ae4ad858c8df8c283342f1b0ae3b9244c9767ad5134b15926189522b273.cdx.json",
+        "sha256": "30649caceba25577e11c0ac0c7e53c4da4e5d15823dd5c811db03115254d2056"
+      },
+      "sha256": "c5af19ff70ffd2061a5b3051cb8ef5b636ade9af9c9b8759a3d1098dfb23c0b4"
+    },
+    {
+      "bytes": 22753404,
+      "kind": "binary",
+      "name": "evydence_v0.0.0-rc.1403_linux_amd64/evydence-worker",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-c44fa7e14d8f08ab2b8e04446f6d2e25925cc2a6a77fb99197d4a75ce70c33ed.cdx.json",
+        "sha256": "d914aa436b000b481eed3c0f016209bcc42bf47b9f8c8efcffe4d875d21f6097"
+      },
+      "sha256": "445bc35cb1159ec31f7d1132cf3c5134c323f1135b8d6961a14d66daa063165b"
+    },
+    {
+      "bytes": 3630486,
+      "kind": "archive",
+      "name": "evydence_v0.0.0-rc.1403_linux_arm64.tar.gz",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-4afb105db10a6c30f11d0ac0bf3b564732b1c24c1bddbb975dec0809709c5de1.cdx.json",
+        "sha256": "c2c7a0bd6e46cc4069bc4de666e3003abac6f5a2ea1af5f46a654775c23a7831"
+      },
+      "sha256": "6280bae371c9ac01345e9a783232c3d1bd2994e192383b03dfd0ed2a8ba43a48"
+    },
+    {
+      "bytes": 9306236,
+      "kind": "binary",
+      "name": "evydence_v0.0.0-rc.1403_linux_arm64/evydence",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-5e04c215519678e3e2174743b4c9e789dbabeb7a7089e2dfadc3e4f26a09a42f.cdx.json",
+        "sha256": "5eb4edab866a14652680cee88bfee0e20dff1e58d34dc18fac3bad68bdcddc75"
+      },
+      "sha256": "742e09fb3230ca322af93d0712dc8d47f76f8b5f9e67d4f63e9d53afeebf8490"
+    },
+    {
+      "bytes": 10510953,
+      "kind": "archive",
+      "name": "evydence_v0.0.0-rc.1403_windows_amd64.zip",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-cfb40edce81929bdec6512dd840db22e48d39b07867db6948fcb6af96d4a156c.cdx.json",
+        "sha256": "31b8cf912e112f626b9402d310e1e48cf0d1b7868edcace1e1843a9a858cdffc"
+      },
+      "sha256": "71d500aa8c0a91c8bc6f4b344fccac92a453ae209052f61574dc5c9374744213"
+    },
+    {
+      "bytes": 10371072,
+      "kind": "binary",
+      "name": "evydence_v0.0.0-rc.1403_windows_amd64/evydence.exe",
+      "provenance": {
+        "path": "evydence-release-provenance.intoto.jsonl",
+        "sha256": "b7dcb688b9ee71fec913f2c0e4a634c5a242952ef7203e4c80766ad96310efdf"
+      },
+      "sbom": {
+        "path": "evydence-sbom-32d08f593852f0488fa8535517b5b4d114ca77cd7999f2da0b1a8248e55b1d24.cdx.json",
+        "sha256": "90e0c17090095ba0455e7d8936e0863cef96f62e5ba643e5cad040a7bd550e55"
+      },
+      "sha256": "5eaadaa416627052323a6bcaae2b8646f4fc59e02b5200481ff4b68ec4976157"
+    }
+  ],
+  "candidate_tag": "v0.0.0-rc.1403",
+  "fixture_signing_only": true,
+  "github_release_published": false,
+  "harness_correction": {
+    "original_driver_exit_code": 1,
+    "original_driver_source_sha256": "e18aedeec22bf772c62bccad72b21ab7c97e8395e38dbd8645a4e42419fecd1f",
+    "original_failure_class": "OSError",
+    "original_result_sha256": "80311fc5e894fd596ce573d22d9bd83f62ce51e0fadd6badce00fece2bfcf86f",
+    "reason": "Cross-filesystem hard links in supplemental negative-fixture setup; corrected to bounded copies",
+    "required_project_gates_all_passed_before_harness_failure": true,
+    "required_project_gates_rerun": false,
+    "supplemental_driver_source_sha256": "2deb0f3dfa01f3af95d9f0237e22840232e2556f811f7b9e6580a66f0df689a0"
+  },
+  "hosted_ci_for_this_commit_verified": false,
+  "limitations": [
+    "Subject and inventory integrity do not establish complete SBOM coverage, authoritative vulnerability results, legal compliance, certification, a SLSA level or secure-release guarantees.",
+    "Protected signing identity, registry publication, hosted workflow execution and native non-Linux runtime execution are outside this local qualification.",
+    "Historical RC.7 compatibility verifies legacy checksums/manifest, without the new artifact-bound SBOM assurance."
+  ],
+  "observed_at": "2026-10-20T08:37:13.827436+00:00",
+  "production": {
+    "cached_package_counts": [
+      76,
+      76,
+      0,
+      76
+    ],
+    "coverage": {
+      "critical-package": {
+        "percent": 85.7,
+        "required_percent": 81.0
+      },
+      "total": {
+        "percent": 86.9,
+        "required_percent": 80.0
+      }
+    },
+    "lifecycle_cases": 4,
+    "package_suite_counts": [
+      77,
+      77,
+      77,
+      77
+    ],
+    "stress_named_passes": 510
+  },
+  "public_tag_created": false,
+  "registry_image_published": false,
+  "reproducibility": {
+    "compared_payloads": 14,
+    "comparison_sha256": "2c3a214452b2b852c562506cd911b95a2e4ebd1e8467c2ff35e4cff285011b8c",
+    "passed": true,
+    "scope": "Unsigned payloads and build manifest; no image/evidence/signature byte-repeatability claim"
+  },
+  "required_commands": [
+    {
+      "command": "make release-candidate-check TAG=v0.0.0-rc.1403",
+      "exit_code": 0
+    },
+    {
+      "command": "make release-asset-smoke-check",
+      "exit_code": 0
+    },
+    {
+      "command": "make release-acceptance",
+      "exit_code": 0
+    }
+  ],
+  "scanner": {
+    "binary_sha256": "b583d2e69a236abfbfa09f189be382b2b7737e6a142000ad2be17cb29fe79528",
+    "compiler": "go1.27.2",
+    "name": "Syft",
+    "recipe_sha256": "eecf972cd56b785900a16b0aca6e15d215132fa56a47d6b6df908355a9b7a876",
+    "remaining_whole_tool_advisory": "GO-2026-5932",
+    "source_commit": "b254e6d92f28c3868a755f62fb3ca8f26e9fee76",
+    "use": "Fixed offline Go binary and Alpine APK inventory; no OpenPGP operations",
+    "version": "1.54.1"
+  },
+  "schema": "evydence-release-supply-chain-qualification.v1",
+  "scope": "Local current-source release candidate and Dockerfile image; no public release or registry publication",
+  "source_branch": "master",
+  "source_commit": "af20e46a52ea95580bd24a780940dbd4d0e4c575"
+}
