@@ -6,11 +6,16 @@ It separates publisher identity from a signature's byte-integrity check.
 
 ## Current rollout status
 
-EVY-1404 remains incomplete until its required local checks and real provider
-controls pass. Provider reads on 2026-10-20 found only the `github-pages`
-environment, a repository-scoped release signing key and publication token,
-and no GHCR publishing token. No environment/credential migration or new
-keyless release publication is established by these source changes.
+EVY-1404 remains incomplete. After maintainer approval on 2026-10-20,
+`release-production` was created with required reviewer `aatuh`, solo-maintainer
+self-review permitted, and exactly one deployment branch policy: `master` of
+type Branch. The live policy validator passed, and before/after provider reads
+confirmed the existing master protection and rulesets were unchanged.
+
+Both environment publisher-secret entries are still absent. The repository
+release signing key and publication-token entries are retained until replacement
+environment entries are confirmed. Full signing custody therefore remains
+unverified. No new keyless release publication is established by this setup.
 
 Existing public RC.7 assets and the historical container retain their original
 assurance limits. New workflow/source identity requirements do not establish
