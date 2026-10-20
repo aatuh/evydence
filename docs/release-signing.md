@@ -6,16 +6,25 @@ It separates publisher identity from a signature's byte-integrity check.
 
 ## Current rollout status
 
-EVY-1404 remains incomplete. After maintainer approval on 2026-10-20,
-`release-production` was created with required reviewer `aatuh`, solo-maintainer
-self-review permitted, and exactly one deployment branch policy: `master` of
-type Branch. The live policy validator passed, and before/after provider reads
-confirmed the existing master protection and rulesets were unchanged.
+After maintainer approval on 2026-10-20, `release-production` was created with
+required reviewer `aatuh`, solo-maintainer self-review permitted, and exactly one
+deployment branch policy: `master` of type Branch. The live policy validator
+passed, and before/after provider reads confirmed the existing master protection
+and rulesets were unchanged.
 
-Both environment publisher-secret entries are still absent. The repository
-release signing key and publication-token entries are retained until replacement
-environment entries are confirmed. Full signing custody therefore remains
-unverified. No new keyless release publication is established by this setup.
+Both publisher-secret entries were confirmed in that environment before the
+repository-scoped publication-token copy and release signing secret were
+removed. The live custody verifier passed. Its API observations establish
+secret names and custody locations; they do not reveal values or prove effective
+token grants, expiry, or successful publication.
+
+The protected workflow changes remain local pending their separately authorized
+integration. Older release workflows that depend on the retired repository
+signing secret cannot publish until replaced. No new hosted signing run, release
+publication, or registry publication is established by this cutover.
+
+See the [dated source and custody qualification](reference/release-signing-2026-10-20-provider.json)
+for required gate results, trust-policy inputs and the evidence archive digest.
 
 Existing public RC.7 assets and the historical container retain their original
 assurance limits. New workflow/source identity requirements do not establish
