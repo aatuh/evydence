@@ -12,6 +12,7 @@ MAX_COMPONENTS = 4096
 COORDINATE = re.compile(r'[A-Za-z0-9][A-Za-z0-9._~+/-]*')
 VERSION = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+~-]*|\(devel\)')
 PURL = re.compile(r'pkg:golang/[A-Za-z0-9][A-Za-z0-9._~+/%-]*(?:@[A-Za-z0-9()][A-Za-z0-9._~+%()-]*)?')
+APK_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9+_.-]{0,254}')
 LIMITATIONS = (
     'Package inventory comes from pinned Syft catalogers; omitted symbols, dynamic downloads, '
     'vendored or unrecognized code, licenses, and package relationships may be incomplete. '
@@ -71,16 +72,21 @@ def public_components(scanner_bom, *, allow_apk=False):
                 raise invalid()
         elif allow_apk and identity.startswith('pkg:apk/'):
             parsed = urlsplit(identity)
-            pairs = parse_qsl(parsed.query, strict_parsing=True, errors='strict', max_num_fields=2)
+            pairs = parse_qsl(parsed.query, strict_parsing=True, errors='strict', max_num_fields=3)
             qualifiers = dict(pairs)
             if (parsed.scheme != 'pkg' or parsed.netloc or parsed.fragment
                     or parsed.path != 'apk/alpine/' + clean['name'] + '@' + clean['version']
-                    or set(qualifiers) != {'arch', 'distro'} or len(pairs) != 2
+                    or APK_NAME.fullmatch(clean['name']) is None
+                    or not {'arch', 'distro'} <= set(qualifiers) <= {'arch', 'distro', 'upstream'}
+                    or len(pairs) != len(qualifiers)
+                    or ('upstream' in qualifiers and APK_NAME.fullmatch(qualifiers['upstream']) is None)
                     or qualifiers['arch'] not in ('x86_64', 'noarch')
                     or re.fullmatch(r'alpine-[0-9]+\.[0-9]+(?:\.[0-9]+)?', qualifiers['distro']) is None):
                 raise invalid()
             canonical = ('pkg:apk/alpine/' + clean['name'] + '@' + clean['version']
                          + '?arch=' + qualifiers['arch'] + '&distro=' + qualifiers['distro'])
+            if 'upstream' in qualifiers:
+                canonical += '&upstream=' + qualifiers['upstream']
             if identity != canonical:
                 raise invalid()
         else:

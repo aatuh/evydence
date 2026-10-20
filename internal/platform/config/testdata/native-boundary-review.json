@@ -330,8 +330,8 @@
     },
     {
       "source": "scripts/release_sbom.py",
-      "sha256": "62300edb0a16f5026dce87dbe969293aa30f2d4486a5f759e93f785ca6bdd2c7",
-      "finding": "Pure public evidence projection with no filesystem, subprocess or environment access. It retains validated Go/APK names, versions and canonical package URLs plus a vetted Alpine OS descriptor. Scanner file records, arbitrary properties, paths and credentials are not copied. Duplicate equivalent package coordinates merge and conflicts fail. CycloneDX subject names/SHA-256, Syft version, adapter version and explicit coverage limits are fixed by the closed profile; negative/canary fixtures cover scope and digest substitution."
+      "sha256": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
+      "finding": "Pure public evidence projection with no filesystem, subprocess or environment access. It retains validated Go/APK names, versions and canonical package URLs plus a vetted Alpine OS descriptor. Scanner file records, arbitrary properties, paths and credentials are not copied. Duplicate equivalent package coordinates merge and conflicts fail. CycloneDX subject names/SHA-256, Syft version, adapter version and explicit coverage limits are fixed by the closed profile; negative/canary fixtures cover scope and digest substitution. Alpine APK URLs permit only arch/distro and optional upstream package name, each closed and bounded; split-package origin is preserved without arbitrary qualifiers or paths."
     },
     {
       "source": "scripts/release_evidence_profile.py",

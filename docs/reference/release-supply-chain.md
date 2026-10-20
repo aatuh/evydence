@@ -126,7 +126,8 @@ Layer filesystem contents are read by the pinned scanner; they are not
 extracted by the verifier onto the host filesystem.
 
 Image inventories include recognized Go modules and Alpine APK coordinates,
-plus the vetted Alpine operating-system descriptor. File paths, arbitrary
+including the optional bounded `upstream` package name for Alpine split
+packages, plus the vetted Alpine operating-system descriptor. File paths, arbitrary
 scanner metadata, licenses and relationships are omitted. Both Go and APK
 inventory must be present. The scanner receives the OCI archive directly and
 does not need registry credentials or network access.

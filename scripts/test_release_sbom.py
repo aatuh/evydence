@@ -111,6 +111,20 @@ class ReleaseSBOMTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     release_sbom.public_components(scanner, allow_apk=True)
 
+    def test_alpine_split_packages_retain_bounded_upstream_coordinate(self):
+        scanner = self.scanner_bom()
+        package = {'type': 'library', 'name': 'libcrypto3', 'version': '3.5.8-r0',
+                   'purl': 'pkg:apk/alpine/libcrypto3@3.5.8-r0?arch=x86_64&distro=alpine-3.23.6&upstream=openssl'}
+        scanner['components'].append(package)
+        self.assertIn(package, release_sbom.public_components(scanner, allow_apk=True))
+        for suffix in ['&upstream=/PRIVATE_CANARY', '&upstream=..', '&upstream=openssl%2FPRIVATE_CANARY',
+                       '&upstream=openssl&upstream=busybox', '&upstream=openssl&token=SECRET_CANARY',
+                       '&upstream=' + 'a' * 256]:
+            with self.subTest(suffix=suffix):
+                package['purl'] = 'pkg:apk/alpine/libcrypto3@3.5.8-r0?arch=x86_64&distro=alpine-3.23.6' + suffix
+                with self.assertRaises(ValueError):
+                    release_sbom.public_components(scanner, allow_apk=True)
+
 
 if __name__ == '__main__':
     unittest.main()
