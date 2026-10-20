@@ -40,7 +40,25 @@ func TestPostgresCandidateCreationRejectsForeignReferencesAndRequiresArtifactGra
 			exec(fmt.Sprintf(`INSERT INTO evidence_items SELECT(jsonb_populate_record(NULL::evidence_items,to_jsonb(e)||jsonb_build_object('id','%s','tenant_id','%s','product_id','%s','release_id','%s'))).* FROM evidence_items e WHERE e.id='%s'`, prefix+id, tenant, product, release, id))
 		}
 		for _, row := range []struct{ table, id string }{{"build_runs", "build"}, {"artifacts", "artifact"}, {"sboms", "sbom"}, {"vulnerability_scans", "scan"}, {"vex_documents", "vex"}, {"openapi_contracts", "contract"}, {"release_bundles", "bundle"}} {
-			exec(fmt.Sprintf(`INSERT INTO %s SELECT(jsonb_populate_record(NULL::%s,to_jsonb(x)||jsonb_build_object('id','%s','tenant_id','%s','product_id','%s','project_id','%s','release_id','%s','evidence_id','%s'||(to_jsonb(x)->>'evidence_id'),'digest','sha256:'||repeat('b',64)))).* FROM %s x WHERE x.id='%s'`, row.table, row.table, prefix+row.id, tenant, product, project, release, prefix, row.table, row.id))
+			// A FROM function computes the composite once, including large manifests.
+			// Expanding (function(...)).* repeats its work for every column.
+			exec(fmt.Sprintf(`INSERT INTO %s
+SELECT copied.* FROM %s AS source
+CROSS JOIN LATERAL jsonb_populate_record(NULL::%s,
+  to_jsonb(source)||jsonb_build_object(
+    'id','%s','tenant_id','%s','product_id','%s','project_id','%s',
+    'release_id','%s','evidence_id','%s'||(to_jsonb(source)->>'evidence_id'),
+    'digest','sha256:'||repeat('b',64))) AS copied
+WHERE source.id='%s'`, row.table, row.table, row.table, prefix+row.id,
+				tenant, product, project, release, prefix, row.id))
+		}
+	}
+	for _, id := range []string{"bundle", "foreign-bundle", "wrong-bundle"} {
+		var bytes int
+		if err := pool.QueryRow(ctx,
+			`SELECT octet_length(manifest->>'large') FROM release_bundles WHERE id=$1`,
+			id).Scan(&bytes); err != nil || bytes != 9_000_000 {
+			t.Fatalf("large bundle fixture %s has %d bytes: %v", id, bytes, err)
 		}
 	}
 	commands, err := BuildCandidateCommands(store)
