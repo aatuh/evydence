@@ -14,8 +14,9 @@ an exact GitHub workflow certificate identity, issuer, ref and commit before
 checking and executing downloaded payloads (EVY-1404). Historical RC.7 requires
 explicit manifest/public-key pins. Public workflows require protected `master`
 and a reviewed environment policy, use per-run manifest keys, and verify exact
-container certificate constraints. Provider custody migration remains required
-before these signing workflows can run; see [release signing](docs/release-signing.md).
+container certificate constraints. Protected provider custody was configured and
+verified on 2026-10-20; workflow integration remains pending. See
+[release signing](docs/release-signing.md).
 
 This section records source changes after the current public release candidate.
 It does not mean a new release has been cut or that those changes have public
