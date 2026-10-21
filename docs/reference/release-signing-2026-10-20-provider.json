@@ -56,7 +56,16 @@
     "master_protection_unchanged": true,
     "repository_rulesets_unchanged": true,
     "github_pages_environment_retained": true,
-    "private_secret_values_read": false
+    "private_secret_values_read": false,
+    "last_custody_check": {
+      "command": [
+        "make",
+        "release-signing-check"
+      ],
+      "finished_at": "2026-10-21T04:40:44.076953+00:00",
+      "status": "passed",
+      "scope": "Required protected environment reviewer/branch and publisher-secret custody, with repository release credential copies absent; secret values not read"
+    }
   },
   "verification_policy": {
     "issuer": "https://token.actions.githubusercontent.com",
@@ -157,7 +166,193 @@
     "Custody verification checks secret names and locations, not secret values, expiry or effective provider grants.",
     "Removing the repository signing secret does not destroy other key copies or erase historical signatures.",
     "Older hosted workflows requiring the retired repository signing key cannot publish until the protected changes are integrated.",
-    "Existing CodeQL alerts30 and31 remain open and undismissed as the user directed.",
-    "Observed provider controls can change after verification; this is not immutable governance, compliance, certification, a SLSA level or a secure-release guarantee."
-  ]
+    "CodeQL alerts30 and31 were not dismissed or otherwise mutated. Latest API state and dismissal fields are null; PR30 remains blocked by its separate CodeQL failure.",
+    "Observed provider controls can change after verification; this is not immutable governance, compliance, certification, a SLSA level or a secure-release guarantee.",
+    "Local production/release gates use the documented bounded phase schedule. They do not establish a new hosted keyless signing run, stable readiness, independent review, a security guarantee or publication."
+  ],
+  "qualification_updated_at": "2026-10-21T04:47:20.997701+00:00",
+  "full_qualification": {
+    "qualified_source_commit": "3e1eb9c95955cc52db2abbce1025e48080f8b560",
+    "branch": "master",
+    "source_tree_clean_before_and_after": true,
+    "started_at": "2026-10-20T17:49:58.194154+00:00",
+    "finished_at": "2026-10-21T04:40:45.461632+00:00",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "production-check",
+        "command": [
+          "make",
+          "production-check"
+        ],
+        "status": "passed",
+        "started_at": "2026-10-20T17:49:59.939730+00:00",
+        "execution_wrapper": "user scope:2GiB live; actual govulncheck3GiB only while owned fixtures stopped; shrink2GiB before restart; swap0",
+        "exit_code": 0,
+        "finished_at": "2026-10-21T04:38:57.280519+00:00"
+      },
+      {
+        "name": "public-release-verify",
+        "command": [
+          "make",
+          "public-release-verify",
+          "TAG=v0.1.0-rc.7"
+        ],
+        "status": "passed",
+        "started_at": "2026-10-21T04:38:57.280910+00:00",
+        "execution_wrapper": "user scope:2GiB live; actual govulncheck3GiB only while owned fixtures stopped; shrink2GiB before restart; swap0",
+        "exit_code": 0,
+        "finished_at": "2026-10-21T04:40:38.162337+00:00",
+        "environment_override": {
+          "EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE": "1"
+        }
+      },
+      {
+        "name": "release-signing-check",
+        "command": [
+          "make",
+          "release-signing-check"
+        ],
+        "status": "passed",
+        "started_at": "2026-10-21T04:40:38.162628+00:00",
+        "execution_wrapper": "user scope:2GiB live; actual govulncheck3GiB only while owned fixtures stopped; shrink2GiB before restart; swap0",
+        "exit_code": 0,
+        "finished_at": "2026-10-21T04:40:44.076953+00:00"
+      }
+    ],
+    "nested_production_gates": [
+      "make integration-check",
+      "make release-check (finalize, release-acceptance, security-regression-check, lint, gosec, vuln, fresh test-race, live-postgres-check, postgres-integration-test)",
+      "make concurrency-stress-check",
+      "make coverage-check",
+      "make migration-compatibility-check",
+      "make benchmark-check",
+      "make black-box-demo-check",
+      "make black-box-release-artifact-check",
+      "local release manifest/sign/verify smoke"
+    ],
+    "required_live_dependencies": {
+      "postgresql": "passed",
+      "s3_compatible_storage": "passed"
+    },
+    "fresh_race": {
+      "command": [
+        "go",
+        "test",
+        "./...",
+        "-race",
+        "-count=1",
+        "-timeout=30m"
+      ],
+      "status": "passed",
+      "wiring_seconds": 1106.635
+    },
+    "coverage": {
+      "total_percent": 86.9,
+      "total_floor_percent": 80.0,
+      "critical_percent": 85.7,
+      "critical_floor_percent": 81.0,
+      "profile_sha256": "11fbbb13d96bc86c1eae06f279fa4fa71b2346bd4cd65a5a5cd53a9590561bd7",
+      "profile_bytes": 334443322,
+      "fresh_postgres_seconds": 353.252,
+      "fresh_wiring_seconds": 930.714,
+      "cache_scope": "Unchanged package profiles reused where Go validated them; PostgreSQL and changed wiring package profiles ran fresh"
+    },
+    "concurrency_stress": {
+      "status": "passed",
+      "source_commit": "3e1eb9c95955cc52db2abbce1025e48080f8b560",
+      "selected_packages": 4,
+      "selected_cases": 17,
+      "total_passes": 510,
+      "passes_per_case": [
+        30
+      ],
+      "required_iterations": 10,
+      "schedulers": [
+        1,
+        2,
+        4
+      ],
+      "finished_at": "2026-10-20T18:53:05.824291+00:00"
+    },
+    "unit_cache_scope": "Same-commit wiring unit result from the prior bounded run reused; original fresh run took896.293s. The complete race suite and selected stress repetitions ran fresh.",
+    "resource_schedule": {
+      "shared_gate_reservation_gib": 6,
+      "system_headroom_gib": 2,
+      "live_phase_limits_mib": {
+        "process_scope": 2048,
+        "postgresql": 3072,
+        "minio": 512
+      },
+      "static_analyzer_phase_limits_mib": {
+        "process_scope": 3072,
+        "postgresql": 0,
+        "minio": 0
+      },
+      "overhead_budget_mib": 512,
+      "fixtures_stopped_before_process_growth": true,
+      "process_shrunk_before_fixture_restart": true,
+      "fixture_readiness_verified_before_live_tests": true,
+      "actual_analyzer_arguments": [
+        "./..."
+      ],
+      "actual_analyzer_binary_sha256": "538b27266c618a9fcdc674b54e096bb22c093587bf413600881d36f036a8c710",
+      "phase_safety_tests_passed": 4,
+      "actual_phase_probe": "passed",
+      "no_analysis_flags_or_test_assertions_reduced": true
+    },
+    "fixture_regression": {
+      "commit": "3e1eb9c95955cc52db2abbce1025e48080f8b560",
+      "path": "internal/platform/wiring/candidate_creation_boundary_test.go",
+      "change": "Materialize copied JSONB composites once; preserve all authorization assertions and check actual original/foreign/wrong-release manifest byte lengths",
+      "payload_bytes_each": 9000000,
+      "production_code_changed": false
+    },
+    "prior_failures_retained": [
+      "Initial full run: PostgreSQL backend OOM under temporary2GiB cap while copying the large candidate fixture",
+      "Standalone wiring race suite: later oversized-SBOM projection OOM under temporary2GiB PostgreSQL cap",
+      "Second full run:2GiB process scope OOM during actual govulncheck after finalize/acceptance/lint/gosec passed"
+    ],
+    "cleanup": {
+      "owned_fixtures_stopped": true,
+      "original_memory_and_swap_limits_restored": true,
+      "fixture_oom_flags_after_success": false,
+      "ephemeral_smoke_private_key_not_archived": true
+    },
+    "evidence_archive": {
+      "machine_local_name": "evy1404-full-qualified-3e1eb9c95955-7ucsuhh7",
+      "manifest_sha256": "339e296f05df0981d6d4dd58e6ed6f4aea2775a8163e16029e81c3a9e901b64e",
+      "files": 66,
+      "bytes": 351947443
+    }
+  },
+  "hosted_status_refresh": {
+    "observed_at": "2026-10-21T04:45:26.029499+00:00",
+    "pr29_state": "MERGED",
+    "pr30_state": "OPEN",
+    "pr30_head": "efced49e2837c5369f0a89f4a6b46e5b6ceba512",
+    "pr30_merge_state": "BLOCKED",
+    "actions_checks_passed": 8,
+    "separate_codeql_check": "failure",
+    "alerts": [
+      {
+        "number": 30,
+        "state": null,
+        "dismissed_at": null,
+        "dismissed_by": null,
+        "dismissed_reason": null,
+        "fixed_at": null
+      },
+      {
+        "number": 31,
+        "state": null,
+        "dismissed_at": null,
+        "dismissed_by": null,
+        "dismissed_reason": null,
+        "fixed_at": null
+      }
+    ],
+    "alert_mutations_performed": false,
+    "does_not_qualify_current_local_source_ci": true
+  }
 }
