@@ -1,3 +1,5 @@
+# Routine groups reduce review volume; every PR still needs normal checks/review.
+# Security groups are separate and allow major fixes where the provider supports them.
 version: 2
 updates:
   - package-ecosystem: gomod
@@ -8,6 +10,14 @@ updates:
     labels:
       - dependencies
       - go
+    groups:
+      application-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      application-security:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: gomod
     directory: /tools
     schedule:
@@ -16,6 +26,44 @@ updates:
     labels:
       - dependencies
       - go
+    groups:
+      qa-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      qa-security:
+        applies-to: security-updates
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /site/marketing
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      marketing-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      marketing-security:
+        applies-to: security-updates
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /tools
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      python-qa-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      python-qa-security:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -24,6 +72,14 @@ updates:
     labels:
       - dependencies
       - github-actions
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: docker
     directory: /
     schedule:
@@ -32,3 +88,27 @@ updates:
     labels:
       - dependencies
       - docker
+    groups:
+      runtime-images-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      runtime-images-security:
+        applies-to: security-updates
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /deploy/local-dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - docker
+    groups:
+      fixture-images-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      fixture-images-security:
+        applies-to: security-updates
+        patterns: ["*"]

@@ -18,7 +18,7 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: repository-controls-test repository-controls-check
 .PHONY: release-repro-policy-test reproducible-build-check
 .PHONY: release-evidence-policy-test release-evidence-tools
-.PHONY: dependency-policy-test dependency-inventory-test dependency-inventory-generate python-qa-check fixture-provenance-check fixture-provenance-upstream-check
+.PHONY: dependency-policy-test dependency-updates-check dependency-inventory-test dependency-inventory-generate python-qa-check fixture-provenance-check fixture-provenance-upstream-check
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
@@ -288,6 +288,9 @@ repository-controls-check: ## Inspect live GitHub controls using the operator's 
 dependency-policy-test: ## Test offline dependency admission and exception rules
 	@python3 scripts/test_dependency_policy.py
 
+dependency-updates-check: ## Check dependency update coverage and separate routine/security groups
+	@python3 scripts/test_dependency_updates.py
+
 python-qa-check: ## Validate the pinned Python QA package and minimal SDK imports
 	@python3 scripts/python_qa.py
 	@python3 scripts/test_python_qa.py
@@ -308,7 +311,7 @@ dependency-inventory-test: ## Test dependency inventory integrity and bounded li
 dependency-inventory-generate: ## Generate partial-scope dependency and fixture source observations
 	@python3 scripts/dependency_inventory.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --output docs/reference/dependency-inventory.json --replace
 
-docs-check: python-qa-check fixture-provenance-check dependency-policy-test dependency-inventory-test release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-inventory-test release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/dependency-policy.md
 	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md

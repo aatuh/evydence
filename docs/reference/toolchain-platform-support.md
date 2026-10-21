@@ -117,8 +117,10 @@ Go 1.27 exports. The same engine with this parser already runs in the pinned
 golangci-lint graph. Downloaded Helm/oasdiff archives require their declared
 SHA-256. Inspect official release notes, dependency floors and security fixes.
 Review Docker Official Image manifest digests, retaining immutable pins and the
-matching builder/runtime Alpine release. Weekly Dependabot updates cover Go
-modules (including `/tools`), Actions and Docker; manually review QA tool pins at least monthly and
+matching builder/runtime Alpine release. The local [dependency update configuration](dependency-policy.md#update-review)
+covers Go modules (including `/tools`), npm, Python QA, Actions and both
+Dockerfiles; its hosted activation and remaining manual scopes are documented
+there. Manually review QA tool pins at least monthly and
 when a relevant security fix is released. Never switch a tool to `latest`.
 The setup action's checked commit binds the reviewed version-file behavior;
 when updating it, review compiler selection and update all workflows, examples

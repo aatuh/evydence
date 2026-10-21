@@ -3,9 +3,9 @@
 This reference is for contributors selecting dependencies and maintainers
 reviewing their admission. **EVY-1407 is in progress.** The offline admission
 rules and their regression tests exist. A bounded Go license-classification
-helper passes focused tests on both supported compilers. The Go/Node collector
-produces source-bound observations; complete scope, live PR review and the final release gate
-are not yet integrated.
+helper passes focused tests on both supported compilers. The Go/Node/Python/
+fixture collector produces source-bound observations; complete scope, live PR
+review and the final release gate are not yet integrated.
 Passing these tests does not establish that the current dependency set has been
 audited or that a real dependency addition would be rejected by hosted CI.
 
@@ -26,6 +26,47 @@ without the required tests and review.
 Remove unused dependencies when their imports or build steps disappear. Recheck
 the graph and supported API/SDK behavior; do not retain a dependency solely for
 an obsolete fixture or silently break a published interface to remove it.
+
+## Update Review
+
+[`.github/dependabot.yml`](../../.github/dependabot.yml) configures weekly
+version updates with at most five open version PRs per scope:
+
+| Ecosystem | Directory |
+| --- | --- |
+| Go modules | `/`, `/tools` |
+| npm | `/site/marketing` |
+| pip | `/tools` (`requirements-qa.txt`) |
+| GitHub Actions | `/` |
+| Dockerfiles | `/`, `/deploy/local-dependencies` |
+
+Each scope groups minor/patch version updates and leaves major version updates
+for separate review. SemVer grouping is a review aid, not evidence of safety.
+Separate security groups have no version or development-dependency restriction:
+a major fix must remain eligible. Security updates use the provider's separate
+queue and do not wait for the weekly version schedule, where supported and
+active. See GitHub's [group and queue options](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference)
+and [ecosystem limits](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories).
+
+Every update still needs normal tests and maintainer review; this configuration
+adds no automatic merge or check bypass. Pinned toolchain selections, QA tool
+versions and checksums, Python artifact hashes and generated inventory inputs
+must be updated consistently in the reviewed PR. Drift-check failures require
+those related updates, not weaker assertions. Follow the
+[toolchain update procedure](toolchain-platform-support.md) and
+[scanner dependency review](release-supply-chain.md#scanner-dependency-review).
+The custom `release/tools/syft.go.mod` lock, downloaded QA tools, embedded
+source revisions, service-image references and redistributed fixtures still
+require explicit maintainer updates; these scopes do not imply complete bot
+coverage or vulnerability scanning of container contents.
+
+`make dependency-updates-check`, also in `make docs-check`, checks local scope
+coverage, bounded version queues and separate routine/security groups offline.
+It does not run Dependabot. A read-only GitHub observation on 2026-10-21 returned
+`enabled: true, paused: true` for automated security fixes. Recheck the live
+state and update results after approved integration; local configuration tests
+do not prove active hosted automation. GitHub documents qualifying activity for
+[resuming paused updates](https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-updates-stopped).
 
 ## Python QA Dependency
 
