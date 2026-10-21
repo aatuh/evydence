@@ -220,6 +220,14 @@ def inspect(root, exemption=None, pull_request=None):
             pull_delivery = (pull_head, repo.common_ancestor(pull_base, pull_head))
         adoption = policy['adoption_commit']
         previous = release['source_commit']
+        if pull_delivery is not None and repo.ancestor(history_head, adoption):
+            # The PR that introduces this policy necessarily targets a base
+            # before adoption. Its whole authenticated delivery still needs a
+            # fragment/label; only earlier pre-policy history is grandfathered.
+            if (not repo.ancestor(previous, history_head)
+                    or not repo.ancestor(adoption, pull_delivery[0])):
+                raise HistoryError('initial policy PR must bind release, base and adoption ancestry')
+            history_head = adoption
         if (not repo.ancestor(policy['legacy_release_commit'], adoption)
                 or not repo.ancestor(adoption, head) or not repo.ancestor(previous, head)
                 or not repo.ancestor(adoption, history_head) or not repo.ancestor(previous, history_head)):

@@ -236,6 +236,32 @@ class ReleaseHistoryTests(unittest.TestCase):
         plan = HISTORY.inspect(self.root, pull_request=context)
         self.assertEqual(plan['source_commit'], self.git('rev-parse', 'HEAD'))
 
+    def test_first_policy_pr_can_target_a_base_before_the_adoption_commit(self):
+        self.adopt()
+        head = self.git('rev-parse', 'HEAD')
+        context = {'number': 42, 'base_commit': self.release, 'head_commit': head,
+                   'no_changelog': False}
+        plan = HISTORY.inspect(self.root, pull_request=context)
+        self.assertEqual(len(plan['fragments']), 1)
+        self.assertTrue(plan['include_legacy'])
+        tree = self.git('rev-parse', head + '^{tree}')
+        synthetic = self.git('commit-tree', tree, '-p', self.release, '-p', head,
+                             '-m', 'first policy PR synthetic merge')
+        self.git('checkout', '--detach', synthetic)
+        plan = HISTORY.inspect(self.root, pull_request=context)
+        self.assertEqual(plan['source_commit'], synthetic)
+        self.assertEqual(len(plan['fragments']), 1)
+
+    def test_initial_policy_pr_still_needs_a_changed_fragment_or_verified_label(self):
+        self.commit('feat: policy introduction without a fragment')
+        context = {'number': 42, 'base_commit': self.release,
+                   'head_commit': self.git('rev-parse', 'HEAD'), 'no_changelog': False}
+        with self.assertRaises(HISTORY.HistoryError):
+            HISTORY.inspect(self.root, pull_request=context)
+        context['no_changelog'] = True
+        plan = HISTORY.inspect(self.root, pull_request=context)
+        self.assertEqual(plan['exempt_commits'], [context['head_commit']])
+
     def test_current_pr_label_waives_only_bound_committed_pr_source(self):
         context = self.open_pull_fixture(labelled=True)
         plan = HISTORY.inspect(self.root, pull_request=context)

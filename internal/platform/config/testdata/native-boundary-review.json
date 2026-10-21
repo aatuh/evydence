@@ -350,8 +350,8 @@
     },
     {
       "source": "scripts/release_history.py",
-      "sha256": "d8f984fd7189f2d0ba23618a606817b725830ce28f2cf4b36873cd774b2a3439",
-      "finding": "Scoped EVY-1408 source review: explicit Git root; closed read environment and fixed argv disable hooks, fsmonitor, replacement objects, external diffs and text conversion. Output/blob sizes, source IDs, delivery counts, paths and subprocess time are bounded. Exact ancestry, immutable published fragments, per-delivery coverage, pending-fragment requirements and PR head/base-parent binding precede formatting. Provider errors fail closed. Explicit changelog writes validate no-follow regular inputs and detect concurrent edits before atomic replacement. No Git mutation, fetch or publication occurs in this module."
+      "sha256": "8b24ac5a1a75a311b43dc001841ebb2b3d00886b9ae036d8300855b5f4be8aa8",
+      "finding": "Scoped EVY-1408 source review: explicit Git root; closed read environment and fixed argv disable hooks, fsmonitor, replacement objects, external diffs and text conversion. Output/blob sizes, source IDs, delivery counts, paths and subprocess time are bounded. Exact ancestry, immutable published fragments, per-delivery coverage, pending-fragment requirements and PR head/base-parent binding precede formatting. Provider errors fail closed. Explicit changelog writes validate no-follow regular inputs and detect concurrent edits before atomic replacement. No Git mutation, fetch or publication occurs in this module. Initial-policy PRs may target the authenticated pre-adoption base only when the recorded release precedes that base and adoption belongs to the exact PR head. The full PR delivery still requires a changed fragment or authenticated label; existing post-adoption base deliveries retain their normal checks."
     },
     {
       "source": "scripts/release_lifecycle.py",

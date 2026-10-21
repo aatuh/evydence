@@ -64,6 +64,11 @@ The reader authenticates through `gh` and fetches the PR from
 GitHub's base/head synthetic merge, and the exact `no-changelog` label for a
 delivery without a fragment. A local argument selects the PR to verify; it does
 not grant an exemption. Provider failure or stale source identity fails closed.
+The PR that first introduces this policy may target a pre-adoption base: the
+recorded public release must precede that base, and the pinned adoption source
+must belong to the exact PR head. The whole PR still needs a changed fragment
+or verified label. Existing post-adoption base deliveries retain their checks;
+the bootstrap path does not waive missing notes on already governed commits.
 Committed first-parent deliveries without fragments require a matching merged
 PR, bound to its exact merge commit and label through the associated-PR and
 full-detail APIs. Label removal causes subsequent checks to reject the waiver.
