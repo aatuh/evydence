@@ -64,7 +64,9 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Upgrade and compatibility policy](reference/upgrade-compatibility-policy.md): supported upgrade paths, migration expectations, and API compatibility rules.
 - [Release candidate checklist](reference/release-candidate.md): required evidence before tagging a controlled self-hosted release candidate.
 - [Release evidence index](reference/release-evidence-index.md): release artifact map, generation commands, and verification commands.
-- [Release notes template](reference/release-notes-template.md): checked wording used by release-candidate packaging when a tag-specific note file is absent.
+- [Release history](reference/release-history.md): source fragments, generated candidate notes and checks before packaging or local tagging.
+- [Release support](reference/release-support.md): machine-readable support windows and withdrawal status.
+- [Release notes template](reference/release-notes-template.md): input to generated candidate notes, which must be reviewed and committed before packaging.
 - [Release notes v0.1.0-rc.1](reference/release-notes-v0.1.0-rc.1.md): checked release-note wording for the first controlled self-hosted release candidate.
 - [Maintainer review policy](reference/maintainer-review-policy.md): CODEOWNERS-backed review expectations for high-risk paths.
 - [Roadmap and release cadence](reference/roadmap.md): current release-line focus, external trust controls, and cadence expectations.
