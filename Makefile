@@ -290,9 +290,10 @@ dependency-policy-test: ## Test offline dependency admission and exception rules
 
 dependency-inventory-test: ## Test dependency inventory integrity and bounded license classification
 	@python3 scripts/test_dependency_inventory.py
+	@python3 scripts/test_dependency_node_sources.py
 	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/license-inventory
 
-dependency-inventory-generate: ## Generate partial-scope Go/Node observations with verified Go source licenses
+dependency-inventory-generate: ## Generate partial-scope observations with verified Go/Node source licenses
 	@python3 scripts/dependency_inventory.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --output docs/reference/dependency-inventory.json --replace
 
 docs-check: dependency-policy-test dependency-inventory-test release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims

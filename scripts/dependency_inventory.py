@@ -25,6 +25,7 @@ import uuid
 import zipfile
 
 import dependency_policy as policy
+import dependency_node_sources as node_sources
 from release_lifecycle import read_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,7 +37,7 @@ GRAPHS = (
     ('qa', 'tools/go.mod', 'tools/go.sum', 'github.com/aatuh/evydence/tools'),
     ('scanner', 'release/tools/syft.go.mod', 'release/tools/syft.go.sum', 'github.com/anchore/syft'),
 )
-GENERATOR_FILES = ('scripts/dependency_inventory.py', 'scripts/dependency_policy.py',
+GENERATOR_FILES = ('scripts/dependency_inventory.py', 'scripts/dependency_node_sources.py', 'scripts/dependency_policy.py',
                    'scripts/release_lifecycle.py', 'scripts/support_matrix.py',
                    'tools/cmd/license-inventory/main.go')
 LICENSE_NAME = re.compile(r'(?:licen[sc]e|copying|copyright|unlicense)(?:[._-][A-Za-z0-9._-]+)?\Z', re.I)
@@ -340,6 +341,20 @@ def attach_licenses(component, files, matches):
     return result
 
 
+def attach_node_licenses(item, observation, files, matches):
+    result = attach_licenses(item, files, matches)
+    result['license_text_status'] = result.pop('license_status')
+    result['license_text_candidate'] = result.pop('license')
+    result['lockfile_license'] = item['license']
+    result['artifact_license'] = observation['license']
+    result['source'].update({key: value for key, value in observation.items() if key != 'license'})
+    matched = observation['declaration_status'] == 'matched' and observation['license'] is not None
+    result['license'] = observation['license'] if matched else None
+    result['license_status'] = 'artifact-declared' if matched else (
+        'ambiguous' if observation['declaration_status'] == 'different' else 'unknown')
+    return result
+
+
 def tool_environment(parent):
     environment = {key: parent[key] for key in ('PATH', 'HOME', 'TMPDIR', 'GOTMPDIR', 'GOCACHE',
                                                'GOMODCACHE', 'SSL_CERT_FILE', 'SSL_CERT_DIR') if parent.get(key)}
@@ -496,7 +511,7 @@ def _classify_files(files, executable, root, environment, work):
 
 
 def collect(root, work_root, parent_environment):
-    """Verify Go sources and observe root license bytes; retain explicit scope gaps."""
+    """Verify Go/Node sources and observe root licenses; retain explicit scope gaps."""
     import support_matrix
     root, work_root = Path(root).resolve(), Path(work_root)
     if work_root.is_symlink() or not work_root.is_dir():
@@ -526,6 +541,33 @@ def collect(root, work_root, parent_environment):
     work = Path(tempfile.mkdtemp(prefix='evydence-dependency-inventory-', dir=work_root))
     components, observations, raw_files, license_bytes = [], {}, [], {}
     license_total = 0
+
+    def register_files(files):
+        nonlocal license_total
+        for file in files:
+            digest, content = file['sha256'], file['content']
+            if digest not in license_bytes:
+                license_total += len(content)
+                if license_total > MAX_LICENSE_SET_BYTES:
+                    raise InventoryError('license set exceeds its byte budget')
+                license_bytes[digest] = content
+            file['content'] = license_bytes[digest]
+        raw_files.extend(files)
+
+    node_observations = {}
+    node_work = work / 'npm'; node_work.mkdir()
+    try:
+        for index, item in enumerate(node):
+            observation, files = node_sources.fetch(item, node_work)
+            register_files(files)
+            node_observations[(item['name'], item['version'])] = (observation, files)
+            if (index + 1) % 25 == 0 or index + 1 == len(node):
+                print('dependency-inventory: verified ' + str(index + 1) + '/' + str(len(node)) +
+                      ' npm source archives', file=sys.stderr, flush=True)
+    except node_sources.NodeSourceError:
+        print('dependency-inventory: npm source observation failed for ' + item['name'] + '@' +
+              item['version'], file=sys.stderr, flush=True)
+        raise InventoryError('cannot verify bounded npm source archives') from None
     for scope, mod, sums, main_module in GRAPHS:
         folder = work / scope; folder.mkdir()
         (folder / 'go.mod').write_bytes(inputs[mod])
@@ -545,16 +587,8 @@ def collect(root, work_root, parent_environment):
         for item in selected:
             item['source']['verification'] = 'go-mod-verify'
             files = license_files(cache, sources[(item['name'], item['version'])])
-            for file in files:
-                digest, content = file['sha256'], file['content']
-                if digest not in license_bytes:
-                    license_total += len(content)
-                    if license_total > MAX_LICENSE_SET_BYTES:
-                        raise InventoryError('license set exceeds its byte budget')
-                    license_bytes[digest] = content
-                file['content'] = license_bytes[digest]
+            register_files(files)
             observations[(scope, item['name'], item['version'])] = files
-            raw_files.extend(files)
         components.extend(selected)
         print('dependency-inventory: verified ' + scope + ' source graph', file=sys.stderr, flush=True)
     executable = work / 'license-classifier'
@@ -563,6 +597,8 @@ def collect(root, work_root, parent_environment):
     matches = _classify_files(raw_files, executable, root, environment, work)
     components = [attach_licenses(item, observations[(item['origins'][0], item['name'], item['version'])], matches)
                   for item in components]
+    node = [attach_node_licenses(item, *node_observations[(item['name'], item['version'])], matches)
+            for item in node]
     merged = merge_components(components + node)
     if any(read_bytes(root, name, MAX_BYTES) != raw for name, raw in inputs.items()):
         raise InventoryError('inventory source changed during collection')
@@ -572,12 +608,12 @@ def collect(root, work_root, parent_environment):
                       'files': {name: hashlib.sha256(inputs[name]).hexdigest() for name in GENERATOR_FILES}},
         'inputs': {name: hashlib.sha256(raw).hexdigest() for name, raw in inputs.items() if name not in GENERATOR_FILES},
         'components': merged,
-        'remaining_scopes': ['npm-source-license', 'python', 'fixtures', 'build-tool-archives', 'actions', 'images'],
+        'remaining_scopes': ['python', 'fixtures', 'build-tool-archives', 'actions', 'images'],
         'limitations': [
             'Go module graphs describe available dependencies, not only code linked into an artifact.',
             'Go root license bytes are checksum-bound observations; candidates are not approval or legal compatibility conclusions.',
             'Nested third-party notices and license obligations may require additional review.',
-            'Node licenses are lockfile declarations; registry artifacts have not yet been checked by this collector.',
+            'Node artifact license declarations and root text candidates are separate observations, not license approval.',
             'This is not an artifact SBOM, vulnerability scan or complete dependency inventory.',
         ],
     }

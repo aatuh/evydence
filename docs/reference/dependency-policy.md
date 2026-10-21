@@ -116,9 +116,21 @@ files, reject escaping/symlink paths and enforce entry/file limits. Input hashes
 are checked again before writing a report; changed inputs abort collection.
 
 The marketing lock contributes all package locations, exact versions, registry
-URLs, SHA-512 integrity declarations and declared license expressions. This is
-explicitly **lockfile evidence** until registry artifacts are checked. Missing
-licenses stay unknown; the collector does not invent empty vulnerability lists.
+URLs, SHA-512 integrity declarations and declared license expressions. The
+collector fetches each exact HTTPS registry archive serially, without inherited
+proxy credentials or redirects. It verifies compressed bytes against the lock
+before bounded gzip/tar inspection, without extracting files. The archive's
+root `package.json` must match the locked name/version; its digest, license
+declaration and root license/notice observations are recorded.
+
+`artifact-declared` means the archive and lock declare the same expression.
+`license_text_status` and `license_text_candidate` describe the separately
+classified root text. They do not override the declaration or grant approval;
+disagreements and unknown results require review. Declaration mismatches set
+the effective license to unknown/ambiguous and preserve both observations.
+Legacy or unsupported declarations are not silently converted into SPDX.
+See npm's [license declaration reference](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/#license).
+The collector does not invent empty vulnerability lists.
 
 Use the host RAM coordinator for this command; downloading, verifying and
 classifying the complete graphs is a memory-intensive operation:
@@ -134,19 +146,24 @@ scratch directory, preferably on the build-storage volume. The CLI also accepts
 `--output` as a path relative to the checkout for a private qualification report.
 
 This stage sets `complete: false`. Python, redistributed fixtures, additional
-build-tool archives, Actions/images, Node source licenses and maintenance/live
+build-tool archives, Actions/images and maintenance/live
 review evidence remain to be integrated before EVY-1407 can close. Go graph
 observations cover available modules, not only dependencies linked into a
 particular binary; they are separate from artifact-bound release SBOMs.
 
 The [2026-10-21 snapshot](dependency-inventory.json) contains 1,522 Go
 module/version observations after real download/checksum verification and 327
-Node lock declarations. Go license observations include 1,411 candidates,
+Node source archive observations. Go license observations include 1,411 candidates,
 76 ambiguous results, 26 unknown and nine with no root license file. None of
-those classifications grants approval. The snapshot binds generator/input
+those classifications grants approval. All 327 npm manifest declarations match
+the lock. Their separate root-text observations are 241 candidates, three
+ambiguous, 17 unknown and 66 with no root license file. A candidate for one
+license does not discharge a compound declaration's additional obligations;
+bundled native dependencies and nested notices still require review.
+The snapshot binds generator/input
 hashes and records the missing scopes; the unit tests reject a stale snapshot
-after those inputs change. Node artifact verification and the missing scopes
-are still required, so this does not complete EVY-1407 or enforce live PR policy.
+after those inputs change. The missing scopes and policy enforcement are still
+required, so this does not complete EVY-1407 or enforce live PR policy.
 
 ## Verify This Unit
 
