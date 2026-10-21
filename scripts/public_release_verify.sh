@@ -5,7 +5,14 @@ repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_root"
 
 repo="${EVYDENCE_RELEASE_REPO:-aatuh/evydence}"
-tag="${1:-${TAG:-v0.1.0-rc.7}}"
+if [[ "$#" -gt 1 ]]; then
+  echo "usage: scripts/public_release_verify.sh [release-tag]" >&2
+  exit 2
+fi
+tag="${1:-${TAG:-}}"
+if [[ -z "$tag" ]]; then
+  tag="$(env -i PATH="$PATH" python3 scripts/release_lifecycle.py default-tag)"
+fi
 legacy_evidence="${EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE:-0}"
 if [[ "$legacy_evidence" != "0" && "$legacy_evidence" != "1" ]]; then
   echo "EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE must be 0 or 1" >&2
@@ -20,6 +27,7 @@ if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
   echo "release candidate tag must look like v0.1.0-rc.7" >&2
   exit 2
 fi
+env -i PATH="$PATH" python3 scripts/release_lifecycle.py check-tag "$tag" >/dev/null
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh is required to download public release assets" >&2
   exit 2

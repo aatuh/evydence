@@ -9,6 +9,13 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ## Unreleased
 
+Release selection now checks a versioned support and withdrawal policy before
+public downloads or candidate packaging (EVY-1408). Defaults come from current
+release metadata; registered withdrawals fail before network/build work and
+remain visible in a generated support reference. The security support window
+ends when the current release is superseded or withdrawn; no fixed end date or
+response SLA is promised. No real withdrawal or new publication is recorded.
+
 Public release verification now authenticates the manifest and signature through
 an exact GitHub workflow certificate identity, issuer, ref and commit before
 checking and executing downloaded payloads (EVY-1404). Historical RC.7 requires

@@ -29,6 +29,8 @@ class PackagingRecipeTests(unittest.TestCase):
         root = self.root / name
         for filename in set(release_artifacts.BUILD_MATERIALS) | {
                 'scripts/support_matrix.py', 'scripts/reproducible_build.py',
+                'scripts/release_lifecycle.py', 'release/lifecycle-policy.json',
+                'release/current.json',
                 'docs/reference/release-notes-template.md',
                 'LICENSE', 'README.md', 'CHANGELOG.md'}:
             output = root / filename

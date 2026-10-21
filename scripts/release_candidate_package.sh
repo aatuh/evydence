@@ -20,6 +20,7 @@ if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
   echo "release candidate tag must look like v0.1.0-rc.1" >&2
   exit 2
 fi
+env -i PATH="$PATH" python3 scripts/release_lifecycle.py check-tag "$tag" >/dev/null
 # Keep release-only settings out of compiler, validation and runtime children.
 signing_key_b64="${EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64:-${RELEASE_SIGNING_PRIVATE_KEY_B64:-}}"
 release_allow_existing_tag="${EVYDENCE_RELEASE_ALLOW_EXISTING_TAG:-}"

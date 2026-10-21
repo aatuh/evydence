@@ -76,6 +76,13 @@ support agreement says otherwise. Reports should identify the affected commit,
 tag, image digest, Helm chart version, or deployment profile so triage can
 reproduce the issue without production data.
 
+The versioned [support and withdrawal reference](docs/reference/release-support.md)
+records this event-based window and the selected public release. Its
+[machine-readable policy](release/lifecycle-policy.json) does not promise a
+fixed security support end date or response SLA. Maintainers follow the
+[withdrawal procedure](docs/reference/release-revocation.md) to preserve
+historical evidence while removing a release from default selection.
+
 ## Advisory And Disclosure Expectations
 
 Evydence handles tenant-scoped evidence, credentials, signing metadata, object

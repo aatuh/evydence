@@ -101,7 +101,7 @@ esac
         self.assertFalse(self.marker.exists())
 
     def isolate_runtime_path(self):
-        for name in ("bash", "dirname", "python3"):
+        for name in ("bash", "dirname", "python3", "env"):
             executable = shutil.which(name)
             self.assertIsNotNone(executable, name)
             (self.bin / name).symlink_to(executable)

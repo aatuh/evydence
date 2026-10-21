@@ -195,6 +195,11 @@ release-truth-check: ## Validate current release metadata against public docs an
 	@python3 -m unittest discover -s scripts -p test_check_release_truth.py
 	@scripts/check_release_truth.py
 
+.PHONY: release-lifecycle-check
+release-lifecycle-check: ## Validate security support scope, withdrawals and generated reference
+	@python3 scripts/test_release_lifecycle.py
+	@python3 scripts/release_lifecycle.py check --reference
+
 persistence-decomposition-check: ## Validate generated persistence decomposition inventory
 	@scripts/persistence_decomposition_inventory.py --check
 
@@ -269,7 +274,7 @@ repository-controls-test: ## Test GitHub control verification without credential
 repository-controls-check: ## Inspect live GitHub controls using the operator's gh credentials
 	@scripts/verify_github_controls.sh
 
-docs-check: release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md
 	@test -f README.md

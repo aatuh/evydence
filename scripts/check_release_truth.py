@@ -10,11 +10,15 @@ import sys
 from pathlib import Path
 
 import yaml
+import release_lifecycle
 
 
 ROOT = Path(__file__).resolve().parents[1]
 METADATA_PATH = ROOT / "release/current.json"
 MAINTENANCE_COMMIT_TYPES = frozenset({"build", "chore", "ci", "merge", "refactor", "test"})
+INSTALL_GUIDES = frozenset({'README.md', 'docs/tutorials/getting-started.md',
+                           'docs/tutorials/evaluate-in-10-minutes.md',
+                           'docs/how-to/install-and-operate.md'})
 
 
 def read(path: str) -> str:
@@ -102,6 +106,26 @@ def container_dispatch_valid(workflow: dict) -> bool:
         return False
 
 
+def public_release_selection_valid(source: str) -> bool:
+    """Keep the helper's default/withdrawal selection ahead of any download."""
+    selection = 'tag="$(env -i PATH="$PATH" python3 scripts/release_lifecycle.py default-tag)"'
+    guard = 'env -i PATH="$PATH" python3 scripts/release_lifecycle.py check-tag "$tag"'
+    download = 'gh release download "$tag"'
+    return (all(marker in source for marker in (selection, guard, download))
+            and source.index(selection) < source.index(guard) < source.index(download))
+
+
+def withdrawn_install_document_valid(source: str, tag: str) -> bool:
+    if not release_lifecycle.valid_tag(tag):
+        return False
+    if ('No default install is available.' not in source or 'WITHDRAWN' not in source
+            or f'`{tag}`' not in source):
+        return False
+    prefix = r'(?:TAG\s*=\s*[\'"]?|gh\s+release\s+download\s+[\'"]?|dist/)'
+    unsafe = prefix + re.escape(tag) + r'(?![0-9A-Za-z.+-])'
+    return re.search(unsafe, source) is None
+
+
 def main() -> int:
     metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
     current = metadata["current_public_release"]
@@ -122,6 +146,15 @@ def main() -> int:
     snapshot_recorded_at = source_snapshot.get("recorded_at") if isinstance(source_snapshot, dict) else None
 
     failures: list[str] = []
+    install_available = True
+    try:
+        lifecycle = release_lifecycle.validate_policy(release_lifecycle.read_json(ROOT, 'release/lifecycle-policy.json'))
+        selected = release_lifecycle.installable_tag(lifecycle, metadata)
+        install_available = selected is not None
+        require(selected is None or selected == tag,
+                'release lifecycle default disagrees with current release metadata', failures)
+    except release_lifecycle.PolicyError:
+        failures.append('release lifecycle policy or current install selection is invalid')
     require(metadata.get("schema") == "evydence-current-release.v1", "release/current.json has unexpected schema", failures)
     require(re.fullmatch(r"v\d+\.\d+\.\d+-rc\.\d+", tag) is not None, f"invalid current release tag: {tag}", failures)
     require(re.fullmatch(r"\d{4}-\d{2}-\d{2}", release_date) is not None, f"invalid release date: {release_date}", failures)
@@ -174,15 +207,23 @@ def main() -> int:
         "docs/reference/production-gate-troubleshooting.md": [current_command],
         "examples/end-to-end-release-evidence/README.md": [current_command],
         "scripts/public_release_verify.sh": [
-            f'TAG:-{tag}',
             f"release candidate tag must look like {tag}",
         ],
         "CHANGELOG.md": [f"## {tag} - {release_date}"],
     }
 
+    if not install_available:
+        for path in INSTALL_GUIDES:
+            required_current_refs[path] = ['No default install is available.']
+            require(withdrawn_install_document_valid(read(path), tag),
+                    f'{path} must warn about the withdrawn current release and remove default install commands', failures)
+
     for path, texts in required_current_refs.items():
         for text in texts:
             require_text(path, text, failures)
+
+    require(public_release_selection_valid(read('scripts/public_release_verify.sh')),
+            'public release selection must use lifecycle policy and reject withdrawals before download', failures)
 
     workflow = yaml.load(read('.github/workflows/container-image.yml'), Loader=yaml.BaseLoader)
     require(container_dispatch_valid(workflow),

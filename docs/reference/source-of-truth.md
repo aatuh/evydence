@@ -29,6 +29,7 @@ product-boundary language across the docs.
 | Release-candidate evidence | `docs/reference/release-candidate.md` | Canonical release-candidate artifact checklist. |
 | Release evidence artifact map | `docs/reference/release-evidence-index.md` | Maps each release artifact to generation and verification commands. |
 | Release publisher identity and custody | `docs/release-signing.md` and `release/signing-policy.json` | Exact issuer/workflow/ref/source policy, protected environment, legacy pins, credential custody, revocation and rollout evidence limits. |
+| Security support windows and withdrawn releases | `release/lifecycle-policy.json`, `release/current.json`, and `docs/reference/release-support.md` | Machine-readable current-release selection and event-based support; the generated reference preserves withdrawal warnings. `docs/reference/release-revocation.md` owns the maintainer procedure. |
 | Production profiles and exit criteria | `docs/reference/production-readiness.md`, `docs/reference/production-exit-review.md`, and `docs/reference/stable-v0.1.0-exit-criteria.md` | Do not broaden status elsewhere without updating these. |
 | Design-partner pilot checklist | `docs/how-to/pilot-deployment-checklist.md` | Narrow copy-paste checklist for one controlled self-hosted pilot profile. |
 | Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | CODEOWNERS is an ownership reference; the policy owns high-risk self-review expectations and links to provider verification. |
