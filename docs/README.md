@@ -71,6 +71,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Maintainer review policy](reference/maintainer-review-policy.md): CODEOWNERS-backed review expectations for high-risk paths.
 - [Maintainer ownership and recovery](reference/continuity-plan.md): solo release/security duties, private recovery checklist and availability limits.
 - [Security response](reference/security-response.md): private intake, triage, disclosure and emergency response for the sole maintainer.
+- [Dependency policy](reference/dependency-policy.md): selection, offline admission rules and exceptions; inventory and live CI integration remain in progress.
 - [Roadmap and release cadence](reference/roadmap.md): current release-line focus, external trust controls, and cadence expectations.
 - [9/10 execution backlog](reference/world-class-backlog.md): tracked engineering programme, issue-template guidance, and evidence rules; not a production claim.
 - [Issue labels](reference/issue-labels.md): labels used to organize the execution backlog.

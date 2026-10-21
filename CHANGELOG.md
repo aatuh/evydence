@@ -21,6 +21,11 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 - Require patched Go certificate verification for supported builds (`EVY-1408-x509-toolchain`).
   Update minimum Go to 1.26.10 and current Go to 1.27.3 for GO-2026-6809, reached through the Sigstore certificate verifier. Pin matching compiler images and refresh current build selections and native-source reviews; retain earlier toolchains and dated evidence as historical observations.
 
+### Added
+
+- Add offline dependency admission rules and exception regressions (`EVY-1407-dependency-policy`).
+  Evaluate bounded license expressions with exact license-exception pairing and reject missing license metadata or high, critical and unknown-severity advisories. Require exact dependency and advisory/license scope, owner, reason, review reference and an unexpired review window of at most 90 days for exceptions. Run offline rule regressions in documentation validation and document dependency selection/removal criteria.
+
 ### Changed
 
 - Automate source-linked release notes, changelog coverage and support policy (`EVY-1408-release-history`).

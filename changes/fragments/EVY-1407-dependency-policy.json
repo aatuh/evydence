@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1407-dependency-policy",
+  "category": "added",
+  "summary": "Add offline dependency admission rules and exception regressions",
+  "details": [
+    "Evaluate bounded license expressions with exact license-exception pairing and reject missing license metadata or high, critical and unknown-severity advisories.",
+    "Require exact dependency and advisory/license scope, owner, reason, review reference and an unexpired review window of at most 90 days for exceptions.",
+    "Run offline rule regressions in documentation validation and document dependency selection/removal criteria."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Offline tooling only; no production API, SDK or persistence contract changed."
+  },
+  "security": "Reject malformed or oversized input, duplicate JSON keys, nonfinite numbers and unsupported metadata with errors that omit raw input. No network or subprocess execution occurs in the rules library.",
+  "limitations": [
+    "EVY-1407 remains incomplete: complete inventories, license-source verification, trusted live PR review, update grouping and release qualification are pending.",
+    "A review-link shape and synthetic policy tests do not prove approval or that real dependency changes are blocked by hosted CI."
+  ]
+}
