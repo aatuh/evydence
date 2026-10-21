@@ -79,11 +79,12 @@ and retain the separate release-validation evidence.
 
 ## Verified observation
 
-The [2026-10-21 11:41:07 UTC refresh](repository-controls-2026-10-21T114107Z.json)
+The [2026-10-21 11:55:52 UTC refresh](repository-controls-2026-10-21T115552Z.json)
 again passed all 18 observations for the same remote `master` source, with one
 human writer. It used the unchanged verifier from clean local commit
-`144b45418f2ebd5b8fb1b80cd99bf82231a32a07`. The
-[earlier refresh](repository-controls-2026-10-21T110422Z.json) is retained.
+`a1205e2b4129b6a7c789744d0625d056955790cf`. The
+[11:41 refresh](repository-controls-2026-10-21T114107Z.json) and
+[11:04 refresh](repository-controls-2026-10-21T110422Z.json) are retained.
 This is a settings observation;
 it does not establish new role acceptance or hosted CI for local development.
 

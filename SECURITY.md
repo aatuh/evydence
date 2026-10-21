@@ -36,17 +36,23 @@ verification from required live provider controls and publication evidence.
 ## Reporting A Vulnerability
 
 
-If you believe you found a vulnerability, use GitHub private vulnerability
-reporting for this repository when the "Report a vulnerability" button is
-available on GitHub. The expected intake URL is
-<https://github.com/aatuh/evydence/security/advisories/new>. If the button or
-URL is unavailable for your account or region, use the private security intake
-channel listed for the current release notes or request a private channel from
-the maintainer without including vulnerability details in the first contact.
+Use the private security intake:
+[GitHub private vulnerability reporting](https://github.com/aatuh/evydence/security/advisories/new).
+Sign in to GitHub, open the form, and submit the affected version, impact and a
+sanitized reproduction. Reports stay in GitHub's private advisory workflow; see
+[GitHub's reporting instructions](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/report-privately).
 
-The repository file cannot itself prove that GitHub private vulnerability
-reporting or a dedicated mailbox is enabled; that is an operator setting that
-must be verified on the public repository before relying on it.
+Private reporting was enabled in the
+[2026-10-21 provider check](docs/reference/repository-controls-2026-10-21T115552Z.json).
+Settings can change. If the form is unavailable, open an issue asking only for a
+private contact route; do not include vulnerability details. No dedicated
+security mailbox is currently advertised. LinkedIn is not the security intake.
+
+Aatu Harju (`@aatuh`) owns security response. Evydence is maintained by one
+person: acknowledgement, triage and patches are best effort, with no scheduled
+on-call coverage or guaranteed response time. The
+[security response procedure](docs/reference/security-response.md) describes
+triage, emergency fixes, disclosure and the limits of the provider check.
 
 Do not include API keys, collector secrets, bearer tokens, session tokens,
 portal tokens, private keys, provider credentials, database URLs, raw evidence
@@ -70,9 +76,10 @@ Once a private channel is established, include:
 
 ## Supported Versions And Scope
 
-Security support focuses on the current `master` branch and current release
-candidate or release tags. Older releases are best effort unless a commercial
-support agreement says otherwise. Reports should identify the affected commit,
+Security support focuses on `master` and the current public release selected in
+[`release/current.json`](release/current.json), until superseded or withdrawn.
+Older releases are best effort unless a commercial support agreement says
+otherwise. Reports should identify the affected commit,
 tag, image digest, Helm chart version, or deployment profile so triage can
 reproduce the issue without production data.
 
@@ -87,8 +94,11 @@ historical evidence while removing a release from default selection.
 
 Evydence handles tenant-scoped evidence, credentials, signing metadata, object
 payload references, and customer-package boundaries. Security fixes should be
-coordinated privately until maintainers have a reasonable opportunity to
-triage, patch, publish release evidence, and document upgrade guidance. Public
+coordinated privately with the reporter while the maintainer triages, patches,
+verifies release evidence and prepares upgrade guidance. Agree disclosure timing
+case by case; there is no blanket embargo duration or guaranteed patch date.
+Active exploitation may require mitigation guidance before a fix is available.
+The response procedure records advisory contents and reporter-credit consent. Public
 advisories should avoid raw exploit payloads, customer evidence, secrets, or
 instructions that increase exposure before users can update.
 
