@@ -308,6 +308,7 @@ dependency-inventory-test: ## Test dependency inventory integrity and bounded li
 	@python3 scripts/test_dependency_python_sources.py
 	@python3 scripts/test_dependency_build_tools.py
 	@python3 scripts/test_dependency_actions.py
+	@python3 scripts/test_dependency_go_tools.py
 	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/license-inventory
 
 dependency-inventory-generate: ## Generate partial-scope dependency and fixture source observations

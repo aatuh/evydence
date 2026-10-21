@@ -126,10 +126,30 @@ requires the proxy's source revision to match the recorded recipe and runs
 `go mod verify` before reading root license bytes. The bootstrap does not build
 or execute Syft or change the application/scanner locks.
 
-The container-signing workflow also installs Cosign `v2.6.1` as a separate Go
-command. Its standalone graph, along with the local MinIO/client source builds,
-is not covered by the central QA graph; standalone Go tools remain an explicit
-inventory scope.
+The container-signing workflow installs Cosign as a separate versioned Go
+command. [`release/tools/standalone-go.json`](../../release/tools/standalone-go.json)
+records its source checksum pair and revision, along with the local
+MinIO/client source builds. The catalog is checked against the workflow and
+Dockerfile installation lines before provider/tool work; changing one without
+its matching pin fails validation.
+
+Each standalone root is downloaded as a checksum-pinned dependency in private
+scratch work and checked with `go mod verify`. Only bounded root `go.mod` and
+`go.sum` bytes are read from the verified source ZIP. Go's structured manifest
+parser checks module identity and rejects replacements, exclusions and explicit
+self-requirements. The collector resolves each original upstream graph in a
+separate directory, verifies the downloaded dependencies and includes the root
+module itself. The upstream `go.mod` must remain byte-identical. No command is
+built or installed by this collection. See Go's
+[versioned install rules](https://go.dev/ref/mod#go-install) and
+[module verification](https://go.dev/ref/mod#go-mod-verify).
+
+The report records installation locations, checksum/revision pins, upstream
+manifest digests and per-profile module counts separately from merged component
+origins. These are available-module graphs, not proof of code linked into a
+particular binary. The MinIO profiles remain disposable fixtures with the
+documented upstream security limits; inventorying them does not recommend them
+for production or grant license approval.
 
 These records cover selected tool archives and module sources, not all linked
 binary dependencies, nested notices, the compiler/interpreter, runner image or
@@ -301,17 +321,17 @@ files and unsafe paths. Configure `DEPENDENCY_INVENTORY_WORK_ROOT` to an existin
 scratch directory, preferably on the build-storage volume. The CLI also accepts
 `--output` as a path relative to the checkout for a private qualification report.
 
-This stage sets `complete: false`. Image/standalone-tool and maintenance/live
+This stage sets `complete: false`. Image and maintenance/live
 review evidence remain to be integrated before EVY-1407 can close. Go graph
 observations cover available modules, not only dependencies linked into a
 particular binary; they are separate from artifact-bound release SBOMs.
 
-The [2026-10-21 snapshot](dependency-inventory.json) contains 1,902 records:
-1,523 Go module/versions, 327 Node packages, one PyYAML component with 73 pinned
+The [2026-10-21 snapshot](dependency-inventory.json) contains 2,880 records:
+2,501 Go module/versions, 327 Node packages, one PyYAML component with 73 pinned
 distributions, 34 fixture records, two build-tool archives and 15 Action sources. Go and registry
 source artifacts passed their download/checksum verification. Go license
-observations include 1,412 candidates,
-76 ambiguous results, 26 unknown and nine with no root license file. None of
+observations include 2,328 candidates,
+105 ambiguous results, 53 unknown and 15 with no root license file. None of
 those classifications grants approval. All 327 npm manifest declarations match
 the lock. Their separate root-text observations are 241 candidates, three
 ambiguous, 17 unknown and 66 with no root license file. A candidate for one
@@ -334,6 +354,11 @@ Helm and oasdiff record their pinned archive SHA-256 values and observed binary
 digests. Their root license texts and the separately verified Syft main source
 are Apache-2.0 candidates. This does not inventory all dependencies bundled
 in those binaries or grant license approval.
+The standalone Cosign, MinIO client and MinIO profiles contain 888, 317 and 600
+module records respectively, including each root. Shared component identities
+merge graph origins while retaining matching source and license observations.
+The report preserves the exact checksum/revision pins and upstream manifest
+digests for these profiles; no tools were installed by inventory generation.
 The 14 direct Action references and one nested Action have 30 manifest/notice
 observations across 22 unique blobs. Root texts classify as 14 MIT candidates
 and one Apache-2.0 candidate. The nested `actions/upload-artifact@v4` remains

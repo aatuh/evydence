@@ -29,6 +29,7 @@ import dependency_node_sources as node_sources
 import dependency_python_sources as python_sources
 import dependency_build_tools as build_tools
 import dependency_actions as action_sources
+import dependency_go_tools as go_tools
 import fixture_provenance as fixture_sources
 from release_lifecycle import read_bytes
 
@@ -44,6 +45,7 @@ GRAPHS = (
 GENERATOR_FILES = ('scripts/dependency_inventory.py', 'scripts/dependency_node_sources.py',
                    'scripts/dependency_python_sources.py', 'scripts/dependency_build_tools.py',
                    'scripts/dependency_actions.py', 'scripts/support_matrix_artifacts.py',
+                   'scripts/dependency_go_tools.py',
                    'scripts/python_qa.py', 'scripts/dependency_policy.py',
                    'scripts/fixture_provenance.py',
                    'scripts/release_evidence_tools.py', 'scripts/release_scanner.py', 'scripts/release_sbom.py',
@@ -115,7 +117,7 @@ def published_at(value):
 
 
 def go_components(rows, downloads, scope, expected_main):
-    if not isinstance(rows, list) or not rows or not isinstance(downloads, list) or scope not in {x[0] for x in GRAPHS}:
+    if not isinstance(rows, list) or not rows or not isinstance(downloads, list) or scope not in ({x[0] for x in GRAPHS} | go_tools.SCOPES):
         raise InventoryError('invalid module graph shape or scope')
     sources = {}
     for row in downloads:
@@ -562,6 +564,103 @@ def fixture_components(root, inputs):
         raise InventoryError('cannot bind valid fixture records and notice bytes') from None
 
 
+def tool_manifest_files(cache, source):
+    """Read only bounded root Go manifests from the already verified source ZIP."""
+    try:
+        name, version = source['Path'], source['Version']
+        coordinates({'ecosystem': 'gomod', 'name': name, 'version': version})
+        prefix, result = name + '@' + version + '/', {}
+        with regular_stream(cache, Path(source['Zip']).relative_to(cache)) as stream:
+            if os.fstat(stream.fileno()).st_size > 500 * 1024 * 1024:
+                raise InventoryError('oversized tool source archive')
+            with zipfile.ZipFile(stream) as archive:
+                if len(archive.infolist()) > 65536:
+                    raise InventoryError('excessive tool archive entry count')
+                for info in archive.infolist():
+                    if not info.filename.startswith(prefix):
+                        raise InventoryError('unexpected tool archive identity')
+                    leaf = info.filename[len(prefix):]
+                    if leaf not in {'go.mod', 'go.sum'}:
+                        continue
+                    if (leaf in result or info.file_size > 1024 * 1024
+                            or stat.S_IFMT(info.external_attr >> 16) not in (0, stat.S_IFREG)):
+                        raise InventoryError('invalid tool module manifest')
+                    with archive.open(info) as member:
+                        raw = member.read(1024 * 1024 + 1)
+                    if len(raw) != info.file_size:
+                        raise InventoryError('incomplete tool module manifest')
+                    result[leaf] = raw
+        if 'go.mod' not in result:
+            raise InventoryError('tool module manifest missing')
+        return result
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, zipfile.BadZipFile):
+        raise InventoryError('cannot read verified tool module manifests') from None
+
+
+def standalone_tool(profile, work, environment, cache, expected_go):
+    """Resolve the root and original upstream graph without building the command."""
+    try:
+        scope, name, version = profile['scope'], profile['module'], profile['version']
+        if scope not in go_tools.SCOPES or profile['id'] not in {'cosign', 'minio', 'mc'}:
+            raise InventoryError('unsupported standalone tool profile')
+        parent = work / ('standalone-' + profile['id']); parent.mkdir(mode=0o700)
+        bootstrap = parent / 'bootstrap'; bootstrap.mkdir(mode=0o700)
+        main = 'evydence.local/tool-source-' + profile['id']
+        (bootstrap / 'go.mod').write_text('module ' + main + '\n\ngo ' + expected_go.removeprefix('go')
+                                        + '\n\nrequire ' + name + ' ' + version + '\n')
+        (bootstrap / 'go.sum').write_text(name + ' ' + version + ' ' + profile['sum'] + '\n'
+                                        + name + ' ' + version + '/go.mod ' + profile['go_mod_sum'] + '\n')
+        sources = parse_go_stream(_run(['go', 'mod', 'download', '-json', name + '@' + version],
+                                       bootstrap, environment, log=bootstrap / 'download.log'))
+        if len(sources) != 1:
+            raise InventoryError('unexpected standalone root source set')
+        source = sources[0]
+        if (source.get('Error') is not None or source.get('Replace') is not None or source.get('Path') != name
+                or source.get('Version') != version or source.get('Sum') != profile['sum']
+                or source.get('GoModSum') != profile['go_mod_sum'] or not isinstance(source.get('Origin'), dict)
+                or source['Origin'].get('Hash') != profile['commit']):
+            raise InventoryError('standalone tool source pin mismatch')
+        _run(['go', 'mod', 'verify'], bootstrap, environment, log=bootstrap / 'verify.log')
+        info = parse_go_stream(_run(['go', 'list', '-m', '-json', name + '@' + version],
+                                    bootstrap, environment, log=bootstrap / 'info.log'))
+        if len(info) != 1 or info[0].get('Path') != name or info[0].get('Version') != version:
+            raise InventoryError('standalone root module metadata mismatch')
+        roots = go_components([{'Path': main, 'Main': True}, info[0]], [source], scope, main)
+        manifests = tool_manifest_files(cache, source)
+        folder = parent / 'graph'; folder.mkdir(mode=0o700)
+        for leaf in ('go.mod', 'go.sum'):
+            (folder / leaf).write_bytes(manifests.get(leaf, b''))
+        parsed = policy.parse_document(_run(['go', 'mod', 'edit', '-json'], folder, environment,
+                                            log=folder / 'manifest.log'))
+        if (not isinstance(parsed, dict) or not isinstance(parsed.get('Module'), dict)
+                or parsed['Module'].get('Path') != name or parsed.get('Replace') not in (None, [])
+                or parsed.get('Exclude') not in (None, [])
+                or not isinstance(parsed.get('Require') or [], list)
+                or any(row.get('Path') == name for row in parsed.get('Require') or [])):
+            raise InventoryError('unsupported standalone module override or identity')
+        rows = parse_go_stream(_run(['go', 'list', '-m', '-mod=readonly', '-json', 'all'],
+                                    folder, environment, log=folder / 'resolve.log'))
+        downloads = parse_go_stream(_run(['go', 'mod', 'download', '-json', 'all'], folder,
+                                         environment, log=folder / 'download.log', timeout=1800))
+        selected = go_components(rows, downloads, scope, name)
+        _run(['go', 'mod', 'verify'], folder, environment, log=folder / 'verify.log')
+        if (folder / 'go.mod').read_bytes() != manifests['go.mod']:
+            raise InventoryError('standalone upstream manifest changed during resolution')
+        records = {(row['Path'], row['Version']): row for row in downloads}
+        records[name, version] = source
+        observations = {}
+        for item in roots + selected:
+            item['source']['verification'] = 'go-mod-verify'
+            observations[scope, item['name'], item['version']] = license_files(cache, records[item['name'], item['version']])
+        observation = {key: profile[key] for key in ('id', 'module', 'package', 'version', 'sum', 'go_mod_sum', 'commit', 'scope', 'installation_file')}
+        observation.update(go_mod_sha256=hashlib.sha256(manifests['go.mod']).hexdigest(),
+                           go_sum_sha256=hashlib.sha256(manifests.get('go.sum', b'')).hexdigest(),
+                           module_count=len(roots) + len(selected), verification='go-mod-verify')
+        return roots + selected, observations, observation
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        raise InventoryError('cannot verify standalone Go tool graph') from None
+
+
 def scanner_tool(work, environment, cache, expected_go):
     """Bind Syft's main module, which is absent from its dependency graph."""
     import release_evidence_tools as tools
@@ -602,6 +701,7 @@ def collect(root, work_root, parent_environment):
                                     'site/marketing/package.json', 'site/marketing/package-lock.json'}
     for _scope, mod, sums, _main in GRAPHS:
         names.update((mod, sums))
+    names.update(go_tools.INPUTS)
     try:
         inputs = {name: read_bytes(root, name, MAX_BYTES) for name in sorted(names)}
         for name in GENERATOR_FILES:
@@ -613,6 +713,7 @@ def collect(root, work_root, parent_environment):
                                policy.parse_document(inputs['site/marketing/package-lock.json']))
         fixtures, fixture_files = fixture_components(root, inputs)
         actions = action_sources.discover(root, inputs)
+        standalone_profiles = go_tools.profiles(inputs)
         workflow_names = {name for name in inputs if name.rsplit('/', 1)[0] in action_sources.WORKFLOW_ROOTS}
     except (ValueError, OSError):
         raise InventoryError('cannot read valid inventory inputs') from None
@@ -642,6 +743,14 @@ def collect(root, work_root, parent_environment):
 
     for files in fixture_files.values():
         register_files(files)
+    standalone_observations = []
+    for profile in standalone_profiles:
+        selected, observed, tool = standalone_tool(profile, work, environment, cache, expected_go)
+        for files in observed.values():
+            register_files(files)
+        components.extend(selected); observations.update(observed)
+        standalone_observations.append(tool)
+        print('dependency-inventory: verified ' + profile['id'] + ' standalone graph', file=sys.stderr, flush=True)
     action_work = work / 'actions'; action_work.mkdir(mode=0o700)
     try:
         actions, action_files = action_sources.collect(actions, action_work)
@@ -736,7 +845,8 @@ def collect(root, work_root, parent_environment):
                       'files': {name: hashlib.sha256(inputs[name]).hexdigest() for name in GENERATOR_FILES}},
         'inputs': {name: hashlib.sha256(raw).hexdigest() for name, raw in inputs.items() if name not in GENERATOR_FILES},
         'components': merged,
-        'remaining_scopes': ['images', 'standalone-go-tools'] + (['action-local-references'] if any(
+        'standalone_go_tools': standalone_observations,
+        'remaining_scopes': ['images'] + (['action-local-references'] if any(
             dependency['kind'] == 'local-action' for item in actions
             for dependency in item['source']['runtime']['dependencies']) else []),
         'limitations': [

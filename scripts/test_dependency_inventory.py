@@ -18,6 +18,7 @@ import dependency_node_sources
 import dependency_python_sources
 import dependency_build_tools
 import dependency_actions
+import dependency_go_tools
 import fixture_provenance
 
 SPEC = importlib.util.spec_from_file_location('dependency_inventory', Path(__file__).with_name('dependency_inventory.py'))
@@ -64,6 +65,10 @@ class MetadataTests(unittest.TestCase):
         self.assertNotIn('fixtures', report['remaining_scopes'])
         self.assertNotIn('build-tool-archives', report['remaining_scopes'])
         self.assertNotIn('actions', report['remaining_scopes'])
+        self.assertNotIn('standalone-go-tools', report['remaining_scopes'])
+        self.assertEqual({tool['id'] for tool in report['standalone_go_tools']}, {'cosign', 'minio', 'mc'})
+        self.assertTrue(all(tool['module_count'] > 0 and tool['verification'] == 'go-mod-verify'
+                            for tool in report['standalone_go_tools']))
         self.assertTrue(report['components'])
         for row in report['components']:
             self.assertNotIn('vulnerabilities', row)
@@ -481,6 +486,11 @@ class ScannerToolTests(unittest.TestCase):
 
 class CollectorTests(unittest.TestCase):
     def setUp(self):
+        def standalone_tool(profile, _work, _environment, _cache, _expected_go):
+            return [], {}, {'id': profile['id'], 'module': profile['module'], 'module_count': 0}
+        standalone_mock = patch.object(INVENTORY, 'standalone_tool', side_effect=standalone_tool)
+        self.standalone_tool = standalone_mock.start()
+        self.addCleanup(standalone_mock.stop)
         def action_collect(rows, _work):
             rows = copy.deepcopy(rows)
             for row in rows:
@@ -526,6 +536,12 @@ class CollectorTests(unittest.TestCase):
         workflow = root / '.github/workflows/check.yml'
         workflow.parent.mkdir(parents=True)
         workflow.write_text('on: [push]\njobs:\n  build:\n    steps:\n      - uses: example/action@' + 'a' * 40 + '\n')
+        for name in dependency_go_tools.INPUTS:
+            target = root / name; target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((Path(__file__).parents[1] / name).read_bytes())
+        (root / dependency_go_tools.WORKFLOW).write_text(
+            'jobs:\n  sign-image:\n    steps:\n      - name: Install cosign\n'
+            '        run: go install github.com/sigstore/cosign/v2/cmd/cosign@v2.6.1\n')
         for _scope, mod, sums, module in INVENTORY.GRAPHS:
             (root / mod).parent.mkdir(parents=True, exist_ok=True)
             (root / mod).write_text('module ' + module + '\n\ngo 1.26.10\n')
@@ -612,6 +628,9 @@ class CollectorTests(unittest.TestCase):
             self.assertFalse(result['complete'])
             self.assertNotIn('python', result['remaining_scopes'])
             self.assertEqual(len(result['components']), 8)
+            self.assertNotIn('standalone-go-tools', result['remaining_scopes'])
+            self.assertEqual(self.standalone_tool.call_count, 3)
+            self.assertEqual({tool['id'] for tool in result['standalone_go_tools']}, {'cosign', 'minio', 'mc'})
             self.assertNotIn('actions', result['remaining_scopes'])
             self.action_collect.assert_called_once()
             self.assertNotIn('build-tool-archives', result['remaining_scopes'])
@@ -712,6 +731,30 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(calls, [])
             self.action_collect.assert_not_called()
             self.assertIn('@main', source.read_text())
+
+    def test_bad_standalone_pins_stop_before_tools_or_providers(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); cache = self.fixture(root); work = root / 'work'; work.mkdir()
+            source = root / dependency_go_tools.CATALOG
+            record = json.loads(source.read_text()); record['tools'][0]['sum'] = 'invalid'
+            source.write_text(json.dumps(record))
+            calls = []
+            with patch.object(INVENTORY, '_run', self.fake_runner(root, cache, calls)), self.assertRaises(INVENTORY.InventoryError):
+                INVENTORY.collect(root, work, {})
+            self.assertEqual(calls, [])
+            self.action_collect.assert_not_called(); self.standalone_tool.assert_not_called()
+
+    def test_standalone_pin_edit_during_collection_is_preserved_and_aborts_output(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); cache = self.fixture(root); work = root / 'work'; work.mkdir()
+            source = root / dependency_go_tools.CATALOG
+            delegate = self.fake_runner(root, cache, [])
+            def run(args, *positional, **keyword):
+                if args == ['go', 'mod', 'verify']: source.write_text('concurrent owner edit\n')
+                return delegate(args, *positional, **keyword)
+            with patch.object(INVENTORY, '_run', side_effect=run), self.assertRaises(INVENTORY.InventoryError):
+                INVENTORY.collect(root, work, {})
+            self.assertEqual(source.read_text(), 'concurrent owner edit\n')
 
     def test_workflow_edits_and_new_unclassified_workflows_abort_without_overwriting_them(self):
         for operation in ['mutate_workflow', 'add_workflow']:
