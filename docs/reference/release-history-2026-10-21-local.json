@@ -1,0 +1,353 @@
+{
+  "schema": "evydence-release-history-qualification.v1",
+  "ticket": "EVY-1408",
+  "date": "2026-10-21",
+  "recorded_at": "2026-10-21T10:54:39.420290+00:00",
+  "status": "local implementation and full qualification complete; documentation closure recorded separately",
+  "repository": "aatuh/evydence",
+  "qualified_source_commit": "02f74cdc2bc990f88decbed7f3d45cfd0bb4b051",
+  "branch": "master",
+  "source_tree_clean_before_and_after": true,
+  "implementation_commits": [
+    {
+      "commit": "f46244c71ab1e1720a98977686934ce1f1bd1f11",
+      "subject": "feat(release): enforce support and withdrawal policy (EVY-1408)"
+    },
+    {
+      "commit": "8dcaa8f7dff1a101f06b26df4af3d83d8b2193e1",
+      "subject": "feat(release): bind changelog fragments to source deliveries (EVY-1408)"
+    },
+    {
+      "commit": "78ef0fb16b4094c0b122895d3440f422aa67a7f5",
+      "subject": "ci(release): verify exact-source changelog label waivers (EVY-1408)"
+    },
+    {
+      "commit": "b441d15ad0cb46833e78397be7fc4e522fa22b57",
+      "subject": "feat(release): require source-generated candidate notes (EVY-1408)"
+    },
+    {
+      "commit": "16fd59e9b778cebd5ce2f66a0163bebf74b6d034",
+      "subject": "test(release): refresh reviewed native boundaries (EVY-1408)"
+    },
+    {
+      "commit": "4990233bb638e7b1c61652a45094d9e4328f9756",
+      "subject": "fix(build): require patched x509 verification toolchains (EVY-1408)"
+    },
+    {
+      "commit": "02f74cdc2bc990f88decbed7f3d45cfd0bb4b051",
+      "subject": "fix(ci): allow the initial changelog policy pull request (EVY-1408)"
+    }
+  ],
+  "qualified_source_files": [
+    {
+      "path": "scripts/change_fragments.py",
+      "sha256": "18b3d4c46f7a2262000b1b4435d9effc3a31066381b99c69bb1c866ab015fd32"
+    },
+    {
+      "path": "scripts/release_history.py",
+      "sha256": "8b24ac5a1a75a311b43dc001841ebb2b3d00886b9ae036d8300855b5f4be8aa8"
+    },
+    {
+      "path": "scripts/release_change_provider.py",
+      "sha256": "249e52bef845f8e2b777046e3169151682fead8c9b052365d999798260b46581"
+    },
+    {
+      "path": "scripts/release_notes.py",
+      "sha256": "bb1d188fe2eb9679c7dabd83d39c089a7df0baddbb04daaba1401b1280b426bb"
+    },
+    {
+      "path": "scripts/release_lifecycle.py",
+      "sha256": "674aea75e8fe1d631a4d50cffd5c5fbab32bbda46b3b70a8da79512855ca786e"
+    },
+    {
+      "path": "scripts/check_release_truth.py",
+      "sha256": "a20391597b88f68bb451d555987b043c266509b46f7b68d73defcd0a9d04a53c"
+    },
+    {
+      "path": "scripts/public_release_verify.sh",
+      "sha256": "3070f8cbd1b9af22406b7ba7fdcb5810edd16c0c717fc9fbf6fb6fde16267fec"
+    },
+    {
+      "path": "scripts/release_candidate_package.sh",
+      "sha256": "6dc6703c0b28fc14741b35710b6da311edbcca746e3b207ba6dc4aa7724586c8"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "7c88e66ea4964852a5e1137555cd11e24c5e443af90717735d7201c53899925a"
+    },
+    {
+      "path": ".github/workflows/release-artifacts.yml",
+      "sha256": "d6234458e48b137c0b6e18bd23dbff06e95bc7d3a0eaa9914495c4a46d982293"
+    },
+    {
+      "path": "changes/policy.json",
+      "sha256": "acc4057c150767364fefc65fe91054fbd7296a41ac692bbc79327d8c2a90d843"
+    },
+    {
+      "path": "release/lifecycle-policy.json",
+      "sha256": "1bc165dfb34a3f170cdfd6ce40cb3661d80b56496a924d2780e6f4005f3ee12a"
+    },
+    {
+      "path": "release/support-matrix.json",
+      "sha256": "c266cf6d3f1b9b42cf120eb34663eb6d670678460b9c53b0b03381029e73e41e"
+    },
+    {
+      "path": "internal/platform/config/testdata/native-boundary-review.json",
+      "sha256": "fee57143d0d5538da5f55db30af926b7b779b91765e02ed750342c519d19441b"
+    }
+  ],
+  "security_context": [
+    "cli",
+    "infra",
+    "library",
+    "provider-webhook",
+    "secrets-privacy"
+  ],
+  "trust_boundaries": [
+    "operator-controlled Git history and bounded local files",
+    "authenticated GitHub pull-request labels and exact source identities",
+    "release notes, artifacts, signing policy and publisher custody",
+    "Go compiler and certificate verification trust"
+  ],
+  "capabilities": {
+    "delivery_coverage": {
+      "source": "scripts/release_history.py",
+      "tests": "scripts/test_release_history.py",
+      "tests_passed": 22
+    },
+    "bounded_fragments": {
+      "source": "scripts/change_fragments.py",
+      "tests": "scripts/test_change_fragments.py",
+      "tests_passed": 9
+    },
+    "authenticated_label_waivers": {
+      "source": "scripts/release_change_provider.py",
+      "tests": "scripts/test_release_change_provider.py",
+      "tests_passed": 8
+    },
+    "candidate_notes_and_tag_guard": {
+      "source": "scripts/release_notes.py",
+      "tests": "scripts/test_release_notes.py",
+      "tests_passed": 13
+    },
+    "support_and_withdrawal": {
+      "source": "scripts/release_lifecycle.py",
+      "tests": "scripts/test_release_lifecycle.py",
+      "tests_passed": 17
+    }
+  },
+  "focused_observations": {
+    "make changelog-check": "passed; 52 tests plus actual source coverage and note inputs",
+    "python3 scripts/test_release_packaging_recipe.py": "passed; 5 tests, real Git/note checks with fake Go builds, archive equality and secret assertions preserved",
+    "python3 scripts/test_release_build_plan.py": "passed; 14 tests with real note checks and guarded native commands",
+    "python3 scripts/test_release_evidence_workflows.py": "passed; 11 offline tests",
+    "python3 scripts/test_release_signing.py": "passed; 11 offline tests",
+    "live PR reader": "read-only PR30 head/base binding and absence of waiver; merged PR29 no waiver",
+    "offline initial normal merge probe": "passed against the committed checker: actual fixture git merge --no-ff accepted, later uncovered material commit rejected; no provider/hosted proof"
+  },
+  "required_validation": {
+    "make changelog-check": "passed; 52 regressions and actual source/notes checks within production finalize",
+    "python3 scripts/check_release_truth.py": "passed within production finalize",
+    "make release-acceptance": "passed within production release-check; real artifact smoke included"
+  },
+  "full_qualification": {
+    "started_at": "2026-10-21T08:15:56.913241+00:00",
+    "finished_at": "2026-10-21T10:47:52.174986+00:00",
+    "status": "passed",
+    "actual_current_compiler": "go version go1.27.3 linux/amd64",
+    "minimum_compiler": "go1.26.10",
+    "checks": [
+      {
+        "name": "minimum-go-test",
+        "command": [
+          "/mnt/vm-storage/VMs/evydence-dev-1001/toolchains/go1.26.10/go/bin/go",
+          "test",
+          "./...",
+          "-timeout=30m"
+        ],
+        "status": "passed",
+        "started_at": "2026-10-21T08:15:59.826315+00:00",
+        "finished_at": "2026-10-21T08:36:41.250698+00:00",
+        "exit_code": 0
+      },
+      {
+        "name": "production-check",
+        "command": [
+          "make",
+          "production-check"
+        ],
+        "status": "passed",
+        "started_at": "2026-10-21T08:36:41.250917+00:00",
+        "finished_at": "2026-10-21T10:47:25.000382+00:00",
+        "exit_code": 0
+      },
+      {
+        "name": "public-release-verify",
+        "command": [
+          "make",
+          "public-release-verify",
+          "TAG=v0.1.0-rc.7"
+        ],
+        "status": "passed",
+        "started_at": "2026-10-21T10:47:25.000680+00:00",
+        "finished_at": "2026-10-21T10:47:44.155060+00:00",
+        "exit_code": 0
+      },
+      {
+        "name": "release-signing-check",
+        "command": [
+          "make",
+          "release-signing-check"
+        ],
+        "status": "passed",
+        "started_at": "2026-10-21T10:47:44.155277+00:00",
+        "finished_at": "2026-10-21T10:47:51.182510+00:00",
+        "exit_code": 0
+      }
+    ],
+    "go_memory_environment": {
+      "GOTOOLCHAIN": "local",
+      "GOMAXPROCS": "1",
+      "GOMEMLIMIT": "512MiB",
+      "GOGC": "50",
+      "GOFLAGS": "-p=1",
+      "MAKEFLAGS": "-j1"
+    },
+    "memory_profile": {
+      "reservation_gib": 6,
+      "live_process_scope_mib": 2048,
+      "static_process_scope_mib": 3072,
+      "static_phase_fixtures": "stopped before growth; restart after shrink",
+      "postgres_mib": 3072,
+      "minio_mib": 512,
+      "combined_hard_limits_mib": 5632,
+      "overhead_budget_mib": 512
+    },
+    "owned_test_services_stopped_afterward": true,
+    "original_fixture_limits_restored": true,
+    "race": {
+      "fresh_wiring_seconds": 1113.273,
+      "fresh_httpapi_seconds": 298.007,
+      "fresh_postgres_seconds": 390.699,
+      "complete_suite": "passed"
+    },
+    "stress": {
+      "cases": 17,
+      "passes_per_case": 30,
+      "total_passing_executions": 510,
+      "schedulers": [
+        1,
+        2,
+        4
+      ],
+      "claim": "local repeated single-writer and worker contention checks only"
+    },
+    "coverage": {
+      "total_percent": 86.9,
+      "critical_percent": 85.7,
+      "total_floor": 80,
+      "critical_floor": 81,
+      "fresh_wiring_seconds": 896.369
+    },
+    "gosec": {
+      "files": 1164,
+      "issues": 0
+    },
+    "vulnerability_scan": {
+      "called": 0,
+      "imported_uncalled": 1,
+      "required_uncalled": 5,
+      "claim": "dated project scan; not a vulnerability-free guarantee"
+    },
+    "production_binary": {
+      "actual_compiler": "go1.27.3",
+      "vcs_revision": "02f74cdc2bc990f88decbed7f3d45cfd0bb4b051",
+      "vcs_modified": false,
+      "claim": "local production signing smoke; not a published release payload"
+    },
+    "live_signing_check": {
+      "regressions": 31,
+      "scope": "publisher-secret names/custody, reviewer and master-only environment policy; secret values not read"
+    }
+  },
+  "toolchain_repair": {
+    "advisory": "GO-2026-6809",
+    "published_at": "2026-10-21T00:27:29Z",
+    "minimum": "1.26.10",
+    "current": "1.27.3",
+    "native_input_files_compared": 16,
+    "native_input_bytes_unchanged": 16,
+    "focused_native_and_sigstore_tests": "passed on both supported patched compilers",
+    "focused_sigstore_vulnerability_analysis": "zero called; imported and required advisories remain",
+    "qa_tools": "three locked tools rebuilt with Go 1.27.3 and metadata verified",
+    "scanner": "actual Syft 1.54.1 rebuilt with Go 1.27.3 and exact identity/recipe verified"
+  },
+  "qualification_history": [
+    {
+      "source": "b441d15ad0cb46833e78397be7fc4e522fa22b57",
+      "status": "failed",
+      "reason": "stale native review inventory; repaired in 16fd59e9"
+    },
+    {
+      "source": "16fd59e9b778cebd5ce2f66a0163bebf74b6d034",
+      "status": "failed",
+      "reason": "newly published called Go x509 advisory; repaired in 4990233b"
+    },
+    {
+      "source": "4990233bb638e7b1c61652a45094d9e4328f9756",
+      "status": "deliberately cancelled; no passing full matrix",
+      "reason": "initial policy PR bootstrap guard; repaired in 02f74cdc"
+    }
+  ],
+  "initial_integration": {
+    "required_merge_method": "normal merge preserving the pinned adoption ancestor",
+    "offline_initial_pr_and_synthetic_merge": "passed",
+    "actual_fixture_normal_merge_and_later_uncovered_delivery_rejection": "passed",
+    "authenticated_current_source_pr_or_hosted_ci_proven": false
+  },
+  "historical_public_release": {
+    "tag": "v0.1.0-rc.7",
+    "environment_override": {
+      "EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE": "1"
+    },
+    "status": "passed with exact legacy identity pins",
+    "artifact_bound_sbom_assurance": false,
+    "historical_keyless_workflow_assurance": false,
+    "older_assets_rebuilt_or_republished": false
+  },
+  "evidence_archive": {
+    "machine_local_name": "evy1408-full-qualified-02f74cdc2bc9-112ir_2o",
+    "manifest_sha256": "5d3948c3c211811dd2d0d56ef01abc94134be04c430cc15d3f5f3db5371e7a96",
+    "files": 201,
+    "bytes": 354334811,
+    "scope": "read-only local archive with reverified file digests; includes failed/cancelled attempts and successful artifacts"
+  },
+  "claims": {
+    "new_publication": false,
+    "independent_review_proven": false,
+    "hosted_integration_proven": false,
+    "project_tag_created": false
+  },
+  "limits": [
+    "Qualification applies to the committed runtime/tooling source above; final closure changes documentation, tracking and an unpublished fragment only.",
+    "Source remains local. No new source push, merge, workflow dispatch, project tag, release or registry publication was performed.",
+    "No new current-source hosted CI, protected keyless signing run, independent review or independent reproducibility proof is established.",
+    "Packaging recipe regressions use real Git and notes checking with fake Go build payloads; they are not independent release-build proof.",
+    "Local benchmark and contention results do not establish production capacity, multi-writer support or stable-release readiness.",
+    "Provider custody checks do not prove token contents, effective grants or expiry. Retired repository-key copies elsewhere cannot be ruled out.",
+    "Historical public assets and their original evidence remain unchanged; explicit legacy verification does not add artifact-bound SBOM or protected-workflow assurance.",
+    "CodeQL alerts 30 and 31 were not dismissed or otherwise mutated.",
+    "Whole-tool scanner advisories and uncalled project advisories remain documented; this is not a security, compliance, certification or support-SLA guarantee."
+  ],
+  "documentation_closure": {
+    "command": [
+      "make",
+      "docs-check"
+    ],
+    "status": "passed",
+    "exit_code": 0,
+    "observed_at": "2026-10-21T11:01:05.009743+00:00",
+    "log_sha256": "4a4ab20cbefec0a595f4b2122a0d9da57f1c88622e19604e49c59576e187d7c3",
+    "scope": "Documentation, tracking and an unpublished fragment; qualified runtime/tooling source remains unchanged."
+  }
+}

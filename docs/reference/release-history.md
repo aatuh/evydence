@@ -50,6 +50,11 @@ input before generation. The write option checks the original file before an
 atomic replacement and preserves it if validation fails or concurrent edits
 are detected. `make docs-check` also runs this check.
 
+Release helpers are included in the native-boundary source review. After
+reviewing a helper change, refresh its checksum and scoped findings in
+`internal/platform/config/testdata/native-boundary-review.json`. Preserve the
+checksum guards; this local source review does not establish independent review.
+
 The checker needs the recorded release and adoption Git ancestors, so CI must
 use a full-history checkout. It does not fetch missing history. Pending source
 edits need a pending valid fragment, which permits checking work before commit.
@@ -76,9 +81,12 @@ Use the label only when the maintainer has explicitly decided a public change
 description is unnecessary. The generic generated entry still records that
 other source changes exist.
 
-Normal merges and squash merges group a PR delivery. Rebase merges must carry a
-fragment in each material commit; do not use them to distribute a single final
-fragment across earlier commits. No provider data is stored as claimed review
+The first policy integration requires a normal merge that preserves the pinned
+adoption commit as an ancestor. Squashing that initial integration removes the
+required ancestor and causes subsequent checks to fail. On an already governed
+base, normal merges and squash merges group a PR delivery. Rebase merges must
+carry a fragment in each material commit; do not use them to distribute a single
+final fragment across earlier commits. No provider data is stored as claimed review
 proof. Fragment-only delivery checking works offline; label waivers require
 live read access. GitHub documents the
 [PR detail](https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request) and
@@ -156,3 +164,8 @@ and all previously published sections. Its contents describe development at
 that snapshot; they do not assert a new release, current qualification, or
 independent review. The generated section links this history while the selected
 public release predates adoption. Later release ranges use their new fragments.
+
+The [2026-10-21 local qualification record](release-history-2026-10-21-local.json)
+identifies the tested source, compiler security repair, full matrix, preserved
+attempts and evidence archive. It does not establish current-source hosted CI,
+independent review or publication.
