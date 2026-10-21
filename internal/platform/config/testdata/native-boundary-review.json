@@ -289,14 +289,19 @@
       "finding": "CloneOwned preserves a standard transport proxy; policy-bound New explicitly clears clone.Proxy. Native GCP/Azure paths use CloneOwned."
     },
     {
+      "source": "scripts/change_fragments.py",
+      "sha256": "18b3d4c46f7a2262000b1b4435d9effc3a31066381b99c69bb1c866ab015fd32",
+      "finding": "Scoped EVY-1408 source review: pure bounded public-fragment validation and deterministic text formatting, with no filesystem, subprocess, credential or provider access. Closed schemas reject claimed reviewed flags, malformed identities, control/surrogate text, duplicate IDs, oversized aggregate input and no-change fragment summaries. Rendering escapes public text and preserves the pinned manual-history bytes. Verified waiver entries cannot render as no changes; verification belongs to the authenticated caller."
+    },
+    {
       "source": "scripts/container_evidence.py",
       "sha256": "85ee82179db5af0a92591373a178407157f33215d9f9bc97a375074f7636f430",
       "finding": "Reviewed container producer metadata and immutable OCI subject verification. Source materials include the signing verifier/policy; hosted source/workflow SHA assertions stay distinct. Only the fixed pinned scanner is executed with its restricted environment; no signing/publishing credentials are required by generation."
     },
     {
       "source": "scripts/public_release_verify.sh",
-      "sha256": "2c38db9787456e70e1c3243b05e656b177c7d52b98e1f0787a9a27d4dba2bb4c",
-      "finding": "Reviewed publisher trust before CLI execution: fixed policy pins legacy manifest/public-key and requires GitHub certificate identity/issuer/ref/commit for new assets. Manifest-listed byte hashes precede extraction/execution. Downloaded CLI gets only private HOME/TMPDIR, fixed PATH and bounded Go runtime settings, excluding caller credentials. Operator gh authentication is used only for provider reads/verification."
+      "sha256": "3070f8cbd1b9af22406b7ba7fdcb5810edd16c0c717fc9fbf6fb6fde16267fec",
+      "finding": "Scoped EVY-1408 source review: default tag selection reads bounded current-release/lifecycle policy through a closed PATH-only Python environment; explicit and default withdrawals fail before gh, downloads or temporary outputs. Publisher trust still precedes extraction/execution, with exact identity/issuer/ref/SHA or explicit legacy pins and actual manifest-listed byte hashes. Downloaded CLI retains private HOME/TMPDIR, fixed PATH and bounded Go runtime settings without caller credentials. No signing or provider write is added."
     },
     {
       "source": "scripts/release_artifacts.py",
@@ -310,13 +315,18 @@
     },
     {
       "source": "scripts/release_candidate_package.sh",
-      "sha256": "bb88e7c547c13ca263bda0768ba1484dc4ef8951e32011a0aa664457a5004ade",
-      "finding": "EVY-1403 source review: retains unconditional production and final reproducibility-byte binding. The scanner path joins signing aliases and tag override as an unexported shell local; all release-only EVYDENCE exports are cleared before runtime/Go/Make children. A checksum/recipe/version scanner preflight occurs before expensive validation. Metadata gets the scanner by explicit argv, rechecks all 13 software subjects before signing, and includes every individual SBOM and evidence index in SHA256SUMS and the signed manifest. Fixed candidate paths and file-based ephemeral signing remain. Offline pipeline and release-only-environment regressions cover these changes; this inventory does not assert current-source live qualification."
+      "sha256": "6dc6703c0b28fc14741b35710b6da311edbcca746e3b207ba6dc4aa7724586c8",
+      "finding": "Scoped EVY-1408 source review: withdrawal policy runs in a closed PATH-only child before release-only settings are captured; signing aliases, scanner path and existing-tag override remain unexported and cleared before validation/Go/Make children. Pinned scanner checks and exact committed generated notes run before production validation or artifact replacement. Production and final reproducibility-byte binding remain unconditional. Notes are emitted from the same checked source rather than a static fallback and remain checksum/signed-manifest subjects. Real-Git notes tests retain archive equality, source-change guards and secret-isolation assertions; this source review is not live qualification or independent review proof."
     },
     {
       "source": "scripts/release_candidate_validate.sh",
-      "sha256": "1ec3f661e9915fca4720fcc05751635814b65df536064ce1542a7230d1bb4fb5",
-      "finding": "Operator validation uses fixed RC tag-derived directories and the support matrix. Existing checksum/signature/alias and release-language checks remain; the strict evidence verifier now reopens all actual software subjects against current Git HEAD. No signing key is received by this validator from normal packaging. Go release verification and file/CLI operations remain separate from runtime configuration; unknown/missing/tampered evidence fails rather than relaxing the profile."
+      "sha256": "cb42a1146c4a370ca8c930c9635a25ba5b73981336fff8fc8b0820826b0ede92",
+      "finding": "Scoped EVY-1408 source review: fixed RC-derived artifact paths now compare packaged notes against exact committed generated source text before Go signature verification. Full checksum, signature/alias and strict actual-subject checks remain. The obsolete decomposition-language grep is replaced by the stronger versioned notes projection; product non-claims and supported-profile checks remain. This validator receives no signing key from normal packaging and never publishes artifacts."
+    },
+    {
+      "source": "scripts/release_change_provider.py",
+      "sha256": "249e52bef845f8e2b777046e3169151682fead8c9b052365d999798260b46581",
+      "finding": "Scoped EVY-1408 source review: fixed github.com authenticated gh GET transport, bounded stdout/deadline and closed PATH/HOME/read-auth environment; publisher-specific exports, alternate hosts and debug output are excluded. Exact repository, master base, PR number/state, current head, merged identity/timestamp and case-sensitive no-changelog label are validated. Associated-PR listing is page/count bounded and full details must bind the delivery SHA; unknown/stale/provider failures never grant a waiver. Raw payloads, CLI diagnostics and tokens are not serialized; HOME/PATH remain trusted operator inputs. No provider mutations."
     },
     {
       "source": "scripts/release_evidence_metadata.py",
@@ -337,6 +347,21 @@
       "source": "scripts/release_evidence_verify.py",
       "sha256": "c820a73f53656b32f3620ac8a9060dc68e582959dfdc8ed79f3a3713858e5a82",
       "finding": "Read-only operator verifier with structured flags and no provider/credential lookup. Expected software subjects come from bounded actual archives; JSON evidence files are regular/no-follow, size-limited and duplicate-key checked. Release/OpenAPI/migration checksum lists have closed root-relative filename grammars, duplicate/count/byte bounds and actual file hashing, preventing reads outside the release or canonical migrations root. Strict subject verification has no absent-index fallback; historical identity compatibility requires explicit pinned policy. No downloaded binary is executed by this Python command."
+    },
+    {
+      "source": "scripts/release_history.py",
+      "sha256": "d8f984fd7189f2d0ba23618a606817b725830ce28f2cf4b36873cd774b2a3439",
+      "finding": "Scoped EVY-1408 source review: explicit Git root; closed read environment and fixed argv disable hooks, fsmonitor, replacement objects, external diffs and text conversion. Output/blob sizes, source IDs, delivery counts, paths and subprocess time are bounded. Exact ancestry, immutable published fragments, per-delivery coverage, pending-fragment requirements and PR head/base-parent binding precede formatting. Provider errors fail closed. Explicit changelog writes validate no-follow regular inputs and detect concurrent edits before atomic replacement. No Git mutation, fetch or publication occurs in this module."
+    },
+    {
+      "source": "scripts/release_lifecycle.py",
+      "sha256": "674aea75e8fe1d631a4d50cffd5c5fbab32bbda46b3b70a8da79512855ca786e",
+      "finding": "Scoped EVY-1408 source review: versioned source-owned support/withdrawal metadata; bounded JSON rejects duplicate/nonfinite/deep/invalid text, conflicts and malformed source/tag/notice identities. Directory-relative no-follow opens cover every input path component, bound regular-file reads and reject FIFO/symlink/traversal inputs. Default selection can explicitly yield no installable release while preserving historical warnings. CLI is read-only/stdout with safe diagnostics and no provider, credential or subprocess lookup."
+    },
+    {
+      "source": "scripts/release_notes.py",
+      "sha256": "bb1d188fe2eb9679c7dabd83d39c089a7df0baddbb04daaba1401b1280b426bb",
+      "finding": "Scoped EVY-1408 source review: fixed tag-derived notes paths, bounded no-follow inputs and deterministic public projection of validated fragments plus actual Git API/SDK/migration inventories. Missing/contradictory declarations, template non-claims or committed notes fail closed. Release checks require clean matching source and exact generated changelog; source identity is rechecked across validation. Tagging defaults to a read-only plan. Explicit local creation uses fixed reviewed SHA, refuses existing tags/non-master/withdrawals, disables hooks and automatic signing, and permits only operator identity settings alongside closed Git environment. No push, release dispatch or publication occurs; source checking does not establish independent review."
     },
     {
       "source": "scripts/release_oci.py",
