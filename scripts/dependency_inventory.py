@@ -26,6 +26,7 @@ import zipfile
 
 import dependency_policy as policy
 import dependency_node_sources as node_sources
+import dependency_python_sources as python_sources
 from release_lifecycle import read_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,7 +38,8 @@ GRAPHS = (
     ('qa', 'tools/go.mod', 'tools/go.sum', 'github.com/aatuh/evydence/tools'),
     ('scanner', 'release/tools/syft.go.mod', 'release/tools/syft.go.sum', 'github.com/anchore/syft'),
 )
-GENERATOR_FILES = ('scripts/dependency_inventory.py', 'scripts/dependency_node_sources.py', 'scripts/dependency_policy.py',
+GENERATOR_FILES = ('scripts/dependency_inventory.py', 'scripts/dependency_node_sources.py',
+                   'scripts/dependency_python_sources.py', 'scripts/python_qa.py', 'scripts/dependency_policy.py',
                    'scripts/release_lifecycle.py', 'scripts/support_matrix.py',
                    'tools/cmd/license-inventory/main.go')
 LICENSE_NAME = re.compile(r'(?:licen[sc]e|copying|copyright|unlicense)(?:[._-][A-Za-z0-9._-]+)?\Z', re.I)
@@ -341,10 +343,16 @@ def attach_licenses(component, files, matches):
     return result
 
 
-def attach_node_licenses(item, observation, files, matches):
+def attach_declared_licenses(item, files, matches):
     result = attach_licenses(item, files, matches)
     result['license_text_status'] = result.pop('license_status')
     result['license_text_candidate'] = result.pop('license')
+    result['license'], result['license_status'] = item['license'], item['license_status']
+    return result
+
+
+def attach_node_licenses(item, observation, files, matches):
+    result = attach_declared_licenses(item, files, matches)
     result['lockfile_license'] = item['license']
     result['artifact_license'] = observation['license']
     result['source'].update({key: value for key, value in observation.items() if key != 'license'})
@@ -511,12 +519,12 @@ def _classify_files(files, executable, root, environment, work):
 
 
 def collect(root, work_root, parent_environment):
-    """Verify Go/Node sources and observe root licenses; retain explicit scope gaps."""
+    """Verify Go/Node/Python source bytes; retain explicit scope gaps."""
     import support_matrix
     root, work_root = Path(root).resolve(), Path(work_root)
     if work_root.is_symlink() or not work_root.is_dir():
         raise InventoryError('inventory work root must be an existing directory')
-    names = set(GENERATOR_FILES) | {'release/support-matrix.json',
+    names = set(GENERATOR_FILES) | {'release/support-matrix.json', 'tools/requirements-qa.txt',
                                     'site/marketing/package.json', 'site/marketing/package-lock.json'}
     for _scope, mod, sums, _main in GRAPHS:
         names.update((mod, sums))
@@ -554,6 +562,12 @@ def collect(root, work_root, parent_environment):
             file['content'] = license_bytes[digest]
         raw_files.extend(files)
 
+    python_work = work / 'python'; python_work.mkdir()
+    try:
+        python_component, python_files = python_sources.fetch(inputs['tools/requirements-qa.txt'], python_work)
+        register_files(python_files)
+    except python_sources.PythonSourceError:
+        raise InventoryError('cannot verify bounded Python source artifacts') from None
     node_observations = {}
     node_work = work / 'npm'; node_work.mkdir()
     try:
@@ -599,21 +613,23 @@ def collect(root, work_root, parent_environment):
                   for item in components]
     node = [attach_node_licenses(item, *node_observations[(item['name'], item['version'])], matches)
             for item in node]
-    merged = merge_components(components + node)
+    python_component = attach_declared_licenses(python_component, python_files, matches)
+    merged = merge_components(components + node + [python_component])
     if any(read_bytes(root, name, MAX_BYTES) != raw for name, raw in inputs.items()):
         raise InventoryError('inventory source changed during collection')
     return {
         'schema': SCHEMA, 'complete': False,
-        'generator': {'go_version': version.split()[2],
+        'generator': {'go_version': version.split()[2], 'python_version': sys.version.split()[0],
                       'files': {name: hashlib.sha256(inputs[name]).hexdigest() for name in GENERATOR_FILES}},
         'inputs': {name: hashlib.sha256(raw).hexdigest() for name, raw in inputs.items() if name not in GENERATOR_FILES},
         'components': merged,
-        'remaining_scopes': ['python', 'fixtures', 'build-tool-archives', 'actions', 'images'],
+        'remaining_scopes': ['fixtures', 'build-tool-archives', 'actions', 'images'],
         'limitations': [
             'Go module graphs describe available dependencies, not only code linked into an artifact.',
             'Go root license bytes are checksum-bound observations; candidates are not approval or legal compatibility conclusions.',
             'Nested third-party notices and license obligations may require additional review.',
             'Node artifact license declarations and root text candidates are separate observations, not license approval.',
+            'Python observations cover the pinned PyYAML distributions, not the interpreter, installer bootstrap or all bundled third-party obligations.',
             'This is not an artifact SBOM, vulnerability scan or complete dependency inventory.',
         ],
     }

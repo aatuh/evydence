@@ -45,9 +45,19 @@ version can run `make python-qa-check` directly.
 
 That check rejects version drift and new transitive package requirements and
 checks that the Python SDK's static imports stay in the standard library or
-the wrapper directory. It does not verify installed OS-package bytes or dynamic
-imports. This pin alone does not complete Python source/license inventory;
-that scope remains explicitly missing from the current snapshot.
+the wrapper directory. Installed OS-package bytes and dynamic imports are
+outside that check.
+
+The separate inventory collector reads the release-specific
+[PyPI JSON endpoint](https://docs.pypi.org/api/json/) and requires every artifact
+hash in the pin to have one exact distribution record. Registry declarations
+do not substitute for artifact contents. Each pinned source archive and wheel
+is checked against its SHA-256 before bounded reads of root `PKG-INFO` or wheel
+`METADATA` and license/notice files. It verifies name/version, rejects new
+package requirements and preserves disagreements across distributions. No
+package setup, native extension or install hook runs during this inspection.
+Unsupported license prose remains unknown; text classification stays separate
+from declarations and admission. See Python's [core metadata specification](https://packaging.python.org/en/latest/specifications/core-metadata/).
 
 ## Implemented Admission Rules
 
@@ -167,7 +177,7 @@ files and unsafe paths. Configure `DEPENDENCY_INVENTORY_WORK_ROOT` to an existin
 scratch directory, preferably on the build-storage volume. The CLI also accepts
 `--output` as a path relative to the checkout for a private qualification report.
 
-This stage sets `complete: false`. Python, redistributed fixtures, additional
+This stage sets `complete: false`. Redistributed fixtures, additional
 build-tool archives, Actions/images and maintenance/live
 review evidence remain to be integrated before EVY-1407 can close. Go graph
 observations cover available modules, not only dependencies linked into a
@@ -175,13 +185,19 @@ particular binary; they are separate from artifact-bound release SBOMs.
 
 The [2026-10-21 snapshot](dependency-inventory.json) contains 1,522 Go
 module/version observations after real download/checksum verification and 327
-Node source archive observations. Go license observations include 1,411 candidates,
+Node source archive observations plus the pinned PyYAML distributions. Go license observations include 1,411 candidates,
 76 ambiguous results, 26 unknown and nine with no root license file. None of
 those classifications grants approval. All 327 npm manifest declarations match
 the lock. Their separate root-text observations are 241 candidates, three
 ambiguous, 17 unknown and 66 with no root license file. A candidate for one
 license does not discharge a compound declaration's additional obligations;
 bundled native dependencies and nested notices still require review.
+The PyYAML component records all 72 pinned wheels and one source distribution:
+every artifact declares MIT and contains the same root/dist-info license bytes,
+classified as an MIT candidate. This is an observation, not license approval or
+verification of the Python interpreter, installer bootstrap or all bundled
+third-party obligations. The report includes the Python and Go collector
+runtime versions alongside source/input hashes.
 The snapshot binds generator/input
 hashes and records the missing scopes; the unit tests reject a stale snapshot
 after those inputs change. The missing scopes and policy enforcement are still

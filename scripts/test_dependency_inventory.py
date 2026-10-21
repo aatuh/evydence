@@ -15,6 +15,7 @@ import unittest
 from unittest.mock import patch
 import zipfile
 import dependency_node_sources
+import dependency_python_sources
 
 SPEC = importlib.util.spec_from_file_location('dependency_inventory', Path(__file__).with_name('dependency_inventory.py'))
 INVENTORY = importlib.util.module_from_spec(SPEC)
@@ -56,16 +57,21 @@ class MetadataTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256((root / name).read_bytes()).hexdigest(), digest,
                              'inventory inputs or generator changed without regeneration')
         self.assertNotIn('npm-source-license', report['remaining_scopes'])
-        self.assertIn('python', report['remaining_scopes'])
+        self.assertNotIn('python', report['remaining_scopes'])
         self.assertIn('fixtures', report['remaining_scopes'])
         self.assertTrue(report['components'])
         for row in report['components']:
             self.assertNotIn('vulnerabilities', row)
             if row['ecosystem'] == 'gomod':
                 self.assertEqual(row['source']['verification'], 'go-mod-verify')
-            else:
+            elif row['ecosystem'] == 'npm':
                 self.assertEqual(row['source']['verification'], 'sha512-verified')
                 self.assertIn('package_json_sha256', row['source'])
+            elif row['ecosystem'] == 'pypi':
+                self.assertEqual(row['source']['verification'], 'sha256-verified')
+                self.assertTrue(row['source']['artifacts'])
+            else:
+                self.fail('unrecognized inventory ecosystem')
         raw = json.dumps(report)
         self.assertNotIn('/home/', raw)
         self.assertNotIn('/mnt/', raw)
@@ -154,6 +160,20 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(result['license_status'], 'ambiguous')
         self.assertEqual(result['lockfile_license'], 'MIT')
         self.assertEqual(result['artifact_license'], 'BSD-2-Clause')
+
+    def test_python_declarations_are_not_replaced_by_a_single_text_candidate(self):
+        row = {'ecosystem': 'pypi', 'name': 'PyYAML', 'version': '6.0.3', 'license': 'MIT',
+               'license_status': 'artifact-declared', 'source': {'verification': 'sha256-verified'}}
+        raw = b'text'; digest = hashlib.sha256(raw).hexdigest()
+        files = [{'file': 'fixture:LICENSE', 'kind': 'license', 'content': raw, 'sha256': digest}]
+        matches = {digest: {'sha256': digest, 'license': 'Apache-2.0', 'ids': ['Apache-2.0'],
+                           'coverage_percent': 100, 'status': 'candidate'}}
+        result = INVENTORY.attach_declared_licenses(row, files, matches)
+        self.assertEqual(result['license'], 'MIT')
+        self.assertEqual(result['license_status'], 'artifact-declared')
+        self.assertEqual(result['license_text_candidate'], 'Apache-2.0')
+        self.assertEqual(result['license_text_status'], 'candidate')
+        self.assertNotIn('license_evidence', row)
 
     def test_node_nested_and_scoped_locations_keep_identity_and_merge(self):
         manifest, lock = node()
@@ -375,6 +395,13 @@ class CollectorTests(unittest.TestCase):
         mock = patch.object(dependency_node_sources, 'fetch', side_effect=fetch)
         self.node_fetch = mock.start()
         self.addCleanup(mock.stop)
+        def python_fetch(_requirements, _work):
+            return ({'ecosystem': 'pypi', 'name': 'PyYAML', 'version': '6.0.3', 'origins': ['qa'],
+                     'license': 'MIT', 'license_status': 'artifact-declared', 'license_evidence': [],
+                     'source': {'verification': 'sha256-verified', 'artifacts': []}}, [])
+        python_mock = patch.object(dependency_python_sources, 'fetch', side_effect=python_fetch)
+        self.python_fetch = python_mock.start()
+        self.addCleanup(python_mock.stop)
 
     def test_cli_rejects_output_escape_before_starting_collection(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -397,6 +424,8 @@ class CollectorTests(unittest.TestCase):
         manifest, lock = node()
         (root / 'site/marketing/package.json').write_text(json.dumps(manifest))
         (root / 'site/marketing/package-lock.json').write_text(json.dumps(lock))
+        (root / 'tools/requirements-qa.txt').write_bytes(
+            (Path(__file__).parents[1] / 'tools/requirements-qa.txt').read_bytes())
         cache = root / 'cache'; cache.mkdir()
         raw = (Path(__file__).parents[1] / 'internal/platform/config/database_dsn.LICENSE').read_bytes()
         with zipfile.ZipFile(cache / 'module.zip', 'w') as archive:
@@ -446,8 +475,8 @@ class CollectorTests(unittest.TestCase):
                 result = INVENTORY.collect(root, work, dict(os.environ, GH_TOKEN='SECRET_CANARY'))
             self.assertEqual(result['schema'], 'evydence-dependency-inventory.v1')
             self.assertFalse(result['complete'])
-            self.assertIn('python', result['remaining_scopes'])
-            self.assertEqual(len(result['components']), 2)
+            self.assertNotIn('python', result['remaining_scopes'])
+            self.assertEqual(len(result['components']), 3)
             library = next(row for row in result['components'] if row['ecosystem'] == 'gomod')
             self.assertEqual(library['origins'], ['application', 'qa', 'scanner'])
             self.assertEqual(library['license'], 'MIT')
@@ -456,6 +485,10 @@ class CollectorTests(unittest.TestCase):
             npm = next(row for row in result['components'] if row['ecosystem'] == 'npm')
             self.assertEqual(npm['source']['verification'], 'sha512-verified')
             self.assertEqual(npm['license_status'], 'artifact-declared')
+            self.assertEqual(self.python_fetch.call_count, 1)
+            python = next(row for row in result['components'] if row['ecosystem'] == 'pypi')
+            self.assertEqual(python['license'], 'MIT')
+            self.assertEqual(python['license_text_status'], 'not-found')
             self.assertTrue(all(path.read_bytes() == raw for path, raw in before.items()))
             verify = [i for i, (args, _cwd, _env) in enumerate(calls) if args == ['go', 'mod', 'verify']]
             classifier = [i for i, (args, _cwd, _env) in enumerate(calls) if args[0].endswith('license-classifier')]
@@ -488,6 +521,16 @@ class CollectorTests(unittest.TestCase):
             self.assertFalse(any(args[:3] == ['go', 'list', '-m'] for args, _cwd, _env in calls),
                              'module graph work started before the npm source preflight')
             self.assertFalse((root / 'docs/reference/dependency-inventory.json').exists())
+
+    def test_failed_python_source_aborts_before_other_graph_work(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); cache = self.fixture(root); work = root / 'work'; work.mkdir()
+            calls = []
+            self.python_fetch.side_effect = dependency_python_sources.PythonSourceError()
+            with patch.object(INVENTORY, '_run', self.fake_runner(root, cache, calls)), self.assertRaises(INVENTORY.InventoryError):
+                INVENTORY.collect(root, work, {})
+            self.assertFalse(self.node_fetch.called)
+            self.assertFalse(any(args[:3] == ['go', 'list', '-m'] for args, _cwd, _env in calls))
 
     def test_concurrent_source_change_aborts_without_overwriting_the_owner_edit(self):
         with tempfile.TemporaryDirectory() as folder:
