@@ -2,7 +2,8 @@
 
 This reference is for contributors selecting dependencies and maintainers
 reviewing their admission. **EVY-1407 is in progress.** The offline admission
-rules and their regression tests exist; complete inventories, live PR review,
+rules and their regression tests exist. A bounded Go license-classification
+helper passes focused tests on both supported compilers; complete inventories, live PR review,
 license-source verification and the final release gate are not yet integrated.
 Passing these tests does not establish that the current dependency set has been
 audited or that a real dependency addition would be rejected by hosted CI.
@@ -71,14 +72,40 @@ Enforcement must load policy from a trusted reviewed source and bind provider
 data to the actual comparison. That integration remains incomplete. Test
 exceptions are synthetic and do not approve any real dependency or advisory.
 
+## License Classification Helper
+
+The build-tool helper under `tools/cmd/license-inventory/` uses the checksum-pinned
+`github.com/google/licensecheck v0.3.1` already selected by the release scanner.
+It adds no runtime or SDK dependency. It accepts license bytes through stdin;
+it does not open supplied paths, run package code, access the network or read
+credentials.
+
+The v1 scan protocol accepts a JSON array of unique `sha256` and
+`content_base64` string pairs, with canonical base64 matching the exact digest.
+Batches are limited to 64 files and 8 MiB of JSON; each UTF-8 license text is
+limited to 1 MiB. Unknown/duplicate fields, digest mismatches, malformed input
+and a late invalid record must fail without emitting a partial result.
+
+Results distinguish a single text-match **candidate** at at least 95% coverage,
+**ambiguous** multiple license IDs, and **unknown** text or URL-only matches.
+Multiple detected terms do not imply an `OR` choice. Candidate classification
+does not grant policy admission, establish legal rights or replace a reviewed
+source/license record. The file digest binds the observed bytes; it is not a
+publisher-authentication or artifact-signing claim.
+
+The [upstream repository](https://github.com/google/licensecheck) was not archived when checked on 2026-10-21, with its
+last recorded push on 2024-04-14. This is a maintenance-review signal, not proof
+of abandonment. The complete inventory and maintenance report remain pending.
+
 ## Verify This Unit
 
 ```sh
 make dependency-policy-test
+make dependency-inventory-test
 ```
 
-The tests are offline Python tests and require no credentials or installation.
-`make docs-check` includes them; that broader command can compile Go and must use
-the host RAM coordinator. Regression evidence covers expression semantics,
+The first target is offline Python. The inventory target compiles and runs Go
+tests; it and `make docs-check` must use the host RAM coordinator. Neither test
+requires provider credentials. `make docs-check` includes both. Regression evidence covers expression semantics,
 unknown metadata, exact and expiring exceptions, advisory severity, resource
 bounds and safe error handling. It does not replace the remaining ticket gates.

@@ -18,7 +18,7 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: repository-controls-test repository-controls-check
 .PHONY: release-repro-policy-test reproducible-build-check
 .PHONY: release-evidence-policy-test release-evidence-tools
-.PHONY: dependency-policy-test
+.PHONY: dependency-policy-test dependency-inventory-test
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
@@ -287,7 +287,10 @@ repository-controls-check: ## Inspect live GitHub controls using the operator's 
 dependency-policy-test: ## Test offline dependency admission and exception rules
 	@python3 scripts/test_dependency_policy.py
 
-docs-check: dependency-policy-test release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+dependency-inventory-test: ## Test the bounded license-byte classification helper
+	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/license-inventory
+
+docs-check: dependency-policy-test dependency-inventory-test release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/dependency-policy.md
 	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md

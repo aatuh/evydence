@@ -23,8 +23,8 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ### Added
 
-- Add offline dependency admission rules and exception regressions (`EVY-1407-dependency-policy`).
-  Evaluate bounded license expressions with exact license-exception pairing and reject missing license metadata or high, critical and unknown-severity advisories. Require exact dependency and advisory/license scope, owner, reason, review reference and an unexpired review window of at most 90 days for exceptions. Run offline rule regressions in documentation validation and document dependency selection/removal criteria.
+- Add offline dependency rules and bounded license classification (`EVY-1407-dependency-policy`).
+  Evaluate bounded license expressions with exact license-exception pairing and reject missing license metadata or high, critical and unknown-severity advisories. Require exact dependency and advisory/license scope, owner, reason, review reference and an unexpired review window of at most 90 days for exceptions. Classify exact license bytes with the pinned existing release-scanner library, distinguish candidates from ambiguous or unknown results, and reject invalid batches without partial output. Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria.
 
 ### Changed
 
