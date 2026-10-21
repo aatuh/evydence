@@ -124,8 +124,8 @@ def render_unreleased(fragments, policy, include_legacy=True, exempt_commits=Non
         lines.append('')
     if exempt_commits:
         lines += ['### Other Source Changes', '',
-                  '- Additional source deliveries have a verified `no-changelog` pull-request label:',
-                  '  ' + ', '.join('`' + value + '`' for value in sorted(set(exempt_commits))) + '.', '']
+                  '- Additional source deliveries have a verified `no-changelog` pull-request label.',
+                  '  Their source coverage is checked against authenticated GitHub metadata.', '']
     if not values and not include_legacy and not exempt_commits:
         lines += ['- No unreleased changes.', '']
     return '\n'.join(lines).rstrip() + '\n\n'

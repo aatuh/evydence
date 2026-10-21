@@ -5,7 +5,8 @@
   "summary": "Enforce release support policy and source-linked changelog fragments",
   "details": [
     "Validate event-based security support windows and preserve withdrawal records with explicit install exclusions.",
-    "Require material source deliveries to update a versioned change fragment; generate the Unreleased section without rewriting earlier manual or published notes."
+    "Require material source deliveries to update a versioned change fragment; generate the Unreleased section without rewriting earlier manual or published notes.",
+    "Allow an explicit no-changelog PR label only after authenticated repository, state and exact-source verification; normal pull requests may carry one fragment across their delivery."
   ],
   "compatibility": {
     "api": "unchanged",
@@ -13,7 +14,7 @@
     "migrations": "none",
     "notes": "This change affects release tooling and documentation; it does not change HTTP, SDK or database contracts."
   },
-  "security": "Withdrawal selection runs before release downloads or packaging. Fragment and Git inputs are bounded, reject symlinks, and do not claim independent review.",
+  "security": "Withdrawal selection runs before release downloads or packaging. Fragment and Git inputs are bounded and reject symlinks. Label waivers use authenticated read-only GitHub APIs with exact repository and source binding; provider payloads and publisher secrets are not logged or passed to unrelated tools.",
   "limitations": [
     "Local checks do not prove independent review, token scope, artifact publication or hosted integration.",
     "The earlier source snapshot remains historical development evidence and is not a newly published release."

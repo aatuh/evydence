@@ -53,8 +53,35 @@ are detected. `make docs-check` also runs this check.
 The checker needs the recorded release and adoption Git ancestors, so CI must
 use a full-history checkout. It does not fetch missing history. Pending source
 edits need a pending valid fragment, which permits checking work before commit.
-The CLI currently requires fragments for material deliveries; provider label
-verification is a separate integration step.
+To check an open pull request as one delivery, use its GitHub number:
+
+```sh
+python3 scripts/release_history.py --pull-request 42 check
+```
+
+The reader authenticates through `gh` and fetches the PR from
+`aatuh/evydence`. It requires `master` as the base, the exact current head or
+GitHub's base/head synthetic merge, and the exact `no-changelog` label for a
+delivery without a fragment. A local argument selects the PR to verify; it does
+not grant an exemption. Provider failure or stale source identity fails closed.
+Committed first-parent deliveries without fragments require a matching merged
+PR, bound to its exact merge commit and label through the associated-PR and
+full-detail APIs. Label removal causes subsequent checks to reject the waiver.
+Use the label only when the maintainer has explicitly decided a public change
+description is unnecessary. The generic generated entry still records that
+other source changes exist.
+
+Normal merges and squash merges group a PR delivery. Rebase merges must carry a
+fragment in each material commit; do not use them to distribute a single final
+fragment across earlier commits. No provider data is stored as claimed review
+proof. Fragment-only delivery checking works offline; label waivers require
+live read access. GitHub documents the
+[PR detail](https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request) and
+[associated PR](https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit)
+APIs and their read permissions. CI supplies the number through
+`EVYDENCE_CHANGELOG_PULL_REQUEST` and a read-only Actions token; label changes
+rerun ordinary PR CI without executing contributor code in a privileged
+`pull_request_target` workflow.
 
 ## Earlier History
 

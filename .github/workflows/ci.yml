@@ -6,6 +6,7 @@ on:
       - master
       - main
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
 
 permissions:
@@ -40,6 +41,9 @@ jobs:
 
   production-check:
     name: Production Check
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -56,6 +60,10 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
+      # Only this read token reaches the label reader; release credentials are
+      # unavailable in ordinary pull_request CI, including forked contributions.
+      GH_TOKEN: ${{ github.token }}
+      EVYDENCE_CHANGELOG_PULL_REQUEST: ${{ github.event.pull_request.number }}
       EVYDENCE_API_KEY_PEPPER: ci-test-pepper
       EVYDENCE_TEST_DATABASE_URL: postgres://evydence:change-me@localhost:5432/evydence?sslmode=disable
       EVYDENCE_TEST_S3_ENDPOINT: 127.0.0.1:9000

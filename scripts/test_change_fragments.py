@@ -107,6 +107,8 @@ class ChangeFragmentTests(unittest.TestCase):
                                                exempt_commits=['c' * 40])
         self.assertNotIn('No unreleased changes.', exempted)
         self.assertIn('no-changelog', exempted)
+        self.assertEqual(exempted, FRAGMENTS.render_unreleased([], policy(), include_legacy=False,
+                                                               exempt_commits=['d' * 40]))
 
     def test_fragment_text_is_plain_markdown_without_html_or_link_execution(self):
         value = fragment()

@@ -28,6 +28,10 @@ class ReleaseHistoryTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
+        environment_patch = patch.dict(os.environ)
+        environment_patch.start()
+        self.addCleanup(environment_patch.stop)
+        os.environ.pop('EVYDENCE_CHANGELOG_PULL_REQUEST', None)
         self.root = Path(self.temporary.name)
         self.environment = dict(os.environ, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
                                 GIT_AUTHOR_NAME='fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
@@ -206,6 +210,84 @@ class ReleaseHistoryTests(unittest.TestCase):
         self.commit('chore: restore old note')
         with self.assertRaises(HISTORY.HistoryError):
             HISTORY.inspect(self.root)
+
+    def open_pull_fixture(self, labelled=False, adopt=True):
+        if adopt:
+            self.adopt()
+        base = self.git('rev-parse', 'HEAD')
+        self.git('checkout', '-b', 'contributor-change')
+        self.write('internal/source.go', 'package fixture\n// first PR commit without a note\n')
+        self.commit('feat: first source commit')
+        self.write('internal/source.go', 'package fixture\n// final PR source\n')
+        if not labelled:
+            self.add_fragment(detail='One fragment covers the complete reviewed PR delivery.')
+        head = self.commit('fix: finish PR')
+        return {'number': 42, 'base_commit': base, 'head_commit': head, 'no_changelog': labelled}
+
+    def test_pr_fragment_covers_whole_delivery_and_exact_synthetic_merge(self):
+        context = self.open_pull_fixture()
+        plan = HISTORY.inspect(self.root, pull_request=context)
+        self.assertEqual(len(plan['fragments']), 1)
+        self.git('checkout', 'master')
+        self.git('merge', '--no-ff', '--no-edit', 'contributor-change')
+        plan = HISTORY.inspect(self.root, pull_request=context)
+        self.assertEqual(plan['source_commit'], self.git('rev-parse', 'HEAD'))
+
+    def test_current_pr_label_waives_only_bound_committed_pr_source(self):
+        context = self.open_pull_fixture(labelled=True)
+        plan = HISTORY.inspect(self.root, pull_request=context)
+        self.assertEqual(plan['exempt_commits'], [context['head_commit']])
+        self.write('internal/source.go', 'package fixture\n// uncommitted source cannot use label\n')
+        with self.assertRaises(HISTORY.HistoryError):
+            HISTORY.inspect(self.root, pull_request=context)
+
+    def test_pr_context_rejects_wrong_head_and_merge_parent_order(self):
+        context = self.open_pull_fixture(labelled=True)
+        wrong = dict(context, head_commit='0' * 40)
+        with self.assertRaises(HISTORY.HistoryError):
+            HISTORY.inspect(self.root, pull_request=wrong)
+        self.git('checkout', 'master')
+        with self.assertRaises(HISTORY.HistoryError):
+            HISTORY.inspect(self.root, pull_request=context)
+        tree = self.git('rev-parse', context['head_commit'] + '^{tree}')
+        reverse = self.git('commit-tree', tree, '-p', context['head_commit'],
+                           '-p', context['base_commit'], '-m', 'wrong synthetic parent order')
+        self.git('checkout', '--detach', reverse)
+        with self.assertRaises(HISTORY.HistoryError):
+            HISTORY.inspect(self.root, pull_request=context)
+
+    def test_pr_context_checks_existing_base_deliveries_and_rejects_stale_head(self):
+        self.adopt()
+        self.write('internal/source.go', 'package fixture\n// missing base note\n')
+        missing_base = self.commit('fix: material base change without a note')
+        context = self.open_pull_fixture(labelled=True, adopt=False)
+        with self.assertRaises(HISTORY.HistoryError):
+            HISTORY.inspect(self.root, pull_request=context)
+        self.assertTrue(HISTORY.inspect(self.root, pull_request=context,
+                                        exemption=lambda sha: sha == missing_base))
+        self.write('internal/source.go', 'package fixture\n// source advanced after API read\n')
+        self.commit('fix: stale API head')
+        with self.assertRaises(HISTORY.HistoryError):
+            HISTORY.inspect(self.root, pull_request=context,
+                            exemption=lambda sha: sha == missing_base)
+
+    def test_normal_merged_pr_accepts_one_fragment_without_provider_waiver(self):
+        self.open_pull_fixture()
+        self.git('checkout', 'master')
+        self.git('merge', '--no-ff', '--no-edit', 'contributor-change')
+        self.assertEqual(len(HISTORY.inspect(self.root)['fragments']), 1)
+
+    def test_cli_fetches_pr_context_and_passes_only_verified_delivery_to_inspector(self):
+        context = self.open_pull_fixture(labelled=True)
+        with patch.object(HISTORY.provider, 'GitHub') as constructor:
+            client = constructor.return_value
+            client.open_pull.return_value = context
+            client.merged_exemption.side_effect = RuntimeError('unexpected provider call for covered base')
+            self.assertEqual(HISTORY.main(['--root', str(self.root), '--pull-request', '42',
+                                           'render', '--write']), 0)
+            client.open_pull.assert_called_once_with(42)
+            client.merged_exemption.assert_not_called()
+        self.assertIn('no-changelog', (self.root / 'CHANGELOG.md').read_text())
 
     def test_published_fragments_are_immutable_and_excluded_from_new_notes(self):
         published = self.adopt()

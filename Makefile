@@ -203,6 +203,7 @@ release-lifecycle-check: ## Validate security support scope, withdrawals and gen
 .PHONY: changelog-check
 changelog-check: ## Validate change fragments, delivery coverage and the generated changelog
 	@python3 scripts/test_change_fragments.py
+	@python3 scripts/test_release_change_provider.py
 	@python3 scripts/test_release_history.py
 	@python3 scripts/release_history.py check
 

@@ -19,7 +19,7 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 ### Changed
 
 - Enforce release support policy and source-linked changelog fragments (`EVY-1408-release-history`).
-  Validate event-based security support windows and preserve withdrawal records with explicit install exclusions. Require material source deliveries to update a versioned change fragment; generate the Unreleased section without rewriting earlier manual or published notes.
+  Validate event-based security support windows and preserve withdrawal records with explicit install exclusions. Require material source deliveries to update a versioned change fragment; generate the Unreleased section without rewriting earlier manual or published notes. Allow an explicit no-changelog PR label only after authenticated repository, state and exact-source verification; normal pull requests may carry one fragment across their delivery.
 
 ## Historical source snapshot f46244c7 (not a release)
 

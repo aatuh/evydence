@@ -17,6 +17,7 @@ import unicodedata
 
 import change_fragments as changes
 import release_lifecycle as lifecycle
+import release_change_provider as provider
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_GIT_OUTPUT = 8 * 1024 * 1024
@@ -99,6 +100,20 @@ class Repository:
     def head(self):
         return self.commit(self.data(['rev-parse', '--verify', 'HEAD^{commit}'], 128).decode('ascii').strip())
 
+    def parents(self, commit):
+        raw = self.data(['rev-list', '--parents', '-n', '1', self.commit(commit)], 4096)
+        try:
+            values = raw.decode('ascii').split()
+            if not values or values[0] != commit:
+                raise HistoryError('invalid source parent metadata')
+            return [self.commit(value) for value in values[1:]]
+        except UnicodeError:
+            raise HistoryError('invalid source parent identities') from None
+
+    def common_ancestor(self, before, after):
+        return self.commit(self.data(['merge-base', self.commit(before), self.commit(after)],
+                                     128).decode('ascii').strip())
+
     def ancestor(self, before, after):
         return self.run(['merge-base', '--is-ancestor', self.commit(before), self.commit(after)],
                         128, allowed=(0, 1))[0] == 0
@@ -153,6 +168,8 @@ class Repository:
         raw = self.data(['rev-list', '--first-parent', '--reverse', self.commit(base) + '..' + self.commit(head)])
         try:
             commits = [self.commit(value) for value in raw.decode('ascii').splitlines()]
+            if len(commits) > 512:
+                raise HistoryError('release delivery range exceeds its review budget')
             result = []
             for commit in commits:
                 parents = self.data(['rev-list', '--parents', '-n', '1', commit], 4096).decode('ascii').split()
@@ -180,7 +197,7 @@ def read_fragment(repo, commit, path):
     return changes.validate_fragment(json_blob(raw), identifier) if raw is not None else None
 
 
-def inspect(root, exemption=None):
+def inspect(root, exemption=None, pull_request=None):
     try:
         repo = Repository(root)
         root = repo.root
@@ -190,10 +207,22 @@ def inspect(root, exemption=None):
         lifecycle.installable_tag(lifecycle.validate_policy(
             lifecycle.read_json(root, 'release/lifecycle-policy.json')), metadata)
         head = repo.head()
+        history_head, pull_delivery = head, None
+        if pull_request is not None:
+            provider.number(pull_request['number'])
+            pull_base = repo.commit(pull_request['base_commit'])
+            pull_head = repo.commit(pull_request['head_commit'])
+            if type(pull_request['no_changelog']) is not bool:
+                raise HistoryError('invalid pull request exemption state')
+            if head != pull_head and repo.parents(head) != [pull_base, pull_head]:
+                raise HistoryError('checkout must match exact PR head or its base/head merge')
+            history_head = pull_base
+            pull_delivery = (pull_head, repo.common_ancestor(pull_base, pull_head))
         adoption = policy['adoption_commit']
         previous = release['source_commit']
         if (not repo.ancestor(policy['legacy_release_commit'], adoption)
-                or not repo.ancestor(adoption, head) or not repo.ancestor(previous, head)):
+                or not repo.ancestor(adoption, head) or not repo.ancestor(previous, head)
+                or not repo.ancestor(adoption, history_head) or not repo.ancestor(previous, history_head)):
             raise HistoryError('release/adoption source must be available ancestors of HEAD')
         if repo.ancestor(previous, adoption):
             if previous != policy['legacy_release_commit']:
@@ -214,14 +243,20 @@ def inspect(root, exemption=None):
         changes.update_changelog(changelog, [], policy, include_legacy)
         all_changed = set(repo.difference(base, head))
         exempt_commits = []
-        for commit, parent in repo.deliveries(base, head):
+        deliveries = repo.deliveries(base, history_head)
+        if pull_delivery is not None:
+            deliveries.append(pull_delivery)
+        for commit, parent in deliveries:
             paths = repo.difference(parent, commit)
             if any(repo.blob(previous, path) is not None for path in paths if fragment_path(path)):
                 raise HistoryError('published change fragments cannot be edited or removed in any delivery')
             notes = [read_fragment(repo, commit, path) for path in paths if fragment_path(path)]
             if any(visible_path(path) for path in paths) and not any(note is not None for note in notes):
                 try:
-                    approved = exemption(commit) if exemption is not None else False
+                    if pull_delivery is not None and commit == pull_delivery[0]:
+                        approved = pull_request['no_changelog']
+                    else:
+                        approved = exemption(commit) if exemption is not None else False
                 except Exception:
                     raise HistoryError('cannot verify no-changelog delivery exemption') from None
                 if approved is not True:
@@ -247,7 +282,8 @@ def inspect(root, exemption=None):
                 'fragments': fragments, 'include_legacy': include_legacy,
                 'changed_paths': sorted(all_changed), 'exempt_commits': exempt_commits,
                 'changelog': changelog}
-    except (lifecycle.PolicyError, changes.ChangeError, UnicodeError, OSError):
+    except (lifecycle.PolicyError, changes.ChangeError, provider.ProviderError,
+            UnicodeError, OSError, KeyError, TypeError):
         raise HistoryError('invalid bounded change history input') from None
 
 
@@ -280,13 +316,17 @@ def replace_changelog(root, original, rendered):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=ROOT)
+    parser.add_argument('--pull-request', type=int, default=os.environ.get('EVYDENCE_CHANGELOG_PULL_REQUEST') or None,
+                        help='verify and check this open GitHub PR as a single delivery')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('check', help='check source coverage and exact generated changelog')
     render = commands.add_parser('render', help='preview the generated changelog on stdout')
     render.add_argument('--write', action='store_true', help='atomically update CHANGELOG.md after validation')
     args = parser.parse_args(argv)
     try:
-        plan = inspect(args.root)
+        github = provider.GitHub()
+        pull = github.open_pull(args.pull_request) if args.pull_request is not None else None
+        plan = inspect(args.root, exemption=github.merged_exemption, pull_request=pull)
         result = changes.update_changelog(plan['changelog'], plan['fragments'], plan['policy'],
                                           plan['include_legacy'], plan['exempt_commits'])
         if args.command == 'check':
@@ -298,7 +338,7 @@ def main(argv=None):
         else:
             sys.stdout.write(result)
         return 0
-    except (HistoryError, changes.ChangeError, lifecycle.PolicyError, OSError):
+    except (HistoryError, changes.ChangeError, lifecycle.PolicyError, provider.ProviderError, OSError):
         print('release history: invalid source coverage, fragment or generated changelog; '
               'check policy, delivery fragments and render --write', file=sys.stderr)
         return 2
