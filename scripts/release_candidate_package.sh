@@ -89,6 +89,7 @@ if [[ -z "$release_syft" ]]; then
   exit 2
 fi
 python3 scripts/release_evidence_tools.py --verify-executable "$release_syft"
+python3 scripts/release_notes.py --tag "$tag" check
 
 echo "Packaging Evydence release candidate ${tag}"
 make production-check
@@ -141,13 +142,7 @@ cp openapi.yaml "$distdir/openapi.yaml"
 cp "$build_manifest" "$distdir/release-build-manifest.json"
 cp coverage.out "$distdir/coverage.out"
 cp tmp/release-check-summary.txt "$distdir/release-check-summary.txt"
-notes_source="docs/reference/release-notes-${tag}.md"
-if [[ ! -f "$notes_source" ]]; then
-  notes_source="docs/reference/release-notes-template.md"
-fi
-cp "$notes_source" "$distdir/release-notes.md"
-sed -i.bak "s/{{TAG}}/${tag}/g; s/v0.1.0-rc.1/${tag}/g" "$distdir/release-notes.md"
-rm -f "$distdir/release-notes.md.bak"
+python3 scripts/release_notes.py --tag "$tag" emit > "$distdir/release-notes.md"
 
 (cd "$distdir" && sha256sum openapi.yaml > openapi.sha256)
 (cd "$repo_root" && find migrations -type f -print | LC_ALL=C sort | xargs sha256sum > "$distdir/migrations.sha256")

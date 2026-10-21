@@ -17,6 +17,21 @@ class EvidenceWorkflowTests(unittest.TestCase):
     def workflow(self, name):
         return yaml.load((ROOT / '.github/workflows' / name).read_text(), Loader=yaml.BaseLoader)
 
+    def test_note_review_precedes_expensive_build_and_rechecks_before_provider_writes(self):
+        jobs = self.workflow('release-artifacts.yml')['jobs']
+        preview = jobs['check-release-notes']
+        self.assertNotIn('environment', preview)
+        self.assertEqual(preview['permissions'], {'contents': 'read', 'pull-requests': 'read'})
+        self.assertIn('check-release-notes', jobs['verify-reproducible-builds']['needs'])
+        self.assertIn('release_notes.py', str(preview['steps']))
+        self.assertTrue(any(s.get('uses', '').startswith('actions/upload-artifact@') for s in preview['steps']))
+        for name in ['attest-release', 'publish-draft-release']:
+            steps = jobs[name]['steps']
+            checker = next(i for i, step in enumerate(steps) if 'release_notes.py' in step.get('run', ''))
+            authority = next(i for i, step in enumerate(steps) if step.get('uses', '').startswith('actions/attest@')
+                             or step['name'] == 'Create or update draft GitHub release')
+            self.assertLess(checker, authority)
+
     def test_release_authority_is_protected_and_uses_ephemeral_manifest_keys(self):
         workflow = self.workflow('release-artifacts.yml')
         self.assertNotIn('push', workflow['on'])
@@ -69,6 +84,7 @@ class EvidenceWorkflowTests(unittest.TestCase):
             go.write_text('''#!/usr/bin/python3
 import os,pathlib,sys
 if any(k.startswith('EVYDENCE_RELEASE_') for k in os.environ):raise SystemExit(93)
+if 'GH_TOKEN' in os.environ or 'label_reader_token' in os.environ:raise SystemExit(94)
 for flag,value in [('--private-out','FIXTURE_KEY'),('--public-out','FIXTURE_PUBLIC')]:
  p=pathlib.Path(sys.argv[sys.argv.index(flag)+1]);p.write_text(value);p.chmod(0o600)
 ''');go.chmod(0o700)
@@ -78,10 +94,12 @@ import os,pathlib,sys
 assert os.environ['EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64']=='FIXTURE_KEY'
 assert os.environ['EVYDENCE_RELEASE_SYFT']=='/qualified/scanner'
 assert os.environ['EVYDENCE_RELEASE_ALLOW_EXISTING_TAG']=='1'
+assert os.environ['GH_TOKEN']=='FIXTURE_READ_ONLY_TOKEN'
 pathlib.Path('packaged').touch()
 ''');package.chmod(0o700)
             environment = dict(os.environ, PATH=str(root/'bin')+os.pathsep+os.environ['PATH'],
                                RUNNER_TEMP=str(root), RELEASE_TAG='v0.0.0-rc.1404',
+                               GH_TOKEN='FIXTURE_READ_ONLY_TOKEN',
                                EVYDENCE_RELEASE_SYFT='/qualified/scanner')
             for key,value in job.get('env',{}).items():
                 if '${{' not in value: environment[key] = value

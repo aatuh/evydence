@@ -43,7 +43,11 @@ The target runs `scripts/release_candidate_package.sh`, which requires a clean
 worktree, a release-candidate tag such as `v0.1.0-rc.1`, no existing local tag
 unless the protected master publication workflow explicitly allows it, live PostgreSQL through
 `EVYDENCE_TEST_DATABASE_URL`, a verified pinned scanner installation selected
-by `EVYDENCE_RELEASE_SYFT`, and release signing material. It runs
+by `EVYDENCE_RELEASE_SYFT`, release signing material, and matching committed
+`docs/reference/release-notes-<tag>.md` generated from the source fragments.
+Prepare and review that file using [release history](release-history.md#candidate-notes-and-local-tagging)
+before packaging or tagging; missing or contradictory notes stop packaging
+before the production gate or artifact replacement. It runs
 `make production-check`, builds the release archive matrix, writes checksums,
 generates and checks artifact-bound SBOM/provenance metadata, signs the complete evidence set,
 verifies the manifest signature, and validates the release-note language.

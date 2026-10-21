@@ -14,6 +14,7 @@ import support_matrix as support
 import release_evidence_tools
 import release_scanner
 import release_sbom
+import test_release_packaging_recipe
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,7 +52,7 @@ class ReleaseBuildPlanTests(unittest.TestCase):
         path.chmod(0o700)
 
     def run_plan(self, *args):
-        return subprocess.run(["bash", str(SCRIPT), *args], cwd=self.root,
+        return subprocess.run(["bash", str(getattr(self, 'package_script', SCRIPT)), *args], cwd=self.root,
                               env=self.environment, capture_output=True, text=True, timeout=10)
 
     def test_plan_is_read_only_and_matches_the_actual_policy(self):
@@ -137,6 +138,12 @@ esac
 
     def prepare_gate_result(self, mode):
         self.prepare_clean_checkout("go"+support.load_policy(ROOT)["go"]["current"])
+        # The new notes preflight runs unchanged against real committed source.
+        # Keep native validation/build interception and all original assertions.
+        fixture = test_release_packaging_recipe.PackagingRecipeTests()
+        fixture.root = Path(tempfile.mkdtemp(prefix='notes-fixture-', dir=self.root))
+        checkout, _environment = fixture.checkout('source', tag='v0.0.0-rc.1401')
+        self.package_script = checkout / 'scripts/release_candidate_package.sh'
         self.environment.update(PLAN_TEST_MODE=mode, PLAN_TEST_STATE=str(self.root / "gate-finished"),
                                 EVYDENCE_TEST_DATABASE_URL="unused-test-fixture",
                                 EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64=base64.b64encode(bytes(64)).decode())
@@ -147,7 +154,7 @@ case "$*" in
     if [ -f "$PLAN_TEST_STATE" ] && [ "$PLAN_TEST_MODE" = head ]; then
       printf '%s\\n' bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     else
-      printf '%s\\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      REAL_GIT "$@"
     fi ;;
   "status --porcelain --untracked-files=all")
     if [ -f "$PLAN_TEST_STATE" ] && [ "$PLAN_TEST_MODE" = git-error ]; then
@@ -155,10 +162,12 @@ case "$*" in
     fi
     if [ -f "$PLAN_TEST_STATE" ] && [ "$PLAN_TEST_MODE" = dirty ]; then
       printf '%s\\n' ' M source.go'
+    else
+      REAL_GIT "$@"
     fi ;;
-  *) exit 0 ;;
+  *) REAL_GIT "$@" ;;
 esac
-''')
+'''.replace('REAL_GIT', '"' + shutil.which('git') + '"'))
         self.stub("make", '''#!/bin/sh
 case "$*" in
   production-check) printf finished > "$PLAN_TEST_STATE" ;;

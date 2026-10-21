@@ -2,11 +2,38 @@
 
 Status: Controlled self-hosted production candidate.
 
+Before publication, these notes are a source-bound draft. Evidence entries below
+apply only when the matching artifacts and successful qualification are present.
+
 This release candidate is intended for evaluation, pilots, and controlled
 internal production after operator review. It is not legal compliance proof,
 not a certification, not a secure-release guarantee, not complete SBOM proof,
 not authoritative vulnerability coverage, and not auditor or regulator
 acceptance.
+
+## Changes
+
+{{CHANGES}}
+
+## API Compatibility
+
+{{API}}
+
+## Database Migrations
+
+{{MIGRATIONS}}
+
+## SDK Compatibility
+
+{{SDK}}
+
+## Security Notices
+
+{{SECURITY}}
+
+## Support Window
+
+{{SUPPORT}}
 
 ## Supported Profile
 
@@ -23,8 +50,9 @@ acceptance.
 - `coverage.out` and threshold evidence.
 - `openapi.yaml` and `openapi.sha256`.
 - `migrations.sha256`.
-- `evydence-release-sbom.cdx.json` generated from Go module metadata; this is
-  release evidence, not complete SBOM proof.
+- `evydence-release-evidence-index.json` and per-subject SBOMs generated from
+  actual release payloads, plus the aggregate `evydence-release-sbom.cdx.json`;
+  this is release evidence, not complete SBOM proof.
 - `evydence-release-provenance.json` with release-candidate packaging inputs;
   this is not a SLSA level claim.
 - `SHA256SUMS` for release archives and evidence files.
@@ -45,9 +73,8 @@ acceptance.
 
 ## Known Limitations
 
-- Full repository decomposition remains hardening work; focused critical
-  PostgreSQL writes cover the highest-risk runtime mutations, but not every
-  resource family.
+- API operations outside the release-evidence core retain their documented
+  experimental status; generated API inventories define each operation's class.
 - HA/multi-writer API operation is not supported in this profile.
 - AWS KMS, GCP Cloud KMS, and Azure Key Vault signing executors are included;
   native PKCS#11/HSM modules remain gateway-backed and deployment-specific.
@@ -58,3 +85,5 @@ acceptance.
   sample-object retention/legal-hold checks remains deployment-dependent.
 - Operators must run backup and restore rehearsals for their target
   infrastructure before relying on this in production.
+
+{{LIMITATIONS}}

@@ -17,7 +17,36 @@ permissions:
   contents: read
 
 jobs:
+  check-release-notes:
+    name: Check Committed Release Notes
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/master' && github.ref_protected && github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out exact release source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate committed notes before builds and environment approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release_notes.py --tag "$RELEASE_TAG" check
+          python3 scripts/release_notes.py --tag "$RELEASE_TAG" emit > "$RUNNER_TEMP/release-notes.md"
+      - name: Retain concrete notes for release review
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: candidate-source-release-notes
+          path: ${{ runner.temp }}/release-notes.md
+          if-no-files-found: error
+
   verify-reproducible-builds:
+    needs: [check-release-notes]
     uses: ./.github/workflows/reproducible-builds.yml
     with:
       tag: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
@@ -31,6 +60,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       commit: ${{ steps.release.outputs.commit }}
@@ -153,22 +183,25 @@ jobs:
       - name: Package signed release candidate
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           umask 077
           release_scanner="$EVYDENCE_RELEASE_SYFT"
+          label_reader_token="$GH_TOKEN"
           export -n release_scanner
-          unset EVYDENCE_RELEASE_SYFT
+          export -n label_reader_token
+          unset EVYDENCE_RELEASE_SYFT GH_TOKEN
           keydir="$(mktemp -d "${RUNNER_TEMP}/evydence-manifest-key.XXXXXXXX")"
-          trap 'unset manifest_key; rm -f -- "$keydir/private.key" "$keydir/public.key"; rmdir -- "$keydir"' EXIT
+          trap 'unset manifest_key label_reader_token; rm -f -- "$keydir/private.key" "$keydir/public.key"; rmdir -- "$keydir"' EXIT
           go run ./cmd/evydence release keygen --private-out "$keydir/private.key" --public-out "$keydir/public.key" >/dev/null
           manifest_key="$(cat "$keydir/private.key")"
           export -n manifest_key
           # scripts/release_candidate_package.sh runs make production-check before artifact packaging.
           # The generated dist/<tag>/ evidence set includes evydence-release-manifest.sig.json
           # plus a Scorecard-compatible evydence-release-manifest.sig alias.
-          EVYDENCE_RELEASE_SYFT="$release_scanner" EVYDENCE_RELEASE_ALLOW_EXISTING_TAG=1 \
+          GH_TOKEN="$label_reader_token" EVYDENCE_RELEASE_SYFT="$release_scanner" EVYDENCE_RELEASE_ALLOW_EXISTING_TAG=1 \
             EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$manifest_key" scripts/release_candidate_package.sh "$RELEASE_TAG"
 
       - name: Stop isolated MinIO integration service
@@ -191,6 +224,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
       id-token: write
       attestations: write
       artifact-metadata: write
@@ -214,8 +248,11 @@ jobs:
           name: evydence-release-artifacts-${{ needs.package.outputs.tag }}
           path: dist/${{ needs.package.outputs.tag }}/
       - name: Verify subjects and manifest files before attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          python3 scripts/release_notes.py --tag "$RELEASE_TAG" check-artifact
           python3 scripts/release_evidence_verify.py --dist "dist/$RELEASE_TAG" --tag "$RELEASE_TAG" --expected-commit "$EXPECTED_COMMIT"
           python3 scripts/release_signing.py verify-files --dist "dist/$RELEASE_TAG"
       - name: Attest manifest and signature
@@ -249,6 +286,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     steps:
       - name: Check out packaged source for subject verification
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -278,6 +316,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 scripts/release_notes.py --tag "$RELEASE_TAG" check-artifact
           python3 scripts/release_evidence_verify.py --dist "dist/${RELEASE_TAG}" \
             --tag "$RELEASE_TAG" --expected-commit "$EXPECTED_COMMIT"
           python3 scripts/release_signing.py verify-public --dist "dist/$RELEASE_TAG" \

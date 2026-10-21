@@ -83,6 +83,65 @@ APIs and their read permissions. CI supplies the number through
 rerun ordinary PR CI without executing contributor code in a privileged
 `pull_request_target` workflow.
 
+## Candidate Notes And Local Tagging
+
+`scripts/release_notes.py` inventories the actual OpenAPI contract, SDK paths,
+and SQL migration changes against the selected public release source. New
+changes in these inventories require matching fragment impact declarations.
+Pre-adoption changes remain in the inventory and preserved history, without
+being attributed to a new tooling fragment. File inventories do not establish
+semantic API compatibility or a successful upgrade; the corresponding project
+gates and operator review remain required.
+
+Choose a candidate version, replace the placeholder below, and generate its
+source notes through a temporary preview. Copy only after generation succeeds,
+so an invalid input cannot truncate existing candidate notes:
+
+```sh
+TAG=vX.Y.Z-rc.N
+python3 scripts/release_history.py render --write
+mkdir -p tmp
+python3 scripts/release_notes.py --tag "$TAG" render > tmp/release-notes-preview.md &&
+  cp tmp/release-notes-preview.md "docs/reference/release-notes-$TAG.md"
+make changelog-check
+```
+
+Review the fragments, compatibility declarations, migration inventory, security
+notices and limitations, then commit the notes and matching source changes.
+The template supplies the supported profile and non-claims; a generated draft
+does not prove qualification or independent review. Source identity is bound
+by the packaging manifest, allowing notes to be committed without a circular
+reference to their own future commit SHA.
+
+After the required release qualification, run the local preflight:
+
+```sh
+python3 scripts/release_notes.py --tag "$TAG" check
+python3 scripts/release_notes.py --tag "$TAG" tag
+```
+
+The `tag` command is read-only by default. Explicit `tag --create` creates a
+local unsigned annotated tag only on clean `master`, after verifying exact
+committed notes, generated changelog, withdrawal policy and source identity.
+It records the notes SHA-256 in the annotation and never pushes or overwrites
+a tag. The operator's configured Git identity is used; hooks and automatic
+tag-signing commands are disabled. Publisher authentication remains the
+separate manifest/workflow identity profile.
+
+The helper does not establish passing production gates or authorize publication.
+Run every [candidate gate](release-candidate.md#required-commands) and satisfy
+provider protection before pushing a tag or dispatching publication. Privileged
+raw Git/provider actions can bypass local tooling; no stronger provider
+enforcement is implied by this helper.
+
+Candidate packaging requires this matching committed notes file before running
+production validation or replacing an artifact directory. It emits the exact
+validated text into `release-notes.md`, which remains in the checksum and signed
+manifest subjects. Validation, attestation and draft publication compare the
+packaged notes with the same source projection. There is no static-template
+fallback for missing candidate notes. The release workflow retains a concrete
+notes preview before builds and protected-environment approval.
+
 ## Earlier History
 
 The adoption policy pins the real earlier release source and the SHA-256 of the

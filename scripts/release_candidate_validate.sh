@@ -15,6 +15,7 @@ if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
 fi
 
 distdir="dist/${tag}"
+python3 scripts/release_notes.py --tag "$tag" check-artifact
 if [[ ! -d "$distdir" ]]; then
   echo "release candidate dist directory missing: $distdir" >&2
   exit 2
@@ -73,7 +74,6 @@ grep -Fi "not a secure-release guarantee" "$distdir/release-notes.md" >/dev/null
 grep -Fi "complete SBOM proof" "$distdir/release-notes.md" >/dev/null
 grep -Fi "authoritative vulnerability coverage" "$distdir/release-notes.md" >/dev/null
 grep -Fi "single API writer replica" "$distdir/release-notes.md" >/dev/null
-grep -Fi "full repository decomposition" "$distdir/release-notes.md" >/dev/null
 grep -Fi "complete SBOM proof" "$distdir/evydence-release-sbom.cdx.json" >/dev/null
 grep -Fi "not a SLSA level claim" "$distdir/evydence-release-provenance.json" >/dev/null
 grep -Fi "not a SLSA level claim" "$distdir/evydence-release-provenance.intoto.jsonl" >/dev/null

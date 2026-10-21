@@ -13,6 +13,9 @@ import unittest
 
 import release_artifacts
 import release_evidence_tools
+import change_fragments
+import release_notes
+from test_change_fragments import fragment
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,11 +28,13 @@ class PackagingRecipeTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
-    def checkout(self, name):
+    def checkout(self, name, with_notes=True, tag=TAG):
         root = self.root / name
         for filename in set(release_artifacts.BUILD_MATERIALS) | {
                 'scripts/support_matrix.py', 'scripts/reproducible_build.py',
                 'scripts/release_lifecycle.py', 'release/lifecycle-policy.json',
+                'scripts/change_fragments.py', 'scripts/release_history.py',
+                'scripts/release_change_provider.py', 'scripts/release_notes.py',
                 'release/current.json',
                 'docs/reference/release-notes-template.md',
                 'LICENSE', 'README.md', 'CHANGELOG.md'}:
@@ -50,15 +55,15 @@ print(json.dumps({'application':'syft','version':'1.54.1','gitCommit':'b254e6d92
             'git': '''import os,sys
 from pathlib import Path
 a=sys.argv[1:]
-if a[:3]==['rev-parse','-q','--verify']:raise SystemExit(1)
 changed=Path('source-changed').exists()
 mode=Path('source-change-mode').read_text() if Path('source-change-mode').exists() else ''
-if a==['rev-parse','--verify','HEAD']:print(('b' if changed and mode=='head' else 'a')*40)
+if a==['rev-parse','--verify','HEAD'] and changed and mode=='head':print('b'*40)
 elif a==['status','--porcelain','--untracked-files=all'] and changed:
  if mode=='git-error':raise SystemExit(93)
  if mode=='dirty':print(' M source.go')
-elif a and a[0]=='show':print('1700000000')
-''',
+ else:os.execv(REAL_GIT,['git',*a])
+else:os.execv(REAL_GIT,['git',*a])
+'''.replace('REAL_GIT', repr(shutil.which('git'))),
             'go': '''import json,os,sys
 from pathlib import Path
 a=sys.argv[1:]
@@ -83,18 +88,19 @@ if arguments[0]=='production-check':
  Path('tmp').mkdir(exist_ok=True)
  Path('tmp/release-check-summary.txt').write_text('fixture validation')
 elif arguments[0]=='reproducible-build-check':
+ head=subprocess.check_output(['git','rev-parse','--verify','HEAD'],text=True).strip()
  tag=next(item.split('=',1)[1] for item in arguments if item.startswith('TAG='))
  bundle=Path('tmp/repro-reference')
  result=subprocess.run([sys.executable,'scripts/release_build.py','--tag',tag,
-   '--output',str(bundle/'archives'),'--work',str(bundle/'work'),'--expected-commit','a'*40])
+   '--output',str(bundle/'archives'),'--work',str(bundle/'work'),'--expected-commit',head])
  if result.returncode:raise SystemExit(result.returncode)
  manifest=json.loads((bundle/'work/release-build-manifest.json').read_text())
- report={'schema_version':reproducible_build.REPORT_SCHEMA,'source_commit':'a'*40,'tag':tag,
+ report={'schema_version':reproducible_build.REPORT_SCHEMA,'source_commit':head,'tag':tag,
          'source_date_epoch':manifest['source_date_epoch'],'go_version':manifest['go_version'],
          'build_recipe_version':release_artifacts.RECIPE_VERSION,
          'artifacts':reproducible_build.artifact_inventory(bundle,support_matrix.load_policy(),tag)}
  (bundle/reproducible_build.REPORT_NAME).write_text(json.dumps(report))
- comparison=reproducible_build.compare_bundles(bundle,bundle,tag,'a'*40)
+ comparison=reproducible_build.compare_bundles(bundle,bundle,tag,head)
  assert comparison['passed']
  comparison.setdefault('verified_artifacts',report['artifacts'])
  comparison.setdefault('go_version',manifest['go_version'])
@@ -117,7 +123,56 @@ else:raise SystemExit(92)
                            EVYDENCE_TEST_DATABASE_URL='unused-fixture',
                            EVYDENCE_RELEASE_SYFT=str(root / 'bin/syft'),
                            EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64=base64.b64encode(bytes(64)).decode())
+        environment.pop('EVYDENCE_CHANGELOG_PULL_REQUEST', None)
+        self.initialize_history(root, environment, with_notes, tag)
         return root, environment
+
+    def initialize_history(self, root, environment, with_notes, tag):
+        """Run real note checks against deterministic local Git, never fake success."""
+        git_environment = dict(environment, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
+                               GIT_AUTHOR_NAME='fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                               GIT_COMMITTER_NAME='fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
+                               GIT_AUTHOR_DATE='2023-11-14T22:13:20Z', GIT_COMMITTER_DATE='2023-11-14T22:13:20Z')
+        def git(*arguments):
+            result = subprocess.run([shutil.which('git'), '-c', 'core.hooksPath=' + os.devnull, *arguments],
+                                    cwd=root, env=git_environment, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return result.stdout.strip()
+        (root / '.gitignore').write_text('bin/\ndist/\ntmp/\ncoverage.out\n__pycache__/\n'
+                                         'build-requests.jsonl\nsource-change-mode\nsource-changed\n'
+                                         'candidate-change\nartifact-phase-finished\n')
+        (root / 'CHANGELOG.md').write_text('# Changelog\n\n## Unreleased\n\n- Earlier fixture source work.\n\n')
+        git('init', '--initial-branch=master')
+        git('add', '--all'); git('commit', '--quiet', '--message', 'feat: released fixture source')
+        released = git('rev-parse', 'HEAD')
+        (root / 'release/current.json').write_text(json.dumps({'repository': 'aatuh/evydence',
+            'current_public_release': {'tag': 'v0.0.0-rc.1', 'source_commit': released}}))
+        git('add', '--all'); git('commit', '--quiet', '--message', 'feat: adoption fixture source')
+        adoption = git('rev-parse', 'HEAD')
+        body = change_fragments.section((root / 'CHANGELOG.md').read_text(), 'Unreleased')[0]
+        policy = {'schema': 'evydence-change-policy.v1', 'adoption_commit': adoption,
+                  'legacy_release_commit': released, 'legacy_section_sha256': hashlib.sha256(body.encode()).hexdigest()}
+        (root / 'changes/fragments').mkdir(parents=True)
+        (root / 'changes/policy.json').write_text(json.dumps(policy))
+        value = fragment()
+        (root / 'changes/fragments' / (value['id'] + '.json')).write_text(json.dumps(value))
+        plan = release_notes.history.inspect(root)
+        (root / 'CHANGELOG.md').write_text(change_fragments.update_changelog(
+            plan['changelog'], plan['fragments'], policy, plan['include_legacy']))
+        if with_notes:
+            (root / ('docs/reference/release-notes-' + tag + '.md')).write_text(release_notes.generate(root, tag))
+        git('add', '--all'); git('commit', '--quiet', '--message', 'feat: reviewed fixture notes')
+
+    def test_missing_notes_stop_before_expensive_validation_and_preserve_existing_artifacts(self):
+        root, environment = self.checkout('missing-notes', with_notes=False)
+        target = root / 'dist' / TAG / 'existing-evidence.txt'
+        target.parent.mkdir(parents=True)
+        target.write_text('preserve previous evidence')
+        result = self.run_package(root, environment)
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse((root / 'coverage.out').exists())
+        self.assertFalse((root / 'artifact-phase-finished').exists())
+        self.assertEqual(target.read_text(), 'preserve previous evidence')
 
     def test_missing_or_substituted_scanner_stops_before_expensive_validation(self):
         for mode in ['missing', 'substituted']:

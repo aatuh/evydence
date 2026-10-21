@@ -205,7 +205,9 @@ changelog-check: ## Validate change fragments, delivery coverage and the generat
 	@python3 scripts/test_change_fragments.py
 	@python3 scripts/test_release_change_provider.py
 	@python3 scripts/test_release_history.py
+	@python3 scripts/test_release_notes.py
 	@python3 scripts/release_history.py check
+	@python3 scripts/release_notes.py check-inputs
 
 persistence-decomposition-check: ## Validate generated persistence decomposition inventory
 	@scripts/persistence_decomposition_inventory.py --check

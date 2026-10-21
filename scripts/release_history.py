@@ -59,11 +59,11 @@ class Repository:
         if Path(actual).resolve() != self.root:
             raise HistoryError('history root must be the repository root')
 
-    def run(self, args, limit=MAX_GIT_OUTPUT, allowed=(0,)):
+    def run(self, args, limit=MAX_GIT_OUTPUT, allowed=(0,), environment=None):
         argv = ['git', '--no-pager', '-c', 'core.fsmonitor=false',
                 '-c', 'core.hooksPath=' + os.devnull, '-c', 'gc.auto=0', *args]
         try:
-            child = subprocess.Popen(argv, cwd=self.root, env=self.environment,
+            child = subprocess.Popen(argv, cwd=self.root, env=self.environment if environment is None else environment,
                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         except OSError:
             raise HistoryError('cannot start local Git reader') from None

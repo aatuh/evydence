@@ -42,6 +42,9 @@ class ReleaseHistoryTests(unittest.TestCase):
         self.write('CHANGELOG.md', '# Changelog\n\n## Unreleased\n\n- Released fixture.\n\n## v1.0.0-rc.1 - 2000-01-01\n\nPublished.\n')
         self.write('release/lifecycle-policy.json', json.dumps(lifecycle_policy()))
         self.write('internal/source.go', 'package fixture\n')
+        self.write('openapi.yaml', 'openapi: 3.0.3\ninfo: {title: Fixture, version: 1.0.0}\npaths: {}\n')
+        self.write('sdk/client.py', '# fixture client\n')
+        self.write('migrations/001_fixture.sql', 'SELECT 1;\n')
         self.release = self.commit('feat: released fixture')
         self.metadata = {'repository': 'aatuh/evydence', 'current_public_release': {
             'tag': 'v1.0.0-rc.1', 'source_commit': self.release}}

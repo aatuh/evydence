@@ -254,9 +254,17 @@ per-binary/archive SBOMs, their evidence index, SLSA-style provenance, `coverage
 `release-check-summary.txt`, checked release notes, signed release manifest,
 and manifest signature. It refuses dirty worktrees, invalid release-candidate
 tags, missing live PostgreSQL configuration, missing signing material or a
-verified `EVYDENCE_RELEASE_SYFT` installation, and
+verified `EVYDENCE_RELEASE_SYFT` installation, missing or contradictory committed
+candidate notes, and
 existing local tags unless a CI tag build explicitly sets
 `EVYDENCE_RELEASE_ALLOW_EXISTING_TAG=1`.
+
+The [release history reference](release-history.md#candidate-notes-and-local-tagging)
+owns fragment preparation, generated notes, local tagging preflight and its
+limits. `make changelog-check` validates the real source inventories as well as
+the generator and delivery checks; packaging never falls back to a static
+template for missing notes. Packaged notes must match the committed source
+projection before candidate verification, attestation or draft publication.
 
 Normal packaging consumes the signing-key aliases, scanner setting and existing-tag override into
 shell-local values before invoking Git, Go or Make. Those release-only exports
