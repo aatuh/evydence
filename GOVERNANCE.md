@@ -6,6 +6,12 @@ Evydence is currently maintainer-led.
 
 The project maintainer is Aatu Harju.
 
+The [maintainer continuity plan](docs/reference/continuity-plan.md) records
+release, security and backup responsibilities, least-privilege access,
+ownership transfer and recovery evidence. It is a prepared plan: no independent
+backup or funded continuity mechanism has been verified. Named acceptance and
+verified access are required before EVY-1601 can be completed.
+
 Commercial, support, trademark, security, or governance questions can be routed
 through LinkedIn:
 

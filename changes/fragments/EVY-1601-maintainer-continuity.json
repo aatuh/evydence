@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1601-maintainer-continuity",
+  "category": "changed",
+  "summary": "Document maintainer continuity responsibilities and remaining recovery gaps",
+  "details": [
+    "Define role acceptance, least-privilege delegation, private recovery inventory, ownership transfer and emergency patch authority.",
+    "Record current solo-maintainer controls and Pages settings while retaining unknown package, domain-recovery and independent-backup access as explicit gaps.",
+    "Keep the continuity ticket incomplete until named people accept responsibilities and required access is verified."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Documentation and dated read-only observations only; no provider permissions or runtime behavior changed."
+  },
+  "security": "Keep credentials, recovery codes and private incident/contract details outside public records. Emergency work retains protected PR checks and exact publisher trust policy.",
+  "limitations": [
+    "No independent backup, role acceptance, funded arrangement or recovery rehearsal is established.",
+    "Provider observations can change; package metadata access was denied and registrar custody remains unverified."
+  ]
+}

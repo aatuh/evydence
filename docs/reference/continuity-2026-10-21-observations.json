@@ -1,0 +1,70 @@
+{
+  "observed_at": "2026-10-21T11:08:17.561235+00:00",
+  "scope": "read-only metadata, no secret values or provider writes",
+  "assets": {
+    "repository": {
+      "state": "received",
+      "http_status": 200,
+      "full_name": "aatuh/evydence",
+      "homepage": null,
+      "default_branch": "master",
+      "has_pages": true,
+      "owner": {
+        "login": "aatuh",
+        "type": "User"
+      }
+    },
+    "pages": {
+      "state": "received",
+      "http_status": 200,
+      "cname": "evydence.app",
+      "https_enforced": true,
+      "html_url": "https://evydence.app/",
+      "status": null,
+      "build_type": "workflow"
+    },
+    "container_package": {
+      "state": "unknown",
+      "http_status": 403
+    }
+  },
+  "schema": "evydence-continuity-observations.v1",
+  "ticket": "EVY-1601",
+  "status": "partial observations; continuity not established",
+  "role_acceptance_verified": false,
+  "independent_backup_access_verified": false,
+  "funded_mechanism_verified": false,
+  "registrar_and_renewal_access_verified": false,
+  "limits": [
+    "Repository controls and Pages settings do not prove role acceptance or private recovery custody.",
+    "Package metadata HTTP403 is unknown access/identity, not evidence that the package is absent.",
+    "No invitations, permission changes, account/domain/package transfers, credential changes, workflow dispatches or publications were performed."
+  ],
+  "transport_source_sha256": "a7b0470ab91c3f2f6878c27606f496e041f5e25c9254e75b125ef20d4efc14c8",
+  "local_source_identity_at_request": "not captured by the asset-metadata observer; the separate repository-controls report records its own exact source",
+  "local_validation": {
+    "command": [
+      "make",
+      "fast-check"
+    ],
+    "includes": "make docs-check",
+    "status": "passed",
+    "exit_code": 0,
+    "started_at": "2026-10-21T11:17:54.131464+00:00",
+    "finished_at": "2026-10-21T11:25:36.020822+00:00",
+    "actual_compiler": "go version go1.27.3 linux/amd64",
+    "baseline_commit": "a691ab886f3dd1c531c60d80df737bec0dbc2b5c",
+    "working_tree": "pending documentation only",
+    "memory_profile": {
+      "reservation_gib": 6,
+      "process_mib": 2048,
+      "postgres_mib": 3072,
+      "minio_mib": 512,
+      "overhead_mib": 512,
+      "process_swap_mib": 0
+    },
+    "owned_services_stopped": true,
+    "original_limits_restored": true,
+    "scope": "Prepared documentation only; no accepted backup or recovery access established."
+  }
+}

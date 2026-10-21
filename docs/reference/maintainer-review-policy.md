@@ -11,7 +11,7 @@ certification, complete vulnerability coverage, or a secure-release guarantee.
 
 The [repository controls reference](repository-controls.md) owns the required
 GitHub profile, live-verification command, refresh cadence, and dated evidence.
-Provider reads on 2026-10-19 verified required pull requests, administrator
+Provider reads on 2026-10-21 verified required pull requests, administrator
 enforcement, strict app-bound CI checks, resolved conversations, and protected
 release tags. The verified maintainer model has one human writer, so independent
 approvals and CODEOWNERS approvals are not required. `CODEOWNERS` remains an
@@ -22,6 +22,10 @@ It does not provide independent review. When another human maintainer gains
 write access, require at least one non-author approval and approval of the latest
 push, then rerun the live verifier. Settings can change after observation;
 refresh the report before relying on them.
+
+The [continuity plan](continuity-plan.md) owns role acceptance, recovery
+authority and backup-access evidence. No independent backup is currently
+verified; a documented plan or proposed reviewer does not establish acceptance.
 
 EVY-1105 implementation `57cb91a95bbf` is included in published commit
 `d77b612bc721`. Its hosted [Production Check and Race and Stress run](https://github.com/aatuh/evydence/actions/runs/38765165262)

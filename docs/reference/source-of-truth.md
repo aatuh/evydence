@@ -34,6 +34,7 @@ product-boundary language across the docs.
 | Production profiles and exit criteria | `docs/reference/production-readiness.md`, `docs/reference/production-exit-review.md`, and `docs/reference/stable-v0.1.0-exit-criteria.md` | Do not broaden status elsewhere without updating these. |
 | Design-partner pilot checklist | `docs/how-to/pilot-deployment-checklist.md` | Narrow copy-paste checklist for one controlled self-hosted pilot profile. |
 | Maintainer review ownership | `CODEOWNERS` and `docs/reference/maintainer-review-policy.md` | CODEOWNERS is an ownership reference; the policy owns high-risk self-review expectations and links to provider verification. |
+| Maintainer continuity and recovery | `GOVERNANCE.md` and `docs/reference/continuity-plan.md` | Owns role acceptance, delegation, asset recovery and review cadence; named backup acceptance and access remain unverified. |
 | GitHub repository protection | `docs/reference/repository-controls.md` and `scripts/verify_github_controls.sh` | Canonical provider profile, dated observations, refresh cadence, and fail-closed live verification. |
 | Roadmap and cadence | `docs/reference/roadmap.md` | Public roadmap, supported release line, and cadence expectations. |
 | Agent execution policy | `AGENTS.md` | Canonical repository-local execution contract for agents, including backlog status, commit, validation, evidence, and safety rules. |

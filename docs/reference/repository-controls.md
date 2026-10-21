@@ -79,6 +79,14 @@ and retain the separate release-validation evidence.
 
 ## Verified observation
 
+The [2026-10-21 11:04:22 UTC refresh](repository-controls-2026-10-21T110422Z.json)
+again passed all 18 observations for the same remote `master` source, with one
+human writer. It used the unchanged verifier from clean local commit
+`04579681c3cd692cf3ad6266952c9d22cd39e5ee`. This is a settings observation;
+it does not establish new role acceptance or hosted CI for local development.
+
+### Original configuration record
+
 On 2026-10-19 at 09:30:20 UTC, the live script exited `0`: all 18 required
 observations passed for remote `master`
 `d77b612bc72192f9ef97283c83aa5e9d7bb26aab`, with one human writer and zero
