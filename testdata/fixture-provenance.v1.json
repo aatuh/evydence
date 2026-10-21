@@ -1,0 +1,862 @@
+{
+  "schema": "evydence-fixture-provenance.v1",
+  "notices": [
+    {
+      "id": "bom-examples-license",
+      "license": "CC0-1.0",
+      "path": "testdata/licenses/bom-examples.LICENSE",
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+      "source": {
+        "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+        "commit": "7d9172d00c88c05a8f1ccb90589d111870fc9d86",
+        "git_blob": "0e259d42c996742e9e3cba14c677129b2c1b6311",
+        "path": "LICENSE",
+        "repository": "CycloneDX/bom-examples"
+      }
+    },
+    {
+      "id": "cyclonedx-spec-license",
+      "license": "Apache-2.0",
+      "path": "testdata/licenses/cyclonedx-spec.LICENSE",
+      "sha256": "6c29f22a4a7385285c6f579ec9f33c5e989f00739d6b257243a0b082ec9447ae",
+      "source": {
+        "sha256": "6c29f22a4a7385285c6f579ec9f33c5e989f00739d6b257243a0b082ec9447ae",
+        "commit": "e02a34ae42a48239f54e04f75280b9000b29f1fb",
+        "git_blob": "0808751c23d827d483dc3673d6e3f49514e49d1f",
+        "path": "LICENSE",
+        "repository": "CycloneDX/specification"
+      }
+    },
+    {
+      "id": "evydence",
+      "license": "AGPL-3.0-only",
+      "path": "LICENSE",
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+      "source": null
+    },
+    {
+      "id": "openvex-license",
+      "license": "CC0-1.0",
+      "path": "testdata/licenses/openvex.LICENSE",
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+      "source": {
+        "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+        "commit": "d29fab0c81cfea04159436d54c3edc32947039ac",
+        "git_blob": "0e259d42c996742e9e3cba14c677129b2c1b6311",
+        "path": "LICENSE",
+        "repository": "openvex/spec"
+      }
+    },
+    {
+      "id": "sigstore-go-copyright-txt",
+      "license": "Apache-2.0",
+      "path": "testdata/licenses/sigstore-go.COPYRIGHT.txt",
+      "sha256": "f84abba9ca72acd172bf17b234cb0eff6f0601cd0bf2d9a35364881e778916d3",
+      "source": {
+        "sha256": "f84abba9ca72acd172bf17b234cb0eff6f0601cd0bf2d9a35364881e778916d3",
+        "commit": "22d3691c7b8e0c5530fae3c05577690bfef5cd00",
+        "git_blob": "406ee260604fa2affeeef005e3fd806192bbccba",
+        "path": "COPYRIGHT.txt",
+        "repository": "sigstore/sigstore-go"
+      }
+    },
+    {
+      "id": "sigstore-go-license",
+      "license": "Apache-2.0",
+      "path": "testdata/licenses/sigstore-go.LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "source": {
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "commit": "22d3691c7b8e0c5530fae3c05577690bfef5cd00",
+        "git_blob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+        "path": "LICENSE",
+        "repository": "sigstore/sigstore-go"
+      }
+    },
+    {
+      "id": "spdx-spec-license",
+      "license": "CC-BY-3.0",
+      "path": "testdata/licenses/spdx-spec.LICENSE",
+      "sha256": "017e38491cccbd2bdb6da0a32a33db9ec245b5dab30fdcd09f2c742c975e5b35",
+      "source": {
+        "sha256": "017e38491cccbd2bdb6da0a32a33db9ec245b5dab30fdcd09f2c742c975e5b35",
+        "commit": "aadf3b0b8dbbabdb4d880b0fc714255fea436ff7",
+        "git_blob": "44a22d370bba8d13c7dd7449d71b40ea8842788e",
+        "path": "LICENSE",
+        "repository": "spdx/spdx-spec"
+      }
+    },
+    {
+      "id": "syft-license",
+      "license": "Apache-2.0",
+      "path": "testdata/licenses/syft.LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "source": {
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "commit": "949ac703694941369ea979f4cd6172097a2823da",
+        "git_blob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+        "path": "LICENSE",
+        "repository": "anchore/syft"
+      }
+    },
+    {
+      "id": "trivy-license",
+      "license": "Apache-2.0",
+      "path": "testdata/licenses/trivy.LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "source": {
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "commit": "780e90eed9571363c63f7be45d84adee07601425",
+        "git_blob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+        "path": "LICENSE",
+        "repository": "aquasecurity/trivy"
+      }
+    },
+    {
+      "id": "trivy-notice",
+      "license": "Apache-2.0",
+      "path": "testdata/licenses/trivy.NOTICE",
+      "sha256": "aed9bc6dab87c6f6567d20bf0f5c0433a8ccd3ad7873322cf79b9244eb720a1f",
+      "source": {
+        "sha256": "aed9bc6dab87c6f6567d20bf0f5c0433a8ccd3ad7873322cf79b9244eb720a1f",
+        "commit": "780e90eed9571363c63f7be45d84adee07601425",
+        "git_blob": "3fe97bf7d4b08dfdc5c8f3feab223403d651fec9",
+        "path": "NOTICE",
+        "repository": "aquasecurity/trivy"
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "bom-examples-vex-json",
+      "license": "CC0-1.0",
+      "notices": [
+        "bom-examples-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/vex/testdata/cyclonedx-vex/official-vex-1.4.json",
+          "sha256": "d99e4aba51a231e5c3428d00be05dd05be05e7287bc4998a7eb67daa2bf55a25"
+        }
+      ],
+      "source": {
+        "sha256": "45594a106740d33c13ceca5a91168327b3aec7842587526506221dacce025900",
+        "commit": "7d9172d00c88c05a8f1ccb90589d111870fc9d86",
+        "git_blob": "14c5067b42f33ca921a9f1c47ec2fe7fe8967378",
+        "path": "VEX/vex.json",
+        "repository": "CycloneDX/bom-examples",
+        "kind": "json",
+        "canonical_sha256": "dcf7943993720a81f56c2c279ac46185922d525fe776320cd857f1f51823cff3"
+      }
+    },
+    {
+      "id": "cyclonedx-spec-bom-1-6-schema-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "cyclonedx-spec-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-001.fragment",
+          "sha256": "abb7cfae1b00138b2923b24e3d2d2ca472f3f4595366bb1dd3cf3489c6347584"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-002.fragment",
+          "sha256": "23e50c82a0f375c9040dcaad6f1f501602d9f8086a3e673658f14d421af37069"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-003.fragment",
+          "sha256": "4f1f4769c5f26eb1f06bc462ac9ae52353ee569548ece3438dc56f1ad330f579"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-004.fragment",
+          "sha256": "6936ae9fe65f11aabe21686c6c13e62bc856205fb354241266c6bc2387c99bbf"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-005.fragment",
+          "sha256": "507683e8dc6d77be13dec8523a994a0f9ae4df2d12e5fd1847625e6a468ff6f2"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-006.fragment",
+          "sha256": "7944d32565901bd1fa68c9e885203a24e4101cb9c35191cafce70835a0b14e60"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-007.fragment",
+          "sha256": "47428415a2fcb9f7c93f1b4479d0d954a4bff03f369a25ee9a8c73a0aa7c2ed0"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-008.fragment",
+          "sha256": "d41a997a57d6355e86cb2a81c061eff5a6970254ebbfb29b0add7d2d7e805cff"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-009.fragment",
+          "sha256": "0fbc1581b1a3b7302a52f70ca38effd71e09e48eb8eb460159db14d892868142"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-010.fragment",
+          "sha256": "8b9b98dce19afc34649fc7e2965407325ce78ef1aa05ee206d328c16eae92653"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-011.fragment",
+          "sha256": "b1272047d48f892c3c4deb1a011f6ef37c96ff09f87264ff9f858d6cadea62cd"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-012.fragment",
+          "sha256": "09b8bf7f4da3967d600a3afaa864182d88d2e867cadf6ed95884425fdb7c0c58"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-013.fragment",
+          "sha256": "07f7d71c82963d4c232a5d89ea80c6e7587266de6fcc01e67fba66d2fa57bc4f"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-014.fragment",
+          "sha256": "3c2f8ad435be536bf051fc22e906e76477ce6e0dd391f34db7d64697818041a4"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-015.fragment",
+          "sha256": "00b03eea187f0ca0ba2413293f4a8a7ff9fa32f5501f5e2ea956c0c84b581c4c"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-016.fragment",
+          "sha256": "06a97136771a80f1d47719dd219e7e0299620b7ca5347ee47ceac1740323fd44"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-017.fragment",
+          "sha256": "7c4c35dd545b9ff1ef1d6b3ed59c5c7ed7e42acdbc3b896bd8f5544744e7c38a"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-018.fragment",
+          "sha256": "6bd34e37fd44172dcd8141d99d7957080aa57cd37a38bee9638380cc284fe107"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-019.fragment",
+          "sha256": "8264701d3f6e96a7c8c5ce12e54a548cdc4506e7d46ec78745d32d84fb14f88f"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-020.fragment",
+          "sha256": "c56664007fb32a877338843ed420c7676ca1746917a0d38f239a264a559723a3"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-021.fragment",
+          "sha256": "398f53550972e0fa04052b86c2ef726c52c26365f185b1421f9aca98cec5357f"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-022.fragment",
+          "sha256": "e4e667264ff1062ae8fbc859f84fe24b4debbeb74b51709811096a2ea1cc10ba"
+        },
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/bom-1.6.part-023.fragment",
+          "sha256": "d4bf209ff59c6112fd635ce5973f0121756468bbbc299780b129b162771d78d9"
+        }
+      ],
+      "source": {
+        "sha256": "18f57f7482593bad9f21b4feed09084640cbeff419d62ad5090c5ceccca5b37d",
+        "commit": "e02a34ae42a48239f54e04f75280b9000b29f1fb",
+        "git_blob": "b6c096a999d6ee9e408a9c3ae6c6227d6981c9ba",
+        "path": "schema/bom-1.6.schema.json",
+        "repository": "CycloneDX/specification",
+        "kind": "bytes"
+      }
+    },
+    {
+      "id": "cyclonedx-spec-jsf-0-82-schema-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "cyclonedx-spec-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/jsf-0.82.schema.json",
+          "sha256": "8bae002c25e723db7ee1f26afde680ae1a2b1a8f6b4b4b0fd65dc3becb090aae"
+        }
+      ],
+      "source": {
+        "sha256": "8bae002c25e723db7ee1f26afde680ae1a2b1a8f6b4b4b0fd65dc3becb090aae",
+        "commit": "e02a34ae42a48239f54e04f75280b9000b29f1fb",
+        "git_blob": "f46bfb1e52731ad1280123ff3e2bd29bd18d4bc2",
+        "path": "schema/jsf-0.82.schema.json",
+        "repository": "CycloneDX/specification",
+        "kind": "bytes"
+      }
+    },
+    {
+      "id": "cyclonedx-spec-spdx-schema-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "cyclonedx-spec-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/cyclonedx/schema/spdx.schema.json",
+          "sha256": "ea6e844ee6fba1e93473d94834d0ee0996970533497935f932f73d488ffdf4a3"
+        }
+      ],
+      "source": {
+        "sha256": "ea6e844ee6fba1e93473d94834d0ee0996970533497935f932f73d488ffdf4a3",
+        "commit": "e02a34ae42a48239f54e04f75280b9000b29f1fb",
+        "git_blob": "2dccc87e3cb3c3438d3f1623a3483657ee8d4189",
+        "path": "schema/spdx.schema.json",
+        "repository": "CycloneDX/specification",
+        "kind": "bytes"
+      }
+    },
+    {
+      "id": "cyclonedx-spec-valid-dependency-1-6-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "cyclonedx-spec-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/cyclonedx/testdata/official/valid-dependency-1.6.json",
+          "sha256": "209b8a93cbc623b41c8da43a72ccce74b17eb2c14db4cece3ba2473bd9087a76"
+        }
+      ],
+      "source": {
+        "sha256": "209b8a93cbc623b41c8da43a72ccce74b17eb2c14db4cece3ba2473bd9087a76",
+        "commit": "e02a34ae42a48239f54e04f75280b9000b29f1fb",
+        "git_blob": "1e87f38efb6e82876e3dc0ad73ee26c0ed24606d",
+        "path": "tools/src/test/resources/1.6/valid-dependency-1.6.json",
+        "repository": "CycloneDX/specification",
+        "kind": "json",
+        "canonical_sha256": "5470c8b7445f105b95d67b5231cf31ad2af790ea2f3228b8dfbdc3a19a83fec3"
+      }
+    },
+    {
+      "id": "cyclonedx-spec-valid-properties-1-6-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "cyclonedx-spec-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/cyclonedx/testdata/official/valid-properties-1.6.json",
+          "sha256": "378b4138d6a97528197062191b522b32149829c079d695c10ecefd1e71a3802c"
+        }
+      ],
+      "source": {
+        "sha256": "ec91b21b4fe34070f1ba3369f6106e3dd511b3900873d38cffe2cb0f68de3e3b",
+        "commit": "e02a34ae42a48239f54e04f75280b9000b29f1fb",
+        "git_blob": "ad62c6f98407e66bfceadd502ed37e3b50816585",
+        "path": "tools/src/test/resources/1.6/valid-properties-1.6.json",
+        "repository": "CycloneDX/specification",
+        "kind": "json",
+        "canonical_sha256": "1e131dbeb2a2611ad5122671a8e78d2ea6605ced5dc551f74cf3a3cd88b9fdb8"
+      }
+    },
+    {
+      "id": "cyclonedx-spec-valid-standard-1-6-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "cyclonedx-spec-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/cyclonedx/testdata/official/valid-standard-1.6.json",
+          "sha256": "2efd6c828e69bd8fe3b283fe85d66b807b30abf4958ab8ff9618dac73046769b"
+        }
+      ],
+      "source": {
+        "sha256": "51a60b1832b58afd786c08a11f6bbe63e98af1bfd133667e12d20a90854ca775",
+        "commit": "e02a34ae42a48239f54e04f75280b9000b29f1fb",
+        "git_blob": "3150227b6e5e5b08e30a5fed3c2082b750260ad3",
+        "path": "tools/src/test/resources/1.6/valid-standard-1.6.json",
+        "repository": "CycloneDX/specification",
+        "kind": "json",
+        "canonical_sha256": "9d6da6f1a615c53b9762c363078ebae99de3bb13ebd2a0fe99901d04b1d52aaa"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-dependency-track-golden-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/dependency-track.golden.json",
+          "sha256": "0917b48319a12639fe5f9b7983f977890e57a4c1c623bccb760ac9e5b15b9b27"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-dependency-track-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/dependency-track.json",
+          "sha256": "240822cf9088c80480cc34e061912b986cc6774c3544df57bb10440119f1d289"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-generic-golden-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/generic.golden.json",
+          "sha256": "655d317e24ba4b3f183c6ec9a985fe3e975893135ac566d3a4ea1558fc076a10"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-generic-json",
+      "license": "CC0-1.0",
+      "notices": [
+        "openvex-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/generic.json",
+          "sha256": "5971d3e80baece37ccb919a3ce64cac056f57f4d44919e6bd5ebad214e1c623e"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-grype-golden-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/grype.golden.json",
+          "sha256": "9edddea9cb3142084fbdeded8932d3c13172c0442dccd11f57d677f932d3946a"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-grype-json",
+      "license": "CC0-1.0",
+      "notices": [
+        "openvex-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/grype.json",
+          "sha256": "d8ae4afc301f77448d5aa660d81f20004e63241432d4243553c0301f1271fe2b"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-osv-scanner-golden-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/osv-scanner.golden.json",
+          "sha256": "6173efcbe8ea433a47be88baa6c2e5c3ad61589b701cf17c2441a421c7f48a27"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-osv-scanner-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/osv-scanner.json",
+          "sha256": "aa3717575606b213eb0a3f66e748f48cb218b12d6a66fbfe10beed1be2ec6294"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-trivy-golden-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/trivy.golden.json",
+          "sha256": "849a8be3e2e9016c5ff5d2ca1d331b307beafbee6941e5ca2926386e1a0d611d"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-scanners-testdata-trivy-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/scanners/testdata/trivy.json",
+          "sha256": "e61bef5c37fcb9f364db967ceb8bd44f3f660076229ac9b454d3853d2a8142b5"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "2e36ccd68e1f089c0d9431906fda6ebaa7c928a8"
+      }
+    },
+    {
+      "id": "internal-app-parsers-spdx-testdata-spdx-2-3-example-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/spdx/testdata/spdx-2.3-example.json",
+          "sha256": "e6890c0c8aaf922f3f52d7c737549ffc9d28bd45ead124bad9d997818f01a9f2"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "09a40c0cc4502ce93e520e01df004de5065631dd"
+      }
+    },
+    {
+      "id": "internal-app-parsers-spdx-testdata-syft-1-46-0-spdx-2-3-json",
+      "license": "CC0-1.0",
+      "notices": [
+        "openvex-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/spdx/testdata/syft-1.46.0-spdx-2.3.json",
+          "sha256": "154115724fd24b8b97f14f8f04ca7ab373762e2cf02cc36c76842440c0f35f43"
+        }
+      ],
+      "source": {
+        "kind": "recorded-generated",
+        "note": "internal/app/parsers/spdx/testdata/SOURCE.md",
+        "introduced_commit": "09a40c0cc4502ce93e520e01df004de5065631dd"
+      }
+    },
+    {
+      "id": "internal-app-parsers-spdx-testdata-trivy-0-58-1-spdx-2-3-json",
+      "license": "CC0-1.0",
+      "notices": [
+        "openvex-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/spdx/testdata/trivy-0.58.1-spdx-2.3.json",
+          "sha256": "96813d9272ac50bb5033676ee85992390db95de6c8cbd0a2b8d07e2968919954"
+        }
+      ],
+      "source": {
+        "kind": "recorded-generated",
+        "note": "internal/app/parsers/spdx/testdata/SOURCE.md",
+        "introduced_commit": "09a40c0cc4502ce93e520e01df004de5065631dd"
+      }
+    },
+    {
+      "id": "internal-platform-config-testdata-native-boundary-review-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "internal/platform/config/testdata/native-boundary-review.json",
+          "sha256": "fee57143d0d5538da5f55db30af926b7b779b91765e02ed750342c519d19441b"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "e561c569bf78ed456ed50af2b8862e45be516436"
+      }
+    },
+    {
+      "id": "openvex-openvex-spec-md",
+      "license": "CC0-1.0",
+      "notices": [
+        "openvex-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/vex/testdata/openvex/openvex-spec-minimal.json",
+          "sha256": "8ff8b3d12ec9c8eefa191e62c3f97c788e720f684a299ca81035e131ccb862a7"
+        }
+      ],
+      "source": {
+        "sha256": "e62cb7033a604ff89d7e9293993ffe48e67cae8c9c4654dcfaba4aa09e850c33",
+        "commit": "d29fab0c81cfea04159436d54c3edc32947039ac",
+        "git_blob": "f849dad42afa1fbcf2bb74aa0106419ab9c9f886",
+        "path": "OPENVEX-SPEC.md",
+        "repository": "openvex/spec",
+        "kind": "markdown-json",
+        "canonical_sha256": "f8aa49a9d3ba45edd668a5a09db382a3e1a3758cde67bac5b724d6e725c8444d",
+        "json_block": 0
+      }
+    },
+    {
+      "id": "scripts-testdata-lint-policy-request-test-go-txt",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "scripts/testdata/lint-policy/request_test.go.txt",
+          "sha256": "b505ebb18fca195003dbf95015694d2d28b18289eda141a46b8c2886402b8cc3"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "36b1f622f6bd8f694136b2890e529c2eddb70c51"
+      }
+    },
+    {
+      "id": "scripts-testdata-lint-policy-response-go-txt",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "scripts/testdata/lint-policy/response.go.txt",
+          "sha256": "46fa0642594658915ad834515271696b58dd36ae326f2e01d86db0ee856fa2bc"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "36b1f622f6bd8f694136b2890e529c2eddb70c51"
+      }
+    },
+    {
+      "id": "scripts-testdata-release-legacy-v0-1-0-rc-7-evydence-release-manifest-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "scripts/testdata/release-legacy-v0.1.0-rc.7/evydence-release-manifest.json",
+          "sha256": "d2d2dd20ba2cc7f318823d4909bce0a7c7375323c5ada5ac4720d71214220e90"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "a3c13fc06cbb3e7c01069bdc388cfbab59feadc1"
+      }
+    },
+    {
+      "id": "scripts-testdata-release-legacy-v0-1-0-rc-7-evydence-release-manifest-sig-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "scripts/testdata/release-legacy-v0.1.0-rc.7/evydence-release-manifest.sig.json",
+          "sha256": "720a4d2f8810dd9fb4560e904ccf9e12ea6b58b998343b21d2ee4ca591246fdc"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "a3c13fc06cbb3e7c01069bdc388cfbab59feadc1"
+      }
+    },
+    {
+      "id": "sigstore-go-othername-sigstore-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "sigstore-go-copyright-txt",
+        "sigstore-go-license"
+      ],
+      "files": [
+        {
+          "path": "internal/adapters/verification/sigstore/testdata/official-othername.bundle.json",
+          "sha256": "e4d4db1b4cbd232fe2a021a7290345d24e6f07f447629cbff51c8cfc52492ed8"
+        }
+      ],
+      "source": {
+        "sha256": "e4d4db1b4cbd232fe2a021a7290345d24e6f07f447629cbff51c8cfc52492ed8",
+        "commit": "22d3691c7b8e0c5530fae3c05577690bfef5cd00",
+        "git_blob": "d5810fcfcdadf66e8c1d1ae86f7ab86de5fab7d1",
+        "path": "pkg/testing/data/bundles/othername.sigstore.json",
+        "repository": "sigstore/sigstore-go",
+        "kind": "bytes"
+      }
+    },
+    {
+      "id": "sigstore-go-scaffolding-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "sigstore-go-copyright-txt",
+        "sigstore-go-license"
+      ],
+      "files": [
+        {
+          "path": "internal/adapters/verification/sigstore/testdata/official-scaffolding.trusted-root.json",
+          "sha256": "503c669ede6b4416c39de5d48d5964141970d9881fc941370faac0f75789fecf"
+        }
+      ],
+      "source": {
+        "sha256": "503c669ede6b4416c39de5d48d5964141970d9881fc941370faac0f75789fecf",
+        "commit": "22d3691c7b8e0c5530fae3c05577690bfef5cd00",
+        "git_blob": "3d725600359bf2b9e0665ba0f90cc3618198e461",
+        "path": "pkg/testing/data/trusted-roots/scaffolding.json",
+        "repository": "sigstore/sigstore-go",
+        "kind": "bytes"
+      }
+    },
+    {
+      "id": "spdx-spec-spdxjsonexample-v2-2-spdx-json",
+      "license": "CC-BY-3.0",
+      "notices": [
+        "spdx-spec-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/spdx/testdata/spdx-spec-v2.2-example.json",
+          "sha256": "1b126f76a0eaa42dfde8ca1575fe6f158431518ebb289be00b007ca97c3841a4"
+        }
+      ],
+      "source": {
+        "sha256": "1b126f76a0eaa42dfde8ca1575fe6f158431518ebb289be00b007ca97c3841a4",
+        "commit": "aadf3b0b8dbbabdb4d880b0fc714255fea436ff7",
+        "git_blob": "d147d861641dd9aa306e52ba6ba937e089e2f1d9",
+        "path": "examples/SPDXJSONExample-v2.2.spdx.json",
+        "repository": "spdx/spdx-spec",
+        "kind": "bytes"
+      }
+    },
+    {
+      "id": "syft-1-6-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "syft-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/cyclonedx/testdata/generators/syft-1.6.json",
+          "sha256": "73245811c4983f53fe4bb69ffa930631e5f8364f5bb3141c86ed650f3374629c"
+        }
+      ],
+      "source": {
+        "sha256": "d0f20b3712dcea72cc040a6508263416ab34a88ede833f25b5bcc0c7e5fad87a",
+        "commit": "949ac703694941369ea979f4cd6172097a2823da",
+        "git_blob": "9f4cb7bdcf3a39a76ae589e0993044e2dfdd55c3",
+        "path": "syft/format/cyclonedxjson/testdata/identify/1.6.json",
+        "repository": "anchore/syft",
+        "kind": "json",
+        "canonical_sha256": "b3e126f28a2186fb2f08f8b47f209c3893d434a1f6337c0106140ad5af37b96e"
+      }
+    },
+    {
+      "id": "testdata-dsse-unsupported-payload-type-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "testdata/dsse/unsupported-payload-type.json",
+          "sha256": "39ee2b8579b989286ff3445dc8591eb92334c7e111fc58343615812ebd46b2ac"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "c34bc2504d80eb5a3b0025aa6829ad5552a1bdf6"
+      }
+    },
+    {
+      "id": "testdata-intoto-slsa-provenance-v1-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "testdata/intoto/slsa-provenance-v1.json",
+          "sha256": "e9f4be8eb74bafa70b31b50b7019f129dc952a06c42bf7acd40f15c302eb6e22"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "c34bc2504d80eb5a3b0025aa6829ad5552a1bdf6"
+      }
+    },
+    {
+      "id": "testdata-verification-rfc6962-tree-size-3-v1-json",
+      "license": "AGPL-3.0-only",
+      "notices": [
+        "evydence"
+      ],
+      "files": [
+        {
+          "path": "testdata/verification/rfc6962-tree-size-3.v1.json",
+          "sha256": "0f1a0508e6ed51820e3162af56fae23c641f6a3d5ca2ab99ac3bfcb261f8a296"
+        }
+      ],
+      "source": {
+        "kind": "project",
+        "introduced_commit": "f7cb4a3256c56c56d62ce1c3c784e642ae19373a"
+      }
+    },
+    {
+      "id": "trivy-nested-packages-bom-json",
+      "license": "Apache-2.0",
+      "notices": [
+        "trivy-license",
+        "trivy-notice"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/cyclonedx/testdata/generators/trivy-1.6.json",
+          "sha256": "05659d59a3bdfc5ea1117947830464b648ecc0380c67c39f3876348fb1a3a150"
+        }
+      ],
+      "source": {
+        "sha256": "004009e5dce5b0cdf869de87e9712fc85ede363c1efa52070105f25e2d955353",
+        "commit": "780e90eed9571363c63f7be45d84adee07601425",
+        "git_blob": "fd7623c7302811c608df678540b10cc1d14023dc",
+        "path": "pkg/sbom/cyclonedx/testdata/happy/nested-packages-bom.json",
+        "repository": "aquasecurity/trivy",
+        "kind": "json",
+        "canonical_sha256": "c678195971a5820e3b2c2b251ade6b914e7421cf11297835065bdd7575905d8c"
+      }
+    }
+  ]
+}

@@ -61,6 +61,13 @@ from declarations and admission. See Python's [core metadata specification](http
 
 ## Implemented Admission Rules
 
+Fixture coverage and source declarations have a separate
+[provenance catalog and checks](fixture-provenance.md). Its local gate is part
+of `make docs-check`; the upstream gate checks pinned files and notices through
+read-only GitHub API calls. The general dependency snapshot does not yet
+include those fixture observations. License admission remains separate from
+source equivalence and recorded license declarations.
+
 `scripts/dependency_policy.py` is an offline library without network, subprocess
 or filesystem effects. Its caller must provide trusted policy and verified
 component metadata. `assess_component` requires explicit ecosystem, name,

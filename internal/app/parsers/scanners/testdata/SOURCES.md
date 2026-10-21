@@ -19,3 +19,9 @@ Evydence projection, not source output.
 
 These adapters preserve raw payload bytes. They normalize only documented
 fields and do not assert that a scanner result is complete or authoritative.
+
+These reports and their golden projections are project-authored test data.
+The catalog preserves the existing corpus's CC0-1.0 declarations for
+`generic.json` and `grype.json`. Other files use the project's AGPL-3.0-only
+source license. Tool names and example vulnerability records do not establish
+an upstream copy, a real project vulnerability or a new license grant.

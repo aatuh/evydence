@@ -12,6 +12,7 @@
     "Bind snapshots to generator and manifest hashes, reject stale inputs and unsafe output paths, and clean up owned tool processes on failure or cancellation.",
     "Pin Python QA wheels with SHA-256 hashes in isolated CI virtual environments, reject installed version/requirement drift and check the Python SDK's static standard-library import boundary.",
     "Verify every pinned PyYAML distribution before bounded source/wheel metadata and license inspection, preserving cross-artifact declarations separately from text candidates without executing package code.",
+    "Catalog fixture coverage and pinned source transformations, preserve upstream notices, correct unsupported corpus source/license labels and check local identities plus read-only upstream byte equivalence.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {

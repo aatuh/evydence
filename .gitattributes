@@ -1,0 +1,4 @@
+# Preserve pinned source notices verbatim across checkout platforms.
+testdata/licenses/* -text
+# This upstream NOTICE has a trailing space; provenance checks its exact bytes.
+testdata/licenses/trivy.NOTICE whitespace=-blank-at-eol
