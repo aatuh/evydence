@@ -5,7 +5,9 @@ and operators. The machine-readable policy is
 [`release/support-matrix.json`](../../release/support-matrix.json).
 `make support-matrix-check` checks build selections and this generated table;
 a declared target is not a passed qualification receipt. The check requires
-Python 3 with PyYAML, alongside the existing project tools.
+Python 3 with the [pinned PyYAML QA dependency](dependency-policy.md#python-qa-dependency),
+alongside the existing project tools. `make python-qa-check` validates the
+installed package version before the documentation gate.
 
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 | Go role | Exact version |

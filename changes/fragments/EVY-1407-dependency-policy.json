@@ -10,6 +10,7 @@
     "Collect full application, QA and scanner Go graphs in isolated copies, verify downloaded sources, and snapshot root license bytes.",
     "Verify npm registry archives against locked SHA-512 values before bounded inspection without extraction or package execution; preserve manifest declarations and text observations separately.",
     "Bind snapshots to generator and manifest hashes, reject stale inputs and unsafe output paths, and clean up owned tool processes on failure or cancellation.",
+    "Pin Python QA wheels with SHA-256 hashes in isolated CI virtual environments, reject installed version/requirement drift and check the Python SDK's static standard-library import boundary.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {

@@ -122,10 +122,16 @@ jobs:
       - name: Install QA tools
         run: make tools
 
-      - name: Install system QA tools
+      - name: Install system tools and pinned Python QA wheels
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes ripgrep python3-yaml
+          sudo apt-get install --yes ripgrep python3-venv
+          qa_venv="$RUNNER_TEMP/evydence-python-qa"
+          python3 -m venv "$qa_venv"
+          "$qa_venv/bin/python" -m pip --isolated --disable-pip-version-check install \
+            --require-hashes --only-binary=:all: -r tools/requirements-qa.txt
+          printf '%s\n' "$qa_venv/bin" >> "$GITHUB_PATH"
 
       - name: Install pinned Helm rendering tool
         env:

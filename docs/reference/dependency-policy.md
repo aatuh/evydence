@@ -27,6 +27,28 @@ Remove unused dependencies when their imports or build steps disappear. Recheck
 the graph and supported API/SDK behavior; do not retain a dependency solely for
 an obsolete fixture or silently break a published interface to remove it.
 
+## Python QA Dependency
+
+[`tools/requirements-qa.txt`](../../tools/requirements-qa.txt) pins PyYAML 6.0.3
+and its published artifact SHA-256 values. CI production checks and release
+packaging install binary wheels into a dedicated virtual environment using
+pip's isolated configuration and `--require-hashes --only-binary=:all:`.
+They no longer use the runner's unpinned `python3-yaml` OS package. A missing
+compatible wheel or mismatched hash fails installation; source builds and their
+implicit build dependencies are disabled. See [pip's hash-checking guidance](https://pip.pypa.io/en/stable/topics/secure-installs/#hash-checking-mode).
+
+For local setup, create a virtual environment outside the checkout, install
+that requirements file with the same flags, and place its `bin` directory first
+on `PATH`. Use the host RAM coordinator for environment creation/installation
+and the subsequent Go-backed gates. Existing environments with the exact
+version can run `make python-qa-check` directly.
+
+That check rejects version drift and new transitive package requirements and
+checks that the Python SDK's static imports stay in the standard library or
+the wrapper directory. It does not verify installed OS-package bytes or dynamic
+imports. This pin alone does not complete Python source/license inventory;
+that scope remains explicitly missing from the current snapshot.
+
 ## Implemented Admission Rules
 
 `scripts/dependency_policy.py` is an offline library without network, subprocess
