@@ -23,9 +23,10 @@ write access, require at least one non-author approval and approval of the lates
 push, then rerun the live verifier. Settings can change after observation;
 refresh the report before relying on them.
 
-The [continuity plan](continuity-plan.md) owns role acceptance, recovery
-authority and backup-access evidence. No independent backup is currently
-verified; a documented plan or proposed reviewer does not establish acceptance.
+The [ownership and recovery plan](continuity-plan.md) records the sole
+maintainer's release, security and recovery duties. There is no backup reviewer;
+the solo model does not require appointing one. If someone joins, verify their
+agreed responsibilities and access before relying on their review.
 
 EVY-1105 implementation `57cb91a95bbf` is included in published commit
 `d77b612bc721`. Its hosted [Production Check and Race and Stress run](https://github.com/aatuh/evydence/actions/runs/38765165262)
