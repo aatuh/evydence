@@ -307,6 +307,7 @@ dependency-inventory-test: ## Test dependency inventory integrity and bounded li
 	@python3 scripts/test_dependency_node_sources.py
 	@python3 scripts/test_dependency_python_sources.py
 	@python3 scripts/test_dependency_build_tools.py
+	@python3 scripts/test_dependency_actions.py
 	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/license-inventory
 
 dependency-inventory-generate: ## Generate partial-scope dependency and fixture source observations
@@ -609,7 +610,7 @@ docs-check: python-qa-check fixture-provenance-check dependency-updates-check de
 	@grep -F 'EVYDENCE_API_KEY' docs/github-actions/end-to-end-release-evidence.md >/dev/null
 	@grep -F 'release-readiness.json' docs/github-actions/end-to-end-release-evidence.md docs/github-actions/release-evidence-workflow.yml >/dev/null
 	@grep -F 'upload-output.txt' docs/github-actions/end-to-end-release-evidence.md docs/github-actions/release-evidence-workflow.yml >/dev/null
-	@grep -F 'actions/upload-artifact@v4' docs/github-actions/release-evidence-workflow.yml >/dev/null
+	@grep -F 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' docs/github-actions/release-evidence-workflow.yml >/dev/null
 	@grep -F 'make local-ci-simulation-check' docs/how-to/integrate-ci.md examples/end-to-end-release-evidence/README.md >/dev/null
 	@grep -F -- '--dry-run' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'upload validate-manifest' docs/how-to/integrate-ci.md >/dev/null

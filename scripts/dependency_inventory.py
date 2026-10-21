@@ -28,6 +28,7 @@ import dependency_policy as policy
 import dependency_node_sources as node_sources
 import dependency_python_sources as python_sources
 import dependency_build_tools as build_tools
+import dependency_actions as action_sources
 import fixture_provenance as fixture_sources
 from release_lifecycle import read_bytes
 
@@ -42,6 +43,7 @@ GRAPHS = (
 )
 GENERATOR_FILES = ('scripts/dependency_inventory.py', 'scripts/dependency_node_sources.py',
                    'scripts/dependency_python_sources.py', 'scripts/dependency_build_tools.py',
+                   'scripts/dependency_actions.py', 'scripts/support_matrix_artifacts.py',
                    'scripts/python_qa.py', 'scripts/dependency_policy.py',
                    'scripts/fixture_provenance.py',
                    'scripts/release_evidence_tools.py', 'scripts/release_scanner.py', 'scripts/release_sbom.py',
@@ -610,6 +612,8 @@ def collect(root, work_root, parent_environment):
         node = node_components(policy.parse_document(inputs['site/marketing/package.json']),
                                policy.parse_document(inputs['site/marketing/package-lock.json']))
         fixtures, fixture_files = fixture_components(root, inputs)
+        actions = action_sources.discover(root, inputs)
+        workflow_names = {name for name in inputs if name.rsplit('/', 1)[0] in action_sources.WORKFLOW_ROOTS}
     except (ValueError, OSError):
         raise InventoryError('cannot read valid inventory inputs') from None
     environment = tool_environment(parent_environment)
@@ -638,6 +642,14 @@ def collect(root, work_root, parent_environment):
 
     for files in fixture_files.values():
         register_files(files)
+    action_work = work / 'actions'; action_work.mkdir(mode=0o700)
+    try:
+        actions, action_files = action_sources.collect(actions, action_work)
+        for files in action_files.values():
+            register_files(files)
+        print('dependency-inventory: verified ' + str(len(actions)) + ' Action sources', file=sys.stderr, flush=True)
+    except action_sources.ActionSourceError:
+        raise InventoryError('cannot verify bounded GitHub Action sources') from None
     archive_observations = {}
     tool_work = work / 'build-tools'; tool_work.mkdir(mode=0o700)
     try:
@@ -709,11 +721,12 @@ def collect(root, work_root, parent_environment):
         observation, files = archive_observations[item['name']]
         item['source'].update(observation)
     archive_tools = [attach_licenses(item, archive_observations[item['name']][1], matches) for item in archive_tools]
-    merged = merge_components(components + node + [python_component] + fixtures + archive_tools)
+    actions = [attach_licenses(item, action_files[(item['name'], item['version'])], matches) for item in actions]
+    merged = merge_components(components + node + [python_component] + fixtures + archive_tools + actions)
     try:
         expected = {file['path'] for item in fixtures for file in item['source']['files']}
         if (any(read_bytes(root, name, MAX_BYTES) != raw for name, raw in inputs.items())
-                or fixture_sources.fixture_paths(root) != expected):
+                or fixture_sources.fixture_paths(root) != expected or action_sources.workflow_paths(root) != workflow_names):
             raise InventoryError('inventory source changed during collection')
     except (OSError, ValueError):
         raise InventoryError('inventory source or fixture coverage changed during collection') from None
@@ -723,7 +736,9 @@ def collect(root, work_root, parent_environment):
                       'files': {name: hashlib.sha256(inputs[name]).hexdigest() for name in GENERATOR_FILES}},
         'inputs': {name: hashlib.sha256(raw).hexdigest() for name, raw in inputs.items() if name not in GENERATOR_FILES},
         'components': merged,
-        'remaining_scopes': ['actions', 'images'],
+        'remaining_scopes': ['images', 'standalone-go-tools'] + (['action-local-references'] if any(
+            dependency['kind'] == 'local-action' for item in actions
+            for dependency in item['source']['runtime']['dependencies']) else []),
         'limitations': [
             'Go module graphs describe available dependencies, not only code linked into an artifact.',
             'Go root license bytes are checksum-bound observations; candidates are not approval or legal compatibility conclusions.',
@@ -732,6 +747,7 @@ def collect(root, work_root, parent_environment):
             'Python observations cover the pinned PyYAML distributions, not the interpreter, installer bootstrap or all bundled third-party obligations.',
             'Fixture byte/notice checks cover the declared catalog roots; pinned upstream references are recorded declarations, with separate live verification.',
             'Build-tool archive observations cover the selected Linux amd64 Helm/oasdiff releases and Syft main source, not complete bundled binary dependencies or host/runner tools.',
+            'Action manifests and ancestor notices are public Git object observations; mutable nested refs retain observed resolutions, not immutable runtime guarantees. Entrypoint code, bundled libraries, runtime downloads and container contents are outside these source observations.',
             'This is not an artifact SBOM, vulnerability scan or complete dependency inventory.',
         ],
     }

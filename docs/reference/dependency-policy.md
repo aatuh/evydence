@@ -126,12 +126,51 @@ requires the proxy's source revision to match the recorded recipe and runs
 `go mod verify` before reading root license bytes. The bootstrap does not build
 or execute Syft or change the application/scanner locks.
 
+The container-signing workflow also installs Cosign `v2.6.1` as a separate Go
+command. Its standalone graph, along with the local MinIO/client source builds,
+is not covered by the central QA graph; standalone Go tools remain an explicit
+inventory scope.
+
 These records cover selected tool archives and module sources, not all linked
 binary dependencies, nested notices, the compiler/interpreter, runner image or
 installer bootstrap. Archive integrity and root text candidates are separate
 from producer authenticity, complete SBOMs, license approval and redistribution
 obligations. Artifact-bound release evidence has its own
 [supply-chain profile](release-supply-chain.md).
+
+## GitHub Action Sources
+
+The inventory parses `.github/workflows/` and the copyable workflows under
+`docs/github-actions/` as YAML. External references must use full commit IDs;
+local reusable calls must refer to a covered workflow. Unsupported local step
+actions, mutable top-level references, invalid mappings and symlinked inputs
+fail before tool/provider work. Input hashes bind every workflow, and a final
+coverage check detects added workflows or concurrent edits.
+
+Read-only GitHub calls require public repository metadata and the exact pinned
+commit/tree identities. Generation needs an authenticated GitHub CLI with
+public repository read access; the offline tests do not need credentials.
+The collector walks action directories, reads ancestor
+license/notice files and the Action manifest, and checks blob IDs, sizes and
+independent SHA-256 values before storing bytes in private scratch work. Tree
+truncation, selected symlinks, duplicate paths, oversized responses, excessive
+requests/reference counts and conflicting existing files fail. Alias reuse
+cannot bypass the reference-count budget. No Action code is executed.
+Private Action repositories are unsupported. See GitHub's
+[tree](https://docs.github.com/en/rest/git/trees#get-a-tree),
+[blob](https://docs.github.com/en/rest/git/blobs#get-a-blob) and
+[Action metadata](https://docs.github.com/en/actions/reference/workflows-and-actions/metadata-syntax)
+references.
+
+Runtime records describe declared entrypoints, nested Action references and
+container references. Nested external Actions are collected at resolved commit
+IDs; their declared tags remain marked mutable, with the observed resolution
+recorded separately. This is not a guarantee of the code a mutable reference
+will execute later. A container reference is input to the remaining image scope,
+not proof of its contents. Shell commands and input defaults are not copied into
+the public report. Bundled JavaScript/native libraries, entrypoint bodies,
+runtime downloads and runner software are outside these source observations;
+they do not constitute a complete artifact SBOM or license approval.
 
 ## Implemented Admission Rules
 
@@ -262,14 +301,14 @@ files and unsafe paths. Configure `DEPENDENCY_INVENTORY_WORK_ROOT` to an existin
 scratch directory, preferably on the build-storage volume. The CLI also accepts
 `--output` as a path relative to the checkout for a private qualification report.
 
-This stage sets `complete: false`. Actions/images and maintenance/live
+This stage sets `complete: false`. Image/standalone-tool and maintenance/live
 review evidence remain to be integrated before EVY-1407 can close. Go graph
 observations cover available modules, not only dependencies linked into a
 particular binary; they are separate from artifact-bound release SBOMs.
 
-The [2026-10-21 snapshot](dependency-inventory.json) contains 1,887 records:
+The [2026-10-21 snapshot](dependency-inventory.json) contains 1,902 records:
 1,523 Go module/versions, 327 Node packages, one PyYAML component with 73 pinned
-distributions, 34 fixture records and two build-tool archives. Go and registry
+distributions, 34 fixture records, two build-tool archives and 15 Action sources. Go and registry
 source artifacts passed their download/checksum verification. Go license
 observations include 1,412 candidates,
 76 ambiguous results, 26 unknown and nine with no root license file. None of
@@ -295,6 +334,12 @@ Helm and oasdiff record their pinned archive SHA-256 values and observed binary
 digests. Their root license texts and the separately verified Syft main source
 are Apache-2.0 candidates. This does not inventory all dependencies bundled
 in those binaries or grant license approval.
+The 14 direct Action references and one nested Action have 30 manifest/notice
+observations across 22 unique blobs. Root texts classify as 14 MIT candidates
+and one Apache-2.0 candidate. The nested `actions/upload-artifact@v4` remains
+mutable even though its observed commit is recorded; Scorecard's tagged GHCR
+image is still part of the pending image scope. These records do not approve
+licenses, prove complete bundled dependency coverage or verify later execution.
 The snapshot binds generator/input
 hashes and records the missing scopes; the unit tests reject a stale snapshot
 after those inputs change. The missing scopes and policy enforcement are still

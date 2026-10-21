@@ -2021,6 +2021,911 @@
       "version_published_at": null
     },
     {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.80239520958084,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "32d0bae2419f014f5066af5915264c966efdb7b6e7fe8f90cf87dc75c5a8d6d0",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/release-artifacts.yml#jobs/attest-release/steps/4"
+      ],
+      "name": "actions/attest",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "1e69f48acb82d1966a394da916b4c1698aa569d6",
+        "files": [
+          {
+            "git_blob": "5f9e342dcc1e39277b96077541676ce6307de2c7",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "32d0bae2419f014f5066af5915264c966efdb7b6e7fe8f90cf87dc75c5a8d6d0",
+            "size": 1053
+          },
+          {
+            "git_blob": "f3d593f3020cf14b65d2789e3788d015354475e9",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "9e4a1b808433f9ec87120b534e11fc35469a039bdbdc62b019441444c9ad0449",
+            "size": 4048
+          }
+        ],
+        "path": "",
+        "repository": "actions/attest",
+        "root_tree": "35bb59c4cb7bb9146b20dd4b5382168b2c26b9f6",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/index.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "1e69f48acb82d1966a394da916b4c1698aa569d6",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6878612716763,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3e855ffa704114a51628ef8f0bf3aeb41728adf9d9070e263bf58aa5640b0eb5",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/ci.yml#jobs/go-compatibility/steps/0",
+        ".github/workflows/ci.yml#jobs/production-check/steps/0",
+        ".github/workflows/ci.yml#jobs/race-and-stress/steps/0",
+        ".github/workflows/codeql.yml#jobs/analyze/steps/0",
+        ".github/workflows/container-image.yml#jobs/publish-image/steps/0",
+        ".github/workflows/container-image.yml#jobs/sign-image/steps/0",
+        ".github/workflows/marketing-site-pages.yml#jobs/build/steps/0",
+        ".github/workflows/release-artifacts.yml#jobs/attest-release/steps/0",
+        ".github/workflows/release-artifacts.yml#jobs/check-release-notes/steps/0",
+        ".github/workflows/release-artifacts.yml#jobs/package/steps/0",
+        ".github/workflows/release-artifacts.yml#jobs/publish-draft-release/steps/0",
+        ".github/workflows/reproducible-builds.yml#jobs/build/steps/0",
+        ".github/workflows/reproducible-builds.yml#jobs/compare/steps/0",
+        ".github/workflows/scorecard-sarif.yml#jobs/scorecard-sarif/steps/0",
+        ".github/workflows/scorecard.yml#jobs/scorecard/steps/0",
+        "docs/github-actions/quickstart-release-evidence.yml#jobs/evydence-release-evidence/steps/0",
+        "docs/github-actions/release-evidence-workflow.yml#jobs/release-evidence/steps/0"
+      ],
+      "name": "actions/checkout",
+      "origins": [
+        "ci",
+        "workflow-example"
+      ],
+      "source": {
+        "commit": "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "files": [
+          {
+            "git_blob": "a67dca8b4f65d6bd351f6b1e333ce2cd84d843a5",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "3e855ffa704114a51628ef8f0bf3aeb41728adf9d9070e263bf58aa5640b0eb5",
+            "size": 1097
+          },
+          {
+            "git_blob": "767c416494ebd353bb13c8e2a97af6c539648576",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "11b63452f6e43ffb5ab8bfdaaafb8a915b354318e3ad9bce4eb0686b9e380f90",
+            "size": 4593
+          }
+        ],
+        "path": "",
+        "repository": "actions/checkout",
+        "root_tree": "b4c76471127cb4a7e8d0205a8ed8b04f646baaa8",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/index.js",
+            "post": "dist/index.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.81656804733728,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "741d1031b351a6dc8421130e3282456afe884068596134683fd5e5f8188363ee",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/marketing-site-pages.yml#jobs/build/steps/4"
+      ],
+      "name": "actions/configure-pages",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "983d7736d9b0ae728b81ab479565c72886d7745b",
+        "files": [
+          {
+            "git_blob": "8c9e791c9fb1f1433344d07ca0dd6a426c243c0a",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "741d1031b351a6dc8421130e3282456afe884068596134683fd5e5f8188363ee",
+            "size": 1069
+          },
+          {
+            "git_blob": "80230b7081f7006631e319d74bdaad566c4f5868",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "ee83c302838439770e9c45fe62f6abfd58341f57ac21ebaf848fb5e3a9fbcb67",
+            "size": 1529
+          }
+        ],
+        "path": "",
+        "repository": "actions/configure-pages",
+        "root_tree": "6cc14723cfed8698ec15f9fafa50b7aaffdd3677",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/index.js"
+          },
+          "using": "node20"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "983d7736d9b0ae728b81ab479565c72886d7745b",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.81656804733728,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "741d1031b351a6dc8421130e3282456afe884068596134683fd5e5f8188363ee",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/marketing-site-pages.yml#jobs/deploy/steps/0"
+      ],
+      "name": "actions/deploy-pages",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e",
+        "files": [
+          {
+            "git_blob": "8c9e791c9fb1f1433344d07ca0dd6a426c243c0a",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "741d1031b351a6dc8421130e3282456afe884068596134683fd5e5f8188363ee",
+            "size": 1069
+          },
+          {
+            "git_blob": "1f8076690a58e91fe5aa3ba4b4f89f968c09aea9",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "0ff88ca222c067f34d29b7078bd0c387b7efedcd14d17ad794aef1c4224f900f",
+            "size": 1170
+          }
+        ],
+        "path": "",
+        "repository": "actions/deploy-pages",
+        "root_tree": "2b5361b64d6d0ec79b1226bb8df73386be697cd2",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/index.js"
+          },
+          "using": "node20"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6878612716763,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3e855ffa704114a51628ef8f0bf3aeb41728adf9d9070e263bf58aa5640b0eb5",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/container-image.yml#jobs/sign-image/steps/2",
+        ".github/workflows/release-artifacts.yml#jobs/attest-release/steps/2",
+        ".github/workflows/release-artifacts.yml#jobs/publish-draft-release/steps/2",
+        ".github/workflows/reproducible-builds.yml#jobs/compare/steps/1"
+      ],
+      "name": "actions/download-artifact",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "files": [
+          {
+            "git_blob": "a67dca8b4f65d6bd351f6b1e333ce2cd84d843a5",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "3e855ffa704114a51628ef8f0bf3aeb41728adf9d9070e263bf58aa5640b0eb5",
+            "size": 1097
+          },
+          {
+            "git_blob": "8b8c65029ccad20750a29fecb438eca5a607fc57",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "e98559b7a31ba31be4709f20d22102dc2737fa630f69a339eb89981151e505fe",
+            "size": 2635
+          }
+        ],
+        "path": "",
+        "repository": "actions/download-artifact",
+        "root_tree": "f008da01d74dc8156ff9b1d22b2bccec8ff2ee72",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/index.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6878612716763,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "7d070f6b64d9bcc530fe99cc21eaaa4b3c364e0b2d367d7735671fa202a03b32",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/ci.yml#jobs/go-compatibility/steps/1",
+        ".github/workflows/ci.yml#jobs/production-check/steps/1",
+        ".github/workflows/ci.yml#jobs/race-and-stress/steps/1",
+        ".github/workflows/container-image.yml#jobs/publish-image/steps/3",
+        ".github/workflows/container-image.yml#jobs/sign-image/steps/4",
+        ".github/workflows/release-artifacts.yml#jobs/package/steps/3",
+        ".github/workflows/reproducible-builds.yml#jobs/build/steps/1",
+        "docs/github-actions/quickstart-release-evidence.yml#jobs/evydence-release-evidence/steps/1",
+        "docs/github-actions/release-evidence-workflow.yml#jobs/release-evidence/steps/1"
+      ],
+      "name": "actions/setup-go",
+      "origins": [
+        "ci",
+        "workflow-example"
+      ],
+      "source": {
+        "commit": "4a3601121dd01d1626a1e23e37211e3254c1c06c",
+        "files": [
+          {
+            "git_blob": "a426ef259d6c5d705e9c1405075c3b318093c65e",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "7d070f6b64d9bcc530fe99cc21eaaa4b3c364e0b2d367d7735671fa202a03b32",
+            "size": 1096
+          },
+          {
+            "git_blob": "74a4e7e9f0b1eb0faee6d30576af05c489c39a3b",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "cbfae748992b96b9a1bfa3f1679d17c898c78375aad8a0d0184820683c82c482",
+            "size": 1974
+          }
+        ],
+        "path": "",
+        "repository": "actions/setup-go",
+        "root_tree": "6a8244e069d64a870ed7081f478ae7ffb84e9734",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/setup/index.js",
+            "post": "dist/cache-save/index.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "4a3601121dd01d1626a1e23e37211e3254c1c06c",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6878612716763,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "7d070f6b64d9bcc530fe99cc21eaaa4b3c364e0b2d367d7735671fa202a03b32",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/marketing-site-pages.yml#jobs/build/steps/1"
+      ],
+      "name": "actions/setup-node",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "files": [
+          {
+            "git_blob": "a426ef259d6c5d705e9c1405075c3b318093c65e",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "7d070f6b64d9bcc530fe99cc21eaaa4b3c364e0b2d367d7735671fa202a03b32",
+            "size": 1096
+          },
+          {
+            "git_blob": "ef58e69919a94e6a823d333159fad95e2720c896",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "8aee59063ebc272d850507febb30930de2684be1b1240cf5f3dff13179fcff0b",
+            "size": 2614
+          }
+        ],
+        "path": "",
+        "repository": "actions/setup-node",
+        "root_tree": "6e2fefae7f597aebce691c980b27ec6381e493e2",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/setup/index.js",
+            "post": "dist/cache-save/index.js"
+          },
+          "using": "node20"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6878612716763,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3e855ffa704114a51628ef8f0bf3aeb41728adf9d9070e263bf58aa5640b0eb5",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/ci.yml#jobs/production-check/steps/11",
+        ".github/workflows/ci.yml#jobs/race-and-stress/steps/3",
+        ".github/workflows/container-image.yml#jobs/publish-image/steps/9",
+        ".github/workflows/container-image.yml#jobs/sign-image/steps/9",
+        ".github/workflows/release-artifacts.yml#jobs/attest-release/steps/6",
+        ".github/workflows/release-artifacts.yml#jobs/check-release-notes/steps/2",
+        ".github/workflows/release-artifacts.yml#jobs/package/steps/12",
+        ".github/workflows/reproducible-builds.yml#jobs/build/steps/3",
+        ".github/workflows/reproducible-builds.yml#jobs/compare/steps/3",
+        "docs/github-actions/quickstart-release-evidence.yml#jobs/evydence-release-evidence/steps/10",
+        "docs/github-actions/release-evidence-workflow.yml#jobs/release-evidence/steps/9"
+      ],
+      "name": "actions/upload-artifact",
+      "origins": [
+        "ci",
+        "workflow-example"
+      ],
+      "source": {
+        "commit": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "files": [
+          {
+            "git_blob": "a67dca8b4f65d6bd351f6b1e333ce2cd84d843a5",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "3e855ffa704114a51628ef8f0bf3aeb41728adf9d9070e263bf58aa5640b0eb5",
+            "size": 1097
+          },
+          {
+            "git_blob": "7cb4d1e81db55320b41217e1a78a1a46e3d2baef",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "c5979822866a72362e609844b6ebe77d4b7e759af68cc1c2c425dcf51481fab4",
+            "size": 3603
+          }
+        ],
+        "path": "",
+        "repository": "actions/upload-artifact",
+        "root_tree": "9eac56dcf4bfeeb308ee3d0d7d49913c3d65b676",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/upload/index.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6878612716763,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3e855ffa704114a51628ef8f0bf3aeb41728adf9d9070e263bf58aa5640b0eb5",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        "actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa#runtime/dependencies/0"
+      ],
+      "name": "actions/upload-artifact",
+      "origins": [
+        "action-dependency"
+      ],
+      "source": {
+        "commit": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "files": [
+          {
+            "git_blob": "a67dca8b4f65d6bd351f6b1e333ce2cd84d843a5",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "3e855ffa704114a51628ef8f0bf3aeb41728adf9d9070e263bf58aa5640b0eb5",
+            "size": 1097
+          },
+          {
+            "git_blob": "2a0ecf19e8d0087dd2e5d1785dcf764811e79fae",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "29b21270ff44638a165ea12abb4481796770c629e513217af7b4df1aa3821177",
+            "size": 3159
+          }
+        ],
+        "path": "",
+        "repository": "actions/upload-artifact",
+        "root_tree": "90fba5b2fb462e7dd5b3b810757b73327d2d66bc",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "dist/upload/index.js"
+          },
+          "using": "node20"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.81656804733728,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "b1bb6c1d76d90892ac4a9d1cca6380316df22671560c6cf4a5e298dcfa26bb4d",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/marketing-site-pages.yml#jobs/build/steps/5"
+      ],
+      "name": "actions/upload-pages-artifact",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "56afc609e74202658d3ffba0e8f6dda462b719fa",
+        "files": [
+          {
+            "git_blob": "ccc4ac8b6e5eeda13d2b9cf1f0154c9bc2c867c3",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "b1bb6c1d76d90892ac4a9d1cca6380316df22671560c6cf4a5e298dcfa26bb4d",
+            "size": 1069
+          },
+          {
+            "git_blob": "a19976e1021e49d3007b6e341d70b1048b602205",
+            "path": "action.yml",
+            "role": "manifest",
+            "sha256": "7c93bf9e88f1d495ffdbaf860fd9d6a5e75db9550a38ecbd44c6b53dfb2dbf22",
+            "size": 2389
+          }
+        ],
+        "path": "",
+        "repository": "actions/upload-pages-artifact",
+        "root_tree": "523d985091141ac06929f7719c41fa50fa4e2615",
+        "runtime": {
+          "dependencies": [
+            {
+              "kind": "github-action",
+              "pinned": false,
+              "reference": "actions/upload-artifact@v4",
+              "resolved_commit": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "resolved_name": "actions/upload-artifact"
+            }
+          ],
+          "using": "composite"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "56afc609e74202658d3ffba0e8f6dda462b719fa",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.80952380952381,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3243761cbac07e6d169a5a2f4e7c25cc544da85248e735df74c3672e055cc87b",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/codeql.yml#jobs/analyze/steps/3"
+      ],
+      "name": "github/codeql-action/analyze",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+        "files": [
+          {
+            "git_blob": "b50625eb63949013cae604b1cadd42cfa1eaf825",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "3243761cbac07e6d169a5a2f4e7c25cc544da85248e735df74c3672e055cc87b",
+            "size": 1063
+          },
+          {
+            "git_blob": "d70401c0a48ad4246c1ef34787e79f5cad4d8281",
+            "path": "analyze/action.yml",
+            "role": "manifest",
+            "sha256": "46967f21b52b5f78ba49192d432bca6c6b8a1027b3d2eb8b29d33c3f3012ec78",
+            "size": 5295
+          }
+        ],
+        "path": "analyze",
+        "repository": "github/codeql-action",
+        "root_tree": "515bfc1ce6cb9f9fe2eb7177804bdec3d63f73fb",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "lib/analyze-entry.js",
+            "post": "lib/analyze-post-entry.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.80952380952381,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3243761cbac07e6d169a5a2f4e7c25cc544da85248e735df74c3672e055cc87b",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/codeql.yml#jobs/analyze/steps/2"
+      ],
+      "name": "github/codeql-action/autobuild",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+        "files": [
+          {
+            "git_blob": "b50625eb63949013cae604b1cadd42cfa1eaf825",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "3243761cbac07e6d169a5a2f4e7c25cc544da85248e735df74c3672e055cc87b",
+            "size": 1063
+          },
+          {
+            "git_blob": "b87da541d66725fab4511394c5e143ef16d1105c",
+            "path": "autobuild/action.yml",
+            "role": "manifest",
+            "sha256": "625fa3a0856f2d837006235fcf65c5a16f81bbb4805f37fd18b82bb90e1e2842",
+            "size": 806
+          }
+        ],
+        "path": "autobuild",
+        "repository": "github/codeql-action",
+        "root_tree": "515bfc1ce6cb9f9fe2eb7177804bdec3d63f73fb",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "lib/autobuild-entry.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.80952380952381,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3243761cbac07e6d169a5a2f4e7c25cc544da85248e735df74c3672e055cc87b",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/codeql.yml#jobs/analyze/steps/1"
+      ],
+      "name": "github/codeql-action/init",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+        "files": [
+          {
+            "git_blob": "b50625eb63949013cae604b1cadd42cfa1eaf825",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "3243761cbac07e6d169a5a2f4e7c25cc544da85248e735df74c3672e055cc87b",
+            "size": 1063
+          },
+          {
+            "git_blob": "1b64e8d2a37962e01818d0ff1bba97bb56d045c6",
+            "path": "init/action.yml",
+            "role": "manifest",
+            "sha256": "61990808c1fc753b69d8b1aa0d9dc89f258a764a29801d8fd99a102a8f9c0a41",
+            "size": 8390
+          }
+        ],
+        "path": "init",
+        "repository": "github/codeql-action",
+        "root_tree": "515bfc1ce6cb9f9fe2eb7177804bdec3d63f73fb",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "lib/init-entry.js",
+            "post": "lib/init-post-entry.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.80952380952381,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3243761cbac07e6d169a5a2f4e7c25cc544da85248e735df74c3672e055cc87b",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/scorecard-sarif.yml#jobs/scorecard-sarif/steps/2"
+      ],
+      "name": "github/codeql-action/upload-sarif",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+        "files": [
+          {
+            "git_blob": "b50625eb63949013cae604b1cadd42cfa1eaf825",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "3243761cbac07e6d169a5a2f4e7c25cc544da85248e735df74c3672e055cc87b",
+            "size": 1063
+          },
+          {
+            "git_blob": "dae34ec52882b1358ca6ae884f7bd700a5da7aa4",
+            "path": "upload-sarif/action.yml",
+            "role": "manifest",
+            "sha256": "6bc5b5a67b053b3bfb3d3c0b2f950e1d1baadf04aab587135ea2b47837dfcb2d",
+            "size": 2557
+          }
+        ],
+        "path": "upload-sarif",
+        "repository": "github/codeql-action",
+        "root_tree": "515bfc1ce6cb9f9fe2eb7177804bdec3d63f73fb",
+        "runtime": {
+          "dependencies": [],
+          "entrypoints": {
+            "main": "lib/upload-sarif-entry.js",
+            "post": "lib/upload-sarif-post-entry.js"
+          },
+          "using": "node24"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "github-actions",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "146e65261c0431842c628d0274edaf3055cafc8d9b10d68250636f213ad4a171",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "locations": [
+        ".github/workflows/scorecard-sarif.yml#jobs/scorecard-sarif/steps/1",
+        ".github/workflows/scorecard.yml#jobs/scorecard/steps/1"
+      ],
+      "name": "ossf/scorecard-action",
+      "origins": [
+        "ci"
+      ],
+      "source": {
+        "commit": "4eaacf0543bb3f2c246792bd56e8cdeffafb205a",
+        "files": [
+          {
+            "git_blob": "15a7423eddef84d1813215755a5cd1a012f13a69",
+            "path": "LICENSE",
+            "role": "license",
+            "sha256": "146e65261c0431842c628d0274edaf3055cafc8d9b10d68250636f213ad4a171",
+            "size": 11356
+          },
+          {
+            "git_blob": "55c3211c2dc655514b6ec92e864d74c1396ca6f4",
+            "path": "action.yaml",
+            "role": "manifest",
+            "sha256": "86c48dda120d130b7ab7e9d0f11c5711e0be4286f2163259177fdc5e07fec92b",
+            "size": 1916
+          }
+        ],
+        "path": "",
+        "repository": "ossf/scorecard-action",
+        "root_tree": "3d8969f043f41d42f813090e7bcf167462b5b137",
+        "runtime": {
+          "dependencies": [],
+          "image": "docker://ghcr.io/ossf/scorecard-action:v2.4.3",
+          "using": "docker"
+        },
+        "verification": "github-git-objects"
+      },
+      "version": "4eaacf0543bb3f2c246792bd56e8cdeffafb205a",
+      "version_published_at": null
+    },
+    {
       "ecosystem": "gomod",
       "license": "MIT",
       "license_evidence": [
@@ -60868,8 +61773,9 @@
   ],
   "generator": {
     "files": {
+      "scripts/dependency_actions.py": "064a548c9bd2603d218c5aace8a1d892805df1e71e25372a656b936aa1e50a76",
       "scripts/dependency_build_tools.py": "e9f3aea9d2459250e0df7c49e909c6b648675cffb45d7686dd2c609e5ec2594b",
-      "scripts/dependency_inventory.py": "d28f1b1c3561c97990b28f03f4ab006b5a82e4946c2d6fe41d187c12b471c4e4",
+      "scripts/dependency_inventory.py": "284fd826c00624b538946dd8bd2ef2c427c1aacccf45f8c3e1ae6c887e65d427",
       "scripts/dependency_node_sources.py": "0ff4336f384d2db8ba073d7b24745ca0bf5097232ca0a962043ccaa0847f7aae",
       "scripts/dependency_policy.py": "243d35f3d61ddf4aa7bc5f7a3dda72e6d5476e85f2ae12da17e87e687f8bdc9a",
       "scripts/dependency_python_sources.py": "4ecd4d5139509dfebd25b0de1bc5e0ff306794caaa0c4479e2d7d7bf6886c92f",
@@ -60880,13 +61786,24 @@
       "scripts/release_sbom.py": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
       "scripts/release_scanner.py": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
       "scripts/support_matrix.py": "47ed56d270c41e87221d700c2fcf4539ef1e4e62bf15c2ab99f3b8089976ae4b",
+      "scripts/support_matrix_artifacts.py": "b4b2c75fbad65bc2ea178f6933a04189049db2dac24d269b1f97ce54452e779e",
       "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
     },
     "go_version": "go1.27.3",
     "python_version": "3.14.7"
   },
   "inputs": {
+    ".github/workflows/ci.yml": "74edd6bcee1257a8af2693003e10cbda3a4e3ad8282e4292e2389e453f4d0835",
+    ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
+    ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
+    ".github/workflows/marketing-site-pages.yml": "356a4680ffd7f842448155f1977cc8b48d5b0350e308297739261d32a07f01f9",
+    ".github/workflows/release-artifacts.yml": "e9c08517dc44a521006dfbccf532a6253e15d5fd2f2962b0020668e08db839b8",
+    ".github/workflows/reproducible-builds.yml": "a5431fa13b87bf3e6d2330d71c8267367195f83a24151a1a371a7707b9cbba1b",
+    ".github/workflows/scorecard-sarif.yml": "c7809d244592a2ab2daffffd3a776e1912512ab8aee13bbb9264322d6652b4e0",
+    ".github/workflows/scorecard.yml": "352f4a1bc5fd5d206b404d785d93e89f4552ea10fadcc03a1d533b057fc5afd3",
     "LICENSE": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+    "docs/github-actions/quickstart-release-evidence.yml": "eb8fd676581894080f16654539e1e18ef097961db0ea189cc7fc339836668b6b",
+    "docs/github-actions/release-evidence-workflow.yml": "9d4d5178702e4089cfb4e01fc44877f5f692d5775a8b923eb6d04bf17f5b624b",
     "go.mod": "0f0ec4fe3888eae3136af08468a52ae6adfa52b917bb88da4a384ed801a7c351",
     "go.sum": "98cec59e71859e224532e870e5b3bfff08211f913a51c8cec46ca5aefb5414db",
     "internal/adapters/verification/sigstore/testdata/official-othername.bundle.json": "e4d4db1b4cbd232fe2a021a7290345d24e6f07f447629cbff51c8cfc52492ed8",
@@ -60977,11 +61894,12 @@
     "Python observations cover the pinned PyYAML distributions, not the interpreter, installer bootstrap or all bundled third-party obligations.",
     "Fixture byte/notice checks cover the declared catalog roots; pinned upstream references are recorded declarations, with separate live verification.",
     "Build-tool archive observations cover the selected Linux amd64 Helm/oasdiff releases and Syft main source, not complete bundled binary dependencies or host/runner tools.",
+    "Action manifests and ancestor notices are public Git object observations; mutable nested refs retain observed resolutions, not immutable runtime guarantees. Entrypoint code, bundled libraries, runtime downloads and container contents are outside these source observations.",
     "This is not an artifact SBOM, vulnerability scan or complete dependency inventory."
   ],
   "remaining_scopes": [
-    "actions",
-    "images"
+    "images",
+    "standalone-go-tools"
   ],
   "schema": "evydence-dependency-inventory.v1"
 }

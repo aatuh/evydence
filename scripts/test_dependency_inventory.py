@@ -17,6 +17,7 @@ import zipfile
 import dependency_node_sources
 import dependency_python_sources
 import dependency_build_tools
+import dependency_actions
 import fixture_provenance
 
 SPEC = importlib.util.spec_from_file_location('dependency_inventory', Path(__file__).with_name('dependency_inventory.py'))
@@ -62,6 +63,7 @@ class MetadataTests(unittest.TestCase):
         self.assertNotIn('python', report['remaining_scopes'])
         self.assertNotIn('fixtures', report['remaining_scopes'])
         self.assertNotIn('build-tool-archives', report['remaining_scopes'])
+        self.assertNotIn('actions', report['remaining_scopes'])
         self.assertTrue(report['components'])
         for row in report['components']:
             self.assertNotIn('vulnerabilities', row)
@@ -81,6 +83,10 @@ class MetadataTests(unittest.TestCase):
                 self.assertIn(row['name'], {'helm', 'oasdiff'})
                 self.assertEqual(row['source']['verification'], 'sha256-verified')
                 self.assertEqual(len(row['source']['binary_sha256']), 64)
+            elif row['ecosystem'] == 'github-actions':
+                self.assertEqual(row['source']['verification'], 'github-git-objects')
+                self.assertEqual(row['version'], row['source']['commit'])
+                self.assertTrue(row['source']['files'])
             else:
                 self.fail('unrecognized inventory ecosystem')
         scanner = [row for row in report['components'] if row['name'] == 'github.com/anchore/syft']
@@ -475,6 +481,14 @@ class ScannerToolTests(unittest.TestCase):
 
 class CollectorTests(unittest.TestCase):
     def setUp(self):
+        def action_collect(rows, _work):
+            rows = copy.deepcopy(rows)
+            for row in rows:
+                row['source'].update(verification='github-git-objects', runtime={'using': 'node24', 'dependencies': []}, files=[])
+            return rows, {(row['name'], row['version']): [] for row in rows}
+        action_mock = patch.object(dependency_actions, 'collect', side_effect=action_collect)
+        self.action_collect = action_mock.start()
+        self.addCleanup(action_mock.stop)
         def tool_fetch(_row, _work):
             return ({'verification': 'sha256-verified', 'binary_sha256': 'b' * 64}, [])
         tool_mock = patch.object(dependency_build_tools, 'fetch', side_effect=tool_fetch)
@@ -509,6 +523,9 @@ class CollectorTests(unittest.TestCase):
                 self.assertFalse(collect.called, 'collection ran before output validation')
 
     def fixture(self, root):
+        workflow = root / '.github/workflows/check.yml'
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text('on: [push]\njobs:\n  build:\n    steps:\n      - uses: example/action@' + 'a' * 40 + '\n')
         for _scope, mod, sums, module in INVENTORY.GRAPHS:
             (root / mod).parent.mkdir(parents=True, exist_ok=True)
             (root / mod).write_text('module ' + module + '\n\ngo 1.26.10\n')
@@ -542,7 +559,7 @@ class CollectorTests(unittest.TestCase):
         return cache
 
     def fake_runner(self, root, cache, calls, *, fail_verify=False, mutate=False, truncate=False,
-                    mutate_fixture=False, add_fixture=False):
+                    mutate_fixture=False, add_fixture=False, mutate_workflow=False, add_workflow=False):
         def run(args, cwd, environment, **kwargs):
             calls.append((list(args), str(cwd), dict(environment)))
             if args == ['go', 'version']:
@@ -576,6 +593,10 @@ class CollectorTests(unittest.TestCase):
                     (root / 'testdata/example.json').write_text('concurrent owner edit\n')
                 if add_fixture:
                     (root / 'testdata/late.json').write_text('{}')
+                if mutate_workflow:
+                    (root / '.github/workflows/check.yml').write_text('concurrent owner edit\n')
+                if add_workflow:
+                    (root / '.github/workflows/late.yaml').write_text('jobs: {}\n')
                 return b'all modules verified\n'
             self.fail('unexpected tool command')
         return run
@@ -590,7 +611,9 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(result['schema'], 'evydence-dependency-inventory.v1')
             self.assertFalse(result['complete'])
             self.assertNotIn('python', result['remaining_scopes'])
-            self.assertEqual(len(result['components']), 7)
+            self.assertEqual(len(result['components']), 8)
+            self.assertNotIn('actions', result['remaining_scopes'])
+            self.action_collect.assert_called_once()
             self.assertNotIn('build-tool-archives', result['remaining_scopes'])
             self.assertEqual(self.tool_fetch.call_count, 2)
             self.scanner_tool.assert_called_once()
@@ -677,6 +700,28 @@ class CollectorTests(unittest.TestCase):
                     self.assertEqual((root / 'testdata/example.json').read_text(), 'concurrent owner edit\n')
                 else:
                     self.assertEqual((root / 'testdata/late.json').read_text(), '{}')
+
+    def test_bad_workflow_stops_before_tools_or_providers_and_preserves_its_content(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); cache = self.fixture(root); work = root / 'work'; work.mkdir()
+            source = root / '.github/workflows/check.yml'
+            source.write_text('jobs:\n  call:\n    uses: example/action@main\n')
+            calls = []
+            with patch.object(INVENTORY, '_run', self.fake_runner(root, cache, calls)), self.assertRaises(INVENTORY.InventoryError):
+                INVENTORY.collect(root, work, {})
+            self.assertEqual(calls, [])
+            self.action_collect.assert_not_called()
+            self.assertIn('@main', source.read_text())
+
+    def test_workflow_edits_and_new_unclassified_workflows_abort_without_overwriting_them(self):
+        for operation in ['mutate_workflow', 'add_workflow']:
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder); cache = self.fixture(root); work = root / 'work'; work.mkdir()
+                with patch.object(INVENTORY, '_run', self.fake_runner(root, cache, [], **{operation: True})):
+                    with self.assertRaises(INVENTORY.InventoryError): INVENTORY.collect(root, work, {})
+                name = 'check.yml' if operation == 'mutate_workflow' else 'late.yaml'
+                expected = 'concurrent owner edit\n' if operation == 'mutate_workflow' else 'jobs: {}\n'
+                self.assertEqual((root / '.github/workflows' / name).read_text(), expected)
 
     def test_concurrent_source_change_aborts_without_overwriting_the_owner_edit(self):
         with tempfile.TemporaryDirectory() as folder:
