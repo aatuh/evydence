@@ -3,8 +3,9 @@
 This reference is for contributors selecting dependencies and maintainers
 reviewing their admission. **EVY-1407 is in progress.** The offline admission
 rules and their regression tests exist. A bounded Go license-classification
-helper passes focused tests on both supported compilers; complete inventories, live PR review,
-license-source verification and the final release gate are not yet integrated.
+helper passes focused tests on both supported compilers. The Go/Node collector
+produces source-bound observations; complete scope, live PR review and the final release gate
+are not yet integrated.
 Passing these tests does not establish that the current dependency set has been
 audited or that a real dependency addition would be rejected by hosted CI.
 
@@ -96,6 +97,56 @@ publisher-authentication or artifact-signing claim.
 The [upstream repository](https://github.com/google/licensecheck) was not archived when checked on 2026-10-21, with its
 last recorded push on 2024-04-14. This is a maintenance-review signal, not proof
 of abandonment. The complete inventory and maintenance report remain pending.
+
+## Collect Source Observations
+
+`scripts/dependency_inventory.py` resolves the application, QA and scanner
+module graphs from isolated copies of their manifests and locks. It downloads
+their selected module ZIPs through the Go proxy/checksum database and requires
+`go mod verify` before reading root license/notice bytes from those archives.
+Inspection does not run dependency install scripts or package executables.
+Temporary work and bounded tool diagnostics are retained in a private directory
+under the configured work root; cache paths and raw diagnostics are omitted from
+the report.
+
+The collector requires the current compiler from the support matrix, disables
+automatic switching and workspace overrides, and serializes downloads. It
+omits provider credentials from the tool environment. ZIP reads never extract
+files, reject escaping/symlink paths and enforce entry/file limits. Input hashes
+are checked again before writing a report; changed inputs abort collection.
+
+The marketing lock contributes all package locations, exact versions, registry
+URLs, SHA-512 integrity declarations and declared license expressions. This is
+explicitly **lockfile evidence** until registry artifacts are checked. Missing
+licenses stay unknown; the collector does not invent empty vulnerability lists.
+
+Use the host RAM coordinator for this command; downloading, verifying and
+classifying the complete graphs is a memory-intensive operation:
+
+```sh
+make dependency-inventory-generate
+```
+
+The target writes `docs/reference/dependency-inventory.json` atomically and
+replaces only an existing inventory of the same schema. It refuses unrelated
+files and unsafe paths. Configure `DEPENDENCY_INVENTORY_WORK_ROOT` to an existing
+scratch directory, preferably on the build-storage volume. The CLI also accepts
+`--output` as a path relative to the checkout for a private qualification report.
+
+This stage sets `complete: false`. Python, redistributed fixtures, additional
+build-tool archives, Actions/images, Node source licenses and maintenance/live
+review evidence remain to be integrated before EVY-1407 can close. Go graph
+observations cover available modules, not only dependencies linked into a
+particular binary; they are separate from artifact-bound release SBOMs.
+
+The [2026-10-21 snapshot](dependency-inventory.json) contains 1,522 Go
+module/version observations after real download/checksum verification and 327
+Node lock declarations. Go license observations include 1,411 candidates,
+76 ambiguous results, 26 unknown and nine with no root license file. None of
+those classifications grants approval. The snapshot binds generator/input
+hashes and records the missing scopes; the unit tests reject a stale snapshot
+after those inputs change. Node artifact verification and the missing scopes
+are still required, so this does not complete EVY-1407 or enforce live PR policy.
 
 ## Verify This Unit
 

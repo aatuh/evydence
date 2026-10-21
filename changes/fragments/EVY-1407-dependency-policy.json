@@ -2,11 +2,13 @@
   "schema": "evydence-change-fragment.v1",
   "id": "EVY-1407-dependency-policy",
   "category": "added",
-  "summary": "Add offline dependency rules and bounded license classification",
+  "summary": "Add dependency rules, bounded license classification and source observations",
   "details": [
     "Evaluate bounded license expressions with exact license-exception pairing and reject missing license metadata or high, critical and unknown-severity advisories.",
     "Require exact dependency and advisory/license scope, owner, reason, review reference and an unexpired review window of at most 90 days for exceptions.",
     "Classify exact license bytes with the pinned existing release-scanner library, distinguish candidates from ambiguous or unknown results, and reject invalid batches without partial output.",
+    "Collect full application, QA and scanner Go graphs in isolated copies, verify downloaded sources, and snapshot root license bytes alongside explicitly unverified Node lock declarations.",
+    "Bind snapshots to generator and manifest hashes, reject stale inputs and unsafe output paths, and clean up owned tool processes on failure or cancellation.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {
@@ -17,7 +19,7 @@
   },
   "security": "Reject malformed or oversized input, duplicate JSON keys, nonfinite numbers and unsupported metadata with errors that omit raw input. Rules have no network or subprocess effects; the classifier accepts digest-bound bytes over stdin without supplied-path or package-code execution.",
   "limitations": [
-    "EVY-1407 remains incomplete: complete inventories, license-source verification, trusted live PR review, update grouping and release qualification are pending.",
+    "EVY-1407 remains incomplete: Node artifacts, Python, fixtures, additional build tools/Actions/images, maintenance reporting, trusted live PR review, update grouping and release qualification are pending.",
     "A review-link shape and synthetic policy tests do not prove approval or that real dependency changes are blocked by hosted CI."
   ]
 }

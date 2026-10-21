@@ -18,10 +18,11 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: repository-controls-test repository-controls-check
 .PHONY: release-repro-policy-test reproducible-build-check
 .PHONY: release-evidence-policy-test release-evidence-tools
-.PHONY: dependency-policy-test dependency-inventory-test
+.PHONY: dependency-policy-test dependency-inventory-test dependency-inventory-generate
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
+DEPENDENCY_INVENTORY_WORK_ROOT ?= $(if $(TMPDIR),$(TMPDIR),tmp)
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -287,8 +288,12 @@ repository-controls-check: ## Inspect live GitHub controls using the operator's 
 dependency-policy-test: ## Test offline dependency admission and exception rules
 	@python3 scripts/test_dependency_policy.py
 
-dependency-inventory-test: ## Test the bounded license-byte classification helper
+dependency-inventory-test: ## Test dependency inventory integrity and bounded license classification
+	@python3 scripts/test_dependency_inventory.py
 	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/license-inventory
+
+dependency-inventory-generate: ## Generate partial-scope Go/Node observations with verified Go source licenses
+	@python3 scripts/dependency_inventory.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --output docs/reference/dependency-inventory.json --replace
 
 docs-check: dependency-policy-test dependency-inventory-test release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/dependency-policy.md

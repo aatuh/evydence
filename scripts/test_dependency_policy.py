@@ -101,6 +101,10 @@ class AdmissionTests(unittest.TestCase):
     def test_permitted_dependency_passes_without_an_exception(self):
         self.assertEqual(self.assess(), {'passed': True, 'violations': [], 'exceptions': []})
 
+    def test_valid_sourcehut_module_coordinates_are_admitted(self):
+        item = component(); item.update(ecosystem='gomod', name='git.sr.ht/~sbinet/gg', version='v0.6.0')
+        self.assertTrue(self.assess(item)['passed'])
+
     def test_unknown_and_disallowed_licenses_fail_admission(self):
         for value, code in [(None, 'unknown_license'), ('NOASSERTION', 'unknown_license'),
                             ('GPL-3.0-only', 'disallowed_license')]:

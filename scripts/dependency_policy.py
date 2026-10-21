@@ -188,7 +188,7 @@ def _coordinates(value):
     ecosystem, name, version = (value.get(key) for key in ('ecosystem', 'name', 'version'))
     if (not isinstance(ecosystem, str) or ecosystem not in ECOSYSTEMS
             or not isinstance(name, str)
-            or not re.fullmatch(r'[A-Za-z0-9@][A-Za-z0-9._/@!+-]{0,255}', name)
+            or not re.fullmatch(r'[A-Za-z0-9@][A-Za-z0-9._/@!+~-]{0,255}', name)
             or any(part in {'', '.', '..'} for part in name.split('/'))
             or not isinstance(version, str)
             or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._+!:-]{0,127}', version)):
