@@ -27,6 +27,7 @@ import zipfile
 import dependency_policy as policy
 import dependency_node_sources as node_sources
 import dependency_python_sources as python_sources
+import dependency_build_tools as build_tools
 import fixture_provenance as fixture_sources
 from release_lifecycle import read_bytes
 
@@ -40,8 +41,10 @@ GRAPHS = (
     ('scanner', 'release/tools/syft.go.mod', 'release/tools/syft.go.sum', 'github.com/anchore/syft'),
 )
 GENERATOR_FILES = ('scripts/dependency_inventory.py', 'scripts/dependency_node_sources.py',
-                   'scripts/dependency_python_sources.py', 'scripts/python_qa.py', 'scripts/dependency_policy.py',
+                   'scripts/dependency_python_sources.py', 'scripts/dependency_build_tools.py',
+                   'scripts/python_qa.py', 'scripts/dependency_policy.py',
                    'scripts/fixture_provenance.py',
+                   'scripts/release_evidence_tools.py', 'scripts/release_scanner.py', 'scripts/release_sbom.py',
                    'scripts/release_lifecycle.py', 'scripts/support_matrix.py',
                    'tools/cmd/license-inventory/main.go')
 LICENSE_NAME = re.compile(r'(?:licen[sc]e|copying|copyright|unlicense)(?:[._-][A-Za-z0-9._-]+)?\Z', re.I)
@@ -557,6 +560,36 @@ def fixture_components(root, inputs):
         raise InventoryError('cannot bind valid fixture records and notice bytes') from None
 
 
+def scanner_tool(work, environment, cache, expected_go):
+    """Bind Syft's main module, which is absent from its dependency graph."""
+    import release_evidence_tools as tools
+    try:
+        name, version = 'github.com/anchore/syft', 'v' + tools.release_sbom.SYFT_VERSION
+        folder = work / 'scanner-tool-source'; folder.mkdir(mode=0o700)
+        (folder / 'go.mod').write_text('module evydence.local/scanner-source\n\ngo ' + expected_go.removeprefix('go')
+                                      + '\n\nrequire ' + name + ' ' + version + '\n')
+        (folder / 'go.sum').write_text(name + ' ' + version + ' ' + tools.SOURCE_SUM + '\n'
+                                      + name + ' ' + version + '/go.mod ' + tools.SOURCE_MOD_SUM + '\n')
+        records = parse_go_stream(_run(['go', 'mod', 'download', '-json', name + '@' + version],
+                                       folder, environment, log=folder / 'download.log'))
+        if len(records) != 1:
+            raise InventoryError('unexpected scanner tool source set')
+        source = records[0]
+        tools.source_directory(source)
+        if (source.get('Path') != name or not isinstance(source.get('Origin'), dict)
+                or source['Origin'].get('Hash') != tools.release_scanner.SYFT_SOURCE_COMMIT):
+            raise InventoryError('scanner source revision differs from its recipe')
+        _run(['go', 'mod', 'verify'], folder, environment, log=folder / 'verify.log')
+        row = {'ecosystem': 'gomod', 'name': name, 'version': version, 'origins': ['scanner-tool'],
+               'license': None, 'license_status': 'unobserved', 'license_evidence': [],
+               'version_published_at': published_at(source.get('Time')),
+               'source': {'sum': tools.SOURCE_SUM, 'go_mod_sum': tools.SOURCE_MOD_SUM,
+                          'commit': tools.release_scanner.SYFT_SOURCE_COMMIT, 'verification': 'go-mod-verify'}}
+        return row, license_files(cache, source)
+    except (OSError, ValueError, KeyError, TypeError):
+        raise InventoryError('cannot verify pinned scanner tool source') from None
+
+
 def collect(root, work_root, parent_environment):
     """Verify Go/Node/Python source bytes; retain explicit scope gaps."""
     import support_matrix
@@ -572,7 +605,8 @@ def collect(root, work_root, parent_environment):
         for name in GENERATOR_FILES:
             if name.endswith('.py') and inputs[name] != read_bytes(ROOT, name, MAX_BYTES):
                 raise InventoryError('collector implementation differs from its source record')
-        expected_go = 'go' + support_matrix.load_policy(root)['go']['current']
+        expected_go = 'go' + support_matrix.parse_policy(inputs['release/support-matrix.json'])['go']['current']
+        archive_tools = build_tools.archive_tools(inputs['release/support-matrix.json'])
         node = node_components(policy.parse_document(inputs['site/marketing/package.json']),
                                policy.parse_document(inputs['site/marketing/package-lock.json']))
         fixtures, fixture_files = fixture_components(root, inputs)
@@ -604,6 +638,16 @@ def collect(root, work_root, parent_environment):
 
     for files in fixture_files.values():
         register_files(files)
+    archive_observations = {}
+    tool_work = work / 'build-tools'; tool_work.mkdir(mode=0o700)
+    try:
+        for item in archive_tools:
+            observation, files = build_tools.fetch(item, tool_work)
+            register_files(files)
+            archive_observations[item['name']] = (observation, files)
+            print('dependency-inventory: verified ' + item['name'] + ' archive', file=sys.stderr, flush=True)
+    except build_tools.BuildToolError:
+        raise InventoryError('cannot verify bounded build-tool archives') from None
     python_work = work / 'python'; python_work.mkdir()
     try:
         python_component, python_files = python_sources.fetch(inputs['tools/requirements-qa.txt'], python_work)
@@ -647,6 +691,10 @@ def collect(root, work_root, parent_environment):
             observations[(scope, item['name'], item['version'])] = files
         components.extend(selected)
         print('dependency-inventory: verified ' + scope + ' source graph', file=sys.stderr, flush=True)
+    scanner, scanner_files = scanner_tool(work, environment, cache, expected_go)
+    register_files(scanner_files)
+    observations[('scanner-tool', scanner['name'], scanner['version'])] = scanner_files
+    components.append(scanner)
     executable = work / 'license-classifier'
     _run(['go', 'build', '-mod=readonly', '-trimpath', '-o', str(executable), './cmd/license-inventory'],
          root / 'tools', environment, log=work / 'classifier-build.log')
@@ -657,7 +705,11 @@ def collect(root, work_root, parent_environment):
             for item in node]
     python_component = attach_declared_licenses(python_component, python_files, matches)
     fixtures = [attach_declared_licenses(item, fixture_files[item['name']], matches) for item in fixtures]
-    merged = merge_components(components + node + [python_component] + fixtures)
+    for item in archive_tools:
+        observation, files = archive_observations[item['name']]
+        item['source'].update(observation)
+    archive_tools = [attach_licenses(item, archive_observations[item['name']][1], matches) for item in archive_tools]
+    merged = merge_components(components + node + [python_component] + fixtures + archive_tools)
     try:
         expected = {file['path'] for item in fixtures for file in item['source']['files']}
         if (any(read_bytes(root, name, MAX_BYTES) != raw for name, raw in inputs.items())
@@ -671,7 +723,7 @@ def collect(root, work_root, parent_environment):
                       'files': {name: hashlib.sha256(inputs[name]).hexdigest() for name in GENERATOR_FILES}},
         'inputs': {name: hashlib.sha256(raw).hexdigest() for name, raw in inputs.items() if name not in GENERATOR_FILES},
         'components': merged,
-        'remaining_scopes': ['build-tool-archives', 'actions', 'images'],
+        'remaining_scopes': ['actions', 'images'],
         'limitations': [
             'Go module graphs describe available dependencies, not only code linked into an artifact.',
             'Go root license bytes are checksum-bound observations; candidates are not approval or legal compatibility conclusions.',
@@ -679,6 +731,7 @@ def collect(root, work_root, parent_environment):
             'Node artifact license declarations and root text candidates are separate observations, not license approval.',
             'Python observations cover the pinned PyYAML distributions, not the interpreter, installer bootstrap or all bundled third-party obligations.',
             'Fixture byte/notice checks cover the declared catalog roots; pinned upstream references are recorded declarations, with separate live verification.',
+            'Build-tool archive observations cover the selected Linux amd64 Helm/oasdiff releases and Syft main source, not complete bundled binary dependencies or host/runner tools.',
             'This is not an artifact SBOM, vulnerability scan or complete dependency inventory.',
         ],
     }

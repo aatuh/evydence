@@ -1959,6 +1959,68 @@
       "version": "05659d59a3bdfc5ea1117947830464b648ecc0380c67c39f3876348fb1a3a150"
     },
     {
+      "ecosystem": "generic",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "881467e52efeb1807406134b0ec04b1c6f52dc9dc49382713ef9ac4e0cae42f8",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "helm",
+      "origins": [
+        "qa-tool"
+      ],
+      "source": {
+        "binary_sha256": "57ce7fc4ea77b28ee6fa91ae071abcade74d3f524e80c9decff5877a5ac8eda4",
+        "platform": "linux/amd64",
+        "sha256": "86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb",
+        "url": "https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz",
+        "verification": "sha256-verified"
+      },
+      "version": "v4.3.0",
+      "version_published_at": null
+    },
+    {
+      "ecosystem": "generic",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "oasdiff",
+      "origins": [
+        "qa-tool"
+      ],
+      "source": {
+        "binary_sha256": "c958aacca720a337cdca5c694ceb5e93ec7e6f915f32b82bf4cf1720ce14f2f2",
+        "platform": "linux/amd64",
+        "sha256": "541f7c66c933495fceef24eaf5c48aa66c19069f366f7bd0a60a6a4820c5e533",
+        "url": "https://github.com/oasdiff/oasdiff/releases/download/v1.29.1/oasdiff_1.29.1_linux_amd64.tar.gz",
+        "verification": "sha256-verified"
+      },
+      "version": "1.29.1",
+      "version_published_at": null
+    },
+    {
       "ecosystem": "gomod",
       "license": "MIT",
       "license_evidence": [
@@ -10242,6 +10304,36 @@
       },
       "version": "v0.3.4",
       "version_published_at": "2026-10-05T14:35:17Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/anchore/syft",
+      "origins": [
+        "scanner-tool"
+      ],
+      "source": {
+        "commit": "b254e6d92f28c3868a755f62fb3ca8f26e9fee76",
+        "go_mod_sum": "h1:M3Nnl7wN05wWBbffETQ+P3TEhuCDuOUhfTD4tyNX4rA=",
+        "sum": "h1:IdNS5Ha7WfatXHDL0qzjdf7DBVnfb8OI3FpSbltv0nc=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.54.1",
+      "version_published_at": null
     },
     {
       "ecosystem": "gomod",
@@ -60776,13 +60868,17 @@
   ],
   "generator": {
     "files": {
-      "scripts/dependency_inventory.py": "7332bf89306488c406c32e0716c8920a9f4254e2fb19b2919401594c509b4064",
+      "scripts/dependency_build_tools.py": "e9f3aea9d2459250e0df7c49e909c6b648675cffb45d7686dd2c609e5ec2594b",
+      "scripts/dependency_inventory.py": "d28f1b1c3561c97990b28f03f4ab006b5a82e4946c2d6fe41d187c12b471c4e4",
       "scripts/dependency_node_sources.py": "0ff4336f384d2db8ba073d7b24745ca0bf5097232ca0a962043ccaa0847f7aae",
       "scripts/dependency_policy.py": "243d35f3d61ddf4aa7bc5f7a3dda72e6d5476e85f2ae12da17e87e687f8bdc9a",
       "scripts/dependency_python_sources.py": "4ecd4d5139509dfebd25b0de1bc5e0ff306794caaa0c4479e2d7d7bf6886c92f",
       "scripts/fixture_provenance.py": "642c6a2e3080e02eac1acd4a3ddb9c3c4b0c18660d412f3c0193737636dea28d",
       "scripts/python_qa.py": "0ecf9fac296555f91b3236a30afd968098335823349c7573332289df4b89bfbf",
+      "scripts/release_evidence_tools.py": "2290d59b8423dc62a7a9e43f44ad3e24b98c8f8aaa506728b9f5d29721617011",
       "scripts/release_lifecycle.py": "674aea75e8fe1d631a4d50cffd5c5fbab32bbda46b3b70a8da79512855ca786e",
+      "scripts/release_sbom.py": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
+      "scripts/release_scanner.py": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
       "scripts/support_matrix.py": "47ed56d270c41e87221d700c2fcf4539ef1e4e62bf15c2ab99f3b8089976ae4b",
       "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
     },
@@ -60880,10 +60976,10 @@
     "Node artifact license declarations and root text candidates are separate observations, not license approval.",
     "Python observations cover the pinned PyYAML distributions, not the interpreter, installer bootstrap or all bundled third-party obligations.",
     "Fixture byte/notice checks cover the declared catalog roots; pinned upstream references are recorded declarations, with separate live verification.",
+    "Build-tool archive observations cover the selected Linux amd64 Helm/oasdiff releases and Syft main source, not complete bundled binary dependencies or host/runner tools.",
     "This is not an artifact SBOM, vulnerability scan or complete dependency inventory."
   ],
   "remaining_scopes": [
-    "build-tool-archives",
     "actions",
     "images"
   ],

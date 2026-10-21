@@ -3,8 +3,8 @@
 This reference is for contributors selecting dependencies and maintainers
 reviewing their admission. **EVY-1407 is in progress.** The offline admission
 rules and their regression tests exist. A bounded Go license-classification
-helper passes focused tests on both supported compilers. The Go/Node/Python/
-fixture collector produces source-bound observations; complete scope, live PR
+helper passes focused tests on both supported compilers. The dependency
+collector produces source-bound observations; complete scope, live PR
 review and the final release gate are not yet integrated.
 Passing these tests does not establish that the current dependency set has been
 audited or that a real dependency addition would be rejected by hosted CI.
@@ -99,6 +99,39 @@ package requirements and preserves disagreements across distributions. No
 package setup, native extension or install hook runs during this inspection.
 Unsupported license prose remains unknown; text classification stays separate
 from declarations and admission. See Python's [core metadata specification](https://packaging.python.org/en/latest/specifications/core-metadata/).
+
+## Build Tool Sources
+
+The inventory observes the Linux amd64 Helm and oasdiff release archives pinned
+in [`release/support-matrix.json`](../../release/support-matrix.json). The
+collector checks each compressed archive's SHA-256 before bounded tar/gzip
+inspection, checks the gzip trailer and records the expected binary's digest
+plus root license/notice bytes. It does not extract files or run the binaries.
+See the upstream [Helm release installation procedure](https://helm.sh/docs/intro/install/)
+and [oasdiff releases](https://github.com/oasdiff/oasdiff/releases).
+
+Downloads disable ambient proxies and credentials. Only the fixed official
+archive endpoints are used. GitHub's release endpoint may redirect once to its
+HTTPS release-assets host; arbitrary hosts, ports and redirect chains fail.
+Signed redirect URLs remain outside public reports. Compressed bytes, expanded
+bytes, file sizes, member counts and transfer time all have explicit limits.
+Verified archives remain in fresh private scratch work; existing files are not
+overwritten.
+
+The QA Go graph already includes the pinned golangci-lint, gosec and
+govulncheck modules. Syft is the main module in its scanner graph and therefore
+needs a separate source observation: the collector downloads it as a dependency
+in an isolated bootstrap module with the release recipe's exact checksum pair,
+requires the proxy's source revision to match the recorded recipe and runs
+`go mod verify` before reading root license bytes. The bootstrap does not build
+or execute Syft or change the application/scanner locks.
+
+These records cover selected tool archives and module sources, not all linked
+binary dependencies, nested notices, the compiler/interpreter, runner image or
+installer bootstrap. Archive integrity and root text candidates are separate
+from producer authenticity, complete SBOMs, license approval and redistribution
+obligations. Artifact-bound release evidence has its own
+[supply-chain profile](release-supply-chain.md).
 
 ## Implemented Admission Rules
 
@@ -229,16 +262,16 @@ files and unsafe paths. Configure `DEPENDENCY_INVENTORY_WORK_ROOT` to an existin
 scratch directory, preferably on the build-storage volume. The CLI also accepts
 `--output` as a path relative to the checkout for a private qualification report.
 
-This stage sets `complete: false`. Additional build-tool archives,
-Actions/images and maintenance/live
+This stage sets `complete: false`. Actions/images and maintenance/live
 review evidence remain to be integrated before EVY-1407 can close. Go graph
 observations cover available modules, not only dependencies linked into a
 particular binary; they are separate from artifact-bound release SBOMs.
 
-The [2026-10-21 snapshot](dependency-inventory.json) contains 1,884 records:
-1,522 Go module/versions, 327 Node packages, one PyYAML component with 73 pinned
-distributions and 34 fixture records. Go and registry source artifacts passed
-their download/checksum verification. Go license observations include 1,411 candidates,
+The [2026-10-21 snapshot](dependency-inventory.json) contains 1,887 records:
+1,523 Go module/versions, 327 Node packages, one PyYAML component with 73 pinned
+distributions, 34 fixture records and two build-tool archives. Go and registry
+source artifacts passed their download/checksum verification. Go license
+observations include 1,412 candidates,
 76 ambiguous results, 26 unknown and nine with no root license file. None of
 those classifications grants approval. All 327 npm manifest declarations match
 the lock. Their separate root-text observations are 241 candidates, three
@@ -258,6 +291,10 @@ target. Recorded license declarations remain intact when text classification
 is unknown or ambiguous. All 34 fixture entries have a primary text candidate;
 one secondary attribution notice is unknown and remains in the evidence. No
 classification becomes an approval.
+Helm and oasdiff record their pinned archive SHA-256 values and observed binary
+digests. Their root license texts and the separately verified Syft main source
+are Apache-2.0 candidates. This does not inventory all dependencies bundled
+in those binaries or grant license approval.
 The snapshot binds generator/input
 hashes and records the missing scopes; the unit tests reject a stale snapshot
 after those inputs change. The missing scopes and policy enforcement are still

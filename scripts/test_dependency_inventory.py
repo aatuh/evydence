@@ -16,6 +16,7 @@ from unittest.mock import patch
 import zipfile
 import dependency_node_sources
 import dependency_python_sources
+import dependency_build_tools
 import fixture_provenance
 
 SPEC = importlib.util.spec_from_file_location('dependency_inventory', Path(__file__).with_name('dependency_inventory.py'))
@@ -60,6 +61,7 @@ class MetadataTests(unittest.TestCase):
         self.assertNotIn('npm-source-license', report['remaining_scopes'])
         self.assertNotIn('python', report['remaining_scopes'])
         self.assertNotIn('fixtures', report['remaining_scopes'])
+        self.assertNotIn('build-tool-archives', report['remaining_scopes'])
         self.assertTrue(report['components'])
         for row in report['components']:
             self.assertNotIn('vulnerabilities', row)
@@ -75,8 +77,15 @@ class MetadataTests(unittest.TestCase):
                 self.assertEqual(row['source']['verification'], 'local-digests-checked')
                 self.assertTrue(row['license_notices'])
                 self.assertTrue(row['license_evidence'])
+            elif row['ecosystem'] == 'generic':
+                self.assertIn(row['name'], {'helm', 'oasdiff'})
+                self.assertEqual(row['source']['verification'], 'sha256-verified')
+                self.assertEqual(len(row['source']['binary_sha256']), 64)
             else:
                 self.fail('unrecognized inventory ecosystem')
+        scanner = [row for row in report['components'] if row['name'] == 'github.com/anchore/syft']
+        self.assertEqual(len(scanner), 1)
+        self.assertEqual(scanner[0]['origins'], ['scanner-tool'])
         raw = json.dumps(report)
         self.assertNotIn('/home/', raw)
         self.assertNotIn('/mnt/', raw)
@@ -412,8 +421,72 @@ class FixtureObservationTests(unittest.TestCase):
             self.assertNotIn('content', json.dumps(row))
 
 
+class ScannerToolTests(unittest.TestCase):
+    def record(self, root):
+        import release_evidence_tools as tools
+        return {'Path': 'github.com/anchore/syft', 'Version': 'v' + tools.release_sbom.SYFT_VERSION,
+                'Sum': tools.SOURCE_SUM, 'GoModSum': tools.SOURCE_MOD_SUM,
+                'Dir': str(root / 'source'), 'Zip': str(root / 'module.zip'),
+                'Origin': {'Hash': tools.release_scanner.SYFT_SOURCE_COMMIT}}
+
+    def test_scanner_main_source_is_verified_as_a_dependency_before_license_reads(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); record = self.record(root); calls = []
+            def run(args, cwd, environment, **kwargs):
+                calls.append(args)
+                if args[:3] == ['go', 'mod', 'download']:
+                    self.assertIn(record['Sum'], (cwd / 'go.sum').read_text())
+                    self.assertIn(record['GoModSum'], (cwd / 'go.sum').read_text())
+                    return json.dumps(record).encode()
+                self.assertEqual(args, ['go', 'mod', 'verify'])
+                return b'all modules verified\n'
+            def licenses(cache, source):
+                self.assertEqual(calls[-1], ['go', 'mod', 'verify'])
+                self.assertEqual(source, record)
+                return []
+            with patch.object(INVENTORY, '_run', side_effect=run), patch.object(INVENTORY, 'license_files', side_effect=licenses):
+                row, files = INVENTORY.scanner_tool(root, {}, root, 'go1.27.3')
+            self.assertEqual(row['name'], 'github.com/anchore/syft')
+            self.assertEqual(row['origins'], ['scanner-tool'])
+            self.assertEqual(row['source']['verification'], 'go-mod-verify')
+            self.assertEqual(row['source']['commit'], record['Origin']['Hash'])
+            self.assertEqual(files, [])
+            self.assertNotIn(str(root), json.dumps(row))
+
+    def test_scanner_identity_checksum_revision_or_failed_verification_cannot_supply_licenses(self):
+        mutations = [{'Path': 'example.com/other'}, {'Version': 'v0.0.0'}, {'Sum': H1},
+                     {'GoModSum': H1}, {'Origin': {'Hash': '0' * 40}}, {'Origin': None},
+                     {'Error': 'SECRET_CANARY'}]
+        for mutation in mutations + [None]:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder); record = self.record(root)
+                if mutation:
+                    record.update(mutation)
+                def run(args, *_args, **_kwargs):
+                    if args[:3] == ['go', 'mod', 'download']:
+                        return json.dumps(record).encode()
+                    raise INVENTORY.InventoryError('verification failed')
+                with patch.object(INVENTORY, '_run', side_effect=run), patch.object(INVENTORY, 'license_files') as licenses:
+                    with self.assertRaises(INVENTORY.InventoryError) as failure:
+                        INVENTORY.scanner_tool(root, {}, root, 'go1.27.3')
+                    licenses.assert_not_called()
+                    self.assertNotIn('SECRET_CANARY', str(failure.exception))
+
+
 class CollectorTests(unittest.TestCase):
     def setUp(self):
+        def tool_fetch(_row, _work):
+            return ({'verification': 'sha256-verified', 'binary_sha256': 'b' * 64}, [])
+        tool_mock = patch.object(dependency_build_tools, 'fetch', side_effect=tool_fetch)
+        self.tool_fetch = tool_mock.start()
+        self.addCleanup(tool_mock.stop)
+        scanner = {'ecosystem': 'gomod', 'name': 'github.com/anchore/syft', 'version': 'v1.54.1',
+                   'origins': ['scanner-tool'], 'license': None, 'license_status': 'unobserved',
+                   'license_evidence': [], 'version_published_at': None,
+                   'source': {'sum': H1, 'go_mod_sum': H1, 'verification': 'go-mod-verify'}}
+        scanner_mock = patch.object(INVENTORY, 'scanner_tool', return_value=(scanner, []))
+        self.scanner_tool = scanner_mock.start()
+        self.addCleanup(scanner_mock.stop)
         def fetch(_row, _work):
             return ({'verification': 'sha512-verified', 'package_json_sha256': 'a' * 64,
                      'license': 'MIT', 'declaration_status': 'matched'}, [])
@@ -517,8 +590,13 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(result['schema'], 'evydence-dependency-inventory.v1')
             self.assertFalse(result['complete'])
             self.assertNotIn('python', result['remaining_scopes'])
-            self.assertEqual(len(result['components']), 4)
-            library = next(row for row in result['components'] if row['ecosystem'] == 'gomod')
+            self.assertEqual(len(result['components']), 7)
+            self.assertNotIn('build-tool-archives', result['remaining_scopes'])
+            self.assertEqual(self.tool_fetch.call_count, 2)
+            self.scanner_tool.assert_called_once()
+            archive_tools = [row for row in result['components'] if row['ecosystem'] == 'generic']
+            self.assertTrue(all(row['source']['verification'] == 'sha256-verified' for row in archive_tools))
+            library = next(row for row in result['components'] if row['name'] == 'example.com/library')
             self.assertEqual(library['origins'], ['application', 'qa', 'scanner'])
             self.assertEqual(library['license'], 'MIT')
             self.assertEqual(library['source']['verification'], 'go-mod-verify')
