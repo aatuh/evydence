@@ -1,8 +1,8 @@
 module github.com/aatuh/evydence/tools
 
-go 1.26.9
+go 1.26.10
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint

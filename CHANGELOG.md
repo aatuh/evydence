@@ -16,6 +16,11 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 - Earlier source changes remain in the [historical source snapshot](#historical-source-snapshot-f46244c7-not-a-release).
   That snapshot is development history, not a published release or independent review evidence.
 
+### Security
+
+- Require patched Go certificate verification for supported builds (`EVY-1408-x509-toolchain`).
+  Update minimum Go to 1.26.10 and current Go to 1.27.3 for GO-2026-6809, reached through the Sigstore certificate verifier. Pin matching compiler images and refresh current build selections and native-source reviews; retain earlier toolchains and dated evidence as historical observations.
+
 ### Changed
 
 - Automate source-linked release notes, changelog coverage and support policy (`EVY-1408-release-history`).

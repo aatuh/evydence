@@ -15,6 +15,7 @@ import release_artifacts
 import release_evidence_tools
 import change_fragments
 import release_notes
+import release_scanner
 from test_change_fragments import fragment
 
 
@@ -50,7 +51,7 @@ class PackagingRecipeTests(unittest.TestCase):
         programs = {
             'syft': '''import json,sys
 if sys.argv[1:] != ['version','-o','json']:raise SystemExit(92)
-print(json.dumps({'application':'syft','version':'1.54.1','gitCommit':'b254e6d92f28c3868a755f62fb3ca8f26e9fee76','goVersion':'go1.27.2','platform':'linux/amd64'}))
+print(json.dumps({'application':'syft','version':'1.54.1','gitCommit':'b254e6d92f28c3868a755f62fb3ca8f26e9fee76','goVersion':'GO_VERSION_FIXTURE','platform':'linux/amd64'}))
 ''',
             'git': '''import os,sys
 from pathlib import Path
@@ -67,7 +68,7 @@ else:os.execv(REAL_GIT,['git',*a])
             'go': '''import json,os,sys
 from pathlib import Path
 a=sys.argv[1:]
-if a==['env','GOVERSION']:print('go1.27.2')
+if a==['env','GOVERSION']:print('GO_VERSION_FIXTURE')
 elif a and a[0]=='build':
  with open('build-requests.jsonl','a') as out:out.write(json.dumps({'args':a,'goos':os.environ.get('GOOS'),'goarch':os.environ.get('GOARCH'),'cgo':os.environ.get('CGO_ENABLED'),'goflags':os.environ.get('GOFLAGS'),'experiment':os.environ.get('GOEXPERIMENT'),'secret_present':any(k in os.environ for k in ['GH_TOKEN','EVYDENCE_TEST_DATABASE_URL','EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64'])})+'\\n')
  target=Path(a[a.index('-o')+1]);target.parent.mkdir(parents=True,exist_ok=True)
@@ -112,7 +113,7 @@ else:raise SystemExit(92)
         }
         for name, code in programs.items():
             path = root / 'bin' / name
-            path.write_text('#!' + sys.executable + '\n' + code)
+            path.write_text('#!' + sys.executable + '\n' + code.replace('GO_VERSION_FIXTURE', release_scanner.SCANNER_GO_VERSION))
             path.chmod(0o700)
         (root / 'bin/installation.json').write_text(json.dumps({
             'schema': 'evydence-release-tool.v1', 'recipe_sha256': release_evidence_tools.recipe_digest(),

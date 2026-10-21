@@ -163,97 +163,97 @@
       "finding": "Non-Windows defaultSettings calls user.Current and os.Stat on home TLS files; default port 5432 and target_session_attrs any. This is an OS/filesystem boundary, not pure environment parsing."
     },
     {
-      "source": "go@1.26.9/src/crypto/x509/root_unix.go",
+      "source": "go@1.26.10/src/crypto/x509/root_unix.go",
       "sha256": "421c066f193250dc1adaf13fce4779fc3dc576e20faa86e43bc22af6c9536a14",
       "go_boundary": "tls_roots",
       "finding": "Unix loadSystemRoots reads SSL_CERT_FILE and SSL_CERT_DIR, splits directory overrides on colons and reads files/directories. Windows and Darwin retain their native platform trust loaders; this record does not claim their runtime qualification."
     },
     {
-      "source": "go@1.26.9/src/net/http/transport.go",
+      "source": "go@1.26.10/src/net/http/transport.go",
       "sha256": "643bce4b4fb016ed57c18e9d087e6c298faf3263d83728107c6b5cdaa398fe87",
       "go_boundary": "http_transport",
       "finding": "ProxyFromEnvironment caches vendored httpproxy.FromEnvironment().ProxyFunc() under sync.Once. The scoped proxy environment path is unchanged between the declared versions; capture does not freeze the ambient native read."
     },
     {
-      "source": "go@1.26.9/src/os/exec/lp_unix.go",
+      "source": "go@1.26.10/src/os/exec/lp_unix.go",
       "sha256": "5ee781400e1f04ffea869496f161555f31d1af0ca521fb77ef16f54522808746",
       "go_boundary": "unix_executable",
       "finding": "lookPath consults PATH for native executable lookup. Source bytes are identical across the two declared versions; config capture never executes a helper."
     },
     {
-      "source": "go@1.26.9/src/os/exec/lp_windows.go",
+      "source": "go@1.26.10/src/os/exec/lp_windows.go",
       "sha256": "b43699d7c9c5fa2cfe82edb55be04b509619232ad514a34a11c481d43290a6fd",
       "go_boundary": "windows_executable",
       "finding": "Windows lookup reads PATHEXT, presence of NoDefaultCurrentDirectoryInExePath and case-insensitive path. Suffix normalization, absent/empty defaults and separators-only behavior are unchanged; source bytes are identical across the declared versions."
     },
     {
-      "source": "go@1.26.9/src/os/file.go",
+      "source": "go@1.26.10/src/os/file.go",
       "sha256": "85a4adcd383c9947d6133b65ccd01e95b68ce1d07b8474b7b7aad8ca9f3b8139",
       "go_boundary": "user_home",
       "finding": "UserHomeDir reads HOME on Unix and USERPROFILE on Windows. Its scoped implementation is unchanged across the declared versions; other OS defaults remain native and are not additional supported server platforms."
     },
     {
-      "source": "go@1.26.9/src/path/filepath/path_unix.go",
+      "source": "go@1.26.10/src/path/filepath/path_unix.go",
       "sha256": "d92b04d88e202d2916f803ceb3c8806475b510907a142571f4e9ba70b52c1c1d",
       "go_boundary": "unix_path_list",
       "finding": "splitList preserves colon-separated empty entries and literal quotes; empty input yields an empty list. The bounded project projection preserves this grammar before native resolution."
     },
     {
-      "source": "go@1.26.9/src/path/filepath/path_windows.go",
+      "source": "go@1.26.10/src/path/filepath/path_windows.go",
       "sha256": "96c1af1caace59a146241f5a48a700a142f2e5520f932fb2fc6376ce5a94ed81",
       "go_boundary": "windows_path_list",
       "finding": "splitList respects quotes while splitting semicolon-separated paths, then removes quotes, including unmatched quotes. Empty input yields an empty list; project item/count bounds apply before decoding. Source review is not native Windows runtime evidence."
     },
     {
-      "source": "go@1.26.9/src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+      "source": "go@1.26.10/src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
       "sha256": "e1cde07b566be558b32a4a54cd1e8d9c36ce7d0579706c9495537154f8c1041e",
       "go_boundary": "http_proxy",
       "finding": "FromEnvironment chooses HTTP_PROXY before http_proxy, HTTPS_PROXY before https_proxy and NO_PROXY before no_proxy. REQUEST_METHOD enables CGI restrictions. Only comments change across the declared versions; do not substitute the separately pinned x/net lowercase-first helper."
     },
     {
-      "source": "go@1.27.2/src/crypto/x509/root.go",
+      "source": "go@1.27.3/src/crypto/x509/root.go",
       "sha256": "bcad6caaa9c0780b87b0509e112600996514184abe1e304bf468e200cacb6223",
       "go_boundary": "tls_roots",
-      "finding": "loadSystemRoots moved to root.go. SSL_CERT_FILE and SSL_CERT_DIR can select on-disk roots on Windows, Darwin and iOS as well as Unix. On those platform-verifier systems no override retains systemPool; GODEBUG=x509sslcertoverrideplatform=0 also retains it. loadOnDiskRoots uses filepath.SplitList, reads files/directories and skips same-directory symlinks. Native global initialization and GODEBUG retain their own owner; input capture does not freeze or invoke them. The internal Go compatibility table marks x509sslcertoverrideplatform Changed27 Old0: the retained module Go1.26.9 minimum keeps platform roots by default even with compiler1.27.2; native GODEBUG can explicitly opt in."
+      "finding": "loadSystemRoots moved to root.go. SSL_CERT_FILE and SSL_CERT_DIR can select on-disk roots on Windows, Darwin and iOS as well as Unix. On those platform-verifier systems no override retains systemPool; GODEBUG=x509sslcertoverrideplatform=0 also retains it. loadOnDiskRoots uses filepath.SplitList, reads files/directories and skips same-directory symlinks. Native global initialization and GODEBUG retain their own owner; input capture does not freeze or invoke them. The internal Go compatibility table marks x509sslcertoverrideplatform Changed27 Old0: the retained module Go1.26.10 minimum keeps platform roots by default even with compiler1.27.3; native GODEBUG can explicitly opt in."
     },
     {
-      "source": "go@1.27.2/src/net/http/transport.go",
+      "source": "go@1.27.3/src/net/http/transport.go",
       "sha256": "c9146e77adc22d4b74ba77384ec7be7fc27c3af21ff20485f642b4d611b381a4",
       "go_boundary": "http_transport",
       "finding": "ProxyFromEnvironment caches vendored httpproxy.FromEnvironment().ProxyFunc() under sync.Once. The scoped proxy environment path is unchanged between the declared versions; capture does not freeze the ambient native read."
     },
     {
-      "source": "go@1.27.2/src/os/exec/lp_unix.go",
+      "source": "go@1.27.3/src/os/exec/lp_unix.go",
       "sha256": "5ee781400e1f04ffea869496f161555f31d1af0ca521fb77ef16f54522808746",
       "go_boundary": "unix_executable",
       "finding": "lookPath consults PATH for native executable lookup. Source bytes are identical across the two declared versions; config capture never executes a helper."
     },
     {
-      "source": "go@1.27.2/src/os/exec/lp_windows.go",
+      "source": "go@1.27.3/src/os/exec/lp_windows.go",
       "sha256": "b43699d7c9c5fa2cfe82edb55be04b509619232ad514a34a11c481d43290a6fd",
       "go_boundary": "windows_executable",
       "finding": "Windows lookup reads PATHEXT, presence of NoDefaultCurrentDirectoryInExePath and case-insensitive path. Suffix normalization, absent/empty defaults and separators-only behavior are unchanged; source bytes are identical across the declared versions."
     },
     {
-      "source": "go@1.27.2/src/os/file.go",
+      "source": "go@1.27.3/src/os/file.go",
       "sha256": "d77653afbcbec5256b56aee25dce3df3ed001f964c9b245b848a5d378884bcb3",
       "go_boundary": "user_home",
       "finding": "UserHomeDir reads HOME on Unix and USERPROFILE on Windows. Its scoped implementation is unchanged across the declared versions; other OS defaults remain native and are not additional supported server platforms."
     },
     {
-      "source": "go@1.27.2/src/path/filepath/path_unix.go",
+      "source": "go@1.27.3/src/path/filepath/path_unix.go",
       "sha256": "d92b04d88e202d2916f803ceb3c8806475b510907a142571f4e9ba70b52c1c1d",
       "go_boundary": "unix_path_list",
       "finding": "splitList preserves colon-separated empty entries and literal quotes; empty input yields an empty list. The bounded project projection preserves this grammar before native resolution."
     },
     {
-      "source": "go@1.27.2/src/path/filepath/path_windows.go",
+      "source": "go@1.27.3/src/path/filepath/path_windows.go",
       "sha256": "96c1af1caace59a146241f5a48a700a142f2e5520f932fb2fc6376ce5a94ed81",
       "go_boundary": "windows_path_list",
       "finding": "splitList respects quotes while splitting semicolon-separated paths, then removes quotes, including unmatched quotes. Empty input yields an empty list; project item/count bounds apply before decoding. Source review is not native Windows runtime evidence."
     },
     {
-      "source": "go@1.27.2/src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+      "source": "go@1.27.3/src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
       "sha256": "ce887b0b89d3c008b2c6082c62cf07ad29734cdd19d7b58ce8030bd35cb0a907",
       "go_boundary": "http_proxy",
       "finding": "FromEnvironment chooses HTTP_PROXY before http_proxy, HTTPS_PROXY before https_proxy and NO_PROXY before no_proxy. REQUEST_METHOD enables CGI restrictions. Only comments change across the declared versions; do not substitute the separately pinned x/net lowercase-first helper."

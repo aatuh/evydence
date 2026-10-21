@@ -10,8 +10,8 @@ Python 3 with PyYAML, alongside the existing project tools.
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 | Go role | Exact version |
 | --- | --- |
-| Minimum | `1.26.9` |
-| Current | `1.27.2` |
+| Minimum | `1.26.10` |
+| Current | `1.27.3` |
 
 | Platform | CLI target | Server target | Runtime target |
 | --- | --- | --- | --- |
@@ -96,6 +96,14 @@ publishing manifests or additional OS/runtime qualification for those examples.
 
 ## Updating the policy
 
+The 2026-10-21 security update raised the compiler floors to Go 1.26.10 and
+1.27.3 for [GO-2026-6809](https://vuln.go.dev/ID/GO-2026-6809.json), which affects
+`crypto/x509.Certificate.Verify` reached by the Sigstore verifier. The upstream
+fix rejects chains containing known untrustworthy intermediate certificates;
+operators still own their trust stores. Earlier published archives, images and
+dated qualification records retain their original identities and compiler
+versions. Updating source policy does not rebuild or republish those assets.
+
 Change policy data and its checked build/CI/documentation inputs in the same
 reviewed change. `tools/go.mod` and `tools/go.sum` isolate the QA dependency graph
 from application dependencies; `make tools` installs from that graph with
@@ -103,7 +111,7 @@ workspace overrides disabled and module edits forbidden. Update both lock files
 alongside the declared tool versions and build-dependency pin. Keep exact QA tool versions; Go tools use module/checksum-db
 verification. The shared `golang.org/x/tools` pin lets standalone gosec read
 current Go export data; its released isolated dependency graph cannot read
-Go 1.27.2 exports. The same engine with this parser already runs in the pinned
+Go 1.27 exports. The same engine with this parser already runs in the pinned
 golangci-lint graph. Downloaded Helm/oasdiff archives require their declared
 SHA-256. Inspect official release notes, dependency floors and security fixes.
 Review Docker Official Image manifest digests, retaining immutable pins and the

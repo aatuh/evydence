@@ -9,6 +9,7 @@ import unittest
 
 import release_evidence_profile as profile
 import release_sbom
+import support_matrix
 
 
 class EvidenceProfileTests(unittest.TestCase):
@@ -18,7 +19,7 @@ class EvidenceProfileTests(unittest.TestCase):
                          'sha256': hashlib.sha256(b'binary').hexdigest(), 'bytes': 6}]
         self.manifest = {'schema_version': 'evydence-release-build-manifest.v1',
                          'build_recipe_version': 'evydence-release-build.v1',
-                         'commit': self.commit, 'tag': self.tag, 'go_version': 'go1.27.2',
+                         'commit': self.commit, 'tag': self.tag, 'go_version': 'go' + support_matrix.load_policy()['go']['current'],
                          'materials': [{'path': 'go.mod', 'digest': 'sha256:' + 'b' * 64}]}
         components = [{'type': 'library', 'name': 'example.com/module', 'version': 'v1.2.3',
                        'purl': 'pkg:golang/example.com/module@v1.2.3'}]

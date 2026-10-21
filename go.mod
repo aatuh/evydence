@@ -1,8 +1,8 @@
 module github.com/aatuh/evydence
 
-go 1.26.9
+go 1.26.10
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0

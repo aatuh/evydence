@@ -16,6 +16,7 @@ import unittest
 import release_artifacts
 import release_evidence_profile as profile
 import release_sbom
+import support_matrix
 import release_signing
 import release_subjects
 
@@ -44,12 +45,12 @@ class PublicReleaseEvidenceTests(unittest.TestCase):
         self.records = release_subjects.collect(self.dist, TAG, self.root / 'subjects')
         manifest = {'schema_version': 'evydence-release-build-manifest.v1',
                     'build_recipe_version': release_artifacts.RECIPE_VERSION, 'tag': TAG,
-                    'commit': 'a' * 40, 'go_version': 'go1.27.2',
+                    'commit': 'a' * 40, 'go_version': 'go' + support_matrix.load_policy()['go']['current'],
                     'materials': [{'path': 'go.mod', 'digest': 'sha256:' + 'b' * 64}]}
         manifest_bytes = profile.json_bytes(manifest)
         (self.dist / 'release-build-manifest.json').write_bytes(manifest_bytes)
         boms = {item['name']: release_sbom.bound_bom(item, [{'type': 'library', 'name': 'stdlib',
-                 'version': 'go1.27.2', 'purl': 'pkg:golang/stdlib@1.27.2'}]) for item in self.records}
+                 'version': 'go' + support_matrix.load_policy()['go']['current'], 'purl': 'pkg:golang/stdlib@' + support_matrix.load_policy()['go']['current']}]) for item in self.records}
         for filename, raw in profile.documents(self.records, boms, manifest, profile.digest(manifest_bytes),
                                                TAG, 'a' * 40, invocation='local').items():
             (self.dist / filename).write_bytes(raw)

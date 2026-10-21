@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1408-x509-toolchain",
+  "category": "security",
+  "summary": "Require patched Go certificate verification for supported builds",
+  "details": [
+    "Update minimum Go to 1.26.10 and current Go to 1.27.3 for GO-2026-6809, reached through the Sigstore certificate verifier.",
+    "Pin matching compiler images and refresh current build selections and native-source reviews; retain earlier toolchains and dated evidence as historical observations."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "The minimum build compiler is now Go 1.26.10 and the preferred compiler is Go 1.27.3. Upstream certificate verification intentionally rejects the compromised intermediates covered by the advisory; no HTTP schema or database migration changes."
+  },
+  "security": "GO-2026-6809 adds an upstream denylist for known untrustworthy intermediate certificates. This does not establish vulnerability absence or replace operator trust-store updates.",
+  "limitations": [
+    "Existing published releases and images are historical and are not rebuilt or changed in place by this source update.",
+    "New hosted builds, independent review and publication remain separate actions; prior qualification records describe their recorded compiler versions."
+  ]
+}

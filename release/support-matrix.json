@@ -1,8 +1,8 @@
 {
   "schema_version": "evydence-support-policy.v1",
   "go": {
-    "minimum": "1.26.9",
-    "current": "1.27.2"
+    "minimum": "1.26.10",
+    "current": "1.27.3"
   },
   "tools": {
     "golangci_lint": {

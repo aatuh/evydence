@@ -37,13 +37,13 @@ class ReproducibilityTests(unittest.TestCase):
             output.parent.mkdir(parents=True, exist_ok=True)
             if kind == 'build-manifest':
                 output.write_text(json.dumps({'schema_version': 'evydence-release-build-manifest.v1',
-                    'tag': TAG, 'commit': COMMIT, 'go_version': 'go1.27.2',
+                    'tag': TAG, 'commit': COMMIT, 'go_version': 'go' + self.policy['go']['current'],
                     'build_recipe_version': release_artifacts.RECIPE_VERSION,
                     'source_date_epoch': 1700000000, 'build_time': '2023-11-14T22:13:20Z'}))
             else:
                 output.write_bytes(('fixture bytes ' + path).encode())
         report = dict(schema_version=repro.REPORT_SCHEMA, source_commit=COMMIT, tag=TAG,
-                      source_date_epoch=1700000000, go_version='go1.27.2',
+                      source_date_epoch=1700000000, go_version='go' + self.policy['go']['current'],
                       build_recipe_version=release_artifacts.RECIPE_VERSION,
                       artifacts=repro.artifact_inventory(directory, self.policy, TAG),
                       execution={'kind': 'local', 'slot': name})
@@ -161,7 +161,7 @@ class ReproducibilityTests(unittest.TestCase):
                 target = bundle / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(('fixture bytes ' + path).encode())
-            return {'go_version': 'go1.27.2', 'source_date_epoch': 1700000000,
+            return {'go_version': 'go' + self.policy['go']['current'], 'source_date_epoch': 1700000000,
                     'build_recipe_version': release_artifacts.RECIPE_VERSION}
 
         with mock.patch.object(repro.release_build, 'source_identity', return_value=COMMIT), \

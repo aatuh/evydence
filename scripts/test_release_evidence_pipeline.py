@@ -11,6 +11,7 @@ import release_evidence_metadata as metadata
 import release_evidence_profile as profile
 import release_evidence_verify
 import release_sbom
+import release_scanner
 
 
 class EvidencePipelineTests(unittest.TestCase):
@@ -21,7 +22,7 @@ class EvidencePipelineTests(unittest.TestCase):
         self.addCleanup(fixture.doCleanups)
         manifest = {'schema_version': 'evydence-release-build-manifest.v1',
                     'build_recipe_version': 'evydence-release-build.v1', 'commit': 'a' * 40,
-                    'tag': TAG, 'go_version': 'go1.27.2',
+                    'tag': TAG, 'go_version': release_scanner.SCANNER_GO_VERSION,
                     'materials': [{'path': 'go.mod', 'digest': 'sha256:' + 'b' * 64}]}
         (fixture.dist / 'release-build-manifest.json').write_bytes(profile.json_bytes(manifest))
         return fixture, TAG
@@ -32,7 +33,7 @@ class EvidencePipelineTests(unittest.TestCase):
                 return 'a' * 40
             if args[:2] == ['git', 'show']:
                 return '2026-10-19T00:00:00+00:00'
-            return 'go version go1.27.2 linux/amd64'
+            return 'go version ' + release_scanner.SCANNER_GO_VERSION + ' linux/amd64'
         stderr, stdout = io.StringIO(), io.StringIO()
         with mock.patch.object(metadata.Path, 'cwd', return_value=fixture.root), \
                 mock.patch.object(metadata.sys, 'argv', ['metadata', tag, str(fixture.dist), '--syft', '/fixture/scanner']), \
@@ -52,7 +53,7 @@ class EvidencePipelineTests(unittest.TestCase):
         fixture, tag = self.fixture()
         def scan(_tool, subject, _workspace):
             return release_sbom.bound_bom(subject, [{'type': 'library', 'name': 'stdlib',
-                                                    'version': 'go1.27.2', 'purl': 'pkg:golang/stdlib@1.27.2'}])
+                                                    'version': release_scanner.SCANNER_GO_VERSION, 'purl': 'pkg:golang/stdlib@' + release_scanner.SCANNER_GO_VERSION.removeprefix('go')}])
         self.assertEqual(self.invoke(fixture, tag, scan), 0)
         index = json.loads((fixture.dist / profile.INDEX_NAME).read_text())
         self.assertEqual({item['name']: item['sha256'] for item in index['artifacts']}, fixture.expected)
@@ -69,7 +70,7 @@ class EvidencePipelineTests(unittest.TestCase):
         fixture, tag = self.fixture()
         def scan(_tool, subject, _workspace):
             return release_sbom.bound_bom(subject, [{'type': 'library', 'name': 'stdlib',
-                                                    'version': 'go1.27.2', 'purl': 'pkg:golang/stdlib@1.27.2'}])
+                                                    'version': release_scanner.SCANNER_GO_VERSION, 'purl': 'pkg:golang/stdlib@' + release_scanner.SCANNER_GO_VERSION.removeprefix('go')}])
         self.assertEqual(self.invoke(fixture, tag, scan), 0)
         index = fixture.dist / profile.INDEX_NAME
         saved = index.read_bytes()
