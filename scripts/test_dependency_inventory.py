@@ -16,6 +16,7 @@ from unittest.mock import patch
 import zipfile
 import dependency_node_sources
 import dependency_python_sources
+import fixture_provenance
 
 SPEC = importlib.util.spec_from_file_location('dependency_inventory', Path(__file__).with_name('dependency_inventory.py'))
 INVENTORY = importlib.util.module_from_spec(SPEC)
@@ -58,7 +59,7 @@ class MetadataTests(unittest.TestCase):
                              'inventory inputs or generator changed without regeneration')
         self.assertNotIn('npm-source-license', report['remaining_scopes'])
         self.assertNotIn('python', report['remaining_scopes'])
-        self.assertIn('fixtures', report['remaining_scopes'])
+        self.assertNotIn('fixtures', report['remaining_scopes'])
         self.assertTrue(report['components'])
         for row in report['components']:
             self.assertNotIn('vulnerabilities', row)
@@ -70,6 +71,10 @@ class MetadataTests(unittest.TestCase):
             elif row['ecosystem'] == 'pypi':
                 self.assertEqual(row['source']['verification'], 'sha256-verified')
                 self.assertTrue(row['source']['artifacts'])
+            elif row['ecosystem'] == 'fixture':
+                self.assertEqual(row['source']['verification'], 'local-digests-checked')
+                self.assertTrue(row['license_notices'])
+                self.assertTrue(row['license_evidence'])
             else:
                 self.fail('unrecognized inventory ecosystem')
         raw = json.dumps(report)
@@ -387,6 +392,26 @@ time.sleep(30)
                         pass
 
 
+class FixtureObservationTests(unittest.TestCase):
+    def test_fixture_observations_bind_payloads_notes_catalog_and_notice_bytes(self):
+        root = Path(__file__).parents[1]
+        inputs = {fixture_provenance.CATALOG: (root / fixture_provenance.CATALOG).read_bytes()}
+        rows, observations = INVENTORY.fixture_components(root, inputs)
+        self.assertEqual(len(rows), 34)
+        self.assertEqual(len({file['path'] for row in rows for file in row['source']['files']}), 56)
+        self.assertIn('LICENSE', inputs)
+        self.assertIn(fixture_provenance.CORPUS, inputs)
+        self.assertIn('internal/app/parsers/spdx/testdata/SOURCE.md', inputs)
+        for row in rows:
+            for file in row['source']['files']:
+                self.assertEqual(hashlib.sha256(inputs[file['path']]).hexdigest(), file['sha256'])
+            for notice, file in zip(row['license_notices'], observations[row['name']]):
+                self.assertEqual(file['content'], inputs[notice['path']])
+                self.assertEqual(file['sha256'], notice['sha256'])
+                self.assertEqual(file['kind'], 'notice' if notice['id'] in {'trivy-notice', 'sigstore-go-copyright-txt'} else 'license')
+            self.assertNotIn('content', json.dumps(row))
+
+
 class CollectorTests(unittest.TestCase):
     def setUp(self):
         def fetch(_row, _work):
@@ -428,11 +453,23 @@ class CollectorTests(unittest.TestCase):
             (Path(__file__).parents[1] / 'tools/requirements-qa.txt').read_bytes())
         cache = root / 'cache'; cache.mkdir()
         raw = (Path(__file__).parents[1] / 'internal/platform/config/database_dsn.LICENSE').read_bytes()
+        (root / 'LICENSE').write_bytes(raw)
+        (root / 'testdata').mkdir()
+        (root / 'testdata/example.json').write_bytes(b'{"example":true}')
+        (root / fixture_provenance.CORPUS).write_text('{"fixtures":[]}')
+        catalog = {'schema': fixture_provenance.SCHEMA,
+                   'notices': [{'id': 'evydence', 'license': 'AGPL-3.0-only', 'path': 'LICENSE',
+                                'sha256': hashlib.sha256(raw).hexdigest(), 'source': None}],
+                   'fixtures': [{'id': 'example', 'license': 'AGPL-3.0-only', 'notices': ['evydence'],
+                                 'files': [{'path': 'testdata/example.json', 'sha256': hashlib.sha256(b'{"example":true}').hexdigest()}],
+                                 'source': {'kind': 'project'}}]}
+        (root / fixture_provenance.CATALOG).write_text(json.dumps(catalog))
         with zipfile.ZipFile(cache / 'module.zip', 'w') as archive:
             archive.writestr('example.com/library@v1.2.3/LICENSE', raw)
         return cache
 
-    def fake_runner(self, root, cache, calls, *, fail_verify=False, mutate=False, truncate=False):
+    def fake_runner(self, root, cache, calls, *, fail_verify=False, mutate=False, truncate=False,
+                    mutate_fixture=False, add_fixture=False):
         def run(args, cwd, environment, **kwargs):
             calls.append((list(args), str(cwd), dict(environment)))
             if args == ['go', 'version']:
@@ -462,6 +499,10 @@ class CollectorTests(unittest.TestCase):
                     raise INVENTORY.InventoryError('source verification failed')
                 if mutate:
                     (root / 'go.sum').write_text('concurrent owner edit\n')
+                if mutate_fixture:
+                    (root / 'testdata/example.json').write_text('concurrent owner edit\n')
+                if add_fixture:
+                    (root / 'testdata/late.json').write_text('{}')
                 return b'all modules verified\n'
             self.fail('unexpected tool command')
         return run
@@ -476,7 +517,7 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(result['schema'], 'evydence-dependency-inventory.v1')
             self.assertFalse(result['complete'])
             self.assertNotIn('python', result['remaining_scopes'])
-            self.assertEqual(len(result['components']), 3)
+            self.assertEqual(len(result['components']), 4)
             library = next(row for row in result['components'] if row['ecosystem'] == 'gomod')
             self.assertEqual(library['origins'], ['application', 'qa', 'scanner'])
             self.assertEqual(library['license'], 'MIT')
@@ -489,6 +530,10 @@ class CollectorTests(unittest.TestCase):
             python = next(row for row in result['components'] if row['ecosystem'] == 'pypi')
             self.assertEqual(python['license'], 'MIT')
             self.assertEqual(python['license_text_status'], 'not-found')
+            fixture = next(row for row in result['components'] if row['ecosystem'] == 'fixture')
+            self.assertEqual(fixture['license'], 'AGPL-3.0-only')
+            self.assertEqual(fixture['license_text_candidate'], 'MIT')
+            self.assertEqual(fixture['license_status'], 'recorded-declaration')
             self.assertTrue(all(path.read_bytes() == raw for path, raw in before.items()))
             verify = [i for i, (args, _cwd, _env) in enumerate(calls) if args == ['go', 'mod', 'verify']]
             classifier = [i for i, (args, _cwd, _env) in enumerate(calls) if args[0].endswith('license-classifier')]
@@ -531,6 +576,29 @@ class CollectorTests(unittest.TestCase):
                 INVENTORY.collect(root, work, {})
             self.assertFalse(self.node_fetch.called)
             self.assertFalse(any(args[:3] == ['go', 'list', '-m'] for args, _cwd, _env in calls))
+
+    def test_bad_fixture_stops_before_any_tool_or_provider_work(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); cache = self.fixture(root); work = root / 'work'; work.mkdir()
+            (root / 'testdata/example.json').write_text('tampering')
+            calls = []
+            with patch.object(INVENTORY, '_run', self.fake_runner(root, cache, calls)), self.assertRaises(INVENTORY.InventoryError):
+                INVENTORY.collect(root, work, {})
+            self.assertEqual(len(calls), 0)
+            self.assertFalse(self.node_fetch.called)
+            self.assertFalse(self.python_fetch.called)
+
+    def test_fixture_edits_or_late_unclassified_files_abort_without_overwriting_them(self):
+        for operation in ['mutate_fixture', 'add_fixture']:
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder); cache = self.fixture(root); work = root / 'work'; work.mkdir()
+                runner = self.fake_runner(root, cache, [], **{operation: True})
+                with patch.object(INVENTORY, '_run', runner), self.assertRaises(INVENTORY.InventoryError):
+                    INVENTORY.collect(root, work, {})
+                if operation == 'mutate_fixture':
+                    self.assertEqual((root / 'testdata/example.json').read_text(), 'concurrent owner edit\n')
+                else:
+                    self.assertEqual((root / 'testdata/late.json').read_text(), '{}')
 
     def test_concurrent_source_change_aborts_without_overwriting_the_owner_edit(self):
         with tempfile.TemporaryDirectory() as folder:

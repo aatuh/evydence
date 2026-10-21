@@ -13,6 +13,7 @@
     "Pin Python QA wheels with SHA-256 hashes in isolated CI virtual environments, reject installed version/requirement drift and check the Python SDK's static standard-library import boundary.",
     "Verify every pinned PyYAML distribution before bounded source/wheel metadata and license inspection, preserving cross-artifact declarations separately from text candidates without executing package code.",
     "Catalog fixture coverage and pinned source transformations, preserve upstream notices, correct unsupported corpus source/license labels and check local identities plus read-only upstream byte equivalence.",
+    "Include fixture records and notice-text observations in the dependency snapshot, bind bounded inputs before provider work and reject source edits or newly unclassified files without overwriting them.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {
@@ -23,7 +24,7 @@
   },
   "security": "Reject malformed or oversized input, duplicate JSON keys, nonfinite numbers and unsupported metadata with errors that omit raw input. Rules have no network or subprocess effects; the classifier accepts digest-bound bytes over stdin without supplied-path or package-code execution.",
   "limitations": [
-    "EVY-1407 remains incomplete: fixtures, additional build tools/Actions/images, maintenance reporting, trusted live PR review, update grouping and release qualification are pending.",
+    "EVY-1407 remains incomplete: additional build tools/Actions/images, maintenance reporting, trusted live PR review, update grouping and release qualification are pending.",
     "A review-link shape and synthetic policy tests do not prove approval or that real dependency changes are blocked by hosted CI."
   ]
 }

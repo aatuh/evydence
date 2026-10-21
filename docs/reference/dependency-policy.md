@@ -61,12 +61,12 @@ from declarations and admission. See Python's [core metadata specification](http
 
 ## Implemented Admission Rules
 
-Fixture coverage and source declarations have a separate
+Fixture coverage and source declarations use a
 [provenance catalog and checks](fixture-provenance.md). Its local gate is part
 of `make docs-check`; the upstream gate checks pinned files and notices through
-read-only GitHub API calls. The general dependency snapshot does not yet
-include those fixture observations. License admission remains separate from
-source equivalence and recorded license declarations.
+read-only GitHub API calls. The general dependency snapshot includes fixture
+records and separately classified notice bytes. License admission remains
+separate from source equivalence and recorded license declarations.
 
 `scripts/dependency_policy.py` is an offline library without network, subprocess
 or filesystem effects. Its caller must provide trusted policy and verified
@@ -151,8 +151,12 @@ the report.
 The collector requires the current compiler from the support matrix, disables
 automatic switching and workspace overrides, and serializes downloads. It
 omits provider credentials from the tool environment. ZIP reads never extract
-files, reject escaping/symlink paths and enforce entry/file limits. Input hashes
-are checked again before writing a report; changed inputs abort collection.
+files, reject escaping/symlink paths and enforce entry/file limits. Fixture
+payloads, notices, corpus and source notes are read into one bounded input
+snapshot before provider work. Notice bytes are classified separately from the
+catalog's declarations. Input hashes and fixture coverage are checked again
+before writing a report; edits or newly unclassified files abort collection
+without overwriting the owner's changes.
 
 The marketing lock contributes all package locations, exact versions, registry
 URLs, SHA-512 integrity declarations and declared license expressions. The
@@ -184,15 +188,16 @@ files and unsafe paths. Configure `DEPENDENCY_INVENTORY_WORK_ROOT` to an existin
 scratch directory, preferably on the build-storage volume. The CLI also accepts
 `--output` as a path relative to the checkout for a private qualification report.
 
-This stage sets `complete: false`. Redistributed fixtures, additional
-build-tool archives, Actions/images and maintenance/live
+This stage sets `complete: false`. Additional build-tool archives,
+Actions/images and maintenance/live
 review evidence remain to be integrated before EVY-1407 can close. Go graph
 observations cover available modules, not only dependencies linked into a
 particular binary; they are separate from artifact-bound release SBOMs.
 
-The [2026-10-21 snapshot](dependency-inventory.json) contains 1,522 Go
-module/version observations after real download/checksum verification and 327
-Node source archive observations plus the pinned PyYAML distributions. Go license observations include 1,411 candidates,
+The [2026-10-21 snapshot](dependency-inventory.json) contains 1,884 records:
+1,522 Go module/versions, 327 Node packages, one PyYAML component with 73 pinned
+distributions and 34 fixture records. Go and registry source artifacts passed
+their download/checksum verification. Go license observations include 1,411 candidates,
 76 ambiguous results, 26 unknown and nine with no root license file. None of
 those classifications grants approval. All 327 npm manifest declarations match
 the lock. Their separate root-text observations are 241 candidates, three
@@ -205,6 +210,13 @@ classified as an MIT candidate. This is an observation, not license approval or
 verification of the Python interpreter, installer bootstrap or all bundled
 third-party obligations. The report includes the Python and Go collector
 runtime versions alongside source/input hashes.
+The fixture records cover the catalog's 34 logical records, 56 payload files
+and ten notice records. `local-digests-checked` describes the generation-time
+verification; the pinned upstream references have a separate live verification
+target. Recorded license declarations remain intact when text classification
+is unknown or ambiguous. All 34 fixture entries have a primary text candidate;
+one secondary attribution notice is unknown and remains in the evidence. No
+classification becomes an approval.
 The snapshot binds generator/input
 hashes and records the missing scopes; the unit tests reject a stale snapshot
 after those inputs change. The missing scopes and policy enforcement are still

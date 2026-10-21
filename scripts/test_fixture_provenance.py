@@ -34,6 +34,33 @@ def fixture(root):
 
 
 class CatalogTests(unittest.TestCase):
+    def test_reader_can_bind_one_immutable_input_set(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); catalog = fixture(root); captured = {}
+            def read(folder, name, maximum):
+                if name not in captured:captured[name] = provenance.read_bytes(folder, name, maximum)
+                return captured[name]
+            before = provenance.validate(root, catalog, read_file=read)
+            self.assertEqual(set(captured), {'LICENSE', 'testdata/example.json', provenance.CORPUS})
+            (root / 'testdata/example.json').write_text('concurrent owner edit')
+            self.assertEqual(provenance.validate(root, catalog, read_file=read), before)
+            with self.assertRaises(provenance.ProvenanceError):provenance.validate(root, catalog)
+
+    def test_notice_and_source_note_paths_cannot_read_unrelated_local_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); catalog = fixture(root)
+            raw = b'example.json SECRET_CANARY'
+            (root / 'private.txt').write_bytes(raw)
+            notice = {'id': 'unrelated', 'license': 'AGPL-3.0-only', 'path': 'private.txt',
+                      'sha256': sha(raw), 'source': {'repository': 'example/upstream', 'commit': 'b' * 40,
+                      'path': 'LICENSE', 'sha256': sha(raw), 'git_blob': blob(raw)}}
+            changed = copy.deepcopy(catalog); changed['notices'].append(notice)
+            with self.assertRaises(provenance.ProvenanceError):provenance.validate(root, changed)
+            entry = {'path': 'testdata/example.json', 'sha256': sha(b'{"answer":42}\n'),
+                     'license': 'AGPL-3.0-only', 'source': 'private.txt'}
+            (root / provenance.CORPUS).write_text(json.dumps({'fixtures': [entry]}))
+            with self.assertRaises(provenance.ProvenanceError):provenance.validate(root, catalog)
+
     def test_project_fixture_and_notice_bytes_are_bound_without_new_license_grants(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); catalog = fixture(root)

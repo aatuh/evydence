@@ -60,6 +60,20 @@ def path_value(value):
     return value
 
 
+def notice_path(value):
+    path_value(value)
+    require(value == 'LICENSE' or re.fullmatch(r'testdata/licenses/[A-Za-z0-9][A-Za-z0-9._-]{0,127}', value) is not None)
+    return value
+
+
+def note_path(value):
+    path_value(value)
+    require(Path(value).name in {'SOURCE.md', 'SOURCES.md'}
+            and all(not part.startswith('.') for part in value.split('/'))
+            and any(value.startswith(root + '/') for root in ROOTS))
+    return value
+
+
 def license_value(value):
     require(isinstance(value, str) and value.upper() not in {'NONE', 'UNKNOWN', 'NOASSERTION', 'UNLICENSED'})
     policy.license_allowed(value, {'allowed_licenses': ['MIT'], 'allowed_with': []})
@@ -141,7 +155,7 @@ def load(root):
         raise ProvenanceError() from None
 
 
-def validate(root, catalog):
+def validate(root, catalog, *, read_file=read_bytes):
     try:
         keys(catalog, {'schema', 'notices', 'fixtures'})
         require(catalog['schema'] == SCHEMA and isinstance(catalog['notices'], list)
@@ -152,7 +166,7 @@ def validate(root, catalog):
         def read(row):
             nonlocal total
             path_value(row['path']); hex_value(row['sha256'], 64)
-            raw = read_bytes(root, row['path'], MAX_BYTES)
+            raw = read_file(root, row['path'], MAX_BYTES)
             total += len(raw)
             require(total <= MAX_TOTAL_BYTES and digest(raw) == row['sha256'])
             return raw
@@ -161,6 +175,7 @@ def validate(root, catalog):
             keys(notice, {'id', 'license', 'path', 'sha256', 'source'})
             require(isinstance(notice['id'], str) and re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,127}', notice['id']) is not None
                     and notice['id'] not in notices)
+            notice_path(notice['path'])
             license_value(notice['license']); raw = read(notice)
             if notice['source'] is None:
                 require(notice['id'] == 'evydence' and notice['path'] == 'LICENSE' and notice['license'] == 'AGPL-3.0-only')
@@ -212,7 +227,7 @@ def validate(root, catalog):
             elif kind == 'recorded-generated':
                 keys(source, {'kind', 'note', 'introduced_commit'})
                 hex_value(source['introduced_commit'], 40)
-                note = read_bytes(root, path_value(source['note']), MAX_BYTES).decode('utf-8')
+                note = read_file(root, note_path(source['note']), MAX_BYTES).decode('utf-8')
                 require(len(item['files']) == 1 and Path(item['files'][0]['path']).name in note
                         and policy.parse_document(raw).get('dataLicense') == item['license'])
             else:
@@ -222,7 +237,7 @@ def validate(root, catalog):
                          'license_status': 'recorded-declaration', 'license_evidence': [],
                          'source': dict(source, files=item['files'], notices=item['notices'], verification='local-digests-checked')})
         require(covered == fixture_paths(root))
-        corpus = policy.parse_document(read_bytes(root, CORPUS, MAX_BYTES))
+        corpus = policy.parse_document(read_file(root, CORPUS, MAX_BYTES))
         require(isinstance(corpus, dict) and isinstance(corpus.get('fixtures'), list) and len(corpus['fixtures']) <= 128)
         by_path = {file['path']: row for row in rows for file in row['source']['files']}
         seen = set()
@@ -232,7 +247,7 @@ def validate(root, catalog):
             seen.add(path)
             file = next(file for file in by_path[path]['source']['files'] if file['path'] == path)
             require(file['sha256'] == entry['sha256'])
-            note = read_bytes(root, path_value(entry['source']), MAX_BYTES).decode('utf-8')
+            note = read_file(root, note_path(entry['source']), MAX_BYTES).decode('utf-8')
             require(Path(path).name in note)
         return sorted(rows, key=lambda row: row['name'])
     except (OSError, ValueError, KeyError, TypeError, AttributeError, UnicodeError, RecursionError):

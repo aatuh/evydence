@@ -57,7 +57,10 @@ make fixture-provenance-upstream-check
 The first is offline and included in `make docs-check`. It rejects changed,
 missing, duplicate, unclassified or symlinked fixture files, notice drift,
 invalid source records and disagreement with the parser corpus. New fixtures
-need an intentional catalog/source update. Grouping files cannot override the
+need an intentional catalog/source update. Notices are read only from root
+`LICENSE` or flat `testdata/licenses/` files. Source notes use `SOURCE.md` or
+`SOURCES.md` within the declared fixture roots; unrelated local paths are
+refused. Grouping files cannot override the
 existing project license declarations. An upstream fixture must reference a
 covering license notice from the same repository and commit; an unrelated
 repository's permissive notice cannot establish its declaration.
@@ -68,6 +71,10 @@ SHA-256, Git blob identity and every declared transformation. Requests and
 retained response bytes are bounded; shared source files are fetched once.
 Use the host RAM coordinator for upstream collection and Go-backed gates.
 
-The general dependency snapshot still lists fixtures as a missing scope until
-the catalog is integrated there. EVY-1407 remains incomplete: this gate does
-not yet enforce the final dependency admission policy in hosted CI.
+The general dependency snapshot includes the catalog records, copied notice
+metadata and separate notice-text classifications. Generation uses a bounded
+snapshot of all checked fixture inputs, verifies local digests and rejects edits
+or new unclassified files before publishing a report. Live upstream equivalence
+has the separate target above; run it when source/notice references change.
+EVY-1407 remains incomplete: this gate does not yet enforce the final dependency
+admission policy in hosted CI.

@@ -27,6 +27,7 @@ import zipfile
 import dependency_policy as policy
 import dependency_node_sources as node_sources
 import dependency_python_sources as python_sources
+import fixture_provenance as fixture_sources
 from release_lifecycle import read_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +41,7 @@ GRAPHS = (
 )
 GENERATOR_FILES = ('scripts/dependency_inventory.py', 'scripts/dependency_node_sources.py',
                    'scripts/dependency_python_sources.py', 'scripts/python_qa.py', 'scripts/dependency_policy.py',
+                   'scripts/fixture_provenance.py',
                    'scripts/release_lifecycle.py', 'scripts/support_matrix.py',
                    'tools/cmd/license-inventory/main.go')
 LICENSE_NAME = re.compile(r'(?:licen[sc]e|copying|copyright|unlicense)(?:[._-][A-Za-z0-9._-]+)?\Z', re.I)
@@ -518,13 +520,50 @@ def _classify_files(files, executable, root, environment, work):
     return result
 
 
+def fixture_components(root, inputs):
+    """Bind fixture records and notice bytes to the collector's frozen inputs."""
+    seen, total = set(), 0
+
+    def capture(folder, name, maximum):
+        nonlocal total
+        if name not in inputs:
+            inputs[name] = read_bytes(folder, name, maximum)
+        raw = inputs[name]
+        if not isinstance(raw, bytes) or len(raw) > maximum:
+            raise InventoryError('invalid fixture snapshot input')
+        if name not in seen:
+            total += len(raw)
+            seen.add(name)
+            if total > fixture_sources.MAX_TOTAL_BYTES:
+                raise InventoryError('fixture snapshot exceeds its byte budget')
+        return raw
+
+    try:
+        catalog = policy.parse_document(capture(root, fixture_sources.CATALOG, MAX_BYTES))
+        rows = fixture_sources.validate(root, catalog, read_file=capture)
+        notices = {item['id']: item for item in catalog['notices']}
+        observations = {}
+        for row in rows:
+            row['license_notices'] = [copy.deepcopy(notices[identity]) for identity in row['source']['notices']]
+            files = []
+            for notice in row['license_notices']:
+                name = (notice['source'] or notice)['path'].rsplit('/', 1)[-1]
+                kind = 'notice' if NOTICE_NAME.fullmatch(name) or name.lower().startswith('copyright') else 'license'
+                files.append({'file': notice['path'], 'kind': kind, 'sha256': notice['sha256'],
+                              'content': inputs[notice['path']]})
+            observations[row['name']] = files
+        return rows, observations
+    except (OSError, ValueError, KeyError, TypeError):
+        raise InventoryError('cannot bind valid fixture records and notice bytes') from None
+
+
 def collect(root, work_root, parent_environment):
     """Verify Go/Node/Python source bytes; retain explicit scope gaps."""
     import support_matrix
     root, work_root = Path(root).resolve(), Path(work_root)
     if work_root.is_symlink() or not work_root.is_dir():
         raise InventoryError('inventory work root must be an existing directory')
-    names = set(GENERATOR_FILES) | {'release/support-matrix.json', 'tools/requirements-qa.txt',
+    names = set(GENERATOR_FILES) | {fixture_sources.CATALOG, 'release/support-matrix.json', 'tools/requirements-qa.txt',
                                     'site/marketing/package.json', 'site/marketing/package-lock.json'}
     for _scope, mod, sums, _main in GRAPHS:
         names.update((mod, sums))
@@ -536,6 +575,7 @@ def collect(root, work_root, parent_environment):
         expected_go = 'go' + support_matrix.load_policy(root)['go']['current']
         node = node_components(policy.parse_document(inputs['site/marketing/package.json']),
                                policy.parse_document(inputs['site/marketing/package-lock.json']))
+        fixtures, fixture_files = fixture_components(root, inputs)
     except (ValueError, OSError):
         raise InventoryError('cannot read valid inventory inputs') from None
     environment = tool_environment(parent_environment)
@@ -562,6 +602,8 @@ def collect(root, work_root, parent_environment):
             file['content'] = license_bytes[digest]
         raw_files.extend(files)
 
+    for files in fixture_files.values():
+        register_files(files)
     python_work = work / 'python'; python_work.mkdir()
     try:
         python_component, python_files = python_sources.fetch(inputs['tools/requirements-qa.txt'], python_work)
@@ -614,22 +656,29 @@ def collect(root, work_root, parent_environment):
     node = [attach_node_licenses(item, *node_observations[(item['name'], item['version'])], matches)
             for item in node]
     python_component = attach_declared_licenses(python_component, python_files, matches)
-    merged = merge_components(components + node + [python_component])
-    if any(read_bytes(root, name, MAX_BYTES) != raw for name, raw in inputs.items()):
-        raise InventoryError('inventory source changed during collection')
+    fixtures = [attach_declared_licenses(item, fixture_files[item['name']], matches) for item in fixtures]
+    merged = merge_components(components + node + [python_component] + fixtures)
+    try:
+        expected = {file['path'] for item in fixtures for file in item['source']['files']}
+        if (any(read_bytes(root, name, MAX_BYTES) != raw for name, raw in inputs.items())
+                or fixture_sources.fixture_paths(root) != expected):
+            raise InventoryError('inventory source changed during collection')
+    except (OSError, ValueError):
+        raise InventoryError('inventory source or fixture coverage changed during collection') from None
     return {
         'schema': SCHEMA, 'complete': False,
         'generator': {'go_version': version.split()[2], 'python_version': sys.version.split()[0],
                       'files': {name: hashlib.sha256(inputs[name]).hexdigest() for name in GENERATOR_FILES}},
         'inputs': {name: hashlib.sha256(raw).hexdigest() for name, raw in inputs.items() if name not in GENERATOR_FILES},
         'components': merged,
-        'remaining_scopes': ['fixtures', 'build-tool-archives', 'actions', 'images'],
+        'remaining_scopes': ['build-tool-archives', 'actions', 'images'],
         'limitations': [
             'Go module graphs describe available dependencies, not only code linked into an artifact.',
             'Go root license bytes are checksum-bound observations; candidates are not approval or legal compatibility conclusions.',
             'Nested third-party notices and license obligations may require additional review.',
             'Node artifact license declarations and root text candidates are separate observations, not license approval.',
             'Python observations cover the pinned PyYAML distributions, not the interpreter, installer bootstrap or all bundled third-party obligations.',
+            'Fixture byte/notice checks cover the declared catalog roots; pinned upstream references are recorded declarations, with separate live verification.',
             'This is not an artifact SBOM, vulnerability scan or complete dependency inventory.',
         ],
     }

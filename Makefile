@@ -305,7 +305,7 @@ dependency-inventory-test: ## Test dependency inventory integrity and bounded li
 	@python3 scripts/test_dependency_python_sources.py
 	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/license-inventory
 
-dependency-inventory-generate: ## Generate partial-scope observations with verified Go/Node/Python source licenses
+dependency-inventory-generate: ## Generate partial-scope dependency and fixture source observations
 	@python3 scripts/dependency_inventory.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --output docs/reference/dependency-inventory.json --replace
 
 docs-check: python-qa-check fixture-provenance-check dependency-policy-test dependency-inventory-test release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
