@@ -26,6 +26,7 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: dependency-classifier-test
 .PHONY: dependency-collection-test
 .PHONY: dependency-admission-test
+.PHONY: dependency-policy-check
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
@@ -315,6 +316,9 @@ dependency-collection-test: ## Test Git data exports, trusted collector sources 
 	@python3 scripts/test_dependency_collection.py
 
 dependency-admission-test: ## Test exact-version advisory observations and trusted-base package decisions
+	@python3 scripts/test_dependency_coverage.py
+	@python3 scripts/test_dependency_check_publish.py
+	@python3 scripts/test_dependency_workflow.py
 	@python3 scripts/test_dependency_advisories.py
 	@python3 scripts/test_dependency_action_advisories.py
 	@python3 scripts/test_dependency_tool_buildinfo.py
@@ -327,6 +331,9 @@ dependency-admission-test: ## Test exact-version advisory observations and trust
 	@python3 scripts/test_dependency_exception_reviews.py
 	@python3 scripts/test_dependency_review_join.py
 	@python3 scripts/test_dependency_review.py
+
+dependency-policy-check: ## Evaluate the exact authenticated PR under trusted target policy; requires DEPENDENCY_* context
+	@python3 scripts/dependency_review.py --environment
 
 dependency-updates-check: ## Check dependency update coverage and separate routine/security groups
 	@python3 scripts/test_dependency_updates.py

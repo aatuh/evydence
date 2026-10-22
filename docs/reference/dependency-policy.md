@@ -4,8 +4,10 @@ This reference is for contributors selecting dependencies and maintainers
 reviewing their admission. **EVY-1407 is in progress.** The offline admission
 rules and their regression tests exist. A bounded Go license-classification
 helper passes focused tests on both supported compilers. The dependency
-collector produces source-bound observations; complete scope, live PR
-review and the final release gate are not yet integrated.
+collector produces source-bound observations. The combined declared-change
+gate and trusted workflow are implemented; live PR/hosted enforcement and final
+release qualification remain pending. See the
+[gate and coverage reference](dependency-review.md#final-gate-and-combined-coverage).
 Passing these tests does not establish that the current dependency set has been
 audited or that a real dependency addition would be rejected by hosted CI.
 
@@ -475,8 +477,10 @@ Debian and Go standard-library OSV queries exercised the source mappings. These
 are bounded integration observations, not fresh image scans or complete image
 admission. The
 image comparison and per-package decisions are now connected to the
-[trusted caller](dependency-review.md#declared-image-changes). Remaining tool,
-root-image provider joins and hosted enforcement remain unfinished under EVY-1407.
+[trusted caller](dependency-review.md#declared-image-changes), alongside the
+[pinned tool profile](dependency-review.md#pinned-go-tool-artifacts). Unsupported
+or unmatched provider rows remain blocking; hosted enforcement and final ticket
+qualification remain pending under EVY-1407.
 
 `make dependency-images-check` runs regressions and checks saved input bindings
 offline; it does not re-query registries or prove current tag contents. To refresh,

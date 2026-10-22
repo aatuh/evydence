@@ -3,6 +3,7 @@
 import copy
 from datetime import datetime,timezone
 import io
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -41,7 +42,9 @@ class ReviewTests(unittest.TestCase):
             patch.object(review.classifiers,'build',return_value=artifact),
             patch.object(review.collection,'collect',side_effect=collect),patch.object(review.join,'assess',return_value=result),
             patch.object(image_admission,'assess',return_value={'image_decision_passed':False,
-                'image_coverage_verified':False,'coverage_gaps':['qualified-scanner-unavailable'],'exception_reviews':[]})]
+                'image_coverage_verified':False,'coverage_gaps':['qualified-scanner-unavailable'],'exception_reviews':[]}),
+            patch.object(review.coverage,'source_profile',return_value={
+                'source_coverage_verified':result.get('dependency_coverage_verified') is True,'coverage_gaps':[]})]
         handles=[item.start() for item in patches]
         self.addCleanup(lambda:[item.stop() for item in reversed(patches)])
         return handles,artifact
@@ -55,7 +58,7 @@ class ReviewTests(unittest.TestCase):
             self.assertIs(handles[4].call_args_list[1].kwargs['classifier'],artifact)
             self.assertEqual(handles[4].call_args_list[0].args[2],BASE);self.assertEqual(handles[4].call_args_list[1].args[2],HEAD)
             self.assertFalse(result['passed']);self.assertFalse(result['dependency_coverage_verified'])
-            self.assertIn('source:images',result['coverage_gaps'])
+            self.assertIn('image-profile',result['coverage_gaps'])
             self.assertEqual(handles[5].call_args.kwargs['review_api'],api)
             self.assertNotIn(str(root),str(result))
 
@@ -118,6 +121,29 @@ class ReviewTests(unittest.TestCase):
                     'tool_decision_passed':True,'tool_coverage_verified':True,'exception_reviews':[{'exception_id':'DEP-0001'}]}), \
                  self.assertRaises(review.ReviewError):
                 review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
+
+    def test_positive_combined_profile_can_qualify_a_deliberately_partial_source_library(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);api,_=self.setup_job();handles,artifact=self.operation(root,api)
+            handles[7].return_value={'source_coverage_verified':True,'coverage_gaps':[]}
+            handles[6].return_value={'image_decision_passed':True,'image_coverage_verified':True,'coverage_gaps':[],'exception_reviews':[]}
+            result=review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
+            self.assertTrue(result['passed']);self.assertTrue(result['dependency_coverage_verified'])
+            self.assertFalse(result['decision']['dependency_coverage_verified'])
+            self.assertEqual(result['coverage']['profile'],review.coverage.PROFILE)
+            self.assertEqual(handles[7].call_count,2)
+            self.assertEqual(handles[7].call_args_list[0].args[2],BASE)
+            self.assertEqual(handles[7].call_args_list[1].args[2],HEAD)
+            self.assertEqual(handles[7].call_args.args[4],artifact.receipt)
+
+    def test_source_library_claim_cannot_override_a_missing_qualified_source_profile(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);api,_=self.setup_job();handles,_=self.operation(root,api,
+                join_result={'package_decision_passed':True,'dependency_coverage_verified':True})
+            handles[7].return_value={'source_coverage_verified':False,'coverage_gaps':[]}
+            handles[6].return_value={'image_decision_passed':True,'image_coverage_verified':True,'coverage_gaps':[],'exception_reviews':[]}
+            result=review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
+            self.assertFalse(result['passed']);self.assertFalse(result['dependency_coverage_verified'])
 
     def test_image_approval_cannot_be_omitted_from_the_final_live_recheck(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -191,6 +217,39 @@ class ReviewTests(unittest.TestCase):
             api,_=self.setup_job();self.operation(root,api)
             with patch.object(review.provider,'GitHub',return_value=api):self.assertEqual(review.main(args[:-1]),1)
             self.assertTrue(output.exists())
+
+    def test_environment_gate_rejects_missing_unsafe_or_ambiguous_context_before_provider_work(self):
+        valid={'DEPENDENCY_PULL_REQUEST':'30','DEPENDENCY_TARGET_BASE':BASE,'DEPENDENCY_SOURCE_COMMIT':HEAD,
+            'DEPENDENCY_HEAD_REPOSITORY':'contributor/fork','DEPENDENCY_WORK_ROOT':'/private/work',
+            'DEPENDENCY_OUTPUT':'report.json'}
+        cases=[{}, {**valid,'DEPENDENCY_PULL_REQUEST':'0'},{**valid,'DEPENDENCY_TARGET_BASE':'PRIVATE_CANARY'},
+               {**valid,'DEPENDENCY_WORK_ROOT':'PRIVATE_CANARY\nunsafe'}]
+        for environment in cases:
+            with self.subTest(environment=environment),patch.dict(os.environ,environment,clear=True), \
+                 patch.object(review.provider,'GitHub') as api,patch.object(review.sys,'stderr',io.StringIO()) as error:
+                self.assertEqual(review.main(['--environment']),2);api.assert_not_called()
+                self.assertNotIn('CANARY',error.getvalue())
+        with patch.dict(os.environ,valid,clear=True),patch.object(review.provider,'GitHub') as api, \
+             patch.object(review.sys,'stderr',io.StringIO()):
+            self.assertEqual(review.main(['--environment','--replace']),2);api.assert_not_called()
+
+    def test_environment_gate_preserves_argument_bytes_and_returns_only_the_actual_review_verdict(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);work=root/'literal $(PRIVATE_CANARY)';work.mkdir()
+            environment={'DEPENDENCY_PULL_REQUEST':'30','DEPENDENCY_TARGET_BASE':BASE,'DEPENDENCY_SOURCE_COMMIT':HEAD,
+                'DEPENDENCY_HEAD_REPOSITORY':'contributor/fork','DEPENDENCY_WORK_ROOT':str(work),
+                'DEPENDENCY_OUTPUT':'report.json','DEPENDENCY_SYFT':str(root/'qualified-syft')}
+            for passed in [False,True]:
+                output=root/'report.json'
+                if output.exists():output.unlink()
+                with self.subTest(passed=passed),patch.dict(os.environ,environment,clear=True), \
+                     patch.object(review,'ROOT',root),patch.object(review.provider,'GitHub') as api, \
+                     patch.object(review,'run',return_value={'schema':review.SCHEMA,'passed':passed}) as run:
+                    self.assertEqual(review.main(['--environment']),0 if passed else 1)
+                    self.assertEqual(run.call_args.args[1:5],(30,BASE,HEAD,'contributor/fork'))
+                    self.assertEqual(run.call_args.args[5],work)
+                    self.assertEqual(run.call_args.kwargs['syft'],root/'qualified-syft')
+                self.assertTrue(output.exists());self.assertEqual(len(list(work.iterdir())),0)
 
 
 if __name__=='__main__':unittest.main()

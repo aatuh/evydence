@@ -5,12 +5,11 @@ This reference is for maintainers integrating the dependency admission gate.
 Git-verified source collection, source-package decisions and scoped exception
 review. It runs trusted code from its own checkout; proposed source remains data.
 
-**Complete admission remains in progress under EVY-1407.** The caller never turns
-a partial package decision into a passing check. Declared image and pinned Go
-tool change checks are connected; combined coverage qualification remains
-unfinished. Current successful observations therefore exit 1 with explicit
-coverage gaps. The final required
-`make dependency-policy-check` and hosted workflow are not installed by this unit.
+**Hosted qualification remains in progress under EVY-1407.** The caller connects
+declared source, image and pinned Go tool changes through an explicit combined
+coverage profile. `make dependency-policy-check` and the trusted workflow are
+implemented; successful local tests do not prove hosted enforcement. Unsupported
+scope or missing evidence cannot become a passing check.
 
 ## Caller Sequence And Outputs
 
@@ -59,7 +58,86 @@ Exit 0 is reserved for a complete verified passing verdict, 1 means a written
 blocked/incomplete observation, and 2 means invalid context, failed providers,
 unsafe output or unavailable trusted policy. `--replace` only replaces the same
 schema and protects concurrent output edits. No push, review/comment creation,
-merge, dispatch, branch-protection update or publication occurs.
+merge, dispatch, branch-protection update or check publication occurs in this CLI.
+
+## Final Gate And Combined Coverage
+
+The Makefile command reads these environment values as argument data:
+
+| Variable | Value |
+| --- | --- |
+| `DEPENDENCY_PULL_REQUEST` | Current open PR number targeting `master`. |
+| `DEPENDENCY_TARGET_BASE` | Exact current target commit, full Git SHA. |
+| `DEPENDENCY_SOURCE_COMMIT` | Exact current PR head commit, full Git SHA. |
+| `DEPENDENCY_HEAD_REPOSITORY` | Current PR head repository, `owner/repository`. |
+| `DEPENDENCY_WORK_ROOT` | Existing private scratch directory outside the proposed tree. |
+| `DEPENDENCY_OUTPUT` | New relative report filename under the trusted checkout; parent directory must exist. |
+| `DEPENDENCY_SYFT` | Optional qualified Syft executable; changed registry images require it. |
+
+Set these from the live PR and existing VM scratch configuration, then run:
+
+```sh
+"$HOME/.local/bin/codex-ramgate" 4 -- make dependency-policy-check
+```
+
+The target calls the same CLI with `--environment`. Missing or malformed context
+fails before provider work. Values are never expanded into shell source, and
+`--environment` cannot be combined with CLI overrides. The gate performs actual
+authenticated review, not just offline regression tests. `GH_TOKEN` or existing
+GitHub CLI authentication must permit the required read APIs.
+
+`scripts/dependency_coverage.py` qualifies
+`declared-dependency-changes-linux-amd64.v1`. Both fresh in-memory collections
+must match freshly read immutable Git inputs, required manifest families and
+schema checks, the exact trusted collector drivers, generator hashes, compiler
+and base-built classifier receipt. Known source types also require the expected
+verification profile and origins. Images are resolved by the separate image
+profile; local Action references and unsupported scopes remain explicit gaps.
+
+The combined decision requires both qualified source profiles, image coverage,
+tool coverage and all package decisions. The standalone source library retains
+its partial coverage flag; it cannot authorize the complete result itself.
+The collector's inventory `complete: false` is preserved. This profile covers
+declared dependency changes, with the documented scanner/source limits; it is
+not a complete artifact SBOM or assurance of license compatibility or safety.
+
+## Trusted Hosted Workflow
+
+[`.github/workflows/dependency-review.yml`](../../.github/workflows/dependency-review.yml)
+runs on every PR targeting `master`, using `pull_request_target` and an explicit
+checkout of the event's base SHA. The evaluation job has only contents/PR read
+permissions, disables checkout credentials and shared Go caches, and installs
+target-pinned Python wheels and scanner tooling. Proposed Git bytes are data;
+no proposed workflow, Makefile, Python/Go code or package lifecycle hook runs.
+Actions use full commit pins. Hosted jobs use dedicated ephemeral runners;
+local work on the shared development machine still requires the host RAM gate.
+
+The evaluation job runs regressions and the actual final gate. It uploads only
+the sanitized fixed report path for 14 days, including a blocked report when
+available; private scratch and proposed source are not uploaded. Failure and
+missing-context exits remain failures. No path filters or manual input can
+skip admission while claiming success.
+
+`pull_request_target` uses the base-branch context, so a separate reporter job
+posts the fixed **Dependency Policy** check on the exact PR head. It has the
+additional `checks: write` permission, executes only target-base reporter code,
+and never consumes proposed artifacts or report bodies. The reporter validates
+the Actions event/repository/ref/base, run identity and actual evaluation job
+result, then rechecks the current PR/base/head/repository before writing.
+Only evaluation `success` produces check success; failure/skipped/cancelled
+outcomes map to failure. The trusted evaluation records its UTC day immediately
+before admission; missing/stale day metadata also produces failure, so reporter
+setup cannot carry an expiring waiver across midnight. The response must retain the exact head/check identity
+and GitHub Actions app binding. A cancelled workflow may leave no new head
+result and needs a normal rerun. See GitHub's
+[trusted-event guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target)
+and [required-check SHA rules](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).
+
+The reporter is a provider mutation reserved for this trusted hosted path.
+Local qualification uses mocked write responses and does not publish checks.
+Activating the workflow, verifying success/negative cases and adding the exact
+head check to required branch protection still need real hosted evidence and
+the corresponding maintainer approval. Existing required checks are preserved.
 
 ## Provider Findings And Source Observations
 

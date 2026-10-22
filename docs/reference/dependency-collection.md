@@ -83,7 +83,7 @@ approve an exception, push or publish anything.
 
 On 2026-10-22, a real collection from source/base
 `40e26f443f28a43fec8115ad831ecc3f38339c8c` verified 163 selected Git inputs and
-preserved all 2,880 prior component observations. The saved primary inventory
+preserved all 2,880 prior component observations. The prior saved primary inventory
 was projected from that run; image and maintenance companions were regenerated
 through their actual collectors. These are local observations of selected
 sources and artifact profiles, with their existing coverage limits.
@@ -92,3 +92,10 @@ The older public PR #30 was also checked through the real authenticated caller.
 It returned 2 for its five known missing inputs before any classifier build and
 without writing a collection report. This is a verified rejection of incomplete
 older source, not a passing current hosted check or complete admission verdict.
+
+A later fresh collection at `79d601ad3af4f66f97c73cf933b9b02dd8a8943d`
+verified 177 inputs and all 2,880 components through the combined caller's
+source profile. The older collection was first rejected against changed
+collector/provider driver hashes; those observations were not rebound to the
+new code. This later run predates the newly added dependency workflow and is
+not a current PR comparison, hosted enforcement or a complete artifact SBOM.

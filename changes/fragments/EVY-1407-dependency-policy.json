@@ -32,6 +32,7 @@
     "Derive image changes from private Git-data views with distinct trusted generator and original source hashes, scan changed registry images with qualified tooling, assess package/source/origin changes under target-base policy and keep mutable baselines, unknown artifacts and missing coverage from silently authorizing changes.",
     "Require independent advisory evidence for SHA-pinned Actions instead of treating empty graph findings as complete coverage; bind all full release tags to the verified commit, query GitHub's reviewed/unreviewed/malware catalogs, enforce cursor/response bounds and recheck public visibility/tag associations before output.",
     "Inspect only checksum-verified private Go tool binaries as data, bind bundled module license bytes to recorded h1 checksums and exact compiler sources, and enforce separate target-policy/advisory decisions for each bundled package without executing downloaded tools.",
+    "Qualify declared source/image/tool change coverage from fresh Git and trusted driver/classifier evidence, expose the actual authenticated dependency-policy gate through validated environment arguments, and add a target-base workflow with isolated PR-head check reporting; hosted enforcement remains unverified.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {
@@ -42,7 +43,7 @@
   },
   "security": "Reject malformed or oversized input, duplicate JSON keys, nonfinite numbers and unsupported metadata with errors that omit raw input. Rules have no network or subprocess effects; the classifier accepts digest-bound bytes over stdin without supplied-path or package-code execution.",
   "limitations": [
-    "EVY-1407 remains incomplete: operator deployment choices, combined trusted admission, live PR review, hosted update verification and release qualification are pending. Image observations cover selected package databases and Go binaries on Linux amd64, not complete artifact SBOMs or license approval. Maintenance signals are review candidates with explicit provider coverage gaps, not health or safety verdicts.",
+    "EVY-1407 remains incomplete: operator deployment choices, full current-PR and hosted admission qualification, hosted update verification and release qualification are pending. Image observations cover selected package databases and Go binaries on Linux amd64, not complete artifact SBOMs or license approval. Maintenance signals are review candidates with explicit provider coverage gaps, not health or safety verdicts.",
     "A review-link shape and synthetic policy tests do not prove approval or that real dependency changes are blocked by hosted CI."
   ]
 }

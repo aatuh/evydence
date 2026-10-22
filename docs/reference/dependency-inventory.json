@@ -2101,6 +2101,8 @@
         ".github/workflows/codeql.yml#jobs/analyze/steps/0",
         ".github/workflows/container-image.yml#jobs/publish-image/steps/0",
         ".github/workflows/container-image.yml#jobs/sign-image/steps/0",
+        ".github/workflows/dependency-review.yml#jobs/evaluate/steps/0",
+        ".github/workflows/dependency-review.yml#jobs/report/steps/0",
         ".github/workflows/marketing-site-pages.yml#jobs/build/steps/0",
         ".github/workflows/release-artifacts.yml#jobs/attest-release/steps/0",
         ".github/workflows/release-artifacts.yml#jobs/check-release-notes/steps/0",
@@ -2349,6 +2351,7 @@
         ".github/workflows/ci.yml#jobs/race-and-stress/steps/1",
         ".github/workflows/container-image.yml#jobs/publish-image/steps/3",
         ".github/workflows/container-image.yml#jobs/sign-image/steps/4",
+        ".github/workflows/dependency-review.yml#jobs/evaluate/steps/1",
         ".github/workflows/release-artifacts.yml#jobs/package/steps/3",
         ".github/workflows/reproducible-builds.yml#jobs/build/steps/1",
         "docs/github-actions/quickstart-release-evidence.yml#jobs/evydence-release-evidence/steps/1",
@@ -2473,6 +2476,7 @@
         ".github/workflows/ci.yml#jobs/race-and-stress/steps/3",
         ".github/workflows/container-image.yml#jobs/publish-image/steps/9",
         ".github/workflows/container-image.yml#jobs/sign-image/steps/9",
+        ".github/workflows/dependency-review.yml#jobs/evaluate/steps/7",
         ".github/workflows/release-artifacts.yml#jobs/attest-release/steps/6",
         ".github/workflows/release-artifacts.yml#jobs/check-release-notes/steps/2",
         ".github/workflows/release-artifacts.yml#jobs/package/steps/12",
@@ -91885,54 +91889,6 @@
     }
   ],
   "generator": {
-    "classifier": {
-      "binary_bytes": 8219123,
-      "binary_sha256": "2be8b0565fe14ee2fa92ba325e6cf5b1240c88850d0beed9cef7387f71b4131e",
-      "build_arguments": [
-        "go",
-        "build",
-        "-mod=readonly",
-        "-trimpath",
-        "-buildvcs=false",
-        "-o",
-        "<private-output>",
-        "./cmd/license-inventory"
-      ],
-      "go_version": "go1.27.3",
-      "module_verification": "go-mod-verify",
-      "schema": "evydence-dependency-classifier.v1",
-      "source_bytes_unchanged": true,
-      "sources": {
-        "release/support-matrix.json": {
-          "bytes": 1160,
-          "git_blob": "4befad053e4c6edabfe539377ecfb0fcd925e86e",
-          "mode": "100644",
-          "sha256": "c266cf6d3f1b9b42cf120eb34663eb6d670678460b9c53b0b03381029e73e41e"
-        },
-        "tools/cmd/license-inventory/main.go": {
-          "bytes": 4897,
-          "git_blob": "4de37e67efdd73f5779ef25acffa8181b93f6a8f",
-          "mode": "100644",
-          "sha256": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
-        },
-        "tools/go.mod": {
-          "bytes": 13144,
-          "git_blob": "d4ff008963b9be7ed4e55c20f30cb989bee434f1",
-          "mode": "100644",
-          "sha256": "28eb34adaa0cd9c1476396bd2e17ec09c8a9083d030e698d06b529f2c525c407"
-        },
-        "tools/go.sum": {
-          "bytes": 102067,
-          "git_blob": "17440cfbea3dfcab0c7ce0d3f3a583a1c8c51d7a",
-          "mode": "100644",
-          "sha256": "4485cc87fd5ff6aa5b0058bddf2636a1dab4662a2011974aded50ba9e17037a2"
-        }
-      },
-      "target": "linux/amd64",
-      "telemetry": "off",
-      "tree": "e555219a11ce3d2aec53d34fbf6d229b402d726b",
-      "trusted_base": "40e26f443f28a43fec8115ad831ecc3f38339c8c"
-    },
     "files": {
       "scripts/dependency_actions.py": "064a548c9bd2603d218c5aace8a1d892805df1e71e25372a656b936aa1e50a76",
       "scripts/dependency_build_tools.py": "e9f3aea9d2459250e0df7c49e909c6b648675cffb45d7686dd2c609e5ec2594b",
@@ -91958,6 +91914,7 @@
     ".github/workflows/ci.yml": "74edd6bcee1257a8af2693003e10cbda3a4e3ad8282e4292e2389e453f4d0835",
     ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
     ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
+    ".github/workflows/dependency-review.yml": "37d8e0434866b327e15f994b6208e722d94bf2195763fbda062dfa4136bc7431",
     ".github/workflows/marketing-site-pages.yml": "356a4680ffd7f842448155f1977cc8b48d5b0350e308297739261d32a07f01f9",
     ".github/workflows/release-artifacts.yml": "e9c08517dc44a521006dfbccf532a6253e15d5fd2f2962b0020668e08db839b8",
     ".github/workflows/reproducible-builds.yml": "a5431fa13b87bf3e6d2330d71c8267367195f83a24151a1a371a7707b9cbba1b",

@@ -139,10 +139,12 @@ collection contexts and the actual policy bytes; it blocked known findings and
 disallowed/missing licenses. Those are not current-repository vulnerability
 findings, verified archive-license evidence or hosted CI proof.
 
-The final `make dependency-policy-check` is not present yet. Complete scope and
-provider joins and hosted negative cases must be integrated before that gate can
-certify the ticket. The [trusted caller](dependency-review.md) connects current
-source-package decisions and live review checks while preserving coverage gaps.
+The final `make dependency-policy-check` now invokes actual authenticated review
+through the [trusted caller](dependency-review.md#final-gate-and-combined-coverage).
+Its combined declared-change profile requires source/collector/classifier
+correspondence and image/tool coverage; the standalone source library remains
+deliberately partial. Hosted success and negative cases remain unverified.
 Required vulnerability/release gates remain pending until EVY-1407 is ready for
 closure. No repository setting, push, workflow dispatch or release is performed
-by these libraries or their tests.
+by these libraries or their tests. The separate trusted hosted reporter is the
+only new check-publication path; its live behavior still needs qualification.

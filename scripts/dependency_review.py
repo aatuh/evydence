@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import sys
 
@@ -14,6 +15,7 @@ import dependency_advisories as advisories
 import dependency_action_advisories as action_advisories
 import dependency_classifier as classifiers
 import dependency_collection as collection
+import dependency_coverage as coverage
 import dependency_exception_reviews as exception_reviews
 import dependency_git_objects as objects
 import dependency_inputs as inputs
@@ -34,8 +36,8 @@ DRIVER_FILES=('scripts/dependency_review.py','scripts/dependency_review_join.py'
               'scripts/dependency_fixture_advisories.py','scripts/dependency_image_admission.py',
               'scripts/dependency_image_packages.py','scripts/dependency_action_advisories.py',
               'scripts/dependency_tool_admission.py','scripts/dependency_tool_buildinfo.py',
-              'scripts/dependency_tool_sources.py')+tuple(sorted({
-                  name for name in (*inventory.GENERATOR_FILES,*images.GENERATOR_FILES) if name.endswith('.py')}))
+              'scripts/dependency_tool_sources.py','scripts/dependency_coverage.py')+tuple(sorted({
+                  name for name in (*collection.DRIVER_FILES,*inventory.GENERATOR_FILES,*images.GENERATOR_FILES) if name.endswith('.py')}))
 
 
 class ReviewError(ValueError):
@@ -79,14 +81,9 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
         decision=join.assess(reader,base,base,head,before,after,snapshot,advisory_api,today,review_api=api)
         image_decision=image_admission.assess(reader,base,head,before,after,work_root,advisory_api,today,syft=syft,review_api=api)
         tool_decision=advisory_api.evidence()
-        gaps=set()
-        for value in [before,after]:
-            remaining=value['inventory'].get('remaining_scopes');require(isinstance(remaining,list)
-                and all(isinstance(scope,str) and scope in {'images','action-local-references'} for scope in remaining))
-            gaps.update('source:'+scope for scope in remaining if scope!='images' or image_decision.get('image_coverage_verified') is not True)
-        gaps.update('images:'+scope for scope in image_decision['coverage_gaps'])
-        if tool_decision.get('tool_coverage_verified') is not True:gaps.add('build-tool-profile')
-        if decision.get('dependency_coverage_verified') is not True:gaps.add('complete-admission-profile')
+        source_profiles=[coverage.source_profile(reader,value,source,base,artifact.receipt,code)
+                         for value,source in [(before,base),(after,head)]]
+        qualified=coverage.combine(source_profiles,image_decision,tool_decision)
         require(provider.pull_context(api.get('pulls/'+str(pull_number)),pull_number)=={
             key:snapshot[key] for key in ['pull_request','base','head','head_repository','changed_files']})
         combined_reviews={}
@@ -105,8 +102,7 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
         require(all(read_bytes(ROOT,name,policy.MAX_DOCUMENT_BYTES)==raw for name,raw in code.items()))
         finished=datetime.now(timezone.utc)
         require(not live_clock or finished.date()==today)
-        covered=not gaps and decision.get('dependency_coverage_verified') is True and image_decision.get('image_coverage_verified') is True \
-            and tool_decision.get('tool_coverage_verified') is True
+        covered=qualified['dependency_coverage_verified']
         return {'schema':SCHEMA,'observed_at':finished.isoformat(),
                 'provider_context':{key:snapshot[key] for key in ['repository','pull_request','base','head','head_repository','comparison_base']},
                 'source_base':before['source'],'source_head':after['source'],
@@ -114,7 +110,7 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
                 'trusted_driver_files':{name:hashlib.sha256(raw).hexdigest() for name,raw in code.items()},
                 'decision':decision,'image_decision':image_decision,'tool_decision':tool_decision,'exception_reviews':final_reviews,
                 'action_advisories':action_api.evidence(),'advisory_receipts':advisory_api.receipts,
-                'coverage_gaps':sorted(gaps),'dependency_coverage_verified':covered,
+                'coverage':qualified,'coverage_gaps':qualified['coverage_gaps'],'dependency_coverage_verified':covered,
                 'proposed_policy':proposed_policy,'proposed_policy_reviews':proposed_reviews,
                 'passed':covered and decision.get('package_decision_passed') is True
                     and image_decision.get('image_decision_passed') is True
@@ -126,8 +122,30 @@ class Parser(argparse.ArgumentParser):
     def error(self,_message):raise ReviewError()
 
 
+def environment_arguments(parent):
+    """Make/CI values are argv data, never expanded into a shell program."""
+    try:
+        fields={'DEPENDENCY_PULL_REQUEST':'--pull-request','DEPENDENCY_TARGET_BASE':'--base',
+            'DEPENDENCY_SOURCE_COMMIT':'--head','DEPENDENCY_HEAD_REPOSITORY':'--head-repository',
+            'DEPENDENCY_WORK_ROOT':'--work-root','DEPENDENCY_OUTPUT':'--output'}
+        values={name:parent[name] for name in fields}
+        for value in values.values():
+            require(isinstance(value,str) and 0<len(value)<=4096 and all(ord(c)>=32 and ord(c)!=127 for c in value))
+        require(re.fullmatch(r'[1-9][0-9]*',values['DEPENDENCY_PULL_REQUEST']))
+        provider.number(int(values['DEPENDENCY_PULL_REQUEST']))
+        provider.sha(values['DEPENDENCY_TARGET_BASE']);provider.sha(values['DEPENDENCY_SOURCE_COMMIT'])
+        provider.actions.repository(values['DEPENDENCY_HEAD_REPOSITORY'])
+        arguments=[value for name,flag in fields.items() for value in [flag,values[name]]]
+        scanner=parent.get('DEPENDENCY_SYFT')
+        if scanner is not None:
+            require(isinstance(scanner,str) and 0<len(scanner)<=4096 and all(ord(c)>=32 and ord(c)!=127 for c in scanner))
+            arguments.extend(['--syft',scanner])
+        return arguments
+    except (OSError,ValueError,KeyError,TypeError,AttributeError,RecursionError):raise ReviewError() from None
+
+
 def main(argv=None):
-    parser=Parser(description=__doc__)
+    parser=Parser(description=__doc__,epilog='Use --environment alone for validated DEPENDENCY_* Make/CI arguments.')
     parser.add_argument('--root',type=Path,default=ROOT);parser.add_argument('--pull-request',type=int,required=True)
     parser.add_argument('--base',required=True);parser.add_argument('--head',required=True)
     parser.add_argument('--head-repository',required=True);parser.add_argument('--work-root',type=Path,required=True)
@@ -135,7 +153,9 @@ def main(argv=None):
     parser.add_argument('--syft',type=Path,help='operator-selected qualified scanner; required for changed registry images')
     handlers={}
     try:
-        args=parser.parse_args(argv)
+        arguments=list(sys.argv[1:] if argv is None else argv)
+        if arguments==['--environment']:arguments=environment_arguments(os.environ)
+        args=parser.parse_args(arguments)
         def interrupted(_signum,_frame):raise ReviewError()
         for signum in (signal.SIGINT,signal.SIGTERM):handlers[signum]=signal.signal(signum,interrupted)
         directory,old=reports.directory(args.root,args.output,SCHEMA,args.replace);os.close(directory)
