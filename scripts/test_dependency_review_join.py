@@ -28,6 +28,14 @@ def assess(rows,components=None,api=None,before=None):
 
 
 class JoinTests(unittest.TestCase):
+    def test_sha_pinned_action_without_independent_advisory_lookup_cannot_become_clean(self):
+        action=component(ecosystem='github-actions',name='actions/checkout',version='d'*40,origins=['ci'])
+        dep=row(ecosystem='actions',name='actions/checkout',version='d'*40,manifest='.github/workflows/ci.yml',
+                package_url='pkg:githubactions/actions/checkout@'+'d'*40,vulnerabilities=[])
+        result=assess([dep],components=[action],api=API('unsupported'))
+        self.assertFalse(result['package_decision_passed'])
+        self.assertIsNone(result['changes'][0]['vulnerabilities'])
+
     def test_provider_high_and_unknown_findings_are_preserved_when_osv_has_no_match(self):
         for severity in ['critical','high','unknown']:
             result=assess([row(vulnerabilities=[{'advisory_ghsa_id':'GHSA-aaaa-bbbb-cccc','severity':severity,'summary':'PRIVATE_CANARY'}])])
@@ -66,7 +74,8 @@ class JoinTests(unittest.TestCase):
     def test_explicit_github_action_coverage_cannot_fabricate_support_for_other_scopes_or_failed_osv(self):
         action=component(ecosystem='github-actions',name='actions/checkout',version='d'*40,origins=['ci'])
         dep=row(ecosystem='actions',name='actions/checkout',version='d'*40,manifest='.github/workflows/ci.yml',package_url='pkg:githubactions/actions/checkout@'+'d'*40)
-        self.assertTrue(assess([dep],components=[action],api=API('unsupported'))['package_decision_passed'])
+        self.assertTrue(assess([dep],components=[action],api=API('observed'))['package_decision_passed'])
+        self.assertFalse(assess([dep],components=[action],api=API('unsupported'))['package_decision_passed'])
         self.assertFalse(assess([dep],components=[action],api=API('unavailable'))['package_decision_passed'])
         self.assertFalse(assess([row()],api=API('unsupported'))['package_decision_passed'])
 

@@ -67,11 +67,8 @@ class JoinedAdvisories:
         if entry is None:return result
         actual=license_tokens(component['license'])
         if len(entry['licenses'])>1 or actual is not None and any(value!=actual for value in entry['licenses']):self.conflicts.add(key)
-        # Only an explicit recognized Action row supplies the supported GitHub
-        # advisory profile. A failed OSV query is never replaced with an empty list.
-        if result['status']=='unsupported' and component['ecosystem']=='github-actions':
-            require(result['vulnerabilities'] is None)
-            result.update(status='observed',vulnerabilities=[])
+        # GitHub does not generate alerts for SHA-versioned Actions. Provider
+        # row presence cannot replace an independent supported advisory lookup.
         if result['status']=='observed':
             policy._component({**advisories.identity(component),'license':component['license'],
                                'vulnerabilities':result['vulnerabilities']})

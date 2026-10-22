@@ -28,7 +28,8 @@ Python, Go helper, shell or package lifecycle code is executed. Every stage
 retains the existing byte/path/size/identity limits.
 
 Before writing output, the caller rechecks the PR, active reviews, executable,
-trusted driver bytes and the UTC assessment day. A source or approval change
+trusted driver bytes, Action repository visibility/tag bindings and the UTC
+assessment day. A source or approval change
 fails without an observation. Crossing midnight requires a rerun, preventing
 waivers from surviving their expiry day because collection began earlier.
 Outputs omit raw source, review bodies, private paths and provider prose. They
@@ -74,11 +75,57 @@ findings are preserved; unmatched additions remain visible and block the join.
 Removed components are not readmitted. Known provider findings remain separately
 visible even when the OSV lookup is unavailable and coverage stays unknown.
 
-An explicit recognized GitHub Action comparison row supplies that Action's
-GitHub advisory observation when OSV marks the ecosystem unsupported. It does
-not supply arbitrary ecosystem coverage or replace failed OSV queries with an
-empty list. Action entrypoints, bundled libraries and runtime downloads retain
-their existing source-observation limits; this is not a complete artifact SBOM.
+An empty GitHub Action comparison finding list cannot supply independent advisory
+coverage for a commit pin. The separate profile below is required; an unsupported
+or unavailable lookup retains null findings and blocks. Action entrypoints,
+bundled libraries and runtime downloads retain their existing source-observation
+limits; this is not a complete artifact SBOM.
+
+## SHA-Pinned Action Advisories
+
+GitHub documents that Action alerts are generated for semantic versions, not SHA
+versions in its [ecosystem reference](https://docs.github.com/en/code-security/reference/supply-chain-security/dependency-graph-supported-package-ecosystems).
+`scripts/dependency_action_advisories.py` addresses that gap using the fresh
+trusted collection's exact repository, subdirectory and commit identities.
+Public visibility and repository identity are checked before reading tags.
+All full release tags pointing to the pin are retained, including their actual
+`v` prefixes. Floating major aliases cannot establish a full version. A pin
+without a usable full release tag remains unsupported with null findings.
+Subactions query their parent repository while retaining their actual component
+path/commit for policy and waiver scope.
+
+For every mapped version, the client reads GitHub's
+[global advisory API](https://docs.github.com/en/rest/security-advisories/global-advisories#list-global-security-advisories)
+with an exact `ecosystem=actions` and `affects=repository@version` filter. It
+checks reviewed, unreviewed and malware records. It follows bounded cursor
+pagination and requires next-page URLs to preserve the fixed host, endpoint and
+filters. Results must name the requested Action repository. Severity is combined
+conservatively across records, versions and the ordinary dependency comparison;
+missing labels stay unknown. A failed page/type/query cannot become an empty
+passing observation. These are catalog observations, not proof of code safety or
+complete vulnerability detection.
+
+The public repository and full tag associations are rechecked before caller
+output. Moving/deleting a tag, adding another matching full version, changing
+visibility or exhausting bounds fails verification. Tags are publisher metadata;
+this dated association check does not make them immutable. No Action entrypoint
+or bundled program is executed. Raw descriptions, contact fields and archive
+URLs are omitted. `action_advisories` contains filtered bindings, observations,
+rechecks and separate tag/advisory receipts. Its advisory receipt indexes refer
+to that section's advisory receipts; top-level `advisory_receipts` contains the
+ordinary OSV request receipts.
+
+Tag and advisory clients each allow 256 requests, 4 MiB per response and 32 MiB
+total response bytes. Tags use at most 20 pages of 100 entries and 32 matching
+full tags per pin. Advisory pages use 100 records; each kind is bounded by 20
+pages and 128 findings, with at most 128 combined active findings per query.
+HTTP headers are capped at 64 KiB. Exhaustion produces unknown coverage. A live
+qualification control retained the known high-severity historical
+`GHSA-mrrh-fwg8-r2c3` through the direct GitHub API; OSV version queries did not
+retain that control finding during qualification. This profile therefore uses
+the directly qualified GitHub source for Actions. The historical control is
+independent of the repository's currently collected pins and is not a hosted
+admission verdict.
 
 ## Declared Image Changes
 

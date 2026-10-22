@@ -30,6 +30,7 @@
     "Bind image advisory coordinates to scanner package/source metadata, preserve installed identities separately from distro source queries, reject mismatched or incomplete advisory observations and keep unknown Go build versions unresolved.",
     "Verify immutable non-executable UTF-8 test fixtures and notice coverage before recording explicit non-package advisory applicability; retain null findings and license/waiver enforcement without expanding the allowed policy.",
     "Derive image changes from private Git-data views with distinct trusted generator and original source hashes, scan changed registry images with qualified tooling, assess package/source/origin changes under target-base policy and keep mutable baselines, unknown artifacts and missing coverage from silently authorizing changes.",
+    "Require independent advisory evidence for SHA-pinned Actions instead of treating empty graph findings as complete coverage; bind all full release tags to the verified commit, query GitHub's reviewed/unreviewed/malware catalogs, enforce cursor/response bounds and recheck public visibility/tag associations before output.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {

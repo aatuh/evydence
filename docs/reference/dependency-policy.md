@@ -192,6 +192,12 @@ the public report. Bundled JavaScript/native libraries, entrypoint bodies,
 runtime downloads and runner software are outside these source observations;
 they do not constitute a complete artifact SBOM or license approval.
 
+The trusted admission caller separately checks
+[SHA-pinned Action advisories](dependency-review.md#sha-pinned-action-advisories).
+An empty dependency-graph finding list for a pin does not establish advisory
+coverage. Unsupported mappings and unavailable queries stay blocking; the source
+inventory itself remains an observation rather than an admission decision.
+
 ## Implemented Admission Rules
 
 Fixture coverage and source declarations use a

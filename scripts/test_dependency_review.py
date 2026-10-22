@@ -10,6 +10,7 @@ from unittest.mock import Mock,patch
 
 import dependency_review as review
 import dependency_image_admission as image_admission
+import dependency_action_advisories as action_advisories
 from test_dependency_admission import BASE,HEAD,RULES,collection
 from test_dependency_collection import revision
 from test_dependency_review_provider import pull
@@ -102,6 +103,17 @@ class ReviewTests(unittest.TestCase):
             handles[6].return_value={'image_decision_passed':True,'image_coverage_verified':True,'coverage_gaps':[],
                                     'exception_reviews':[{'exception_id':'DEP-0001'}]}
             with self.assertRaises(review.ReviewError):review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
+
+    def test_changed_action_tag_binding_cannot_write_a_review_report(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);api,_=self.setup_job();self.operation(root,api)
+            args=['--root',str(root),'--pull-request','30','--base',BASE,'--head',HEAD,
+                  '--head-repository','contributor/fork','--work-root',str(root),'--output','report.json']
+            with patch.object(review.provider,'GitHub',return_value=api), \
+                 patch.object(action_advisories.Client,'verify',side_effect=action_advisories.ActionAdvisoryError()), \
+                 patch.object(review.sys,'stderr',io.StringIO()):
+                self.assertEqual(review.main(args),2)
+            self.assertFalse((root/'report.json').exists())
 
     def test_policy_failure_is_not_replaced_with_a_head_policy(self):
         with tempfile.TemporaryDirectory() as folder:

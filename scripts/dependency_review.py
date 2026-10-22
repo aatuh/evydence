@@ -11,6 +11,7 @@ import sys
 
 import dependency_admission as admission
 import dependency_advisories as advisories
+import dependency_action_advisories as action_advisories
 import dependency_classifier as classifiers
 import dependency_collection as collection
 import dependency_exception_reviews as exception_reviews
@@ -30,7 +31,7 @@ SCHEMA='evydence-dependency-review.v1'
 DRIVER_FILES=('scripts/dependency_review.py','scripts/dependency_review_join.py','scripts/dependency_admission.py',
               'scripts/dependency_exception_reviews.py','scripts/dependency_advisories.py',
               'scripts/dependency_fixture_advisories.py','scripts/dependency_image_admission.py',
-              'scripts/dependency_image_packages.py')+tuple(sorted({
+              'scripts/dependency_image_packages.py','scripts/dependency_action_advisories.py')+tuple(sorted({
                   name for name in (*inventory.GENERATOR_FILES,*images.GENERATOR_FILES) if name.endswith('.py')}))
 
 
@@ -70,7 +71,7 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
         require(artifact.receipt['trusted_base']==base)
         before=collection.collect(reader,base,base,work_root,parent_environment,classifier=artifact)
         after=collection.collect(reader,base,head,work_root,parent_environment,classifier=artifact)
-        advisory_api=advisories.Client()
+        advisory_api=action_advisories.Client(advisories.Client(),after,base,head)
         decision=join.assess(reader,base,base,head,before,after,snapshot,advisory_api,today,review_api=api)
         image_decision=image_admission.assess(reader,base,head,before,after,work_root,advisory_api,today,syft=syft,review_api=api)
         gaps=set()
@@ -91,6 +92,7 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
         final_reviews=exception_reviews.verify(applicable,api,today)
         require({proof['exception_id']:proof for proof in final_reviews}==combined_reviews)
         require(exception_reviews.verify(proposed_rules,api,today)==proposed_reviews)
+        advisory_api.verify()
         artifact.verify()
         require(all(read_bytes(ROOT,name,policy.MAX_DOCUMENT_BYTES)==raw for name,raw in code.items()))
         finished=datetime.now(timezone.utc)
@@ -102,6 +104,7 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
                 'semantic_collection_sha256':{'base':digest(before),'head':digest(after)},
                 'trusted_driver_files':{name:hashlib.sha256(raw).hexdigest() for name,raw in code.items()},
                 'decision':decision,'image_decision':image_decision,'exception_reviews':final_reviews,
+                'action_advisories':advisory_api.evidence(),'advisory_receipts':advisory_api.receipts,
                 'coverage_gaps':sorted(gaps),'dependency_coverage_verified':covered,
                 'proposed_policy':proposed_policy,'proposed_policy_reviews':proposed_reviews,
                 'passed':covered and decision.get('package_decision_passed') is True

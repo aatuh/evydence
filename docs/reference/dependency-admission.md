@@ -58,6 +58,11 @@ version prefix. OSV interprets its ecosystem version rules; an observation
 describes indexed matches, not complete vulnerability detection or symbol
 reachability. See [OSV's package/version API](https://google.github.io/osv.dev/post-v1-query/).
 
+SHA-pinned Actions use a separate
+[commit/release-tag profile](dependency-review.md#sha-pinned-action-advisories)
+and direct GitHub advisory queries. A provider comparison row with no findings
+cannot turn unsupported Action advisory coverage into a passing observation.
+
 The client uses a fixed HTTPS POST endpoint, no inherited proxy/authentication,
 no redirects and bounded JSON. It follows pagination fully or returns unknown.
 A complete empty provider response means no indexed match was returned for that
@@ -109,7 +114,8 @@ existing fixture records have not been retroactively approved.
 
 ## Verification And Remaining Work
 
-`make dependency-admission-test` runs advisory, image-source mapping and admission,
+`make dependency-admission-test` runs advisory, Action tag/query boundaries,
+image-source mapping and admission,
 fixture applicability, source admission, review and trusted caller regressions
 without network access. It is included in `make docs-check`, which
 also compiles Go tools and requires a suitable RAM reservation.
