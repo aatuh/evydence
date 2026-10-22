@@ -6,8 +6,8 @@ Git-verified source collection, source-package decisions and scoped exception
 review. It runs trusted code from its own checkout; proposed source remains data.
 
 **Complete admission remains in progress under EVY-1407.** The caller never turns
-a partial package decision into a passing check. Declared image change checks
-are connected; remaining tool coverage and combined provider joins are
+a partial package decision into a passing check. Declared image and pinned Go
+tool change checks are connected; combined coverage qualification remains
 unfinished. Current successful observations therefore exit 1 with explicit
 coverage gaps. The final required
 `make dependency-policy-check` and hosted workflow are not installed by this unit.
@@ -34,8 +34,8 @@ fails without an observation. Crossing midnight requires a rerun, preventing
 waivers from surviving their expiry day because collection began earlier.
 Outputs omit raw source, review bodies, private paths and provider prose. They
 include source metadata, hashes of canonical collection JSON, trusted driver
-hashes, provider receipts, source and image decisions and coverage gaps. Source
-and image checks share the advisory client and combine their actually used
+hashes, provider receipts, source, image and bundled tool decisions and coverage gaps.
+These checks share the advisory client and combine their actually used
 exception reviews for a final approval recheck. These semantic hashes
 are not claimed as hashes of a separately saved byte stream.
 
@@ -176,6 +176,58 @@ remain visible and blocking as unmatched records until their exact-source join
 is completed; an image package result cannot erase them. Runtime downloads,
 arbitrary build outputs, other architectures and hosted enforcement remain
 outside this qualification.
+
+## Pinned Go Tool Artifacts
+
+`scripts/dependency_tool_admission.py` handles changed Helm and oasdiff roots
+from the fresh trusted collection. A provider-forced root assessment takes the
+same path. The published archive version, binary-recorded main module/version
+and Go compiler version remain distinct. The main module must match the closed
+tool profile and exact release version, including Helm's recorded `v` prefix.
+
+The profile fetches the official checksum-pinned archive, rechecks its binary
+digest and classifies its root notices with the shared base-built helper.
+`scripts/dependency_tool_buildinfo.py` validates the complete bounded archive
+before writing only the named executable to a private, exclusive mode-0600 file.
+It runs the qualified local `go version -m -json` reader on that file as data;
+the downloaded tool is never executed. The binary digest is checked again after
+inspection. Output retains public module coordinates/checksums and Linux amd64
+platform metadata, omitting linker flags, VCS settings and local replacement paths.
+
+Bundled dependency entries require exact versions and checksums; the root main
+version is bound separately to the checksum-pinned release archive. The profile
+requires no replacements and recorded CGO disabled. Unknown/development versions, missing dependency checksums,
+unsupported platform/native linkage and inconsistent metadata fail validation.
+They cannot acquire an empty advisory list or a passing tool verdict.
+
+`scripts/dependency_tool_sources.py` downloads explicit public Go modules with
+credentials, VCS fallback and toolchain switching disabled. It copies bounded
+module ZIPs into private scratch, recomputes Go's `dirhash.Hash1` over their
+sorted filenames/content and requires the binary-recorded `h1` checksum.
+ZIP paths, duplicate entries, file types, CRCs and compressed/expanded budgets
+are checked before root license bytes reach the verified classifier. Cached
+metadata alone cannot establish those source bytes. Source hashing follows
+the qualified Go reader's `cmd/vendor/golang.org/x/mod/sumdb/dirhash/hash.go`.
+
+Compiler license observations come from that exact Go release's Linux amd64
+`golang.org/toolchain` module, fetched into a fresh private cache with SumDB
+enabled and its ZIP checksum independently recomputed. Compiler binaries in
+that archive are data and are never executed. The recorded compiler version
+supplies the explicit Go `stdlib` advisory query; it does not supply versions
+for unknown main modules or dependencies.
+
+Every bundled module and the standard library receive separate license and
+advisory decisions under current-target policy. Their exact-scope waiver proofs
+join the caller's final live recheck. Root Apache/MIT notices cannot admit a
+child package. Unknown or conflicting license classifications and unavailable
+advisories remain blocking. A changed tool readmits its bundled modules because
+it creates a new artifact context even when a module already occurs elsewhere.
+
+Limits are 512 distinct source requests, 500 MiB per compressed or expanded ZIP,
+65,536 ZIP entries, 32 root notices of at most 1 MiB each and 2 GiB aggregate
+expanded source bytes. The parent retains its 8,192 decision bound. The scope is
+changed pinned Go tool artifacts, not a complete artifact SBOM, cryptographic
+proof of binary/source equivalence, reachability analysis or license approval.
 
 ## Exact Exception Review
 

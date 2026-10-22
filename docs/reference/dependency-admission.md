@@ -63,6 +63,11 @@ SHA-pinned Actions use a separate
 and direct GitHub advisory queries. A provider comparison row with no findings
 cannot turn unsupported Action advisory coverage into a passing observation.
 
+Changed generic Helm/oasdiff roots use the
+[checksum-bound tool profile](dependency-review.md#pinned-go-tool-artifacts).
+The root release, bundled Go modules and recorded compiler are checked
+separately; each bundled package retains its own license/advisory decision.
+
 The client uses a fixed HTTPS POST endpoint, no inherited proxy/authentication,
 no redirects and bounded JSON. It follows pagination fully or returns unknown.
 A complete empty provider response means no indexed match was returned for that
@@ -115,6 +120,7 @@ existing fixture records have not been retroactively approved.
 ## Verification And Remaining Work
 
 `make dependency-admission-test` runs advisory, Action tag/query boundaries,
+tool archive/build-info/source integrity and bundled package admission,
 image-source mapping and admission,
 fixture applicability, source admission, review and trusted caller regressions
 without network access. It is included in `make docs-check`, which

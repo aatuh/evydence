@@ -78,7 +78,7 @@ class ReviewTests(unittest.TestCase):
                                         'coverage_gaps':[],'exception_reviews':[]}
                 syft=root/'qualified-syft';result=review.run(api,30,BASE,HEAD,'contributor/fork',root,{},syft=syft)
                 self.assertEqual(result['passed'],passed);self.assertNotIn('source:images',result['coverage_gaps'])
-                self.assertIs(handles[5].call_args.args[8],handles[6].call_args.args[7])
+                self.assertIs(handles[5].call_args.args[7],handles[6].call_args.args[6])
                 self.assertEqual(handles[6].call_args.args[1:3],(BASE,HEAD))
                 self.assertEqual(handles[6].call_args.kwargs['syft'],syft)
                 self.assertIs(handles[6].call_args.kwargs['review_api'],api)
@@ -95,6 +95,29 @@ class ReviewTests(unittest.TestCase):
                                     'coverage_gaps':[],'exception_reviews':[]}
             result=review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
             self.assertFalse(result['passed']);self.assertFalse(result['dependency_coverage_verified'])
+
+    def test_bundled_tool_decisions_and_coverage_cannot_be_omitted_from_combined_verdict(self):
+        for covered,passed in [(False,True),(True,False),(True,True)]:
+            with self.subTest(covered=covered,passed=passed),tempfile.TemporaryDirectory() as folder:
+                root=Path(folder);api,_=self.setup_job()
+                handles,_=self.operation(root,api,join_result={'package_decision_passed':True,'dependency_coverage_verified':True})
+                handles[6].return_value={'image_decision_passed':True,'image_coverage_verified':True,
+                                        'coverage_gaps':[],'exception_reviews':[]}
+                evidence={'tool_decision_passed':passed,'tool_coverage_verified':covered,'exception_reviews':[]}
+                with patch.object(review.tool_admission.Client,'evidence',return_value=evidence):
+                    result=review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
+                self.assertEqual(result['passed'],covered and passed);self.assertEqual(result['tool_decision'],evidence)
+                self.assertIsInstance(handles[5].call_args.args[7],review.tool_admission.Client)
+                self.assertIs(handles[5].call_args.args[7],handles[6].call_args.args[6])
+                self.doCleanups()
+
+    def test_bundled_tool_approval_is_included_in_final_live_recheck(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);api,_=self.setup_job();self.operation(root,api)
+            with patch.object(review.tool_admission.Client,'evidence',return_value={
+                    'tool_decision_passed':True,'tool_coverage_verified':True,'exception_reviews':[{'exception_id':'DEP-0001'}]}), \
+                 self.assertRaises(review.ReviewError):
+                review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
 
     def test_image_approval_cannot_be_omitted_from_the_final_live_recheck(self):
         with tempfile.TemporaryDirectory() as folder:

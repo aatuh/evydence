@@ -24,6 +24,7 @@ import dependency_policy as policy
 import dependency_reports as reports
 import dependency_review_join as join
 import dependency_review_provider as provider
+import dependency_tool_admission as tool_admission
 from release_lifecycle import read_bytes
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -31,7 +32,9 @@ SCHEMA='evydence-dependency-review.v1'
 DRIVER_FILES=('scripts/dependency_review.py','scripts/dependency_review_join.py','scripts/dependency_admission.py',
               'scripts/dependency_exception_reviews.py','scripts/dependency_advisories.py',
               'scripts/dependency_fixture_advisories.py','scripts/dependency_image_admission.py',
-              'scripts/dependency_image_packages.py','scripts/dependency_action_advisories.py')+tuple(sorted({
+              'scripts/dependency_image_packages.py','scripts/dependency_action_advisories.py',
+              'scripts/dependency_tool_admission.py','scripts/dependency_tool_buildinfo.py',
+              'scripts/dependency_tool_sources.py')+tuple(sorted({
                   name for name in (*inventory.GENERATOR_FILES,*images.GENERATOR_FILES) if name.endswith('.py')}))
 
 
@@ -71,20 +74,24 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
         require(artifact.receipt['trusted_base']==base)
         before=collection.collect(reader,base,base,work_root,parent_environment,classifier=artifact)
         after=collection.collect(reader,base,head,work_root,parent_environment,classifier=artifact)
-        advisory_api=action_advisories.Client(advisories.Client(),after,base,head)
+        action_api=action_advisories.Client(advisories.Client(),after,base,head)
+        advisory_api=tool_admission.Client(action_api,after,base,head,work_root,parent_environment,artifact,reader,today,review_api=api)
         decision=join.assess(reader,base,base,head,before,after,snapshot,advisory_api,today,review_api=api)
         image_decision=image_admission.assess(reader,base,head,before,after,work_root,advisory_api,today,syft=syft,review_api=api)
+        tool_decision=advisory_api.evidence()
         gaps=set()
         for value in [before,after]:
             remaining=value['inventory'].get('remaining_scopes');require(isinstance(remaining,list)
                 and all(isinstance(scope,str) and scope in {'images','action-local-references'} for scope in remaining))
             gaps.update('source:'+scope for scope in remaining if scope!='images' or image_decision.get('image_coverage_verified') is not True)
         gaps.update('images:'+scope for scope in image_decision['coverage_gaps'])
+        if tool_decision.get('tool_coverage_verified') is not True:gaps.add('build-tool-profile')
         if decision.get('dependency_coverage_verified') is not True:gaps.add('complete-admission-profile')
         require(provider.pull_context(api.get('pulls/'+str(pull_number)),pull_number)=={
             key:snapshot[key] for key in ['pull_request','base','head','head_repository','changed_files']})
         combined_reviews={}
-        for proof in [*decision.get('exception_reviews',[]),*image_decision.get('exception_reviews',[])]:
+        for proof in [*decision.get('exception_reviews',[]),*image_decision.get('exception_reviews',[]),
+                      *tool_decision.get('exception_reviews',[])]:
             identifier=proof['exception_id'];require(identifier not in combined_reviews or combined_reviews[identifier]==proof)
             combined_reviews[identifier]=proof
         used=set(combined_reviews)
@@ -93,22 +100,25 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
         require({proof['exception_id']:proof for proof in final_reviews}==combined_reviews)
         require(exception_reviews.verify(proposed_rules,api,today)==proposed_reviews)
         advisory_api.verify()
+        action_api.verify()
         artifact.verify()
         require(all(read_bytes(ROOT,name,policy.MAX_DOCUMENT_BYTES)==raw for name,raw in code.items()))
         finished=datetime.now(timezone.utc)
         require(not live_clock or finished.date()==today)
-        covered=not gaps and decision.get('dependency_coverage_verified') is True and image_decision.get('image_coverage_verified') is True
+        covered=not gaps and decision.get('dependency_coverage_verified') is True and image_decision.get('image_coverage_verified') is True \
+            and tool_decision.get('tool_coverage_verified') is True
         return {'schema':SCHEMA,'observed_at':finished.isoformat(),
                 'provider_context':{key:snapshot[key] for key in ['repository','pull_request','base','head','head_repository','comparison_base']},
                 'source_base':before['source'],'source_head':after['source'],
                 'semantic_collection_sha256':{'base':digest(before),'head':digest(after)},
                 'trusted_driver_files':{name:hashlib.sha256(raw).hexdigest() for name,raw in code.items()},
-                'decision':decision,'image_decision':image_decision,'exception_reviews':final_reviews,
-                'action_advisories':advisory_api.evidence(),'advisory_receipts':advisory_api.receipts,
+                'decision':decision,'image_decision':image_decision,'tool_decision':tool_decision,'exception_reviews':final_reviews,
+                'action_advisories':action_api.evidence(),'advisory_receipts':advisory_api.receipts,
                 'coverage_gaps':sorted(gaps),'dependency_coverage_verified':covered,
                 'proposed_policy':proposed_policy,'proposed_policy_reviews':proposed_reviews,
                 'passed':covered and decision.get('package_decision_passed') is True
-                    and image_decision.get('image_decision_passed') is True,'receipts':api.receipts}
+                    and image_decision.get('image_decision_passed') is True
+                    and tool_decision.get('tool_decision_passed') is True,'receipts':api.receipts}
     except (OSError,ValueError,KeyError,TypeError,AttributeError,RecursionError):raise ReviewError() from None
 
 
