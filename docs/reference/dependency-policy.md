@@ -252,6 +252,13 @@ hosted enforcement remain incomplete.
 
 ## Exceptions
 
+The initial machine-readable rules are in
+[`release/dependency-policy.json`](../../release/dependency-policy.json), with no
+exception entries. The [source-package decision layer](dependency-admission.md)
+selects rules from the current target base and combines exact component changes
+with real advisory observations. It remains a partial decision with complete
+coverage explicitly false; it is not hosted enforcement or baseline approval.
+
 An exception must name one exact ecosystem/name/version and one license
 expression or advisory ID. It cannot use wildcards, waive a different version,
 or turn a license exception into an advisory waiver. Missing-license exceptions

@@ -25,6 +25,7 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: dependency-inputs-test dependency-inputs-check
 .PHONY: dependency-classifier-test
 .PHONY: dependency-collection-test
+.PHONY: dependency-admission-test
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
@@ -313,6 +314,10 @@ dependency-classifier-test: ## Test trusted base classifier sources, execution a
 dependency-collection-test: ## Test Git data exports, trusted collector sources and PR consistency
 	@python3 scripts/test_dependency_collection.py
 
+dependency-admission-test: ## Test exact-version advisory observations and trusted-base package decisions
+	@python3 scripts/test_dependency_advisories.py
+	@python3 scripts/test_dependency_admission.py
+
 dependency-updates-check: ## Check dependency update coverage and separate routine/security groups
 	@python3 scripts/test_dependency_updates.py
 
@@ -359,7 +364,7 @@ dependency-maintenance-check: dependency-maintenance-test ## Check saved mainten
 dependency-maintenance-generate: ## Observe public dependency maintenance metadata without package execution
 	@python3 scripts/dependency_maintenance.py --replace
 
-docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-review-provider-test dependency-inputs-check dependency-classifier-test dependency-collection-test dependency-inventory-test dependency-images-check dependency-maintenance-check release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-review-provider-test dependency-inputs-check dependency-classifier-test dependency-collection-test dependency-admission-test dependency-inventory-test dependency-images-check dependency-maintenance-check release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/dependency-policy.md
 	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md
