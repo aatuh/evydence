@@ -21,6 +21,7 @@
     "Discover declared image sources, verify public manifest selections and scan exact registry digests or mapped local image IDs with qualified Syft; retain package/license observations while omitting environment values, labels and scanner paths, and leave operator image choices unresolved.",
     "Generate source-bound maintenance review signals from selected version dates, public repository activity/status and npm deprecation metadata; preserve unknown states, separate fixture commit dates from payload identities, omit provider prose/contact fields and protect concurrent source/output edits.",
     "Validate dependency-review comparison records before offline admission, preserve strict unknown-license and advisory-severity handling, merge cross-manifest advisories and reject conflicting metadata without claiming authenticated or complete provider coverage.",
+    "Read exact-source PR dependency observations through authenticated bounded GETs, reconstruct Git tree identities and require complete changed-file correspondence before exporting filtered provider rows. Normalize GitHub Go versions and support unversioned legacy removal URLs while retaining version requirements for additions.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {

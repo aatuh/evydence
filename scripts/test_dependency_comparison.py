@@ -20,6 +20,15 @@ def assess(rows):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_go_versions_match_inventory_coordinates_and_legacy_removal_purls(self):
+        added=row(ecosystem='gomod',name='example.org/module',version='1.2.3',
+                  manifest='go.mod',package_url='pkg:golang/example.org/module@1.2.3')
+        result=assess([added]); self.assertEqual(result['components'][0]['version'],'v1.2.3')
+        removed={**added,'change_type':'removed','package_url':'pkg:golang/example.org/module'}
+        self.assertEqual(comparison.component(removed)['version'],'v1.2.3')
+        self.assertEqual(assess([removed])['components'],[])
+        with self.assertRaises(comparison.ComparisonError): assess([{**removed,'change_type':'added'}])
+
     def test_added_components_use_strict_policy_and_removed_components_do_not_block_admission(self):
         result=assess([row(),row(change_type='removed',version='1.0.0',package_url='pkg:npm/example@1.0.0',license='GPL-3.0-only')])
         self.assertTrue(result['passed']); self.assertEqual(len(result['components']),1)

@@ -41,7 +41,15 @@ def component(row):
     require(parsed.scheme == 'pkg' and not parsed.netloc and not parsed.fragment and not parsed.query
             and parsed.path.startswith(purl_type + '/'))
     coordinate = unquote(parsed.path[len(purl_type) + 1:], errors='strict')
-    require('@' in coordinate and coordinate.rsplit('@', 1) == [name, version])
+    if '@' in coordinate:
+        require(coordinate.rsplit('@', 1) == [name, version])
+    else:
+        # Observed GitHub legacy Go removals omit the URL's version. They are
+        # never admitted; keep the separate explicit version and exact name.
+        require(ecosystem == 'gomod' and row['change_type'] == 'removed' and coordinate == name)
+    if ecosystem == 'gomod':
+        require(isinstance(version, str) and re.fullmatch(r'v?[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?', version))
+        version = 'v' + version.removeprefix('v')
     values = row.get('vulnerabilities'); require(isinstance(values, list) and len(values) <= 128)
     vulnerabilities = []
     for value in values:

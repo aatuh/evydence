@@ -237,6 +237,9 @@ The caller must still authenticate the response, bind it to the real comparison
 and prove coverage, including custom tool and fixture scopes. An empty response
 does not prove a complete graph. The adapter's isolated regressions run in
 `make dependency-policy-test`; hosted integration remains incomplete.
+The [authenticated provider reader](dependency-review-provider.md) now binds PR,
+commit, tree and file observations. It explicitly leaves complete dependency
+coverage unverified and does not select policy or establish hosted enforcement.
 
 ## Exceptions
 
