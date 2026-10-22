@@ -218,7 +218,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "1de05c6757a1fc7a119666b4bbf96e8e9573b59327d8927edb4f450e75026dcf",
+        "scanner_output_sha256": "469210bee2f65905e41d88f83f1c78e70f96a069bddb94b49d1678776aabb8a6",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/alpine:3.23@sha256:85fe1e81d6758c208f3e1eed4338a1997e19d4be002d4dd32d3100c9a8c010a0",
@@ -554,7 +554,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "37626c1250ca2acf247c9b425b5c4455ae00cc5af0b92364594079faebcd0211",
+        "scanner_output_sha256": "7dc2e6e0f76a1a285ee28c94f6acab5b15efbfcb69fa6ef39bd9b48257e4773f",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201",
@@ -1156,7 +1156,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "d2f9abc7487c32fa5226190e6249f2badfe42edfd9a272733ba88745b99e3e3b",
+        "scanner_output_sha256": "b7b0fbc5090b9f31106b406b19ba04b501464da5bebc4d46deb5459d22f58a6f",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
@@ -1917,7 +1917,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "bc80bb46fcab48ed7e76a517e93fe0a74855cd4b1f15b65080ad0f973a0ca6d0",
+        "scanner_output_sha256": "cccd8744155e1f89f238f45e749c45ecf0d561c98d3044694b5fbc6622feb1e9",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888",
@@ -4734,7 +4734,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "97e0bfcc544d277083a6c794299067cb3c2f38e4905b9d400b4aca9aa5aa0a0a",
+        "scanner_output_sha256": "f4869568ece7a05d538eccdffe0d0844d876afccf16dd00b2e4c6acfd29fb1fa",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "ghcr.io/ossf/scorecard-action:v2.4.3",
@@ -5935,7 +5935,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "4168dff25533aac305e2f8764ff4e1020c5010ecdce2210fe0dcd73d5870f837",
+        "scanner_output_sha256": "81fb2b11b49c678ada619127e34d6b10f163e32815a2883baa88ea123665efec",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "evydence-local-mc:20250813-7394ce0dd2a8",
@@ -8319,7 +8319,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "f62fa1a77f6035a589915b24ca79d9f632fc3388985cb7a256b7492256daa2b0",
+        "scanner_output_sha256": "5ce1fec6a9e05c62d16ddca79151ce388b9b480b6e47e442c04060f6603ceeee",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "evydence-local-minio:20251015-9e49d5e7a648",
@@ -8343,7 +8343,7 @@
     "docker-compose.yml": "10ccf4df8a1793fe883adaaaa73fe2fe5195c9a177fa67b24d95250998c196e6",
     "docs/github-actions/quickstart-release-evidence.yml": "eb8fd676581894080f16654539e1e18ef097961db0ea189cc7fc339836668b6b",
     "docs/github-actions/release-evidence-workflow.yml": "9d4d5178702e4089cfb4e01fc44877f5f692d5775a8b923eb6d04bf17f5b624b",
-    "docs/reference/dependency-inventory.json": "7dba1296b9adfb3eba82ef4c944f5118cc7a788e0d70a9e5e617414759a94fad",
+    "docs/reference/dependency-inventory.json": "b6ee278950a808522db77e1e6bb8e8d40cdef262747df555a155ff65b431fb3a",
     "release/support-matrix.json": "c266cf6d3f1b9b42cf120eb34663eb6d670678460b9c53b0b03381029e73e41e",
     "release/tools/syft.go.mod": "779a628967e4006a15bb531cbc0a0977be34ad05bd22b95e9d6bf6bd0f768bbc",
     "release/tools/syft.go.sum": "c778b5ee7af2e3b7d2cac7896e9a48df4b50b3e431f0de77cdea60b2e2783868",
@@ -8352,7 +8352,7 @@
     "scripts/dependency_go_tools.py": "2a782ecacbb058a1c142dec6ecc2f49f6074839a24cba3ba7b59e053b1457b38",
     "scripts/dependency_image_registry.py": "3ac538abc7b36f3a5908ae9423fd3368ca7e02634a6bf5702b9a6d3285af1378",
     "scripts/dependency_images.py": "38bb1c8e812a855ede278baa75b05d11cf7f657f27d6f3c23083079345348eb3",
-    "scripts/dependency_inventory.py": "c8a8a5ce6880d2c22799777028891705c10c596a71bd6467a93427e69321995b",
+    "scripts/dependency_inventory.py": "9852bb5ca5f9e6f3997c09777f6e6dc19b71e331ac8a4f27d88b6d88744876e5",
     "scripts/dependency_node_sources.py": "0ff4336f384d2db8ba073d7b24745ca0bf5097232ca0a962043ccaa0847f7aae",
     "scripts/dependency_policy.py": "243d35f3d61ddf4aa7bc5f7a3dda72e6d5476e85f2ae12da17e87e687f8bdc9a",
     "scripts/dependency_python_sources.py": "4ecd4d5139509dfebd25b0de1bc5e0ff306794caaa0c4479e2d7d7bf6886c92f",
@@ -8367,7 +8367,7 @@
     "scripts/support_matrix_artifacts.py": "b4b2c75fbad65bc2ea178f6933a04189049db2dac24d269b1f97ce54452e779e",
     "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
   },
-  "observed_at": "2026-10-22T06:38:46.961155+00:00",
+  "observed_at": "2026-10-22T11:50:59.786711+00:00",
   "scanner": {
     "binary_sha256": "bdbdbb2a4dd898867f2d7e2f55111e3249dfc9fc851dd6e0221844075946e511",
     "name": "syft",

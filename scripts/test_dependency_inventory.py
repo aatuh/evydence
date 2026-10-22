@@ -19,6 +19,7 @@ import dependency_python_sources
 import dependency_build_tools
 import dependency_actions
 import dependency_go_tools
+import dependency_classifier
 import fixture_provenance
 
 SPEC = importlib.util.spec_from_file_location('dependency_inventory', Path(__file__).with_name('dependency_inventory.py'))
@@ -616,6 +617,69 @@ class CollectorTests(unittest.TestCase):
                 return b'all modules verified\n'
             self.fail('unexpected tool command')
         return run
+
+    def trusted_classifier(self,work):
+        workspace=work/'trusted-classifier'; workspace.mkdir(mode=0o700)
+        executable=workspace/'license-classifier'; executable.write_bytes(b'trusted base executable')
+        root=Path(__file__).parents[1]
+        sources={name:{'sha256':hashlib.sha256((root/name).read_bytes()).hexdigest()}
+                 for name in ['tools/go.mod','tools/go.sum','tools/cmd/license-inventory/main.go']}
+        receipt={'schema':dependency_classifier.SCHEMA,'trusted_base':'a'*40,'go_version':'go1.27.3',
+                 'sources':sources,'binary_sha256':hashlib.sha256(executable.read_bytes()).hexdigest()}
+        env=dependency_classifier.environment({'PATH':'/trusted/bin','GH_TOKEN':'SECRET_CANARY'},workspace)
+        return dependency_classifier.BuiltClassifier(workspace,receipt,env)
+
+    def test_external_classifier_keeps_proposed_code_as_data_and_binds_actual_generators(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); cache=self.fixture(root); work=root/'work'; work.mkdir()
+            classifier=self.trusted_classifier(work)
+            proposed_python=root/'scripts/dependency_inventory.py'
+            proposed_python.write_text('raise RuntimeError("PRIVATE_CANARY proposed Python executed")')
+            proposed_go=root/'tools/cmd/license-inventory/main.go'
+            proposed_go.write_text('package main // PRIVATE_CANARY proposed Go must not build')
+            calls=[]; runner=self.fake_runner(root,cache,calls)
+            with patch.object(INVENTORY,'_run',runner),patch.object(dependency_classifier.inventory,'_run',runner):
+                result=INVENTORY.collect(root,work,{'GH_TOKEN':'SECRET_CANARY'},classifier=classifier)
+            self.assertEqual(result['generator']['classifier'],classifier.receipt)
+            self.assertEqual(result['generator']['files']['scripts/dependency_inventory.py'],
+                             hashlib.sha256((Path(__file__).parents[1]/'scripts/dependency_inventory.py').read_bytes()).hexdigest())
+            self.assertEqual(result['generator']['files']['tools/cmd/license-inventory/main.go'],
+                             classifier.receipt['sources']['tools/cmd/license-inventory/main.go']['sha256'])
+            self.assertEqual(result['inputs']['tools/go.mod'],hashlib.sha256((root/'tools/go.mod').read_bytes()).hexdigest())
+            self.assertNotEqual(result['inputs']['tools/go.mod'],classifier.receipt['sources']['tools/go.mod']['sha256'])
+            self.assertFalse(any(args[:2]==['go','build'] for args,_,_ in calls))
+            self.assertTrue(any(args==[str(classifier.executable)] for args,_,_ in calls))
+            self.assertTrue(all(env['HOME']==classifier.environment['HOME'] and env['GOAUTH']=='off'
+                                and env['GOVCS']=='*:off' and 'GH_TOKEN' not in env for _,_,env in calls))
+            self.assertIn('PRIVATE_CANARY',proposed_python.read_text()); self.assertIn('PRIVATE_CANARY',proposed_go.read_text())
+            self.assertNotIn('CANARY',json.dumps(result))
+
+    def test_invalid_external_classifier_is_rejected_before_provider_work(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); self.fixture(root); work=root/'work'; work.mkdir()
+            for value in [object(),self.trusted_classifier(work)]:
+                if isinstance(value,dependency_classifier.BuiltClassifier): value.executable.write_bytes(b'tampered')
+                with self.subTest(value=type(value).__name__),patch.object(INVENTORY,'_run') as run, \
+                     self.assertRaises(INVENTORY.InventoryError):
+                    INVENTORY.collect(root,work,{},classifier=value)
+                run.assert_not_called(); self.action_collect.assert_not_called(); self.node_fetch.assert_not_called()
+
+    def test_trusted_generator_edit_during_external_collection_aborts_and_preserves_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);cache=self.fixture(root);work=root/'work';work.mkdir()
+            classifier=self.trusted_classifier(work);code=work/'trusted-code';code.mkdir()
+            for name in INVENTORY.GENERATOR_FILES:
+                target=code/name;target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_bytes((Path(__file__).parents[1]/name).read_bytes())
+            target=code/'scripts/dependency_inventory.py'
+            runner=self.fake_runner(root,cache,[])
+            def mutate(args,*pos,**kwargs):
+                if args==['go','mod','verify']:target.write_text('PRIVATE_CANARY owner edit')
+                return runner(args,*pos,**kwargs)
+            with patch.object(INVENTORY,'ROOT',code),patch.object(INVENTORY,'_run',mutate), \
+                 patch.object(dependency_classifier.inventory,'_run',mutate),self.assertRaises(INVENTORY.InventoryError) as error:
+                INVENTORY.collect(root,work,{},classifier=classifier)
+            self.assertNotIn('CANARY',str(error.exception));self.assertIn('CANARY',target.read_text())
 
     def test_collector_verifies_before_classification_and_preserves_inputs(self):
         with tempfile.TemporaryDirectory() as folder:

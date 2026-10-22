@@ -245,8 +245,10 @@ families to verified Git bytes, with missing/unclassified inputs reported
 separately from complete dependency/license/advisory coverage.
 The [trusted classifier builder](dependency-classifier.md) now builds the
 license helper from explicitly selected base locks/source in a private directory
-without provider credentials. Connecting it to the general collector and binding
-the trusted policy/base to the real PR remain separate integration work.
+without provider credentials. The [Git collection caller](dependency-collection.md)
+now connects it to the collector while proposed source remains data and live PR
+context is rechecked. Complete scope/advisory joins, trusted policy selection and
+hosted enforcement remain incomplete.
 
 ## Exceptions
 
@@ -348,10 +350,13 @@ trusted live review remain to be integrated before EVY-1407 can close. Go graph
 observations cover available modules, not only dependencies linked into a
 particular binary; they are separate from artifact-bound release SBOMs.
 
-The [2026-10-21 snapshot](dependency-inventory.json) contains 2,880 records:
+The [2026-10-22 regenerated snapshot](dependency-inventory.json) preserves
+all 2,880 component observations from the earlier snapshot:
 2,501 Go module/versions, 327 Node packages, one PyYAML component with 73 pinned
-distributions, 34 fixture records, two build-tool archives and 15 Action sources. Go and registry
-source artifacts passed their download/checksum verification. Go license
+distributions, 34 fixture records, two build-tool archives and 15 Action sources.
+The regeneration used the Git collection caller with a base-built classifier;
+trusted generator hashes and proposed manifest hashes remain distinct. Go and
+registry source artifacts passed download/checksum verification. Go license
 observations include 2,328 candidates,
 105 ambiguous results, 53 unknown and 15 with no root license file. None of
 those classifications grants approval. All 327 npm manifest declarations match

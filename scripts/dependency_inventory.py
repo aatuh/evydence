@@ -691,23 +691,42 @@ def scanner_tool(work, environment, cache, expected_go):
         raise InventoryError('cannot verify pinned scanner tool source') from None
 
 
-def collect(root, work_root, parent_environment):
+def collect(root, work_root, parent_environment, *, classifier=None):
     """Verify Go/Node/Python source bytes; retain explicit scope gaps."""
     import support_matrix
     root, work_root = Path(root).resolve(), Path(work_root)
     if work_root.is_symlink() or not work_root.is_dir():
         raise InventoryError('inventory work root must be an existing directory')
-    names = set(GENERATOR_FILES) | {fixture_sources.CATALOG, 'release/support-matrix.json', 'tools/requirements-qa.txt',
+    names = {fixture_sources.CATALOG, 'release/support-matrix.json', 'tools/requirements-qa.txt',
                                     'site/marketing/package.json', 'site/marketing/package-lock.json'}
+    if classifier is None:
+        names.update(GENERATOR_FILES)
     for _scope, mod, sums, _main in GRAPHS:
         names.update((mod, sums))
     names.update(go_tools.INPUTS)
     try:
         inputs = {name: read_bytes(root, name, MAX_BYTES) for name in sorted(names)}
-        for name in GENERATOR_FILES:
-            if name.endswith('.py') and inputs[name] != read_bytes(ROOT, name, MAX_BYTES):
+        code = {name: read_bytes(ROOT, name, MAX_BYTES) for name in GENERATOR_FILES if name.endswith('.py')}
+        if classifier is None:
+            if any(inputs[name] != raw for name, raw in code.items()):
                 raise InventoryError('collector implementation differs from its source record')
+            generator = {name: hashlib.sha256(inputs[name]).hexdigest() for name in GENERATOR_FILES}
+        else:
+            # Import lazily: the builder itself uses this module's bounded runner.
+            from dependency_classifier import BuiltClassifier
+            if not isinstance(classifier, BuiltClassifier):
+                raise InventoryError('collector requires a verified base classifier')
+            classifier.verify()
+            generator = {name: hashlib.sha256(raw).hexdigest() for name, raw in code.items()}
+            for name in GENERATOR_FILES:
+                if name not in generator:
+                    digest = classifier.receipt['sources'][name]['sha256']
+                    if not isinstance(digest, str) or not SHA256.fullmatch(digest):
+                        raise InventoryError('invalid base classifier source identity')
+                    generator[name] = digest
         expected_go = 'go' + support_matrix.parse_policy(inputs['release/support-matrix.json'])['go']['current']
+        if classifier is not None and classifier.receipt['go_version'] != expected_go:
+            raise InventoryError('proposed compiler differs from the verified base classifier')
         archive_tools = build_tools.archive_tools(inputs['release/support-matrix.json'])
         node = node_components(policy.parse_document(inputs['site/marketing/package.json']),
                                policy.parse_document(inputs['site/marketing/package-lock.json']))
@@ -715,9 +734,9 @@ def collect(root, work_root, parent_environment):
         actions = action_sources.discover(root, inputs)
         standalone_profiles = go_tools.profiles(inputs)
         workflow_names = {name for name in inputs if name.rsplit('/', 1)[0] in action_sources.WORKFLOW_ROOTS}
-    except (ValueError, OSError):
+    except (ValueError, OSError, TypeError, KeyError, AttributeError):
         raise InventoryError('cannot read valid inventory inputs') from None
-    environment = tool_environment(parent_environment)
+    environment = tool_environment(parent_environment) if classifier is None else dict(classifier.environment)
     version = _run(['go', 'version'], root, environment, timeout=30).decode().strip()
     if re.fullmatch(r'go version ' + re.escape(expected_go) + r' [a-z0-9]+/[a-z0-9]+', version) is None:
         raise InventoryError('inventory requires the declared current Go compiler with switching disabled')
@@ -816,10 +835,16 @@ def collect(root, work_root, parent_environment):
     register_files(scanner_files)
     observations[('scanner-tool', scanner['name'], scanner['version'])] = scanner_files
     components.append(scanner)
-    executable = work / 'license-classifier'
-    _run(['go', 'build', '-mod=readonly', '-trimpath', '-o', str(executable), './cmd/license-inventory'],
-         root / 'tools', environment, log=work / 'classifier-build.log')
-    matches = _classify_files(raw_files, executable, root, environment, work)
+    if classifier is None:
+        executable = work / 'license-classifier'
+        _run(['go', 'build', '-mod=readonly', '-trimpath', '-o', str(executable), './cmd/license-inventory'],
+             root / 'tools', environment, log=work / 'classifier-build.log')
+        matches = _classify_files(raw_files, executable, root, environment, work)
+    else:
+        try:
+            matches = classifier.classify(raw_files)
+        except (OSError, ValueError, TypeError):
+            raise InventoryError('cannot classify verified source license bytes') from None
     components = [attach_licenses(item, observations[(item['origins'][0], item['name'], item['version'])], matches)
                   for item in components]
     node = [attach_node_licenses(item, *node_observations[(item['name'], item['version'])], matches)
@@ -835,14 +860,15 @@ def collect(root, work_root, parent_environment):
     try:
         expected = {file['path'] for item in fixtures for file in item['source']['files']}
         if (any(read_bytes(root, name, MAX_BYTES) != raw for name, raw in inputs.items())
+                or any(read_bytes(ROOT, name, MAX_BYTES) != raw for name, raw in code.items())
                 or fixture_sources.fixture_paths(root) != expected or action_sources.workflow_paths(root) != workflow_names):
             raise InventoryError('inventory source changed during collection')
     except (OSError, ValueError):
         raise InventoryError('inventory source or fixture coverage changed during collection') from None
-    return {
+    result = {
         'schema': SCHEMA, 'complete': False,
         'generator': {'go_version': version.split()[2], 'python_version': sys.version.split()[0],
-                      'files': {name: hashlib.sha256(inputs[name]).hexdigest() for name in GENERATOR_FILES}},
+                      'files': generator},
         'inputs': {name: hashlib.sha256(raw).hexdigest() for name, raw in inputs.items() if name not in GENERATOR_FILES},
         'components': merged,
         'standalone_go_tools': standalone_observations,
@@ -861,6 +887,10 @@ def collect(root, work_root, parent_environment):
             'This is not an artifact SBOM, vulnerability scan or complete dependency inventory.',
         ],
     }
+    if classifier is not None:
+        classifier.verify()
+        result['generator']['classifier'] = copy.deepcopy(classifier.receipt)
+    return result
 
 
 class Parser(argparse.ArgumentParser):

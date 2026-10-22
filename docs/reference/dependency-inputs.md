@@ -108,3 +108,6 @@ The [trusted classifier builder](dependency-classifier.md) consumes base Git
 objects for executable code and its QA lock files. Proposed head sources remain
 dependency data. The caller must select the current reviewed target base rather
 than letting proposed code or policy authorize its own execution.
+The [Git collection caller](dependency-collection.md) exports verified inputs
+into a private data directory, uses that base-built helper and trusted Python,
+and rechecks source/tooling identities before returning observations.

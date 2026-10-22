@@ -83,11 +83,12 @@ exclusively; `--replace` only permits replacing the same report schema, with
 concurrent edits protected. Exit 0 means a verified base build receipt was
 written; exit 2 means invalid source, failed tooling or unsafe output.
 
-The existing general inventory collector still builds from its supplied
-`root/tools`. It must not be run on proposed PR source with provider credentials.
-Connecting this trusted builder to complete component/license/advisory collection
-and trusted policy selection remains incomplete under EVY-1407. Neither a saved
-receipt nor these regressions is proof of hosted enforcement.
+The [Git collection caller](dependency-collection.md) supplies this artifact to
+the inventory collector and keeps proposed code as data. The standalone inventory
+command retains its operator-trusted local `root/tools` build path; it must not
+be run on proposed PR source with provider credentials. Complete component/
+license/advisory coverage and trusted policy selection remain incomplete under
+EVY-1407. Neither a saved receipt nor these regressions is hosted enforcement.
 
 A local build from `59e6da0e1f3df16d0e216972c651cfab75404af2` with Go 1.27.3
 on Linux amd64 passed recognized MIT, mixed-license ambiguous and unknown-text
