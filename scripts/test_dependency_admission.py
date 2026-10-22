@@ -123,6 +123,10 @@ class DecisionTests(unittest.TestCase):
         class Wrong(API):
             def observe(self,row):return {'component':{**advisories.identity(row),'version':'other'},'status':'observed','vulnerabilities':[]}
         with self.assertRaises(admission.AdmissionError):assess([], [component()],Wrong())
+        class UnboundData(API):
+            def observe(self,row):return {'component':advisories.identity(row),'status':'not-applicable-data-fixture',
+                                         'profile':'utf8-test-data.v1','vulnerabilities':None}
+        with self.assertRaises(admission.AdmissionError):assess([], [component()],UnboundData())
         for findings in [None,[],[{'id':'GHSA-aaaa-bbbb-cccc','severity':'high'}]]:
             api=API();api.vulnerabilities=findings
             if findings is None:

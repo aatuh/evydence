@@ -12,6 +12,7 @@ import re
 import dependency_advisories as advisories
 import dependency_collection as collection
 import dependency_exception_reviews as exception_reviews
+import dependency_fixture_advisories as fixture_advisories
 import dependency_git_objects as objects
 import dependency_inventory as inventory
 import dependency_policy as policy
@@ -94,24 +95,37 @@ def assess_changes(reader,current_target_base,comparison_base,head,before,after,
         require(comparison_base!=head and base!=head)
         rules,selected=load_policy(reader,base,today)
         previous=component_rows(before,comparison_base,base);proposed=component_rows(after,head,base)
+        fixture_rows={tuple(advisories.identity(row).values()):row for row in after['inventory']['components']
+                      if row['ecosystem']=='fixture'}
         changes=[]
         for identity,row in sorted(proposed.items()):
             old=previous.get(identity);added=row['origins']-(old['origins'] if old else set())
             if (old is not None and not added and row['source_sha256']==old['source_sha256']
                     and identity not in getattr(api,'required_components',set())):continue
-            value=row['component'];observation=api.observe(value)
+            value=row['component']
+            # Unexpected provider additions must not be downgraded to data-only
+            # applicability. They retain the ordinary blocking advisory join.
+            data_applicable=value['ecosystem']=='fixture' and identity not in getattr(api,'required_components',set())
+            if data_applicable:
+                observation=fixture_advisories.observe(reader,after,fixture_rows[identity])
+                result=fixture_advisories.assess_license(value,rules,today)
+            else:observation=api.observe(value)
             require(isinstance(observation,dict) and observation.get('component')==advisories.identity(value)
-                    and observation.get('status') in {'observed','unsupported','unavailable'})
+                    and (observation.get('status')=='not-applicable-data-fixture' if data_applicable else
+                         observation.get('status') in {'observed','unsupported','unavailable'}))
             vulnerabilities=observation.get('vulnerabilities')
             if observation['status']=='observed':
                 result=policy.assess_component({**value,'vulnerabilities':vulnerabilities},rules,today)
-            else:
+            elif observation['status']!='not-applicable-data-fixture':
                 require(vulnerabilities is None)
                 result={'passed':False,'violations':['advisory_coverage_unknown'],'exceptions':[]}
+            else:require(value['ecosystem']=='fixture' and vulnerabilities is None
+                         and observation.get('profile')=='utf8-test-data.v1')
             changes.append({**value,'change_type':'added' if old is None else 'changed',
                             'added_origins':sorted(added),'source_sha256':row['source_sha256'],
                             'previous_source_sha256':None if old is None else old['source_sha256'],
-                            'advisory_status':observation['status'],'vulnerabilities':copy.deepcopy(vulnerabilities),**result})
+                            'advisory_status':observation['status'],'advisory_profile':observation.get('profile'),
+                            'vulnerabilities':copy.deepcopy(vulnerabilities),**result})
         removed=[advisories.identity(previous[key]['component']) for key in sorted(set(previous)-set(proposed))]
         used={identifier for row in changes for identifier in row['exceptions']}
         applicable={**rules,'exceptions':[row for row in rules['exceptions'] if row['id'] in used]}

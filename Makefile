@@ -316,6 +316,8 @@ dependency-collection-test: ## Test Git data exports, trusted collector sources 
 
 dependency-admission-test: ## Test exact-version advisory observations and trusted-base package decisions
 	@python3 scripts/test_dependency_advisories.py
+	@python3 scripts/test_dependency_image_packages.py
+	@python3 scripts/test_dependency_fixture_advisories.py
 	@python3 scripts/test_dependency_admission.py
 	@python3 scripts/test_dependency_exception_reviews.py
 	@python3 scripts/test_dependency_review_join.py

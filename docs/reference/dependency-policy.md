@@ -444,6 +444,32 @@ omitted. Missing, unsupported and multiple declarations stay unresolved; no
 `AND`/`OR` relationship or license approval is inferred. Scanner observations
 also do not constitute vulnerability results or determine redistribution duties.
 
+`scripts/dependency_image_packages.py` now projects supplemental source metadata
+from those same scanner bytes, bound to their recorded SHA-256. Alpine queries
+use the package database's upstream name and release branch; Debian queries use
+the source package name/version when recorded, preserving the installed binary
+version separately. These coordinates follow the
+[OSV ecosystem definitions](https://ossf.github.io/osv-schema/#defined-ecosystems).
+Missing or contradictory context stays unknown; Debian binary rebuild suffixes
+are not stripped to guess a source version. Go build-info observations preserve
+validated public module sums and compiler versions without inferring versions
+for unknown, development or compiler pseudo-modules. A `stdlib` record needs an
+explicit release version matching its build-info compiler version before a Go
+standard-library query is formed, following the
+[Go database package profile](https://go.dev/doc/security/vuln/database#affectedpackage).
+Only a dot-prefixed APK
+virtual record with no files and zero installed size is marked metadata-only.
+
+The advisory client can query these exact source coordinates while retaining
+the installed component identity. Cache keys include the query, responses must
+match its ecosystem/name, and initial queries cannot skip the first result page.
+Incomplete lookups still retain null findings. A projection probe covered all
+841 observations in the seven prior qualified scans; separate fresh Alpine,
+Debian and Go standard-library OSV queries exercised the source mappings. These are bounded integration
+observations, not fresh image scans or complete image admission. The proposed
+image comparison, license/advisory decisions and hosted caller integration
+remain unfinished under EVY-1407.
+
 `make dependency-images-check` runs regressions and checks saved input bindings
 offline; it does not re-query registries or prove current tag contents. To refresh,
 first prepare the qualified scanner using the existing

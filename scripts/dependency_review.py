@@ -25,7 +25,8 @@ from release_lifecycle import read_bytes
 ROOT=Path(__file__).resolve().parents[1]
 SCHEMA='evydence-dependency-review.v1'
 DRIVER_FILES=('scripts/dependency_review.py','scripts/dependency_review_join.py','scripts/dependency_admission.py',
-              'scripts/dependency_exception_reviews.py','scripts/dependency_advisories.py')
+              'scripts/dependency_exception_reviews.py','scripts/dependency_advisories.py',
+              'scripts/dependency_fixture_advisories.py')
 
 
 class ReviewError(ValueError):

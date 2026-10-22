@@ -51,6 +51,25 @@ def query(component):
     return {'package':{'ecosystem':ECOSYSTEMS[ecosystem],'name':name},'version':version}
 
 
+def validate_query(body):
+    try:
+        require(isinstance(body,dict) and set(body) in [{'package','version'},{'package','version','page_token'}])
+        package=body['package'];require(isinstance(package,dict) and set(package)=={'name','ecosystem'})
+        reverse={value:key for key,value in ECOSYSTEMS.items()}
+        ecosystem=package['ecosystem']
+        if ecosystem=='Go' and package['name']=='stdlib':
+            require(isinstance(body['version'],str) and re.fullmatch(r'[1-9][0-9]*\.[0-9]+\.[0-9]+',body['version']))
+        elif ecosystem in reverse:
+            expected=query({'ecosystem':reverse[ecosystem],'name':package['name'],'version':body['version']})
+            require(expected=={key:body[key] for key in ['package','version']})
+        else:
+            require(isinstance(ecosystem,str) and re.fullmatch(r'(?:Alpine:v[1-9][0-9]*\.[0-9]+|Debian:[1-9][0-9]*)',ecosystem)
+                    and isinstance(package['name'],str) and re.fullmatch(r'\.?[A-Za-z0-9][A-Za-z0-9+_.-]{0,127}',package['name'])
+                    and isinstance(body['version'],str) and re.fullmatch(r'[0-9][A-Za-z0-9._+~:-]{0,127}',body['version']))
+        if 'page_token' in body:token(body['page_token'])
+    except (ValueError,KeyError,TypeError,AttributeError):raise AdvisoryError() from None
+
+
 def token(value):
     require(isinstance(value,str) and 0<len(value)<=4096 and all(32<ord(char)<127 for char in value))
     return value
@@ -101,12 +120,7 @@ class Client:
 
     def request(self,body):
         try:
-            require(isinstance(body,dict) and set(body) in [{'package','version'},{'package','version','page_token'}])
-            package=body['package'];require(isinstance(package,dict) and set(package)=={'name','ecosystem'})
-            reverse={value:key for key,value in ECOSYSTEMS.items()}
-            expected=query({'ecosystem':reverse[package['ecosystem']],'name':package['name'],'version':body['version']})
-            require(expected=={key:body[key] for key in ['package','version']})
-            if 'page_token' in body:token(body['page_token'])
+            validate_query(body)
             raw=json.dumps(body,sort_keys=True,separators=(',',':'),ensure_ascii=True).encode();require(len(raw)<=8192)
             self.requests+=1;require(self.requests<=MAX_REQUESTS)
             opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
@@ -136,7 +150,14 @@ class Client:
         except (OSError,ValueError,KeyError,TypeError,AttributeError,urllib.error.URLError):raise AdvisoryError() from None
 
     def observe(self,component):
-        coordinates=identity(component);key=tuple(coordinates.values());request=query(coordinates)
+        return self.observe_query(component,query(component))
+
+    def observe_query(self,component,request):
+        coordinates=identity(component)
+        if request is not None:
+            validate_query(request);require(set(request)=={'package','version'})
+        query_digest=hashlib.sha256(json.dumps(request,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        key=(*coordinates.values(),query_digest)
         if key in self.cache:return copy.deepcopy(self.cache[key])
         require(len(self.cache)<MAX_COMPONENTS)
         result={'component':coordinates,'observed_at':datetime.now(timezone.utc).isoformat(),

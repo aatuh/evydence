@@ -81,14 +81,47 @@ records per component. Exhausted/incomplete lookups block package admission as
 `advisory_coverage_unknown`. Calls are serial; run local collection/decision
 orchestration under the host RAM gate.
 
+## Test-Data Applicability
+
+`scripts/dependency_fixture_advisories.py` handles a narrow non-package profile:
+`utf8-test-data.v1`. It accepts only recorded fixture rows from a fresh trusted
+collection, with exactly the `fixtures` origin. Original Git blobs must be
+non-executable regular files under the catalog's payload roots, with `.json`,
+`.fragment` or `.txt` suffixes. UTF-8 bytes, size bounds, blob identities,
+individual and combined digests, collection inputs and every referenced notice
+are checked again. Binary signatures, control bytes and shebangs are rejected.
+Malformed parser fragments and uncompiled lint examples remain test data; they
+do not need to be valid JSON or valid programs to exercise negative tests.
+
+The resulting advisory status is `not-applicable-data-fixture`, with
+`vulnerabilities: null`. This means package advisory lookup does not apply to
+this bounded data profile. It is not an empty lookup, a vulnerability assessment
+of the fixture's subject or a claim that arbitrary file contents are safe to
+execute. Unsupported files cannot acquire this status through an advisory API
+response. Unexpected provider-reported additions retain the ordinary blocking
+join instead of being downgraded to data-only applicability.
+
+License admission still uses the same canonical expression rules and exact
+license-waiver scope. A waiver needs the existing live review verification.
+Recorded notices do not automatically allow AGPL, attribution requirements or
+other redistribution obligations. The initial allowed-license list is unchanged;
+existing fixture records have not been retroactively approved.
+
 ## Verification And Remaining Work
 
-`make dependency-admission-test` runs advisory, admission, review and trusted
+`make dependency-admission-test` runs advisory, image-source mapping, fixture
+applicability, admission, review and trusted
 caller regressions without network access. It is included in `make docs-check`, which
 also compiles Go tools and requires a suitable RAM reservation.
 
 Real OSV queries for historical lodash, jwt-go and PyYAML versions returned
 indexed findings. A fixture scope stayed unsupported with unknown findings.
+The raw OSV client still treats fixture coordinates as unsupported; the trusted
+data profile above is a separate applicability decision. A later Git-object
+probe validated all 34 prior qualified fixture records and their 56 payloads.
+Against the initial policy, 16 license decisions passed and 18 blocked. This
+reused the preserved qualified collection and did not claim a fresh complete
+collection or hosted enforcement.
 A separate integration probe used real OSV data with explicitly synthetic Git/
 collection contexts and the actual policy bytes; it blocked known findings and
 disallowed/missing licenses. Those are not current-repository vulnerability
