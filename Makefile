@@ -19,10 +19,13 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: release-repro-policy-test reproducible-build-check
 .PHONY: release-evidence-policy-test release-evidence-tools
 .PHONY: dependency-policy-test dependency-updates-check dependency-inventory-test dependency-inventory-generate python-qa-check fixture-provenance-check fixture-provenance-upstream-check
+.PHONY: dependency-images-test dependency-images-check dependency-images-generate
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
 DEPENDENCY_INVENTORY_WORK_ROOT ?= $(if $(TMPDIR),$(TMPDIR),tmp)
+DEPENDENCY_IMAGE_SYFT ?=
+DEPENDENCY_LOCAL_IMAGE_MAP ?=
 
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -314,7 +317,17 @@ dependency-inventory-test: ## Test dependency inventory integrity and bounded li
 dependency-inventory-generate: ## Generate partial-scope dependency and fixture source observations
 	@python3 scripts/dependency_inventory.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --output docs/reference/dependency-inventory.json --replace
 
-docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-inventory-test release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+dependency-images-test: ## Test image discovery, registry digests and bounded package/license projection
+	@python3 scripts/test_dependency_image_registry.py
+	@python3 scripts/test_dependency_images.py
+
+dependency-images-check: dependency-images-test ## Check the saved image observation against current source inputs offline
+	@python3 scripts/dependency_images.py --check
+
+dependency-images-generate: ## Observe declared images using qualified Syft and exact local fixture image IDs
+	@python3 scripts/dependency_images.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --syft "$(DEPENDENCY_IMAGE_SYFT)" --local-images "$(DEPENDENCY_LOCAL_IMAGE_MAP)" --replace
+
+docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-inventory-test dependency-images-check release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/dependency-policy.md
 	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md

@@ -18,6 +18,7 @@
     "Verify pinned Helm/oasdiff archive SHA-256 values before bounded binary/license inspection without extraction or execution, and verify the omitted Syft main-module source using the release recipe checksum pair and revision.",
     "Discover pinned Action references from workflow/example YAML, verify public commit/tree/blob identities and scoped notices without execution, and preserve declared nested references with observed commit resolutions.",
     "Bind standalone Cosign and disposable MinIO/client source pins to installation recipes, verify root and upstream Go graphs without installing commands, and preserve root manifest digests and merged graph origins.",
+    "Discover declared image sources, verify public manifest selections and scan exact registry digests or mapped local image IDs with qualified Syft; retain package/license observations while omitting environment values, labels and scanner paths, and leave operator image choices unresolved.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {
@@ -28,7 +29,7 @@
   },
   "security": "Reject malformed or oversized input, duplicate JSON keys, nonfinite numbers and unsupported metadata with errors that omit raw input. Rules have no network or subprocess effects; the classifier accepts digest-bound bytes over stdin without supplied-path or package-code execution.",
   "limitations": [
-    "EVY-1407 remains incomplete: image inventory, maintenance reporting, trusted live PR review, hosted update verification and release qualification are pending.",
+    "EVY-1407 remains incomplete: operator deployment choices, maintenance reporting, trusted live PR review, hosted update verification and release qualification are pending. Image observations cover selected package databases and Go binaries on Linux amd64, not complete artifact SBOMs or license approval.",
     "A review-link shape and synthetic policy tests do not prove approval or that real dependency changes are blocked by hosted CI."
   ]
 }

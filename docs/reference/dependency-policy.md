@@ -186,7 +186,7 @@ Runtime records describe declared entrypoints, nested Action references and
 container references. Nested external Actions are collected at resolved commit
 IDs; their declared tags remain marked mutable, with the observed resolution
 recorded separately. This is not a guarantee of the code a mutable reference
-will execute later. A container reference is input to the remaining image scope,
+will execute later. A container reference is input to the companion image scope,
 not proof of its contents. Shell commands and input defaults are not copied into
 the public report. Bundled JavaScript/native libraries, entrypoint bodies,
 runtime downloads and runner software are outside these source observations;
@@ -363,22 +363,83 @@ The 14 direct Action references and one nested Action have 30 manifest/notice
 observations across 22 unique blobs. Root texts classify as 14 MIT candidates
 and one Apache-2.0 candidate. The nested `actions/upload-artifact@v4` remains
 mutable even though its observed commit is recorded; Scorecard's tagged GHCR
-image is still part of the pending image scope. These records do not approve
+image is observed separately in the companion image inventory. These records do not approve
 licenses, prove complete bundled dependency coverage or verify later execution.
 The snapshot binds generator/input
 hashes and records the missing scopes; the unit tests reject a stale snapshot
 after those inputs change. The missing scopes and policy enforcement are still
 required, so this does not complete EVY-1407 or enforce live PR policy.
 
+## Declared Image Observations
+
+[`dependency-image-inventory.json`](dependency-image-inventory.json) is a separate
+Linux amd64 observation, produced by `scripts/dependency_images.py`. Discovery
+covers both Dockerfiles, Compose services, workflow/example service and job
+containers, Action runtime images, the air-gap manifest and Helm image settings.
+It binds the general dependency snapshot and generator/input hashes. The general
+snapshot's `remaining_scopes` describes that file; this companion supplies image
+observations for subsequent admission integration.
+
+Registry resolution is anonymous and read-only. It checks exact manifest bytes,
+SHA-256 values, sizes and a unique Linux amd64 index selection. Tagged inputs
+remain marked mutable after resolution. Qualified Syft scans the selected
+manifest digest, with inherited credentials, update checks and remote Go license
+lookups disabled. Its raw manifest/config bytes must match the resolved digests
+and declare Linux amd64. Metadata, layer descriptors, scanner output and runtime
+have explicit bounds. The catalogers observe Alpine and Debian package databases
+and Go modules found in binaries. Image entrypoints and package code do not run.
+
+The two disposable local fixtures require an explicit mapping from their declared
+tags to existing immutable Docker image IDs. This records the chosen local
+artifacts; it does not prove a current recipe rebuild or that a mutable local tag
+still points to them. Generation neither builds nor retags images. Keep existing
+images intact when preparing a separate fixture build. The historical air-gap
+release is observed at its pinned digest without republishing it or assigning
+the current compiler to that older artifact.
+
+Compose's `EVYDENCE_IMAGE` and Helm's required installation tag remain explicit
+operator choices. Their status is `operator-selected`, with no package scan or
+deployment verification. This report does not cover arbitrary installed images,
+other architectures, every language/ecosystem, runtime downloads or runner
+software, and does not claim a complete artifact SBOM.
+
+Public output includes package coordinates and scanner license declarations.
+Environment values, labels, scanner paths and arbitrary package metadata are
+omitted. Missing, unsupported and multiple declarations stay unresolved; no
+`AND`/`OR` relationship or license approval is inferred. Scanner observations
+also do not constitute vulnerability results or determine redistribution duties.
+
+`make dependency-images-check` runs regressions and checks saved input bindings
+offline; it does not re-query registries or prove current tag contents. To refresh,
+first prepare the qualified scanner using the existing
+[release scanner procedure](release-supply-chain.md#scanner-dependency-review).
+Create a JSON object mapping `evydence-local-minio:20251015-9e49d5e7a648` and
+`evydence-local-mc:20250813-7394ce0dd2a8` to their chosen `sha256:` image IDs.
+`docker image inspect --format '{{.Id}}' IMAGE` reads an existing image's ID.
+Then run under the host RAM coordinator, using private work on the VM partition:
+
+```sh
+"$HOME/.local/bin/codex-ramgate" 4 -- make dependency-images-generate \
+  DEPENDENCY_INVENTORY_WORK_ROOT=/path/to/private/vm-scratch \
+  DEPENDENCY_IMAGE_SYFT=/path/to/qualified/syft \
+  DEPENDENCY_LOCAL_IMAGE_MAP=/path/to/local-image-ids.json
+```
+
+Generation verifies the scanner installation receipt and version, retains private
+diagnostics, rechecks all inputs and writes atomically. Wrong-schema owner files,
+symlinks, changed inputs and unsuccessful scans fail without replacing a report.
+
 ## Verify This Unit
 
 ```sh
 make dependency-policy-test
 make dependency-inventory-test
+make dependency-images-check
 ```
 
 The first target is offline Python. The inventory target compiles and runs Go
-tests; it and `make docs-check` must use the host RAM coordinator. Neither test
-requires provider credentials. `make docs-check` includes both. Regression evidence covers expression semantics,
+tests; it and `make docs-check` must use the host RAM coordinator. These checks
+do not require provider credentials. `make docs-check` includes them. Regression
+evidence covers expression semantics,
 unknown metadata, exact and expiring exceptions, advisory severity, resource
 bounds and safe error handling. It does not replace the remaining ticket gates.
