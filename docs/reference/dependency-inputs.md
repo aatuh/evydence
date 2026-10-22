@@ -103,3 +103,8 @@ no head gaps. The older public PR #30 source verified 111/122 inputs through
 scanner lock pair, pinned Python requirements and standalone Go catalog required
 by the current input catalog. Those are observed older-source gaps, not passing
 coverage or current local `master` CI qualification.
+
+The [trusted classifier builder](dependency-classifier.md) consumes base Git
+objects for executable code and its QA lock files. Proposed head sources remain
+dependency data. The caller must select the current reviewed target base rather
+than letting proposed code or policy authorize its own execution.

@@ -23,6 +23,7 @@
     "Validate dependency-review comparison records before offline admission, preserve strict unknown-license and advisory-severity handling, merge cross-manifest advisories and reject conflicting metadata without claiming authenticated or complete provider coverage.",
     "Read exact-source PR dependency observations through authenticated bounded GETs, reconstruct Git tree identities and require complete changed-file correspondence before exporting filtered provider rows. Normalize GitHub Go versions and support unversioned legacy removal URLs while retaining version requirements for additions.",
     "Read immutable local or authenticated Git blobs with canonical byte/size/object checks, classify declared dependency input families, reject selected symlinks and report missing or unclassified sources. Verify current source catalog and selected manifest/fixture hashes without executing PR code or treating source coverage as dependency admission.",
+    "Build the bounded license helper from explicit trusted base Git sources and QA locks in a private credential-free environment, verify the exact compiler, unchanged source and module cache, and bind later classification to its executable digest. Current-target authorization and complete collector/admission integration remain separate.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {

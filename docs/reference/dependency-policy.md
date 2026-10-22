@@ -243,6 +243,10 @@ coverage unverified and does not select policy or establish hosted enforcement.
 The [immutable input reader](dependency-inputs.md) now binds declared source
 families to verified Git bytes, with missing/unclassified inputs reported
 separately from complete dependency/license/advisory coverage.
+The [trusted classifier builder](dependency-classifier.md) now builds the
+license helper from explicitly selected base locks/source in a private directory
+without provider credentials. Connecting it to the general collector and binding
+the trusted policy/base to the real PR remain separate integration work.
 
 ## Exceptions
 
