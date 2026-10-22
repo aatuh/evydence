@@ -111,6 +111,21 @@ class CollectionTests(unittest.TestCase):
                 self.assertEqual(collection.main(args),2)
             collect.assert_not_called();self.assertIn('CANARY',owner.read_text());self.assertNotIn('CANARY',error.getvalue())
 
+    def test_one_verified_base_classifier_can_be_shared_without_rebuilding_or_rebinding(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);workspace=root/'classifier';workspace.mkdir()
+            binary=workspace/'license-classifier';binary.write_bytes(b'verified executable')
+            receipt={'trusted_base':BASE,'binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest()}
+            artifact=collection.classifiers.BuiltClassifier(workspace,receipt,{})
+            self.inventory['generator']['classifier']=receipt
+            with patch.object(collection.inputs,'revision',return_value=(self.observed,self.contents)), \
+                 patch.object(collection.classifiers,'build') as build, \
+                 patch.object(collection.inventory,'collect',return_value=self.inventory) as collect:
+                for _ in range(2):collection.collect(self.reader,BASE,HEAD,root,{},classifier=artifact)
+                build.assert_not_called();self.assertEqual(collect.call_count,2)
+                artifact.receipt['trusted_base']='f'*40
+                with self.assertRaises(collection.CollectionError):collection.collect(self.reader,BASE,HEAD,root,{},classifier=artifact)
+
     def test_remote_cli_uses_current_target_base_and_rechecks_live_pr_before_writing(self):
         for changed in [False,True]:
             with self.subTest(changed=changed),tempfile.TemporaryDirectory() as folder:

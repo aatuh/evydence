@@ -271,9 +271,10 @@ expired entries, duplicate identities/scopes and unknown fields fail validation.
 Renewal requires another review; it is not automatic.
 
 A syntactically valid review URL or owner field does not prove approval.
-Enforcement must load policy from a trusted reviewed source and bind provider
-data to the actual comparison. That integration remains incomplete. Test
-exceptions are synthetic and do not approve any real dependency or advisory.
+The [trusted caller and review profile](dependency-review.md) bind current-target
+policy, actual comparison data and owner-authored exact-scope approvals. Full
+scope/hosted integration remains incomplete. Test exceptions are synthetic and
+do not approve any real dependency or advisory.
 
 ## License Classification Helper
 

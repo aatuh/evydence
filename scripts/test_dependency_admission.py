@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Current-target policy and exact component changes must govern admission."""
 import copy
-from datetime import date
+from datetime import date,datetime,timezone
 import hashlib
 import json
 from pathlib import Path
@@ -69,7 +69,7 @@ class PolicyTests(unittest.TestCase):
 
     def test_repository_policy_is_strict_and_has_no_invented_exceptions(self):
         raw=(Path(__file__).parents[1]/admission.POLICY_PATH).read_bytes()
-        rules=admission.policy.validate_policy(admission.policy.parse_document(raw),TODAY)
+        rules=admission.policy.validate_policy(admission.policy.parse_document(raw),datetime.now(timezone.utc).date())
         self.assertEqual(rules['exceptions'],[])
         self.assertTrue(admission.policy.license_allowed('MIT AND Apache-2.0',rules))
         self.assertFalse(admission.policy.license_allowed('GPL-3.0-only',rules))

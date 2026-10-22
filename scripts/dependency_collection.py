@@ -65,7 +65,7 @@ def verify_export(root,contents):
     require(all(read_bytes(root,name,objects.MAX_BLOB_BYTES)==raw for name,raw in contents.items()))
 
 
-def collect(reader,trusted_base,source,work_root,parent_environment):
+def collect(reader,trusted_base,source,work_root,parent_environment,*,classifier=None):
     """Run under the RAM gate; caller selects/authenticates the current target base."""
     try:
         trusted_base=provider.sha(trusted_base);source=provider.sha(source)
@@ -79,7 +79,9 @@ def collect(reader,trusted_base,source,work_root,parent_environment):
             with path.open('xb') as target:target.write(raw)
             path.chmod(0o600)
         verify_export(exported,contents)
-        artifact=classifiers.build(reader,trusted_base,work,parent_environment)
+        if classifier is None:artifact=classifiers.build(reader,trusted_base,work,parent_environment)
+        else:
+            require(isinstance(classifier,classifiers.BuiltClassifier));classifier.verify();artifact=classifier
         require(artifact.receipt['trusted_base']==trusted_base)
         result=inventory.collect(exported,work,parent_environment,classifier=artifact)
         require(result['generator']['classifier']==artifact.receipt)

@@ -205,5 +205,17 @@ class EventAndTransportTests(unittest.TestCase):
         self.assertEqual(run.call_count,1); self.assertFalse(api.authenticated)
         self.assertNotIn('CANARY',str(error.exception))
 
+    def test_review_endpoints_allow_only_fixed_get_resources(self):
+        api=provider.GitHub();api.authenticated=True
+        for endpoint in ['issues/comments/456','pulls/123/reviews/456']:
+            with self.subTest(endpoint=endpoint),patch.object(provider.inventory,'_run',return_value=b'{}') as run:
+                self.assertEqual(api.get(endpoint),{})
+            self.assertIn('GET',run.call_args.args[0])
+            self.assertEqual(run.call_args.args[0][-1],'repos/aatuh/evydence/'+endpoint)
+        for endpoint in ['issues/comments/456?body=PRIVATE_CANARY','pulls/123/reviews/456/events',
+                         'pulls/123/reviews/456/dismissals','issues/comments/0','pulls/123/reviews/../456']:
+            with self.subTest(endpoint=endpoint),patch.object(provider.inventory,'_run') as run,self.assertRaises(provider.ProviderError):api.get(endpoint)
+            run.assert_not_called()
+
 
 if __name__=='__main__': unittest.main()

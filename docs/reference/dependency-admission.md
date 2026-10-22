@@ -7,7 +7,7 @@ CLI that accepts a PR-supplied saved report as verified evidence.
 
 This is a **partial source-package decision**. The result separately records
 `package_decision_passed` and `dependency_coverage_verified: false`. Image/package
-joins, complete scope handling, real exception review and hosted workflow
+joins, complete scope handling and hosted workflow
 enforcement remain incomplete under EVY-1407. A passing partial decision must
 never be used as the final CI admission verdict.
 
@@ -44,10 +44,11 @@ unknown licenses, high/critical findings and unknown-severity findings. A remove
 dependency is not admitted just because it appears in a diff.
 
 Exception syntax still requires exact scope, owner, reason, bounded expiry and
-review. The new decision path rejects nonempty exception lists until actual
-provider review verification is integrated; it does not activate waivers based
-on a syntactically valid review URL. There are no fabricated approvals or blanket
-waivers for current unknown inventory records.
+review. The [live review verifier](dependency-review.md#exact-exception-review)
+now requires an authenticated owner-authored exact-scope payload, rechecked after
+assessment. URL syntax alone cannot activate a waiver. Expired well-formed base
+entries are inactive and cannot prevent their own cleanup. There are no fabricated
+approvals or blanket waivers for current unknown inventory records.
 
 ## Advisory Observations
 
@@ -82,8 +83,8 @@ orchestration under the host RAM gate.
 
 ## Verification And Remaining Work
 
-`make dependency-admission-test` runs seven advisory and eight admission
-regressions without network access. It is included in `make docs-check`, which
+`make dependency-admission-test` runs advisory, admission, review and trusted
+caller regressions without network access. It is included in `make docs-check`, which
 also compiles Go tools and requires a suitable RAM reservation.
 
 Real OSV queries for historical lodash, jwt-go and PyYAML versions returned
@@ -94,8 +95,9 @@ disallowed/missing licenses. Those are not current-repository vulnerability
 findings, verified archive-license evidence or hosted CI proof.
 
 The final `make dependency-policy-check` is not present yet. Complete scope and
-provider joins, authenticated caller enforcement, live exception review and
-hosted negative cases must be integrated before that gate can certify the ticket.
+provider joins and hosted negative cases must be integrated before that gate can
+certify the ticket. The [trusted caller](dependency-review.md) connects current
+source-package decisions and live review checks while preserving coverage gaps.
 Required vulnerability/release gates remain pending until EVY-1407 is ready for
 closure. No repository setting, push, workflow dispatch or release is performed
 by these libraries or their tests.

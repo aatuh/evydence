@@ -11,6 +11,7 @@ import re
 
 import dependency_advisories as advisories
 import dependency_collection as collection
+import dependency_exception_reviews as exception_reviews
 import dependency_git_objects as objects
 import dependency_inventory as inventory
 import dependency_policy as policy
@@ -32,6 +33,23 @@ def require(value):
     if not value:raise AdmissionError()
 
 
+def base_rules(value,today):
+    # Expiry disables an otherwise well-formed waiver. It must not prevent a
+    # policy-cleanup PR from removing that waiver under the old trusted policy.
+    policy.validate_policy({**value,'exceptions':[]},today)
+    rows=value['exceptions'];require(isinstance(rows,list) and len(rows)<=128)
+    active=[];expired=[];identities=set();scopes=set()
+    for row in rows:
+        reviewed=policy._day(row['reviewed_on'])
+        policy.validate_policy({**value,'exceptions':[row]},reviewed)
+        scope=policy._coordinates(row)+(row['kind'],row['value'])
+        require(row['id'] not in identities and scope not in scopes)
+        identities.add(row['id']);scopes.add(scope)
+        if policy._day(row['expires_on'])<=today:expired.append(row['id'])
+        else:active.append(row)
+    return policy.validate_policy({**value,'exceptions':active},today),sorted(expired)
+
+
 def load_policy(reader,current_target_base,today):
     """No head/merge-base fallback; Git identity is not independent review proof."""
     try:
@@ -40,8 +58,9 @@ def load_policy(reader,current_target_base,today):
         identity=provider.sha(row['sha']);raw=reader.blob(identity)
         require(isinstance(raw,bytes) and len(raw)<=objects.MAX_BLOB_BYTES
                 and objects.object_id('blob',raw)==identity)
-        rules=policy.validate_policy(policy.parse_document(raw),today)
-        return rules,{'commit':base,'path':POLICY_PATH,'git_blob':identity,'sha256':hashlib.sha256(raw).hexdigest()}
+        rules,expired=base_rules(policy.parse_document(raw),today)
+        return rules,{'commit':base,'path':POLICY_PATH,'git_blob':identity,'sha256':hashlib.sha256(raw).hexdigest(),
+                      'expired_exceptions':expired}
     except (OSError,ValueError,TypeError,KeyError,AttributeError,RecursionError):raise AdmissionError() from None
 
 
@@ -68,20 +87,18 @@ def component_rows(observation,source,base):
     return result
 
 
-def assess_changes(reader,current_target_base,comparison_base,head,before,after,api,today):
+def assess_changes(reader,current_target_base,comparison_base,head,before,after,api,today,*,review_api=None):
     """The trusted caller owns provider/source authentication and complete scope joins."""
     try:
         base=provider.sha(current_target_base);comparison_base=provider.sha(comparison_base);head=provider.sha(head)
         require(comparison_base!=head and base!=head)
         rules,selected=load_policy(reader,base,today)
-        # A shaped review URL is insufficient. No live review-verification path
-        # is integrated yet; do not activate an unverified exception here.
-        require(not rules['exceptions'])
         previous=component_rows(before,comparison_base,base);proposed=component_rows(after,head,base)
         changes=[]
         for identity,row in sorted(proposed.items()):
             old=previous.get(identity);added=row['origins']-(old['origins'] if old else set())
-            if old is not None and not added and row['source_sha256']==old['source_sha256']:continue
+            if (old is not None and not added and row['source_sha256']==old['source_sha256']
+                    and identity not in getattr(api,'required_components',set())):continue
             value=row['component'];observation=api.observe(value)
             require(isinstance(observation,dict) and observation.get('component')==advisories.identity(value)
                     and observation.get('status') in {'observed','unsupported','unavailable'})
@@ -96,8 +113,13 @@ def assess_changes(reader,current_target_base,comparison_base,head,before,after,
                             'previous_source_sha256':None if old is None else old['source_sha256'],
                             'advisory_status':observation['status'],'vulnerabilities':copy.deepcopy(vulnerabilities),**result})
         removed=[advisories.identity(previous[key]['component']) for key in sorted(set(previous)-set(proposed))]
+        used={identifier for row in changes for identifier in row['exceptions']}
+        applicable={**rules,'exceptions':[row for row in rules['exceptions'] if row['id'] in used]}
+        approvals=exception_reviews.verify(applicable,review_api,today)
+        require(exception_reviews.verify(applicable,review_api,today)==approvals)
         return {'schema':SCHEMA,'current_target_base':base,'comparison_base':comparison_base,'head':head,
                 'policy':selected,'changes':changes,'removed':removed,
+                'exception_reviews':approvals,
                 'package_decision_passed':all(row['passed'] for row in changes),
                 'dependency_coverage_verified':False,'advisory_receipts':copy.deepcopy(api.receipts)}
     except (OSError,ValueError,TypeError,KeyError,AttributeError,RecursionError):raise AdmissionError() from None

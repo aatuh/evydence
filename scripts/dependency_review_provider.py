@@ -33,6 +33,7 @@ SHA = comparison.SHA
 MODES = {'040000': 'tree', '100644': 'blob', '100755': 'blob', '120000': 'blob', '160000': 'commit'}
 STATUSES = {'added', 'removed', 'modified', 'renamed', 'copied', 'changed'}
 ENDPOINT = re.compile(r'(?:pulls/[1-9][0-9]*|'
+    r'issues/comments/[1-9][0-9]*|pulls/[1-9][0-9]*/reviews/[1-9][0-9]*|'
     r'pulls/[1-9][0-9]*/files\?per_page=100&page=[1-9][0-9]*|'
     r'compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}\?per_page=1&page=1|'
     r'dependency-graph/compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}|'
