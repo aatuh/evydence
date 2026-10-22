@@ -154,6 +154,15 @@ class SnapshotTests(unittest.TestCase):
 
 
 class EventAndTransportTests(unittest.TestCase):
+    def test_larger_input_profile_is_explicit_and_does_not_change_the_default_budget(self):
+        api=provider.GitHub(source_inputs=True); api.authenticated=True; api.count=provider.MAX_REQUESTS
+        with patch.object(provider.inventory,'_run',return_value=b'{}'):
+            self.assertEqual(api.get('git/blobs/'+A),{})
+        standard=provider.GitHub(); standard.authenticated=True; standard.count=provider.MAX_REQUESTS
+        with patch.object(provider.inventory,'_run') as run,self.assertRaises(provider.ProviderError):
+            standard.get('git/blobs/'+A)
+        run.assert_not_called()
+
     def test_cli_refuses_unrelated_output_and_conflicting_context_before_provider_work(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder); target=root/'owner.json'; target.write_text('owner data')

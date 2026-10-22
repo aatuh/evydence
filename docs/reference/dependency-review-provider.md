@@ -79,6 +79,9 @@ components. PR file pages contain at most 100 rows. GitHub documents a
 excess, missing pages, duplicates, tree truncation or inconsistent identities.
 Successful output replaces only the same schema with explicit `--replace`;
 symlinks, unrelated files and concurrent output edits are protected.
+The separate [dependency input reader](dependency-inputs.md) uses an explicit
+larger source-input profile for bounded blob reads; the default limits above
+remain unchanged.
 
 ## Run And Check
 

@@ -24,6 +24,8 @@ REPOSITORY = 'aatuh/evydence'
 SCHEMA = 'evydence-dependency-review-observation.v1'
 MAX_REQUESTS = 48
 MAX_TOTAL_BYTES = 32 * 1024 * 1024
+MAX_SOURCE_REQUESTS = 768
+MAX_SOURCE_RESPONSE_BYTES = 64 * 1024 * 1024
 MAX_FILES = 2048
 MAX_TREE_ENTRIES = 8192
 PER_PAGE = 100
@@ -34,7 +36,7 @@ ENDPOINT = re.compile(r'(?:pulls/[1-9][0-9]*|'
     r'pulls/[1-9][0-9]*/files\?per_page=100&page=[1-9][0-9]*|'
     r'compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}\?per_page=1&page=1|'
     r'dependency-graph/compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}|'
-    r'git/commits/[0-9a-f]{40}|git/trees/[0-9a-f]{40}\?recursive=1)\Z')
+    r'git/commits/[0-9a-f]{40}|git/trees/[0-9a-f]{40}\?recursive=1|git/blobs/[0-9a-f]{40})\Z')
 
 
 class ProviderError(ValueError):
@@ -112,13 +114,15 @@ def event_context(raw, event_name):
 
 class GitHub:
     """Read only fixed repository GET endpoints through gh's authenticated store."""
-    def __init__(self):
+    def __init__(self, *, source_inputs=False):
+        require(type(source_inputs) is bool)
+        self.source_inputs = source_inputs
         self.authenticated = False; self.count = 0; self.total = 0; self.receipts = []
 
     def get(self, endpoint):
         try:
             require(isinstance(endpoint, str) and ENDPOINT.fullmatch(endpoint))
-            self.count += 1; require(self.count <= MAX_REQUESTS)
+            self.count += 1; require(self.count <= (MAX_SOURCE_REQUESTS if self.source_inputs else MAX_REQUESTS))
             environment = {key: os.environ[key] for key in ('PATH', 'HOME', 'GH_TOKEN', 'GITHUB_TOKEN') if key in os.environ}
             environment.update(GH_PROMPT_DISABLED='1', GH_PAGER='cat', LC_ALL='C.UTF-8')
             if not self.authenticated:
@@ -127,7 +131,7 @@ class GitHub:
             raw = inventory._run(['gh', 'api', '--hostname', 'github.com', '--method', 'GET',
                 '-H', 'Accept: application/vnd.github+json', '-H', 'X-GitHub-Api-Version: 2026-03-10',
                 'repos/' + REPOSITORY + '/' + endpoint], ROOT, environment, timeout=45)
-            self.total += len(raw); require(self.total <= MAX_TOTAL_BYTES)
+            self.total += len(raw); require(self.total <= (MAX_SOURCE_RESPONSE_BYTES if self.source_inputs else MAX_TOTAL_BYTES))
             value = policy.parse_document(raw)
             self.receipts.append({'endpoint': endpoint, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()})
             return value

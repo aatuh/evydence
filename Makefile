@@ -22,6 +22,7 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: dependency-images-test dependency-images-check dependency-images-generate
 .PHONY: dependency-maintenance-test dependency-maintenance-check dependency-maintenance-generate
 .PHONY: dependency-review-provider-test
+.PHONY: dependency-inputs-test dependency-inputs-check
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
@@ -297,6 +298,13 @@ dependency-policy-test: ## Test offline dependency admission and exception rules
 dependency-review-provider-test: ## Test authenticated PR, event, Git tree and file coverage boundaries
 	@python3 scripts/test_dependency_review_provider.py
 
+dependency-inputs-test: ## Test immutable Git blobs and declared dependency input coverage
+	@python3 scripts/test_dependency_git_objects.py
+	@python3 scripts/test_dependency_inputs.py
+
+dependency-inputs-check: dependency-inputs-test ## Verify dependency input bytes and catalog at committed HEAD
+	@python3 scripts/dependency_inputs.py --check-local
+
 dependency-updates-check: ## Check dependency update coverage and separate routine/security groups
 	@python3 scripts/test_dependency_updates.py
 
@@ -343,7 +351,7 @@ dependency-maintenance-check: dependency-maintenance-test ## Check saved mainten
 dependency-maintenance-generate: ## Observe public dependency maintenance metadata without package execution
 	@python3 scripts/dependency_maintenance.py --replace
 
-docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-review-provider-test dependency-inventory-test dependency-images-check dependency-maintenance-check release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-review-provider-test dependency-inputs-check dependency-inventory-test dependency-images-check dependency-maintenance-check release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/dependency-policy.md
 	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md

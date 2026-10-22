@@ -240,6 +240,9 @@ does not prove a complete graph. The adapter's isolated regressions run in
 The [authenticated provider reader](dependency-review-provider.md) now binds PR,
 commit, tree and file observations. It explicitly leaves complete dependency
 coverage unverified and does not select policy or establish hosted enforcement.
+The [immutable input reader](dependency-inputs.md) now binds declared source
+families to verified Git bytes, with missing/unclassified inputs reported
+separately from complete dependency/license/advisory coverage.
 
 ## Exceptions
 
