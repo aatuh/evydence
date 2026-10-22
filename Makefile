@@ -20,6 +20,7 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 .PHONY: release-evidence-policy-test release-evidence-tools
 .PHONY: dependency-policy-test dependency-updates-check dependency-inventory-test dependency-inventory-generate python-qa-check fixture-provenance-check fixture-provenance-upstream-check
 .PHONY: dependency-images-test dependency-images-check dependency-images-generate
+.PHONY: dependency-maintenance-test dependency-maintenance-check dependency-maintenance-generate
 
 REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
 RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
@@ -290,6 +291,7 @@ repository-controls-check: ## Inspect live GitHub controls using the operator's 
 
 dependency-policy-test: ## Test offline dependency admission and exception rules
 	@python3 scripts/test_dependency_policy.py
+	@python3 scripts/test_dependency_comparison.py
 
 dependency-updates-check: ## Check dependency update coverage and separate routine/security groups
 	@python3 scripts/test_dependency_updates.py
@@ -327,7 +329,17 @@ dependency-images-check: dependency-images-test ## Check the saved image observa
 dependency-images-generate: ## Observe declared images using qualified Syft and exact local fixture image IDs
 	@python3 scripts/dependency_images.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --syft "$(DEPENDENCY_IMAGE_SYFT)" --local-images "$(DEPENDENCY_LOCAL_IMAGE_MAP)" --replace
 
-docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-inventory-test dependency-images-check release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+dependency-maintenance-test: ## Test maintenance provider boundaries, age signals and unknown metadata
+	@python3 scripts/test_dependency_maintenance_sources.py
+	@python3 scripts/test_dependency_maintenance.py
+
+dependency-maintenance-check: dependency-maintenance-test ## Check saved maintenance source bindings and review signals offline
+	@python3 scripts/dependency_maintenance.py --check
+
+dependency-maintenance-generate: ## Observe public dependency maintenance metadata without package execution
+	@python3 scripts/dependency_maintenance.py --replace
+
+docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-inventory-test dependency-images-check dependency-maintenance-check release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
 	@test -f docs/reference/dependency-policy.md
 	@test -f docs/reference/reproducible-builds.md
 	@test -f docs/reference/repository-controls.md

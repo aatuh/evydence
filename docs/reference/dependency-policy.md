@@ -227,6 +227,17 @@ not become an empty, passing assessment.
 These are automated review rules, not a determination of legal compatibility
 or fulfillment of attribution, source-offer or other license obligations.
 
+`scripts/dependency_comparison.py` adapts GitHub dependency-review response rows
+to these rules without network or filesystem effects. It validates requested
+repository/base/head identities, manifest paths, exact package URLs, required
+license/advisory fields and duplicate observations. Missing or unfamiliar
+severity is blocking. Cross-manifest advisories are combined; conflicting
+licenses or severities fail. Provider prose is omitted from its output.
+The caller must still authenticate the response, bind it to the real comparison
+and prove coverage, including custom tool and fixture scopes. An empty response
+does not prove a complete graph. The adapter's isolated regressions run in
+`make dependency-policy-test`; hosted integration remains incomplete.
+
 ## Exceptions
 
 An exception must name one exact ecosystem/name/version and one license
@@ -268,7 +279,8 @@ publisher-authentication or artifact-signing claim.
 
 The [upstream repository](https://github.com/google/licensecheck) was not archived when checked on 2026-10-21, with its
 last recorded push on 2024-04-14. This is a maintenance-review signal, not proof
-of abandonment. The complete inventory and maintenance report remain pending.
+of abandonment. The [maintenance report](dependency-maintenance.md) keeps this
+type of review signal separate from version age and missing metadata.
 
 ## Collect Source Observations
 
@@ -321,8 +333,8 @@ files and unsafe paths. Configure `DEPENDENCY_INVENTORY_WORK_ROOT` to an existin
 scratch directory, preferably on the build-storage volume. The CLI also accepts
 `--output` as a path relative to the checkout for a private qualification report.
 
-This stage sets `complete: false`. Image and maintenance/live
-review evidence remain to be integrated before EVY-1407 can close. Go graph
+This stage sets `complete: false`. Companion image/maintenance observations and
+trusted live review remain to be integrated before EVY-1407 can close. Go graph
 observations cover available modules, not only dependencies linked into a
 particular binary; they are separate from artifact-bound release SBOMs.
 
