@@ -109,9 +109,9 @@ existing fixture records have not been retroactively approved.
 
 ## Verification And Remaining Work
 
-`make dependency-admission-test` runs advisory, image-source mapping, fixture
-applicability, admission, review and trusted
-caller regressions without network access. It is included in `make docs-check`, which
+`make dependency-admission-test` runs advisory, image-source mapping and admission,
+fixture applicability, source admission, review and trusted caller regressions
+without network access. It is included in `make docs-check`, which
 also compiles Go tools and requires a suitable RAM reservation.
 
 Real OSV queries for historical lodash, jwt-go and PyYAML versions returned

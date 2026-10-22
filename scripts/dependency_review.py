@@ -16,6 +16,9 @@ import dependency_collection as collection
 import dependency_exception_reviews as exception_reviews
 import dependency_git_objects as objects
 import dependency_inputs as inputs
+import dependency_image_admission as image_admission
+import dependency_images as images
+import dependency_inventory as inventory
 import dependency_policy as policy
 import dependency_reports as reports
 import dependency_review_join as join
@@ -26,7 +29,9 @@ ROOT=Path(__file__).resolve().parents[1]
 SCHEMA='evydence-dependency-review.v1'
 DRIVER_FILES=('scripts/dependency_review.py','scripts/dependency_review_join.py','scripts/dependency_admission.py',
               'scripts/dependency_exception_reviews.py','scripts/dependency_advisories.py',
-              'scripts/dependency_fixture_advisories.py')
+              'scripts/dependency_fixture_advisories.py','scripts/dependency_image_admission.py',
+              'scripts/dependency_image_packages.py')+tuple(sorted({
+                  name for name in (*inventory.GENERATOR_FILES,*images.GENERATOR_FILES) if name.endswith('.py')}))
 
 
 class ReviewError(ValueError):
@@ -42,7 +47,7 @@ def digest(value):
     require(len(raw)<=8*1024*1024);return hashlib.sha256(raw).hexdigest()
 
 
-def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*,today=None):
+def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*,today=None,syft=None):
     try:
         work_root=Path(work_root).absolute();require(not work_root.is_symlink() and work_root.is_dir())
         base=provider.sha(base);head=provider.sha(head);pull_number=provider.number(pull_number)
@@ -65,32 +70,42 @@ def run(api,pull_number,base,head,head_repository,work_root,parent_environment,*
         require(artifact.receipt['trusted_base']==base)
         before=collection.collect(reader,base,base,work_root,parent_environment,classifier=artifact)
         after=collection.collect(reader,base,head,work_root,parent_environment,classifier=artifact)
-        decision=join.assess(reader,base,base,head,before,after,snapshot,advisories.Client(),today,review_api=api)
+        advisory_api=advisories.Client()
+        decision=join.assess(reader,base,base,head,before,after,snapshot,advisory_api,today,review_api=api)
+        image_decision=image_admission.assess(reader,base,head,before,after,work_root,advisory_api,today,syft=syft,review_api=api)
         gaps=set()
         for value in [before,after]:
             remaining=value['inventory'].get('remaining_scopes');require(isinstance(remaining,list)
                 and all(isinstance(scope,str) and scope in {'images','action-local-references'} for scope in remaining))
-            gaps.update('source:'+scope for scope in remaining)
+            gaps.update('source:'+scope for scope in remaining if scope!='images' or image_decision.get('image_coverage_verified') is not True)
+        gaps.update('images:'+scope for scope in image_decision['coverage_gaps'])
         if decision.get('dependency_coverage_verified') is not True:gaps.add('complete-admission-profile')
         require(provider.pull_context(api.get('pulls/'+str(pull_number)),pull_number)=={
             key:snapshot[key] for key in ['pull_request','base','head','head_repository','changed_files']})
-        used={proof['exception_id'] for proof in decision.get('exception_reviews',[])}
+        combined_reviews={}
+        for proof in [*decision.get('exception_reviews',[]),*image_decision.get('exception_reviews',[])]:
+            identifier=proof['exception_id'];require(identifier not in combined_reviews or combined_reviews[identifier]==proof)
+            combined_reviews[identifier]=proof
+        used=set(combined_reviews)
         applicable={**rules,'exceptions':[row for row in rules['exceptions'] if row['id'] in used]}
-        require(exception_reviews.verify(applicable,api,today)==decision.get('exception_reviews',[]))
+        final_reviews=exception_reviews.verify(applicable,api,today)
+        require({proof['exception_id']:proof for proof in final_reviews}==combined_reviews)
         require(exception_reviews.verify(proposed_rules,api,today)==proposed_reviews)
         artifact.verify()
         require(all(read_bytes(ROOT,name,policy.MAX_DOCUMENT_BYTES)==raw for name,raw in code.items()))
         finished=datetime.now(timezone.utc)
         require(not live_clock or finished.date()==today)
-        covered=not gaps and decision.get('dependency_coverage_verified') is True
+        covered=not gaps and decision.get('dependency_coverage_verified') is True and image_decision.get('image_coverage_verified') is True
         return {'schema':SCHEMA,'observed_at':finished.isoformat(),
                 'provider_context':{key:snapshot[key] for key in ['repository','pull_request','base','head','head_repository','comparison_base']},
                 'source_base':before['source'],'source_head':after['source'],
                 'semantic_collection_sha256':{'base':digest(before),'head':digest(after)},
                 'trusted_driver_files':{name:hashlib.sha256(raw).hexdigest() for name,raw in code.items()},
-                'decision':decision,'coverage_gaps':sorted(gaps),'dependency_coverage_verified':covered,
+                'decision':decision,'image_decision':image_decision,'exception_reviews':final_reviews,
+                'coverage_gaps':sorted(gaps),'dependency_coverage_verified':covered,
                 'proposed_policy':proposed_policy,'proposed_policy_reviews':proposed_reviews,
-                'passed':covered and decision.get('package_decision_passed') is True,'receipts':api.receipts}
+                'passed':covered and decision.get('package_decision_passed') is True
+                    and image_decision.get('image_decision_passed') is True,'receipts':api.receipts}
     except (OSError,ValueError,KeyError,TypeError,AttributeError,RecursionError):raise ReviewError() from None
 
 
@@ -104,13 +119,14 @@ def main(argv=None):
     parser.add_argument('--base',required=True);parser.add_argument('--head',required=True)
     parser.add_argument('--head-repository',required=True);parser.add_argument('--work-root',type=Path,required=True)
     parser.add_argument('--output',required=True);parser.add_argument('--replace',action='store_true')
+    parser.add_argument('--syft',type=Path,help='operator-selected qualified scanner; required for changed registry images')
     handlers={}
     try:
         args=parser.parse_args(argv)
         def interrupted(_signum,_frame):raise ReviewError()
         for signum in (signal.SIGINT,signal.SIGTERM):handlers[signum]=signal.signal(signum,interrupted)
         directory,old=reports.directory(args.root,args.output,SCHEMA,args.replace);os.close(directory)
-        report=run(provider.GitHub(source_inputs=True),args.pull_request,args.base,args.head,args.head_repository,args.work_root,os.environ)
+        report=run(provider.GitHub(source_inputs=True),args.pull_request,args.base,args.head,args.head_repository,args.work_root,os.environ,syft=args.syft)
         reports.write(args.root,args.output,report,SCHEMA,replace=args.replace,expected=old)
         print('dependency-review: full admission passed' if report['passed'] else 'dependency-review: blocked or incomplete; inspect the review report')
         return 0 if report['passed'] else 1

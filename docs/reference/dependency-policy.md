@@ -465,10 +465,12 @@ the installed component identity. Cache keys include the query, responses must
 match its ecosystem/name, and initial queries cannot skip the first result page.
 Incomplete lookups still retain null findings. A projection probe covered all
 841 observations in the seven prior qualified scans; separate fresh Alpine,
-Debian and Go standard-library OSV queries exercised the source mappings. These are bounded integration
-observations, not fresh image scans or complete image admission. The proposed
-image comparison, license/advisory decisions and hosted caller integration
-remain unfinished under EVY-1407.
+Debian and Go standard-library OSV queries exercised the source mappings. These
+are bounded integration observations, not fresh image scans or complete image
+admission. The
+image comparison and per-package decisions are now connected to the
+[trusted caller](dependency-review.md#declared-image-changes). Remaining tool,
+root-image provider joins and hosted enforcement remain unfinished under EVY-1407.
 
 `make dependency-images-check` runs regressions and checks saved input bindings
 offline; it does not re-query registries or prove current tag contents. To refresh,

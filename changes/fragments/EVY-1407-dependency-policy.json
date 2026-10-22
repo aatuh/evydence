@@ -29,6 +29,7 @@
     "Join authenticated GitHub and OSV findings without dropping severe or unmatched additions, verify exact-scope owner approval payloads for exceptions, retain expired waivers as inactive and orchestrate serial base/head collection with one trusted classifier. Recheck PR/review/UTC state and keep incomplete coverage non-passing.",
     "Bind image advisory coordinates to scanner package/source metadata, preserve installed identities separately from distro source queries, reject mismatched or incomplete advisory observations and keep unknown Go build versions unresolved.",
     "Verify immutable non-executable UTF-8 test fixtures and notice coverage before recording explicit non-package advisory applicability; retain null findings and license/waiver enforcement without expanding the allowed policy.",
+    "Derive image changes from private Git-data views with distinct trusted generator and original source hashes, scan changed registry images with qualified tooling, assess package/source/origin changes under target-base policy and keep mutable baselines, unknown artifacts and missing coverage from silently authorizing changes.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {

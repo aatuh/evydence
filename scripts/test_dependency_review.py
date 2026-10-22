@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock,patch
 
 import dependency_review as review
+import dependency_image_admission as image_admission
 from test_dependency_admission import BASE,HEAD,RULES,collection
 from test_dependency_collection import revision
 from test_dependency_review_provider import pull
@@ -37,7 +38,9 @@ class ReviewTests(unittest.TestCase):
             patch.object(review.admission,'load_policy',return_value=(RULES,{})),
             patch.object(review.inputs,'revision',side_effect=read),
             patch.object(review.classifiers,'build',return_value=artifact),
-            patch.object(review.collection,'collect',side_effect=collect),patch.object(review.join,'assess',return_value=result)]
+            patch.object(review.collection,'collect',side_effect=collect),patch.object(review.join,'assess',return_value=result),
+            patch.object(image_admission,'assess',return_value={'image_decision_passed':False,
+                'image_coverage_verified':False,'coverage_gaps':['qualified-scanner-unavailable'],'exception_reviews':[]})]
         handles=[item.start() for item in patches]
         self.addCleanup(lambda:[item.stop() for item in reversed(patches)])
         return handles,artifact
@@ -64,6 +67,41 @@ class ReviewTests(unittest.TestCase):
                 with self.assertRaises(review.ReviewError):review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
                 handles[3].assert_not_called();handles[4].assert_not_called()
                 self.doCleanups()
+
+    def test_image_verdict_and_coverage_are_required_and_share_trusted_context_and_advisory_client(self):
+        for passed in [False,True]:
+            with self.subTest(passed=passed),tempfile.TemporaryDirectory() as folder:
+                root=Path(folder);api,_=self.setup_job()
+                handles,_=self.operation(root,api,join_result={'package_decision_passed':True,'dependency_coverage_verified':True})
+                handles[6].return_value={'image_decision_passed':passed,'image_coverage_verified':True,
+                                        'coverage_gaps':[],'exception_reviews':[]}
+                syft=root/'qualified-syft';result=review.run(api,30,BASE,HEAD,'contributor/fork',root,{},syft=syft)
+                self.assertEqual(result['passed'],passed);self.assertNotIn('source:images',result['coverage_gaps'])
+                self.assertIs(handles[5].call_args.args[8],handles[6].call_args.args[7])
+                self.assertEqual(handles[6].call_args.args[1:3],(BASE,HEAD))
+                self.assertEqual(handles[6].call_args.kwargs['syft'],syft)
+                self.assertIs(handles[6].call_args.kwargs['review_api'],api)
+                self.doCleanups()
+
+    def test_missing_image_coverage_cannot_pass_even_without_a_source_scope_marker(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);api,_=self.setup_job()
+            handles,_=self.operation(root,api,join_result={'package_decision_passed':True,'dependency_coverage_verified':True})
+            def collect(_reader,base,source,*_args,**_kwargs):
+                value=collection(source,[]);value['inventory']['remaining_scopes']=[];return value
+            handles[4].side_effect=collect
+            handles[6].return_value={'image_decision_passed':True,'image_coverage_verified':False,
+                                    'coverage_gaps':[],'exception_reviews':[]}
+            result=review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
+            self.assertFalse(result['passed']);self.assertFalse(result['dependency_coverage_verified'])
+
+    def test_image_approval_cannot_be_omitted_from_the_final_live_recheck(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);api,_=self.setup_job()
+            handles,_=self.operation(root,api,join_result={'package_decision_passed':True,'dependency_coverage_verified':True})
+            handles[6].return_value={'image_decision_passed':True,'image_coverage_verified':True,'coverage_gaps':[],
+                                    'exception_reviews':[{'exception_id':'DEP-0001'}]}
+            with self.assertRaises(review.ReviewError):review.run(api,30,BASE,HEAD,'contributor/fork',root,{})
 
     def test_policy_failure_is_not_replaced_with_a_head_policy(self):
         with tempfile.TemporaryDirectory() as folder:

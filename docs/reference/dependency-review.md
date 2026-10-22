@@ -6,9 +6,10 @@ Git-verified source collection, source-package decisions and scoped exception
 review. It runs trusted code from its own checkout; proposed source remains data.
 
 **Complete admission remains in progress under EVY-1407.** The caller never turns
-a partial package decision into a passing check. Declared image admission and
-non-package scope/applicability work remain unfinished. Current successful
-observations therefore exit 1 with explicit coverage gaps. The final required
+a partial package decision into a passing check. Declared image change checks
+are connected; remaining tool coverage and combined provider joins are
+unfinished. Current successful observations therefore exit 1 with explicit
+coverage gaps. The final required
 `make dependency-policy-check` and hosted workflow are not installed by this unit.
 
 ## Caller Sequence And Outputs
@@ -32,7 +33,9 @@ fails without an observation. Crossing midnight requires a rerun, preventing
 waivers from surviving their expiry day because collection began earlier.
 Outputs omit raw source, review bodies, private paths and provider prose. They
 include source metadata, hashes of canonical collection JSON, trusted driver
-hashes, provider receipts, decisions and coverage gaps. These semantic hashes
+hashes, provider receipts, source and image decisions and coverage gaps. Source
+and image checks share the advisory client and combine their actually used
+exception reviews for a final approval recheck. These semantic hashes
 are not claimed as hashes of a separately saved byte stream.
 
 Use a trusted checkout, the exact compiler selected by the target support policy
@@ -43,11 +46,14 @@ and existing VM scratch/cache configuration:
   --pull-request "$EVYDENCE_PULL_REQUEST" \
   --base "$EVYDENCE_TARGET_BASE" --head "$EVYDENCE_SOURCE_COMMIT" \
   --head-repository "$EVYDENCE_HEAD_REPOSITORY" \
+  --syft "$DEPENDENCY_IMAGE_SYFT" \
   --work-root /mnt/vm-storage/VMs/evydence-dev-1001/tmp \
   --output tmp/takeover/dependency-review.json
 ```
 
 All IDs are expected live PR values, not a request to trust supplied JSON.
+`DEPENDENCY_IMAGE_SYFT` selects the existing qualified scanner installation.
+`--syft` can be omitted when no changed registry image requires scanning.
 Exit 0 is reserved for a complete verified passing verdict, 1 means a written
 blocked/incomplete observation, and 2 means invalid context, failed providers,
 unsafe output or unavailable trusted policy. `--replace` only replaces the same
@@ -73,6 +79,56 @@ GitHub advisory observation when OSV marks the ecosystem unsupported. It does
 not supply arbitrary ecosystem coverage or replace failed OSV queries with an
 empty list. Action entrypoints, bundled libraries and runtime downloads retain
 their existing source-observation limits; this is not a complete artifact SBOM.
+
+## Declared Image Changes
+
+`scripts/dependency_image_admission.py` derives both declaration sets from their
+verified Git inputs and freshly collected Action references. It writes a separate
+private discovery view, replacing proposed generator code with actual trusted
+Python bytes and target-base helper source bytes. Original and substituted hashes
+are distinct. Its small Action-reference projection is bound to the complete
+source inventory by separate hashes; unrelated package graphs are not copied
+into the image-discovery input. Files stay private and non-executable. Discovery
+checks the export before/after and rechecks trusted generator bytes.
+
+The profile covers changes at stable declaration locations for Linux amd64.
+An Action commit change alone does not rename its runtime-image origin.
+Unchanged declarations and removals require no scan or new approval. New origins
+are reassessed even when that image already appears elsewhere. Local fixture
+recipes bind the Dockerfile and exact supported Compose build context/target;
+changing the recipe under the same tag is a change. Additional unsupported build
+arguments fail validation. New source-built artifacts and unresolved operator
+choices produce blocking coverage gaps until qualified artifact handling exists.
+
+Changed registry images use the qualified scanner's fixed platform/cataloger
+profile, selected manifest/config identities and actual scanner-output digest.
+Image entrypoints are not executed. Baseline package observations can reduce
+reassessment only for an immutable digest declaration at the same origin.
+A floating baseline tag cannot prove prior contents; its omission means all
+proposed packages need admission. Changed versions, license/source observations
+and new origins are checked; unknown package versions remain blocking when an
+image is replaced. A scan with no package observations cannot pass.
+Each side's package/origin join is capped at 8,192 records, preventing many
+origins from multiplying otherwise bounded package lists without a total limit.
+
+Scanner license declarations stay distinct from module-source candidates. A
+missing Go license can use a verified source observation only when exact module
+coordinates and the binary build-info `h1` sum match. Conflicting observations
+stay unknown and block. Version strings alone do not establish this binding or
+prove binary/source equivalence. APK records qualified as metadata-only by the
+[source projector](dependency-policy.md#declared-image-observations) have explicit
+`not-applicable-package-record` advisory status, null findings and
+`not-applicable-no-payload` license applicability. Other unknowns retain ordinary
+license/advisory enforcement and the existing reviewed-waiver requirements.
+
+`image_coverage_verified` describes coverage of changed declarations in this
+bounded profile, not an exhaustive artifact SBOM or baseline approval.
+`image_decision_passed` also requires every assessed package to pass. Both are
+required by the caller. Source-level provider Docker/root-image additions still
+remain visible and blocking as unmatched records until their exact-source join
+is completed; an image package result cannot erase them. Runtime downloads,
+arbitrary build outputs, other architectures and hosted enforcement remain
+outside this qualification.
 
 ## Exact Exception Review
 
