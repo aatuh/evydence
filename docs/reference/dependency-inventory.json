@@ -91904,7 +91904,7 @@
       "scripts/release_sbom.py": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
       "scripts/release_scanner.py": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
       "scripts/support_matrix.py": "47ed56d270c41e87221d700c2fcf4539ef1e4e62bf15c2ab99f3b8089976ae4b",
-      "scripts/support_matrix_artifacts.py": "b4b2c75fbad65bc2ea178f6933a04189049db2dac24d269b1f97ce54452e779e",
+      "scripts/support_matrix_artifacts.py": "d330ed4492199e1ae5f45fc93e5bb4ce412564ebd04a73dcea86822614a07ead",
       "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
     },
     "go_version": "go1.27.3",
@@ -91914,7 +91914,7 @@
     ".github/workflows/ci.yml": "74edd6bcee1257a8af2693003e10cbda3a4e3ad8282e4292e2389e453f4d0835",
     ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
     ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
-    ".github/workflows/dependency-review.yml": "37d8e0434866b327e15f994b6208e722d94bf2195763fbda062dfa4136bc7431",
+    ".github/workflows/dependency-review.yml": "f41e61244e621c4b3e14c8e29dc678a7557b4b25e3b36e2204220f3866cac1d2",
     ".github/workflows/marketing-site-pages.yml": "356a4680ffd7f842448155f1977cc8b48d5b0350e308297739261d32a07f01f9",
     ".github/workflows/release-artifacts.yml": "e9c08517dc44a521006dfbccf532a6253e15d5fd2f2962b0020668e08db839b8",
     ".github/workflows/reproducible-builds.yml": "a5431fa13b87bf3e6d2330d71c8267367195f83a24151a1a371a7707b9cbba1b",

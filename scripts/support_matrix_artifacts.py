@@ -11,7 +11,7 @@ import yaml
 ARTIFACTS = (
     "go.mod", "tools/go.mod", "tools/go.sum", "Makefile", "Dockerfile", "deploy/local-dependencies/Dockerfile",
     ".github/workflows/ci.yml", ".github/workflows/container-image.yml",
-    ".github/workflows/release-artifacts.yml", "README.md",
+    ".github/workflows/release-artifacts.yml", ".github/workflows/dependency-review.yml", "README.md",
     "docs/github-actions/release-evidence-workflow.yml",
     "docs/github-actions/quickstart-release-evidence.yml",
     "docs/gitlab/evydence-release-evidence.gitlab-ci.yml",
@@ -196,6 +196,7 @@ def check_artifacts(policy, *, root=None, read_text=None):
                 ".github/workflows/ci.yml": ["production-check", "race-and-stress", "go-compatibility"],
                 ".github/workflows/container-image.yml": ["publish-image", "sign-image"],
                 ".github/workflows/release-artifacts.yml": ["package"],
+                ".github/workflows/dependency-review.yml": ["evaluate"],
                 "docs/github-actions/release-evidence-workflow.yml": ["release-evidence"],
                 "docs/github-actions/quickstart-release-evidence.yml": ["evydence-release-evidence"],
             }

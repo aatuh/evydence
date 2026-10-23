@@ -26,6 +26,28 @@ class SupportArtifactTests(unittest.TestCase):
     def test_repository_build_inputs_match_the_declared_policy(self):
         self.assertEqual(self.check(), [])
 
+    def test_dependency_review_selects_current_before_locking_go(self):
+        name = ".github/workflows/dependency-review.yml"
+        self.assertIn(name, artifacts.ARTIFACTS, "trusted dependency compiler escaped the build policy")
+        workflow = artifacts.yaml.load(self.files[name], Loader=artifacts.UniqueLoader)
+        job = workflow["jobs"]["evaluate"]
+        self.assertEqual(job["env"]["GOTOOLCHAIN"], "local")
+        setup = next(step for step in job["steps"] if step.get("uses") == artifacts.SETUP_GO)
+        self.assertNotEqual(setup.get("env", {}).get("GOTOOLCHAIN", job["env"]["GOTOOLCHAIN"]), "local",
+                            "setup-go would select the minimum instead of the trusted current compiler")
+        for incoming in (None, "local"):
+            with self.subTest(incoming=incoming):
+                data = copy.deepcopy(workflow)
+                step = next(step for step in data["jobs"]["evaluate"]["steps"]
+                            if step.get("uses") == artifacts.SETUP_GO)
+                if incoming is None:
+                    step.pop("env", None)
+                else:
+                    step["env"] = {"GOTOOLCHAIN": incoming}
+                files = dict(self.files)
+                files[name] = artifacts.yaml.safe_dump(data, sort_keys=False)
+                self.assertIn(name + ": version-file setup can select the minimum compiler", self.check(files))
+
     def test_supported_compilers_exclude_called_x509_advisory_go_2026_6809(self):
         # https://vuln.go.dev/ID/GO-2026-6809.json affects Certificate.Verify,
         # reached by the Sigstore verifier; both supported lines need the fix.

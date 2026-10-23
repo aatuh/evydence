@@ -71,10 +71,12 @@ preferred current compiler. Make defaults to that exact current patch, and
 Docker uses the same current patch in a digest-pinned builder. CI derives its
 current compiler from `go.mod`; a separate compatibility job explicitly selects
 each declared version with `GOTOOLCHAIN=local` so the minimum cannot silently
-upgrade. Current version-file setup leaves the incoming toolchain setting unset;
-the pinned action reads the preferred directive before setting `local` for
-subsequent commands. Operators evaluating an override must use an installed supported
-compiler and retain its actual `go version` with their validation evidence.
+upgrade. Version-file setup avoids an incoming `GOTOOLCHAIN=local` setting so the
+pinned action reads the preferred directive. Trusted dependency review keeps
+`local` at job scope and clears it only for the setup step; subsequent collection
+and evaluation commands remain locked. Operators evaluating an override must use
+an installed supported compiler and retain its actual `go version` with their
+validation evidence.
 
 The repository's GitHub Actions CI examples use that same reviewed setup action
 and preferred module compiler. The GitLab example pins the current Go builder
