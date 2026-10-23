@@ -9,19 +9,16 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
-	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	runtimeconfig "github.com/aatuh/evydence/internal/platform/config"
 )
 
 type Config struct {
@@ -45,8 +42,8 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	bucket := strings.TrimSpace(cfg.Bucket)
-	if bucket == "" || strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" {
+	bucket, err := runtimeconfig.ParseS3BucketName(cfg.Bucket)
+	if err != nil || strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" {
 		return nil, app.ErrValidation
 	}
 	transport, err := minio.DefaultTransport(cfg.UseSSL)
@@ -92,7 +89,7 @@ func (s *Store) Close() error {
 	return nil
 }
 
-func (s *Store) Put(ctx context.Context, object app.Object) error {
+func (s *Store) put(ctx context.Context, object app.Object) error {
 	if s == nil || s.client == nil || validateObjectForWrite(object) != nil {
 		return app.ErrValidation
 	}
@@ -110,13 +107,13 @@ func (s *Store) Put(ctx context.Context, object app.Object) error {
 	return nil
 }
 
-func (s *Store) Get(ctx context.Context, key string) (app.Object, error) {
+func (s *Store) readObject(ctx context.Context, key string) (app.Object, error) {
 	return s.get(ctx, key, 0)
 }
 
 var _ app.BoundedObjectReader = (*Store)(nil)
 
-func (s *Store) GetBounded(ctx context.Context, key string, maximum int64) (app.Object, error) {
+func (s *Store) getBounded(ctx context.Context, key string, maximum int64) (app.Object, error) {
 	if maximum < 1 || maximum == math.MaxInt64 {
 		return app.Object{}, app.ErrValidation
 	}
@@ -182,7 +179,7 @@ func (s *Store) get(ctx context.Context, key string, maximum int64) (app.Object,
 // cursor intentionally avoids placing a key or digest in reconciliation
 // receipts; because listing can be eventually consistent, callers must not
 // use omission from this result as evidence that an expected object is gone.
-func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
+func (s *Store) listObjectInventory(ctx context.Context, tenantID string, cursor, limit int) (app.ObjectInventoryPage, error) {
 	if s == nil || s.client == nil || s.bucket == "" || app.ValidateObjectTenantID(tenantID) != nil || cursor < 0 || limit < 1 || limit > 10_000 {
 		return app.ObjectInventoryPage{}, app.ErrValidation
 	}
@@ -223,7 +220,7 @@ func (s *Store) ListObjectInventory(ctx context.Context, tenantID string, cursor
 // StagePayload streams a raw payload to its tenant-scoped staging key while
 // independently counting and hashing bytes. The payload is not eligible for a
 // domain reader until FinalizePayload has copied and verified it.
-func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
+func (s *Store) stagePayload(ctx context.Context, payload app.ObjectPayload, reader io.Reader) (app.ObjectPayload, error) {
 	if s == nil || s.client == nil || reader == nil || app.ValidateObjectPayloadForRepository(payload) != nil || payload.Status != app.ObjectPayloadStaged {
 		return app.ObjectPayload{}, app.ErrValidation
 	}
@@ -243,7 +240,7 @@ func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, rea
 		return app.ObjectPayload{}, fmt.Errorf("stage s3 object: %w", err)
 	}
 	if actualDigest != payload.Digest {
-		_ = s.client.RemoveObject(context.WithoutCancel(ctx), s.bucket, payload.StagingKey, minio.RemoveObjectOptions{})
+		_ = s.removeObject(context.WithoutCancel(ctx), payload.StagingKey)
 		return app.ObjectPayload{}, app.ErrValidation
 	}
 	payload.Size = count.n
@@ -257,7 +254,7 @@ func (s *Store) StagePayload(ctx context.Context, payload app.ObjectPayload, rea
 // FinalizePayload performs a server-side copy. Existing final objects are
 // verified first, making the operation safe after a worker crash between copy
 // and lifecycle-state transition.
-func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) (app.Object, error) {
+func (s *Store) finalizePayload(ctx context.Context, payload app.ObjectPayload) (app.Object, error) {
 	if s == nil || s.client == nil || app.ValidateObjectPayloadForRepository(payload) != nil {
 		return app.Object{}, app.ErrValidation
 	}
@@ -265,7 +262,7 @@ func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) 
 		if err := verifyPayloadObject(payload, existing, payload.FinalKey); err != nil {
 			return app.Object{}, err
 		}
-		_ = s.client.RemoveObject(context.WithoutCancel(ctx), s.bucket, payload.StagingKey, minio.RemoveObjectOptions{})
+		_ = s.removeObject(context.WithoutCancel(ctx), payload.StagingKey)
 		return existing, nil
 	} else if !errors.Is(err, app.ErrNotFound) {
 		return app.Object{}, err
@@ -296,7 +293,7 @@ func (s *Store) FinalizePayload(ctx context.Context, payload app.ObjectPayload) 
 	if err := verifyPayloadObject(payload, object, payload.FinalKey); err != nil {
 		return app.Object{}, err
 	}
-	if err := s.client.RemoveObject(ctx, s.bucket, payload.StagingKey, minio.RemoveObjectOptions{}); err != nil {
+	if err := s.removeObject(ctx, payload.StagingKey); err != nil {
 		return app.Object{}, fmt.Errorf("remove staged s3 object: %w", err)
 	}
 	return object, nil
@@ -317,7 +314,7 @@ func (s *Store) CheckReadiness(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) VerifyObjectRetention(ctx context.Context, req app.ObjectRetentionRequest) (app.ObjectRetentionResult, error) {
+func (s *Store) verifyObjectRetention(ctx context.Context, req app.ObjectRetentionRequest) (app.ObjectRetentionResult, error) {
 	if s == nil || s.client == nil {
 		return app.ObjectRetentionResult{}, app.ErrValidation
 	}
@@ -360,77 +357,11 @@ func (s *Store) VerifyObjectRetention(ctx context.Context, req app.ObjectRetenti
 }
 
 func validateEndpointPolicy(endpoint, region string, useSSL bool) (string, string, error) {
-	endpoint = strings.TrimSpace(endpoint)
-	region = strings.TrimSpace(region)
-	if endpoint == "" || strings.Contains(endpoint, "://") || strings.ContainsAny(endpoint, "/?#") {
-		return "", "", app.ErrValidation
-	}
-	for _, r := range endpoint {
-		if unicode.IsSpace(r) || unicode.IsControl(r) {
-			return "", "", app.ErrValidation
-		}
-	}
-	parsed, err := url.Parse("//" + endpoint)
-	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", "", app.ErrValidation
-	}
-	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
-	if host == "" || strings.Contains(host, "%") {
-		return "", "", app.ErrValidation
-	}
-	if port := parsed.Port(); port != "" {
-		value, err := strconv.Atoi(port)
-		if err != nil || value < 1 || value > 65535 {
-			return "", "", app.ErrValidation
-		}
-	}
-	if region != "" && !validS3Region(region) {
-		return "", "", app.ErrValidation
-	}
-	if isAWSS3Endpoint(host) {
-		if !useSSL || region == "" {
-			return "", "", app.ErrValidation
-		}
-	}
-	if !useSSL && !insecureS3EndpointAllowed(host) {
+	endpoint, region, err := runtimeconfig.ValidateS3Endpoint(endpoint, region, useSSL)
+	if err != nil {
 		return "", "", app.ErrValidation
 	}
 	return endpoint, region, nil
-}
-
-func validS3Region(region string) bool {
-	if region == "" || len(region) > 63 || region != strings.TrimSpace(region) {
-		return false
-	}
-	for index, r := range region {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
-			if index == 0 && (r == '-' || r == '_' || r == '.') {
-				return false
-			}
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-func isAWSS3Endpoint(host string) bool {
-	return host == "s3.amazonaws.com" || strings.HasSuffix(host, ".amazonaws.com") || strings.HasSuffix(host, ".amazonaws.com.cn")
-}
-
-func insecureS3EndpointAllowed(host string) bool {
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") || !strings.Contains(host, ".") {
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback() || ip.IsPrivate()
-	}
-	for _, suffix := range []string{".local", ".internal", ".svc", ".svc.cluster.local"} {
-		if strings.HasSuffix(host, suffix) {
-			return true
-		}
-	}
-	return false
 }
 
 func validateObjectForWrite(object app.Object) error {

@@ -19,6 +19,7 @@ const (
 	defaultMaxURLBytes             = 8 << 10
 	defaultMaxInFlightRequests     = 256
 	defaultMaxConcurrentUploads    = 8
+	defaultMaxLifecycleProbes      = 8
 )
 
 // ingressControl keeps attacker-controlled network state bounded before a
@@ -32,6 +33,7 @@ type ingressControl struct {
 	maxURLBytes             int
 	maxInboundRequestBytes  int64
 	inFlightRequests        chan struct{}
+	lifecycleProbes         chan struct{}
 	concurrentNativeUploads chan struct{}
 	failures                *failureBudget
 	failureKey              [32]byte
@@ -81,6 +83,7 @@ func newIngressControl(opts ServerOptions) (*ingressControl, error) {
 		maxURLBytes:             maxURLBytes,
 		maxInboundRequestBytes:  maxInboundRequestBytes,
 		inFlightRequests:        make(chan struct{}, maxInFlightRequests),
+		lifecycleProbes:         make(chan struct{}, defaultMaxLifecycleProbes),
 		concurrentNativeUploads: make(chan struct{}, maxConcurrentUploads),
 		failures:                newFailureBudget(failureLimit, bucketCapacity),
 		failureKey:              failureKey,
@@ -149,12 +152,51 @@ func isMultipartRequest(r *http.Request) bool {
 }
 
 func (s *Server) inFlightMiddleware(next http.Handler) http.Handler {
-	return s.boundedConcurrencyMiddleware(next, func() chan struct{} {
+	application := s.boundedConcurrencyMiddleware(next, func() chan struct{} {
 		if s.ingress == nil {
 			return nil
 		}
 		return s.ingress.inFlightRequests
 	})
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := publicLifecyclePath(r)
+		if path == "/v1/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if path == "" || s.ingress == nil {
+			application.ServeHTTP(w, r)
+			return
+		}
+		if !tryAcquire(s.ingress.lifecycleProbes) {
+			status := map[string]any{"status": "unavailable"}
+			if path == "/v1/ready" {
+				status["checks"] = []map[string]string{}
+			}
+			writeLifecycleStatus(w, r, status)
+			return
+		}
+		defer release(s.ingress.lifecycleProbes)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Only canonical GET/HEAD lifecycle paths bypass application quotas. Ready and
+// startup retain a separate bounded pool; liveness never waits for dependency
+// work. Every admitted probe still passes URL/body/encoding validation.
+func publicLifecyclePath(r *http.Request) string {
+	if r == nil || r.URL == nil || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
+		return ""
+	}
+	if r.URL.RawPath != "" && r.URL.RawPath != r.URL.Path {
+		return ""
+	}
+	switch r.URL.Path {
+	case "/v1/health", "/v1/startup", "/v1/ready":
+		return r.URL.Path
+	default:
+		return ""
+	}
 }
 
 func (s *Server) uploadConcurrencyMiddleware(next http.Handler) http.Handler {
@@ -206,6 +248,10 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if publicLifecyclePath(r) != "" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		key := s.ingress.opaqueLimitKey("edge", s.clientRateLimitKey(r))
 		if !s.ingress.edgeLimiter.allow(hex.EncodeToString(key[:]), time.Now().UTC()) {
 			writeProblem(w, r, app.ErrRateLimited)

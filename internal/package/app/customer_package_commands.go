@@ -134,7 +134,7 @@ func (s *CustomerPackageCommands) AuthorizeCreateCustomerSecurityPackage(ctx con
 	})
 }
 
-func (s *CustomerPackageCommands) CreateCustomerSecurityPackage(ctx context.Context, a identitydomain.Actor, in CreateCustomerPackageInput) (packagedomain.CustomerSecurityPackage, error) {
+func (s *CustomerPackageCommands) createCustomerSecurityPackage(ctx context.Context, a identitydomain.Actor, in CreateCustomerPackageInput) (packagedomain.CustomerSecurityPackage, error) {
 	var empty packagedomain.CustomerSecurityPackage
 	in, err := s.prepare(ctx, a, in)
 	if err != nil {

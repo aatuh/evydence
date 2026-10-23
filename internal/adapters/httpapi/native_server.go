@@ -180,6 +180,9 @@ func validateNativeServerOptions(options ServerOptions) error {
 			return fmt.Errorf("native server requires %s", dependency.name)
 		}
 	}
+	if options.OperationalMetrics != nil && nativePortMissing(options.OperationalMetrics) {
+		return errors.New("native server OperationalMetrics must not be a typed-nil recorder")
+	}
 	if len(options.PaginationSecret) < 16 {
 		return errors.New("native server requires PaginationSecret of at least 16 bytes")
 	}

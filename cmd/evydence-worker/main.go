@@ -11,7 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
+	"net"
 	"os"
 	"os/signal"
 	"sort"
@@ -28,13 +28,16 @@ import (
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
-	"github.com/aatuh/evydence/internal/platform/redaction"
+	"github.com/aatuh/evydence/internal/platform/config"
+	"github.com/aatuh/evydence/internal/platform/confighealth"
+	"github.com/aatuh/evydence/internal/platform/health"
+	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 	riskapp "github.com/aatuh/evydence/internal/risk/app"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
-
-const defaultMaxWorkerPayloadBytes = 20 << 20
 
 var (
 	errParserPayloadReferenceMissing    = errors.New("parser payload reference is missing")
@@ -58,7 +61,7 @@ type parserReplayStore interface {
 type parserReplayRuntime struct {
 	store   parserReplayStore
 	objects app.ObjectStore
-	close   func()
+	close   func(context.Context, time.Duration) error
 }
 
 var openParserReplayRuntime = func(ctx context.Context, config wiring.RuntimeConfig) (parserReplayRuntime, error) {
@@ -66,63 +69,86 @@ var openParserReplayRuntime = func(ctx context.Context, config wiring.RuntimeCon
 	if err != nil {
 		return parserReplayRuntime{}, err
 	}
-	return parserReplayRuntime{store: runtime.Postgres, objects: runtime.Objects, close: runtime.Close}, nil
-}
-
-func workerRuntimeConfig(databaseURL string, production bool) wiring.RuntimeConfig {
-	return wiring.RuntimeConfig{
-		Process:        wiring.Worker,
-		Profile:        wiring.Profile(os.Getenv("EVYDENCE_RUNTIME_PROFILE")),
-		Production:     production,
-		DatabaseURL:    databaseURL,
-		LoadMode:       os.Getenv("EVYDENCE_POSTGRES_LOAD_MODE"),
-		MigrationsDir:  envDefault("EVYDENCE_MIGRATIONS_DIR", "migrations"),
-		SkipMigrations: strings.EqualFold(os.Getenv("EVYDENCE_SKIP_MIGRATIONS"), "true"),
-		ObjectStore:    wiring.ObjectStoreConfigFromEnv(),
-	}
+	return parserReplayRuntime{store: runtime.Postgres, objects: runtime.Objects, close: runtime.CloseContext}, nil
 }
 
 func main() {
 	if err := runWithArgs(os.Args[1:]); err != nil {
-		log.Fatal(redaction.Error(err)) // #nosec G706 -- redaction.Error removes credentials and line breaks before logging.
+		os.Exit(1)
 	}
 }
 
 func run() error {
-	return runWithArgs(nil)
+	return runWorkerWithContext(context.Background(), nil)
 }
 
-func runWithArgs(args []string) (runErr error) {
+func runWithArgs(args []string) error {
+	return runWorkerWithContext(context.Background(), args)
+}
+
+func runWorkerWithContext(parent context.Context, args []string) (runErr error) {
+	role, start := config.Worker, runWorkerConfigured
 	if len(args) > 0 {
 		switch args[0] {
 		case "healthcheck", "--healthcheck":
-			return nil
+			role = config.WorkerProbe
+			start = func(ctx context.Context, settings config.Configuration) error {
+				return runWorkerHealthcheckConfigured(ctx, args[1:], settings.Worker().HealthAddress)
+			}
 		case "reconcile":
-			return runObjectReconciliation(args[1:])
+			request, err := parseObjectReconciliationArgs(args[1:])
+			if err != nil {
+				return err
+			}
+			role = config.WorkerReconcile
+			start = func(ctx context.Context, settings config.Configuration) error {
+				return runObjectReconciliationConfigured(ctx, settings, request)
+			}
 		case "parser-replay":
-			return runParserReplay(args[1:])
+			request, err := parseParserReplayArgs(args[1:])
+			if err != nil {
+				return err
+			}
+			role = config.WorkerReplay
+			start = func(ctx context.Context, settings config.Configuration) error {
+				return runParserReplayConfigured(ctx, settings, request)
+			}
 		default:
 			return fmt.Errorf("unsupported worker command %q", args[0])
 		}
 	}
-	production := strings.EqualFold(os.Getenv("ENV"), "production")
-	shutdownTimeout, err := workerShutdownTimeoutFromEnv()
+	environment, err := config.Capture(os.Environ())
+	if err != nil {
+		logging.RejectStartup(parent, "worker", runtimeinfo.Current(), os.Stderr)
+		return err
+	}
+	return runWorkerRoleProcess(parent, environment, role, os.Stderr, start)
+}
+
+func runWorkerConfigured(parent context.Context, settings config.Configuration) (runErr error) {
+	worker := settings.Worker()
+	shutdownTimeout, cleanupTimeout := worker.ShutdownTimeout, settings.Runtime().ShutdownCleanupTimeout
+	healthAddress := worker.HealthAddress
+	metricsConfig, err := workerMetricsConfigFromSettings(settings)
 	if err != nil {
 		return err
 	}
-	cleanupTimeout, err := wiring.CleanupTimeoutFromEnv()
+	if metricsConfig.enabled && metricsConfig.address == healthAddress {
+		return errWorkerMetricsConfig
+	}
+	configurationProbe, err := confighealth.NewConfigured(parent, settings, confighealth.ProcessSource)
 	if err != nil {
 		return err
 	}
-	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
-	if databaseURL == "" {
-		return errors.New("worker requires EVYDENCE_DATABASE_URL")
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	config := workerRuntimeConfig(databaseURL, production)
-	config.CleanupTimeout = cleanupTimeout
-	runtime, err := wiring.OpenRuntime(ctx, config)
+	runtimeConfig, err := prepareWorkerRuntime(ctx, settings)
+	if err != nil {
+		return err
+	}
+	startupCtx, cancelStartup := context.WithTimeout(ctx, 30*time.Second)
+	runtime, err := wiring.OpenRuntime(startupCtx, runtimeConfig)
+	cancelStartup()
 	if err != nil {
 		return err
 	}
@@ -130,39 +156,86 @@ func runWithArgs(args []string) (runErr error) {
 		closeWorkerAfterStop(runErr, func() { runErr = errors.Join(runErr, runtime.CloseContext(ctx, cleanupTimeout)) })
 	}()
 	store := runtime.Postgres
-	objectStore := runtime.Objects
-	processor, err := newNativeJobProcessor(store, objectStore)
+	metrics, err := wiring.BuildOperationalMetrics(wiring.Worker, store)
 	if err != nil {
 		return err
 	}
-	pollInterval := durationEnv("EVYDENCE_WORKER_POLL_INTERVAL", time.Second)
-	batchSize := intEnv("EVYDENCE_WORKER_BATCH_SIZE", 10)
-	log.Printf("evydence worker started with postgres outbox, configured object store, polling interval %s", pollInterval)
-	return runWorkerLoop(ctx, store, processor, workerLoopConfig{PollInterval: pollInterval, BatchSize: batchSize, ShutdownTimeout: shutdownTimeout})
+	ctx = telemetry.WithObserver(ctx, metrics)
+	objectStore := runtime.Objects
+	processor, err := newNativeJobProcessor(store, objectStore, worker.MaxPayloadBytes)
+	if err != nil {
+		return err
+	}
+	pollInterval, batchSize := worker.PollInterval, int(worker.BatchSize)
+	objectReadiness, ok := objectStore.(interface{ CheckReadiness(context.Context) error })
+	if !ok {
+		return errors.New("configured worker object store does not provide readiness checks")
+	}
+	monitor, err := health.New([]health.Check{
+		{Name: "configuration", Startup: true, Check: configurationProbe},
+		{Name: "postgres", Startup: true, Check: store.CheckReadiness},
+		{Name: "migrations", Startup: true, Check: func(checkCtx context.Context) error {
+			return store.CheckMigrationState(checkCtx, runtimeConfig.MigrationsDir)
+		}},
+		{Name: "outbox", Check: store.CheckOutboxReadiness},
+		{Name: "object_store", Check: objectReadiness.CheckReadiness},
+	}, health.Config{})
+	if err != nil {
+		return err
+	}
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", healthAddress.String())
+	if err != nil {
+		return errors.New("worker probe listener is unavailable")
+	}
+	var metricsEndpoints []workerMetricsEndpoint
+	if metricsConfig.enabled {
+		handler, err := newWorkerMetricsHandler(metricsConfig, metrics)
+		if err != nil {
+			_ = listener.Close()
+			return err
+		}
+		metricsListener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", metricsConfig.address.String())
+		if err != nil {
+			_ = listener.Close()
+			return errors.New("worker metrics listener is unavailable")
+		}
+		metricsEndpoints = append(metricsEndpoints, workerMetricsEndpoint{listener: metricsListener, handler: handler})
+	}
+	monitor.MarkInitialized()
+	logging.Emit(ctx, logging.Command, logging.Fields{OperationID: "outbox_poll", Result: logging.Succeeded})
+	return runWorkerWithHealth(ctx, listener, monitor, workerProbeTimeout, func(workCtx context.Context) error {
+		return runWorkerLoop(workCtx, store, processor, workerLoopConfig{PollInterval: pollInterval, BatchSize: batchSize, ShutdownTimeout: shutdownTimeout})
+	}, metricsEndpoints...)
 }
 
 // runParserReplay is an explicit operator command that appends a derived
 // normalization record. It cannot edit the source evidence or provider object.
 func runParserReplay(args []string) error {
-	request, err := parseParserReplayArgs(args)
-	if err != nil {
-		return err
-	}
-	production := strings.EqualFold(os.Getenv("ENV"), "production")
-	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
-	if databaseURL == "" {
-		return errors.New("parser-replay requires EVYDENCE_DATABASE_URL")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_PARSER_REPLAY_TIMEOUT", 2*time.Minute))
+	return runParserReplayContext(context.Background(), args)
+}
+
+func runParserReplayContext(parent context.Context, args []string) error {
+	return runWorkerWithContext(parent, append([]string{"parser-replay"}, args...))
+}
+
+func runParserReplayConfigured(parent context.Context, settings config.Configuration, request parserReplayArgs) (runErr error) {
+	ctx, cancel := context.WithTimeout(parent, settings.Worker().ParserReplayTimeout)
 	defer cancel()
-	runtime, err := openParserReplayRuntime(ctx, workerRuntimeConfig(databaseURL, production))
+	runtimeConfig, err := prepareWorkerRuntime(ctx, settings)
 	if err != nil {
 		return err
 	}
-	if runtime.store == nil || runtime.objects == nil || runtime.close == nil {
+	runtime, err := openParserReplayRuntime(ctx, runtimeConfig)
+	if err != nil {
+		return err
+	}
+	if runtime.close == nil {
 		return errors.New("parser-replay runtime is incomplete")
 	}
-	defer runtime.close()
+	defer func() { runErr = errors.Join(runErr, runtime.close(ctx, settings.Runtime().ShutdownCleanupTimeout)) }()
+	if runtime.store == nil || runtime.objects == nil {
+		return errors.New("parser-replay runtime is incomplete")
+	}
 	store := runtime.store
 	state, ok, err := store.LoadParserReplayState(ctx, request.TenantID, request.EvidenceID, request.ParserVersion)
 	if err != nil || !ok {
@@ -179,10 +252,15 @@ func runParserReplay(args []string) error {
 	if err != nil {
 		return errors.New("parser-replay source evidence not found")
 	}
-	object, err := runtime.objects.Get(ctx, key)
-	if err != nil {
+	bounded, ok := runtime.objects.(app.BoundedObjectReader)
+	if !ok {
+		return errors.New("parser-replay runtime requires bounded payload reads")
+	}
+	object, err := bounded.GetBounded(ctx, key, app.EvidenceDocumentLimit)
+	if err != nil || !app.ValidPayloadSize(int64(len(object.Bytes)), app.EvidenceDocumentLimit) {
 		return errors.New("parser-replay source payload verification failed")
 	}
+	//nolint:contextcheck // Existing size-bounded in-memory parser API has no context; runtime I/O above and persistence below use ctx.
 	result, err := app.ReplayStoredParserEvidence(&state, object, replayRequest)
 	if err != nil {
 		return errors.New("parser-replay rejected requested interpretation")
@@ -224,22 +302,27 @@ func parseParserReplayArgs(args []string) (parserReplayArgs, error) {
 // object. The printed receipt contains safe counters and opaque numeric
 // cursors, not object keys, digests, payload bytes, or provider errors.
 func runObjectReconciliation(args []string) error {
-	request, err := parseObjectReconciliationArgs(args)
-	if err != nil {
-		return err
-	}
-	production := strings.EqualFold(os.Getenv("ENV"), "production")
-	databaseURL := strings.TrimSpace(os.Getenv("EVYDENCE_DATABASE_URL"))
-	if databaseURL == "" {
-		return errors.New("reconcile requires EVYDENCE_DATABASE_URL")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), durationEnv("EVYDENCE_RECONCILIATION_TIMEOUT", 10*time.Minute))
+	return runObjectReconciliationContext(context.Background(), args)
+}
+
+func runObjectReconciliationContext(parent context.Context, args []string) error {
+	return runWorkerWithContext(parent, append([]string{"reconcile"}, args...))
+}
+
+func runObjectReconciliationConfigured(parent context.Context, settings config.Configuration, request app.ObjectReconciliationRequest) (runErr error) {
+	ctx, cancel := context.WithTimeout(parent, settings.Worker().ReconciliationTimeout)
 	defer cancel()
-	runtime, err := wiring.OpenRuntime(ctx, workerRuntimeConfig(databaseURL, production))
+	runtimeConfig, err := prepareWorkerRuntime(ctx, settings)
 	if err != nil {
 		return err
 	}
-	defer runtime.Close()
+	runtime, err := wiring.OpenRuntime(ctx, runtimeConfig)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		runErr = errors.Join(runErr, runtime.CloseContext(ctx, settings.Runtime().ShutdownCleanupTimeout))
+	}()
 	receipt, err := app.ReconcileObjectPayloads(ctx, runtime.Postgres, runtime.Postgres, runtime.Objects, request)
 	if err != nil {
 		return errors.New("payload reconciliation failed")
@@ -343,14 +426,6 @@ type payloadFinalizer interface {
 	app.PayloadObjectStore
 }
 
-func processJob(ctx context.Context, state any, job postgres.ClaimedJob) error {
-	return processJobInternal(ctx, state, nil, job, false)
-}
-
-func processJobWithObjects(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob) error {
-	return processJobInternal(ctx, state, objects, job, true)
-}
-
 func completedVEXDecisionJob(ctx context.Context, state any, job postgres.ClaimedJob) (bool, error) {
 	if job.Kind != "parse_vex" || !payloadBool(job, "worker_create_decisions") {
 		return false, nil
@@ -388,12 +463,15 @@ func completedVEXDecisionJob(ctx context.Context, state any, job postgres.Claime
 	return false, nil
 }
 
-func processJobInternal(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob, requireObjectReplay bool) error {
+func processJobInternal(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob, requireObjectReplay bool, maxPayloadBytes int64) error {
 	if ctx == nil {
 		return errors.New("worker context is required")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if !validWorkerPayloadLimit(maxPayloadBytes) {
+		return errors.New("invalid worker payload byte limit")
 	}
 	if state == nil {
 		return errors.New("outbox job handler requires durable state")
@@ -423,7 +501,7 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 	var replayed app.Object
 	var hasReplayedObject bool
 	if requireObjectReplay {
-		object, ok, err := verifyJobObject(ctx, state, objects, job)
+		object, ok, err := verifyJobObject(ctx, state, objects, job, maxPayloadBytes)
 		if err != nil {
 			recordVEXImportReportFailure(ctx, state, job, err)
 			return err
@@ -459,7 +537,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			return errors.New("parsed sbom is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedSBOM(replayed.Bytes, payloadString(job, "parser_version"))
+			parsed, err := telemetry.Measure(ctx, telemetry.OperationParseSBOM, func(_ context.Context) (replayedSBOM, error) {
+				return parseReplayedSBOM(replayed.Bytes, maxPayloadBytes, payloadString(job, "parser_version"))
+			})
 			if err != nil {
 				return err
 			}
@@ -481,7 +561,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			return errors.New("parsed vulnerability scan is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedVulnerabilityScan(replayed.Bytes, job.SubjectID)
+			parsed, err := telemetry.Measure(ctx, telemetry.OperationParseVulnerabilityScan, func(_ context.Context) (replayedVulnerabilityScan, error) {
+				return parseReplayedVulnerabilityScan(replayed.Bytes, job.SubjectID, maxPayloadBytes)
+			})
 			if err != nil {
 				return err
 			}
@@ -503,7 +585,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			return errors.New("parsed openapi contract is not available in durable state")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedOpenAPIContract(ctx, replayed.Bytes)
+			parsed, err := telemetry.Measure(ctx, telemetry.OperationParseOpenAPI, func(callCtx context.Context) (replayedOpenAPIContract, error) {
+				return parseReplayedOpenAPIContract(callCtx, replayed.Bytes)
+			})
 			if err != nil {
 				return err
 			}
@@ -549,7 +633,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 		var parsed replayedVEX
 		parsedAvailable := false
 		if hasReplayedObject {
-			parsed, err = parseReplayedVEX(replayed.Bytes)
+			parsed, err = telemetry.Measure(ctx, telemetry.OperationParseVEX, func(_ context.Context) (replayedVEX, error) {
+				return parseReplayedVEX(replayed.Bytes, maxPayloadBytes)
+			})
 			if err != nil {
 				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 			}
@@ -573,7 +659,7 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			}
 		}
 		if payloadBool(job, "worker_create_decisions") {
-			normalized, hasNormalized, err := normalizedVEXDecisionRequest(job, vex)
+			normalized, hasNormalized, err := normalizedVEXDecisionRequest(job, vex, maxPayloadBytes)
 			if err != nil {
 				return failVEXImportReportWithSnapshot(ctx, state, &snapshot, job, vex, err)
 			}
@@ -641,7 +727,9 @@ func processJobInternal(ctx context.Context, state any, objects jobObjectGetter,
 			return errors.New("build attestation verification status is incomplete")
 		}
 		if hasReplayedObject {
-			parsed, err := parseReplayedAttestation(replayed.Bytes)
+			parsed, err := telemetry.Measure(ctx, telemetry.OperationVerifyAttestation, func(_ context.Context) (replayedAttestation, error) {
+				return parseReplayedAttestation(replayed.Bytes)
+			})
 			if err != nil {
 				return err
 			}
@@ -759,7 +847,10 @@ func requireParserVersion(job postgres.ClaimedJob) error {
 	return nil
 }
 
-func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob) (app.Object, bool, error) {
+func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, job postgres.ClaimedJob, maxBytes int64) (app.Object, bool, error) {
+	if !validWorkerPayloadLimit(maxBytes) {
+		return app.Object{}, false, errors.New("invalid worker payload byte limit")
+	}
 	key := payloadObjectKey(job)
 	if key == "" {
 		return app.Object{}, false, nil
@@ -785,11 +876,10 @@ func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, jo
 			return app.Object{}, false, err
 		}
 	}
-	maxBytes := intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes)
 	var object app.Object
 	var err error
 	if bounded, ok := objects.(app.BoundedObjectReader); ok {
-		object, err = bounded.GetBounded(ctx, key, int64(maxBytes))
+		object, err = bounded.GetBounded(ctx, key, maxBytes)
 		if errors.Is(err, app.ErrConflict) {
 			return app.Object{}, false, errWorkerBoundedPayloadRejected
 		}
@@ -806,7 +896,7 @@ func verifyJobObject(ctx context.Context, state any, objects jobObjectGetter, jo
 	if object.TenantID != "" && object.TenantID != job.TenantID {
 		return app.Object{}, false, errors.New("outbox payload object tenant mismatch")
 	}
-	if len(object.Bytes) > maxBytes {
+	if int64(len(object.Bytes)) > maxBytes {
 		return app.Object{}, false, errors.New("outbox payload object exceeds worker size limit")
 	}
 	want := payloadString(job, "payload_hash")
@@ -900,19 +990,19 @@ func mergeReplayedSBOM(sbom domain.SBOM, parsed replayedSBOM) (domain.SBOM, bool
 	return sbom, changed
 }
 
-func parseReplayedSBOM(raw []byte, parserVersions ...string) (replayedSBOM, error) {
+func parseReplayedSBOM(raw []byte, maxPayloadBytes int64, parserVersions ...string) (replayedSBOM, error) {
 	parserVersion := ""
 	if len(parserVersions) > 0 {
 		parserVersion = parserVersions[0]
 	}
 	if parserVersion == "" || parserVersion == app.ParserVersionCycloneDXJSON {
-		parsed, err := app.ParseCycloneDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+		parsed, err := app.ParseCycloneDXReplayProjection(raw, maxPayloadBytes)
 		if err != nil {
 			return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 		}
 		return replayedSBOM{SpecVersion: parsed.SpecVersion, ComponentCount: len(parsed.Components), Components: append([]domain.SBOMComponent(nil), parsed.Components...)}, nil
 	}
-	parsed, err := app.ParseSPDXReplayProjection(raw, defaultMaxWorkerPayloadBytes)
+	parsed, err := app.ParseSPDXReplayProjection(raw, maxPayloadBytes)
 	if err != nil {
 		return replayedSBOM{}, errors.New("replayed sbom payload is invalid")
 	}
@@ -982,8 +1072,8 @@ func mergeReplayedVulnerabilityScan(scan domain.VulnerabilityScan, parsed replay
 	return scan, changed
 }
 
-func parseReplayedVulnerabilityScan(raw []byte, subjectID string) (replayedVulnerabilityScan, error) {
-	doc, err := scannerparser.ParseBounded(raw, scannerparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+func parseReplayedVulnerabilityScan(raw []byte, subjectID string, maxPayloadBytes int64) (replayedVulnerabilityScan, error) {
+	doc, err := scannerparser.ParseBounded(raw, scannerparser.DefaultLimits(maxPayloadBytes))
 	if err != nil {
 		return replayedVulnerabilityScan{}, errors.New("replayed vulnerability scan payload is invalid")
 	}
@@ -1149,27 +1239,27 @@ func mergeReplayedVEX(vex domain.VEXDocument, parsed replayedVEX) (domain.VEXDoc
 	return vex, changed
 }
 
-func parseReplayedVEX(raw []byte) (replayedVEX, error) {
+func parseReplayedVEX(raw []byte, maxPayloadBytes int64) (replayedVEX, error) {
 	var probe struct {
 		BOMFormat string `json:"bomFormat"`
 	}
 	_ = json.Unmarshal(raw, &probe)
 	if strings.EqualFold(strings.TrimSpace(probe.BOMFormat), "cyclonedx") {
-		return parseReplayedCycloneDXVEX(raw)
+		return parseReplayedCycloneDXVEX(raw, maxPayloadBytes)
 	}
-	return parseReplayedOpenVEX(raw)
+	return parseReplayedOpenVEX(raw, maxPayloadBytes)
 }
 
-func parseReplayedOpenVEX(raw []byte) (replayedVEX, error) {
-	doc, err := vexparser.ParseOpenVEX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+func parseReplayedOpenVEX(raw []byte, maxPayloadBytes int64) (replayedVEX, error) {
+	doc, err := vexparser.ParseOpenVEX(raw, vexparser.DefaultLimits(maxPayloadBytes))
 	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
 	return replayedVEXFromParsed(doc), nil
 }
 
-func parseReplayedCycloneDXVEX(raw []byte) (replayedVEX, error) {
-	doc, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes))
+func parseReplayedCycloneDXVEX(raw []byte, maxPayloadBytes int64) (replayedVEX, error) {
+	doc, err := vexparser.ParseCycloneDX(raw, vexparser.DefaultLimits(maxPayloadBytes))
 	if err != nil {
 		return replayedVEX{}, errors.New("replayed vex payload is invalid")
 	}
@@ -1204,7 +1294,7 @@ func replayedVEXFromParsed(doc vexparser.Document) replayedVEX {
 	return replayedVEX{Format: doc.Format, Author: doc.Author, StatementCount: len(doc.Statements), StatusSummary: summary, Statements: statements, Warnings: warnings, InvalidStatements: invalidStatements}
 }
 
-func normalizedVEXDecisionRequest(job postgres.ClaimedJob, vex domain.VEXDocument) (replayedVEX, bool, error) {
+func normalizedVEXDecisionRequest(job postgres.ClaimedJob, vex domain.VEXDocument, maxPayloadBytes int64) (replayedVEX, bool, error) {
 	schema := payloadString(job, "decision_request_schema")
 	if schema == "" {
 		return replayedVEX{}, false, nil
@@ -1213,7 +1303,7 @@ func normalizedVEXDecisionRequest(job postgres.ClaimedJob, vex domain.VEXDocumen
 		return replayedVEX{}, false, errors.New("normalized vex decision request schema is unsupported")
 	}
 	rows, ok := normalizedVEXRows(job.Payload["decision_statements"])
-	limits := vexparser.DefaultLimits(defaultMaxWorkerPayloadBytes)
+	limits := vexparser.DefaultLimits(maxPayloadBytes)
 	if !ok || len(rows) == 0 || len(rows) > limits.MaxStatements || vex.StatementCount <= 0 || len(rows) > vex.StatementCount {
 		return replayedVEX{}, false, errors.New("normalized vex decision request is invalid")
 	}
@@ -2300,42 +2390,7 @@ func validWorkerDigest(value string) bool {
 	return err == nil
 }
 
-func envDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
-}
-
-func durationEnv(name string, fallback time.Duration) time.Duration {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := time.ParseDuration(value)
-	if err != nil || parsed <= 0 {
-		return fallback
-	}
-	return parsed
-}
-
-func intEnv(name string, fallback int) int {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed <= 0 {
-		return fallback
-	}
-	return parsed
-}
-
 func digestBytes(body []byte) string {
 	sum := sha256.Sum256(body)
 	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func openObjectStore(ctx context.Context) (app.ObjectStore, string, error) {
-	return wiring.OpenObjectStore(ctx, wiring.ObjectStoreConfigFromEnv())
 }

@@ -13,6 +13,7 @@ import (
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
 	operationsdomain "github.com/aatuh/evydence/internal/operations/domain"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
+	"github.com/aatuh/evydence/internal/platform/health"
 )
 
 // Focused services select current transaction projections, never aggregate
@@ -42,11 +43,27 @@ func (f operatorFixtureQueries) now() time.Time {
 }
 
 func (f readinessFixture) Public(ctx context.Context) (map[string]any, error) {
-	return operationsquery.NewReadiness(f.resources.checks).Public(ctx)
+	service, err := operationsquery.NewReadinessWithConfig(f.resources.checks, health.Config{Now: f.now})
+	if err != nil {
+		return nil, err
+	}
+	return service.Public(ctx)
+}
+
+func (f readinessFixture) Startup(ctx context.Context) (map[string]any, error) {
+	service, err := operationsquery.NewReadinessWithConfig(f.resources.checks, health.Config{Now: f.now})
+	if err != nil {
+		return nil, err
+	}
+	return service.Startup(ctx)
 }
 
 func (f readinessFixture) Operator(ctx context.Context, actor domain.Actor) (map[string]any, error) {
-	return operationsquery.NewReadiness(f.resources.checks).Operator(ctx, actor)
+	service, err := operationsquery.NewReadinessWithConfig(f.resources.checks, health.Config{Now: f.now})
+	if err != nil {
+		return nil, err
+	}
+	return service.Operator(ctx, actor)
 }
 
 func (f metricsFixture) Snapshot(ctx context.Context, actor domain.Actor) (map[string]any, error) {

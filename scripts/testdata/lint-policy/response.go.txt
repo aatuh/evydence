@@ -1,0 +1,11 @@
+package lintpolicy
+
+import "net/http"
+
+func insecureResponse(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{Name: "session", Value: "fixture"}) // G124_PRODUCTION_RESPONSE
+}
+
+func secureResponse(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{Name: "session", Value: "fixture", Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
+}

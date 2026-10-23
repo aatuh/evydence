@@ -4,7 +4,7 @@ This generated reference is the complete operation-level inventory for the commi
 
 ## Review Summary
 
-- Operations: `193`; every public operation is represented once.
+- Operations: `194`; every public operation is represented once.
 - Candidate stable core: `43` operations; review this count before any stable API promise.
 - Owners, auth modes, scopes, idempotency requirements, schemas, success statuses, and error status contracts are derived from OpenAPI route metadata.
 
@@ -12,7 +12,7 @@ This generated reference is the complete operation-level inventory for the commi
 | --- | ---: |
 | `core` | 43 |
 | `experimental` | 137 |
-| `supported` | 13 |
+| `supported` | 14 |
 
 ## Complete Operation Inventory
 
@@ -193,6 +193,7 @@ This generated reference is the complete operation-level inventory for the commi
 | exchangeSSOCredential | POST | `/v1/sso/session-exchanges` | `supported` | `identity-access` | `sso-credential` | - | not required | ExchangeSSOCredentialRequest | 201:SSOCredentialExchangeEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createSSOSession | POST | `/v1/sso/sessions` | `experimental` | `identity-access` | `bearer` | identity:admin | required | CreateSSOSessionRequest | 201:SSOSessionCreateEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | revokeSSOSession | POST | `/v1/sso/sessions/{id}/revoke` | `experimental` | `identity-access` | `bearer` | identity:admin | required | EmptyObject | 200:SSOSessionEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| startup | GET | `/v1/startup` | `supported` | `platform-operations` | `public` | - | not required | - | 200:StartupStatusEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createTransparencyCheckpoint | POST | `/v1/transparency-checkpoints` | `experimental` | `integrity-verification` | `bearer` | keys:admin | required | CreateTransparencyCheckpointRequest | 201:TransparencyCheckpointEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | createUser | POST | `/v1/users` | `experimental` | `identity-access` | `bearer` | identity:admin | required | CreateUserRequest | 201:HumanUserEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | deactivateUser | POST | `/v1/users/{id}/deactivate` | `experimental` | `identity-access` | `bearer` | identity:admin | required | EmptyObject | 200:HumanUserEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |

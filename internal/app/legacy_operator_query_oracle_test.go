@@ -28,7 +28,11 @@ func (l *Ledger) ReadinessStatus(ctx context.Context) (map[string]any, error) {
 	l.mu.Lock()
 	checks := append([]ReadinessCheck(nil), l.readinessChecks...)
 	l.mu.Unlock()
-	return operationsquery.NewReadiness(checks).Public(ctx)
+	service, err := operationsquery.NewReadiness(checks)
+	if err != nil {
+		return nil, err
+	}
+	return service.Public(ctx)
 }
 
 // ReadinessDiagnostics returns safe, dependency-specific diagnostics for an
@@ -44,7 +48,11 @@ func (l *Ledger) ReadinessDiagnostics(ctx context.Context, actor domain.Actor) (
 	l.mu.Lock()
 	checks := append([]ReadinessCheck(nil), l.readinessChecks...)
 	l.mu.Unlock()
-	return operationsquery.NewReadiness(checks).Operator(ctx, actor)
+	service, err := operationsquery.NewReadiness(checks)
+	if err != nil {
+		return nil, err
+	}
+	return service.Operator(ctx, actor)
 }
 
 func (l *Ledger) Metrics(ctx context.Context, actor domain.Actor) (map[string]any, error) {

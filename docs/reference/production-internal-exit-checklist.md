@@ -26,10 +26,14 @@ secure-release-guaranteed.
 - [ ] `make release-acceptance` passes.
 - [ ] `make marketing-site-check` passes.
 - [ ] `make package-viewer-check` passes.
-- [ ] `make public-release-verify TAG=v0.1.0-rc.7` passes when public release
+- [ ] `EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-rc.7` passes when public release
   access is available.
 - [ ] `make production-check` passes when `EVYDENCE_TEST_DATABASE_URL` and
   release signing material are available.
+
+The RC.7 compatibility command covers historical evidence. New releases must
+pass the default artifact-bound verifier for their selected tag; the legacy
+result does not satisfy that stronger subject-binding requirement.
 
 If live PostgreSQL, GitHub release access, provider credentials, or external
 signing/verification services are unavailable, record that as an external

@@ -18,7 +18,12 @@ type routeDef struct {
 }
 
 func (s *Server) registerRoutes() error {
+	// Contract-only generation and runtime construction share this path.
+	if s.logOperations == nil {
+		s.logOperations = make(map[string]string)
+	}
 	for _, route := range s.routeDefinitions() {
+		s.logOperations[route.method+" "+route.path] = route.op.OperationID
 		policy, ok := authorizationPolicyForOperation(route.op.OperationID)
 		if !ok {
 			return errors.New("route lacks authorization policy contract")
@@ -64,6 +69,7 @@ func (s *Server) routeDefinitions() []routeDef {
 func (s *Server) systemRoutes() []routeDef {
 	return []routeDef{
 		{http.MethodGet, "/v1/health", op("health", http.MethodGet, "/v1/health", "Health", nil), http.HandlerFunc(s.health)},
+		{http.MethodGet, "/v1/startup", op("startup", http.MethodGet, "/v1/startup", "Startup", nil), http.HandlerFunc(s.startup)},
 		{http.MethodGet, "/v1/ready", op("ready", http.MethodGet, "/v1/ready", "Readiness", nil), http.HandlerFunc(s.ready)},
 		{http.MethodGet, "/v1/version", op("version", http.MethodGet, "/v1/version", "Version", nil), http.HandlerFunc(s.version)},
 		{http.MethodGet, "/v1/admin/readiness", op("readinessDiagnostics", http.MethodGet, "/v1/admin/readiness", "Readiness diagnostics", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.readinessDiagnostics)},

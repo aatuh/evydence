@@ -66,7 +66,7 @@ func NewAuditChainVerificationCommands(config AuditChainVerificationConfig) (*Au
 	return &AuditChainVerificationCommands{config}, nil
 }
 
-func (s *AuditChainVerificationCommands) VerifyAuditChain(ctx context.Context, actor identitydomain.Actor) (verificationdomain.VerificationResult, error) {
+func (s *AuditChainVerificationCommands) verifyAuditChain(ctx context.Context, actor identitydomain.Actor) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}

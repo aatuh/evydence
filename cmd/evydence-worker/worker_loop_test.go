@@ -17,6 +17,9 @@ import (
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
+	"github.com/aatuh/evydence/internal/platform/config"
+	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/runtimeinfo"
 )
 
 type lifecycleQueue struct {
@@ -28,7 +31,11 @@ type lifecycleQueue struct {
 
 func TestWorkerLoopSignalProcess(t *testing.T) {
 	if mode := os.Getenv("EVYDENCE_WORKER_SIGNAL_TEST"); mode != "" {
-		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+		logger, err := logging.New(os.Stderr, "worker", runtimeinfo.Current(), logging.Config{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, stop := signal.NotifyContext(logging.WithLogger(context.Background(), logger), syscall.SIGTERM)
 		defer stop()
 		q := &lifecycleQueue{claim: func(context.Context) ([]postgres.ClaimedJob, error) {
 			return []postgres.ClaimedJob{{ID: "active"}, {ID: "tail"}}, nil
@@ -44,7 +51,7 @@ func TestWorkerLoopSignalProcess(t *testing.T) {
 		})
 		config := shutdownLoopConfig()
 		config.ShutdownTimeout = 25 * time.Millisecond
-		err := runWorkerLoop(ctx, q, p, config)
+		err = runWorkerLoop(ctx, q, p, config)
 		if mode == "graceful" && err == nil && q.completions.Load() == 1 && q.claims.Load() == 1 {
 			os.Exit(0)
 		}
@@ -95,7 +102,7 @@ func TestWorkerLoopSignalProcess(t *testing.T) {
 					t.Fatal("forced SIGTERM did not fail distinctly", err, diagnostics.String())
 				}
 			}
-			if !strings.Contains(diagnostics.String(), "worker drain started") {
+			if !strings.Contains(diagnostics.String(), `"msg":"drain"`) || !strings.Contains(diagnostics.String(), `"result_code":"started"`) {
 				t.Fatal("safe drain status missing", diagnostics.String())
 			}
 		})
@@ -292,14 +299,16 @@ func TestWorkerShutdownTimeoutValidation(t *testing.T) {
 		{"0", 0, true}, {"-1", 0, true}, {"301", 0, true}, {"1s", 0, true}, {"huge-secret-input", 0, true}, {"999999999999999999999999999", 0, true},
 	} {
 		t.Run(tc.value, func(t *testing.T) {
-			t.Setenv("EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS", tc.value)
-			got, err := workerShutdownTimeoutFromEnv()
+			settings, err := config.Parse(workerCapturedEnvironment(t, "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS="+tc.value), config.Worker)
+			got := settings.Worker().ShutdownTimeout
 			if (err != nil) != tc.invalid || got != tc.want {
 				t.Fatal("invalid budget contract", got, err)
 			}
 			if tc.invalid {
-				t.Setenv("EVYDENCE_DATABASE_URL", "")
-				if err := run(); err == nil || err.Error() != "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS must be an integer between 1 and 300" {
+				t.Setenv("EVYDENCE_DATABASE_URL", "host=PRIVATE_DATABASE")
+				t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
+				t.Setenv("EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS", tc.value)
+				if err := run(); !errors.Is(err, config.ErrInvalidValue) {
 					t.Fatal("invalid budget did not fail before storage", err)
 				}
 			}
@@ -308,19 +317,20 @@ func TestWorkerShutdownTimeoutValidation(t *testing.T) {
 }
 
 func TestWorkerInvalidCleanupBudgetFailsBeforeStorage(t *testing.T) {
-	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	t.Setenv("EVYDENCE_DATABASE_URL", "host=PRIVATE_DATABASE")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS", "61")
-	if err := run(); err == nil || err.Error() != "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS must be an integer between 1 and 60" {
+	if err := run(); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatal("invalid cleanup budget did not fail before storage", err)
 	}
 }
 
 func TestWorkerShutdownCleanupCannotBlockForcedExit(t *testing.T) {
-	for _, err := range []error{nil, errors.New("startup failed"), errWorkerDrainTimeout} {
+	for _, err := range []error{nil, errors.New("startup failed"), errWorkerDrainTimeout, errWorkerProbeDrainTimeout} {
 		called := 0
 		closeWorkerAfterStop(err, func() { called++ })
 		want := 1
-		if errors.Is(err, errWorkerDrainTimeout) {
+		if errors.Is(err, errWorkerDrainTimeout) || errors.Is(err, errWorkerProbeDrainTimeout) {
 			want = 0
 		}
 		if called != want {

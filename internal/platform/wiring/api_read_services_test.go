@@ -332,6 +332,9 @@ func TestBuildAPIReadServicesComposesPostgresCommandsAndQueries(t *testing.T) {
 	if options.ReleaseReadinessReportQuery == nil {
 		t.Fatal("PostgreSQL profile omitted readiness reports")
 	}
+	if options.OperationalMetrics == nil {
+		t.Fatal("PostgreSQL API runtime omitted its private operational recorder")
+	}
 	if options.CustomerPackageAccessCommands == nil {
 		t.Fatal("PostgreSQL profile omitted package access")
 	}

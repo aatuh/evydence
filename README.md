@@ -3,7 +3,7 @@
 [![CI](https://github.com/aatuh/evydence/actions/workflows/ci.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml/badge.svg)](https://github.com/aatuh/evydence/actions/workflows/scorecard.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
-![Go Version](https://img.shields.io/badge/go-1.26.9+-00ADD8.svg)
+[![Go Version](https://img.shields.io/badge/go-1.26.10%20%2F%201.27.3-00ADD8.svg)](docs/reference/toolchain-platform-support.md)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-186%20precise%20operations-brightgreen.svg)
 ![Coverage Gate](https://img.shields.io/badge/production%20coverage-80%25+-brightgreen.svg)
 
@@ -146,8 +146,11 @@ To verify the public release assets from a clean temporary directory on Linux
 amd64, run:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.7
+EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-rc.7
 ```
+
+RC.7 uses the historical metadata profile. The explicit compatibility setting
+verifies that release's existing evidence and grants no artifact-bound SBOM assurance.
 
 The VEX-first evidence flow to evaluate first is:
 

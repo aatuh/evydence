@@ -1,0 +1,27 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1408-release-history",
+  "category": "changed",
+  "summary": "Automate source-linked release notes, changelog coverage and support policy",
+  "details": [
+    "Validate event-based security support windows and preserve withdrawal records with explicit install exclusions.",
+    "Require material source deliveries to update a versioned change fragment; generate the Unreleased section without rewriting earlier manual or published notes.",
+    "Allow an explicit no-changelog PR label only after authenticated repository, state and exact-source verification; normal pull requests may carry one fragment across their delivery.",
+    "Generate candidate notes with source inventories, API and SDK compatibility, migrations, security notices and limitations; require matching committed notes before packaging or local tagging.",
+    "Retain notes for review before release builds and environment approval, then compare packaged notes before attestation or draft publication.",
+    "Allow the initial policy PR to target its real pre-adoption master base while preserving exact ancestry and full-delivery fragment or verified-label requirements.",
+    "Document the initial normal merge, source-review checksum maintenance and dated local qualification, with hosted integration and publication limits explicit.",
+    "Align the documentation index with generated, committed candidate notes and the support/withdrawal reference."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "No HTTP, SDK or database contract change. Candidate packaging now requires exact generated notes committed at docs/reference/release-notes-<tag>.md; the static fallback is retired."
+  },
+  "security": "Withdrawal selection runs before release downloads or packaging. Fragment and Git inputs are bounded and reject symlinks. Label waivers use authenticated read-only GitHub APIs with exact repository and source binding; provider payloads and publisher secrets are not logged or passed to unrelated tools.",
+  "limitations": [
+    "Local checks do not prove independent review, token scope, artifact publication or hosted integration.",
+    "The earlier source snapshot remains historical development evidence and is not a newly published release."
+  ]
+}

@@ -13,7 +13,7 @@ import (
 )
 
 func TestReadinessSeparatesPublicAndInstanceDiagnostics(t *testing.T) {
-	service := NewReadiness([]ReadinessCheck{{
+	service, err := NewReadiness([]ReadinessCheck{{
 		Name: " postgres ", Timeout: 10 * time.Millisecond,
 		FailureDetail: "database connectivity is unavailable",
 		Check: func(ctx context.Context) error {
@@ -23,6 +23,9 @@ func TestReadinessSeparatesPublicAndInstanceDiagnostics(t *testing.T) {
 	}, {
 		Name: "postgres", Check: func(context.Context) error { t.Fatal("duplicate probe ran"); return nil },
 	}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	public, err := service.Public(t.Context())
 	if err != nil || public["status"] != "unavailable" {
 		t.Fatalf("public readiness=%#v err=%v", public, err)
@@ -51,7 +54,10 @@ func TestReadinessSeparatesPublicAndInstanceDiagnostics(t *testing.T) {
 }
 
 func TestReadinessRejectsNilOrCanceledContext(t *testing.T) {
-	service := NewReadiness(nil)
+	service, err := NewReadiness(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var absent context.Context
 	if _, err := service.Public(absent); !errors.Is(err, ErrValidation) {
 		t.Fatalf("nil context err=%v", err)

@@ -3,7 +3,7 @@
 This generated reference inventories Evydence `/v1` route contract precision from `openapi.yaml`.
 It is a planning aid for production contract hardening; `broad` means the route still uses a shared envelope, unspecified body, or generic schema where an endpoint-specific contract should be considered.
 
-Generated from 193 operations: 193 precise, 0 broad.
+Generated from 194 operations: 194 precise, 0 broad.
 
 | Method | Path | Operation | Auth | Scopes | Idempotency | Params | Request | 2xx Response | Precision | Stability |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -182,6 +182,7 @@ Generated from 193 operations: 193 precise, 0 broad.
 | POST | /v1/sso/session-exchanges | exchangeSSOCredential | public | - | not required | - | application/json:ExchangeSSOCredentialRequest | 201:application/json:SSOCredentialExchangeEnvelope | precise | supported |
 | POST | /v1/sso/sessions | createSSOSession | Bearer | identity:admin | required | - | application/json:CreateSSOSessionRequest | 201:application/json:SSOSessionCreateEnvelope | precise | experimental |
 | POST | /v1/sso/sessions/{id}/revoke | revokeSSOSession | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:SSOSessionEnvelope | precise | experimental |
+| GET | /v1/startup | startup | public | - | - | - | - | 200:application/json:StartupStatusEnvelope | precise | supported |
 | POST | /v1/transparency-checkpoints | createTransparencyCheckpoint | Bearer | keys:admin | required | - | application/json:CreateTransparencyCheckpointRequest | 201:application/json:TransparencyCheckpointEnvelope | precise | experimental |
 | POST | /v1/users | createUser | Bearer | identity:admin | required | - | application/json:CreateUserRequest | 201:application/json:HumanUserEnvelope | precise | experimental |
 | POST | /v1/users/{id}/deactivate | deactivateUser | Bearer | identity:admin | required | path:id | application/json:EmptyObject | 200:application/json:HumanUserEnvelope | precise | experimental |

@@ -1,4 +1,9 @@
 {{- $imageTag := required "image.tag is required for Evydence release installs" .Values.image.tag -}}
+{{- $fileSource := eq .Values.worker.secretSource "files" -}}
+{{- $files := include "evydence.secretFiles" (dict "root" . "process" .Values.worker "name" "worker") | fromYaml -}}
+{{- if $fileSource -}}
+{{- include "evydence.validateSecretFiles" (dict "root" . "process" .Values.worker) -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,12 +16,33 @@ spec:
       app.kubernetes.io/component: worker
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: {{ include "evydence.name" . }}
         app.kubernetes.io/component: worker
     spec:
+      terminationGracePeriodSeconds: {{ include "evydence.terminationGrace" (dict "name" "worker" "process" .Values.worker "cleanup" .Values.cleanupTimeoutSeconds) }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      volumes:
+        - name: configuration-revision
+          configMap:
+            name: {{ include "evydence.fullname" . }}-config
+            items:
+              - key: EVYDENCE_CONFIGURATION_REVISION
+                path: revision
+        {{- if $fileSource }}
+        - name: runtime-secrets
+          secret:
+            secretName: {{ include "evydence.runtimeSecret" (dict "process" .Values.worker "fallback" .Values.existingSecret) }}
+            defaultMode: 0440
+            items:
+              {{- range $option, $key := $files }}
+              - key: {{ $key | quote }}
+                path: {{ $option | quote }}
+              {{- end }}
+        {{- end }}
       containers:
         - name: worker
           image: "{{ .Values.image.repository }}:{{ $imageTag }}"
@@ -25,28 +51,65 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           command: ["evydence-worker"]
           envFrom:
+            {{- if .Values.worker.environmentSecret }}
+            - secretRef:
+                name: {{ .Values.worker.environmentSecret | quote }}
+            {{- end }}
+            {{- if not $fileSource }}
+            - secretRef:
+                name: {{ include "evydence.runtimeSecret" (dict "process" .Values.worker "fallback" .Values.existingSecret) }}
+            {{- end }}
             - configMapRef:
                 name: {{ include "evydence.fullname" . }}-config
           env:
+            - name: EVYDENCE_CONFIGURATION_REVISION_FILE
+              value: /etc/evydence/config-revision/revision
+            {{- if $fileSource }}
+            {{- range $option, $key := $files }}
+            - name: {{ $option }}
+              value: {{ printf "/etc/evydence/private/%s" $option | quote }}
+            {{- end }}
+            {{- else }}
             - name: EVYDENCE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.existingSecret }}
+                  name: {{ include "evydence.runtimeSecret" (dict "process" .Values.worker "fallback" .Values.existingSecret) }}
                   key: {{ .Values.env.databaseURLSecretKey }}
-            - name: EVYDENCE_API_KEY_PEPPER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.existingSecret }}
-                  key: {{ .Values.env.apiKeyPepperSecretKey }}
+            {{- end }}
+          volumeMounts:
+            - name: configuration-revision
+              mountPath: /etc/evydence/config-revision
+              readOnly: true
+            {{- if $fileSource }}
+            - name: runtime-secrets
+              mountPath: /etc/evydence/private
+              readOnly: true
+            {{- end }}
           {{- if .Values.worker.probes.enabled }}
+          startupProbe:
+            exec:
+              command:
+                {{- toYaml .Values.worker.probes.startupCommand | nindent 16 }}
+            periodSeconds: 5
+            timeoutSeconds: 6
+            failureThreshold: 60
+            successThreshold: 1
           readinessProbe:
             exec:
               command:
                 {{- toYaml .Values.worker.probes.readinessCommand | nindent 16 }}
+            periodSeconds: 5
+            timeoutSeconds: 6
+            failureThreshold: 3
+            successThreshold: 1
           livenessProbe:
             exec:
               command:
                 {{- toYaml .Values.worker.probes.livenessCommand | nindent 16 }}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+            successThreshold: 1
           {{- end }}
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}

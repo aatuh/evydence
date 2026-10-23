@@ -17,7 +17,7 @@ Before creating a release-candidate tag, collect:
 - `coverage.out` and the total coverage summary;
 - `openapi.yaml` plus an OpenAPI checksum;
 - migration checksum output for the directory or per-file migration checksums;
-- release SBOM metadata and release provenance metadata;
+- per-binary/archive SBOMs, SLSA-style provenance and their evidence index;
 - signed release artifact manifest and manifest signature;
 - checksums for every published binary, container image digest, chart package,
   and release archive;
@@ -33,17 +33,29 @@ Run from a clean checkout with a disposable PostgreSQL database:
 
 ```sh
 set -a; . ./.test.env; set +a
-export EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)"
-make release-candidate-check TAG=<vX.Y.Z-rc.N>
+release_scanner="$(make --silent --no-print-directory release-evidence-tools RELEASE_EVIDENCE_TOOLS_ROOT="${TMPDIR:-/tmp}/evydence-release-tools")"
+EVYDENCE_RELEASE_SYFT="$release_scanner" \
+EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)" \
+  make release-candidate-check TAG=<vX.Y.Z-rc.N>
 ```
 
 The target runs `scripts/release_candidate_package.sh`, which requires a clean
 worktree, a release-candidate tag such as `v0.1.0-rc.1`, no existing local tag
-unless the CI tag workflow explicitly allows it, live PostgreSQL through
-`EVYDENCE_TEST_DATABASE_URL`, and release signing material. It runs
+unless the protected master publication workflow explicitly allows it, live PostgreSQL through
+`EVYDENCE_TEST_DATABASE_URL`, a verified pinned scanner installation selected
+by `EVYDENCE_RELEASE_SYFT`, release signing material, and matching committed
+`docs/reference/release-notes-<tag>.md` generated from the source fragments.
+Prepare and review that file using [release history](release-history.md#candidate-notes-and-local-tagging)
+before packaging or tagging; missing or contradictory notes stop packaging
+before the production gate or artifact replacement. It runs
 `make production-check`, builds the release archive matrix, writes checksums,
-generates release SBOM and provenance metadata, signs the release manifest,
+generates and checks artifact-bound SBOM/provenance metadata, signs the complete evidence set,
 verifies the manifest signature, and validates the release-note language.
+
+The scanner setting is consumed before production validation and passed only to
+the metadata generator. It is not an application configuration variable. See
+[the SBOM and provenance profile](release-supply-chain.md) for tool locks,
+coverage limits, container verification and historical compatibility.
 
 Do not tag from a run where live PostgreSQL checks, migration compatibility,
 coverage threshold enforcement, OpenAPI checks, docs checks, deployment checks,
@@ -78,16 +90,21 @@ evidence, and record that image digest with deployment evidence. If no image
 workflow evidence exists for a tag, operators must build and publish images into
 their own registry for Helm or air-gapped deployment flows.
 
-The release packaging workflow keeps the repository `GITHUB_TOKEN` read-only and
+The release packaging workflow keeps `GITHUB_TOKEN` contents access read-only and
 separates package generation from draft-release publication. Creating or
 updating the draft GitHub release happens in a separate job and requires the
 `EVYDENCE_RELEASE_PUBLISH_TOKEN` secret with only the release-publication scope
 the maintainer account approves for that workflow. The container image workflow
 also keeps `GITHUB_TOKEN` from receiving package-write permissions; publishing
 to GHCR requires `EVYDENCE_GHCR_PUBLISH_TOKEN`, and only the separate signing
-job receives `id-token: write` for keyless cosign signing. Both secrets are
-external repository settings and must not be printed in logs, committed to
-files, or included in release evidence.
+job receives `id-token: write` for keyless cosign signing. Artifact publication
+also has a separate keyless attestation job with the narrowly scoped token
+permissions described in [release signing](../release-signing.md). Publishing
+tokens belong in the reviewed `release-production` environment, with no
+repository-scoped signing key. Provider migration is required before this
+profile can run; secret values must not be printed, committed or included in
+release evidence. Dispatch from protected `master`, with a reviewed existing
+RC tag at that exact commit; tag-push signing is no longer supported.
 
 ## Deployment Constraints
 

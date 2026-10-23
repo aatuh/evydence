@@ -6,6 +6,13 @@ Evydence is currently maintainer-led.
 
 The project maintainer is Aatu Harju.
 
+Evydence is maintained by one person. The
+[ownership and recovery plan](docs/reference/continuity-plan.md) records the
+maintainer's release and security duties and a private recovery checklist.
+There is no backup maintainer or guaranteed response time; work may wait while
+the maintainer is unavailable. Additional maintainers are optional future
+capacity, not a prerequisite for continued development.
+
 Commercial, support, trademark, security, or governance questions can be routed
 through LinkedIn:
 

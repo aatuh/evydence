@@ -23,12 +23,18 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	addProblemResponses(&operation)
 	switch operation.OperationID {
 	case "health":
-		operation.Description = "Returns low-detail liveness status without touching tenant evidence or secret material."
+		operation.Description = "Returns dependency-free liveness status without touching tenant evidence or secret material. Canonical GET/HEAD probes remain independent of application quotas and the dependency-probe pool. HTTP responses use Cache-Control: no-store."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Liveness status envelope.", "#/components/schemas/HealthStatusEnvelope")
+	case "startup":
+		operation.Description = "Reports initialized runtime plus current database, schema and loaded-configuration prerequisites from the shared bounded dependency snapshot. A serving-only dependency outage does not fail startup. Public output excludes dependency inventory, errors, credentials and paths. Startup/readiness share a separate bounded admission pool; unavailable responses include typed retry metadata and Retry-After. Responses use Cache-Control: no-store. The process binds HTTP only after runtime initialization and migration checks."
+		operation.Security = nil
+		operation.Scopes = nil
+		operation.Responses[http.StatusOK] = jsonResponse("Startup prerequisites satisfied.", "#/components/schemas/StartupStatusEnvelope")
+		operation.Responses[http.StatusServiceUnavailable] = jsonResponse("Startup prerequisites or probe admission unavailable.", "#/components/schemas/StartupStatusEnvelope")
 	case "ready":
-		operation.Description = "Runs bounded PostgreSQL, migration, writer-lease, object-store, and signing-configuration probes configured for this process. The public result contains no tenant data, credentials, paths, or raw dependency errors. An unavailable result includes typed dependency retry metadata and Retry-After. PostgreSQL is required for local evaluation."
+		operation.Description = "Reports supported-work readiness from the shared short-lived dependency snapshot. Concurrent requests coalesce into one caller-owned bounded refresh, without background work. Only configured dependency names/statuses are returned; no synthetic ledger check, tenant data, credentials, paths or raw errors. Startup/readiness share a separate bounded admission pool; an unavailable result includes typed retry metadata and Retry-After. Responses use Cache-Control: no-store. PostgreSQL is required for local evaluation."
 		operation.Security = nil
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Readiness status envelope.", "#/components/schemas/ReadinessStatusEnvelope")
@@ -39,10 +45,10 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 		operation.Scopes = nil
 		operation.Responses[http.StatusOK] = jsonResponse("Version information envelope.", "#/components/schemas/VersionInfoEnvelope")
 	case "readinessDiagnostics":
-		operation.Description = "Returns vetted per-dependency readiness diagnostics. Requires the explicit instance:admin scope; raw dependency errors, credentials, paths, and tenant data are excluded. PostgreSQL is required for local evaluation."
+		operation.Description = "Returns vetted per-dependency readiness diagnostics, initialization/drain/startup state and shared-snapshot freshness. Explicit instance:admin authorization occurs before dependency work or cached diagnostics access. Raw errors, credentials, paths and tenant data are excluded. Responses use Cache-Control: no-store. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Instance readiness diagnostics envelope.", "#/components/schemas/ReadinessDiagnosticsEnvelope")
 	case "metrics":
-		operation.Description = "Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain. PostgreSQL is required for local evaluation."
+		operation.Description = "Returns safe tenant-scoped resource and object-reconciliation metrics for admin actors. Reconciliation metrics contain counters only: no object keys, digests, raw payloads, or provider errors. An explicit instance:admin actor also receives bounded aggregate outbox gauges without tenant labels, payloads, or failure details. A Prometheus text response is available when requested with Accept: text/plain. In the native API runtime, the text response additionally includes private process-wide HTTP and operation counters and duration histograms plus bounded read-only PostgreSQL queue/pool scalars, only after explicit instance:admin authorization. Resource reads have a one-second deadline including pool waits, return no identities or payloads, and never load the Ledger or mutate jobs. Concurrent scrapes own separate resource snapshots; queue gauges repeat across targets sharing a database and must not be summed across those targets. Process labels use fixed operations, outcomes and code-owned route templates, never tenant identifiers, URLs, credentials or evidence. JSON and tenant-only text values retain their existing shapes. Responses use Cache-Control: no-store; an unavailable process snapshot returns retryable 503 without partial metric output or raw errors. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = specs.Response{
 			Description:  "Tenant metrics envelope or Prometheus text metrics.",
 			ContentTypes: []string{"application/json", "text/plain"},

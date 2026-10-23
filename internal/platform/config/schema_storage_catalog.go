@@ -1,0 +1,67 @@
+package config
+
+var storageDefinitions = []Definition{
+	{
+		Name:        "EVYDENCE_OBJECT_DIR",
+		Kind:        Path,
+		MaxBytes:    4096,
+		Roles:       runtimeRoles,
+		Default:     DefaultObjectDirectory,
+		Description: "Local raw payload storage root.",
+	},
+	{
+		Name:              "EVYDENCE_OBJECT_STORE",
+		ProductionExample: "s3",
+		Kind:              Choice,
+		Roles:             runtimeRoles,
+		Default:           DefaultObjectStoreBackend,
+		Allowed:           []string{"file", "filesystem", "s3", "minio"},
+		Description:       "Supported values are `filesystem`, `s3`, and `minio`.",
+	},
+	{
+		Name:               "EVYDENCE_S3_ACCESS_KEY_ID",
+		FileOption:         "EVYDENCE_S3_ACCESS_KEY_ID_FILE",
+		FileActivation:     SecretFileObjectStore,
+		PreserveWhitespace: true,
+		Kind:               Text,
+		Roles:              runtimeRoles,
+		Secret:             true,
+		Description:        "Store outside source control.",
+	},
+	{
+		Name:        "EVYDENCE_S3_BUCKET",
+		Kind:        S3BucketName,
+		Roles:       runtimeRoles,
+		Description: "Bucket must already exist. Names use the pinned MinIO SDK's basic S3 bucket grammar after trimming, including its 3 through 63 byte bound.",
+	},
+	{
+		Name:        "EVYDENCE_S3_ENDPOINT",
+		Kind:        URL,
+		Roles:       runtimeRoles,
+		Description: "Endpoint for S3-compatible object storage.",
+	},
+	{
+		Name:        "EVYDENCE_S3_REGION",
+		Kind:        Text,
+		Roles:       runtimeRoles,
+		Description: "Optional S3 region.",
+	},
+	{
+		Name:               "EVYDENCE_S3_SECRET_ACCESS_KEY",
+		FileOption:         "EVYDENCE_S3_SECRET_ACCESS_KEY_FILE",
+		FileActivation:     SecretFileObjectStore,
+		PreserveWhitespace: true,
+		Kind:               Text,
+		Roles:              runtimeRoles,
+		Secret:             true,
+		Description:        "Store outside source control and logs.",
+	},
+	{
+		Name:              "EVYDENCE_S3_USE_SSL",
+		ProductionExample: "true",
+		Kind:              Boolean,
+		Roles:             runtimeRoles,
+		Default:           "false",
+		Description:       "Use TLS for remote object storage.",
+	},
+}

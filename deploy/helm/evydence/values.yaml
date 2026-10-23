@@ -5,7 +5,22 @@ image:
   tag: ""
   pullPolicy: IfNotPresent
 
+# Shared resource cleanup budget after request/job drain.
+cleanupTimeoutSeconds: 5
+
 api:
+  # Optional daemon-specific runtime Secret; otherwise use existingSecret.
+  existingSecret: ""
+  # env preserves inline Secret variables; files projects private credentials.
+  # files requires an explicit positive podSecurityContext.fsGroup.
+  secretSource: env
+  # Optional separate Secret for provider/native settings, before chart config.
+  environmentSecret: ""
+  # Additional file-option -> selected Secret key mappings. Database and API
+  # pepper files use env.databaseURLSecretKey / env.apiKeyPepperSecretKey.
+  secretFiles:
+    EVYDENCE_S3_ACCESS_KEY_ID_FILE: EVYDENCE_S3_ACCESS_KEY_ID
+    EVYDENCE_S3_SECRET_ACCESS_KEY_FILE: EVYDENCE_S3_SECRET_ACCESS_KEY
   # Keep API replicas at 1 for the current production profile. Production API
   # startup also takes a PostgreSQL advisory writer lease and a second writer
   # fails closed until multi-writer concurrency controls are implemented and
@@ -18,6 +33,8 @@ api:
   writeTimeoutSeconds: 60
   idleTimeoutSeconds: 120
   shutdownTimeoutSeconds: 30
+  # At least shutdownTimeoutSeconds + cleanupTimeoutSeconds + 5.
+  terminationGracePeriodSeconds: 40
   maxHeaderBytes: 16384
   maxURLBytes: 8192
   maxInFlightRequests: 256
@@ -36,8 +53,18 @@ api:
       memory: 512Mi
 
 worker:
+  existingSecret: ""
+  secretSource: env
+  environmentSecret: ""
+  secretFiles:
+    EVYDENCE_S3_ACCESS_KEY_ID_FILE: EVYDENCE_S3_ACCESS_KEY_ID
+    EVYDENCE_S3_SECRET_ACCESS_KEY_FILE: EVYDENCE_S3_SECRET_ACCESS_KEY
+  # Bound to 127.0.0.1 inside the pod; exec probes query this listener.
+  healthPort: 8081
   replicas: 1
   pollInterval: 1s
+  shutdownTimeoutSeconds: 30
+  terminationGracePeriodSeconds: 40
   resources:
     requests:
       cpu: 100m
@@ -46,12 +73,17 @@ worker:
       memory: 512Mi
   probes:
     enabled: true
+    startupCommand:
+      - evydence-worker
+      - healthcheck
+      - --startup
     readinessCommand:
       - evydence-worker
       - healthcheck
     livenessCommand:
       - evydence-worker
       - healthcheck
+      - --liveness
 
 env:
   production: true

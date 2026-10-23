@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -92,19 +89,6 @@ func (o *OwnedResources) CloseWithin(ctx context.Context) error {
 		}
 		return ctx.Err()
 	}
-}
-
-func CleanupTimeoutFromEnv() (time.Duration, error) {
-	const name = "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS"
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return DefaultCleanupTimeout, nil
-	}
-	seconds, err := strconv.Atoi(value)
-	if err != nil || seconds < 1 || seconds > 60 {
-		return 0, fmt.Errorf("%s must be an integer between 1 and 60", name)
-	}
-	return time.Duration(seconds) * time.Second, nil
 }
 
 func (o *OwnedResources) run(ctx context.Context) {

@@ -24,6 +24,17 @@ def operation(**overrides: object) -> dict:
 
 
 class APIInventoryTests(unittest.TestCase):
+    def test_startup_is_public_platform_health_without_exempting_similar_paths(self) -> None:
+        startup = operation(operationId="startup", security=[], **{"x-scopes": [], "x-evydence-stability": "supported"})
+        spec = {"paths": {"/v1/startup": {"get": startup}}}
+        self.assertEqual(api_inventory.validate_spec(spec), [])
+        entry = api_inventory.inventory_from_spec(spec)["operations"][0]
+        self.assertEqual(entry["owner"], "platform-operations")
+        self.assertEqual(entry["auth"], "public")
+        for path in ("/v1/startup-extra", "/v1/startup/private"):
+            failures = api_inventory.validate_spec({"paths": {path: {"get": startup}}})
+            self.assertTrue(any("auth/scopes contract" in failure for failure in failures))
+
     def test_saml_state_is_public_without_exempting_other_sso_routes(self) -> None:
         public = operation(operationId="beginSAMLAuthentication", security=[], **{"x-scopes": []})
         spec = {"paths": {"/v1/sso/saml-authentication-requests": {"post": public}}}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/aatuh/evydence/internal/platform/config"
 )
 
 func TestOpenObjectStoreSelectsFilesystemAndRejectsUnknownBackend(t *testing.T) {
@@ -29,12 +31,20 @@ func TestOpenObjectStoreRejectsIncompleteS3WithoutLeakingCredentials(t *testing.
 	}
 }
 
-func TestObjectStoreConfigFromEnvMapsRuntimeSettings(t *testing.T) {
-	t.Setenv("EVYDENCE_OBJECT_STORE", "filesystem")
-	t.Setenv("EVYDENCE_OBJECT_DIR", t.TempDir())
-	t.Setenv("EVYDENCE_S3_USE_SSL", "true")
-	config := ObjectStoreConfigFromEnv()
-	if config.Backend != "filesystem" || config.Directory == "" || !config.UseSSL {
-		t.Fatalf("object-store runtime mapping = %#v", config)
+func TestObjectStoreConfigFromSettingsMapsCapturedValues(t *testing.T) {
+	root := t.TempDir()
+	environment, err := config.Capture([]string{"EVYDENCE_RUNTIME_PROFILE=postgres", "EVYDENCE_DATABASE_URL=host=fixture", "EVYDENCE_OBJECT_STORE=s3", "EVYDENCE_OBJECT_DIR=" + root, "EVYDENCE_S3_USE_SSL=true", "EVYDENCE_S3_ENDPOINT=storage.example.test:9000", "EVYDENCE_S3_BUCKET=evidence", "EVYDENCE_S3_REGION=eu-west-1", "EVYDENCE_S3_ACCESS_KEY_ID=PRIVATE_ID", "EVYDENCE_S3_SECRET_ACCESS_KEY=PRIVATE_SECRET"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, err := config.Parse(environment, config.Worker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("EVYDENCE_OBJECT_STORE", "PRIVATE_CHANGED")
+	t.Setenv("EVYDENCE_S3_SECRET_ACCESS_KEY", "PRIVATE_CHANGED")
+	got := ObjectStoreConfigFromSettings(settings.Storage())
+	if got.Backend != "s3" || got.Directory != root || !got.UseSSL || got.Endpoint != "storage.example.test:9000" || got.Bucket != "evidence" || got.Region != "eu-west-1" || got.AccessKeyID != "PRIVATE_ID" || got.SecretAccessKey != "PRIVATE_SECRET" {
+		t.Fatal("typed object-store mapping changed or reread input; values withheld")
 	}
 }

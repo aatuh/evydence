@@ -39,14 +39,18 @@ type Config struct {
 	Timeout     time.Duration
 	Client      *http.Client
 	TokenSource oauth2.TokenSource
+	// ReadinessToken must honor its context. Contextless legacy TokenSource
+	// implementations are used only by signing, never by a health probe.
+	ReadinessToken func(context.Context) (*oauth2.Token, error)
 }
 
 type Executor struct {
-	endpoint    string
-	tokenSource oauth2.TokenSource
-	keyName     string
-	client      *http.Client
-	closed      sync.Once
+	endpoint       string
+	tokenSource    oauth2.TokenSource
+	readinessToken func(context.Context) (*oauth2.Token, error)
+	keyName        string
+	client         *http.Client
+	closed         sync.Once
 }
 
 func (e *Executor) Close() error {
@@ -80,14 +84,24 @@ type publicKeyResponse struct {
 }
 
 func New(ctx context.Context, cfg Config) (*Executor, error) {
+	var credentialJSON []byte
+	detectedCredentials := cfg.TokenSource == nil
 	if cfg.TokenSource == nil {
 		credentials, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
 		if err != nil {
 			return nil, errors.New("load GCP application default credentials")
 		}
 		cfg.TokenSource = credentials.TokenSource
+		credentialJSON = credentials.JSON
 	}
-	return NewWithTokenSource(cfg)
+	executor, err := NewWithTokenSource(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if detectedCredentials && executor.readinessToken == nil {
+		executor.readinessToken = newReadinessTokenSource(credentialJSON, executor.client)
+	}
+	return executor, nil
 }
 
 func NewWithTokenSource(cfg Config) (*Executor, error) {
@@ -110,10 +124,11 @@ func NewWithTokenSource(cfg Config) (*Executor, error) {
 	client.Timeout = timeout
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return errors.New("GCP KMS redirects are not permitted") }
 	return &Executor{
-		endpoint:    endpoint,
-		tokenSource: cfg.TokenSource,
-		keyName:     strings.TrimSpace(cfg.KeyName),
-		client:      client,
+		endpoint:       endpoint,
+		tokenSource:    cfg.TokenSource,
+		readinessToken: cfg.ReadinessToken,
+		keyName:        strings.TrimSpace(cfg.KeyName),
+		client:         client,
 	}, nil
 }
 

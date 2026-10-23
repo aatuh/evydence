@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +11,8 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
+	runtimeconfig "github.com/aatuh/evydence/internal/platform/config"
+	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/redaction"
 )
 
@@ -37,17 +38,20 @@ type RuntimeConfig struct {
 	Production         bool
 	WorkerOwnedParsers bool
 	DatabaseURL        string
-	LoadMode           string
-	MigrationsDir      string
-	SkipMigrations     bool
-	ObjectStore        ObjectStoreConfig
-	Cosign             app.CosignPolicyVerifier
-	OIDC               app.OIDCDiscoveryClient
-	ProviderAPI        app.ProviderIdentityValidator
-	SigningExecutor    app.SigningExecutor
-	TransparencyProofs app.TransparencyProofFetcher
-	SessionPolicy      identitydomain.SessionPolicy
-	CleanupTimeout     time.Duration
+	// DatabaseConfiguration is resolved before provider/resource construction by
+	// adopted commands. Unadopted callers still enter the explicit adapter owner.
+	DatabaseConfiguration postgres.PreparedPoolConfig
+	LoadMode              string
+	MigrationsDir         string
+	SkipMigrations        bool
+	ObjectStore           ObjectStoreConfig
+	Cosign                app.CosignPolicyVerifier
+	OIDC                  app.OIDCDiscoveryClient
+	ProviderAPI           app.ProviderIdentityValidator
+	SigningExecutor       app.SigningExecutor
+	TransparencyProofs    app.TransparencyProofFetcher
+	SessionPolicy         identitydomain.SessionPolicy
+	CleanupTimeout        time.Duration
 	// CloseOwnedProviders explicitly transfers cleanup of process-created clients.
 	// Ordinary provider ports above remain borrowed when this callback is nil.
 	CloseOwnedProviders func(context.Context) error
@@ -56,6 +60,7 @@ type RuntimeConfig struct {
 // Runtime owns the shared API/worker infrastructure lifetime. The API's
 // focused native services and the worker's job processor compose on these ports.
 type Runtime struct {
+	logContext         context.Context
 	Process            Process
 	Profile            Profile
 	Production         bool
@@ -76,7 +81,7 @@ type Runtime struct {
 	cleanupTimeout     time.Duration
 }
 
-const DefaultCleanupTimeout = 5 * time.Second
+const DefaultCleanupTimeout = runtimeconfig.DefaultCleanupTimeout
 
 func (r *Runtime) Close() {
 	timeout := DefaultCleanupTimeout
@@ -84,7 +89,7 @@ func (r *Runtime) Close() {
 		timeout = r.cleanupTimeout
 	}
 	if err := r.CloseContext(context.Background(), timeout); err != nil {
-		log.Print("runtime cleanup failed; process exit required")
+		logging.Emit(r.logContext, logging.Cleanup, logging.Fields{Result: logging.Failed})
 	}
 }
 
@@ -130,7 +135,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if cleanupTimeout == 0 {
 		cleanupTimeout = DefaultCleanupTimeout
 	}
-	if cleanupTimeout < time.Second || cleanupTimeout > time.Minute {
+	if cleanupTimeout < runtimeconfig.MinCleanupTimeout || cleanupTimeout > runtimeconfig.MaxCleanupTimeout {
 		return nil, errors.New("runtime cleanup timeout must be between one and sixty seconds")
 	}
 	sessionPolicy, ok := config.SessionPolicy.Normalized()
@@ -154,11 +159,21 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if backend != "" && backend != "file" && backend != "filesystem" && backend != "s3" && backend != "minio" {
 		return nil, errors.New("unsupported EVYDENCE_OBJECT_STORE")
 	}
-	store, err := postgres.OpenWithOptions(ctx, config.DatabaseURL, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: config.Production})
+	prepared := config.DatabaseConfiguration
+	if prepared.IsPrepared() && !prepared.Matches(config.DatabaseURL) {
+		return nil, postgres.ErrInvalidConfiguration
+	}
+	if !prepared.IsPrepared() {
+		prepared, err = postgres.PreparePoolConfig(ctx, config.DatabaseURL)
+		if err != nil {
+			return nil, runtimeAdapterError("open PostgreSQL runtime", err)
+		}
+	}
+	store, err := postgres.OpenPrepared(ctx, prepared, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: config.Production})
 	if err != nil {
 		return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 	}
-	runtime := &Runtime{Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs, SessionPolicy: sessionPolicy}
+	runtime := &Runtime{logContext: ctx, Process: config.Process, Profile: profile, Production: config.Production, WorkerOwnedParsers: config.WorkerOwnedParsers, Postgres: store, Cosign: config.Cosign, OIDC: config.OIDC, ProviderAPI: config.ProviderAPI, SigningExecutor: config.SigningExecutor, TransparencyProofs: config.TransparencyProofs, SessionPolicy: sessionPolicy}
 	runtime.closeProviders = config.CloseOwnedProviders
 	runtime.cleanupTimeout = cleanupTimeout
 	defer func() {

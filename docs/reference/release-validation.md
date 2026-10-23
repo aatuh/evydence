@@ -4,17 +4,47 @@ This reference describes the project-owned release validation profile. It is evi
 
 ## Build toolchain
 
-Source builds require Go 1.26.9 or a later patched toolchain. Project-owned Make
-targets default to `GOTOOLCHAIN=go1.26.9`, matching `go.mod`, CI's
-`go-version-file`, and the digest-pinned Alpine 3.23 Docker builder. An explicit
-`GOTOOLCHAIN` override is allowed; its owner must verify that version against the
-current vulnerability database. A newer minor version can still be unpatched.
-Go 1.26.9 addresses the October 8, 2026 standard-library security release;
-see the [official release history](https://go.dev/doc/devel/release).
-The source dependency graph also selects `golang.org/x/net` v0.60.0 for the
-corresponding HTTP/2 fixes in integration-adapter transports. `make vuln` scans
-the whole project; a scan of core packages alone does not cover those adapters.
-This changes source-build prerequisites, not existing published release assets.
+The [reproducible payload reference](reproducible-builds.md) owns the shared
+unsigned recipe, fixed source-time build identity, archive normalization,
+local/independent-runner evidence and comparison gate before candidate signing.
+
+The [toolchain/platform policy](toolchain-platform-support.md) owns exact minimum
+and current Go selections, pinned QA tools, source-only SDK delivery and platform
+targets. Make and the Docker builder select its current compiler; CI also tests
+the minimum explicitly. Toolchain updates must pass the declared gates before
+support-matrix completion. Historical published assets retain their original
+source/compiler commitments.
+
+`make vuln` scans the whole project; a scan of core packages alone does not
+cover integration adapters. Keep standard-library and module fixes in the same
+reviewed dependency graph rather than assuming a newer minor version is patched.
+
+`make deploy-check`, also included in `make finalize` and `make production-check`,
+requires Docker Compose, Python 3 with PyYAML, and Helm. CI installs Helm v4.3.0
+with a pinned archive SHA-256. Use the [official binary installation guide](https://helm.sh/docs/intro/install/)
+to install the CLI and verify its release signature/checksum. Put it on `PATH`
+or set `HELM_BIN` to the executable path. These checks render the local chart
+and resolve synthetic Compose configuration; they do not start containers or
+contact a cluster. Missing tools fail the gate rather than skip deployment proof.
+
+## Deployment runtime configuration
+
+`make deployment-config-check` runs the `deployment`-tagged startup tests and is
+required by `make deploy-check`. Normal unit tests do not acquire these external
+tool dependencies. The matrix renders fresh chart/Compose configuration with
+fake operator Secrets, applies the rendered environment and named projections,
+and exercises API, worker, worker-operator, migration and online CLI startup.
+Worker probes and a CLI import also execute their command dispatch against owned
+loopback HTTP fixtures. Migration rejection counts connections to an owned
+non-PostgreSQL endpoint, which cannot execute database work.
+
+Private projections use contained `..data` links and exact private file modes in
+test-owned directories. Cases cover production rejection, source conflicts,
+malformed loaded values, unsafe file permissions, snapshot stability and fixed
+diagnostics. The migration file case renders an operator Compose override; the
+base stack does not ship that file profile. These tests do not start containers,
+connect to provider services, prove a live cluster's projection ownership or
+replace the existing live PostgreSQL/release-binary gates.
 
 ## Live test package watchdogs
 
@@ -40,6 +70,13 @@ that older server. See [PostgreSQL's dump compatibility notes](https://www.postg
 Never suppress restore errors or edit the dump to make a recovery test pass.
 
 ## Default Local Profile
+
+Publisher identity and provider custody are checked separately by
+`make release-signing-check`; its offline regression subset is
+`make release-signing-policy-test`. The required environment and credential
+locations, exact identity constraints and current rollout limits belong to
+[release signing](../release-signing.md). A missing live protection is a failed
+identity gate, even when ordinary local release acceptance passes.
 
 Run the default release gate from the repository root:
 
@@ -88,6 +125,23 @@ black-box flow against release-style local binaries through
 `make black-box-release-artifact-check`, and runs a release artifact signing
 smoke test. See [Production readiness](production-readiness.md) for the
 supported profiles and exit criteria.
+
+The release-artifact gate also runs the four `releasebinary` lifecycle tests in
+`internal/platform/lifecyclecheck`. They send real SIGTERM to the built API and
+worker while native operations are blocked on owned PostgreSQL row locks. API
+tests verify graceful completion or forced rollback, restart/idempotent replay,
+one project/audit/receipt, and writer exclusion during drain. Worker tests verify
+graceful completion or an unacknowledged claim, replacement lease fencing and an
+idempotent native payload retry. The forced-worker fixture advances only its
+isolated claim's expiry timestamp; it does not wait five minutes or change the
+production lease duration.
+
+`tmp/black-box-release-artifact/lifecycle/summary.json` requires all four Go test
+passes plus durable case receipts and binds the API/worker hashes to the release
+directory. Missing, skipped, failed, duplicate or malformed evidence fails the
+gate. Existing artifact directories are preserved by the lifecycle helper.
+These are local release-style binaries with disposable PostgreSQL/filesystem
+storage; they do not establish published-release or live-provider behavior.
 
 `make coverage-check` is intentionally part of the production profile and fails
 early when `EVYDENCE_TEST_DATABASE_URL` is unset. Use `make coverage` for a
@@ -187,20 +241,40 @@ auditor/regulator acceptance.
 The local packaging gate is:
 
 ```sh
-set -a; . ./.test.env; set +a
-export EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64="$(cat evydence-release-private.key)"
 make release-candidate-check TAG=<vX.Y.Z-rc.N>
 ```
+
+Prepare the database, scoped signing setting and pinned scanner using the
+[canonical candidate commands](release-candidate.md#required-commands).
 
 `scripts/release_candidate_package.sh` creates `dist/<tag>/` with the
 release archives, `SHA256SUMS`, `openapi.sha256`, `migrations.sha256`,
 `release-build-manifest.json`,
-release SBOM metadata, release provenance metadata, `coverage.out`,
+per-binary/archive SBOMs, their evidence index, SLSA-style provenance, `coverage.out`,
 `release-check-summary.txt`, checked release notes, signed release manifest,
 and manifest signature. It refuses dirty worktrees, invalid release-candidate
-tags, missing live PostgreSQL configuration, missing signing material, and
+tags, missing live PostgreSQL configuration, missing signing material or a
+verified `EVYDENCE_RELEASE_SYFT` installation, missing or contradictory committed
+candidate notes, and
 existing local tags unless a CI tag build explicitly sets
 `EVYDENCE_RELEASE_ALLOW_EXISTING_TAG=1`.
+
+The [release history reference](release-history.md#candidate-notes-and-local-tagging)
+owns fragment preparation, generated notes, local tagging preflight and its
+limits. `make changelog-check` validates the real source inventories as well as
+the generator and delivery checks; packaging never falls back to a static
+template for missing notes. Packaged notes must match the committed source
+projection before candidate verification, attestation or draft publication.
+
+Normal packaging consumes the signing-key aliases, scanner setting and existing-tag override into
+shell-local values before invoking Git, Go or Make. Those release-only exports
+are cleared from validation and runtime child environments; production commands
+retain their strict rejection of unknown `EVYDENCE_*` options. Key validation
+and signing receive the signing material explicitly.
+
+The [release supply-chain profile](release-supply-chain.md) owns scanner
+versions, subject names, schema limits and coverage exclusions. Metadata is
+checked against all eight binary and five archive digests before signing.
 
 For a lightweight local smoke check that does not require a clean worktree,
 live PostgreSQL, release signing credentials, or GitHub Releases, run:
@@ -286,10 +360,20 @@ same release-candidate package script used locally. The package job has
 read-only `GITHUB_TOKEN` permissions and the release signing secret only; the
 separate draft-release publication job downloads the packaged evidence artifact
 and uses `EVYDENCE_RELEASE_PUBLISH_TOKEN` only when publishing is explicitly
-enabled or a release tag is pushed. It packages self-contained release archives
-for the CLI, API, worker, and migration commands on Linux, macOS, and Windows
-targets. The script runs `make production-check` against disposable PostgreSQL
-before building artifacts.
+enabled or a release tag is pushed. It packages the commands and targets declared
+in the [toolchain and platform policy](toolchain-platform-support.md#release-build-plan).
+Only the Linux amd64 archive includes the API, worker and migration commands;
+the other declared targets contain the CLI. The script runs
+`make production-check` against disposable PostgreSQL before building artifacts.
+The publication job verifies the downloaded subjects again, requires the Git
+tag to identify the packaged source commit and refuses to overwrite existing
+assets. A rebuild needs a new release-candidate tag rather than asset clobbering.
+
+Normal local packaging requires `tar`, `zip` and `sha256sum` on `PATH`, alongside
+the existing Bash, Python, Git, Make and current Go prerequisites. It checks the
+archive tools before validation or artifact replacement. The read-only `--plan`
+command requires no archive tools. Prepare the separately pinned SBOM scanner
+as shown in the [candidate commands](release-candidate.md#required-commands).
 
 The workflow requires this repository secret:
 
@@ -320,6 +404,8 @@ minimum release-publication scope needed for the repository. Maintainers publish
 a draft as a prerelease only after the workflow artifact and release assets are
 verified. Manual runs can upload only the workflow artifact unless
 `upload_draft_release` is enabled.
+Publication also requires an existing source-matching Git tag. A manual run
+can retain packaged CI evidence while tag creation and publication remain pending.
 
 The container image workflow similarly keeps `GITHUB_TOKEN` from receiving
 package-write permissions. GHCR publication requires
@@ -327,6 +413,8 @@ package-write permissions. GHCR publication requires
 through `id-token: write`, but that permission is scoped to the image-signing
 job rather than the build/push job. These secrets are repository settings, not
 release evidence artifacts, and must not be logged or committed.
+The image workflow stages blobs by digest, creates the requested tag after
+SBOM/provenance verification and rechecks the subject in the signing job.
 
 The canonical artifact map is
 [Release evidence index](release-evidence-index.md). Keep that page aligned

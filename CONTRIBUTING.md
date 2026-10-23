@@ -31,6 +31,9 @@ starter contributions are:
 - small docs updates that remove overstated compliance, certification,
   complete-SBOM, scanner-authority, or secure-release language.
 
+Set up the [build and validation tools](docs/reference/release-validation.md#build-toolchain),
+including Helm, Docker Compose and Python/PyYAML for deployment rendering.
+
 Before opening a first pull request:
 
 1. Open or reference an issue for anything larger than a typo or broken link.

@@ -26,6 +26,7 @@ import (
 	identityquery "github.com/aatuh/evydence/internal/identity/query"
 	packageapp "github.com/aatuh/evydence/internal/package/app"
 	"github.com/aatuh/evydence/internal/platform/jsonbounds"
+	"github.com/aatuh/evydence/internal/platform/logging"
 	releasequery "github.com/aatuh/evydence/internal/release/query"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 	riskquery "github.com/aatuh/evydence/internal/risk/query"
@@ -36,6 +37,9 @@ import (
 const requestIDHeader = "X-Request-ID"
 
 type Server struct {
+	logger                            *logging.Logger
+	operationalMetrics                OperationalMetrics
+	logOperations                     map[string]string
 	authn                             Authenticator
 	apiKeyCommands                    APIKeyCommands
 	membershipCommands                MembershipCommands
@@ -193,6 +197,11 @@ type Server struct {
 }
 
 type ServerOptions struct {
+	// Logger emits fixed-schema diagnostics; nil disables operational logging for embedded callers.
+	Logger *logging.Logger
+	// OperationalMetrics records bounded process observations. Nil disables it
+	// for embedded callers; scrapes require explicit instance authority.
+	OperationalMetrics OperationalMetrics
 	// RateLimitRequestsPerMinute bounds unauthenticated and authenticated edge
 	// traffic by client address. Forwarded addresses are used only when the
 	// direct remote address belongs to TrustedProxyCIDRs.
@@ -673,8 +682,9 @@ func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Serv
 	if err != nil {
 		return nil, err
 	}
-	server := &Server{mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, metricsQuery: opts.MetricsQuery, retentionQuery: opts.RetentionQuery, incidentReportQuery: opts.IncidentReportQuery, securityUpdateEvidenceQuery: opts.SecurityUpdateEvidenceQuery, craVulnerabilityQuery: opts.CRAVulnerabilityQuery, controlCoverageQuery: opts.ControlCoverageQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, outboxReplayCommand: opts.OutboxReplayCommand, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
+	server := &Server{logger: opts.Logger, mux: mux, specs: specRegistry, routes: routeRegistry, ingress: ingress, identity: identity, cursors: cursors, readinessQuery: opts.ReadinessQuery, metricsQuery: opts.MetricsQuery, retentionQuery: opts.RetentionQuery, incidentReportQuery: opts.IncidentReportQuery, securityUpdateEvidenceQuery: opts.SecurityUpdateEvidenceQuery, craVulnerabilityQuery: opts.CRAVulnerabilityQuery, controlCoverageQuery: opts.ControlCoverageQuery, instanceAdminQuery: opts.InstanceAdminQuery, outboxDiagnosticsQuery: opts.OutboxDiagnosticsQuery, outboxReplayCommand: opts.OutboxReplayCommand, productQuery: opts.ProductQuery, catalogPointQuery: opts.CatalogPointQuery, evidenceFlowQuery: opts.EvidenceFlowQuery, buildPointQuery: opts.BuildPointQuery, artifactPointQuery: opts.ArtifactPointQuery, releaseCandidateQuery: opts.ReleaseCandidateQuery, deploymentPointQuery: opts.DeploymentPointQuery, deploymentListQuery: opts.DeploymentListQuery, evidencePointQuery: opts.EvidencePointQuery, lifecycleEventsQuery: opts.LifecycleEventsQuery, openAPIContractPointQuery: opts.OpenAPIContractPointQuery, sbomPointQuery: opts.SBOMPointQuery, vulnerabilityScanPointQuery: opts.VulnerabilityScanPointQuery, vexPointQuery: opts.VEXPointQuery, sbomComponentsQuery: opts.SBOMComponentsQuery, sourceRepositoryQuery: opts.SourceRepositoryQuery, collectorQuery: opts.CollectorQuery, collectorHealthQuery: opts.CollectorHealthQuery, commercialCollectorQuery: opts.CommercialCollectorQuery, marketplaceCollectorQuery: opts.MarketplaceCollectorQuery, vulnerabilityPostureQuery: opts.VulnerabilityPostureQuery, controlsQuery: opts.ControlsQuery, controlTemplateQuery: opts.ControlTemplateQuery, exceptionsQuery: opts.ExceptionsQuery, vulnerabilityDecisionQuery: opts.VulnerabilityDecisionQuery, controlEvidenceQuery: opts.ControlEvidenceQuery, artifactSignatureQuery: opts.ArtifactSignatureQuery, signingKeyQuery: opts.SigningKeyQuery, releaseBundleQuery: opts.ReleaseBundleQuery, answerLibraryQuery: opts.AnswerLibraryQuery, portalAccessQuery: opts.PortalAccessQuery, auditLogQuery: opts.AuditLogQuery, apiKeyQuery: opts.APIKeyQuery, roleBindingQuery: opts.RoleBindingQuery}
 	server.vulnerabilityDecisionSummaryQuery = opts.VulnerabilityDecisionSummaryQuery
+	server.operationalMetrics = opts.OperationalMetrics
 	server.evidencePageQuery = opts.EvidencePageQuery
 	server.missingEvidenceQuery = opts.MissingEvidenceQuery
 	server.releaseReadinessReportQuery = opts.ReleaseReadinessReportQuery
@@ -787,7 +797,7 @@ func newServerWithOptionsContext(ctx context.Context, opts ServerOptions) (*Serv
 }
 
 func (s *Server) Handler() http.Handler {
-	return secureHeaders(requestIDMiddleware(s.inFlightMiddleware(s.ingressValidationMiddleware(s.rateLimitMiddleware(s.uploadConcurrencyMiddleware(s.conditionalReadMiddleware(s.mux)))))))
+	return secureHeaders(requestIDMiddleware(s.observeRequest(s.inFlightMiddleware(s.ingressValidationMiddleware(s.rateLimitMiddleware(s.uploadConcurrencyMiddleware(s.conditionalReadMiddleware(s.mux))))))))
 }
 
 func (s *Server) OpenAPI() ([]byte, error) {
@@ -2196,6 +2206,9 @@ func writeArchive(w http.ResponseWriter, archive packageapp.CustomerPackageArchi
 
 func writeProblem(w http.ResponseWriter, r *http.Request, err error) {
 	details := app.DescribeProblem(err)
+	if r != nil {
+		recordLogRetry(r.Context(), details.Retryable)
+	}
 	status := details.Status
 	requestID := requestIDFromRequest(r)
 	w.Header().Set(requestIDHeader, requestID)
@@ -2236,6 +2249,7 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 		}
 		r.Header.Set(requestIDHeader, requestID)
 		w.Header().Set(requestIDHeader, requestID)
+		r = r.WithContext(logging.WithRequest(r.Context(), requestID))
 		next.ServeHTTP(w, r)
 	})
 }
@@ -2382,7 +2396,7 @@ func stabilityForOperation(operationID string) string {
 		"verifyReleaseBundle", "createCustomerPackage", "getCustomerPackage",
 		"downloadCustomerPackage", "verify":
 		return "core"
-	case "health", "ready", "version", "openapi", "metrics",
+	case "health", "startup", "ready", "version", "openapi", "metrics",
 		"createAPIKey", "listAPIKeys", "exchangeSSOCredential", "beginOIDCAuthentication",
 		"logoutSSOSession", "createCustomerPortalAccess",
 		"accessCustomerPortalPackage", "downloadCustomerPortalPackage":

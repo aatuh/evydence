@@ -30,6 +30,10 @@
 /SECURITY.md @aatuh
 
 # Documentation that affects production positioning or public claims.
+/GOVERNANCE.md @aatuh
+/docs/reference/continuity-plan.md @aatuh
+/docs/reference/repository-controls.md @aatuh
+/release/signing-policy.json @aatuh
 /README.md @aatuh
 /docs/reference/production-readiness.md @aatuh
 /docs/reference/production-exit-review.md @aatuh

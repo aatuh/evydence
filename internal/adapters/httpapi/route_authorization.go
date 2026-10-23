@@ -279,7 +279,7 @@ func authorizationPolicyForOperation(id string) (routeAuthorizationPolicy, bool)
 		return actionRoutePolicy(authz.ActionSaaSProfilesManage), true
 	case "listAuditLog":
 		return actionRoutePolicy(authz.ActionAuditLogRead), true
-	case "health", "ready", "version", "openapi":
+	case "health", "startup", "ready", "version", "openapi":
 		return routeAuthorizationPolicy{Mode: "public-probe", TenantRule: "no-tenant-data"}, true
 	case "receiveIncidentWebhook":
 		return routeAuthorizationPolicy{Mode: "signed-webhook", Actions: []authz.Action{authz.ActionSignedIncidentWebhookRecord}, TenantRule: "verified-receiver-tenant"}, true

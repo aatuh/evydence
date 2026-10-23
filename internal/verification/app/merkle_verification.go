@@ -52,7 +52,7 @@ func NewMerkleVerificationCommands(config MerkleVerificationConfig) (*MerkleVeri
 	return &MerkleVerificationCommands{config}, nil
 }
 
-func (s *MerkleVerificationCommands) VerifyMerkleBatch(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
+func (s *MerkleVerificationCommands) verifyMerkleBatch(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}

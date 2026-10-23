@@ -112,7 +112,7 @@ func (c *CosignVerificationCommands) AuthorizeCosignVerification(ctx context.Con
 	})
 }
 
-func (c *CosignVerificationCommands) VerifyCosign(ctx context.Context, actor identitydomain.Actor, input VerifyCosignInput) (verificationdomain.CosignVerification, error) {
+func (c *CosignVerificationCommands) verifyCosign(ctx context.Context, actor identitydomain.Actor, input VerifyCosignInput) (verificationdomain.CosignVerification, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.CosignVerification{}, err
 	}

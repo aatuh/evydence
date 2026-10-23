@@ -74,7 +74,7 @@ func New(cfg Config) (*Validator, error) {
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil {
 		return nil, app.ErrValidation
 	}
-	if parsed.Scheme != "https" && (!cfg.AllowInsecureForLocalhost || parsed.Scheme != "http" || !localhostHost(parsed.Hostname())) {
+	if parsed.Scheme != "https" && httpclient.ValidateStaticEndpoint(parsed, cfg.AllowInsecureForLocalhost) != nil {
 		return nil, errors.New("provider validation gateway endpoint must use https")
 	}
 	timeout := cfg.Timeout
@@ -222,11 +222,4 @@ func safeLimitations(in []string) []string {
 		}
 	}
 	return out
-}
-
-func localhostHost(host string) bool {
-	if strings.EqualFold(host, "localhost") {
-		return true
-	}
-	return strings.HasPrefix(host, "127.") || host == "::1"
 }

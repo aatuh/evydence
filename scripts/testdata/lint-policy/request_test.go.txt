@@ -1,0 +1,22 @@
+package lintpolicy
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestRequestCookiesCarryOnlyNameValue(t *testing.T) {
+	plain := httptest.NewRequest("GET", "https://cookie.example.test/", nil)
+	plain.AddCookie(&http.Cookie{Name: "session", Value: "fixture"}) // G124_REQUEST_ONLY
+	profile := httptest.NewRequest("GET", "https://cookie.example.test/", nil)
+	profile.AddCookie(&http.Cookie{Name: "session", Value: "fixture", Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
+	if plain.Header.Get("Cookie") != "session=fixture" || profile.Header.Get("Cookie") != plain.Header.Get("Cookie") {
+		t.Fatal("response attributes changed request Cookie encoding")
+	}
+	response := httptest.NewRecorder()
+	http.SetCookie(response, &http.Cookie{Name: "session", Value: "fixture"}) // G124_TEST_RESPONSE
+	if len(response.Result().Cookies()) != 1 {
+		t.Fatal("missing response-cookie analyzer control")
+	}
+}

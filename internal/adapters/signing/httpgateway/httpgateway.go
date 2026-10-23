@@ -25,6 +25,7 @@ const defaultTimeout = 10 * time.Second
 
 type Config struct {
 	Endpoint                  string
+	ReadinessEndpoint         string
 	BearerToken               string
 	VerificationPublicKey     string
 	Timeout                   time.Duration
@@ -33,11 +34,12 @@ type Config struct {
 }
 
 type Executor struct {
-	endpoint    string
-	bearerToken string
-	publicKey   ed25519.PublicKey
-	client      *http.Client
-	closed      sync.Once
+	endpoint          string
+	readinessEndpoint string
+	bearerToken       string
+	publicKey         ed25519.PublicKey
+	client            *http.Client
+	closed            sync.Once
 }
 
 func (e *Executor) Close() error {
@@ -79,11 +81,15 @@ func New(cfg Config) (*Executor, error) {
 		return nil, app.ErrValidation
 	}
 	parsed, err := url.Parse(endpoint)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
 		return nil, app.ErrValidation
 	}
-	if parsed.Scheme != "https" && (!cfg.AllowInsecureForLocalhost || parsed.Scheme != "http" || !localhostHost(parsed.Hostname())) {
+	if parsed.Scheme != "https" && httpclient.ValidateStaticEndpoint(parsed, cfg.AllowInsecureForLocalhost) != nil {
 		return nil, errors.New("signing gateway endpoint must use https")
+	}
+	readinessEndpoint, err := validateReadinessEndpoint(cfg.ReadinessEndpoint, parsed)
+	if err != nil {
+		return nil, err
 	}
 	publicKey, err := base64.StdEncoding.DecodeString(strings.TrimSpace(cfg.VerificationPublicKey))
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
@@ -103,7 +109,7 @@ func New(cfg Config) (*Executor, error) {
 	if err != nil {
 		return nil, app.ErrValidation
 	}
-	return &Executor{endpoint: endpoint, bearerToken: strings.TrimSpace(cfg.BearerToken), publicKey: ed25519.PublicKey(publicKey), client: client}, nil
+	return &Executor{endpoint: endpoint, readinessEndpoint: readinessEndpoint, bearerToken: strings.TrimSpace(cfg.BearerToken), publicKey: ed25519.PublicKey(publicKey), client: client}, nil
 }
 
 func (e *Executor) Sign(ctx context.Context, request app.SigningRequest) (app.SigningResult, error) {
@@ -193,11 +199,4 @@ func safeProviderRequestID(value string) string {
 		return ""
 	}
 	return value
-}
-
-func localhostHost(host string) bool {
-	if host == "localhost" {
-		return true
-	}
-	return strings.HasPrefix(host, "127.") || host == "::1"
 }

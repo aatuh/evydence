@@ -3,14 +3,11 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
-	"log"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
+	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 )
 
 type workerQueue interface {
@@ -31,31 +28,18 @@ type workerLoopConfig struct {
 var errWorkerDrainTimeout = errors.New("worker shutdown deadline exceeded; unfinished claims await lease expiry")
 
 func closeWorkerAfterStop(err error, closeRuntime func()) {
-	// Pool.Close waits for checked-out connections. Once the job deadline has
-	// expired, it must not hold the daemon open behind a noncooperative call.
+	// Pool.Close waits for checked-out connections. Once a job or probe drain
+	// deadline has expired, it must not wait behind a noncooperative call.
 	// main exits nonzero; the OS closes connections and existing leases expire.
-	if !errors.Is(err, errWorkerDrainTimeout) {
+	if !errors.Is(err, errWorkerDrainTimeout) && !errors.Is(err, errWorkerProbeDrainTimeout) {
 		closeRuntime()
 	}
-}
-
-func workerShutdownTimeoutFromEnv() (time.Duration, error) {
-	const name = "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS"
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return 30 * time.Second, nil
-	}
-	seconds, err := strconv.Atoi(value)
-	if err != nil || seconds < 1 || seconds > 300 {
-		return 0, fmt.Errorf("%s must be an integer between 1 and 300", name)
-	}
-	return time.Duration(seconds) * time.Second, nil
 }
 
 // A signal is a successful stop; an unexpected root deadline is a failure.
 func workerStopError(ctx context.Context) error {
 	if errors.Is(ctx.Err(), context.Canceled) {
-		log.Print("worker drain completed; unstarted claims await lease expiry")
+		logging.Emit(ctx, logging.Drain, logging.Fields{Result: logging.Succeeded})
 		return nil
 	}
 	return ctx.Err()
@@ -70,9 +54,11 @@ func runWorkerLoop(ctx context.Context, store workerQueue, processor workerProce
 		if ctx.Err() != nil {
 			return workerStopError(ctx)
 		}
-		jobs, err := store.ClaimJobs(ctx, batchSize)
+		jobs, err := telemetry.Measure(ctx, telemetry.OperationWorkerClaim, func(claimCtx context.Context) ([]postgres.ClaimedJob, error) {
+			return store.ClaimJobs(claimCtx, batchSize)
+		})
 		if err != nil {
-			log.Printf("outbox claim failed")
+			logging.Emit(ctx, logging.Outbox, logging.Fields{OperationID: "claim_jobs", Result: logging.Failed, Retry: logging.Transient})
 			if err := waitWorkerPoll(ctx, pollInterval); err != nil {
 				return workerStopError(ctx)
 			}
@@ -89,7 +75,6 @@ func runWorkerLoop(ctx context.Context, store workerQueue, processor workerProce
 			if ctx.Err() != nil {
 				return workerStopError(ctx)
 			}
-			log.Printf("processing outbox job id=%s kind=%s subject_type=%s subject_id=%s attempt=%d", job.ID, job.Kind, job.SubjectType, job.SubjectID, job.Attempts)
 			if err := drainableWorkerJob(ctx, store, processor, job, config.ShutdownTimeout); err != nil {
 				return err
 			}
@@ -101,6 +86,13 @@ func runWorkerLoop(ctx context.Context, store workerQueue, processor workerProce
 // ignoring cancellation may outlive the deadline until process exit, but cannot
 // cause a late acknowledgement. Native storage/provider calls receive jobCtx.
 func drainableWorkerJob(root context.Context, store workerQueue, processor workerProcessor, job postgres.ClaimedJob, timeout time.Duration) error {
+	root = logging.WithCorrelation(root, job.Correlation)
+	started := time.Now()
+	fields := logging.Fields{TenantID: job.TenantID, ResourceID: job.SubjectID, JobID: job.ID, Attempt: job.Attempts, Result: logging.Started}
+	if logging.CorrelationFromContext(root).OperationID == "" {
+		fields.OperationID = job.Kind
+	}
+	logging.Emit(root, logging.Outbox, fields)
 	jobCtx, cancelJob := context.WithCancel(context.WithoutCancel(root))
 	defer cancelJob()
 	drain := &workerDrain{jobCtx: jobCtx, timeout: timeout}
@@ -109,8 +101,14 @@ func drainableWorkerJob(root context.Context, store workerQueue, processor worke
 			drain.cancel()
 		}
 	}()
-	err := drain.call(root, func(ctx context.Context) error { return processor.Process(ctx, job) })
+	err := measureWorkerPhase(root, jobCtx, telemetry.OperationWorkerProcess, job.Attempts, func() error {
+		return drain.call(root, func(ctx context.Context) error { return processor.Process(ctx, job) })
+	})
 	if errors.Is(err, errWorkerDrainTimeout) {
+		fields.Result = logging.Uncertain
+		fields.Retry = logging.Transient
+		fields.Duration = time.Since(started)
+		logging.Emit(jobCtx, logging.Outbox, fields)
 		return err
 	}
 	if err != nil && root.Err() != nil {
@@ -120,24 +118,53 @@ func drainableWorkerJob(root context.Context, store workerQueue, processor worke
 	}
 	if err != nil {
 		failure := classifyWorkerFailure(err)
-		log.Printf("outbox job failed id=%s kind=%s class=%s code=%s", job.ID, job.Kind, failure.Class, failure.Code)
-		err = drain.call(root, func(ctx context.Context) error {
-			if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
-				return store.DeferJob(ctx, job.ID, job.LeaseToken, failure)
-			}
-			return store.FailJob(ctx, job.ID, job.LeaseToken, failure)
+		fields.Duration = time.Since(started)
+		fields.Result = logging.Failed
+		switch failure.Class {
+		case postgres.JobFailureTransient:
+			fields.Retry = logging.Transient
+		case postgres.JobFailurePermanent:
+			fields.Retry = logging.Permanent
+		case postgres.JobFailurePoisoned:
+			fields.Retry = logging.Poisoned
+		}
+		logging.Emit(jobCtx, logging.Outbox, fields)
+		operation := telemetry.OperationWorkerFail
+		if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
+			operation = telemetry.OperationWorkerDefer
+		}
+		err = measureWorkerPhase(root, jobCtx, operation, job.Attempts, func() error {
+			return drain.call(root, func(ctx context.Context) error {
+				if failure.Class == postgres.JobFailureTransient && failure.Code == "dependency_pending" {
+					return store.DeferJob(ctx, job.ID, job.LeaseToken, failure)
+				}
+				return store.FailJob(ctx, job.ID, job.LeaseToken, failure)
+			})
 		})
 	} else {
-		err = drain.call(root, func(ctx context.Context) error { return store.CompleteJob(ctx, job.ID, job.LeaseToken) })
+		err = measureWorkerPhase(root, jobCtx, telemetry.OperationWorkerComplete, job.Attempts, func() error {
+			return drain.call(root, func(ctx context.Context) error { return store.CompleteJob(ctx, job.ID, job.LeaseToken) })
+		})
 	}
 	if errors.Is(err, errWorkerDrainTimeout) {
+		fields.Result = logging.Uncertain
+		fields.Retry = logging.Transient
+		fields.Duration = time.Since(started)
+		logging.Emit(jobCtx, logging.Outbox, fields)
 		return err
 	}
 	if err != nil {
-		log.Print("record outbox outcome failed; claim awaits lease expiry")
+		fields.Duration = time.Since(started)
+		fields.Result = logging.Uncertain
+		logging.Emit(jobCtx, logging.Outbox, fields)
 		if root.Err() != nil {
 			return errors.New("worker drain could not confirm job outcome")
 		}
+	}
+	if err == nil && fields.Result == logging.Started {
+		fields.Result = logging.Succeeded
+		fields.Duration = time.Since(started)
+		logging.Emit(jobCtx, logging.Outbox, fields)
 	}
 	return nil
 }
@@ -152,7 +179,7 @@ type workerDrain struct {
 func (d *workerDrain) begin(root context.Context) {
 	if d.ctx == nil {
 		d.ctx, d.cancel = context.WithTimeout(context.WithoutCancel(root), d.timeout) // #nosec G118 -- drainableWorkerJob defers d.cancel across both phases.
-		log.Print("worker drain started; new claims stopped")
+		logging.Emit(root, logging.Drain, logging.Fields{Result: logging.Started})
 	}
 }
 

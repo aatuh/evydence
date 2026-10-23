@@ -128,7 +128,7 @@ Symptom: package or public release verification fails.
 Verify the current public release-candidate package:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.7
+EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-rc.7
 ```
 
 Verify the checked local package fixture:

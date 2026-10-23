@@ -14,7 +14,7 @@ func TestParseReplayedSBOMUsesSharedCycloneDXProjection(t *testing.T) {
 		"services":[{"name":"gateway"}],
 		"properties":[{"name":"root","value":"preserved"}]
 	}`)
-	got, err := parseReplayedSBOM(raw)
+	got, err := parseReplayedSBOM(raw, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		t.Fatalf("conformant replay rejected: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestParseReplayedSBOMUsesSharedCycloneDXProjection(t *testing.T) {
 
 func TestParseReplayedSBOMRejectsUnsupportedCycloneDXVersion(t *testing.T) {
 	raw := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.5","components":[{"type":"library","name":"legacy"}]}`)
-	if _, err := parseReplayedSBOM(raw); err == nil {
+	if _, err := parseReplayedSBOM(raw, defaultMaxWorkerPayloadBytes); err == nil {
 		t.Fatal("unsupported CycloneDX version was accepted for replay")
 	}
 }

@@ -65,7 +65,7 @@ type PackageSignatureRepository interface {
 	InsertPackageSignature(context.Context, PackageSignature) error
 }
 
-func (s *ReleaseBundleCommands) CreateReleaseBundle(ctx context.Context, actor identitydomain.Actor, releaseID string) (packagedomain.ReleaseBundle, error) {
+func (s *ReleaseBundleCommands) createReleaseBundle(ctx context.Context, actor identitydomain.Actor, releaseID string) (packagedomain.ReleaseBundle, error) {
 	if err := contextError(ctx); err != nil {
 		return packagedomain.ReleaseBundle{}, err
 	}
@@ -120,7 +120,7 @@ func (s *ReleaseBundleCommands) CreateReleaseBundle(ctx context.Context, actor i
 	if strings.TrimSpace(manifestHash) == "" {
 		return packagedomain.ReleaseBundle{}, ErrValidation
 	}
-	signature, err := s.config.Signer.SignPackage(ctx, PackageSigningRequest{
+	signature, err := measurePackageSigning(ctx, s.config.Signer, PackageSigningRequest{
 		TenantID: actor.TenantID, SubjectType: "release_bundle", SubjectID: bundleID, PayloadHash: manifestHash, CreatedAt: now,
 	})
 	if err != nil {

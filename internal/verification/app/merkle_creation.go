@@ -71,7 +71,7 @@ func (s *MerkleCreationCommands) AuthorizeMerkleCreation(ctx context.Context, a 
 	}
 	return s.config.Transactions.ExecuteMerkleCreation(ctx, func(ctx context.Context, tx MerkleCreationTransaction) error { return tx.Authorize(ctx, a, r) })
 }
-func (s *MerkleCreationCommands) CreateMerkleBatch(ctx context.Context, a identitydomain.Actor, in CreateMerkleBatchInput) (verificationdomain.MerkleBatch, error) {
+func (s *MerkleCreationCommands) createMerkleBatch(ctx context.Context, a identitydomain.Actor, in CreateMerkleBatchInput) (verificationdomain.MerkleBatch, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.MerkleBatch{}, err
 	}

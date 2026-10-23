@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-release-signing-policy.v1",
+  "repository": "aatuh/evydence",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "ref": "refs/heads/master",
+  "environment": "release-production",
+  "reviewer": "aatuh",
+  "revoked_sources": [],
+  "workflows": {
+    "release": ".github/workflows/release-artifacts.yml",
+    "container": ".github/workflows/container-image.yml"
+  },
+  "legacy": [
+    {
+      "tag": "v0.1.0-rc.7",
+      "source_commit": "2f759100e723554e4e68e3ada712c923e391a17a",
+      "manifest_sha256": "d2d2dd20ba2cc7f318823d4909bce0a7c7375323c5ada5ac4720d71214220e90",
+      "public_key_sha256": "20516ed1dc90a6e97601f27a920282af6f2e348b1557121b031be94ed17d5166"
+    }
+  ]
+}

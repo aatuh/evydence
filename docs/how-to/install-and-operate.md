@@ -52,7 +52,7 @@ For the same verification from a clean temporary directory, use the checked
 helper:
 
 ```sh
-make public-release-verify TAG=v0.1.0-rc.7
+EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-rc.7
 ```
 
 Expected result: the helper downloads the public GitHub Release assets,
@@ -106,12 +106,45 @@ API writer replicas at one for the current supported profile. PostgreSQL is
 digest-pinned; the local MinIO fixtures use the pinned source/base-image build
 above. The rehearsal does not pull floating `latest` dependencies.
 
+The default `external` signing profile also requires an operator-provided HTTPS
+signing gateway and its trusted Ed25519 public key. This Compose file does not
+start a signer. Replace the endpoint and key placeholders below with real
+values for your controlled rehearsal; the API rejects missing or invalid
+settings before opening storage. See
+[signing executors](../reference/configuration.md#signing-executors) for the
+gateway request, readiness and trust contract. HTTP loopback signing overrides
+remain forbidden in production mode.
+
 ```sh
 export POSTGRES_PASSWORD='replace-with-long-random-password'
 export MINIO_ROOT_PASSWORD='replace-with-long-random-password'
 export EVYDENCE_API_KEY_PEPPER='replace-with-long-random-pepper'
+export EVYDENCE_SIGNING_EXECUTOR_URL='https://signer.example.com/sign'
+export EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64='<trusted-Ed25519-public-key-in-base64>'
+# Set this too when your gateway requires a bearer credential:
+export EVYDENCE_SIGNING_EXECUTOR_TOKEN='<gateway-credential>'
 docker compose -f compose.production-like.yml up --build
 ```
+
+Gateway settings and the API pepper are passed only to the API. The worker
+receives its database and object-store credentials. An optional
+`EVYDENCE_SIGNING_EXECUTOR_READINESS_URL` must use the signing endpoint's origin;
+the timeout defaults to the runtime schema's value. Native KMS profiles need a
+deployment override supplying their provider-specific configuration and
+credentials; selecting a signing mode alone does not supply them. The migration
+command also runs with `ENV=production`, so its applicable production checks
+remain enabled before migration work starts.
+
+API and worker containers receive `SIGTERM` on a Compose stop. The committed
+365-second stop grace covers every supported drain budget (up to 300 seconds),
+cleanup budget (up to 60 seconds), and a five-second margin. Normal stops finish
+as soon as the process exits; Compose does not wait out unused grace. Configure
+`EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS`,
+`EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS`, and
+`EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS` using
+[Configuration](../reference/configuration.md). An explicit `docker compose stop
+--timeout` overrides the file's grace; allow the configured drain plus cleanup
+and margin. PostgreSQL and object storage must stay available while daemons drain.
 
 Expected result:
 

@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1601-maintainer-continuity",
+  "category": "changed",
+  "summary": "Document solo-maintainer ownership and a concise recovery checklist",
+  "details": [
+    "Record the sole maintainer's release, security and emergency patch authority with a private recovery checklist.",
+    "Record current solo-maintainer controls and Pages settings while retaining unknown package, domain-recovery and independent-backup access as explicit gaps.",
+    "Make another maintainer optional and state the availability limits of solo maintenance; preserve protected PR, CI and publisher controls."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Documentation and dated read-only observations only; no provider permissions or runtime behavior changed."
+  },
+  "security": "Keep credentials, recovery codes and private incident/contract details outside public records. Emergency work retains protected PR checks and exact publisher trust policy.",
+  "limitations": [
+    "No backup maintainer, funded arrangement, uninterrupted response or recovery rehearsal is established.",
+    "Provider observations can change; package metadata access was denied and registrar custody remains unverified."
+  ]
+}

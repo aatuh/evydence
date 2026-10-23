@@ -1,0 +1,397 @@
+{
+  "schema_version": 2,
+  "scope": "Project-owned runtime configuration and deliberate environment reads reachable through the currently wired pgx, AWS default config/KMS credential chain, Google ADC and Azure DefaultAzureCredential, plus Go transport/trust/home/executable lookup inputs. Source-only review at the pinned dependencies.",
+  "limits": [
+    "Hashes record reviewed source bytes. Unit checks pin dependency versions and schema source coverage, require all eight Go boundaries for every declared minimum/current version, and compare the running toolchain source bytes without fetching SDK source or invoking native loaders.",
+    "Broader unused SDK APIs, general Go runtime knobs and arbitrary external credential-tool environments are outside the scalar parser. Their resolution must remain explicitly owned.",
+    "No credential files, environment values, provider commands or external endpoints were read to produce this inventory."
+  ],
+  "sources": [
+    {
+      "source": "cloud.google.com/go/compute/metadata@v0.9.0/metadata.go",
+      "sha256": "5c6df095827610325e11133d1f5773192292547adf19af5003a82e44068e5b0b",
+      "finding": "GCE_METADATA_HOST overrides metadata host and influences OnGCE discovery; include in native credential boundary."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azcore@v1.21.1/runtime/policy_telemetry.go",
+      "sha256": "3edf35fbf32ad81fbe548f3b9c7939592cacca9e80a6bd29c2afc6f08752e9b9",
+      "finding": "A package-level initializer reads OS on Windows to build credential-client User-Agent platform information. Parsing can validate captured input but cannot retroactively freeze this initialization; telemetry/transport ownership must remove ambient influence before provider startup."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/azidentity.go",
+      "sha256": "1f3b90997bb09f5c554ed0842f930cd204607d3563bdf37153a62e425dc65a26",
+      "finding": "Reviewed environment configuration/credential source at the pinned SDK boundary; literal names: AZURE_ADDITIONALLY_ALLOWED_TENANTS, AZURE_AUTHORITY_HOST, AZURE_CLIENT_CERTIFICATE_PASSWORD, AZURE_CLIENT_CERTIFICATE_PATH, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_FEDERATED_TOKEN_FILE, AZURE_PASSWORD, AZURE_REGIONAL_AUTHORITY_NAME, AZURE_TENANT_ID, AZURE_USERNAME. External reference resolution remains separate."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/azure_pipelines_credential.go",
+      "sha256": "77bb6ae5916e3066ea25fa24624c478dc3967f5e0adc7337c235a73352d11b1f",
+      "finding": "Explicit AzurePipelinesCredential reads SYSTEM_OIDCREQUESTURI. It is not part of the current NewDefaultAzureCredential chain and is not constructed by the Evydence adapter; excluded from the selected native input scope."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/default_azure_credential.go",
+      "sha256": "7fa7417dd647645430e57cb250be30ee91a6bc41e4267df6cfc66686263372ce",
+      "finding": "Credential selection uses exact dev/prod values and case-insensitive class names; LookupEnv distinguishes present-empty from absent."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/developer_credential_util_windows.go",
+      "sha256": "9adee8594338b7fe4755ab999d10b5b035a91e569ffcc529f2eb5619ef6f5032",
+      "finding": "buildCmd reads SYSTEMROOT before constructing a developer-credential command."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/environment_credential.go",
+      "sha256": "4ef1a56d5bdba29aa3b8294255117c592c2082ef57c973792c22cd1d15d0a657",
+      "finding": "Certificate chain flag accepts 1 or case-insensitive true; legacy other strings are false. Environment credential constructor reads certificate files; it is not called in capture."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/azidentity@v1.13.1/managed_identity_client.go",
+      "sha256": "32b88df2830648de220576bf7e0b3ea74b677ab22eab423d7ec17748e3b5b0b4",
+      "finding": "Managed identity delegates to MSAL; SDK-local literal getenv inventory alone misses the transitive inputs."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/internal@v1.12.0/log/log.go",
+      "sha256": "7254be894f46c28b4b8c229f2738914e0079e2731890a967916a7e0834b2aa2b",
+      "finding": "Module initialization reads AZURE_SDK_GO_LOGGING; exact all installs a raw timestamp/event/message stderr listener. Native policy must prohibit raw SDK logging in production; later command/provider composition must explicitly neutralize the global SDK logger before use."
+    },
+    {
+      "source": "github.com/Azure/azure-sdk-for-go/sdk/internal@v1.12.0/telemetry/telemetry.go",
+      "sha256": "f9cc0fd0729de0b692d36dc7ec2fddb47bb5292786239889726c79697a84b254",
+      "finding": "Shared telemetry also reads Windows OS during package-level platform-info initialization. Same OS schema field and later explicit telemetry owner apply."
+    },
+    {
+      "source": "github.com/AzureAD/microsoft-authentication-library-for-go@v1.7.0/apps/managedidentity/azure_ml.go",
+      "sha256": "ae658568c50156e3546785fd0ceb0859b4244f7cd80e5de16574bc625dfe4c49",
+      "finding": "Also reads DEFAULT_IDENTITY_CLIENT_ID in managed-identity requests."
+    },
+    {
+      "source": "github.com/AzureAD/microsoft-authentication-library-for-go@v1.7.0/apps/managedidentity/managedidentity.go",
+      "sha256": "3651efd5bb08b1c634736a10de2176039bb380b7a3005154c976b220496f550a",
+      "finding": "Reads IDENTITY_ENDPOINT, IDENTITY_HEADER, IDENTITY_SERVER_THUMBPRINT, MSI_ENDPOINT, MSI_SECRET, IMDS_ENDPOINT; Windows ProgramData also affects paths."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/config@v1.32.20/auth_scheme_preference.go",
+      "sha256": "9fe96e11dfb3c8817588a99f6464e30d8507a1b13eaa09c20da511cf4b263730",
+      "finding": "toAuthSchemePreferenceList splits commas, trims items and skips empty entries without changing case; native syntax preserves this behavior with explicit bounds."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/config@v1.32.20/defaultsmode.go",
+      "sha256": "d68afc1f437aecf0ac0fef1058570de0b3287f52d62ac029f4bbf8cfee64ba02",
+      "finding": "Reviewed environment configuration/credential source at the pinned SDK boundary; literal names: AWS_EXECUTION_ENV. External reference resolution remains separate."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/config@v1.32.20/env_config.go",
+      "sha256": "9cc0e36f93fc3cf21c8f7fb1621c47a42cec43ca9b263ccc766e5ac0db99e58b",
+      "finding": "GetServiceBaseEndpoint computes AWS_ENDPOINT_URL_ plus uppercased SDK ServiceID with spaces replaced by underscores."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/config@v1.32.20/resolve_credentials.go",
+      "sha256": "f7ed86b5e3b98b1d0cb5f4bd588c3bb03e458bc6b0c92970d51c77476db1afbd",
+      "finding": "HTTP container credential destinations allow loopback, ECS 169.254.170.2, EKS 169.254.170.23 and fd00:ec2::23. Hostname resolution and isAllowedHost checks perform I/O and remain outside pure parsing."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/credentials@v1.19.19/logincreds/token.go",
+      "sha256": "d093fbd26a2bc5f9daf32026e874327590f67b7aa3294ac745183a55c9563651",
+      "finding": "Native login cache uses the shared home-directory boundary; file/token resolution is EVY-1215."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/credentials@v1.19.19/processcreds/provider.go",
+      "sha256": "c8c369178bfb889891ea8f0599f63a92d2fd1e83d8ece4bbc8c18ca4913aa9e2",
+      "finding": "Existing process credentials inherit os.Environ for the provider subprocess. Parsing never runs helpers. Child-tool environment and process policy require the explicit EVY-1215/EVY-1216 resolution owner, not unbounded scalar schema expansion."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/credentials@v1.19.19/ssocreds/sso_cached_token.go",
+      "sha256": "f3bfcec076b63abb2efa44e0ee9917e5c5e84ebbeb743e8821ca595db6adb8da",
+      "finding": "SSO cache location uses the shared home-directory boundary; no additional environment name is read in this file."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/feature/ec2/imds@v1.18.25/api_client.go",
+      "sha256": "db445dc20cbe3ec632fd37032ad5f40f01fdf7997ad3025bd98e11f72bea638a",
+      "finding": "IMDS client reads AWS_EC2_METADATA_DISABLED and AWS_EC2_METADATA_SERVICE_ENDPOINT when options are absent; both are declared native inputs. No other environment name occurs here."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/kms@v1.52.2/api_client.go",
+      "sha256": "279510a181335e6b810ea98029ca9d4f09c6eadfc370bed2e4d3303cb881bdb3",
+      "finding": "ServiceID KMS -> AWS_ENDPOINT_URL_KMS."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/signin@v1.1.1/api_client.go",
+      "sha256": "7d066237019357f81f58e889a90cf1eb492584cb5dd9e094942ebe89649fa432",
+      "finding": "ServiceID Signin -> AWS_ENDPOINT_URL_SIGNIN; credential-chain service."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/sso@v1.30.19/api_client.go",
+      "sha256": "5b5c1e013ff24364951fe03b1d9888b52decf207ec63937a270d62c43075416b",
+      "finding": "ServiceID SSO -> AWS_ENDPOINT_URL_SSO; credential-chain service."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/ssooidc@v1.36.2/api_client.go",
+      "sha256": "f86fcafb2b7564b50c3522b871f8e6b687a73cd4d8873dc056417afe2714e4f0",
+      "finding": "ServiceID SSO OIDC -> AWS_ENDPOINT_URL_SSO_OIDC; credential-chain service."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2/service/sts@v1.42.3/api_client.go",
+      "sha256": "dd92a3068d58afdb7e40abd37c0fe0c435c13ecd07d97111a158dd6f161361e5",
+      "finding": "ServiceID STS -> AWS_ENDPOINT_URL_STS; credential-chain service."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2@v1.41.9/aws/defaultsmode.go",
+      "sha256": "5dc9f28de96f3dbe4d1b01c3f8277b358bd77571dd469efcf23594d048ea66ba",
+      "finding": "Native defaults profiles are legacy, standard, in-region, cross-region, mobile and auto."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2@v1.41.9/aws/retryer.go",
+      "sha256": "252b730e189d1b3f00ee1f59175527a1ae939c5a8502e399d7cfb07bb65f8804",
+      "finding": "Native retry choices are standard/adaptive; ParseRetryMode normalizes case."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2@v1.41.9/aws/transport/http/client.go",
+      "sha256": "8ad361ca841e3e768953d1b9dadb9be5a23031c34accccbf8b6020b07e7ee4b2",
+      "finding": "Native AWS BuildableClient defaultHTTPTransport uses net/http.ProxyFromEnvironment."
+    },
+    {
+      "source": "github.com/aws/aws-sdk-go-v2@v1.41.9/internal/shareddefaults/shared_config.go",
+      "sha256": "989e6e0c05c74cc05586f42eba38eb6cc97f0fe3caeecd6b34c716b4a257a929",
+      "finding": "UserHomeDir delegates os.UserHomeDir; default AWS credential/config file locations depend on platform home input."
+    },
+    {
+      "source": "github.com/jackc/pgx/v5@v5.9.2/pgconn/config.go",
+      "sha256": "da7909eb1387c4f3c930acf7e066645aee800715142ce743d0c554ff5197458e",
+      "finding": "parseEnvSettings maps 22 PG names; explicit connection settings override native environment; ParseConfig can read service/pass/TLS material."
+    },
+    {
+      "source": "github.com/jackc/pgx/v5@v5.9.2/pgconn/defaults.go",
+      "sha256": "b8857ff610ebaa13cedcfc3f3ef5085df85457d4c584bd6a4976939cdbeecc8c",
+      "finding": "Non-Windows defaultSettings calls user.Current and os.Stat on home TLS files; default port 5432 and target_session_attrs any. This is an OS/filesystem boundary, not pure environment parsing."
+    },
+    {
+      "source": "go@1.26.10/src/crypto/x509/root_unix.go",
+      "sha256": "421c066f193250dc1adaf13fce4779fc3dc576e20faa86e43bc22af6c9536a14",
+      "go_boundary": "tls_roots",
+      "finding": "Unix loadSystemRoots reads SSL_CERT_FILE and SSL_CERT_DIR, splits directory overrides on colons and reads files/directories. Windows and Darwin retain their native platform trust loaders; this record does not claim their runtime qualification."
+    },
+    {
+      "source": "go@1.26.10/src/net/http/transport.go",
+      "sha256": "643bce4b4fb016ed57c18e9d087e6c298faf3263d83728107c6b5cdaa398fe87",
+      "go_boundary": "http_transport",
+      "finding": "ProxyFromEnvironment caches vendored httpproxy.FromEnvironment().ProxyFunc() under sync.Once. The scoped proxy environment path is unchanged between the declared versions; capture does not freeze the ambient native read."
+    },
+    {
+      "source": "go@1.26.10/src/os/exec/lp_unix.go",
+      "sha256": "5ee781400e1f04ffea869496f161555f31d1af0ca521fb77ef16f54522808746",
+      "go_boundary": "unix_executable",
+      "finding": "lookPath consults PATH for native executable lookup. Source bytes are identical across the two declared versions; config capture never executes a helper."
+    },
+    {
+      "source": "go@1.26.10/src/os/exec/lp_windows.go",
+      "sha256": "b43699d7c9c5fa2cfe82edb55be04b509619232ad514a34a11c481d43290a6fd",
+      "go_boundary": "windows_executable",
+      "finding": "Windows lookup reads PATHEXT, presence of NoDefaultCurrentDirectoryInExePath and case-insensitive path. Suffix normalization, absent/empty defaults and separators-only behavior are unchanged; source bytes are identical across the declared versions."
+    },
+    {
+      "source": "go@1.26.10/src/os/file.go",
+      "sha256": "85a4adcd383c9947d6133b65ccd01e95b68ce1d07b8474b7b7aad8ca9f3b8139",
+      "go_boundary": "user_home",
+      "finding": "UserHomeDir reads HOME on Unix and USERPROFILE on Windows. Its scoped implementation is unchanged across the declared versions; other OS defaults remain native and are not additional supported server platforms."
+    },
+    {
+      "source": "go@1.26.10/src/path/filepath/path_unix.go",
+      "sha256": "d92b04d88e202d2916f803ceb3c8806475b510907a142571f4e9ba70b52c1c1d",
+      "go_boundary": "unix_path_list",
+      "finding": "splitList preserves colon-separated empty entries and literal quotes; empty input yields an empty list. The bounded project projection preserves this grammar before native resolution."
+    },
+    {
+      "source": "go@1.26.10/src/path/filepath/path_windows.go",
+      "sha256": "96c1af1caace59a146241f5a48a700a142f2e5520f932fb2fc6376ce5a94ed81",
+      "go_boundary": "windows_path_list",
+      "finding": "splitList respects quotes while splitting semicolon-separated paths, then removes quotes, including unmatched quotes. Empty input yields an empty list; project item/count bounds apply before decoding. Source review is not native Windows runtime evidence."
+    },
+    {
+      "source": "go@1.26.10/src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+      "sha256": "e1cde07b566be558b32a4a54cd1e8d9c36ce7d0579706c9495537154f8c1041e",
+      "go_boundary": "http_proxy",
+      "finding": "FromEnvironment chooses HTTP_PROXY before http_proxy, HTTPS_PROXY before https_proxy and NO_PROXY before no_proxy. REQUEST_METHOD enables CGI restrictions. Only comments change across the declared versions; do not substitute the separately pinned x/net lowercase-first helper."
+    },
+    {
+      "source": "go@1.27.3/src/crypto/x509/root.go",
+      "sha256": "bcad6caaa9c0780b87b0509e112600996514184abe1e304bf468e200cacb6223",
+      "go_boundary": "tls_roots",
+      "finding": "loadSystemRoots moved to root.go. SSL_CERT_FILE and SSL_CERT_DIR can select on-disk roots on Windows, Darwin and iOS as well as Unix. On those platform-verifier systems no override retains systemPool; GODEBUG=x509sslcertoverrideplatform=0 also retains it. loadOnDiskRoots uses filepath.SplitList, reads files/directories and skips same-directory symlinks. Native global initialization and GODEBUG retain their own owner; input capture does not freeze or invoke them. The internal Go compatibility table marks x509sslcertoverrideplatform Changed27 Old0: the retained module Go1.26.10 minimum keeps platform roots by default even with compiler1.27.3; native GODEBUG can explicitly opt in."
+    },
+    {
+      "source": "go@1.27.3/src/net/http/transport.go",
+      "sha256": "c9146e77adc22d4b74ba77384ec7be7fc27c3af21ff20485f642b4d611b381a4",
+      "go_boundary": "http_transport",
+      "finding": "ProxyFromEnvironment caches vendored httpproxy.FromEnvironment().ProxyFunc() under sync.Once. The scoped proxy environment path is unchanged between the declared versions; capture does not freeze the ambient native read."
+    },
+    {
+      "source": "go@1.27.3/src/os/exec/lp_unix.go",
+      "sha256": "5ee781400e1f04ffea869496f161555f31d1af0ca521fb77ef16f54522808746",
+      "go_boundary": "unix_executable",
+      "finding": "lookPath consults PATH for native executable lookup. Source bytes are identical across the two declared versions; config capture never executes a helper."
+    },
+    {
+      "source": "go@1.27.3/src/os/exec/lp_windows.go",
+      "sha256": "b43699d7c9c5fa2cfe82edb55be04b509619232ad514a34a11c481d43290a6fd",
+      "go_boundary": "windows_executable",
+      "finding": "Windows lookup reads PATHEXT, presence of NoDefaultCurrentDirectoryInExePath and case-insensitive path. Suffix normalization, absent/empty defaults and separators-only behavior are unchanged; source bytes are identical across the declared versions."
+    },
+    {
+      "source": "go@1.27.3/src/os/file.go",
+      "sha256": "d77653afbcbec5256b56aee25dce3df3ed001f964c9b245b848a5d378884bcb3",
+      "go_boundary": "user_home",
+      "finding": "UserHomeDir reads HOME on Unix and USERPROFILE on Windows. Its scoped implementation is unchanged across the declared versions; other OS defaults remain native and are not additional supported server platforms."
+    },
+    {
+      "source": "go@1.27.3/src/path/filepath/path_unix.go",
+      "sha256": "d92b04d88e202d2916f803ceb3c8806475b510907a142571f4e9ba70b52c1c1d",
+      "go_boundary": "unix_path_list",
+      "finding": "splitList preserves colon-separated empty entries and literal quotes; empty input yields an empty list. The bounded project projection preserves this grammar before native resolution."
+    },
+    {
+      "source": "go@1.27.3/src/path/filepath/path_windows.go",
+      "sha256": "96c1af1caace59a146241f5a48a700a142f2e5520f932fb2fc6376ce5a94ed81",
+      "go_boundary": "windows_path_list",
+      "finding": "splitList respects quotes while splitting semicolon-separated paths, then removes quotes, including unmatched quotes. Empty input yields an empty list; project item/count bounds apply before decoding. Source review is not native Windows runtime evidence."
+    },
+    {
+      "source": "go@1.27.3/src/vendor/golang.org/x/net/http/httpproxy/proxy.go",
+      "sha256": "ce887b0b89d3c008b2c6082c62cf07ad29734cdd19d7b58ce8030bd35cb0a907",
+      "go_boundary": "http_proxy",
+      "finding": "FromEnvironment chooses HTTP_PROXY before http_proxy, HTTPS_PROXY before https_proxy and NO_PROXY before no_proxy. REQUEST_METHOD enables CGI restrictions. Only comments change across the declared versions; do not substitute the separately pinned x/net lowercase-first helper."
+    },
+    {
+      "source": "golang.org/x/net@v0.61.0/http/httpproxy/proxy.go",
+      "sha256": "57390aaf1224c46cabce1fc593daeed586d0444fb3ad46436f9ad72dc8c3cae3",
+      "finding": "This separately pinned package chooses lowercase proxy spellings first, unlike Go 1.26.9 vendored net/http proxy behavior. Do not silently swap its FromEnvironment helper for the actual native transport contract."
+    },
+    {
+      "source": "golang.org/x/oauth2@v0.37.0/google/default.go",
+      "sha256": "a0e67a6d6542e90e45af653b4c41681973dec5ce54e447cfd524f59227a31c6d",
+      "finding": "FindDefaultCredentials reads GOOGLE_APPLICATION_CREDENTIALS, then a well-known credentials file, then metadata discovery; Windows APPDATA differs from Unix home fallback."
+    },
+    {
+      "source": "golang.org/x/oauth2@v0.37.0/google/externalaccount/aws.go",
+      "sha256": "9af6d7da0fde7a1a19858de8f5629891961ef878192c76e47a18792f0cdf3c81",
+      "finding": "Reviewed environment configuration/credential source at the pinned SDK boundary; literal names: AWS_ACCESS_KEY_ID, AWS_DEFAULT_REGION, AWS_REGION, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN. External reference resolution remains separate."
+    },
+    {
+      "source": "golang.org/x/oauth2@v0.37.0/google/externalaccount/executablecredsource.go",
+      "sha256": "055223607710f94c6d4ed25fd601f4d3e7d40d2b6c6d850d6f97b8bb5bb8d20d",
+      "finding": "Reviewed environment configuration/credential source at the pinned SDK boundary; literal names: GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES. External reference resolution remains separate."
+    },
+    {
+      "source": "golang.org/x/oauth2@v0.37.0/google/sdk.go",
+      "sha256": "5a6023c614294ed08ce271396a7a6f46fe682ed02afb6ba646555cb250cc8cf1",
+      "finding": "guessUnixHomeDir reads HOME then falls back to OS user lookup."
+    },
+    {
+      "source": "internal/platform/httpclient/httpclient.go",
+      "sha256": "e47d817c8eb0bd90ae4b2a7d98cdc79407e9cc459d1e34810a34da6feebdf980",
+      "finding": "CloneOwned preserves a standard transport proxy; policy-bound New explicitly clears clone.Proxy. Native GCP/Azure paths use CloneOwned."
+    },
+    {
+      "source": "scripts/change_fragments.py",
+      "sha256": "18b3d4c46f7a2262000b1b4435d9effc3a31066381b99c69bb1c866ab015fd32",
+      "finding": "Scoped EVY-1408 source review: pure bounded public-fragment validation and deterministic text formatting, with no filesystem, subprocess, credential or provider access. Closed schemas reject claimed reviewed flags, malformed identities, control/surrogate text, duplicate IDs, oversized aggregate input and no-change fragment summaries. Rendering escapes public text and preserves the pinned manual-history bytes. Verified waiver entries cannot render as no changes; verification belongs to the authenticated caller."
+    },
+    {
+      "source": "scripts/container_evidence.py",
+      "sha256": "85ee82179db5af0a92591373a178407157f33215d9f9bc97a375074f7636f430",
+      "finding": "Reviewed container producer metadata and immutable OCI subject verification. Source materials include the signing verifier/policy; hosted source/workflow SHA assertions stay distinct. Only the fixed pinned scanner is executed with its restricted environment; no signing/publishing credentials are required by generation."
+    },
+    {
+      "source": "scripts/public_release_verify.sh",
+      "sha256": "3070f8cbd1b9af22406b7ba7fdcb5810edd16c0c717fc9fbf6fb6fde16267fec",
+      "finding": "Scoped EVY-1408 source review: default tag selection reads bounded current-release/lifecycle policy through a closed PATH-only Python environment; explicit and default withdrawals fail before gh, downloads or temporary outputs. Publisher trust still precedes extraction/execution, with exact identity/issuer/ref/SHA or explicit legacy pins and actual manifest-listed byte hashes. Downloaded CLI retains private HOME/TMPDIR, fixed PATH and bounded Go runtime settings without caller credentials. No signing or provider write is added."
+    },
+    {
+      "source": "scripts/release_artifacts.py",
+      "sha256": "562f4fa6558085d5a5633f4eae37570bdcf2dab1453b88a0cf931a92cb033d54",
+      "finding": "Reviewed source-relative build materials and filesystem recipe; signing policy/verifier are included in the pre-build manifest. Existing structured coordinate, normalized archive, no-follow regular-file and size/hash controls remain unchanged."
+    },
+    {
+      "source": "scripts/release_build.py",
+      "sha256": "8b3924d5c452b48c2bdd509f94d6d309680df078bf84ae796b680e2208a2bcf3",
+      "finding": "Unsigned build-only subprocess boundary. Parent environment reads are allowlisted to PATH, HOME, USER, LOGNAME, TMPDIR, GOTMPDIR, GOCACHE, GOMODCACHE, SSL_CERT_FILE and SSL_CERT_DIR. Go compiler/toolchain, workspace, experiment, architecture, CGO, GC and parallelism settings are pinned; global/system Git configuration is disabled for these commands. Provider tokens, signing aliases, test database configuration and ambient GOFLAGS are omitted. HOME, PATH, cache directories and certificate paths remain trusted operator inputs; this is not a sandbox against hostile local tools or credential files. The selected compiler, clean expected Git commit, fixed source epoch and readonly module graph govern the shared recipe. Before/after source guards and fake compiler regressions cover environment isolation and source changes. These are build-tool inputs, not new production-native configuration names."
+    },
+    {
+      "source": "scripts/release_candidate_package.sh",
+      "sha256": "6dc6703c0b28fc14741b35710b6da311edbcca746e3b207ba6dc4aa7724586c8",
+      "finding": "Scoped EVY-1408 source review: withdrawal policy runs in a closed PATH-only child before release-only settings are captured; signing aliases, scanner path and existing-tag override remain unexported and cleared before validation/Go/Make children. Pinned scanner checks and exact committed generated notes run before production validation or artifact replacement. Production and final reproducibility-byte binding remain unconditional. Notes are emitted from the same checked source rather than a static fallback and remain checksum/signed-manifest subjects. Real-Git notes tests retain archive equality, source-change guards and secret-isolation assertions; this source review is not live qualification or independent review proof."
+    },
+    {
+      "source": "scripts/release_candidate_validate.sh",
+      "sha256": "cb42a1146c4a370ca8c930c9635a25ba5b73981336fff8fc8b0820826b0ede92",
+      "finding": "Scoped EVY-1408 source review: fixed RC-derived artifact paths now compare packaged notes against exact committed generated source text before Go signature verification. Full checksum, signature/alias and strict actual-subject checks remain. The obsolete decomposition-language grep is replaced by the stronger versioned notes projection; product non-claims and supported-profile checks remain. This validator receives no signing key from normal packaging and never publishes artifacts."
+    },
+    {
+      "source": "scripts/release_change_provider.py",
+      "sha256": "249e52bef845f8e2b777046e3169151682fead8c9b052365d999798260b46581",
+      "finding": "Scoped EVY-1408 source review: fixed github.com authenticated gh GET transport, bounded stdout/deadline and closed PATH/HOME/read-auth environment; publisher-specific exports, alternate hosts and debug output are excluded. Exact repository, master base, PR number/state, current head, merged identity/timestamp and case-sensitive no-changelog label are validated. Associated-PR listing is page/count bounded and full details must bind the delivery SHA; unknown/stale/provider failures never grant a waiver. Raw payloads, CLI diagnostics and tokens are not serialized; HOME/PATH remain trusted operator inputs. No provider mutations."
+    },
+    {
+      "source": "scripts/release_evidence_metadata.py",
+      "sha256": "7ba97e2a71aba854e83468761395ecd777806eb8b014b7a0490cc84c10464ffc",
+      "finding": "Operator metadata generator, not a production configuration loader. Git and Go list children receive release_build.build_environment, fixed args, suppressed raw stderr and timeouts. Typed bounded module identities reject duplicates, local replacements and malformed versions; remote replacements identify their effective source. Only validated public Git/source/compiler and GitHub repository/run/workflow SHA fields are serialized. The pinned scanner is checksum/recipe/version checked, receives private HOME/config and no parent credentials, and scans fixed actual subject files. Metadata files are written exclusively only after complete generation. Fixed errors and canary fixtures cover parser/scanner failure. No provider/signing identity authentication is inferred."
+    },
+    {
+      "source": "scripts/release_evidence_profile.py",
+      "sha256": "b6ce367db11cf16d36d4a1e56fd27b713551d43616e745581626b8217c23c5d4",
+      "finding": "Pure bounded JSON/source/material/SLSA-style evidence profile. Duplicate JSON keys and nonstandard constants fail. Source-relative material names, digest/size types, exact software subjects, evidence hashes, workflow-definition SHA and numeric run URL are validated. Private paths and unvalidated provider fields are excluded. Read verification regenerates canonical index/statement expectations against caller-derived actual payloads; coherently rehashed substituted evidence fails. Legacy compatibility is explicit and limited to the committed historical repository/tag/commit identity. These producer fields do not authenticate provider execution or signing authority."
+    },
+    {
+      "source": "scripts/release_evidence_tools.py",
+      "sha256": "2290d59b8423dc62a7a9e43f44ad3e24b98c8f8aaa506728b9f5d29721617011",
+      "finding": "Operator-only tool installation. Source version and both Go checksums are pinned. An isolated bootstrap module verifies cached upstream source as a dependency before copying; locked dependency verification and CGO-disabled/current-policy-Go compilation follow under the filtered build environment. HOME/PATH/cache/certificate locations remain trusted operator inputs. No signing/provider/database exports are forwarded. Private failed builds remain for diagnosis; completed binary hashes bind to the tool recipe and existing or tampered installs are not silently overwritten. Source-only review is distinct from the separate real installer and advisory observations."
+    },
+    {
+      "source": "scripts/release_evidence_verify.py",
+      "sha256": "c820a73f53656b32f3620ac8a9060dc68e582959dfdc8ed79f3a3713858e5a82",
+      "finding": "Read-only operator verifier with structured flags and no provider/credential lookup. Expected software subjects come from bounded actual archives; JSON evidence files are regular/no-follow, size-limited and duplicate-key checked. Release/OpenAPI/migration checksum lists have closed root-relative filename grammars, duplicate/count/byte bounds and actual file hashing, preventing reads outside the release or canonical migrations root. Strict subject verification has no absent-index fallback; historical identity compatibility requires explicit pinned policy. No downloaded binary is executed by this Python command."
+    },
+    {
+      "source": "scripts/release_history.py",
+      "sha256": "8b24ac5a1a75a311b43dc001841ebb2b3d00886b9ae036d8300855b5f4be8aa8",
+      "finding": "Scoped EVY-1408 source review: explicit Git root; closed read environment and fixed argv disable hooks, fsmonitor, replacement objects, external diffs and text conversion. Output/blob sizes, source IDs, delivery counts, paths and subprocess time are bounded. Exact ancestry, immutable published fragments, per-delivery coverage, pending-fragment requirements and PR head/base-parent binding precede formatting. Provider errors fail closed. Explicit changelog writes validate no-follow regular inputs and detect concurrent edits before atomic replacement. No Git mutation, fetch or publication occurs in this module. Initial-policy PRs may target the authenticated pre-adoption base only when the recorded release precedes that base and adoption belongs to the exact PR head. The full PR delivery still requires a changed fragment or authenticated label; existing post-adoption base deliveries retain their normal checks."
+    },
+    {
+      "source": "scripts/release_lifecycle.py",
+      "sha256": "674aea75e8fe1d631a4d50cffd5c5fbab32bbda46b3b70a8da79512855ca786e",
+      "finding": "Scoped EVY-1408 source review: versioned source-owned support/withdrawal metadata; bounded JSON rejects duplicate/nonfinite/deep/invalid text, conflicts and malformed source/tag/notice identities. Directory-relative no-follow opens cover every input path component, bound regular-file reads and reject FIFO/symlink/traversal inputs. Default selection can explicitly yield no installable release while preserving historical warnings. CLI is read-only/stdout with safe diagnostics and no provider, credential or subprocess lookup."
+    },
+    {
+      "source": "scripts/release_notes.py",
+      "sha256": "bb1d188fe2eb9679c7dabd83d39c089a7df0baddbb04daaba1401b1280b426bb",
+      "finding": "Scoped EVY-1408 source review: fixed tag-derived notes paths, bounded no-follow inputs and deterministic public projection of validated fragments plus actual Git API/SDK/migration inventories. Missing/contradictory declarations, template non-claims or committed notes fail closed. Release checks require clean matching source and exact generated changelog; source identity is rechecked across validation. Tagging defaults to a read-only plan. Explicit local creation uses fixed reviewed SHA, refuses existing tags/non-master/withdrawals, disables hooks and automatic signing, and permits only operator identity settings alongside closed Git environment. No push, release dispatch or publication occurs; source checking does not establish independent review."
+    },
+    {
+      "source": "scripts/release_oci.py",
+      "sha256": "17a2af362359f1c844c6922641a5017d57be7d324c3dadd59695641a9ba47a14",
+      "finding": "No environment or provider access. The bounded single-image OCI TAR envelope admits only layout/index/referenced content-addressed blobs and a consistent optional Docker compatibility index. It validates actual blob hashes/sizes, supported media types, compressed/expanded layer digests, aggregate expansion, Linux amd64 configuration and expected source/version labels. Outer links, traversal, duplicates and unreferenced payloads fail. The parser never extracts layer files onto the host and never serializes image Env or private config fields; fixed errors cover malformed compressed bytes."
+    },
+    {
+      "source": "scripts/release_sbom.py",
+      "sha256": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
+      "finding": "Pure public evidence projection with no filesystem, subprocess or environment access. It retains validated Go/APK names, versions and canonical package URLs plus a vetted Alpine OS descriptor. Scanner file records, arbitrary properties, paths and credentials are not copied. Duplicate equivalent package coordinates merge and conflicts fail. CycloneDX subject names/SHA-256, Syft version, adapter version and explicit coverage limits are fixed by the closed profile; negative/canary fixtures cover scope and digest substitution. Alpine APK URLs permit only arch/distro and optional upstream package name, each closed and bounded; split-package origin is preserved without arbitrary qualifiers or paths."
+    },
+    {
+      "source": "scripts/release_scanner.py",
+      "sha256": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
+      "finding": "Closed scanner subprocess boundary: fixed version or offline file/OCI scan argv, fixed catalogers/output, private HOME/TMP/config, no ambient parent credentials/Go flags, one worker, bounded stdout and process deadline. stderr is suppressed and failures use a fixed diagnostic; owned failed processes are killed/reaped. Local/vendor/remote license discovery and app updates are disabled. Go/APK records and optional Alpine OS metadata are curated by release_sbom; both Go and APK inventory are required for the supported image. The full external CLI and its remaining OpenPGP advisory are outside the restricted-use claim."
+    },
+    {
+      "source": "scripts/release_signing.py",
+      "sha256": "8920963930a440bd29c11a485cad2e179f250948d3748633cf15a5437b4edbfc",
+      "finding": "Reviewed local public identity controller: source-owned closed policy and exact repository/issuer/workflow/ref/SHA, bounded revocation list, legacy content/key pins and actual file hashes. GitHub read-only metadata and names-only secret inventories use bounded gh subprocess output/deadlines and minimal auth environment. Provider settings are verified, never mutated. Workflow context is compared to trusted runner metadata and live reviewer/master-only rules; it is not a standalone certificate. Unknown flags/provider errors cannot echo raw credentials."
+    },
+    {
+      "source": "scripts/release_subjects.py",
+      "sha256": "9277bcaf990a597ab39c451a58c4226838a4371e545ac81e895ec9ec08f1ddf5",
+      "finding": "No ambient credential/config lookup. The versioned support matrix determines exact archive names and executable/document entries. Standard TAR/ZIP parsers, regular-file/no-follow opens, explicit directory/member allowlists, byte/entry limits and private extracted executable files govern reads. Links, traversal, duplicates, missing entries and oversize payloads fail; payloads are never executed here. Public results serialize subject names/sizes/digests, not private staging paths. Small malicious-archive fixtures and actual-byte checks cover the boundary."
+    },
+    {
+      "source": "scripts/reproducible_build.py",
+      "sha256": "5612068941830e6749964eecaeef2b9048c73b69ed0abb1acdbe0e5cc23e0e57",
+      "finding": "Build/repeat reads the operator environment only through release_build.build_environment; local repetition substitutes a fresh GOCACHE for each clean owned worktree. Git commands use the filtered environment and cleanup never forces removal. Reports contain fixed source/tool metadata and relative expected artifact paths/digests, not cache paths or provider credentials. Actual bytes are checked against bounded duplicate-key-rejecting reports; missing, unexpected, malformed, symlinked or tampered records fail. Local output-directory disclosure is limited to operator stderr. Byte equality does not authenticate runner identity; actual hosted jobs remain separate required evidence. Fixture tests cover separate caches, preserved failed worktrees, report/CLI failures and immutable outputs. Successful comparisons expose only their fully validated byte inventory. The verify-candidate path requires exact successful-proof schema/source/compiler/recipe/counts, source epoch, closed artifact set and strict digest/size types, rereads the actual final payload files, and validates the actual pre-build identity. Changed payloads or malformed proofs fail before signing; tests cover a mismatching final build, malformed/failed/wrong-source proofs, CLI failure and redacted diagnostics. Decoder recursion failures are normalized to fixed invalid-report errors; a synthetic decoder-failure regression and deep-input CLI characterization cover this error boundary."
+    }
+  ]
+}

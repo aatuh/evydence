@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$repo_root"
+
 repo="${EVYDENCE_RELEASE_REPO:-aatuh/evydence}"
-tag="${1:-${TAG:-v0.1.0-rc.7}}"
+if [[ "$#" -gt 1 ]]; then
+  echo "usage: scripts/public_release_verify.sh [release-tag]" >&2
+  exit 2
+fi
+tag="${1:-${TAG:-}}"
+if [[ -z "$tag" ]]; then
+  tag="$(env -i PATH="$PATH" python3 scripts/release_lifecycle.py default-tag)"
+fi
+legacy_evidence="${EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE:-0}"
+if [[ "$legacy_evidence" != "0" && "$legacy_evidence" != "1" ]]; then
+  echo "EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE must be 0 or 1" >&2
+  exit 2
+fi
 
 if [[ ! "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
   echo "EVYDENCE_RELEASE_REPO must look like owner/name" >&2
@@ -12,6 +27,7 @@ if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
   echo "release candidate tag must look like v0.1.0-rc.7" >&2
   exit 2
 fi
+env -i PATH="$PATH" python3 scripts/release_lifecycle.py check-tag "$tag" >/dev/null
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh is required to download public release assets" >&2
   exit 2
@@ -30,6 +46,10 @@ commit="$(gh api "repos/${repo}/commits/${tag}" --jq .sha)"
 if [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
   echo "could not resolve ${repo} ${tag} to a commit" >&2
   exit 2
+fi
+if [[ "$legacy_evidence" == "1" ]]; then
+  python3 scripts/release_evidence_verify.py --legacy-identity --repository "$repo" \
+    --tag "$tag" --expected-commit "$commit"
 fi
 
 required=(
@@ -52,6 +72,9 @@ required=(
   "evydence_${tag}_darwin_arm64.tar.gz"
   "evydence_${tag}_windows_amd64.zip"
 )
+if [[ "$legacy_evidence" == "0" ]]; then
+  required+=("release-build-manifest.json" "evydence-release-evidence-index.json")
+fi
 for asset in "${required[@]}"; do
   if [[ ! -f "$workdir/$asset" ]]; then
     echo "required public release asset missing: $asset" >&2
@@ -59,9 +82,22 @@ for asset in "${required[@]}"; do
   fi
 done
 
-(cd "$workdir" && sha256sum -c SHA256SUMS)
-(cd "$workdir" && sha256sum -c openapi.sha256)
-sha256sum -c "$workdir/migrations.sha256"
+identity_args=(verify-public --dist "$workdir" --repository "$repo" --tag "$tag" --expected-commit "$commit")
+if [[ "$legacy_evidence" == "1" ]]; then
+  identity_args+=(--legacy)
+fi
+# Authenticate the publisher and every manifest-listed file before extracting
+# or executing any downloaded payload. A self-selected key is not an authority.
+python3 scripts/release_signing.py "${identity_args[@]}"
+
+python3 scripts/release_evidence_verify.py --checksums-only \
+  --dist "$workdir" --tag "$tag" --expected-commit "$commit"
+
+# Check the archive and binary subjects before extracting or executing any
+# downloaded payload. Legacy compatibility requires the explicit pinned identity.
+if [[ "$legacy_evidence" == "0" ]]; then
+  python3 scripts/release_evidence_verify.py --dist "$workdir" --tag "$tag" --expected-commit "$commit"
+fi
 
 archive="$workdir/evydence_${tag}_linux_amd64.tar.gz"
 if [[ ! -f "$archive" ]]; then
@@ -70,14 +106,16 @@ if [[ ! -f "$archive" ]]; then
 fi
 tar -C "$workdir" -xzf "$archive"
 cli="$workdir/evydence_${tag}_linux_amd64/evydence"
-"$cli" release verify \
+mkdir -m 700 "$workdir/cli-home"
+/usr/bin/env -i PATH=/usr/bin:/bin HOME="$workdir/cli-home" TMPDIR="$workdir" \
+  GOMAXPROCS=1 GOMEMLIMIT=512MiB GOGC=50 "$cli" release verify \
   --manifest "$workdir/evydence-release-manifest.json" \
   --signature "$workdir/evydence-release-manifest.sig.json"
 
 if [[ -f "$workdir/evydence-release-manifest.sig" ]]; then
   cmp -s "$workdir/evydence-release-manifest.sig.json" "$workdir/evydence-release-manifest.sig"
 fi
-python3 - "$workdir" "$tag" "$commit" <<'PY'
+python3 - "$workdir" "$tag" "$commit" "$legacy_evidence" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -85,6 +123,7 @@ from pathlib import Path
 workdir = Path(sys.argv[1])
 tag = sys.argv[2]
 commit = sys.argv[3]
+legacy_evidence = sys.argv[4] == "1"
 
 manifest = json.loads((workdir / "evydence-release-manifest.json").read_text(encoding="utf-8"))
 if manifest.get("schema_version") != "evydence-release-artifacts.v1.0.0":
@@ -104,6 +143,15 @@ for line in (workdir / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
     checksums.add(parts[1].lstrip(" *"))
 if not checksums <= manifest_names:
     raise SystemExit("release manifest does not bind every checksum-listed asset")
+
+if not legacy_evidence:
+    index = json.loads((workdir / "evydence-release-evidence-index.json").read_text(encoding="utf-8"))
+    evidence_names = {"evydence-release-evidence-index.json", "release-build-manifest.json",
+                      "evydence-release-provenance.json", "evydence-release-provenance.intoto.jsonl"}
+    evidence_names.update(item["sbom"]["path"] for item in index["artifacts"])
+    if not evidence_names <= manifest_names or not evidence_names <= checksums:
+        raise SystemExit("release signature and checksums must bind every subject evidence file")
+    raise SystemExit(0)
 
 provenance = json.loads((workdir / "evydence-release-provenance.json").read_text(encoding="utf-8"))
 subject = provenance.get("subject")
@@ -132,4 +180,8 @@ if "not a SLSA level claim" not in json.dumps(statement, sort_keys=True):
     raise SystemExit("release provenance limitations are missing")
 PY
 
-echo "public release verified: ${repo} ${tag}"
+if [[ "$legacy_evidence" == "1" ]]; then
+  echo "public legacy release verified: ${repo} ${tag}; artifact-bound SBOM assurance unavailable"
+else
+  echo "public release verified: ${repo} ${tag}; artifact SBOM and provenance subjects verified"
+fi

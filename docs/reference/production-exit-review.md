@@ -42,7 +42,7 @@ SaaS-ready, legally compliant, certified, or secure-release-guaranteed.
   `EVYDENCE_GHCR_PUBLISH_TOKEN` for GHCR publication, and scopes GitHub OIDC
   `id-token: write` to the keyless cosign signing job.
 - `make release-acceptance` and
-  `make public-release-verify TAG=v0.1.0-rc.7` have passed against the current
+  `EVYDENCE_RELEASE_ALLOW_LEGACY_EVIDENCE=1 make public-release-verify TAG=v0.1.0-rc.7` have passed against the current
   repository state.
 
 ## Remaining Exit Blockers

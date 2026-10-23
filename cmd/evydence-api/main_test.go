@@ -20,6 +20,7 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/adapters/signing/gcpkms"
 	signinggateway "github.com/aatuh/evydence/internal/adapters/signing/httpgateway"
+	"github.com/aatuh/evydence/internal/platform/config"
 )
 
 func TestValidateRuntimeConfigRejectsProductionBootstrapSecretPrinting(t *testing.T) {
@@ -27,7 +28,7 @@ func TestValidateRuntimeConfigRejectsProductionBootstrapSecretPrinting(t *testin
 	if err == nil {
 		t.Fatal("expected production bootstrap secret printing to be rejected")
 	}
-	if !strings.Contains(err.Error(), "EVYDENCE_PRINT_BOOTSTRAP_SECRET") {
+	if !errors.Is(err, config.ErrUnsafeProduction) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -37,7 +38,7 @@ func TestRunRequiresExplicitRuntimeProfileBeforeOpeningStorage(t *testing.T) {
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "")
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
 	err := runWithContext(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") || strings.Contains(err.Error(), "private-password") {
+	if !errors.Is(err, config.ErrMissingValue) || strings.Contains(err.Error(), "private-password") {
 		t.Fatalf("missing runtime profile error = %v", err)
 	}
 }
@@ -45,11 +46,11 @@ func TestRunRequiresExplicitRuntimeProfileBeforeOpeningStorage(t *testing.T) {
 func TestLocalMemoryProfileRejectsRemoteObjectStoreBeforeConnecting(t *testing.T) {
 	t.Setenv("ENV", "")
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "local_memory")
-	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	t.Setenv("EVYDENCE_DATABASE_URL", "host=PRIVATE_DB")
 	t.Setenv("EVYDENCE_OBJECT_STORE", "s3")
 	t.Setenv("EVYDENCE_S3_ENDPOINT", "127.0.0.1:1")
 	err := runWithContext(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "retired") || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") {
+	if !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatalf("unsafe local-memory object-store error = %v", err)
 	}
 }
@@ -63,7 +64,11 @@ func TestRetiredMemoryProfileStopsBeforeProviderConfigurationAndBootstrap(t *tes
 	for _, databaseURL := range []string{"", "postgres://operator:private-password@127.0.0.1:1/evydence"} {
 		t.Setenv("EVYDENCE_DATABASE_URL", databaseURL)
 		err := runWithContext(t.Context())
-		if err == nil || !strings.Contains(err.Error(), "retired") || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+		want := config.ErrInvalidValue
+		if databaseURL == "" {
+			want = config.ErrMissingValue
+		}
+		if !errors.Is(err, want) {
 			t.Fatalf("retired profile reached later startup configuration: %v", err)
 		}
 		if strings.Contains(err.Error(), "private-password") || strings.Contains(err.Error(), "invalid-provider-private-value") {
@@ -73,41 +78,42 @@ func TestRetiredMemoryProfileStopsBeforeProviderConfigurationAndBootstrap(t *tes
 }
 
 func TestValidateRuntimeConfigAllowsLocalBootstrapSecretPrinting(t *testing.T) {
-	if err := validateRuntimeConfig(false, "", "", "", "", true); err != nil {
+	if err := validateRuntimeConfig(false, "host=PRIVATE_DB", "", "", "", true); err != nil {
 		t.Fatalf("local config should allow explicit bootstrap secret printing: %v", err)
 	}
 }
 
 func TestValidateOutboundHTTPConfigRejectsProductionLoopbackOverrides(t *testing.T) {
-	t.Setenv("ENV", "production")
-	t.Setenv(outboundLocalhostOverrideNames[0], "true")
-	err := validateOutboundHTTPConfig(true)
-	if err == nil || !strings.Contains(err.Error(), outboundLocalhostOverrideNames[0]) {
-		t.Fatalf("err=%v, want production localhost override rejection", err)
-	}
-	if outboundLocalhostAllowed(outboundLocalhostOverrideNames[0]) {
-		t.Fatal("production must not enable a loopback outbound override")
+	for _, name := range []string{"EVYDENCE_OIDC_DISCOVERY_ALLOW_INSECURE_LOCALHOST", "EVYDENCE_OIDC_USERINFO_ALLOW_INSECURE_LOCALHOST", "EVYDENCE_PROVIDER_VALIDATION_GATEWAY_ALLOW_INSECURE_LOCALHOST", "EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_ALLOW_INSECURE_LOCALHOST", "EVYDENCE_TRANSPARENCY_FETCH_ALLOW_INSECURE_LOCALHOST"} {
+		e, err := apiTestEnvironment(append(validAPIPolicyFixture(true), name+"=true")...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		settings, err := config.Parse(e, config.API)
+		if !errors.Is(err, config.ErrUnsafeProduction) || settings.Role() != 0 {
+			t.Fatal("production enabled unsafe outbound HTTP", err)
+		}
 	}
 }
 
 func TestValidateRuntimeConfigRejectsProductionDefaults(t *testing.T) {
 	tests := []struct {
-		name       string
-		database   string
-		pepper     string
-		signing    string
-		wantSubstr string
+		name     string
+		database string
+		pepper   string
+		signing  string
+		want     error
 	}{
-		{name: "missing database", database: "", pepper: "not-default", signing: "external", wantSubstr: "EVYDENCE_DATABASE_URL"},
-		{name: "missing pepper", database: "postgres://example", pepper: "", signing: "external", wantSubstr: "EVYDENCE_API_KEY_PEPPER"},
-		{name: "default pepper", database: "postgres://example", pepper: "local-dev-pepper-change-me", signing: "external", wantSubstr: "EVYDENCE_API_KEY_PEPPER"},
-		{name: "local signing", database: "postgres://example", pepper: "not-default", signing: "local", wantSubstr: "EVYDENCE_SIGNING_KEY_MODE"},
+		{name: "missing database", database: "", pepper: "not-default", signing: "external", want: config.ErrMissingValue},
+		{name: "missing pepper", database: "postgres://example", pepper: "", signing: "external", want: config.ErrMissingValue},
+		{name: "default pepper", database: "postgres://example", pepper: "local-dev-pepper-change-me", signing: "external", want: config.ErrUnsafeProduction},
+		{name: "local signing", database: "postgres://example", pepper: "not-default", signing: "local", want: config.ErrUnsafeProduction},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateRuntimeConfig(true, tt.database, tt.pepper, tt.signing, "", false)
-			if err == nil || !strings.Contains(err.Error(), tt.wantSubstr) {
-				t.Fatalf("err=%v, want %q", err, tt.wantSubstr)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("err=%v, want %v", err, tt.want)
 			}
 		})
 	}
@@ -141,14 +147,14 @@ func TestValidateRuntimeConfigAllowsDirectCloudKMSModesWithoutGateway(t *testing
 
 func TestValidateRuntimeConfigRejectsPKCS11ModeWithoutGateway(t *testing.T) {
 	err := validateRuntimeConfig(true, "postgres://example", "not-default", "pkcs11-hsm", "", false)
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
+	if !errors.Is(err, config.ErrMissingValue) {
 		t.Fatalf("pkcs11 missing gateway err=%v", err)
 	}
 }
 
 func TestValidateRuntimeConfigRejectsExternalSigningWithoutGateway(t *testing.T) {
 	err := validateRuntimeConfig(true, "postgres://example", "not-default", "external", "", false)
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
+	if !errors.Is(err, config.ErrMissingValue) {
 		t.Fatalf("external signing without gateway err=%v", err)
 	}
 }
@@ -170,14 +176,14 @@ func TestValidateAPIWriterModeAllowsProductionSingleWriter(t *testing.T) {
 
 func TestValidateAPIWriterModeRejectsProductionMultiWriter(t *testing.T) {
 	err := validateAPIWriterMode(true, "multi", "1")
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_API_WRITER_MODE") {
+	if !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatalf("multi-writer production mode err=%v", err)
 	}
 }
 
 func TestValidateAPIWriterModeRejectsProductionReplicaCountAboveOne(t *testing.T) {
 	err := validateAPIWriterMode(true, "single", "2")
-	if err == nil || !strings.Contains(err.Error(), "one API writer replica") {
+	if !errors.Is(err, config.ErrUnsafeProduction) {
 		t.Fatalf("production replica count err=%v", err)
 	}
 }
@@ -185,17 +191,17 @@ func TestValidateAPIWriterModeRejectsProductionReplicaCountAboveOne(t *testing.T
 func TestValidateAPIWriterModeRejectsInvalidReplicaCount(t *testing.T) {
 	for _, value := range []string{"0", "-1", "not-a-number"} {
 		t.Run(value, func(t *testing.T) {
-			err := validateAPIWriterMode(false, "multi", value)
-			if err == nil || !strings.Contains(err.Error(), "EVYDENCE_API_WRITER_REPLICAS") {
+			err := validateAPIWriterMode(false, "single", value)
+			if !errors.Is(err, config.ErrInvalidValue) {
 				t.Fatalf("invalid replica count err=%v", err)
 			}
 		})
 	}
 }
 
-func TestValidateAPIWriterModeAllowsLocalExperimentalMode(t *testing.T) {
-	if err := validateAPIWriterMode(false, "multi", "3"); err != nil {
-		t.Fatalf("local experimental writer mode should not be production-blocked: %v", err)
+func TestValidateAPIWriterModeRejectsUnsupportedLocalExperimentalMode(t *testing.T) {
+	if err := validateAPIWriterMode(false, "multi", "3"); !errors.Is(err, config.ErrInvalidValue) {
+		t.Fatalf("unsupported local writer mode was accepted: %v", err)
 	}
 }
 
@@ -222,12 +228,13 @@ func TestPostgresLoadModeDefaultsToRelationalOnlyInProduction(t *testing.T) {
 }
 
 func TestEnvDefaultAndObjectStoreSelection(t *testing.T) {
-	t.Setenv("EVYDENCE_TEST_VALUE", "  configured  ")
-	if got := envDefault("EVYDENCE_TEST_VALUE", "fallback"); got != "configured" {
-		t.Fatalf("envDefault configured = %q", got)
+	configured, err := config.Parse(apiCapturedEnvironment(t, "EVYDENCE_MIGRATIONS_DIR= configured "), config.API)
+	if err != nil || configured.Runtime().MigrationsDir != "configured" {
+		t.Fatal("configured path lost normalization", err)
 	}
-	if got := envDefault("EVYDENCE_MISSING_VALUE", "fallback"); got != "fallback" {
-		t.Fatalf("envDefault fallback = %q", got)
+	defaults, err := config.Parse(apiCapturedEnvironment(t), config.API)
+	if err != nil || defaults.Runtime().MigrationsDir != "migrations" {
+		t.Fatal("canonical path default changed", err)
 	}
 
 	t.Setenv("EVYDENCE_OBJECT_STORE", "filesystem")
@@ -241,19 +248,18 @@ func TestEnvDefaultAndObjectStoreSelection(t *testing.T) {
 	}
 
 	t.Setenv("EVYDENCE_OBJECT_STORE", "unknown")
-	if _, _, err := openObjectStore(t.Context()); err == nil || !strings.Contains(err.Error(), "unsupported") {
+	if _, _, err := openObjectStore(t.Context()); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatalf("unsupported object store err=%v", err)
 	}
 }
 
-func TestIntEnvParsesRateLimitConfiguration(t *testing.T) {
-	t.Setenv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", "25")
-	if got := intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 0); got != 25 {
-		t.Fatalf("configured int env = %d", got)
+func TestRateLimitConfigurationRejectsInvalidValuesInsteadOfFallback(t *testing.T) {
+	settings, err := config.Parse(apiCapturedEnvironment(t, "EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE=25"), config.API)
+	if err != nil || settings.API().RateLimitRequestsPerMinute != 25 {
+		t.Fatal("configured rate limit changed", err)
 	}
-	t.Setenv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", "-1")
-	if got := intEnv("EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE", 7); got != 7 {
-		t.Fatalf("negative int env fallback = %d", got)
+	if _, err := config.Parse(apiCapturedEnvironment(t, "EVYDENCE_RATE_LIMIT_REQUESTS_PER_MINUTE=-1"), config.API); !errors.Is(err, config.ErrInvalidValue) {
+		t.Fatal("negative limit silently fell back", err)
 	}
 }
 
@@ -273,7 +279,7 @@ func TestHTTPRuntimeConfigRequiresBoundedAuthenticationFailureBudget(t *testing.
 	for _, value := range []string{"0", "-1", "60001", "unbounded", "9999999999999999999999999"} {
 		t.Run("invalid:"+value, func(t *testing.T) {
 			t.Setenv("EVYDENCE_AUTH_FAILURES_PER_MINUTE", value)
-			if _, err := httpRuntimeConfigFromEnv(); err == nil || !strings.Contains(err.Error(), "EVYDENCE_AUTH_FAILURES_PER_MINUTE") {
+			if _, err := httpRuntimeConfigFromEnv(); !errors.Is(err, config.ErrInvalidValue) {
 				t.Fatal("unsafe failure budget accepted", err)
 			}
 		})
@@ -315,7 +321,7 @@ func TestHTTPRuntimeConfigRejectsInvalidBoundsAndProxyCIDRs(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Setenv(testCase.key, testCase.value)
-			if _, err := httpRuntimeConfigFromEnv(); err == nil || !strings.Contains(err.Error(), testCase.key) {
+			if _, err := httpRuntimeConfigFromEnv(); !errors.Is(err, config.ErrInvalidValue) {
 				t.Fatalf("err=%v, want validation mentioning %s", err, testCase.key)
 			}
 		})
@@ -330,7 +336,7 @@ func TestServeHTTPOnListenerGracefullyStopsOnCancellation(t *testing.T) {
 	server := newHTTPServer(listener.Addr().String(), http.NotFoundHandler(), httpRuntimeConfig{ShutdownTimeout: time.Second})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
-	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second) }()
+	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second, nil) }()
 	cancel()
 	if err := <-done; err != nil {
 		t.Fatalf("serveHTTPOnListener: %v", err)
@@ -353,7 +359,7 @@ func TestHTTPServerIngressLimitsRejectOversizedAndSlowHeaders(t *testing.T) {
 		MaxHeaderBytes:    1 << 10,
 	})
 	done := make(chan error, 1)
-	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second) }()
+	go func() { done <- serveHTTPOnListener(ctx, server, listener, time.Second, nil) }()
 
 	oversized, err := net.Dial("tcp", listener.Addr().String())
 	if err != nil {
@@ -393,14 +399,13 @@ func TestHTTPServerIngressLimitsRejectOversizedAndSlowHeaders(t *testing.T) {
 	}
 }
 
-func TestBoolEnvRequiresExplicitTrue(t *testing.T) {
-	t.Setenv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS", " true ")
-	if !boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS") {
-		t.Fatal("expected explicit true env to be enabled")
+func TestBooleanConfigurationRequiresExplicitTrueOrFalse(t *testing.T) {
+	settings, err := config.Parse(apiCapturedEnvironment(t, "EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS= true "), config.API)
+	if err != nil || !settings.API().WorkerOwnedParserSideEffects {
+		t.Fatal("explicit true was not enabled", err)
 	}
-	t.Setenv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS", "yes")
-	if boolEnv("EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS") {
-		t.Fatal("expected non-true env value to be disabled")
+	if _, err := config.Parse(apiCapturedEnvironment(t, "EVYDENCE_WORKER_OWNED_PARSER_SIDE_EFFECTS=yes"), config.API); !errors.Is(err, config.ErrInvalidValue) {
+		t.Fatal("malformed boolean silently disabled protection", err)
 	}
 }
 
@@ -409,7 +414,7 @@ func TestOpenCosignVerifierRequiresBoundedVersionedTrustMaterial(t *testing.T) {
 		t.Fatalf("empty optional Cosign config verifier=%T err=%v", verifier, err)
 	}
 	t.Setenv("EVYDENCE_SIGSTORE_TRUST_ROOT_JSON_BASE64", base64.StdEncoding.EncodeToString([]byte("{}")))
-	if _, err := openCosignVerifier(); err == nil || !strings.Contains(err.Error(), "TRUST_ROOT_VERSION") {
+	if _, err := openCosignVerifier(); !errors.Is(err, config.ErrMissingValue) {
 		t.Fatalf("missing trust-root version err=%v", err)
 	}
 	t.Setenv("EVYDENCE_SIGSTORE_TRUST_ROOT_VERSION", "test-root.v1")
@@ -442,7 +447,7 @@ func TestOpenObjectStoreRejectsIncompleteS3Config(t *testing.T) {
 
 func TestOpenSigningExecutorRequiresHTTPSUnlessLocalOverride(t *testing.T) {
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://signer.example.test/sign")
-	if _, err := openSigningExecutor(t.Context()); err == nil || !strings.Contains(err.Error(), "https") {
+	if _, err := openSigningExecutor(t.Context()); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatalf("remote http signer err=%v, want https rejection", err)
 	}
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
@@ -474,7 +479,7 @@ func TestOpenSigningExecutorUsesGatewayForPKCS11HSM(t *testing.T) {
 
 func TestOpenSigningExecutorRequiresGatewayForNonAWSKMSModes(t *testing.T) {
 	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "pkcs11-hsm")
-	if _, err := openSigningExecutor(t.Context()); err == nil || !strings.Contains(err.Error(), "EVYDENCE_SIGNING_EXECUTOR_URL") {
+	if _, err := openSigningExecutor(t.Context()); !errors.Is(err, config.ErrMissingValue) {
 		t.Fatalf("missing gateway err=%v", err)
 	}
 }
@@ -495,6 +500,7 @@ func TestOpenSigningExecutorConfiguresDirectGCPKMS(t *testing.T) {
 	}
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", path)
 	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
+	t.Setenv("EVYDENCE_GCP_KMS_KEY_NAME", "projects/project/locations/global/keyRings/ledger/cryptoKeys/key/cryptoKeyVersions/1")
 	t.Setenv("EVYDENCE_GCP_KMS_ENDPOINT", "https://kms.example.test")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
@@ -516,6 +522,7 @@ func TestOpenSigningExecutorConfiguresDirectGCPKMS(t *testing.T) {
 func TestOpenSigningExecutorDoesNotDowngradeGCPToGatewayWithoutCredentials(t *testing.T) {
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Join(t.TempDir(), "missing-adc.json"))
 	t.Setenv("EVYDENCE_SIGNING_KEY_MODE", "gcp-kms")
+	t.Setenv("EVYDENCE_GCP_KMS_KEY_NAME", "projects/project/locations/global/keyRings/ledger/cryptoKeys/key/cryptoKeyVersions/1")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_URL", "http://127.0.0.1/sign")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_ALLOW_INSECURE_LOCALHOST", "true")
 	t.Setenv("EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64", base64.StdEncoding.EncodeToString(make([]byte, 32)))
@@ -561,7 +568,7 @@ func TestOpenProviderIdentityValidatorUsesGatewayWhenConfigured(t *testing.T) {
 
 func TestOpenProviderIdentityValidatorRequiresHTTPSForRemoteGateway(t *testing.T) {
 	t.Setenv("EVYDENCE_PROVIDER_VALIDATION_GATEWAY_URL", "http://provider.example.test/validate")
-	if _, err := openProviderIdentityValidator(); err == nil || !strings.Contains(err.Error(), "https") {
+	if _, err := openProviderIdentityValidator(); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatalf("remote http provider validator err=%v, want https rejection", err)
 	}
 }
@@ -580,7 +587,7 @@ func TestOpenTransparencyProofFetcherUsesGatewayWhenConfigured(t *testing.T) {
 
 func TestOpenTransparencyProofFetcherRequiresHTTPSForRemoteGateway(t *testing.T) {
 	t.Setenv("EVYDENCE_TRANSPARENCY_PROOF_GATEWAY_URL", "http://transparency.example.test/proof")
-	if _, err := openTransparencyProofFetcher(); err == nil || !strings.Contains(err.Error(), "https") {
+	if _, err := openTransparencyProofFetcher(); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatalf("remote http transparency gateway err=%v, want https rejection", err)
 	}
 }

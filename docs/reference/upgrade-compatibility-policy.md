@@ -5,6 +5,21 @@ future stable releases. It is an operator compatibility policy, not legal
 compliance proof, certification, complete SBOM proof, authoritative scanner
 coverage, or a secure-release guarantee.
 
+## Build And Platform Changes (Unreleased)
+
+The [toolchain/platform reference](toolchain-platform-support.md) owns the exact
+minimum/current source compilers, build defaults and target matrix. Check it
+before replacing a binary, container builder or SDK wrapper. Cross-built CLI
+archives do not establish additional supported server platforms. Existing
+published release commitments are not rewritten by a source toolchain update.
+
+New candidate archives include API, worker and migration executables only for
+Linux amd64. Other declared platform archives retain the `evydence` CLI and
+existing archive filenames; they do not include unsupported server commands.
+Review operator installation scripts that previously selected another server
+binary from a cross-built archive. Historical assets keep their original bytes.
+
+
 ## Supported Upgrade Paths
 
 | Source | Target | Policy |
@@ -29,6 +44,68 @@ evidence.
   prefix can upgrade to the current schema in a disposable PostgreSQL schema.
 - Rollback after a migration writes new state requires restoring the matching
   PostgreSQL and object-store backups together.
+
+## Structured Log Rollout (Unreleased)
+
+EVY-1202 changes API, worker and migration diagnostics from free-form text to
+JSON by default. Update collectors/parsers to the
+[operational log schema](observability.md#process-diagnostics), or select the
+structured text format. Stdout command results and the explicit local bootstrap
+credential interface retain their existing contracts.
+
+Apply `20261016000100_outbox_log_correlation` before updated workers start.
+Existing jobs retain empty references; new jobs capture correlation separately
+from payloads and deduplication keys. No historical evidence or audit hash is
+rewritten. Budget the ordinary `ALTER TABLE` lock during the operator-owned
+migration window. Diagnostic columns are not historical backup commitments;
+restoring earlier backups may lose correlation. The isolated round-trip test
+covers representative old rows, not a live production-volume migration or a
+supported release downgrade.
+
+## Lifecycle Probe Rollout (Unreleased)
+
+EVY-1203 adds `/v1/startup`; `/v1/health` remains dependency-free liveness and
+`/v1/ready` retains its readiness status/check envelope. Configured dependency
+names are process-specific; the synthetic `ledger: ok` row is removed because
+it performed no evidence check. Do not use that row as an integrity signal.
+Startup/readiness/diagnostics share a short-lived dependency snapshot, so allow
+the documented refresh/cache window before expecting an outage or recovery to
+appear. Responses use `no-store`, and unavailable probes preserve the catalog
+retry policy. Canonical lifecycle probes use admission separate from ordinary
+application requests; this does not exempt other routes from their limits.
+
+The API now reports configuration freshness and outbox progress as readiness
+dependencies. Overdue eligible work or an expired worker lease can change
+readiness to `503`. Helm adds a startup probe and projects a desired non-secret
+configuration revision; chart configuration changes replace both daemons.
+The revision variables are optional outside Helm, but configuring only one,
+or starting with a mismatched/unreadable revision file, fails before runtime
+resources open. This mechanism does not hot-reload settings or watch external
+Secret updates; those require an operator rollout.
+
+Production `signing_config` now checks the actual signing dependency. Gateways
+need `EVYDENCE_SIGNING_EXECUTOR_READINESS_URL` with the documented read-only
+response contract. Native cloud modes need metadata-read permission; GCP and
+Azure additionally require configured default key/version values for that
+process probe, even when tenant signing requests supply their own key reference.
+Missing probe configuration or provider failure leaves readiness unavailable
+while dependency-free liveness continues. These metadata reads create no test
+signatures and do not establish every key's signing authorization.
+
+The worker's `healthcheck`/`--healthcheck` command now requires a running worker
+on `EVYDENCE_WORKER_HEALTH_ADDR` (default `127.0.0.1:8081`). It is no longer an
+unconditional-success utility. Use `--startup` and `--liveness` for distinct
+lifecycle checks. Pick a separate loopback port for each worker sharing a
+network namespace; an occupied port prevents claims. Helm provides the three
+exec modes, projects the configuration revision into both daemons, and loads
+runtime Secret variables. Optional per-daemon Secret overrides allow the API
+and worker to use different credentials. Chart safety settings take precedence
+over Secret variables; inspect existing Secret keys before upgrading.
+
+See [observability](observability.md#endpoints) for endpoint semantics and
+freshness bounds. Instance diagnostics still require explicit `instance:admin`.
+No evidence, audit, idempotency or backup format changes accompany this HTTP
+probe transition.
 
 ## API Compatibility
 

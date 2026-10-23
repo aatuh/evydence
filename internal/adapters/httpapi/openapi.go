@@ -109,6 +109,13 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"status": map[string]any{"type": "string", "enum": []string{"ok"}},
 	}, "status"))
 	registry.RegisterSchema("HealthStatusEnvelope", dataEnvelopeSchema("#/components/schemas/HealthStatus"))
+	registry.RegisterSchema("StartupStatus", objectSchema(map[string]any{
+		"status":              map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"retryable":           map[string]any{"type": "boolean"},
+		"retry_class":         map[string]any{"$ref": "#/components/schemas/RetryClass"},
+		"retry_after_seconds": map[string]any{"type": "integer", "minimum": 1, "description": "Present for unavailable startup and mirrored in Retry-After."},
+	}, "status"))
+	registry.RegisterSchema("StartupStatusEnvelope", dataEnvelopeSchema("#/components/schemas/StartupStatus"))
 	registry.RegisterSchema("VersionInfo", objectSchema(map[string]any{
 		"version":                 map[string]any{"type": "string"},
 		"commit":                  map[string]any{"type": "string"},
@@ -293,7 +300,12 @@ func registerCriticalSchemas(registry *specs.Registry) {
 	}, "status", "checks"))
 	registry.RegisterSchema("ReadinessStatusEnvelope", dataEnvelopeSchema("#/components/schemas/ReadinessStatus"))
 	registry.RegisterSchema("ReadinessDiagnostics", objectSchema(map[string]any{
-		"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"status":         map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"startup_status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},
+		"initialized":    map[string]any{"type": "boolean"},
+		"draining":       map[string]any{"type": "boolean"},
+		"checked_at":     map[string]any{"type": "string", "format": "date-time", "description": "Completion time of the shared dependency sample; absent when no sample is available."},
+		"valid_until":    map[string]any{"type": "string", "format": "date-time", "description": "Upper bound on cache reuse; an expired snapshot is never served as current readiness."},
 		"checks": map[string]any{"type": "array", "items": objectSchema(map[string]any{
 			"name":   map[string]any{"type": "string"},
 			"status": map[string]any{"type": "string", "enum": []string{"ok", "unavailable"}},

@@ -13,6 +13,7 @@ import (
 
 	"github.com/aatuh/evydence/internal/app"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
+	"github.com/aatuh/evydence/internal/platform/logging"
 )
 
 const (
@@ -53,6 +54,7 @@ func (f JobFailure) normalized() (JobFailure, error) {
 }
 
 type ClaimedJob struct {
+	Correlation logging.Correlation
 	ID          string
 	TenantID    string
 	Kind        string
@@ -232,11 +234,11 @@ func insertOutboxJob(ctx context.Context, exec outboxExecutor, job app.OutboxJob
 	_, err = exec.Exec(ctx, `
 		INSERT INTO outbox_jobs (
 			id, tenant_id, kind, subject_type, subject_id, deduplication_key, payload, status,
-			attempts, max_attempts, run_after, created_at, updated_at
+			attempts, max_attempts, run_after, created_at, updated_at, log_request_id, log_operation_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now(), $9, $10)
 		ON CONFLICT (tenant_id, deduplication_key) DO NOTHING
-	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt)
+	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt, logging.CorrelationFromContext(ctx).RequestID, logging.CorrelationFromContext(ctx).OperationID)
 	if err != nil {
 		return fmt.Errorf("enqueue outbox job: %w", err)
 	}
@@ -288,7 +290,7 @@ func (s *Store) ClaimJobs(ctx context.Context, limit int) ([]ClaimedJob, error) 
 		    updated_at = now()
 		FROM claimed
 		WHERE j.id = claimed.id
-		RETURNING j.id, j.tenant_id, j.kind, j.subject_type, j.subject_id, j.attempts, j.lease_token, j.payload
+		RETURNING j.id, j.tenant_id, j.kind, j.subject_type, j.subject_id, j.attempts, j.lease_token, j.payload, j.log_request_id, j.log_operation_id
 	`, limit, int(outboxLeaseDuration/time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("claim jobs: %w", err)
@@ -298,7 +300,7 @@ func (s *Store) ClaimJobs(ctx context.Context, limit int) ([]ClaimedJob, error) 
 	for rows.Next() {
 		var job ClaimedJob
 		var payload []byte
-		if err := rows.Scan(&job.ID, &job.TenantID, &job.Kind, &job.SubjectType, &job.SubjectID, &job.Attempts, &job.LeaseToken, &payload); err != nil {
+		if err := rows.Scan(&job.ID, &job.TenantID, &job.Kind, &job.SubjectType, &job.SubjectID, &job.Attempts, &job.LeaseToken, &payload, &job.Correlation.RequestID, &job.Correlation.OperationID); err != nil {
 			return nil, fmt.Errorf("scan claimed job: %w", err)
 		}
 		if len(payload) > 0 {

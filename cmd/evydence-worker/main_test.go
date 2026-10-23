@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,8 @@ import (
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/app"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/config"
+	"github.com/aatuh/evydence/internal/platform/health"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 )
 
@@ -1221,7 +1224,7 @@ func TestNormalizedVEXDecisionRequestValidatesDecodedShapeAndBounds(t *testing.T
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			job := postgres.ClaimedJob{Payload: map[string]any{"decision_request_schema": tt.schema, "decision_statements": tt.statements}}
-			parsed, ok, err := normalizedVEXDecisionRequest(job, tt.vex)
+			parsed, ok, err := normalizedVEXDecisionRequest(job, tt.vex, defaultMaxWorkerPayloadBytes)
 			if tt.wantOK {
 				if err != nil || !ok || len(parsed.Statements) != 1 || parsed.Statements[0].StatementIndex != 1 {
 					t.Fatalf("normalized request = %#v, %v, %v", parsed, ok, err)
@@ -1479,7 +1482,7 @@ func TestVEXDecisionAuditFailurePersistsOnlyFailedImportReport(t *testing.T) {
 		Decisions: map[string]domain.VulnerabilityDecision{prior.ID: prior},
 		Chain:     map[string][]domain.AuditChainEntry{},
 	}
-	parsed, err := parseReplayedVEX(body)
+	parsed, err := parseReplayedVEX(body, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		t.Fatalf("parse vex fixture: %v", err)
 	}
@@ -1707,7 +1710,7 @@ func TestProcessJobWithObjectsRejectsAmbiguousVEXMappingAfterEmptyComponent(t *t
 
 func TestParseReplayedVEXSupportsCycloneDX(t *testing.T) {
 	body := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","vulnerabilities":[{"id":"CVE-2026-2001","affects":[{"ref":"pkg:oci/api"}],"analysis":{"state":"resolved","justification":"code_not_reachable","detail":"patched in release artifact","response":["update"]}},{"id":"CVE-2026-2999","analysis":{"state":"unknown"}}]}`)
-	parsed, err := parseReplayedVEX(body)
+	parsed, err := parseReplayedVEX(body, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		t.Fatalf("parse cyclonedx vex replay: %v", err)
 	}
@@ -1997,7 +2000,6 @@ func TestProcessJobWithObjectsFailsSafelyForPayloadProblems(t *testing.T) {
 }
 
 func TestProcessJobWithObjectsRejectsOversizedPayload(t *testing.T) {
-	t.Setenv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", "2")
 	body := []byte("large")
 	hash := digestBytes(body)
 	state := app.PersistedState{SBOMs: map[string]domain.SBOM{
@@ -2010,7 +2012,7 @@ func TestProcessJobWithObjectsRejectsOversizedPayload(t *testing.T) {
 		Payload:   map[string]any{"payload_ref": "tenants/ten_test/payloads/sbom.json", "payload_hash": hash},
 	}
 	object := app.Object{TenantID: "ten_test", Digest: hash, Bytes: body}
-	err := processJobWithObjects(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job)
+	err := processJobInternal(context.Background(), fakeStateLoader{state: state, ok: true}, fakeObjectGetter{object: object}, job, true, 2)
 	if err == nil || !strings.Contains(err.Error(), "size limit") {
 		t.Fatalf("err=%v", err)
 	}
@@ -2120,28 +2122,23 @@ func TestWorkerHelpersValidatePayloadHashAndEnv(t *testing.T) {
 		t.Fatalf("missing wanted hash should be ignored: %v", err)
 	}
 
-	t.Setenv("EVYDENCE_WORKER_TEST_ENV", " value ")
-	if got := envDefault("EVYDENCE_WORKER_TEST_ENV", "fallback"); got != "value" {
-		t.Fatalf("envDefault configured = %q", got)
+	configured, err := config.Parse(workerCapturedEnvironment(t, "EVYDENCE_MIGRATIONS_DIR= value ", "EVYDENCE_PARSER_REPLAY_TIMEOUT=250ms"), config.WorkerReplay)
+	if err != nil || configured.Runtime().MigrationsDir != "value" || configured.Worker().ParserReplayTimeout != 250*time.Millisecond {
+		t.Fatal("configured directory or operation timeout was not parsed", err)
 	}
-	if got := envDefault("EVYDENCE_WORKER_MISSING_ENV", "fallback"); got != "fallback" {
-		t.Fatalf("envDefault fallback = %q", got)
+	defaults, err := config.Parse(workerCapturedEnvironment(t), config.WorkerReplay)
+	if err != nil || defaults.Runtime().MigrationsDir != "migrations" || defaults.Worker().ParserReplayTimeout != 2*time.Minute {
+		t.Fatal("canonical directory or operation defaults changed", err)
 	}
-	t.Setenv("EVYDENCE_WORKER_TEST_DURATION", "250ms")
-	if got := durationEnv("EVYDENCE_WORKER_TEST_DURATION", time.Second); got != 250*time.Millisecond {
-		t.Fatalf("durationEnv configured = %s", got)
+	if _, err := config.Parse(workerCapturedEnvironment(t, "EVYDENCE_PARSER_REPLAY_TIMEOUT=-1s"), config.WorkerReplay); !errors.Is(err, config.ErrInvalidValue) {
+		t.Fatal("invalid explicit operation timeout silently fell back", err)
 	}
-	t.Setenv("EVYDENCE_WORKER_TEST_DURATION", "-1s")
-	if got := durationEnv("EVYDENCE_WORKER_TEST_DURATION", time.Second); got != time.Second {
-		t.Fatalf("durationEnv fallback = %s", got)
+	settings, err := config.Parse(workerCapturedEnvironment(t, "EVYDENCE_WORKER_BATCH_SIZE=7"), config.Worker)
+	if err != nil || settings.Worker().BatchSize != 7 {
+		t.Fatal("configured batch size was not parsed", err)
 	}
-	t.Setenv("EVYDENCE_WORKER_TEST_INT", "7")
-	if got := intEnv("EVYDENCE_WORKER_TEST_INT", 10); got != 7 {
-		t.Fatalf("intEnv configured = %d", got)
-	}
-	t.Setenv("EVYDENCE_WORKER_TEST_INT", "0")
-	if got := intEnv("EVYDENCE_WORKER_TEST_INT", 10); got != 10 {
-		t.Fatalf("intEnv fallback = %d", got)
+	if _, err := config.Parse(workerCapturedEnvironment(t, "EVYDENCE_WORKER_BATCH_SIZE=0"), config.Worker); !errors.Is(err, config.ErrInvalidValue) {
+		t.Fatal("invalid explicit batch size silently fell back", err)
 	}
 }
 
@@ -2230,6 +2227,14 @@ func TestReplayMergeHelpersCoverParserSideEffects(t *testing.T) {
 }
 
 func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
+	monitor, err := health.New(nil, health.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	monitor.MarkInitialized()
+	server := httptest.NewServer(newWorkerHealthHandler(monitor))
+	defer server.Close()
+	t.Setenv("EVYDENCE_WORKER_HEALTH_ADDR", server.Listener.Addr().String())
 	if err := runWithArgs([]string{"healthcheck"}); err != nil {
 		t.Fatalf("healthcheck: %v", err)
 	}
@@ -2240,8 +2245,8 @@ func TestRunRequiresDatabaseURLAndWrapsOpenFailure(t *testing.T) {
 		t.Fatalf("unexpected command err=%v", err)
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "")
-	err := run()
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+	err = run()
+	if !errors.Is(err, config.ErrMissingValue) {
 		t.Fatalf("missing database err=%v", err)
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://invalid-host.invalid/evydence")
@@ -2257,7 +2262,7 @@ func TestWorkerRejectsLocalMemoryProfileBeforeOpeningStorage(t *testing.T) {
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "local_memory")
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
 	err := run()
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") || strings.Contains(err.Error(), "private-password") {
+	if !errors.Is(err, config.ErrInvalidValue) || strings.Contains(err.Error(), "private-password") {
 		t.Fatalf("worker profile error = %v", err)
 	}
 }
@@ -2279,7 +2284,7 @@ func TestWorkerOperatorCommandsRejectLocalMemoryProfileBeforeOpeningStorage(t *t
 	}
 	for _, command := range commands {
 		t.Run(command.name, func(t *testing.T) {
-			if err := command.run(); err == nil || !strings.Contains(err.Error(), "EVYDENCE_RUNTIME_PROFILE") || strings.Contains(err.Error(), "private-password") {
+			if err := command.run(); !errors.Is(err, config.ErrInvalidValue) || strings.Contains(err.Error(), "private-password") {
 				t.Fatalf("unsafe operator profile error = %v", err)
 			}
 		})
@@ -2319,7 +2324,7 @@ func TestOpenObjectStoreSelectsFilesystemAndRejectsUnsupportedBackend(t *testing
 	}
 
 	t.Setenv("EVYDENCE_OBJECT_STORE", "memory")
-	if store, description, err := openObjectStore(context.Background()); err == nil || store != nil || description != "" || !strings.Contains(err.Error(), "unsupported") {
+	if store, description, err := openObjectStore(context.Background()); err == nil || store != nil || description != "" || !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatalf("unsupported backend store=%T description=%q err=%v", store, description, err)
 	}
 }
@@ -2386,8 +2391,9 @@ func TestParserReplayRequiresExplicitScopedApply(t *testing.T) {
 		}
 	}
 	t.Setenv("EVYDENCE_DATABASE_URL", "")
+	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_test", "--parser-version", app.ParserVersionSPDXJSON, "--actor", "operator", "--apply"}
-	if err := runParserReplay(args); err == nil || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+	if err := runParserReplay(args); !errors.Is(err, config.ErrMissingValue) {
 		t.Fatalf("runParserReplay valid args without database err=%v", err)
 	}
 }
@@ -2399,7 +2405,7 @@ func TestRunParserReplayRejectsUnsafeObjectStoreBeforeDatabaseOpen(t *testing.T)
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://operator:private-password@127.0.0.1:1/evydence?connect_timeout=1")
 	t.Setenv("EVYDENCE_OBJECT_STORE", "unsupported")
 	args := []string{"--tenant", "ten_test", "--evidence", "ev_test", "--parser-version", app.ParserVersionSPDXJSON, "--actor", "operator", "--apply"}
-	if err := runParserReplay(args); err == nil || !strings.Contains(err.Error(), "EVYDENCE_OBJECT_STORE") || strings.Contains(err.Error(), "private-password") {
+	if err := runParserReplay(args); !errors.Is(err, config.ErrInvalidValue) || strings.Contains(err.Error(), "private-password") {
 		t.Fatalf("unsafe parser-replay storage selection err=%v", err)
 	}
 }
@@ -2517,13 +2523,19 @@ type replayObjectStoreStub struct{ object app.Object }
 
 func (s replayObjectStoreStub) Put(context.Context, app.Object) error           { return nil }
 func (s replayObjectStoreStub) Get(context.Context, string) (app.Object, error) { return s.object, nil }
+func (s replayObjectStoreStub) GetBounded(_ context.Context, _ string, limit int64) (app.Object, error) {
+	if int64(len(s.object.Bytes)) > limit {
+		return app.Object{}, app.ErrConflict
+	}
+	return s.object, nil
+}
 
 func useParserReplayRuntimeStub(t *testing.T, store *replayStoreStub, object app.Object) {
 	t.Helper()
 	previous := openParserReplayRuntime
 	t.Cleanup(func() { openParserReplayRuntime = previous })
 	openParserReplayRuntime = func(context.Context, wiring.RuntimeConfig) (parserReplayRuntime, error) {
-		return parserReplayRuntime{store: store, objects: replayObjectStoreStub{object: object}, close: store.Close}, nil
+		return parserReplayRuntime{store: store, objects: replayObjectStoreStub{object: object}, close: func(context.Context, time.Duration) error { store.Close(); return nil }}, nil
 	}
 }
 

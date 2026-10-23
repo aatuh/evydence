@@ -29,10 +29,13 @@ func TestReadinessHandlersUseFocusedProbeWithoutLedgerConfiguration(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	server.readinessQuery = operationsquery.NewReadiness([]operationsquery.ReadinessCheck{{
+	server.readinessQuery, err = operationsquery.NewReadiness([]operationsquery.ReadinessCheck{{
 		Name: "postgres", Timeout: time.Second, FailureDetail: "database connectivity is unavailable",
 		Check: func(context.Context) error { return errors.New("postgres://user:top-secret@database.internal") },
 	}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	public := httptest.NewRecorder()
 	server.Handler().ServeHTTP(public, httptest.NewRequest(http.MethodGet, "/v1/ready", nil))
 	if public.Code != http.StatusServiceUnavailable || !strings.Contains(public.Body.String(), `"status":"unavailable"`) {

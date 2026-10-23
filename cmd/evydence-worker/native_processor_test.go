@@ -54,23 +54,23 @@ func (f *nativeBoundedReadFake) GetBounded(_ context.Context, _ string, limit in
 func TestWorkerObjectReplayUsesBoundedReaderBeforeParsing(t *testing.T) {
 	job := postgres.ClaimedJob{Kind: "parse_sbom", TenantID: "tenant", Payload: map[string]any{"payload_ref": "object://tenants/tenant/raw/test"}}
 	f := &nativeBoundedReadFake{object: app.Object{Key: "tenants/tenant/raw/test", TenantID: "tenant", Bytes: []byte("source")}}
-	v, ok, err := verifyJobObject(t.Context(), nil, f, job)
-	if err != nil || !ok || string(v.Bytes) != "source" || f.gets != 0 || f.bounded != 1 || f.limit != int64(intEnv("EVYDENCE_WORKER_MAX_PAYLOAD_BYTES", defaultMaxWorkerPayloadBytes)) {
+	v, ok, err := verifyJobObject(t.Context(), nil, f, job, defaultMaxWorkerPayloadBytes)
+	if err != nil || !ok || string(v.Bytes) != "source" || f.gets != 0 || f.bounded != 1 || f.limit != defaultMaxWorkerPayloadBytes {
 		t.Fatal("worker used unbounded object replay", err, f)
 	}
 	f.err = app.ErrConflict
-	if _, ok, err := verifyJobObject(t.Context(), nil, f, job); err == nil || ok || f.gets != 0 || f.bounded != 2 || classifyWorkerFailure(err).Class != postgres.JobFailurePoisoned {
+	if _, ok, err := verifyJobObject(t.Context(), nil, f, job, defaultMaxWorkerPayloadBytes); err == nil || ok || f.gets != 0 || f.bounded != 2 || classifyWorkerFailure(err).Class != postgres.JobFailurePoisoned {
 		t.Fatal("bounded rejection did not remain terminal and bounded", err, f)
 	}
 	f.err = context.Canceled
-	if _, ok, err := verifyJobObject(t.Context(), nil, f, job); ok || !errors.Is(err, context.Canceled) || classifyWorkerFailure(err).Code != "worker_interrupted" || f.gets != 0 {
+	if _, ok, err := verifyJobObject(t.Context(), nil, f, job, defaultMaxWorkerPayloadBytes); ok || !errors.Is(err, context.Canceled) || classifyWorkerFailure(err).Code != "worker_interrupted" || f.gets != 0 {
 		t.Fatal("bounded cancellation lost its identity", err, f)
 	}
 }
 
 func TestNativeWorkerDoesNotRequireAggregatePorts(t *testing.T) {
 	store := &nativeProcessorStoreFake{state: app.PersistedState{SBOMs: map[string]domain.SBOM{"sbom": {ID: "sbom", TenantID: "tenant", SpecVersion: "1.6"}}}}
-	p, err := newNativeJobProcessor(store, &nativeProcessorObjectsFake{})
+	p, err := newNativeJobProcessor(store, &nativeProcessorObjectsFake{}, defaultMaxWorkerPayloadBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,12 +94,12 @@ func TestNativeWorkerDoesNotRequireAggregatePorts(t *testing.T) {
 }
 func TestNativeWorkerRejectsIncompleteAndTypedNilPorts(t *testing.T) {
 	for _, store := range []nativeJobStateStore{nil, (*nativeProcessorStoreFake)(nil)} {
-		if p, err := newNativeJobProcessor(store, &nativeProcessorObjectsFake{}); p != nil || err == nil {
+		if p, err := newNativeJobProcessor(store, &nativeProcessorObjectsFake{}, defaultMaxWorkerPayloadBytes); p != nil || err == nil {
 			t.Fatal("missing native state accepted")
 		}
 	}
 	for _, objects := range []app.ObjectStore{nil, (*nativeProcessorObjectsFake)(nil), &nativeUnboundedObjectsFake{}} {
-		if p, err := newNativeJobProcessor(&nativeProcessorStoreFake{}, objects); p != nil || err == nil {
+		if p, err := newNativeJobProcessor(&nativeProcessorStoreFake{}, objects, defaultMaxWorkerPayloadBytes); p != nil || err == nil {
 			t.Fatal("missing native object capabilities accepted")
 		}
 	}

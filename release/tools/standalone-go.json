@@ -1,0 +1,32 @@
+{
+  "schema": "evydence-standalone-go-tools.v1",
+  "tools": [
+    {
+      "id": "cosign",
+      "module": "github.com/sigstore/cosign/v2",
+      "package": "github.com/sigstore/cosign/v2/cmd/cosign",
+      "version": "v2.6.1",
+      "sum": "h1:7Wf67ENNCjg+1fLqHRPgKUNaCCnCavnEfCe1LApOoIo=",
+      "go_mod_sum": "h1:L37doL+7s6IeCXFODV2J7kds5Po/srlVzA//++YqAJ8=",
+      "commit": "634fabe54f9fbbab55d821a83ba93b2d25bdba5f"
+    },
+    {
+      "id": "minio",
+      "module": "github.com/minio/minio",
+      "package": "github.com/minio/minio",
+      "version": "v0.0.0-20251015172955-9e49d5e7a648",
+      "sum": "h1:6TdolSCLSs2nwm8i0PpWDqf9iX2Ty9WQK8wmr7dCnUM=",
+      "go_mod_sum": "h1:yCWDkwWO9IWpGsT4mreDDN/B/QVmK2zC666uInRAcqE=",
+      "commit": "9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a"
+    },
+    {
+      "id": "mc",
+      "module": "github.com/minio/mc",
+      "package": "github.com/minio/mc",
+      "version": "v0.0.0-20250813083541-7394ce0dd2a8",
+      "sum": "h1:9tuRE4iEaDkuxatxe7pddYYh1SX5mT0/D0haofZFeTY=",
+      "go_mod_sum": "h1:agCKg3UT5wU3auhPL2lZbOWlqqT2RokeAT7Xc+HK3cU=",
+      "commit": "7394ce0dd2a80935aded936b09fa12cbb3cb8096"
+    }
+  ]
+}

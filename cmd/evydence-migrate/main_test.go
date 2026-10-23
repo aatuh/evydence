@@ -1,25 +1,33 @@
 package main
 
 import (
-	"strings"
+	"context"
+	"errors"
+	"io"
 	"testing"
+
+	"github.com/aatuh/evydence/internal/platform/config"
 )
 
 func TestRunRequiresDatabaseURL(t *testing.T) {
 	t.Setenv("EVYDENCE_DATABASE_URL", "")
 	err := run()
-	if err == nil || !strings.Contains(err.Error(), "EVYDENCE_DATABASE_URL") {
+	if !errors.Is(err, config.ErrMissingValue) {
 		t.Fatalf("err=%v, want database URL requirement", err)
 	}
 }
 
-func TestEnvDefault(t *testing.T) {
-	t.Setenv("EVYDENCE_MIGRATIONS_DIR_TEST", " custom ")
-	if got := envDefault("EVYDENCE_MIGRATIONS_DIR_TEST", "migrations"); got != "custom" {
-		t.Fatalf("configured envDefault = %q", got)
-	}
-	if got := envDefault("EVYDENCE_MISSING_MIGRATIONS_DIR_TEST", "migrations"); got != "migrations" {
-		t.Fatalf("fallback envDefault = %q", got)
+func TestMigrationDirectoryTrimsCapturedValue(t *testing.T) {
+	called := false
+	err := runMigrationProcess(t.Context(), migrationEnvironment(t, "EVYDENCE_DATABASE_URL=host=db", "EVYDENCE_MIGRATIONS_DIR= custom "), io.Discard, func(_ context.Context, settings config.Configuration) error {
+		called = true
+		if settings.Runtime().MigrationsDir != "custom" {
+			t.Fatal("configured migration directory was not normalized")
+		}
+		return nil
+	})
+	if err != nil || !called {
+		t.Fatal("configured migration operation was not run", err)
 	}
 }
 

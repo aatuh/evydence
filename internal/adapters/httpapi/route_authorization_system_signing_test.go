@@ -16,7 +16,7 @@ import (
 
 func addNativeSystemSigningAuthorizationCases(cases map[string]func(*testing.T)) {
 	for _, tc := range []struct{ operation, path string }{
-		{"health", "/v1/health"}, {"ready", "/v1/ready"}, {"version", "/v1/version"}, {"openapi", "/v1/openapi.json"},
+		{"health", "/v1/health"}, {"startup", "/v1/startup"}, {"ready", "/v1/ready"}, {"version", "/v1/version"}, {"openapi", "/v1/openapi.json"},
 	} {
 		cases[tc.operation] = func(t *testing.T) {
 			f := newNativeAuthorizationFixture(t)

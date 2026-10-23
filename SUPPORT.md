@@ -4,9 +4,12 @@ Evydence has community and commercial support paths.
 
 ## Community Support
 
-Use GitHub issues for reproducible bugs, documentation problems, and feature
-discussion. Community support is best effort and has no response-time
-commitment.
+Use [GitHub issues](https://github.com/aatuh/evydence/issues) for reproducible
+non-security bugs, documentation problems, and feature discussion. Suspected
+vulnerabilities go through the private route in [SECURITY.md](SECURITY.md).
+Community support is best effort and has no response-time commitment; the sole
+maintainer may be unavailable. The [release support policy](docs/reference/release-support.md)
+defines which release is current and when its security-support window ends.
 
 Good bug reports include:
 

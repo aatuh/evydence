@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/wiring"
 )
 
@@ -49,7 +50,7 @@ func TestAPIInvalidCleanupBudgetFailsBeforeStorage(t *testing.T) {
 	t.Setenv("EVYDENCE_RUNTIME_PROFILE", "postgres")
 	t.Setenv("EVYDENCE_DATABASE_URL", "postgres://owner:private-canary@127.0.0.1:1/ledger")
 	t.Setenv("EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS", "0")
-	if err := runWithContext(t.Context()); err == nil || err.Error() != "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS must be an integer between 1 and 60" {
+	if err := runWithContext(t.Context()); !errors.Is(err, config.ErrInvalidValue) {
 		t.Fatal("invalid cleanup budget did not fail before storage", err)
 	}
 }

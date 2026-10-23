@@ -167,6 +167,27 @@ func normalizeAllowedHosts(hosts []string) (map[string]struct{}, error) {
 }
 
 func (p destinationPolicy) validateURL(ctx context.Context, endpoint *url.URL) error {
+	if err := p.validateStaticEndpoint(endpoint); err != nil {
+		return err
+	}
+	host := normalizeHost(endpoint.Hostname())
+	if len(p.allowedHosts) > 0 {
+		if _, ok := p.allowedHosts[host]; !ok {
+			return ErrDestinationDenied
+		}
+	}
+	return p.validateHost(ctx, host)
+}
+
+// ValidateStaticEndpoint shares the request destination policy's scheme and
+// literal-address checks with startup validation. It performs no DNS lookup or
+// network access. Names must still pass DNS/address checks at request time.
+func ValidateStaticEndpoint(endpoint *url.URL, allowInsecureForLocalhost bool) error {
+	p := destinationPolicy{allowInsecureForLocalhost: allowInsecureForLocalhost}
+	return p.validateStaticEndpoint(endpoint)
+}
+
+func (p destinationPolicy) validateStaticEndpoint(endpoint *url.URL) error {
 	if endpoint == nil || endpoint.User != nil || endpoint.Host == "" {
 		return ErrDestinationDenied
 	}
@@ -174,15 +195,16 @@ func (p destinationPolicy) validateURL(ctx context.Context, endpoint *url.URL) e
 	if host == "" {
 		return ErrDestinationDenied
 	}
-	if len(p.allowedHosts) > 0 {
-		if _, ok := p.allowedHosts[host]; !ok {
-			return ErrDestinationDenied
-		}
-	}
 	if endpoint.Scheme != "https" && (endpoint.Scheme != "http" || !p.allowInsecureForLocalhost || !isLoopbackHost(host)) {
 		return ErrDestinationDenied
 	}
-	return p.validateHost(ctx, host)
+	if host == "localhost" && !p.allowInsecureForLocalhost {
+		return ErrDestinationDenied
+	}
+	if address, err := netip.ParseAddr(host); err == nil && !p.allowedAddress(host, address.Unmap()) {
+		return ErrDestinationDenied
+	}
+	return nil
 }
 
 func (p destinationPolicy) dialContext(ctx context.Context, network, address string) (net.Conn, error) {

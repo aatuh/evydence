@@ -1,12 +1,9 @@
 GO ?= go
-GOTOOLCHAIN ?= go1.26.9
+GOTOOLCHAIN ?= go1.27.3
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck
-.PHONY: architecture-check concurrency-stress-check
-GOLANGCI_LINT_VERSION ?= v2.11.4
-GOSEC_VERSION ?= v2.25.0
-GOVULNCHECK_VERSION ?= v1.2.0
+.PHONY: support-matrix-check architecture-check concurrency-stress-check config-generate config-check deployment-config-check lint-policy-check
 
 TAG ?=
 BUILD_VERSION ?= dev
@@ -18,6 +15,25 @@ BUILD_RELEASE_MANIFEST_DIGEST ?= unknown
 
 .PHONY: help tools build-api fmt lint vuln gosec test test-race fuzz-smoke coverage coverage-check test-strategy-check domain-context-check openapi-check openapi-breaking-check openapi-precision-check api-inventory-check rendered-openapi-check meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check docs-check deploy-check sdk-check demo-check customer-cve-review-demo-check local-ci-simulation-check reviewer-package-workflow-check black-box-demo-check black-box-release-artifact-check benchmark-check package-viewer-check security-regression-check release-asset-smoke-check marketing-site-check marketing-site-production-check restore-rehearsal-check fault-injection-check integration-check finalize release-acceptance release-check production-check release-candidate-check public-release-verify migration-compatibility-check release-check-local-postgres compose-up compose-down migrate live-postgres-check postgres-integration-test clean
 
+.PHONY: repository-controls-test repository-controls-check
+.PHONY: release-repro-policy-test reproducible-build-check
+.PHONY: release-evidence-policy-test release-evidence-tools
+.PHONY: dependency-policy-test dependency-updates-check dependency-inventory-test dependency-inventory-generate python-qa-check fixture-provenance-check fixture-provenance-upstream-check
+.PHONY: dependency-images-test dependency-images-check dependency-images-generate
+.PHONY: dependency-maintenance-test dependency-maintenance-check dependency-maintenance-generate
+.PHONY: dependency-review-provider-test
+.PHONY: dependency-inputs-test dependency-inputs-check
+.PHONY: dependency-classifier-test
+.PHONY: dependency-collection-test
+.PHONY: dependency-admission-test
+.PHONY: dependency-policy-check
+
+REPRODUCIBLE_BUILD_ROOT ?= $(if $(TMPDIR),$(TMPDIR)/evydence-reproducible-build,tmp/reproducible-build)
+RELEASE_EVIDENCE_TOOLS_ROOT ?= tmp/release-evidence-tools
+DEPENDENCY_INVENTORY_WORK_ROOT ?= $(if $(TMPDIR),$(TMPDIR),tmp)
+DEPENDENCY_IMAGE_SYFT ?=
+DEPENDENCY_LOCAL_IMAGE_MAP ?=
+
 help: ## Show help
 	@awk 'BEGIN {FS=":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
@@ -25,16 +41,20 @@ build-api: ## Build evydence-api with injected immutable build identity
 	@mkdir -p bin
 	@EVYDENCE_BUILD_VERSION='$(BUILD_VERSION)' EVYDENCE_BUILD_COMMIT='$(BUILD_COMMIT)' EVYDENCE_BUILD_TIME='$(BUILD_TIME)' EVYDENCE_BUILD_DIRTY='$(BUILD_DIRTY)' EVYDENCE_BUILD_GO_VERSION='$(BUILD_GO_VERSION)' EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST='$(BUILD_RELEASE_MANIFEST_DIGEST)' sh -c '$(GO) build -trimpath -ldflags "$$(sh scripts/build_ldflags.sh)" -o bin/evydence-api ./cmd/evydence-api'
 
-tools: ## Install local QA tools
-	@$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
-	@$(GO) install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
-	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+tools: ## Install QA tools from the isolated, checksum-locked tool module
+	@GOWORK=off $(GO) -C tools install -mod=readonly github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	@GOWORK=off $(GO) -C tools install -mod=readonly github.com/securego/gosec/v2/cmd/gosec
+	@GOWORK=off $(GO) -C tools install -mod=readonly golang.org/x/vuln/cmd/govulncheck
 
 fmt: ## Format Go files
 	@$(GO) fmt ./...
 
 lint: ## Run golangci-lint when installed
-	@golangci-lint run ./...
+	@$(MAKE) lint-policy-check
+	@golangci-lint run --max-same-issues=0 --max-issues-per-linter=0 ./...
+
+lint-policy-check: ## Prove request-cookie filtering retains response-cookie security alerts
+	@python3 scripts/lint_policy_check.py
 
 vuln: ## Run govulncheck when installed
 	@govulncheck ./...
@@ -61,6 +81,8 @@ coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_
 test-strategy-check: ## Validate critical behavior test evidence and coverage provenance policy
 	@python3 scripts/test_gate_watchdogs.py
 	@python3 scripts/test_concurrency_stress.py
+	@python3 scripts/test_runtime_lifecycle_check.py
+	@python3 scripts/test_runtime_lifecycle_evidence.py
 	@python3 scripts/test_coverage_check.py
 	@python3 scripts/test_critical_behavior_matrix.py
 	@python3 scripts/critical_behavior_matrix.py --check
@@ -161,8 +183,10 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F 'ghcr.io/$${{ github.repository }}' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'cosign sign --yes' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'cosign verify' .github/workflows/container-image.yml >/dev/null
-	@grep -F -- '--provenance=true' .github/workflows/container-image.yml >/dev/null
-	@grep -F -- '--sbom=true' .github/workflows/container-image.yml >/dev/null
+	@grep -F -- '--provenance=false' .github/workflows/container-image.yml >/dev/null
+	@grep -F -- '--sbom=false' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'scripts/container_evidence.py generate' .github/workflows/container-image.yml >/dev/null
+	@grep -F 'scripts/container_evidence.py verify' .github/workflows/container-image.yml >/dev/null
 	@grep -F 'https://evydence.app' .github/workflows/marketing-site-pages.yml >/dev/null
 	@grep -F 'G-XC2ESEHQ3W' Makefile >/dev/null
 	@grep -F 'actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e' .github/workflows/marketing-site-pages.yml >/dev/null
@@ -180,7 +204,22 @@ meta-check: ## Validate root legal, governance, support, and release-evidence me
 	@grep -F '*.pem' .dockerignore >/dev/null
 
 release-truth-check: ## Validate current release metadata against public docs and helper defaults
+	@python3 -m unittest discover -s scripts -p test_check_release_truth.py
 	@scripts/check_release_truth.py
+
+.PHONY: release-lifecycle-check
+release-lifecycle-check: ## Validate security support scope, withdrawals and generated reference
+	@python3 scripts/test_release_lifecycle.py
+	@python3 scripts/release_lifecycle.py check --reference
+
+.PHONY: changelog-check
+changelog-check: ## Validate change fragments, delivery coverage and the generated changelog
+	@python3 scripts/test_change_fragments.py
+	@python3 scripts/test_release_change_provider.py
+	@python3 scripts/test_release_history.py
+	@python3 scripts/test_release_notes.py
+	@python3 scripts/release_history.py check
+	@python3 scripts/release_notes.py check-inputs
 
 persistence-decomposition-check: ## Validate generated persistence decomposition inventory
 	@scripts/persistence_decomposition_inventory.py --check
@@ -201,7 +240,151 @@ quality-scorecard-check: ## Validate evidence-backed quality scorecard
 error-catalog-check: ## Validate generated error-code docs and SDK types
 	@python3 scripts/generate_error_catalog.py
 
-docs-check: meta-check release-truth-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check ## Validate canonical docs exist and avoid forbidden product claims
+config-generate: ## Regenerate owned configuration sections from the runtime schema
+	@$(GO) run ./cmd/config-artifacts --write
+
+config-check: ## Fail when generated configuration sections have drifted
+	@$(GO) run ./cmd/config-artifacts --check
+	@$(GO) test ./internal/platform/configartifact -run '^TestHelm(Bounds|SecretFileOptions)MatchRuntimeSchema$$' -count=1 -timeout=5m
+
+support-matrix-check: ## Check declared Go, tool, build, CI and reference selections
+	@python3 scripts/test_support_matrix.py
+	@python3 scripts/test_support_matrix_artifacts.py
+	@python3 scripts/test_release_build_plan.py
+	@bash -n scripts/release_candidate_package.sh scripts/release_candidate_validate.sh
+	@python3 scripts/support_matrix.py --check
+
+release-repro-policy-test: ## Test deterministic release recipes and comparison with tiny fixtures
+	@python3 scripts/test_release_artifacts.py
+	@python3 scripts/test_release_build.py
+	@python3 scripts/test_release_packaging_recipe.py
+	@python3 scripts/test_reproducible_build.py
+	@python3 scripts/test_release_repro_policy.py
+
+.PHONY: release-signing-policy-test release-signing-check
+
+release-signing-policy-test: ## Test release publisher trust and protected workflow policy offline
+	@python3 scripts/test_release_signing.py
+	@python3 scripts/test_public_release_evidence.py
+	@python3 scripts/test_release_evidence_workflows.py
+
+release-signing-check: release-signing-policy-test ## Verify live release environment approval, branch and credential custody rules
+	@python3 scripts/release_signing.py check-provider
+
+release-evidence-policy-test: release-signing-policy-test ## Test release subject parsing and public SBOM metadata offline
+	@python3 scripts/test_release_evidence_tools.py
+	@python3 scripts/test_release_evidence_metadata.py
+	@python3 scripts/test_release_subjects.py
+	@python3 scripts/test_release_sbom.py
+	@python3 scripts/test_release_evidence_profile.py
+	@python3 scripts/test_release_scanner.py
+	@python3 scripts/test_release_evidence_pipeline.py
+	@python3 scripts/test_release_oci.py
+	@python3 scripts/test_container_evidence.py
+
+release-evidence-tools: ## Build checksum-pinned release SBOM tooling in an isolated tool directory
+	@python3 scripts/release_evidence_tools.py --output-root "$(RELEASE_EVIDENCE_TOOLS_ROOT)"
+
+reproducible-build-check: ## Compare two clean local worktrees and separate build caches; requires TAG
+	@python3 scripts/reproducible_build.py repeat --tag "$(TAG)" --expected-commit "$(BUILD_COMMIT)" --output-root "$(REPRODUCIBLE_BUILD_ROOT)"
+
+repository-controls-test: ## Test GitHub control verification without credentials or network
+	@bash -n scripts/verify_github_controls.sh
+	@python3 scripts/test_github_controls.py
+
+repository-controls-check: ## Inspect live GitHub controls using the operator's gh credentials
+	@scripts/verify_github_controls.sh
+
+dependency-policy-test: ## Test offline dependency admission and exception rules
+	@python3 scripts/test_dependency_policy.py
+	@python3 scripts/test_dependency_comparison.py
+
+dependency-review-provider-test: ## Test authenticated PR, event, Git tree and file coverage boundaries
+	@python3 scripts/test_dependency_review_provider.py
+
+dependency-inputs-test: ## Test immutable Git blobs and declared dependency input coverage
+	@python3 scripts/test_dependency_git_objects.py
+	@python3 scripts/test_dependency_inputs.py
+
+dependency-inputs-check: dependency-inputs-test ## Verify dependency input bytes and catalog at committed HEAD
+	@python3 scripts/dependency_inputs.py --check-local
+
+dependency-classifier-test: ## Test trusted base classifier sources, execution and credential isolation
+	@python3 scripts/test_dependency_classifier.py
+
+dependency-collection-test: ## Test Git data exports, trusted collector sources and PR consistency
+	@python3 scripts/test_dependency_collection.py
+
+dependency-admission-test: ## Test exact-version advisory observations and trusted-base package decisions
+	@python3 scripts/test_dependency_coverage.py
+	@python3 scripts/test_dependency_check_publish.py
+	@python3 scripts/test_dependency_workflow.py
+	@python3 scripts/test_dependency_advisories.py
+	@python3 scripts/test_dependency_action_advisories.py
+	@python3 scripts/test_dependency_tool_buildinfo.py
+	@python3 scripts/test_dependency_tool_sources.py
+	@python3 scripts/test_dependency_tool_admission.py
+	@python3 scripts/test_dependency_image_packages.py
+	@python3 scripts/test_dependency_image_admission.py
+	@python3 scripts/test_dependency_fixture_advisories.py
+	@python3 scripts/test_dependency_admission.py
+	@python3 scripts/test_dependency_exception_reviews.py
+	@python3 scripts/test_dependency_review_join.py
+	@python3 scripts/test_dependency_review.py
+
+dependency-policy-check: ## Evaluate the exact authenticated PR under trusted target policy; requires DEPENDENCY_* context
+	@python3 scripts/dependency_review.py --environment
+
+dependency-updates-check: ## Check dependency update coverage and separate routine/security groups
+	@python3 scripts/test_dependency_updates.py
+
+python-qa-check: ## Validate the pinned Python QA package and minimal SDK imports
+	@python3 scripts/python_qa.py
+	@python3 scripts/test_python_qa.py
+
+fixture-provenance-check: ## Validate fixture coverage, digests, transformations and source/notice records
+	@python3 scripts/test_fixture_provenance.py
+	@python3 scripts/fixture_provenance.py
+
+fixture-provenance-upstream-check: fixture-provenance-check ## Read and verify pinned upstream fixture and notice bytes through GitHub
+	@python3 scripts/fixture_provenance.py --upstream
+
+dependency-inventory-test: ## Test dependency inventory integrity and bounded license classification
+	@python3 scripts/test_dependency_inventory.py
+	@python3 scripts/test_dependency_node_sources.py
+	@python3 scripts/test_dependency_python_sources.py
+	@python3 scripts/test_dependency_build_tools.py
+	@python3 scripts/test_dependency_actions.py
+	@python3 scripts/test_dependency_go_tools.py
+	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/license-inventory
+
+dependency-inventory-generate: ## Generate partial-scope dependency and fixture source observations
+	@python3 scripts/dependency_inventory.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --output docs/reference/dependency-inventory.json --replace
+
+dependency-images-test: ## Test image discovery, registry digests and bounded package/license projection
+	@python3 scripts/test_dependency_image_registry.py
+	@python3 scripts/test_dependency_images.py
+
+dependency-images-check: dependency-images-test ## Check the saved image observation against current source inputs offline
+	@python3 scripts/dependency_images.py --check
+
+dependency-images-generate: ## Observe declared images using qualified Syft and exact local fixture image IDs
+	@python3 scripts/dependency_images.py --work-root "$(DEPENDENCY_INVENTORY_WORK_ROOT)" --syft "$(DEPENDENCY_IMAGE_SYFT)" --local-images "$(DEPENDENCY_LOCAL_IMAGE_MAP)" --replace
+
+dependency-maintenance-test: ## Test maintenance provider boundaries, age signals and unknown metadata
+	@python3 scripts/test_dependency_maintenance_sources.py
+	@python3 scripts/test_dependency_maintenance.py
+
+dependency-maintenance-check: dependency-maintenance-test ## Check saved maintenance source bindings and review signals offline
+	@python3 scripts/dependency_maintenance.py --check
+
+dependency-maintenance-generate: ## Observe public dependency maintenance metadata without package execution
+	@python3 scripts/dependency_maintenance.py --replace
+
+docs-check: python-qa-check fixture-provenance-check dependency-updates-check dependency-policy-test dependency-review-provider-test dependency-inputs-check dependency-classifier-test dependency-collection-test dependency-admission-test dependency-inventory-test dependency-images-check dependency-maintenance-check release-repro-policy-test release-evidence-policy-test repository-controls-test support-matrix-check meta-check release-truth-check release-lifecycle-check changelog-check persistence-decomposition-check backlog-check quality-scorecard-check error-catalog-check rendered-openapi-check api-inventory-check config-check ## Validate canonical docs exist and avoid forbidden product claims
+	@test -f docs/reference/dependency-policy.md
+	@test -f docs/reference/reproducible-builds.md
+	@test -f docs/reference/repository-controls.md
 	@test -f README.md
 	@test -f .production.env.example
 	@test -f docs/README.md
@@ -495,7 +678,7 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@grep -F 'EVYDENCE_API_KEY' docs/github-actions/end-to-end-release-evidence.md >/dev/null
 	@grep -F 'release-readiness.json' docs/github-actions/end-to-end-release-evidence.md docs/github-actions/release-evidence-workflow.yml >/dev/null
 	@grep -F 'upload-output.txt' docs/github-actions/end-to-end-release-evidence.md docs/github-actions/release-evidence-workflow.yml >/dev/null
-	@grep -F 'actions/upload-artifact@v4' docs/github-actions/release-evidence-workflow.yml >/dev/null
+	@grep -F 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' docs/github-actions/release-evidence-workflow.yml >/dev/null
 	@grep -F 'make local-ci-simulation-check' docs/how-to/integrate-ci.md examples/end-to-end-release-evidence/README.md >/dev/null
 	@grep -F -- '--dry-run' docs/how-to/integrate-ci.md >/dev/null
 	@grep -F 'upload validate-manifest' docs/how-to/integrate-ci.md >/dev/null
@@ -560,8 +743,13 @@ docs-check: meta-check release-truth-check persistence-decomposition-check backl
 	@grep -F 'G-XC2ESEHQ3W' docs/how-to/publish-marketing-site.md >/dev/null
 	@grep -F 'evydence.app' docs/how-to/publish-marketing-site.md >/dev/null
 
-deploy-check: ## Validate deployment and air-gap skeletons exist
+deployment-config-check: ## Verify rendered inputs through actual command startup paths; requires Helm and Compose
+	@$(GO) test -tags=deployment ./internal/platform/deploymentcheck ./cmd/evydence-api ./cmd/evydence-worker ./cmd/evydence-migrate ./cmd/evydence -run '^TestDeployment' -count=1 -timeout=10m
+
+deploy-check: ## Validate deployment assets, rendered Helm and shutdown budgets
 	@python3 scripts/test_local_dependency_images.py
+	@python3 scripts/test_deployment_lifecycle.py
+	@$(MAKE) deployment-config-check
 	@test -f compose.production-like.yml
 	@test -f deploy/helm/evydence/Chart.yaml
 	@test -f deploy/helm/evydence/values.yaml
@@ -578,8 +766,8 @@ deploy-check: ## Validate deployment and air-gap skeletons exist
 	@grep -F 'tag: ""' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'replicas: 1' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'writerMode: single' deploy/helm/evydence/values.yaml >/dev/null
-	@grep -F 'EVYDENCE_API_WRITER_MODE' deploy/helm/evydence/templates/configmap.yaml >/dev/null
-	@grep -F 'EVYDENCE_API_WRITER_REPLICAS' deploy/helm/evydence/templates/configmap.yaml >/dev/null
+	@grep -F 'EVYDENCE_API_WRITER_MODE' deploy/helm/evydence/templates/_helpers.tpl >/dev/null
+	@grep -F 'EVYDENCE_API_WRITER_REPLICAS' deploy/helm/evydence/templates/_helpers.tpl >/dev/null
 	@grep -F 'runAsNonRoot: true' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'allowPrivilegeEscalation: false' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'required "image.tag is required' deploy/helm/evydence/templates/deployment-api.yaml >/dev/null
@@ -709,12 +897,14 @@ package-viewer-check: ## Validate local package viewer and walkthrough
 	@grep -F 'Limitations' docs/assets/reviewer-journey.svg >/dev/null
 
 security-regression-check: ## Run mandatory leakage, parser-limit, archive, authz, SSRF, and package-viewer regressions
-	@$(GO) test ./internal/platform/redaction ./internal/platform/jsonbounds -count=1
+	@$(GO) test ./internal/platform/redaction ./internal/platform/jsonbounds ./internal/platform/logging -count=1
 	@$(GO) test ./internal/app -run '^(TestCustomerPackageRedactionLeakageMatrix|TestSampleCustomerPackageFixtureHasNoRedactionLeakage|TestCustomerPackageArchiveRejectsSensitiveManifestFields|TestCustomerPackageArchiveRejectsOversizedGeneratedReport|TestCustomReportTemplatesAreDataOnlyAndBounded|TestEvidenceLifecycleAuditDetailsRemoveSensitiveCanaries|TestGeneratedReportsRejectOversizedOutput|TestIdempotencyReplayRemovesAllCentralSensitiveFields|TestResourceScopedAuthorizationCoverageInventory)$$' -count=1
 	@$(GO) test ./internal/app/parsers/... -count=1
-	@$(GO) test ./internal/adapters/httpapi -run '^(TestDecodeJSONRejectsStructuralResourceBombs|TestReleaseRiskDecisionHTTPFlow|TestCrossTenantEvidenceReadDenied|TestUnknownJSONFieldReturnsProblem)$$' -count=1
+	@$(GO) test ./internal/adapters/httpapi -run '^(TestDecodeJSONRejectsStructuralResourceBombs|TestReleaseRiskDecisionHTTPFlow|TestCrossTenantEvidenceReadDenied|TestUnknownJSONFieldReturnsProblem|TestRequestLoggingOmitsSecretsAndCorrelatesAuthorizedCommand|TestRequestLoggingCoversEarlyRejectionAndPanicWithoutFalseSuccess|TestRequestLoggingUsesProblemRetryPolicy)$$' -count=1
 	@$(GO) test ./cmd/evydence -run '^(TestCustomerPackageJSONBoundsRejectStructuralBombs|TestVerifyCustomerPackageRejectsUnsafeArchiveShape)$$' -count=1
 	@$(GO) test ./internal/platform/httpclient -count=1
+	@$(GO) test ./cmd/evydence-worker -run '^(TestWorkerLoggingConfigurationFailsBeforeRuntime|TestWorkerLoggingRestoresDurableRequestAndOmitsPayloadLeaseAndFailure|TestHTTPToNativeWorkerLoggingCorrelatesDurableSideEffect)$$' -count=1
+	@$(GO) test ./internal/platform/wiring -run '^TestProviderLoggingCoversEveryPortAndNeverSerializesInputsOutputsOrErrors$$' -count=1
 	@$(MAKE) package-viewer-check
 
 release-asset-smoke-check: ## Verify local release asset checksums, signature, package verification, and failure cases

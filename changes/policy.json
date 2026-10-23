@@ -1,0 +1,6 @@
+{
+  "schema": "evydence-change-policy.v1",
+  "adoption_commit": "f46244c71ab1e1720a98977686934ce1f1bd1f11",
+  "legacy_release_commit": "2f759100e723554e4e68e3ada712c923e391a17a",
+  "legacy_section_sha256": "fb44b8671f66882a4a06c9f750749cc6d3dd4e026c5b2a17197271a9385f3012"
+}

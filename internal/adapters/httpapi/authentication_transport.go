@@ -51,6 +51,7 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (domain.Ac
 		writeProblem(w, r, app.ErrRateLimited)
 		return domain.Actor{}, false
 	}
+	recordLogTenant(r.Context(), actor.TenantID)
 	return actor, true
 }
 
@@ -87,5 +88,6 @@ func (s *Server) authenticateCredential(w http.ResponseWriter, r *http.Request) 
 		writeProblem(w, r, err)
 		return domain.Actor{}, false
 	}
+	recordLogTenant(r.Context(), actor.TenantID)
 	return actor, true
 }

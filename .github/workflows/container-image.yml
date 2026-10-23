@@ -4,13 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref to build, such as v0.1.0-rc.7"
+        description: "Committed Git ref to build"
         required: true
-        default: "v0.1.0-rc.7"
       image_tag:
-        description: "OCI tag to publish"
+        description: "OCI tag to publish after evidence verification"
         required: true
-        default: "v0.1.0-rc.7"
 
 permissions:
   contents: read
@@ -19,8 +17,15 @@ jobs:
   publish-image:
     name: Build And Push Container Image
     runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/master' && github.ref_protected && github.event_name == 'workflow_dispatch' }}
+    environment: release-production
     permissions:
       contents: read
+      actions: read
+    env:
+      INPUT_REF: ${{ github.event.inputs.ref }}
+      IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+      RELEASE_IMAGE: ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}
     outputs:
       image: ${{ steps.image.outputs.image }}
       digest: ${{ steps.image.outputs.digest }}
@@ -30,21 +35,33 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event.inputs.ref }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Validate image inputs
         shell: bash
         run: |
           set -euo pipefail
-          ref="${{ github.event.inputs.ref }}"
-          tag="${{ github.event.inputs.image_tag }}"
-          if [[ ! "$ref" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+          if [[ ! "$INPUT_REF" =~ ^[A-Za-z0-9._/-]+$ ]]; then
             echo "ref contains unsupported characters" >&2
             exit 2
           fi
-          if [[ ! "$tag" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+          if [[ ! "$IMAGE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
             echo "image_tag contains unsupported characters" >&2
+            exit 2
+          fi
+
+      - name: Enforce protected image source and approval policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/release_signing.py preflight --kind container --expected-commit "$GITHUB_SHA"
+          selected="$(git rev-parse --verify --end-of-options "${INPUT_REF}^{commit}")"
+          if [[ "$selected" != "$GITHUB_SHA" ]]; then
+            echo "image ref must identify this protected master commit" >&2
             exit 2
           fi
 
@@ -54,73 +71,174 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install pinned release evidence tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          syft="$(make --silent --no-print-directory release-evidence-tools RELEASE_EVIDENCE_TOOLS_ROOT="${RUNNER_TEMP}/evydence-release-tools")"
+          echo "EVYDENCE_RELEASE_SYFT=${syft}" >> "$GITHUB_ENV"
+
       - name: Log in to GitHub Container Registry
         env:
           EVYDENCE_GHCR_PUBLISH_TOKEN: ${{ secrets.EVYDENCE_GHCR_PUBLISH_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${EVYDENCE_GHCR_PUBLISH_TOKEN}" ]]; then
+          if [[ -z "$EVYDENCE_GHCR_PUBLISH_TOKEN" ]]; then
             echo "EVYDENCE_GHCR_PUBLISH_TOKEN secret is required to publish container images" >&2
             exit 2
           fi
-          printf '%s' "${EVYDENCE_GHCR_PUBLISH_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          printf '%s' "$EVYDENCE_GHCR_PUBLISH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
-      - name: Build and push image
+      - name: Build image and stage immutable digest
         id: image
         shell: bash
         run: |
           set -euo pipefail
-          image="ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}"
-          commit="$(git rev-parse HEAD)"
+          image="$RELEASE_IMAGE"
+          repository="${image%:*}"
+          commit="$(git rev-parse --verify HEAD)"
           created="$(git show -s --format=%cI HEAD)"
           go_version="$(go env GOVERSION)"
-          docker buildx create --use --name evydence-builder || docker buildx use evydence-builder
-          docker buildx build \
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo "container packaging requires clean committed source" >&2
+            exit 2
+          fi
+          read -r buildx_module buildx_version buildx_commit <<< "$(docker buildx version)"
+          buildx_version="v${buildx_version#v}"
+          if [[ "$buildx_module" != "github.com/docker/buildx" || ! "$buildx_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "unsupported Buildx version identity" >&2
+            exit 2
+          fi
+          mkdir -p tmp/container-image
+          config="${RUNNER_TEMP}/evydence-buildkit.toml"
+          printf '[worker.oci]\n  max-parallelism = 1\n' > "$config"
+          docker buildx create --name evydence-evidence --driver docker-container \
+            --driver-opt 'image=moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c' \
+            --driver-opt memory=6g --buildkitd-config "$config" >/dev/null
+          trap 'docker buildx stop evydence-evidence >/dev/null 2>&1 || true' EXIT
+          # Stage content-addressed blobs without creating the requested image tag.
+          docker buildx build --builder evydence-evidence \
             --platform linux/amd64 \
-            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --label "org.opencontainers.image.revision=${commit}" \
             --label "org.opencontainers.image.created=${created}" \
-            --label "org.opencontainers.image.version=${{ github.event.inputs.image_tag }}" \
-            --build-arg "EVYDENCE_BUILD_VERSION=${{ github.event.inputs.image_tag }}" \
+            --label "org.opencontainers.image.version=${IMAGE_TAG}" \
+            --build-arg "EVYDENCE_BUILD_VERSION=${IMAGE_TAG}" \
             --build-arg "EVYDENCE_BUILD_COMMIT=${commit}" \
             --build-arg "EVYDENCE_BUILD_TIME=${created}" \
             --build-arg "EVYDENCE_BUILD_DIRTY=false" \
             --build-arg "EVYDENCE_BUILD_GO_VERSION=${go_version}" \
             --build-arg "EVYDENCE_BUILD_RELEASE_MANIFEST_DIGEST=unknown" \
-            --provenance=true \
-            --sbom=true \
-            --tag "$image" \
-            --push \
-            .
-          digest="$(docker buildx imagetools inspect "$image" --format '{{json .Manifest.Digest}}' | tr -d '"')"
-          mkdir -p tmp/container-image
-          cat > tmp/container-image/image.env <<EOF
-          IMAGE=$image
-          DIGEST=$digest
-          COMMIT=$commit
-          CREATED=$created
-          EOF
+            --provenance=false --sbom=false \
+            --output "type=oci,name=${image},dest=tmp/container-image/image.oci.tar,oci-mediatypes=true" \
+            --output "type=image,name=${repository},push=true,push-by-digest=true,oci-mediatypes=true" \
+            --metadata-file tmp/container-image/build-metadata.json .
+          digest="$(python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'scripts')
+          import release_evidence_profile as profile
+          import release_evidence_verify as verify
+          value = profile.parse_json(verify.read_file(Path('tmp/container-image/build-metadata.json'))).get('containerimage.digest')
+          if not isinstance(value, str) or not value.startswith('sha256:') or not profile.valid_sha(value[7:]):
+              raise SystemExit('invalid built image digest')
+          print(value)
+          PY
+          )"
           {
             echo "image=$image"
             echo "digest=$digest"
             echo "commit=$commit"
             echo "created=$created"
+            echo "buildx_version=$buildx_version"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Generate and verify image evidence
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          COMMIT: ${{ steps.image.outputs.commit }}
+          BUILDX_VERSION: ${{ steps.image.outputs.buildx_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/container_evidence.py generate \
+            --oci tmp/container-image/image.oci.tar --image "$IMAGE" --digest "$DIGEST" \
+            --expected-commit "$COMMIT" --out tmp/container-image \
+            --syft "$EVYDENCE_RELEASE_SYFT" --buildx-version "$BUILDX_VERSION"
+          python3 scripts/container_evidence.py verify \
+            --oci tmp/container-image/image.oci.tar --image "$IMAGE" --digest "$DIGEST" \
+            --expected-commit "$COMMIT" --out tmp/container-image
+
+      - name: Publish verified image tag
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository="${IMAGE%:*}"
+          docker buildx imagetools create --prefer-index=false --tag "$IMAGE" "${repository}@${DIGEST}"
+          actual="$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          if [[ "$actual" != "$DIGEST" ]]; then
+            echo "published image digest differs from verified OCI subject" >&2
+            exit 2
+          fi
+
+      - name: Upload verified image evidence for signing
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: evydence-container-unsigned-evidence
+          path: |
+            tmp/container-image/image.oci.tar
+            tmp/container-image/evydence-container-sbom.cdx.json
+            tmp/container-image/evydence-container-provenance.intoto.jsonl
+            tmp/container-image/evydence-container-evidence-index.json
+          if-no-files-found: error
 
   sign-image:
     name: Sign Container Image And Upload Evidence
     runs-on: ubuntu-latest
     needs: publish-image
+    if: ${{ github.ref == 'refs/heads/master' && github.ref_protected && github.event_name == 'workflow_dispatch' }}
+    environment: release-production
     permissions:
       contents: read
+      actions: read
       id-token: write
+    env:
+      IMAGE: ${{ needs.publish-image.outputs.image }}
+      DIGEST: ${{ needs.publish-image.outputs.digest }}
+      COMMIT: ${{ needs.publish-image.outputs.commit }}
+      CREATED: ${{ needs.publish-image.outputs.created }}
+      INPUT_REF: ${{ github.event.inputs.ref }}
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event.inputs.ref }}
+          ref: ${{ needs.publish-image.outputs.commit }}
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Enforce protected image signing context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_signing.py preflight --kind container --expected-commit "$COMMIT"
+
+      - name: Download verified image evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: evydence-container-unsigned-evidence
+          path: tmp/container-image
+
+      - name: Verify image evidence before signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/container_evidence.py verify \
+            --oci tmp/container-image/image.oci.tar --image "$IMAGE" --digest "$DIGEST" \
+            --expected-commit "$COMMIT" --out tmp/container-image
 
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.1.0
@@ -134,11 +252,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${EVYDENCE_GHCR_PUBLISH_TOKEN}" ]]; then
+          if [[ -z "$EVYDENCE_GHCR_PUBLISH_TOKEN" ]]; then
             echo "EVYDENCE_GHCR_PUBLISH_TOKEN secret is required to sign container images" >&2
             exit 2
           fi
-          printf '%s' "${EVYDENCE_GHCR_PUBLISH_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          printf '%s' "$EVYDENCE_GHCR_PUBLISH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
       - name: Install cosign
         shell: bash
@@ -151,50 +269,41 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p tmp/container-image
-          cat > tmp/container-image/image.env <<EOF
-          IMAGE=${{ needs.publish-image.outputs.image }}
-          DIGEST=${{ needs.publish-image.outputs.digest }}
-          COMMIT=${{ needs.publish-image.outputs.commit }}
-          CREATED=${{ needs.publish-image.outputs.created }}
-          EOF
-          . tmp/container-image/image.env
-          cosign sign --yes "${IMAGE}@${DIGEST}"
+          repository="${IMAGE%:*}"
+          identity="$(python3 scripts/release_signing.py identity --kind container)"
+          cosign sign --yes "${repository}@${DIGEST}"
           cosign verify \
-            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/container-image.yml@.*" \
+            --certificate-identity "$identity" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            "${IMAGE}@${DIGEST}" > tmp/container-image/cosign-verify.json
+            --certificate-github-workflow-repository "$GITHUB_REPOSITORY" \
+            --certificate-github-workflow-ref refs/heads/master \
+            --certificate-github-workflow-sha "$COMMIT" \
+            --certificate-github-workflow-trigger workflow_dispatch \
+            "${repository}@${DIGEST}" > tmp/container-image/cosign-verify.json
 
       - name: Write image manifest
         shell: bash
         run: |
           set -euo pipefail
-          set -a
-          . tmp/container-image/image.env
-          set +a
           python3 - <<'PY'
           import json
           import os
+          import sys
           from pathlib import Path
-
+          sys.path.insert(0, 'scripts')
+          import release_signing
           payload = {
-              "schema": "evydence-container-image.v1",
-              "image": os.environ["IMAGE"],
-              "digest": os.environ["DIGEST"],
-              "source_ref": os.environ.get("GITHUB_REF", ""),
-              "source_commit": os.environ["COMMIT"],
-              "created": os.environ["CREATED"],
-              "signature": {
-                  "type": "cosign-keyless",
-                  "issuer": "https://token.actions.githubusercontent.com",
-                  "verification_file": "cosign-verify.json",
-              },
-              "limitations": [
-                  "Image signing proves this workflow signed the referenced image digest; it is not legal compliance proof, certification, complete SBOM proof, authoritative vulnerability coverage, or a secure-release guarantee.",
-                  "Operators remain responsible for registry access policy, deployment admission controls, runtime configuration, backups, monitoring, and incident response.",
-              ],
+              'schema': 'evydence-container-image.v1',
+              'image': os.environ['IMAGE'], 'digest': os.environ['DIGEST'],
+              'source_ref': os.environ['INPUT_REF'], 'source_commit': os.environ['COMMIT'],
+              'created': os.environ['CREATED'],
+              'signature': {'type': 'cosign-keyless', 'issuer': 'https://token.actions.githubusercontent.com',
+                            'certificate_identity': release_signing.identity(release_signing.load_policy(), 'container'),
+                            'verification_file': 'cosign-verify.json'},
+              'evidence_index': 'evydence-container-evidence-index.json',
+              'limitations': ['Image signatures and matched subjects do not establish legal compliance, certification, complete SBOM proof, authoritative vulnerability coverage, or a secure-release guarantee.'],
           }
-          Path("tmp/container-image/evydence-container-image-manifest.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          Path('tmp/container-image/evydence-container-image-manifest.json').write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
           PY
 
       - name: Upload image evidence

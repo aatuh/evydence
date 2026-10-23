@@ -48,7 +48,7 @@ func (VulnerabilityScanPayloadParser) ProbeVulnerabilityScanScope(ctx context.Co
 // or unrelated document parser dependencies.
 type SBOMPayloadParser struct{}
 
-func (SBOMPayloadParser) ParseSBOM(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedSBOM, error) {
+func (SBOMPayloadParser) parseSBOM(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedSBOM, error) {
 	if ctx == nil {
 		return evidenceapp.ParsedSBOM{}, evidenceapp.ErrValidation
 	}
@@ -86,7 +86,7 @@ func (SBOMPayloadParser) ParseSBOM(ctx context.Context, format string, source ev
 	}
 }
 
-func (VulnerabilityScanPayloadParser) ParseVulnerabilityScan(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedVulnerabilityScan, error) {
+func (VulnerabilityScanPayloadParser) parseVulnerabilityScan(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedVulnerabilityScan, error) {
 	if ctx == nil {
 		return evidenceapp.ParsedVulnerabilityScan{}, evidenceapp.ErrValidation
 	}
@@ -136,7 +136,7 @@ func (VulnerabilityScanPayloadParser) ParseVulnerabilityScan(ctx context.Context
 // ingestion does not construct a Ledger or unrelated document parsers.
 type OpenAPIContractPayloadParser struct{}
 
-func (OpenAPIContractPayloadParser) ParseOpenAPIContract(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedOpenAPIContract, error) {
+func (OpenAPIContractPayloadParser) parseOpenAPIContract(ctx context.Context, source evidenceapp.PayloadSource) (evidenceapp.ParsedOpenAPIContract, error) {
 	if ctx == nil {
 		return evidenceapp.ParsedOpenAPIContract{}, evidenceapp.ErrValidation
 	}
@@ -171,7 +171,7 @@ func (OpenAPIContractPayloadParser) ParseOpenAPIContract(ctx context.Context, so
 // without constructing a Ledger or accessing vulnerability decisions.
 type VEXPayloadParser struct{}
 
-func (VEXPayloadParser) ParseVEX(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedVEX, error) {
+func (VEXPayloadParser) parseVEX(ctx context.Context, format string, source evidenceapp.PayloadSource) (evidenceapp.ParsedVEX, error) {
 	if ctx == nil {
 		return evidenceapp.ParsedVEX{}, evidenceapp.ErrValidation
 	}

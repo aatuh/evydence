@@ -1,0 +1,11 @@
+{
+  "schema": "evydence-legacy-release-evidence.v1",
+  "releases": [
+    {
+      "repository": "aatuh/evydence",
+      "tag": "v0.1.0-rc.7",
+      "source_commit": "2f759100e723554e4e68e3ada712c923e391a17a",
+      "provenance_profile": "evydence-release-provenance.v1"
+    }
+  ]
+}

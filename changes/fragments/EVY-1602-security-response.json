@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1602-security-response",
+  "category": "changed",
+  "summary": "Make private security reporting and solo-maintainer response explicit",
+  "details": [
+    "Route suspected vulnerabilities directly to verified GitHub private reporting and ordinary support to GitHub issues.",
+    "Document the named response owner, best-effort availability, severity triage, patch and emergency response, advisory contents, credit consent and coordinated disclosure.",
+    "Reuse the release-linked machine-readable support window and record a synthetic desk exercise with provider and delivery limits explicit."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Documentation and issue-contact navigation only; no provider setting, release selector or runtime behavior changed."
+  },
+  "security": "Keep vulnerability details, credentials and customer evidence in private reporting. Emergency fixes preserve required CI, publisher identity checks and immutable published evidence.",
+  "limitations": [
+    "One maintainer provides best-effort response without a fixed SLA, backup or advertised domain mailbox.",
+    "Provider enablement and a Codex desk exercise do not prove notification delivery, human on-call coverage or a real advisory publication."
+  ]
+}

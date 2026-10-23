@@ -1,0 +1,18 @@
+{
+  "schema": "evydence-dependency-policy.v1",
+  "allowed_licenses": [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "Unlicense",
+    "Zlib"
+  ],
+  "allowed_with": [
+    "Apache-2.0 WITH LLVM-exception"
+  ],
+  "exceptions": []
+}

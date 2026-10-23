@@ -1,0 +1,15 @@
+{
+  "schema": "evydence-release-lifecycle.v1",
+  "security_support": {
+    "development_ref": "refs/heads/master",
+    "release_selector": "current_public_release",
+    "window": {
+      "starts": "publication",
+      "ends": "superseded-or-withdrawn"
+    },
+    "older_releases": "best-effort-unless-commercial-agreement",
+    "response_sla": null,
+    "fixed_end_date": null
+  },
+  "withdrawals": []
+}

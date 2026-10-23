@@ -9,57 +9,40 @@ certification, complete vulnerability coverage, or a secure-release guarantee.
 
 ## Current Enforcement Status
 
-The live GitHub API settings for `master` were verified on 2026-10-15:
+The [repository controls reference](repository-controls.md) owns the required
+GitHub profile, live-verification command, refresh cadence, and dated evidence.
+Provider reads on 2026-10-21 verified required pull requests, administrator
+enforcement, strict app-bound CI checks, resolved conversations, and protected
+release tags. The verified maintainer model has one human writer, so independent
+approvals and CODEOWNERS approvals are not required. `CODEOWNERS` remains an
+ownership reference for high-risk paths.
 
-- `Production Check` and `CodeQL Analyze` remain required, bound to GitHub
-  Actions (app ID `15368`), with the branch required to be up to date;
-- pull-request approvals and CODEOWNERS approvals are not required;
-- linear history and conversation resolution are not required;
-- force pushes and branch deletion remain disabled;
-- administrator enforcement remains disabled, so administrators can bypass
-  these protections.
+The solo model requires maintainer self-review before merging a pull request.
+It does not provide independent review. When another human maintainer gains
+write access, require at least one non-author approval and approval of the latest
+push, then rerun the live verifier. Settings can change after observation;
+refresh the report before relying on them.
 
-`CODEOWNERS` remains committed at the repository root as an ownership reference
-for high-risk paths, not an enforced approval gate. This solo-maintainer setup
-does not require an independent reviewer. The settings snapshot is not proof
-that CI passed on any particular commit, and settings can change after the
-verification date.
+The [ownership and recovery plan](continuity-plan.md) records the sole
+maintainer's release, security and recovery duties. There is no backup reviewer;
+the solo model does not require appointing one. If someone joins, verify their
+agreed responsibilities and access before relying on their review.
 
-EVY-1105 adds a checked-in `Race and Stress` job, alongside the full race suite
-inside the required `Production Check`. The live settings above do **not** yet
-require the new context. Keep EVY-1105 incomplete until the workflow is published,
-its hosted checks pass on the implementation, and `Race and Stress` is added to
-the required GitHub Actions contexts without removing the existing checks or
-up-to-date requirement. Verify the resulting API settings and retain the run
-URLs; local tests and workflow text alone cannot establish that enforcement.
+EVY-1105 implementation `57cb91a95bbf` is included in published commit
+`d77b612bc721`. Its hosted [Production Check and Race and Stress run](https://github.com/aatuh/evydence/actions/runs/38765165262)
+and [CodeQL run](https://github.com/aatuh/evydence/actions/runs/38765165260)
+passed on that same commit. These historical results do not establish CI success
+for other commits or release artifacts.
 
-## Maintainer Bypass Posture
+## Administrator Enforcement
 
-The verified configuration does not enforce branch protection for
-administrators. Required checks apply to non-bypass updates, but Evydence does
-not claim that every change is technically forced through CI or pull-request
-review. Maintainer self-review remains expected for high-risk changes; a second
-person's approval is not a prerequisite in this solo-maintainer workflow.
-
-When a maintainer bypass is used for an urgent or operational change, the
-maintainer should record the reason in the pull request, release evidence, or a
-follow-up audit note as appropriate. The compensating controls are:
-
-- required `Production Check` and `CodeQL Analyze` CI jobs on normal push and
-  pull-request paths;
-- project-owned `make production-check`, `make release-acceptance`, and
-  release-candidate validation gates for release-affecting changes;
-- signed release artifacts, checksums, OpenAPI checksums, migration checksums,
-  and release evidence manifests before candidate tags are treated as operator
-  evaluation inputs;
-- `CODEOWNERS` coverage for high-risk paths, which states expected maintainer
-  ownership without requiring a CODEOWNERS approval;
-- public release evidence and audit visibility for candidate releases.
-
-These controls support review and reproducibility. They do not prove that a
-specific live GitHub setting prevented maintainer bypass, and they are not legal
-compliance proof, certification, complete vulnerability coverage, or a
-secure-release guarantee.
+The verified profile applies the configured branch checks to administrators and
+has no review-bypass allowance. Maintainers must use the normal pull-request
+path and wait for every required check. Do not weaken protection or bypass checks
+to publish local implementation work. Keep any necessary settings changes
+explicit, record their reason, and collect a fresh provider report afterward.
+Administrators can still edit repository settings; this is not an immutable
+governance boundary or a claim of independent review.
 
 ## High-Risk Paths
 
@@ -128,9 +111,10 @@ commit SHA and service/container images pinned by digest. If an Action or image
 pin is updated, reviewers should verify the upstream tag or digest source and
 record the reason in the pull request or release evidence.
 
-Branch protection retains the live `Production Check` and `CodeQL Analyze`
-checks for runtime correctness and security analysis on non-bypass updates;
-their workflows run on pushes and pull requests.
+Branch protection requires `Production Check`, `CodeQL Analyze`, and
+`Race and Stress` for runtime correctness, security analysis, and deterministic
+contention validation on protected updates, including administrator updates.
+Their workflows run on pushes and pull requests.
 
 OpenSSF Scorecard and Scorecard SARIF remain scheduled/manual advisory checks for
 the current release-candidate line. Do not make them required branch-protection

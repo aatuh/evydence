@@ -1,4 +1,5 @@
-FROM golang:1.26.9-alpine3.23@sha256:6750308561953d451210ed1a8086d36c8c8bdcbf672d38d9d0d424b8a7a0216c AS build
+FROM golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201 AS build
+ENV GOTOOLCHAIN=local GOFLAGS=-p=1 GOMAXPROCS=2
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

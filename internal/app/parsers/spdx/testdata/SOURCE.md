@@ -1,5 +1,13 @@
 # SPDX fixture provenance
 
+`spdx-2.3-example.json` is a synthetic Evydence fixture introduced by
+`09a40c0cc4502ce93e520e01df004de5065631dd` (EVY-503), covered by the
+project's `AGPL-3.0-only` source license. It is not copied from the SPDX
+specification repository. Its example `dataLicense` value is parser input;
+it does not establish an upstream source or license grant for this fixture.
+The corpus previously attributed this file to the specification's CC-BY terms;
+that unsupported attribution has been corrected without changing its bytes.
+
 `spdx-spec-v2.2-example.json` is the unmodified SPDX 2.2 JSON example from
 the SPDX specification repository tag `v2.3`, fetched from:
 
@@ -28,3 +36,9 @@ SHA-256: `96813d9272ac50bb5033676ee85992390db95de6c8cbd0a2b8d07e2968919954`.
 The generator fixtures intentionally retain generator timestamps and document
 namespace IDs. They test accepted output shapes, not byte-for-byte reproducible
 generator output. The immutable source file captures every unnormalized field.
+Their `CC0-1.0` catalog entries record the documents' `dataLicense` declarations.
+The commands above are retained generation records; the provenance check does
+not rerun those historical generator versions.
+
+Pinned source references, file digests and the copied specification notice are
+recorded in `testdata/fixture-provenance.v1.json` and `testdata/licenses/`.

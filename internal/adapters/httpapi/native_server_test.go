@@ -196,6 +196,12 @@ func TestNativeServerRejectsEveryMissingOrTypedNilDependency(t *testing.T) {
 			continue
 		}
 		name := typ.Field(i).Name
+		// OperationalMetrics is a new optional diagnostic observer, unlike the
+		// required application ports. Its disabled and typed-nil cases are
+		// covered by TestOperationalMetricsNativeConstructorAllowsDisabledButRejectsTypedNil.
+		if name == "OperationalMetrics" {
+			continue
+		}
 		t.Run(name, func(t *testing.T) {
 			for _, typedNil := range []bool{false, true} {
 				missing := options

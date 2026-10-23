@@ -1,0 +1,119 @@
+name: Trusted Dependency Review
+
+on:
+  pull_request_target:
+    branches: [master]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    name: Evaluate Declared Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      assessment_day: ${{ steps.clock.outputs.day }}
+    env:
+      GOTOOLCHAIN: local
+      GOWORK: "off"
+      GOMAXPROCS: "1"
+      GOMEMLIMIT: 512MiB
+      GOGC: "50"
+      GOFLAGS: -p=1
+      MAKEFLAGS: -j1
+    steps:
+      - name: Check out trusted target code only
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Set up target-selected Go without shared caches
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Install target-pinned Python QA wheels
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes gh python3-venv
+          qa_venv="$RUNNER_TEMP/evydence-dependency-python"
+          python3 -m venv "$qa_venv"
+          "$qa_venv/bin/python" -m pip --isolated --disable-pip-version-check install \
+            --require-hashes --only-binary=:all: -r tools/requirements-qa.txt
+          printf '%s\n' "$qa_venv/bin" >> "$GITHUB_PATH"
+      - name: Check trusted decision regressions
+        run: make dependency-admission-test
+      - name: Build target-pinned image scanner
+        run: |
+          set -euo pipefail
+          scanner="$(python3 scripts/release_evidence_tools.py --output-root "$RUNNER_TEMP/evydence-dependency-tools")"
+          printf 'DEPENDENCY_SYFT=%s\n' "$scanner" >> "$GITHUB_ENV"
+          install -d -m 700 "$RUNNER_TEMP/evydence-dependency-work" tmp/dependency-review
+      - name: Bind assessment UTC day before admission
+        id: clock
+        run: printf 'day=%s\n' "$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - name: Evaluate exact current PR data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPENDENCY_PULL_REQUEST: ${{ github.event.pull_request.number }}
+          DEPENDENCY_TARGET_BASE: ${{ github.event.pull_request.base.sha }}
+          DEPENDENCY_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+          DEPENDENCY_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          DEPENDENCY_WORK_ROOT: ${{ runner.temp }}/evydence-dependency-work
+          DEPENDENCY_OUTPUT: tmp/dependency-review/report.json
+        run: make dependency-policy-check
+      - name: Preserve sanitized review result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dependency-review-${{ github.event.pull_request.number }}
+          path: tmp/dependency-review/report.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  report:
+    name: Report Dependency Policy On PR Head
+    needs: [evaluate]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    steps:
+      - name: Check out trusted reporter only
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Install target-pinned reporter dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes gh python3-venv
+          qa_venv="$RUNNER_TEMP/evydence-reporter-python"
+          python3 -m venv "$qa_venv"
+          "$qa_venv/bin/python" -m pip --isolated --disable-pip-version-check install \
+            --require-hashes --only-binary=:all: -r tools/requirements-qa.txt
+          printf '%s\n' "$qa_venv/bin" >> "$GITHUB_PATH"
+      - name: Publish only the revalidated head check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPENDENCY_PULL_REQUEST: ${{ github.event.pull_request.number }}
+          DEPENDENCY_TARGET_BASE: ${{ github.event.pull_request.base.sha }}
+          DEPENDENCY_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+          DEPENDENCY_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          DEPENDENCY_JOB_RESULT: ${{ needs.evaluate.result }}
+          DEPENDENCY_ASSESSMENT_DAY: ${{ needs.evaluate.outputs.assessment_day }}
+        run: python3 scripts/dependency_check_publish.py

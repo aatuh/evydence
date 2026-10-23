@@ -150,7 +150,7 @@ func (c *SigningOperationCommands) AuthorizeCreateSigningOperation(ctx context.C
 		return err
 	})
 }
-func (c *SigningOperationCommands) CreateSigningOperation(ctx context.Context, a identitydomain.Actor, in SigningOperationInput) (verificationdomain.SigningOperation, error) {
+func (c *SigningOperationCommands) createSigningOperation(ctx context.Context, a identitydomain.Actor, in SigningOperationInput) (verificationdomain.SigningOperation, error) {
 	in, err := c.prepare(ctx, a, in)
 	if err != nil {
 		return verificationdomain.SigningOperation{}, err

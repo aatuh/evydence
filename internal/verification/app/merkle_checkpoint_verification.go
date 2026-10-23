@@ -36,7 +36,7 @@ func NewMerkleCheckpointVerificationCommands(c MerkleCheckpointVerificationConfi
 	}
 	return &MerkleCheckpointVerificationCommands{c}, nil
 }
-func (s *MerkleCheckpointVerificationCommands) VerifyMerkleCheckpoint(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
+func (s *MerkleCheckpointVerificationCommands) verifyMerkleCheckpoint(ctx context.Context, actor identitydomain.Actor, id string) (verificationdomain.VerificationResult, error) {
 	if err := contextError(ctx); err != nil {
 		return verificationdomain.VerificationResult{}, err
 	}
