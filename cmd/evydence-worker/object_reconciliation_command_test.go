@@ -163,11 +163,12 @@ func TestRunObjectReconciliationDryRunAndApplyWithLivePostgres(t *testing.T) {
 }
 
 func TestRunObjectReconciliationRejectsUnsafeRuntimeConfiguration(t *testing.T) {
-	// Harness-only database/S3 inputs are not production command options.
-	// Register cleanup before removing them from this command's environment.
+	t.Setenv("EVYDENCE_CHANGELOG_PULL_REQUEST", "30")
+	// This fixture supplies its own runtime inputs. Register cleanup before
+	// isolating developer/CI project settings from this command's environment.
 	for _, entry := range os.Environ() {
 		name, value, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(name, "EVYDENCE_TEST_") {
+		if strings.HasPrefix(name, "EVYDENCE_") {
 			t.Setenv(name, value)
 			if err := os.Unsetenv(name); err != nil {
 				t.Fatal(err)

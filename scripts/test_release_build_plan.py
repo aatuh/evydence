@@ -144,6 +144,9 @@ esac
         fixture.root = Path(tempfile.mkdtemp(prefix='notes-fixture-', dir=self.root))
         checkout, _environment = fixture.checkout('source', tag='v0.0.0-rc.1401')
         self.package_script = checkout / 'scripts/release_candidate_package.sh'
+        # This checkout has its own committed tag/notes; the outer CI PR context
+        # belongs to the real repository, not this independent release fixture.
+        self.environment.pop('EVYDENCE_CHANGELOG_PULL_REQUEST', None)
         self.environment.update(PLAN_TEST_MODE=mode, PLAN_TEST_STATE=str(self.root / "gate-finished"),
                                 EVYDENCE_TEST_DATABASE_URL="unused-test-fixture",
                                 EVYDENCE_RELEASE_SIGNING_PRIVATE_KEY_B64=base64.b64encode(bytes(64)).decode())
@@ -179,6 +182,13 @@ esac
         # real script has no post-gate source guard. This fixture never builds,
         # signs, connects to a database or removes repository files.
         self.stub("rm", '#!/bin/sh\nprintf forbidden > "$PLAN_TEST_MARKER"\nexit 91\n')
+
+    def test_release_fixture_is_independent_of_outer_pull_context(self):
+        self.environment['EVYDENCE_CHANGELOG_PULL_REQUEST'] = '30'
+        self.prepare_gate_result('unchanged')
+        result = self.run_plan('v0.0.0-rc.1401')
+        self.assertEqual(result.returncode, 91, result.stderr)
+        self.assertEqual(self.marker.read_text(), 'forbidden')
 
     def test_release_only_options_are_consumed_before_child_commands(self):
         for alias in ("canonical", "legacy"):

@@ -14,6 +14,7 @@ import (
 )
 
 func TestWorkerProbePostgresRuntimeRecoversFromObjectOutageAndStops(t *testing.T) {
+	t.Setenv("EVYDENCE_CHANGELOG_PULL_REQUEST", "30")
 
 	// Keep this regression independent of which live-service settings happen
 	// to be present in the outer harness. They are not production options.
@@ -36,12 +37,11 @@ func workerProbePostgresRuntime(t *testing.T, metricsEnabled bool) {
 	if base == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
 	}
-	// Harness-only database/S3 inputs are not production worker options.
-	// Preserve the database URL locally and restore every removed entry at
-	// test cleanup; genuine production options retain strict validation.
+	// This fixture supplies its own runtime settings. Preserve the database URL
+	// locally, isolate developer/CI project inputs, and restore them at cleanup.
 	for _, entry := range os.Environ() {
 		name, value, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(name, "EVYDENCE_TEST_") {
+		if strings.HasPrefix(name, "EVYDENCE_") {
 			t.Setenv(name, value)
 			if err := os.Unsetenv(name); err != nil {
 				t.Fatal(err)

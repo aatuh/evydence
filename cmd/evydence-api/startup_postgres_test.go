@@ -44,9 +44,12 @@ func TestAPIProductionStartupUsesTypedConfigurationWithLivePostgres(t *testing.T
 	if base == "" {
 		t.Skip("EVYDENCE_TEST_DATABASE_URL is not set")
 	}
+	// CI tooling context belongs to the outer harness, not this process fixture.
+	t.Setenv("EVYDENCE_CHANGELOG_PULL_REQUEST", "30")
+	// The fixture supplies its runtime settings below and restores outer inputs.
 	for _, entry := range os.Environ() {
 		name, value, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(name, "EVYDENCE_TEST_") {
+		if strings.HasPrefix(name, "EVYDENCE_") {
 			t.Setenv(name, value)
 			if err := os.Unsetenv(name); err != nil {
 				t.Fatal(err)
@@ -105,6 +108,12 @@ func TestAPIProductionStartupUsesTypedConfigurationWithLivePostgres(t *testing.T
 		signer.constructions.Add(1)
 		return signer, nil
 	}
+	t.Run("unknown-option-before-providers", func(t *testing.T) {
+		t.Setenv("EVYDENCE_PRIVATE_UNKNOWN_OPTION", "PRIVATE_CONFIGURATION")
+		if err := runWithContext(t.Context()); !errors.Is(err, config.ErrUnknownOption) || signer.constructions.Load() != 0 {
+			t.Fatal("unknown production option reached a provider", err)
+		}
+	})
 	t.Run("configuration-before-providers", func(t *testing.T) {
 		t.Setenv("EVYDENCE_HTTP_READ_TIMEOUT_SECONDS", "0")
 		if err := runWithContext(t.Context()); !errors.Is(err, config.ErrInvalidValue) || signer.constructions.Load() != 0 {
