@@ -35,6 +35,11 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 - Make private security reporting and solo-maintainer response explicit (`EVY-1602-security-response`).
   Route suspected vulnerabilities directly to verified GitHub private reporting and ordinary support to GitHub issues. Document the named response owner, best-effort availability, severity triage, patch and emergency response, advisory contents, credit consent and coordinated disclosure. Reuse the release-linked machine-readable support window and record a synthetic desk exercise with provider and delivery limits explicit.
 
+### Fixed
+
+- Preserve cancellation and deadlines in signing gateway readiness (`EVY-1407-readiness-deadlines`).
+  Preserve context cancellation and elapsed deadlines even before context notification; an expired probe cannot report healthy, and transport/body cancellation identities are retained. Keep unrelated provider failures generic, close failed response bodies, and preserve authenticated read-only probes, endpoint restrictions, redirect rejection and response limits. Add deterministic request, body and decoding regressions for delayed context notification while retaining the existing real HTTP deadline and canceled-request assertions.
+
 ## Historical source snapshot f46244c7 (not a release)
 
 Release selection now checks a versioned support and withdrawal policy before
