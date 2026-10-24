@@ -38,10 +38,10 @@ commit. Retain the report with the corresponding source and validation logs.
 | Surface | Required observation |
 | --- | --- |
 | Repository | Expected owner/name, active repository, default branch `master`, administrative visibility |
-| Master checks | `Production Check`, `CodeQL Analyze`, and `Race and Stress`, each bound to GitHub Actions app `15368`; strict/up-to-date enforcement |
+| Master checks | `Production Check`, `CodeQL Analyze`, `Race and Stress`, and `Dependency Policy`, each bound to GitHub Actions app `15368`; strict/up-to-date enforcement |
 | Master updates | Pull requests required, stale approvals dismissed, no PR bypass users/teams/apps, administrator enforcement enabled, conversations resolved; force pushes and deletion disabled |
 | Independent review | One human writer: zero required independent approvals. Two or more human writers: at least one approval and approval of the latest push by another reviewer |
-| Release tags | Active tag ruleset covering `refs/tags/v*`, without exclusions or bypass actors; updates/deletion blocked and the same app-bound checks enforced on creation |
+| Release tags | Active tag ruleset covering `refs/tags/v*`, without exclusions or bypass actors; updates/deletion blocked and app-bound `Production Check`, `CodeQL Analyze`, and `Race and Stress` enforced on creation |
 | Security features | Secret scanning, push protection, Dependabot alerts/security updates, and private vulnerability reporting enabled |
 | Code scanning | Successful CodeQL analysis for the observed remote `master` SHA and `refs/heads/master` |
 
@@ -62,7 +62,11 @@ Existing status-check aggregation is deliberate: `.github/workflows/ci.yml`
 runs `make openapi-breaking-check` and `make production-check` under
 `Production Check`; the latter includes SDK validation. API compatibility and
 SDK checks therefore have a required aggregate gate. CodeQL and race/stress
-have their own required jobs. Scheduled Scorecard and tag-triggered artifact
+have their own required jobs. `Dependency Policy` reports the trusted target
+workflow's decision on the exact PR head. It is a branch requirement; adding it
+to tag-creation rules would require a PR-head result on a different merge commit.
+The report separates `expected_required_checks` for master from
+`expected_release_tag_checks`. Scheduled Scorecard and tag-triggered artifact
 packaging must not be required to create the very tag that triggers them.
 
 Commit-signature enforcement is recorded as an optional observation. It is not
@@ -78,6 +82,11 @@ that a person reviewed it. Maintainers must release reviewed `master` commits
 and retain the separate release-validation evidence.
 
 ## Verified observation
+
+The dated observations below used the earlier three-check master profile and
+the verifier sources identified in their reports. They do not verify the new
+`Dependency Policy` requirement. Keep their original source scopes when
+recording a later provider cutover.
 
 The [2026-10-21 11:55:52 UTC refresh](repository-controls-2026-10-21T115552Z.json)
 again passed all 18 observations for the same remote `master` source, with one

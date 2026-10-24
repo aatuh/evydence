@@ -17,7 +17,8 @@ import time
 from urllib.parse import quote
 
 
-REQUIRED_CHECKS = ('Production Check', 'CodeQL Analyze', 'Race and Stress')
+RELEASE_TAG_CHECKS = ('Production Check', 'CodeQL Analyze', 'Race and Stress')
+REQUIRED_CHECKS = (*RELEASE_TAG_CHECKS, 'Dependency Policy')
 ACTIONS_APP_ID = 15368
 MAX_RESPONSE_BYTES = 1024 * 1024
 API_TIMEOUT_SECONDS = 15
@@ -37,7 +38,7 @@ def object_value(value):
     return value if isinstance(value, dict) else {}
 
 
-def checks_match(items, app_field):
+def checks_match(items, app_field, required_checks):
     if not isinstance(items, list):
         return False
     contexts = {}
@@ -47,7 +48,7 @@ def checks_match(items, app_field):
         if item['context'] in contexts:
             return False
         contexts[item['context']] = item.get(app_field)
-    return all(contexts.get(name) == ACTIONS_APP_ID for name in REQUIRED_CHECKS)
+    return all(contexts.get(name) == ACTIONS_APP_ID for name in required_checks)
 
 
 def checked_release_ruleset(ruleset):
@@ -70,7 +71,7 @@ def checked_release_ruleset(ruleset):
         return False
     parameters = object_value(next(item for item in rules if item['type'] == 'required_status_checks').get('parameters'))
     return (parameters.get('do_not_enforce_on_create') is False
-            and checks_match(parameters.get('required_status_checks'), 'integration_id'))
+            and checks_match(parameters.get('required_status_checks'), 'integration_id', RELEASE_TAG_CHECKS))
 
 
 def assess_controls(snapshot, repository):
@@ -107,7 +108,8 @@ def assess_controls(snapshot, repository):
         isinstance(remote_head, str))
     add('maintainer_model', collaborator_visibility, collaborator_visibility)
     required = object_value(branch.get('required_status_checks'))
-    add('required_checks', required.get('strict') is True and checks_match(required.get('checks'), 'app_id'), bool(branch))
+    add('required_checks', required.get('strict') is True
+        and checks_match(required.get('checks'), 'app_id', REQUIRED_CHECKS), bool(branch))
     for control, field, expected in [('administrator_enforcement', 'enforce_admins', True),
                                      ('force_pushes_blocked', 'allow_force_pushes', False),
                                      ('branch_deletion_blocked', 'allow_deletions', False),
@@ -175,6 +177,7 @@ def assess_controls(snapshot, repository):
             'observed_optional_controls': {'signed_commits_required': signatures if type(signatures) is bool else None,
                                            'codeowner_approval_required': review_object.get('require_code_owner_reviews') is True},
             'expected_required_checks': [{'context': name, 'app_id': ACTIONS_APP_ID} for name in REQUIRED_CHECKS],
+            'expected_release_tag_checks': [{'context': name, 'app_id': ACTIONS_APP_ID} for name in RELEASE_TAG_CHECKS],
             'observed_settings': observed}
 
 

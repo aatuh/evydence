@@ -34,6 +34,7 @@
     "Inspect only checksum-verified private Go tool binaries as data, bind bundled module license bytes to recorded h1 checksums and exact compiler sources, and enforce separate target-policy/advisory decisions for each bundled package without executing downloaded tools.",
     "Qualify declared source/image/tool change coverage from fresh Git and trusted driver/classifier evidence, expose the actual authenticated dependency-policy gate through validated environment arguments, and add a target-base workflow with isolated PR-head check reporting; hosted enforcement remains unverified.",
     "Select the target policy's current Go compiler before locking trusted dependency review, and include its workflow in compiler-drift checks.",
+    "Check master's app-bound Dependency Policy requirement separately from release-tag gates, preserving the existing tag checks and fail-closed provider assessment.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
   "compatibility": {
