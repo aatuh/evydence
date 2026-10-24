@@ -5,6 +5,8 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +14,125 @@ import (
 	"testing"
 	"time"
 )
+
+type readinessTransportFunc func(*http.Request) (*http.Response, error)
+
+func (f readinessTransportFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+type readinessErrorBody struct {
+	err    error
+	ctx    context.Context
+	live   bool
+	closed bool
+}
+
+func (b *readinessErrorBody) Read([]byte) (int, error) {
+	b.live = b.ctx.Err() == nil
+	return 0, b.err
+}
+
+func (b *readinessErrorBody) Close() error {
+	b.closed = true
+	return nil
+}
+
+type readinessUnnotifiedDeadline struct {
+	context.Context
+	done chan struct{}
+}
+
+func (c readinessUnnotifiedDeadline) Deadline() (time.Time, bool) {
+	return time.Unix(1, 0), true
+}
+
+func (c readinessUnnotifiedDeadline) Done() <-chan struct{} { return c.done }
+
+func TestReadinessGatewayHonorsElapsedDeadlineBeforeContextNotification(t *testing.T) {
+	for _, stage := range []string{"request", "body", "decode", "healthy-response"} {
+		t.Run(stage, func(t *testing.T) {
+			ctx := readinessUnnotifiedDeadline{Context: t.Context(), done: make(chan struct{})}
+			var requestWasLive bool
+			client := &http.Client{Transport: readinessTransportFunc(func(request *http.Request) (*http.Response, error) {
+				requestWasLive = request.Context().Err() == nil
+				if stage == "request" {
+					return nil, errors.New("private-provider-detail")
+				}
+				payload := ""
+				if stage == "healthy-response" {
+					payload = `{"status":"ok"}`
+				}
+				body := io.NopCloser(strings.NewReader(payload))
+				if stage == "body" {
+					body = &readinessErrorBody{err: io.ErrUnexpectedEOF, ctx: request.Context()}
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: body, Header: make(http.Header), Request: request}, nil
+			})}
+			executor, err := New(Config{Endpoint: "http://127.0.0.1:1/sign", ReadinessEndpoint: "http://127.0.0.1:1/readiness", VerificationPublicKey: base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize)), AllowInsecureForLocalhost: true, Timeout: time.Minute, Client: client})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = executor.Close() })
+			err = executor.CheckReadiness(ctx)
+			if !requestWasLive || ctx.Err() != nil {
+				t.Fatal("regression requires elapsed deadline before context notification")
+			}
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("elapsed deadline lost: %v", err)
+			}
+		})
+	}
+}
+
+func TestReadinessGatewayPreservesIOCancellationBeforeContextNotification(t *testing.T) {
+	for _, stage := range []string{"request", "body"} {
+		for _, tc := range []struct {
+			name string
+			err  error
+			want error
+		}{
+			{"deadline", context.DeadlineExceeded, context.DeadlineExceeded},
+			{"cancellation", context.Canceled, context.Canceled},
+			{"provider", errors.New("private-provider-detail"), errReadiness},
+		} {
+			t.Run(stage+"/"+tc.name, func(t *testing.T) {
+				providerError := fmt.Errorf("private-provider-response: %w", tc.err)
+				body := &readinessErrorBody{err: providerError}
+				var requestWasLive bool
+				client := &http.Client{Transport: readinessTransportFunc(func(request *http.Request) (*http.Response, error) {
+					requestWasLive = request.Context().Err() == nil
+					if request.Method != http.MethodGet || request.URL.Path != "/readiness" {
+						t.Fatal("readiness performed unexpected network work")
+					}
+					if stage == "request" {
+						return nil, providerError
+					}
+					body.ctx = request.Context()
+					return &http.Response{StatusCode: http.StatusOK, Body: body, Header: make(http.Header), Request: request}, nil
+				})}
+				executor, err := New(Config{Endpoint: "http://127.0.0.1:1/sign", ReadinessEndpoint: "http://127.0.0.1:1/readiness", BearerToken: "private-token", VerificationPublicKey: base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize)), AllowInsecureForLocalhost: true, Timeout: time.Minute, Client: client})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = executor.Close() })
+				err = executor.CheckReadiness(t.Context())
+				if !requestWasLive || stage == "body" && !body.live {
+					t.Fatal("regression requires I/O failure before context notification")
+				}
+				if err != tc.want {
+					t.Errorf("I/O identity lost: got %v, want %v", err, tc.want)
+				}
+				if err == nil || strings.Contains(err.Error(), "private-") || strings.Contains(err.Error(), "127.0.0.1") {
+					t.Fatal("readiness disclosed provider details")
+				}
+				if stage == "body" && !body.closed {
+					t.Fatal("failed readiness body was not closed")
+				}
+			})
+		}
+	}
+}
 
 func TestReadinessGatewayUsesExplicitAuthenticatedReadOnlyEndpoint(t *testing.T) {
 	type reply struct {

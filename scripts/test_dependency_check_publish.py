@@ -81,6 +81,31 @@ class PublishTests(unittest.TestCase):
             def send(payload):return json.dumps({**payload,'id':999,'app':{'slug':'github-actions','id':15368},key:value}).encode()
             with self.subTest(key=key),self.assertRaises(publish.PublishError):publish.run(environment(),self.api(),post=send)
 
+    def test_actions_canonical_details_url_retains_exact_check_identity(self):
+        env=environment();env['DEPENDENCY_ASSESSMENT_DAY']='2026-10-22'
+        calls=[]
+        def send(payload):
+            calls.append(payload)
+            response=json.loads(self.post(payload))
+            response['details_url']='https://github.com/aatuh/evydence/runs/999'
+            return json.dumps(response).encode()
+        result=publish.run(env,self.api(),post=send)
+        self.assertEqual(result['check_id'],999)
+        self.assertEqual(result['conclusion'],'success')
+        self.assertEqual(calls[0]['details_url'],'https://github.com/aatuh/evydence/actions/runs/123')
+        for url in ['https://github.com/aatuh/evydence/runs/1000',
+                    'https://github.com/other/evydence/runs/999',
+                    'https://github.com/aatuh/other/runs/999',
+                    'https://other.example/aatuh/evydence/runs/999',
+                    'https://github.com/aatuh/evydence/actions/runs/124',
+                    'https://github.com/aatuh/evydence/runs/999?run=123',
+                    'https://github.com/aatuh/evydence/runs/999#details']:
+            def wrong(payload):
+                response=json.loads(self.post(payload));response['details_url']=url
+                return json.dumps(response).encode()
+            with self.subTest(url=url),self.assertRaises(publish.PublishError):
+                publish.run(env,self.api(),post=wrong)
+
     def test_writer_posts_fixed_endpoint_json_stdin_without_ambient_command_execution_or_secrets(self):
         env={**environment(),'PATH':'/usr/bin','HOME':'/private/home','GH_TOKEN':'PRIVATE_CANARY',
              'UNRELATED_SECRET':'PRIVATE_CANARY'}

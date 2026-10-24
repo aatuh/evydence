@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1407-readiness-deadlines",
+  "category": "fixed",
+  "summary": "Preserve cancellation and deadlines in signing gateway readiness",
+  "details": [
+    "Preserve context cancellation and elapsed deadlines even before context notification; an expired probe cannot report healthy, and transport/body cancellation identities are retained.",
+    "Keep unrelated provider failures generic, close failed response bodies, and preserve authenticated read-only probes, endpoint restrictions, redirect rejection and response limits.",
+    "Add deterministic request, body and decoding regressions for delayed context notification while retaining the existing real HTTP deadline and canceled-request assertions."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Corrects internal readiness error identity without changing routes, configuration, signing behavior or stored evidence."
+  },
+  "security": "Return only context or generic availability sentinels; provider URLs, credentials and response details remain omitted. Authentication, destination and response-boundary checks are unchanged.",
+  "limitations": [
+    "Readiness remains an availability signal and does not verify a signing operation or establish external provider assurance."
+  ]
+}

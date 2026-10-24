@@ -57,9 +57,12 @@ def run(parent,api,*,post=post_check):
         raw=post(payload);require(isinstance(raw,bytes) and len(raw)<=policy.MAX_DOCUMENT_BYTES)
         result=policy.parse_document(raw)
         require(isinstance(result,dict) and type(result.get('id')) is int and result['id']>0
-            and all(result.get(key)==payload[key] for key in ['name','head_sha','status','conclusion','external_id','details_url'])
+            and all(result.get(key)==payload[key] for key in ['name','head_sha','status','conclusion','external_id'])
             and result.get('app',{}).get('slug')=='github-actions'
-            and type(result.get('app',{}).get('id')) is int and result['app']['id']==15368)
+            and type(result.get('app',{}).get('id')) is int and result['app']['id']==15368
+            # Actions may replace the supplied workflow URL with this exact check URL.
+            and result.get('details_url') in (payload['details_url'],
+                'https://github.com/aatuh/evydence/runs/'+str(result['id'])))
         return {'check_id':result['id'],'head':head,'base':base,'conclusion':conclusion,
             'request_sha256':hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':')).encode()).hexdigest(),
             'response_sha256':hashlib.sha256(raw).hexdigest()}

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/aatuh/evydence/internal/app"
 )
@@ -56,7 +57,7 @@ func (e *Executor) CheckReadiness(ctx context.Context) error {
 	defer cancel()
 	request, err := http.NewRequestWithContext(callCtx, http.MethodGet, e.readinessEndpoint, nil)
 	if err != nil {
-		return errReadiness
+		return readinessError(callCtx, err)
 	}
 	request.Header.Set("Accept", "application/json")
 	if e.bearerToken != "" {
@@ -64,16 +65,16 @@ func (e *Executor) CheckReadiness(ctx context.Context) error {
 	}
 	response, err := e.client.Do(request)
 	if err != nil {
-		if callCtx.Err() != nil {
-			return callCtx.Err()
-		}
-		return errReadiness
+		return readinessError(callCtx, err)
 	}
 	defer func() { _ = response.Body.Close() }()
 	const maxReadinessBytes = 4096
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxReadinessBytes+1))
-	if err != nil || response.StatusCode != http.StatusOK || len(body) > maxReadinessBytes {
-		return errReadiness
+	if err != nil {
+		return readinessError(callCtx, err)
+	}
+	if response.StatusCode != http.StatusOK || len(body) > maxReadinessBytes {
+		return readinessError(callCtx, errReadiness)
 	}
 	var decoded struct {
 		Status string `json:"status"`
@@ -81,7 +82,27 @@ func (e *Executor) CheckReadiness(ctx context.Context) error {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&decoded) != nil || decoder.Decode(&struct{}{}) != io.EOF || decoded.Status != "ok" {
-		return errReadiness
+		return readinessError(callCtx, errReadiness)
 	}
-	return callCtx.Err()
+	return readinessError(callCtx, nil)
+}
+
+func readinessError(ctx context.Context, err error) error {
+	if contextErr := ctx.Err(); contextErr != nil {
+		return contextErr
+	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	if err == nil {
+		return nil
+	}
+	// Transport/body errors may expose cancellation before the context timer does.
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	return errReadiness
 }
