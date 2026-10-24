@@ -218,7 +218,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "07d8e1a188e2915327f1b46d3740f9988812f45f94b40efb3365dd133cf94111",
+        "scanner_output_sha256": "f4e4864e609d9b40eb69807f49a71dff194b1e95c1d10fa2defddee2f44b1b07",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/alpine:3.23@sha256:85fe1e81d6758c208f3e1eed4338a1997e19d4be002d4dd32d3100c9a8c010a0",
@@ -554,7 +554,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "b750709e5fe4d4ae29034a7525ca7e4fcc4acdc54cd9fb92d69e9e7809ebb2e8",
+        "scanner_output_sha256": "6a034227185bc18e4b6084e3bce77427c31f9d090ba5cc8557270016dec66d00",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201",
@@ -1156,7 +1156,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "d93b97ad0f3757ac222baf7d088bb24da1ead9e53de56fc50da7d61c046b0212",
+        "scanner_output_sha256": "73215c89ded543b3593d5480f5f6fdf9ac183bbab509b5fc6623e83f5a5a3d73",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
@@ -1917,7 +1917,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "e1c28c3835684641619980534ea88e729ad0482b914a0450fca7842aeaf25307",
+        "scanner_output_sha256": "3e6602f29f247b1421eddb108ed195f92c46f35fc3f00a18bb75d6ddc680a051",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888",
@@ -4734,7 +4734,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "2cf3b044668b5de533ea41f7a5dd34417c2528c2b4ac0945e420cf2feee1e07f",
+        "scanner_output_sha256": "325d0600b238e525ca1557b42d3ac6d335b9cb517bdf33c58652fcb441811596",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "ghcr.io/ossf/scorecard-action:v2.4.3",
@@ -5935,7 +5935,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "7712c6ecdddf6c6aa8d9370afbcab70070ea0522cbdd29612f02cdcce8e57839",
+        "scanner_output_sha256": "57187847c171318a39f5a2eb68d0854aacafca2b099bd879d7664a360c214b28",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "evydence-local-mc:20250813-7394ce0dd2a8",
@@ -8319,7 +8319,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "577991c8e296dd49c356fb1e62fcdd71a2ef79415a38a03a9428aa24a9214e23",
+        "scanner_output_sha256": "73829309769a353c003aca9037c1c33409018e80569703e54d0d13d378b7c315",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "evydence-local-minio:20251015-9e49d5e7a648",
@@ -8330,7 +8330,7 @@
     ".github/workflows/ci.yml": "74edd6bcee1257a8af2693003e10cbda3a4e3ad8282e4292e2389e453f4d0835",
     ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
     ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
-    ".github/workflows/dependency-review.yml": "37d8e0434866b327e15f994b6208e722d94bf2195763fbda062dfa4136bc7431",
+    ".github/workflows/dependency-review.yml": "f41e61244e621c4b3e14c8e29dc678a7557b4b25e3b36e2204220f3866cac1d2",
     ".github/workflows/marketing-site-pages.yml": "356a4680ffd7f842448155f1977cc8b48d5b0350e308297739261d32a07f01f9",
     ".github/workflows/release-artifacts.yml": "e9c08517dc44a521006dfbccf532a6253e15d5fd2f2962b0020668e08db839b8",
     ".github/workflows/reproducible-builds.yml": "a5431fa13b87bf3e6d2330d71c8267367195f83a24151a1a371a7707b9cbba1b",
@@ -8344,7 +8344,7 @@
     "docker-compose.yml": "10ccf4df8a1793fe883adaaaa73fe2fe5195c9a177fa67b24d95250998c196e6",
     "docs/github-actions/quickstart-release-evidence.yml": "eb8fd676581894080f16654539e1e18ef097961db0ea189cc7fc339836668b6b",
     "docs/github-actions/release-evidence-workflow.yml": "9d4d5178702e4089cfb4e01fc44877f5f692d5775a8b923eb6d04bf17f5b624b",
-    "docs/reference/dependency-inventory.json": "912edf8829c791eec98f179064dc509d5634fe7405396ff59ae7d14908c290d1",
+    "docs/reference/dependency-inventory.json": "05387153155662185a5f251a291cfa299f76624a5800a738a5c564e9fdef489e",
     "release/support-matrix.json": "c266cf6d3f1b9b42cf120eb34663eb6d670678460b9c53b0b03381029e73e41e",
     "release/tools/syft.go.mod": "779a628967e4006a15bb531cbc0a0977be34ad05bd22b95e9d6bf6bd0f768bbc",
     "release/tools/syft.go.sum": "c778b5ee7af2e3b7d2cac7896e9a48df4b50b3e431f0de77cdea60b2e2783868",
@@ -8365,10 +8365,10 @@
     "scripts/release_sbom.py": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
     "scripts/release_scanner.py": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
     "scripts/support_matrix.py": "47ed56d270c41e87221d700c2fcf4539ef1e4e62bf15c2ab99f3b8089976ae4b",
-    "scripts/support_matrix_artifacts.py": "b4b2c75fbad65bc2ea178f6933a04189049db2dac24d269b1f97ce54452e779e",
+    "scripts/support_matrix_artifacts.py": "d330ed4492199e1ae5f45fc93e5bb4ce412564ebd04a73dcea86822614a07ead",
     "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
   },
-  "observed_at": "2026-10-22T17:34:11.506940+00:00",
+  "observed_at": "2026-10-23T16:59:54.694550+00:00",
   "scanner": {
     "binary_sha256": "bdbdbb2a4dd898867f2d7e2f55111e3249dfc9fc851dd6e0221844075946e511",
     "name": "syft",

@@ -64,11 +64,23 @@ coverage or vulnerability scanning of container contents.
 
 `make dependency-updates-check`, also in `make docs-check`, checks local scope
 coverage, bounded version queues and separate routine/security groups offline.
-It does not run Dependabot. A read-only GitHub observation on 2026-10-21 returned
-`enabled: true, paused: true` for automated security fixes. Recheck the live
-state and update results after approved integration; local configuration tests
-do not prove active hosted automation. GitHub documents qualifying activity for
+It does not run Dependabot. After the approved normal merge of
+[PR #30](https://github.com/aatuh/evydence/pull/30) on 2026-10-23, a read-only
+GitHub observation returned `enabled: true, paused: false` for automated security
+fixes. Dependabot opened the separate
+[Astro major update](https://github.com/aatuh/evydence/pull/31) and
+[application minor/patch group](https://github.com/aatuh/evydence/pull/32).
+This records provider activation and queue activity; admission qualification
+remains pending. Recheck the current state with
+`gh api repos/aatuh/evydence/automated-security-fixes` and inspect each PR's
+results. GitHub documents qualifying activity for
 [resuming paused updates](https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-updates-stopped).
+
+The first trusted dependency-review runs on those PRs failed before producing
+an admission report: compiler setup selected Go 1.26.10 while the trusted
+classifier requires the policy's current Go 1.27.3. These setup failures do not
+qualify either a passing or a policy-negative control. See the
+[compiler selection reference](toolchain-platform-support.md#version-selection).
 
 ## Python QA Dependency
 
