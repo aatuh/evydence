@@ -1,0 +1,11 @@
+name: Dependency admission severe control
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  declared-only:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2; known high advisory; never execute
