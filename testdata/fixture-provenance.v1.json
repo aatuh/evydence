@@ -128,6 +128,27 @@
   ],
   "fixtures": [
     {
+      "id": "admission-control-disallowed-fixture",
+      "license": "CC-BY-3.0",
+      "notices": [
+        "spdx-spec-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/spdx/testdata/admission-disallowed-spdx-v2.2.json",
+          "sha256": "1b126f76a0eaa42dfde8ca1575fe6f158431518ebb289be00b007ca97c3841a4"
+        }
+      ],
+      "source": {
+        "sha256": "1b126f76a0eaa42dfde8ca1575fe6f158431518ebb289be00b007ca97c3841a4",
+        "commit": "aadf3b0b8dbbabdb4d880b0fc714255fea436ff7",
+        "git_blob": "d147d861641dd9aa306e52ba6ba937e089e2f1d9",
+        "path": "examples/SPDXJSONExample-v2.2.spdx.json",
+        "repository": "spdx/spdx-spec",
+        "kind": "bytes"
+      }
+    },
+    {
       "id": "bom-examples-vex-json",
       "license": "CC0-1.0",
       "notices": [
