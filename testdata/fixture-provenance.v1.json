@@ -128,6 +128,28 @@
   ],
   "fixtures": [
     {
+      "id": "admission-control-allowed-fixture",
+      "license": "CC0-1.0",
+      "notices": [
+        "bom-examples-license"
+      ],
+      "files": [
+        {
+          "path": "internal/app/parsers/vex/testdata/cyclonedx-vex/admission-positive-vex-1.4.json",
+          "sha256": "d99e4aba51a231e5c3428d00be05dd05be05e7287bc4998a7eb67daa2bf55a25"
+        }
+      ],
+      "source": {
+        "sha256": "45594a106740d33c13ceca5a91168327b3aec7842587526506221dacce025900",
+        "commit": "7d9172d00c88c05a8f1ccb90589d111870fc9d86",
+        "git_blob": "14c5067b42f33ca921a9f1c47ec2fe7fe8967378",
+        "path": "VEX/vex.json",
+        "repository": "CycloneDX/bom-examples",
+        "kind": "json",
+        "canonical_sha256": "dcf7943993720a81f56c2c279ac46185922d525fe776320cd857f1f51823cff3"
+      }
+    },
+    {
       "id": "bom-examples-vex-json",
       "license": "CC0-1.0",
       "notices": [
