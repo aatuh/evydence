@@ -13,7 +13,8 @@ from unittest import mock
 import github_controls as controls
 
 
-CHECKS = ['Production Check', 'CodeQL Analyze', 'Race and Stress']
+RELEASE_CHECKS = ['Production Check', 'CodeQL Analyze', 'Race and Stress']
+CHECKS = RELEASE_CHECKS + ['Dependency Policy']
 
 
 def protected_snapshot():
@@ -44,7 +45,7 @@ def protected_snapshot():
                                    'strict_required_status_checks_policy': False,
                                    'do_not_enforce_on_create': False,
                                    'required_status_checks': [{'context': name, 'integration_id': 15368}
-                                                              for name in CHECKS]}}]}],
+                                                              for name in RELEASE_CHECKS]}}]}],
         'dependabot_alerts': {'state': 'enabled', 'http_status': 204},
         'private_reporting': {'state': 'enabled', 'http_status': 200},
         'code_scanning': {'state': 'enabled', 'http_status': 200,
@@ -57,6 +58,43 @@ def protected_snapshot():
 class ControlAssessmentTests(unittest.TestCase):
     def assess(self, snapshot=None):
         return controls.assess_controls(snapshot or protected_snapshot(), 'aatuh/evydence')
+
+    def test_dependency_policy_is_a_branch_requirement_not_a_release_tag_gate(self):
+        snapshot = protected_snapshot()
+        checks = snapshot['branch']['required_status_checks']['checks']
+        checks[:] = [row for row in checks if row['context'] != 'Dependency Policy']
+        checks.append({'context': 'Dependency Policy', 'app_id': 15368})
+        result = self.assess(snapshot)
+        self.assertTrue(result['passed'], result)
+        expected_tags = [{'context': name, 'app_id': 15368}
+                         for name in ['Production Check', 'CodeQL Analyze', 'Race and Stress']]
+        self.assertEqual(result['expected_required_checks'],
+                         expected_tags + [{'context': 'Dependency Policy', 'app_id': 15368}])
+        self.assertEqual(result.get('expected_release_tag_checks'), expected_tags)
+        self.assertEqual(result['controls']['release_tags']['state'], 'passed')
+        self.assertIn({'context': 'Dependency Policy', 'present': True, 'app_id': 15368},
+                      result['observed_settings']['master']['required_checks'])
+        for binding in ['missing', None, 7]:
+            with self.subTest(binding=binding):
+                changed = copy.deepcopy(snapshot)
+                rows = changed['branch']['required_status_checks']['checks']
+                if binding == 'missing':
+                    rows[:] = [row for row in rows if row['context'] != 'Dependency Policy']
+                else:
+                    next(row for row in rows if row['context'] == 'Dependency Policy')['app_id'] = binding
+                result = self.assess(changed)
+                self.assertFalse(result['passed'])
+                self.assertEqual(result['controls']['required_checks']['state'], 'failed')
+                self.assertEqual(result['controls']['release_tags']['state'], 'passed')
+        for missing in ['Production Check', 'CodeQL Analyze', 'Race and Stress']:
+            with self.subTest(missing_release_gate=missing):
+                changed = copy.deepcopy(snapshot)
+                gate = changed['rulesets'][0]['rules'][-1]['parameters']['required_status_checks']
+                gate[:] = [row for row in gate if row['context'] != missing]
+                result = self.assess(changed)
+                self.assertFalse(result['passed'])
+                self.assertEqual(result['controls']['release_tags']['state'], 'failed')
+                self.assertEqual(result['controls']['required_checks']['state'], 'passed')
 
     def test_solo_profile_requires_pull_requests_checks_and_immutable_checked_tags(self):
         result = self.assess()
