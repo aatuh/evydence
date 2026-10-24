@@ -358,6 +358,20 @@ shared artifacts and fail-closed outputs. A read-only real PR #30 probe retained
 280 dependency rows and 262 unmatched additions when deliberately supplied no
 source graph; an existing owner comment did not authorize a synthetic waiver.
 No real exception approval was created or inferred from those negative cases.
-Current public master predates this policy/tooling, so the actual caller must
-reject it until normal trusted adoption. Those observations are not passing
-current-source hosted enforcement evidence.
+That historical probe preceded normal trusted adoption. The policy/tooling
+was adopted through [PR #30](https://github.com/aatuh/evydence/pull/30), followed
+by the compiler-bootstrap correction in
+[PR #38](https://github.com/aatuh/evydence/pull/38) on 2026-10-24. Their merges
+do not turn the earlier probe into passing hosted enforcement evidence.
+Fresh unmerged controls [#39](https://github.com/aatuh/evydence/pull/39),
+[#40](https://github.com/aatuh/evydence/pull/40), and
+[#41](https://github.com/aatuh/evydence/pull/41) targeted the adopted source.
+Their source-bound artifacts verified complete declared-change coverage and
+the expected native results: allow CC0, reject CC-BY-3.0, and reject high
+`GHSA-cxww-7g56-2vh6`. The reporter created the exact app-bound head checks but
+then rejected GitHub's canonical `/runs/<check-id>` response URL. These controls
+were closed unmerged with their branches retained; their failed reporting jobs
+do not qualify the full workflow. A test-first response-compatibility repair
+accepts only the requested workflow URL or the exact returned check's canonical
+URL, preserving check/head/run/app validation. Normal adoption, fresh full
+workflow controls and required-check activation remain pending.

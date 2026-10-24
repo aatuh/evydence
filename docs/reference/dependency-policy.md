@@ -79,7 +79,14 @@ results. GitHub documents qualifying activity for
 The first trusted dependency-review runs on those PRs failed before producing
 an admission report: compiler setup selected Go 1.26.10 while the trusted
 classifier requires the policy's current Go 1.27.3. These setup failures do not
-qualify either a passing or a policy-negative control. See the
+qualify either a passing or a policy-negative control.
+[PR #38](https://github.com/aatuh/evydence/pull/38) normally merged the compiler
+selection correction on 2026-10-24 after all three required checks passed.
+The setup step can read the preferred toolchain; later commands remain locked
+to the selected compiler. Full hosted workflow qualification and required-check
+activation remain pending; native admission results and the reporting repair
+have separate scopes in the [qualification limits](dependency-review.md#qualification-limits).
+See the
 [compiler selection reference](toolchain-platform-support.md#version-selection).
 
 ## Python QA Dependency
