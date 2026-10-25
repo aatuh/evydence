@@ -8,9 +8,9 @@ Run the reader from a trusted checkout; the requested source revisions supply
 data, never the reader implementation.
 
 A successful source check is not dependency admission. The report keeps
-`dependency_coverage_verified: false`: complete component extraction, artifact/
-license/advisory verification, trusted policy selection and hosted enforcement
-remain separate work under EVY-1407.
+`dependency_coverage_verified: false`: component extraction, artifact/license/
+advisory verification, trusted policy selection and the hosted verdict belong
+to the [combined caller](dependency-review.md), not this input reader alone.
 
 ## Source Families
 

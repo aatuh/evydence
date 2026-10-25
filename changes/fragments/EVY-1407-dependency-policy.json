@@ -2,7 +2,7 @@
   "schema": "evydence-change-fragment.v1",
   "id": "EVY-1407-dependency-policy",
   "category": "added",
-  "summary": "Add dependency rules, bounded license classification and source observations",
+  "summary": "Enforce trusted dependency vulnerability and license admission on protected PRs",
   "details": [
     "Evaluate bounded license expressions with exact license-exception pairing and reject missing license metadata or high, critical and unknown-severity advisories.",
     "Require exact dependency and advisory/license scope, owner, reason, review reference and an unexpired review window of at most 90 days for exceptions.",
@@ -25,15 +25,15 @@
     "Read immutable local or authenticated Git blobs with canonical byte/size/object checks, classify declared dependency input families, reject selected symlinks and report missing or unclassified sources. Verify current source catalog and selected manifest/fixture hashes without executing PR code or treating source coverage as dependency admission.",
     "Build the bounded license helper from explicit trusted base Git sources and QA locks in a private credential-free environment, verify the exact compiler, unchanged source and module cache, and bind later classification to its executable digest. Current-target authorization and complete collector/admission integration remain separate.",
     "Collect verified proposed Git inputs through trusted Python and a base-built classifier, separate actual generator hashes from proposed dependency-lock hashes, reject source/tooling drift and recheck the current PR context before output without executing proposed code.",
-    "Select actual dependency policy from current-target Git bytes, assess exact component/source/origin changes and query bounded exact-version OSV data. Keep unsupported or incomplete advisory coverage unknown, prevent head policy self-approval and retain a partial verdict until full scope and provider review integration exists.",
+    "Select actual dependency policy from current-target Git bytes, assess exact component/source/origin changes and query bounded exact-version OSV data. Keep unsupported or incomplete advisory coverage unknown, prevent head policy self-approval and leave the standalone source decision partial for the combined caller.",
     "Join authenticated GitHub and OSV findings without dropping severe or unmatched additions, verify exact-scope owner approval payloads for exceptions, retain expired waivers as inactive and orchestrate serial base/head collection with one trusted classifier. Recheck PR/review/UTC state and keep incomplete coverage non-passing.",
     "Bind image advisory coordinates to scanner package/source metadata, preserve installed identities separately from distro source queries, reject mismatched or incomplete advisory observations and keep unknown Go build versions unresolved.",
     "Verify immutable non-executable UTF-8 test fixtures and notice coverage before recording explicit non-package advisory applicability; retain null findings and license/waiver enforcement without expanding the allowed policy.",
     "Derive image changes from private Git-data views with distinct trusted generator and original source hashes, scan changed registry images with qualified tooling, assess package/source/origin changes under target-base policy and keep mutable baselines, unknown artifacts and missing coverage from silently authorizing changes.",
     "Require independent advisory evidence for SHA-pinned Actions instead of treating empty graph findings as complete coverage; bind all full release tags to the verified commit, query GitHub's reviewed/unreviewed/malware catalogs, enforce cursor/response bounds and recheck public visibility/tag associations before output.",
     "Inspect only checksum-verified private Go tool binaries as data, bind bundled module license bytes to recorded h1 checksums and exact compiler sources, and enforce separate target-policy/advisory decisions for each bundled package without executing downloaded tools.",
-    "Qualify declared source/image/tool change coverage from fresh Git and trusted driver/classifier evidence, expose the authenticated dependency-policy gate, and add isolated target-base PR-head reporting that accepts only the requested workflow URL or GitHub's exact canonical check URL while preserving head, run and Actions app binding; full hosted enforcement remains unverified.",
-    "Select the target policy's current Go compiler before locking trusted dependency review, audit workflow compiler drift and distinguish normal adoption from historical probes and pending hosted controls.",
+    "Qualify declared source/image/tool change coverage from fresh Git and trusted driver/classifier evidence, expose the authenticated dependency-policy gate, and add isolated target-base PR-head reporting that accepts only the requested workflow URL or GitHub's exact canonical check URL while preserving head, run and Actions app binding; full hosted allow/license/severe-advisory controls are qualified and the app-bound head check is required on master.",
+    "Select the target policy's current Go compiler before locking trusted dependency review, audit workflow compiler drift and distinguish normal adoption from historical probes and later full hosted controls.",
     "Check master's app-bound Dependency Policy requirement separately from release-tag gates, preserving the existing tag checks and fail-closed provider assessment.",
     "Run rule and classifier regressions in documentation validation and document dependency selection/removal criteria."
   ],
@@ -45,7 +45,7 @@
   },
   "security": "Reject malformed or oversized input, duplicate JSON keys, nonfinite numbers and unsupported metadata with errors that omit raw input. Rules have no network or subprocess effects; the classifier accepts digest-bound bytes over stdin without supplied-path or package-code execution.",
   "limitations": [
-    "EVY-1407 remains incomplete: operator deployment choices, full current-PR and hosted admission qualification, required-check setup and final release qualification are pending. Provider update activation and queue activity were observed after integration. Image observations cover selected package databases and Go binaries on Linux amd64, not complete artifact SBOMs or license approval. Maintenance signals are review candidates with explicit provider coverage gaps, not health or safety verdicts.",
+    "The qualified profile covers declared dependency changes, not baseline approval, operator-selected deployment contents, complete artifact SBOMs or legal license compatibility. Image observations cover selected package databases and Go binaries on Linux amd64. Maintenance signals are review candidates with explicit provider coverage gaps, not health or safety verdicts. Independent SDK module/publication work remains EVY-801 through EVY-805.",
     "A review-link shape and synthetic policy tests do not prove approval or that real dependency changes are blocked by hosted CI."
   ]
 }

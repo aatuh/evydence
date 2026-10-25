@@ -1,22 +1,27 @@
 # Dependency Policy
 
 This reference is for contributors selecting dependencies and maintainers
-reviewing their admission. **EVY-1407 is in progress.** The offline admission
-rules and their regression tests exist. A bounded Go license-classification
-helper passes focused tests on both supported compilers. The dependency
-collector produces source-bound observations. The combined declared-change
-gate and trusted workflow are implemented; live PR/hosted enforcement and final
-release qualification remain pending. See the
-[gate and coverage reference](dependency-review.md#final-gate-and-combined-coverage).
-Passing these tests does not establish that the current dependency set has been
-audited or that a real dependency addition would be rejected by hosted CI.
+reviewing their admission. The trusted declared-change gate has verified hosted
+allow, disallowed-license and severe-advisory controls;
+[the caller reference](dependency-review.md#qualification-limits) owns their
+exact sources, results and limits. Master requires the exact app-bound
+`Dependency Policy` head check alongside its existing three checks, with strict
+enforcement; see [repository controls](repository-controls.md). The existing source-bound inventory,
+license-classification helper and partial collection layers keep their own
+coverage limits. A qualified declared-change profile does not establish that
+the current dependency set is audited, legally compatible or vulnerability-free.
 
 ## Selection And Removal
 
 Before adding a dependency, explain the concrete behavior it supplies and why
 the standard library or an existing dependency is insufficient. Preserve the
 required API toolkit foundation. Keep SDK wrappers minimal; a server or build
-dependency is not automatically an SDK requirement.
+dependency is not automatically an SDK requirement. The
+[recorded SDK observation](dependency-hosted-controls-2026-10-24.json) found no
+external Go runtime packages, standard-library/local Python static imports and
+only local/platform TypeScript imports. The SDK bytes stayed unchanged at
+qualified master. Independent module/package publication remains EVY-801 through
+EVY-805; runtime imports do not prove minimal published module graphs.
 
 Review the pinned source/version, release activity, archived status, security
 advisories, license and redistribution requirements, platform/toolchain support,
@@ -70,8 +75,9 @@ GitHub observation returned `enabled: true, paused: false` for automated securit
 fixes. Dependabot opened the separate
 [Astro major update](https://github.com/aatuh/evydence/pull/31) and
 [application minor/patch group](https://github.com/aatuh/evydence/pull/32).
-This records provider activation and queue activity; admission qualification
-remains pending. Recheck the current state with
+This records provider activation and queue activity. The later hosted
+admission controls have their own [source-bound qualification](dependency-review.md#qualification-limits).
+Recheck the current update state with
 `gh api repos/aatuh/evydence/automated-security-fixes` and inspect each PR's
 results. GitHub documents qualifying activity for
 [resuming paused updates](https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-updates-stopped).
@@ -83,9 +89,11 @@ qualify either a passing or a policy-negative control.
 [PR #38](https://github.com/aatuh/evydence/pull/38) normally merged the compiler
 selection correction on 2026-10-24 after all three required checks passed.
 The setup step can read the preferred toolchain; later commands remain locked
-to the selected compiler. Full hosted workflow qualification and required-check
-activation remain pending; native admission results and the reporting repair
-have separate scopes in the [qualification limits](dependency-review.md#qualification-limits).
+to the selected compiler. [PR #42](https://github.com/aatuh/evydence/pull/42)
+adopted the reporting repair, followed by fully qualified hosted controls
+#43/#44/#45. The approved master requirement was activated and live-verified on
+2026-10-25; historical probes and current controls retain separate scopes in the
+[qualification limits](dependency-review.md#qualification-limits).
 See the
 [compiler selection reference](toolchain-platform-support.md#version-selection).
 
@@ -263,7 +271,8 @@ licenses or severities fail. Provider prose is omitted from its output.
 The caller must still authenticate the response, bind it to the real comparison
 and prove coverage, including custom tool and fixture scopes. An empty response
 does not prove a complete graph. The adapter's isolated regressions run in
-`make dependency-policy-test`; hosted integration remains incomplete.
+`make dependency-policy-test`; the [combined trusted caller](dependency-review.md)
+owns authenticated joins and the final hosted verdict.
 The [authenticated provider reader](dependency-review-provider.md) now binds PR,
 commit, tree and file observations. It explicitly leaves complete dependency
 coverage unverified and does not select policy or establish hosted enforcement.
@@ -274,8 +283,9 @@ The [trusted classifier builder](dependency-classifier.md) now builds the
 license helper from explicitly selected base locks/source in a private directory
 without provider credentials. The [Git collection caller](dependency-collection.md)
 now connects it to the collector while proposed source remains data and live PR
-context is rechecked. Complete scope/advisory joins, trusted policy selection and
-hosted enforcement remain incomplete.
+context is rechecked. Complete declared-change joins, trusted policy selection
+and head reporting belong to the [combined caller](dependency-review.md),
+not these partial source observations.
 
 ## Exceptions
 
@@ -299,9 +309,10 @@ Renewal requires another review; it is not automatic.
 
 A syntactically valid review URL or owner field does not prove approval.
 The [trusted caller and review profile](dependency-review.md) bind current-target
-policy, actual comparison data and owner-authored exact-scope approvals. Full
-scope/hosted integration remains incomplete. Test exceptions are synthetic and
-do not approve any real dependency or advisory.
+policy, actual comparison data and owner-authored exact-scope approvals. The
+combined caller owns complete declared-change coverage and final context
+rechecks. Test exceptions are synthetic and do not approve any real dependency
+or advisory; no real exception was used by the hosted controls.
 
 ## License Classification Helper
 
@@ -498,8 +509,9 @@ admission. The
 image comparison and per-package decisions are now connected to the
 [trusted caller](dependency-review.md#declared-image-changes), alongside the
 [pinned tool profile](dependency-review.md#pinned-go-tool-artifacts). Unsupported
-or unmatched provider rows remain blocking; hosted enforcement and final ticket
-qualification remain pending under EVY-1407.
+or unmatched provider rows remain blocking. The [combined caller](dependency-review.md#qualification-limits)
+owns the qualified hosted declared-change profile; these historical projection
+observations retain their original, narrower scope.
 
 `make dependency-images-check` runs regressions and checks saved input bindings
 offline; it does not re-query registries or prove current tag contents. To refresh,

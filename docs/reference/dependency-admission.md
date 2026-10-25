@@ -6,10 +6,10 @@ fresh in-memory [trusted Git collections](dependency-collection.md). It has no
 CLI that accepts a PR-supplied saved report as verified evidence.
 
 This is a **partial source-package decision**. The result separately records
-`package_decision_passed` and `dependency_coverage_verified: false`. Image/package
-joins, complete scope handling and hosted workflow
-enforcement remain incomplete under EVY-1407. A passing partial decision must
-never be used as the final CI admission verdict.
+`package_decision_passed` and `dependency_coverage_verified: false`. The
+[combined caller](dependency-review.md) owns image/package joins, complete
+declared-change handling and the hosted verdict. A passing partial decision
+must never be used as the final CI admission verdict.
 
 ## Policy And Change Selection
 

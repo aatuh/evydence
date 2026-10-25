@@ -5,11 +5,14 @@ This reference is for maintainers integrating the dependency admission gate.
 Git-verified source collection, source-package decisions and scoped exception
 review. It runs trusted code from its own checkout; proposed source remains data.
 
-**Hosted qualification remains in progress under EVY-1407.** The caller connects
-declared source, image and pinned Go tool changes through an explicit combined
-coverage profile. `make dependency-policy-check` and the trusted workflow are
-implemented; successful local tests do not prove hosted enforcement. Unsupported
-scope or missing evidence cannot become a passing check.
+The declared-change profile has verified hosted allow, disallowed-license and
+severe-advisory controls on trusted master
+`069fac5ee8613b5c3194a3a456fd42812fdb6ed2`; see [qualification](#qualification-limits).
+The exact app-bound head check became required on master on 2026-10-25;
+[repository controls](repository-controls.md#verified-observation) owns the live setting evidence.
+The caller connects declared source, image and pinned Go tool changes through
+an explicit combined coverage profile. Unsupported scope or missing evidence
+cannot become a passing check.
 
 ## Caller Sequence And Outputs
 
@@ -135,9 +138,10 @@ and [required-check SHA rules](https://docs.github.com/en/pull-requests/how-tos/
 
 The reporter is a provider mutation reserved for this trusted hosted path.
 Local qualification uses mocked write responses and does not publish checks.
-Activating the workflow, verifying success/negative cases and adding the exact
-head check to required branch protection still need real hosted evidence and
-the corresponding maintainer approval. Existing required checks are preserved.
+The hosted success and both policy-negative controls below are verified. The
+approved exact head check is required by master protection, preserving the
+existing three app-bound checks and strict enforcement; see
+[the dated provider record](repository-controls.md#verified-observation).
 
 ## Provider Findings And Source Observations
 
@@ -373,5 +377,30 @@ then rejected GitHub's canonical `/runs/<check-id>` response URL. These controls
 were closed unmerged with their branches retained; their failed reporting jobs
 do not qualify the full workflow. A test-first response-compatibility repair
 accepts only the requested workflow URL or the exact returned check's canonical
-URL, preserving check/head/run/app validation. Normal adoption, fresh full
-workflow controls and required-check activation remain pending.
+URL, preserving check/head/run/app validation.
+
+[PR #42](https://github.com/aatuh/evydence/pull/42) normally adopted that repair
+and the readiness deadline fix as
+`069fac5ee8613b5c3194a3a456fd42812fdb6ed2` after all three required checks passed.
+Fresh controls against this actual trusted target verified the complete
+workflow, including successful reporters and Actions app `15368` head checks:
+
+| Control | Native decision | Hosted run |
+| --- | --- | --- |
+| [#43](https://github.com/aatuh/evydence/pull/43), added CC0 fixture | Pass | [40106945418](https://github.com/aatuh/evydence/actions/runs/40106945418) |
+| [#44](https://github.com/aatuh/evydence/pull/44), added CC-BY fixture | Fail: `disallowed_license` | [40106952969](https://github.com/aatuh/evydence/actions/runs/40106952969) |
+| [#45](https://github.com/aatuh/evydence/pull/45), disabled Action declaration | Fail: high `GHSA-cxww-7g56-2vh6` | [40106958526](https://github.com/aatuh/evydence/actions/runs/40106958526) |
+
+Each artifact had complete declared-change coverage, no coverage gaps and all
+37 trusted driver hashes matched to the target Git source. Provider ZIP digests,
+base/head/run identity, exact native violation and app-bound head checks were
+verified. All test PRs closed unmerged with branches retained; the disabled
+manual-only Action was never executed. No real waiver was created. These
+controls qualify the declared-change profile, not baseline dependency safety,
+legal compatibility, complete vulnerability detection or complete artifact SBOMs.
+The [retained observation](dependency-hosted-controls-2026-10-24.json) records
+source, run, artifact and check identities, verified target-driver hashes and
+the exact native additions. It is a dated observation, not independent runner
+authentication. The approved required-check activation passed all 18 live
+repository-control observations on 2026-10-25; see
+[repository controls](repository-controls.md#verified-observation).
