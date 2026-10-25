@@ -119,7 +119,8 @@ BEHAVIORS = (
         refs("internal/adapters/postgres/idempotency_concurrency_test.go::TestStoreConcurrentIdempotencyAcrossLedgerInstances"),
         refs("scripts/black_box_demo_check.sh"),
         refs("internal/app/idempotency_concurrency_test.go::TestWithIdempotencyConcurrentReleaseBundleCommitsOneEffectAndReplay"),
-        gap("request-body equivalence uses canonical hashes and explicit conflict vectors; parser fuzzing is tracked separately"),
+        refs("internal/app/identity_fuzz_test.go::FuzzIdempotencyRecordKeyRoundTrip",
+             "internal/app/identity_fuzz_test.go::FuzzParseIdempotencyRecordKey"),
     ),
     Behavior(
         "audit-integrity",
@@ -145,7 +146,9 @@ BEHAVIORS = (
         refs("internal/adapters/objectstore/s3/live_integration_test.go::TestMinIOIntegrationStagesFinalizesMultipartAndChecksObjectLock"),
         refs("scripts/black_box_demo_check.sh"),
         refs("internal/adapters/postgres/object_reconciliation_concurrency_test.go::TestApplyObjectReconciliationRejectsStaleLifecycleSnapshot"),
-        refs("internal/app/fuzz_test.go::FuzzValidDigest"),
+        refs("internal/app/fuzz_test.go::FuzzValidDigest",
+             "internal/app/identity_fuzz_test.go::FuzzObjectPayloadKeyRoundTrip",
+             "internal/app/identity_fuzz_test.go::FuzzParseObjectPayloadKey"),
     ),
     Behavior(
         "parser-conformance",
@@ -419,6 +422,14 @@ def render(behaviors: tuple[Behavior, ...]) -> str:
         )
     lines.extend(
         [
+            "",
+            "## Foundational Property Tests",
+            "",
+            "`internal/application/normalized_json_fuzz_test.go` exercises the existing float64 normalized-JSON hash profile, parse/serialize stability and changed-field detection. It does not introduce RFC 8785/JCS or change historical hashes. `internal/platform/jsonbounds/fuzz_test.go` covers bounded JSON round trips and duplicate decoded keys with different escape spellings. These JSON callbacks bound input and structural work before generic decoding.",
+            "",
+            "`internal/app/identity_fuzz_test.go` covers exact tenant object-key ownership, canonical object-key parsing, opaque idempotency-field round trips and readable legacy record keys. Each callback limits input size; existing digest targets also retain explicit work limits. `TestFoundationalFuzzCoverage` checks that all seven foundational targets remain declared and seeded; actual seed/campaign execution supplies behavioral evidence.",
+            "",
+            "Ordinary `go test ./...` includes fuzz seed corpora. The dedicated `make fuzz-smoke` target currently selects `internal/app` only; complete target accounting and scheduled campaigns remain tracked by EVY-1104 and its child tickets. Bounded fuzz runs supplement deterministic positive, negative and failure vectors and do not establish exhaustive parser, authorization or cryptographic assurance.",
             "",
             "## Repeated Concurrency Gate",
             "",

@@ -14,6 +14,9 @@ func FuzzValidDigest(f *testing.F) {
 	f.Add("md5:" + strings.Repeat("0", 32))
 
 	f.Fuzz(func(t *testing.T, value string) {
+		if len(value) > 256 {
+			return
+		}
 		got := validDigest(value)
 		if !got {
 			return
@@ -41,6 +44,9 @@ func FuzzHashBytesProducesValidDigest(f *testing.F) {
 	f.Add([]byte(`{"password":"not-a-secret-hash-input","payload":"content"}`))
 
 	f.Fuzz(func(t *testing.T, body []byte) {
+		if len(body) > 64<<10 {
+			return
+		}
 		if digest := hashBytes(body); !validDigest(digest) {
 			t.Fatalf("hashBytes produced invalid digest: %q", digest)
 		}
