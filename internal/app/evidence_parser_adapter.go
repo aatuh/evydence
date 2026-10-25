@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"github.com/aatuh/evydence/internal/domain"
 	evidenceapp "github.com/aatuh/evydence/internal/evidence/app"
 	evidencedomain "github.com/aatuh/evydence/internal/evidence/domain"
+	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 )
 
 // VulnerabilityScanPayloadParser shares bounded scope probing and normalization
@@ -145,8 +147,18 @@ func (OpenAPIContractPayloadParser) parseOpenAPIContract(ctx context.Context, so
 	}
 	var document *openapi3.T
 	err := parseDigestBoundEvidenceSource(source, func(reader io.Reader) error {
-		var err error
-		document, err = openapi3.NewLoader().LoadFromIoReader(reader)
+		raw, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		// The loader also accepts YAML. Preserve that compatibility while
+		// rejecting ambiguous JSON before its map-based interpretation.
+		if json.Valid(raw) {
+			if err := jsonbounds.ValidateUniqueKeys(raw); err != nil {
+				return err
+			}
+		}
+		document, err = openapi3.NewLoader().LoadFromData(raw)
 		if err != nil {
 			return err
 		}

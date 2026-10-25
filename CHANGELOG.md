@@ -39,6 +39,8 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ### Fixed
 
+- Reject ambiguous OpenAPI JSON and expand evidence parser properties (`EVY-1108-parser-fuzz`).
+  Reject duplicate decoded JSON object keys at root and nested levels in focused OpenAPI ingestion and worker replay, including escaped spellings of the same key. Add or strengthen seven bounded seeded parser fuzz targets for CycloneDX, SPDX, VEX, scanner normalization and scope probing, and both production OpenAPI owners. Check repeated and serialized projections, partial-reader parity, applicable structural and result-count limits, and digest-bound OpenAPI source and durable replay checks while preserving fixture provenance.
 - Preserve cancellation and deadlines in signing gateway readiness (`EVY-1407-readiness-deadlines`).
   Preserve context cancellation and elapsed deadlines even before context notification; an expired probe cannot report healthy, and transport/body cancellation identities are retained. Keep unrelated provider failures generic, close failed response bodies, and preserve authenticated read-only probes, endpoint restrictions, redirect rejection and response limits. Add deterministic request, body and decoding regressions for delayed context notification while retaining the existing real HTTP deadline and canceled-request assertions.
 

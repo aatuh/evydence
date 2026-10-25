@@ -11,11 +11,13 @@ import (
 // This floor protects the foundational input families, independently of a
 // campaign runner's target discovery. Executed seeds and campaigns remain the
 // behavioral evidence; a source declaration alone cannot establish a pass.
+type fuzzCoverageTarget struct {
+	file string
+	name string
+}
+
 func TestFoundationalFuzzCoverage(t *testing.T) {
-	for _, target := range []struct {
-		file string
-		name string
-	}{
+	assertSeededFuzzCoverage(t, []fuzzCoverageTarget{
 		{"internal/application/normalized_json_fuzz_test.go", "FuzzNormalizedJSONHashStable"},
 		{"internal/platform/jsonbounds/fuzz_test.go", "FuzzBoundedJSONRoundTrip"},
 		{"internal/platform/jsonbounds/fuzz_test.go", "FuzzDuplicateJSONKeys"},
@@ -23,7 +25,24 @@ func TestFoundationalFuzzCoverage(t *testing.T) {
 		{"internal/app/identity_fuzz_test.go", "FuzzParseObjectPayloadKey"},
 		{"internal/app/identity_fuzz_test.go", "FuzzIdempotencyRecordKeyRoundTrip"},
 		{"internal/app/identity_fuzz_test.go", "FuzzParseIdempotencyRecordKey"},
-	} {
+	})
+}
+
+func TestEvidenceParserFuzzCoverage(t *testing.T) {
+	assertSeededFuzzCoverage(t, []fuzzCoverageTarget{
+		{"internal/app/parsers/cyclonedx/parser_test.go", "FuzzCycloneDX"},
+		{"internal/app/parsers/spdx/fuzz_test.go", "FuzzSPDX"},
+		{"internal/app/parsers/vex/parser_test.go", "FuzzVEX"},
+		{"internal/app/parsers/scanners/parser_test.go", "FuzzParseBounded"},
+		{"internal/app/parsers/scanners/fuzz_test.go", "FuzzProbeReleaseID"},
+		{"internal/app/openapi_fuzz_test.go", "FuzzOpenAPIContract"},
+		{"cmd/evydence-worker/openapi_fuzz_test.go", "FuzzReplayedOpenAPIContract"},
+	})
+}
+
+func assertSeededFuzzCoverage(t *testing.T, targets []fuzzCoverageTarget) {
+	t.Helper()
+	for _, target := range targets {
 		t.Run(target.name, func(t *testing.T) {
 			path := filepath.Join("..", "..", filepath.FromSlash(target.file))
 			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)

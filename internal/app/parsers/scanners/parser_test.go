@@ -3,11 +3,13 @@ package scanners
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func TestParseFixtures(t *testing.T) {
@@ -162,5 +164,60 @@ func TestNormalizationGuardsAndFallbacks(t *testing.T) {
 
 func FuzzParseBounded(f *testing.F) {
 	f.Add([]byte(`{"scanner":"generic","target_ref":"pkg:oci/x","release_id":"r","findings":[]}`))
-	f.Fuzz(func(t *testing.T, raw []byte) { _, _ = ParseBounded(raw, DefaultLimits(1<<20)) })
+	for _, raw := range scannerFuzzSeeds(f) {
+		f.Add(raw)
+	}
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 64<<10 {
+			return
+		}
+		limits := scannerFuzzLimits()
+		first, err := ParseBounded(raw, limits)
+		if err != nil {
+			if !errors.Is(err, ErrInvalid) {
+				t.Fatalf("unexpected parser error: %v", err)
+			}
+			return
+		}
+		again, err := ParseBoundedReader(iotest.HalfReader(bytes.NewReader(raw)), limits)
+		if err != nil || !reflect.DeepEqual(first, again) {
+			t.Fatalf("partial-reader projection changed: %v", err)
+		}
+		encoded := scannerFuzzRoundTrip(t, raw)
+		encodedLimits := limits
+		if int64(len(encoded)) > limits.MaxBytes {
+			if _, err := ParseBounded(encoded, limits); !errors.Is(err, ErrInvalid) {
+				t.Fatal("expanded serialization escaped the original byte budget")
+			}
+			encodedLimits.MaxBytes = int64(len(encoded))
+		}
+		roundTrip, err := ParseBounded(encoded, encodedLimits)
+		if err != nil || !reflect.DeepEqual(first, roundTrip) {
+			t.Fatalf("JSON serialization changed projection: %v", err)
+		}
+		if len(first.Findings) > limits.MaxFindings || first.AdapterVersion != ParserVersion || first.ReleaseID == "" {
+			t.Fatal("invalid normalized scanner projection")
+		}
+		// Probing extracts scope before authorization; full normalization is
+		// stricter. Only this direction of the implication is valid.
+		scope, err := ProbeReleaseIDBoundedReader(bytes.NewReader(raw), limits)
+		if err != nil || scope != first.ReleaseID {
+			t.Fatalf("accepted report's scope differs from preauthorization probe: %v", err)
+		}
+		duplicate := append([]byte(`{"scanner":null,`), bytes.TrimSpace(raw)[1:]...)
+		if _, err := ParseBounded(duplicate, limits); !errors.Is(err, ErrInvalid) {
+			t.Fatal("duplicate object key accepted")
+		}
+		for _, constrained := range scannerFuzzConstrainedLimits(raw) {
+			if _, err := ParseBounded(raw, constrained); !errors.Is(err, ErrInvalid) {
+				t.Fatal("structural budget ignored")
+			}
+		}
+		if len(first.Findings) > 1 {
+			limits.MaxFindings = len(first.Findings) - 1
+			if _, err := ParseBounded(raw, limits); !errors.Is(err, ErrInvalid) {
+				t.Fatal("finding budget ignored")
+			}
+		}
+	})
 }

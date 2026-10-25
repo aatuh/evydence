@@ -45,6 +45,26 @@ func Validate(body []byte, limits Limits) error {
 		return ErrInvalid
 	}
 	decoder := json.NewDecoder(bytes.NewReader(body))
+	return validate(decoder, limits)
+}
+
+// ValidateUniqueKeys rejects ambiguous keys in one complete JSON value. Callers
+// must bound body before calling: the byte length supplies the structural
+// budget, without imposing DefaultLimits on an existing document format.
+// Numbers retain their spelling rather than being converted to float64.
+func ValidateUniqueKeys(body []byte) error {
+	if len(body) == 0 {
+		return ErrInvalid
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	return validate(decoder, Limits{
+		MaxDepth: len(body), MaxObjectKeys: len(body),
+		MaxArrayItems: len(body), MaxStringBytes: len(body),
+	})
+}
+
+func validate(decoder *json.Decoder, limits Limits) error {
 	if err := validateValue(decoder, limits, 0); err != nil {
 		if errors.Is(err, ErrDuplicateObjectKey) {
 			return errors.Join(ErrInvalid, ErrDuplicateObjectKey)
