@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """Protect untrusted-source execution and the public fuzz artifact boundary."""
 from pathlib import Path
+import os
+import re
 import subprocess
+import sys
+import textwrap
 import unittest
+from unittest.mock import patch
 
 import dependency_actions as actions
 
@@ -33,12 +38,41 @@ class FuzzWorkflowTests(unittest.TestCase):
         run = step['run']
         subprocess.run(['bash', '-n'], input=run, text=True, check=True)
         for bound in ('systemd-run --scope', 'MemoryMax=4096M', 'MemorySwapMax=0',
-                      'runuser -u', '--budget 2400', '--timeout 600', '--seconds 30'):
+                      '/usr/bin/setpriv', '--reset-env', '--no-new-privs'):
             self.assertIn(bound, run)
         for unsafe in ('--no-block', 'nohup', 'sudo python', 'sudo make', 'eval ', '${{'):
             self.assertNotIn(unsafe, run)
         self.assertIn('schedule) mode=campaign', run)
         self.assertIn('pull_request|push) mode=smoke', run)
+        self.assertNotIn('runuser', run)
+        self.assertIn('--clear-groups', run)
+        self.assertIn('--bounding-set=-all', run)
+
+    def test_actual_scope_limits_are_verified_before_driver_exec(self):
+        run = next(s['run'] for s in self.workflow['jobs']['fuzz']['steps'] if s.get('name') == 'Run bounded foreground fuzz work')
+        match = re.search(r"/usr/bin/python3 -c '(.*?)' \"\$mode\"", run, re.S)
+        self.assertIsNotNone(match)
+        program = textwrap.dedent(match[1])
+        group = '/system.slice/evydence-fuzz-123-1.scope'
+        base = '/sys/fs/cgroup' + group
+        for cap, swap, selected, succeeds in [('4294967296', '0', group, True),
+                                              ('max', '0', group, False),
+                                              ('4294967296', '1', group, False),
+                                              ('4294967296', '0', '/user.slice/session-1.scope', False)]:
+            with self.subTest(cap=cap, swap=swap, group=selected):
+                files = {'/proc/self/cgroup': '0::' + selected + '\n',
+                         base + '/memory.max': cap + '\n', base + '/memory.swap.max': swap + '\n'}
+                with patch.object(Path, 'read_text', lambda path: files[str(path)]), patch.object(os, 'execv') as execute, patch.object(sys, 'argv', ['-c', 'campaign']):
+                    if succeeds:
+                        exec(compile(program, '<fuzz-ci>', 'exec'), {})
+                        self.assertEqual(execute.call_count, 1)
+                        arguments = execute.call_args.args[1]
+                        self.assertEqual(arguments[1:3], ['scripts/fuzz_driver.py', 'campaign'])
+                        self.assertEqual(arguments[3:], ['--seconds', '30', '--timeout', '600', '--budget', '2400'])
+                    else:
+                        with self.assertRaises(SystemExit):
+                            exec(compile(program, '<fuzz-ci>', 'exec'), {})
+                        execute.assert_not_called()
 
     def test_pins_checkout_and_upload_only_permitted_public_outputs(self):
         steps = self.workflow['jobs']['fuzz']['steps']

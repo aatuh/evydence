@@ -43,14 +43,25 @@ jobs:
             *) exit 1 ;;
           esac
           [[ "$FUZZ_RUN_ID" =~ ^[0-9]+$ && "$FUZZ_RUN_ATTEMPT" =~ ^[0-9]+$ ]]
-          # The privileged command creates only the memory scope. Repository
-          # code and Go children execute as the ordinary ephemeral runner user.
+          # Drop privileges without PAM session migration; repository code and
+          # Go children stay in the memory scope as the ordinary runner user.
           sudo systemd-run --scope --quiet \
             --unit="evydence-fuzz-${FUZZ_RUN_ID}-${FUZZ_RUN_ATTEMPT}" \
             --property=MemoryMax=4096M --property=MemorySwapMax=0 -- \
-            /usr/sbin/runuser -u "$(id -un)" -- /usr/bin/env PATH="$PATH" \
-            /usr/bin/python3 scripts/fuzz_driver.py "$mode" \
-            --seconds 30 --timeout 600 --budget 2400
+            /usr/bin/setpriv --reuid="$(id -u)" --regid="$(id -g)" \
+            --clear-groups --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+            --no-new-privs --reset-env -- /usr/bin/env PATH="$PATH" \
+            /usr/bin/python3 -c '
+          import os, re, sys
+          from pathlib import Path
+          group = next((line.split(":", 2)[2] for line in Path("/proc/self/cgroup").read_text().splitlines() if line.startswith("0::")), "")
+          if not re.fullmatch(r"/system.slice/evydence-fuzz-[0-9]+-[0-9]+\.scope", group):
+              sys.exit("fuzz-ci: expected memory scope missing")
+          memory = Path("/sys/fs/cgroup" + group)
+          if (memory / "memory.max").read_text().strip() != "4294967296" or (memory / "memory.swap.max").read_text().strip() != "0":
+              sys.exit("fuzz-ci: memory or swap limit mismatch")
+          os.execv(sys.executable, [sys.executable, "scripts/fuzz_driver.py", sys.argv[1], "--seconds", "30", "--timeout", "600", "--budget", "2400"])
+          ' "$mode"
       - name: Retain public synthetic regression evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

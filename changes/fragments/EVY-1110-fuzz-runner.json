@@ -5,7 +5,7 @@
   "summary": "Account for every fuzz target with bounded serial campaigns and synthetic crash retention",
   "details": [
     "Register all 25 native targets, including DSN parsing, and require complete discovery, target/seed execution and real campaign-phase evidence.",
-    "Run all smoke seeds on PRs and master pushes, with weekly serial campaigns, a hard hosted memory ceiling, foreground process cleanup and exact-source summaries.",
+    "Run all smoke seeds on PRs and master pushes, with weekly serial campaigns, a verified hard hosted memory ceiling and privilege drop without PAM, foreground process cleanup and exact-source summaries.",
     "Retain bounded synthetic crash inputs on failures and timeouts, keep raw logs outside public uploads, and document private security triage and public artifact visibility."
   ],
   "compatibility": {
