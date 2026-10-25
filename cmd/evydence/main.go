@@ -879,7 +879,7 @@ func verifyCustomerPackageEvidenceCoverage(packageEvidenceIDs []string, bundleMa
 	}
 	bundleIDs := stringSliceFromAny(bundleManifest["evidence_ids"])
 	if len(bundleIDs) == 0 {
-		return nil
+		return errors.New("evidence bundle has no usable evidence_ids to establish package coverage")
 	}
 	for _, id := range packageEvidenceIDs {
 		if !stringInSlice(bundleIDs, id) {

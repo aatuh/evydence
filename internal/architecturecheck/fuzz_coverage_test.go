@@ -40,6 +40,19 @@ func TestEvidenceParserFuzzCoverage(t *testing.T) {
 	})
 }
 
+func TestVerificationFuzzCoverage(t *testing.T) {
+	assertSeededFuzzCoverage(t, []fuzzCoverageTarget{
+		{"internal/adapters/verification/dsse/fuzz_test.go", "FuzzDSSEEnvelope"},
+		{"internal/adapters/verification/sigstore/fuzz_test.go", "FuzzSigstoreBundle"},
+		{"internal/verification/app/integrity_fuzz_test.go", "FuzzMerkleBatchIntegrity"},
+		{"internal/verification/app/integrity_fuzz_test.go", "FuzzReleaseBundleIntegrity"},
+		{"internal/experimental/app/public_transparency_fuzz_test.go", "FuzzPublicTransparencyProof"},
+		{"cmd/evydence/verification_fuzz_test.go", "FuzzCustomerPackageManifest"},
+		{"cmd/evydence/verification_fuzz_test.go", "FuzzCustomerPackageArchive"},
+		{"cmd/evydence/verification_fuzz_test.go", "FuzzReleaseManifest"},
+	})
+}
+
 func assertSeededFuzzCoverage(t *testing.T, targets []fuzzCoverageTarget) {
 	t.Helper()
 	for _, target := range targets {
