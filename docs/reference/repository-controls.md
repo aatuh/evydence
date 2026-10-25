@@ -83,7 +83,22 @@ and retain the separate release-validation evidence.
 
 ## Verified observation
 
-The dated observations below used the earlier three-check master profile and
+After full hosted dependency controls #43/#44/#45 qualified against master
+`069fac5ee8613b5c3194a3a456fd42812fdb6ed2`, the maintainer approved adding
+`Dependency Policy` with Actions app `15368` to the existing required checks.
+The additive change kept strict enforcement, every other master protection
+field and release-tag ruleset `25392663` unchanged. CodeQL alerts #30/#31 stayed
+open. See [dependency control evidence](dependency-review.md#qualification-limits).
+
+The [2026-10-25 05:57:13 UTC report](repository-controls-2026-10-25T055713Z.json)
+passed all 18 observations for clean local and remote master
+`069fac5ee8613b5c3194a3a456fd42812fdb6ed2`, using verifier SHA-256
+`54cff1cc008f1335eeb9d787e2d7888da70da9b0c684e2e93b945640591ec9f8`.
+It verifies the four-check branch profile and the original three-check tag
+profile. This dated settings observation does not claim an independent reviewer
+or new artifact publication.
+
+The older dated observations below used the earlier three-check master profile and
 the verifier sources identified in their reports. They do not verify the new
 `Dependency Policy` requirement. Keep their original source scopes when
 recording a later provider cutover.

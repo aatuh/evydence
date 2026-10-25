@@ -7,10 +7,11 @@ from [verified Git input bytes](dependency-inputs.md). Proposed Python, Go helpe
 code, shell recipes and package lifecycle scripts are never executed by this
 entry point.
 
-The report keeps `dependency_coverage_verified: false`. Image collection,
-complete license/advisory coverage, trusted policy selection and hosted admission
-remain separate work under EVY-1407. A successful source observation is not
-license approval, a vulnerability-free result or a passing hosted PR check.
+The report keeps `dependency_coverage_verified: false`. The
+[combined caller](dependency-review.md) owns image joins, declared-change
+license/advisory coverage, trusted policy selection and hosted admission. A
+successful standalone source observation is not license approval, a
+vulnerability-free result or a passing hosted PR check.
 
 ## Data And Executable Sources
 

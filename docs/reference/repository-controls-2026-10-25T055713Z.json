@@ -1,0 +1,188 @@
+{
+  "branch": "master",
+  "controls": {
+    "administration_visibility": {
+      "state": "passed"
+    },
+    "administrator_enforcement": {
+      "state": "passed"
+    },
+    "branch_deletion_blocked": {
+      "state": "passed"
+    },
+    "code_scanning": {
+      "state": "passed"
+    },
+    "conversation_resolution": {
+      "state": "passed"
+    },
+    "dependabot_alerts": {
+      "state": "passed"
+    },
+    "dependabot_security_updates": {
+      "state": "passed"
+    },
+    "force_pushes_blocked": {
+      "state": "passed"
+    },
+    "local_provenance": {
+      "state": "passed"
+    },
+    "maintainer_model": {
+      "state": "passed"
+    },
+    "private_reporting": {
+      "state": "passed"
+    },
+    "pull_requests": {
+      "state": "passed"
+    },
+    "release_tags": {
+      "state": "passed"
+    },
+    "remote_source_identity": {
+      "state": "passed"
+    },
+    "repository_identity": {
+      "state": "passed"
+    },
+    "required_checks": {
+      "state": "passed"
+    },
+    "secret_scanning": {
+      "state": "passed"
+    },
+    "secret_scanning_push_protection": {
+      "state": "passed"
+    }
+  },
+  "expected_release_tag_checks": [
+    {
+      "app_id": 15368,
+      "context": "Production Check"
+    },
+    {
+      "app_id": 15368,
+      "context": "CodeQL Analyze"
+    },
+    {
+      "app_id": 15368,
+      "context": "Race and Stress"
+    }
+  ],
+  "expected_required_checks": [
+    {
+      "app_id": 15368,
+      "context": "Production Check"
+    },
+    {
+      "app_id": 15368,
+      "context": "CodeQL Analyze"
+    },
+    {
+      "app_id": 15368,
+      "context": "Race and Stress"
+    },
+    {
+      "app_id": 15368,
+      "context": "Dependency Policy"
+    }
+  ],
+  "local_source": {
+    "commit": "069fac5ee8613b5c3194a3a456fd42812fdb6ed2",
+    "dirty": false,
+    "verifier_sha256": "54cff1cc008f1335eeb9d787e2d7888da70da9b0c684e2e93b945640591ec9f8"
+  },
+  "maintainer_model": {
+    "human_writers": 1,
+    "mode": "solo",
+    "required_approvals": 0
+  },
+  "observations": {
+    "branch": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "code_scanning": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "dependabot_alerts": {
+      "http_status": 204,
+      "state": "received"
+    },
+    "private_reporting": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "remote_head": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "repository": {
+      "http_status": 200,
+      "state": "received"
+    },
+    "ruleset_25392663": {
+      "http_status": 200,
+      "state": "received"
+    }
+  },
+  "observed_at": "2026-10-25T05:57:13.877884+00:00",
+  "observed_optional_controls": {
+    "codeowner_approval_required": false,
+    "signed_commits_required": false
+  },
+  "observed_settings": {
+    "master": {
+      "administrator_enforcement": true,
+      "codeowner_approval": false,
+      "conversation_resolution": true,
+      "dismiss_stale_reviews": true,
+      "last_push_approval": false,
+      "pull_requests_required": true,
+      "required_approvals": 0,
+      "required_checks": [
+        {
+          "app_id": 15368,
+          "context": "Production Check",
+          "present": true
+        },
+        {
+          "app_id": 15368,
+          "context": "CodeQL Analyze",
+          "present": true
+        },
+        {
+          "app_id": 15368,
+          "context": "Race and Stress",
+          "present": true
+        },
+        {
+          "app_id": 15368,
+          "context": "Dependency Policy",
+          "present": true
+        }
+      ],
+      "strict_checks": true
+    },
+    "release_tags": {
+      "checked_ruleset_ids": [
+        25392663
+      ],
+      "rulesets_inspected": 1
+    },
+    "security": {
+      "code_scanning": "passed",
+      "dependabot_alerts": "passed",
+      "dependabot_security_updates": "passed",
+      "private_reporting": "passed",
+      "secret_scanning": "passed",
+      "secret_scanning_push_protection": "passed"
+    }
+  },
+  "passed": true,
+  "remote_head": "069fac5ee8613b5c3194a3a456fd42812fdb6ed2",
+  "repository": "aatuh/evydence",
+  "schema_version": "evydence.repository-controls.v1"
+}

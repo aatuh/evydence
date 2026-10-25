@@ -1,0 +1,245 @@
+{
+  "complete_artifact_sbom": false,
+  "controls": [
+    {
+      "app_id": 15368,
+      "artifact_id": 12565193860,
+      "artifact_zip_sha256": "sha256:0741d3f321dbc3a0a37809ca63e29a4004e9fa94f4e0814e648b6e6a44a95672",
+      "base": "069fac5ee8613b5c3194a3a456fd42812fdb6ed2",
+      "branch_retained": true,
+      "case": "allowed-fixture",
+      "check_conclusion": "success",
+      "check_id": 120914480276,
+      "closed_unmerged": true,
+      "coverage_gaps": [],
+      "coverage_verified": true,
+      "expected_addition": {
+        "added_origins": [
+          "fixtures"
+        ],
+        "advisory_profile": "utf8-test-data.v1",
+        "advisory_status": "not-applicable-data-fixture",
+        "change_type": "added",
+        "ecosystem": "fixture",
+        "exceptions": [],
+        "license": "CC0-1.0",
+        "name": "admission-control-allowed-fixture",
+        "passed": true,
+        "previous_source_sha256": null,
+        "provider_findings": [],
+        "source_sha256": "a01ef370d14e1ab62ced96ac86eabf5be228e073c9a34fb4ae8440de5ab7eb35",
+        "version": "d99e4aba51a231e5c3428d00be05dd05be05e7287bc4998a7eb67daa2bf55a25",
+        "violations": [],
+        "vulnerabilities": null
+      },
+      "head": "ac8892714532e34d471f3f720c3087d2f2854939",
+      "jobs": [
+        {
+          "conclusion": "success",
+          "id": 120910490943,
+          "name": "Evaluate Declared Dependencies"
+        },
+        {
+          "conclusion": "success",
+          "id": 120914420841,
+          "name": "Report Dependency Policy On PR Head"
+        }
+      ],
+      "native_verdict_verified": true,
+      "observed_at": "2026-10-24T15:48:08.712766+00:00",
+      "passed": true,
+      "pr": 43,
+      "qualified": true,
+      "report_sha256": "618ee77ac1dfdaf50a35ef9ad8b4b8c6577a4b85e9e9ceccdc4938b9c6285705",
+      "run": 40106945418,
+      "run_conclusion": "success",
+      "trusted_driver_files_verified": 37
+    },
+    {
+      "app_id": 15368,
+      "artifact_id": 12565157756,
+      "artifact_zip_sha256": "sha256:805592ac1537b7477f93e3ff62b6bd3591b32fed3ff789e912d878fd9d35e02e",
+      "base": "069fac5ee8613b5c3194a3a456fd42812fdb6ed2",
+      "branch_retained": true,
+      "case": "disallowed-fixture",
+      "check_conclusion": "failure",
+      "check_id": 120914921342,
+      "closed_unmerged": true,
+      "coverage_gaps": [],
+      "coverage_verified": true,
+      "expected_addition": {
+        "added_origins": [
+          "fixtures"
+        ],
+        "advisory_profile": "utf8-test-data.v1",
+        "advisory_status": "not-applicable-data-fixture",
+        "change_type": "added",
+        "ecosystem": "fixture",
+        "exceptions": [],
+        "license": "CC-BY-3.0",
+        "name": "admission-control-disallowed-fixture",
+        "passed": false,
+        "previous_source_sha256": null,
+        "provider_findings": [],
+        "source_sha256": "ab4e5d5a27fe560350b88a7e2c42b5495bc416d1dc00909f16688a31aadf8fdd",
+        "version": "1b126f76a0eaa42dfde8ca1575fe6f158431518ebb289be00b007ca97c3841a4",
+        "violations": [
+          "disallowed_license"
+        ],
+        "vulnerabilities": null
+      },
+      "head": "09bd9794f3ccc4110b67dc9c71ba3ce3f13d51bb",
+      "jobs": [
+        {
+          "conclusion": "failure",
+          "id": 120910514901,
+          "name": "Evaluate Declared Dependencies"
+        },
+        {
+          "conclusion": "success",
+          "id": 120914858395,
+          "name": "Report Dependency Policy On PR Head"
+        }
+      ],
+      "native_verdict_verified": true,
+      "observed_at": "2026-10-24T15:48:13.004453+00:00",
+      "passed": false,
+      "pr": 44,
+      "qualified": true,
+      "report_sha256": "35c49efb6e5abdfc6498288e1ea54757c6d086959237a50a254a3fdd46a1c3f1",
+      "run": 40106952969,
+      "run_conclusion": "failure",
+      "trusted_driver_files_verified": 37
+    },
+    {
+      "app_id": 15368,
+      "artifact_id": 12564784273,
+      "artifact_zip_sha256": "sha256:bf9f794fe415fe3348b7faea9d7a276978ff4addd11444f8c4acadbef050ce53",
+      "base": "069fac5ee8613b5c3194a3a456fd42812fdb6ed2",
+      "branch_retained": true,
+      "case": "severe-action",
+      "check_conclusion": "failure",
+      "check_id": 120915158998,
+      "closed_unmerged": true,
+      "coverage_gaps": [],
+      "coverage_verified": true,
+      "expected_addition": {
+        "added_origins": [
+          "ci"
+        ],
+        "advisory_profile": "github-action-commit-release-tags.v1",
+        "advisory_status": "observed",
+        "change_type": "added",
+        "ecosystem": "github-actions",
+        "exceptions": [],
+        "license": "MIT",
+        "name": "actions/download-artifact",
+        "passed": false,
+        "previous_source_sha256": null,
+        "provider_findings": [],
+        "source_sha256": "8bb3aa4ac6b3e09e082f8fceae71dcc72f457e12272b713597eaed77658102a1",
+        "version": "eaceaf801fd36c7dee90939fad912460b18a1ffe",
+        "violations": [
+          "blocked_vulnerability"
+        ],
+        "vulnerabilities": [
+          {
+            "id": "GHSA-cxww-7g56-2vh6",
+            "severity": "high"
+          }
+        ]
+      },
+      "head": "cfcd0a34b18a769401f289816dfd27a0ad56ccdb",
+      "jobs": [
+        {
+          "conclusion": "failure",
+          "id": 120910529633,
+          "name": "Evaluate Declared Dependencies"
+        },
+        {
+          "conclusion": "success",
+          "id": 120915096491,
+          "name": "Report Dependency Policy On PR Head"
+        }
+      ],
+      "native_verdict_verified": true,
+      "observed_at": "2026-10-24T15:48:17.625931+00:00",
+      "passed": false,
+      "pr": 45,
+      "qualified": true,
+      "report_sha256": "4df58f61303fee2b14f16e46f2d89e3cca3d9e71cdde833c36c07dd17249aa93",
+      "run": 40106958526,
+      "run_conclusion": "failure",
+      "trusted_driver_files_verified": 37
+    }
+  ],
+  "coverage_profile": "declared-dependency-changes-linux-amd64.v1",
+  "limitations": [
+    "Dated provider observations and retained artifact identities; this record alone does not independently authenticate hosted runner identities.",
+    "The controls qualify declared changes under the recorded target policy and then-current advisory observations, not baseline dependency approval, legal compatibility or complete vulnerability detection.",
+    "The SDK observation covers runtime packages/static imports; independent modules, published dependency graphs and release packaging remain EVY-801 through EVY-805."
+  ],
+  "recorded_at": "2026-10-25T06:05:37.379259+00:00",
+  "schema_version": "evydence.dependency-hosted-observation.v1",
+  "sdk_runtime_observation": {
+    "compiler": "go version go1.27.3 linux/amd64",
+    "files": {
+      "sdk/go/evydence/client.go": "d9647770e18fbb21add2ee465b67a2eda3b2300381134f96c4c51711f451f266",
+      "sdk/go/evydence/client_test.go": "c6eb178818d5df2b5f4c464644dc37cbf8d924101c8bf7c81f0d5a30aa769ef0",
+      "sdk/go/evydence/error_codes.go": "ce6e74de29685bc8359e6ecfd1ec38335e817a3e7e537bbee55c4e9a174677f1",
+      "sdk/python/error_codes.py": "d27f9ccb7e8ed2e070f4199ce003ed25e63b8e508b606c0be6a8196cf6b11f55",
+      "sdk/python/evydence_client.py": "a3c0636f7d163e29c0d4ba34828465d1c6d093b5f495c7b99fb042dfed0e63ea",
+      "sdk/typescript/client.ts": "335c9aac1c120dddbfd1540975271be45689e58d2c837434463654f3f1943d7d",
+      "sdk/typescript/error_codes.ts": "8c0dd2e3002b5b3ce841588504e0d7321b8cf4bc378ec7ddcb0920563307c13d"
+    },
+    "go_command": "go list -mod=readonly -deps -json ./sdk/go/evydence",
+    "go_external_runtime_packages": [],
+    "go_standard_packages": 198,
+    "limit": "runtime package/static import scope only; independent modules, published package graphs and SDK release packaging remain EVY-801 through EVY-805",
+    "observed_at": "2026-10-24T10:52:01.563786+00:00",
+    "python_static_stdlib_or_local_import_check": "passed",
+    "same_sdk_bytes_at_master": "069fac5ee8613b5c3194a3a456fd42812fdb6ed2",
+    "source_commit": "f26d67abbcc45f1e504c7c9ac42d4ba800662630",
+    "typescript_scope": "manual static source inspection: local error_codes import/export and platform fetch; no external package import observed"
+  },
+  "trusted_driver_files": {
+    "scripts/dependency_action_advisories.py": "e49162a76c4a9c66096c3cba84bcef157e2a30428929d9c32729e4abec3c4326",
+    "scripts/dependency_actions.py": "064a548c9bd2603d218c5aace8a1d892805df1e71e25372a656b936aa1e50a76",
+    "scripts/dependency_admission.py": "38300e08837da070356cfa3a46b79b7237ae935ef6d398a0cdc7f507257b5f4d",
+    "scripts/dependency_advisories.py": "41ce92a724a4d125408ceb32ed0bb62c0330bd701cdab5660bfb64dffc1cc3aa",
+    "scripts/dependency_build_tools.py": "e9f3aea9d2459250e0df7c49e909c6b648675cffb45d7686dd2c609e5ec2594b",
+    "scripts/dependency_classifier.py": "8e97992ab43ab0209192ceaa815ccf90612e2ac0b67deb4faec7bca24713e57b",
+    "scripts/dependency_collection.py": "29989925734e81a23099e04aebecd3613a9a8426bf7e3239084740a84f6cd65a",
+    "scripts/dependency_coverage.py": "05e1efa41382414532e3c2da7cdefef90bddd2cf38347b0265a8b44c6e64527d",
+    "scripts/dependency_exception_reviews.py": "473f7ee19c21bc4deece8eb8e5099224b921d45ca3721e3be862abfbededaffa",
+    "scripts/dependency_fixture_advisories.py": "f2616f0ac69717b82823c5101c0bbd430c48871f1d4aaf73487057ca7fefbca4",
+    "scripts/dependency_git_objects.py": "29c2629a63547a942a63c56827453b83625b10f15f965c11b479e22ce53dbdbf",
+    "scripts/dependency_go_tools.py": "2a782ecacbb058a1c142dec6ecc2f49f6074839a24cba3ba7b59e053b1457b38",
+    "scripts/dependency_image_admission.py": "f02f987d4c14be632b77c75e38225126941638e5366cd183cc8e3f2ec440c5eb",
+    "scripts/dependency_image_packages.py": "26f21770debe948aebaefd7db1d86bf5afebecdfad81fb54f436e681d9ae2497",
+    "scripts/dependency_image_registry.py": "3ac538abc7b36f3a5908ae9423fd3368ca7e02634a6bf5702b9a6d3285af1378",
+    "scripts/dependency_images.py": "38bb1c8e812a855ede278baa75b05d11cf7f657f27d6f3c23083079345348eb3",
+    "scripts/dependency_inputs.py": "65d9ea485dab19971db414778a646690dd20aa13c637ec557ad645656bcb646e",
+    "scripts/dependency_inventory.py": "9852bb5ca5f9e6f3997c09777f6e6dc19b71e331ac8a4f27d88b6d88744876e5",
+    "scripts/dependency_node_sources.py": "0ff4336f384d2db8ba073d7b24745ca0bf5097232ca0a962043ccaa0847f7aae",
+    "scripts/dependency_policy.py": "243d35f3d61ddf4aa7bc5f7a3dda72e6d5476e85f2ae12da17e87e687f8bdc9a",
+    "scripts/dependency_python_sources.py": "4ecd4d5139509dfebd25b0de1bc5e0ff306794caaa0c4479e2d7d7bf6886c92f",
+    "scripts/dependency_reports.py": "3286e4f6adafe0e4b6b0405e5d22b423e25886858ffa6a7d85fabff62b1000a1",
+    "scripts/dependency_review.py": "42e6205960ad27eba0a2eff91375c46175d182035ada89c0b68e72e1c4326e16",
+    "scripts/dependency_review_join.py": "d9c5d302d095e132c3314004f9145c5027ba8ba657dc8aa65a24255bb543a4f5",
+    "scripts/dependency_review_provider.py": "37ff7d79957e2d548337cbdf6768cbe9a949e621c840f4964ce014fc0510b548",
+    "scripts/dependency_tool_admission.py": "7d0e6e22df492dfe09580cebb184757cd1918f939e1bb55bd4579eb1acfce372",
+    "scripts/dependency_tool_buildinfo.py": "020db4cbebb93bd0b1f5e784126cb6f8dae58b7e22cf4b53fa2ef959bf16f64d",
+    "scripts/dependency_tool_sources.py": "8d2d66806033e1714fd01aaec5a90b08068f9f018afdd44ff406005bbe19e188",
+    "scripts/fixture_provenance.py": "642c6a2e3080e02eac1acd4a3ddb9c3c4b0c18660d412f3c0193737636dea28d",
+    "scripts/python_qa.py": "0ecf9fac296555f91b3236a30afd968098335823349c7573332289df4b89bfbf",
+    "scripts/release_evidence_profile.py": "b6ce367db11cf16d36d4a1e56fd27b713551d43616e745581626b8217c23c5d4",
+    "scripts/release_evidence_tools.py": "2290d59b8423dc62a7a9e43f44ad3e24b98c8f8aaa506728b9f5d29721617011",
+    "scripts/release_lifecycle.py": "674aea75e8fe1d631a4d50cffd5c5fbab32bbda46b3b70a8da79512855ca786e",
+    "scripts/release_sbom.py": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
+    "scripts/release_scanner.py": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
+    "scripts/support_matrix.py": "47ed56d270c41e87221d700c2fcf4539ef1e4e62bf15c2ab99f3b8089976ae4b",
+    "scripts/support_matrix_artifacts.py": "d330ed4492199e1ae5f45fc93e5bb4ce412564ebd04a73dcea86822614a07ead"
+  },
+  "trusted_target": "069fac5ee8613b5c3194a3a456fd42812fdb6ed2"
+}

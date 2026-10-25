@@ -7,8 +7,8 @@ change GitHub settings or approve dependencies.
 
 The output explicitly sets `dependency_coverage_verified: false`. A successful
 read is a source observation, not a passing dependency-policy or hosted CI check.
-Full inventory coverage, trusted policy selection and workflow integration are
-still required under EVY-1407.
+Inventory coverage, trusted policy selection and the final hosted verdict belong
+to the [combined caller](dependency-review.md), not this reader alone.
 
 ## Source Binding
 

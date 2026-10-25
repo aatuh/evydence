@@ -76,5 +76,7 @@ metadata and separate notice-text classifications. Generation uses a bounded
 snapshot of all checked fixture inputs, verifies local digests and rejects edits
 or new unclassified files before publishing a report. Live upstream equivalence
 has the separate target above; run it when source/notice references change.
-EVY-1407 remains incomplete: this gate does not yet enforce the final dependency
-admission policy in hosted CI.
+This provenance check does not produce a final admission verdict. The
+[combined caller](dependency-review.md#qualification-limits) owns hosted fixture
+license admission; its allowed/disallowed-fixture controls have separate
+source-bound evidence.
