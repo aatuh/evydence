@@ -37,6 +37,15 @@ to [SUPPORT.md](../../SUPPORT.md); sensitive reports stay private.
 
 ## Patch, Release And Disclose
 
+Fuzz failures follow the same private triage procedure. The
+[fuzz corpus and artifact policy](test-strategy.md#fuzz-runner-and-corpus-policy)
+permits only synthetic/public fixtures, but hosted artifacts can still expose a
+new failure before its security impact is understood. Inspect the exact-source
+summary and retained input privately, reproduce with the recorded toolchain and
+target, and establish impact before adding a public regression. Do not paste raw
+logs or a suspected exploit into a public issue. A crash alone does not establish
+severity or affected public releases; no runner automatically files a report.
+
 1. Agree disclosure timing with the reporter case by case. Record an intended
    next update and any embargo privately; revise it when facts or availability
    change. Do not promise a fixed patch deadline or indefinite secrecy. Active

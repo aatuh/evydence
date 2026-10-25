@@ -1,0 +1,106 @@
+{
+  "schema": "evydence-fuzz-targets.v1",
+  "artifact_policy": "synthetic-public-v1",
+  "targets": [
+    {
+      "package": "./cmd/evydence",
+      "name": "FuzzCustomerPackageArchive"
+    },
+    {
+      "package": "./cmd/evydence",
+      "name": "FuzzCustomerPackageManifest"
+    },
+    {
+      "package": "./cmd/evydence",
+      "name": "FuzzReleaseManifest"
+    },
+    {
+      "package": "./cmd/evydence-worker",
+      "name": "FuzzReplayedOpenAPIContract"
+    },
+    {
+      "package": "./internal/adapters/verification/dsse",
+      "name": "FuzzDSSEEnvelope"
+    },
+    {
+      "package": "./internal/adapters/verification/sigstore",
+      "name": "FuzzSigstoreBundle"
+    },
+    {
+      "package": "./internal/app",
+      "name": "FuzzHashBytesProducesValidDigest"
+    },
+    {
+      "package": "./internal/app",
+      "name": "FuzzIdempotencyRecordKeyRoundTrip"
+    },
+    {
+      "package": "./internal/app",
+      "name": "FuzzObjectPayloadKeyRoundTrip"
+    },
+    {
+      "package": "./internal/app",
+      "name": "FuzzOpenAPIContract"
+    },
+    {
+      "package": "./internal/app",
+      "name": "FuzzParseIdempotencyRecordKey"
+    },
+    {
+      "package": "./internal/app",
+      "name": "FuzzParseObjectPayloadKey"
+    },
+    {
+      "package": "./internal/app",
+      "name": "FuzzValidDigest"
+    },
+    {
+      "package": "./internal/app/parsers/cyclonedx",
+      "name": "FuzzCycloneDX"
+    },
+    {
+      "package": "./internal/app/parsers/scanners",
+      "name": "FuzzParseBounded"
+    },
+    {
+      "package": "./internal/app/parsers/scanners",
+      "name": "FuzzProbeReleaseID"
+    },
+    {
+      "package": "./internal/app/parsers/spdx",
+      "name": "FuzzSPDX"
+    },
+    {
+      "package": "./internal/app/parsers/vex",
+      "name": "FuzzVEX"
+    },
+    {
+      "package": "./internal/application",
+      "name": "FuzzNormalizedJSONHashStable"
+    },
+    {
+      "package": "./internal/experimental/app",
+      "name": "FuzzPublicTransparencyProof"
+    },
+    {
+      "package": "./internal/platform/config",
+      "name": "FuzzDatabaseDSNNeverPanicsOrReturnsPartialSettings"
+    },
+    {
+      "package": "./internal/platform/jsonbounds",
+      "name": "FuzzBoundedJSONRoundTrip"
+    },
+    {
+      "package": "./internal/platform/jsonbounds",
+      "name": "FuzzDuplicateJSONKeys"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzMerkleBatchIntegrity"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzReleaseBundleIntegrity"
+    }
+  ]
+}

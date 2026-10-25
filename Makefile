@@ -65,8 +65,17 @@ gosec: ## Run gosec when installed
 test: ## Run unit tests
 	@$(GO) test ./... -timeout=30m
 
-fuzz-smoke: ## Run Go fuzz target seed corpora without a fuzzing campaign
-	@$(GO) test ./internal/app -run '^Fuzz'
+.PHONY: fuzz-campaign-short fuzz-driver-check
+
+fuzz-driver-check: ## Check fuzz inventory, execution, cleanup and CI artifact contracts
+	@python3 scripts/test_fuzz_driver.py
+	@python3 scripts/test_fuzz_workflow.py
+
+fuzz-smoke: ## Run and account for every registered Go fuzz seed corpus
+	@python3 scripts/fuzz_driver.py smoke --go '$(GO)'
+
+fuzz-campaign-short: ## Run every registered fuzz target serially for three seconds each
+	@python3 scripts/fuzz_driver.py campaign --go '$(GO)'
 
 test-race: ## Run race tests
 	@$(GO) test ./... -race -count=1 -timeout=30m
@@ -79,6 +88,7 @@ coverage-check: ## Enforce the production coverage threshold; requires EVYDENCE_
 	@scripts/coverage_check.sh
 
 test-strategy-check: ## Validate critical behavior test evidence and coverage provenance policy
+	@$(MAKE) fuzz-driver-check
 	@python3 scripts/test_gate_watchdogs.py
 	@python3 scripts/test_concurrency_stress.py
 	@python3 scripts/test_runtime_lifecycle_check.py

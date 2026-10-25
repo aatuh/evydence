@@ -1,0 +1,61 @@
+name: Bounded Fuzzing
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  schedule:
+    - cron: '17 3 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: Complete Fuzz Seeds And Bounded Campaigns
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out tested source without persistent credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up the source-selected Go toolchain without shared caches
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Run bounded foreground fuzz work
+        env:
+          FUZZ_EVENT: ${{ github.event_name }}
+          FUZZ_RUN_ID: ${{ github.run_id }}
+          FUZZ_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          case "$FUZZ_EVENT" in
+            schedule) mode=campaign ;;
+            pull_request|push) mode=smoke ;;
+            *) exit 1 ;;
+          esac
+          [[ "$FUZZ_RUN_ID" =~ ^[0-9]+$ && "$FUZZ_RUN_ATTEMPT" =~ ^[0-9]+$ ]]
+          # The privileged command creates only the memory scope. Repository
+          # code and Go children execute as the ordinary ephemeral runner user.
+          sudo systemd-run --scope --quiet \
+            --unit="evydence-fuzz-${FUZZ_RUN_ID}-${FUZZ_RUN_ATTEMPT}" \
+            --property=MemoryMax=4096M --property=MemorySwapMax=0 -- \
+            /usr/sbin/runuser -u "$(id -un)" -- /usr/bin/env PATH="$PATH" \
+            /usr/bin/python3 scripts/fuzz_driver.py "$mode" \
+            --seconds 30 --timeout 600 --budget 2400
+      - name: Retain public synthetic regression evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: fuzz-${{ github.sha }}-${{ github.run_attempt }}
+          path: tmp/fuzz/*/public/
+          if-no-files-found: ignore
+          retention-days: 14

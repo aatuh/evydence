@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1110-fuzz-runner",
+  "category": "added",
+  "summary": "Account for every fuzz target with bounded serial campaigns and synthetic crash retention",
+  "details": [
+    "Register all 25 native targets, including DSN parsing, and require complete discovery, target/seed execution and real campaign-phase evidence.",
+    "Run all smoke seeds on PRs and master pushes, with weekly serial campaigns, a hard hosted memory ceiling, foreground process cleanup and exact-source summaries.",
+    "Retain bounded synthetic crash inputs on failures and timeouts, keep raw logs outside public uploads, and document private security triage and public artifact visibility."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Development and CI tooling changes only. The existing DSN parser input budget is preserved. No production parser, evidence format, trust policy or runtime endpoint changes."
+  },
+  "security": "Use read-only CI permissions, pinned Actions and credential-free child environments; reject unsafe paths and incomplete evidence. All local heavy commands remain subject to the host RAM coordinator.",
+  "limitations": [
+    "Synthetic crash artifacts may be publicly visible; maintainers must privately assess suspected vulnerabilities before publishing regressions.",
+    "Finite campaigns supplement deterministic regression suites and do not establish exhaustive attack coverage or cryptographic assurance.",
+    "Workflow configuration is not evidence of a successful hosted campaign or a required branch-protection check."
+  ]
+}
