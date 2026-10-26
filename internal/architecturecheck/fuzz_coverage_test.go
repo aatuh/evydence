@@ -53,6 +53,23 @@ func TestVerificationFuzzCoverage(t *testing.T) {
 	})
 }
 
+// Native snapshot/command owners have additional binding responsibilities that
+// are not exercised by the lower-level parser and signature properties above.
+func TestNativeVerificationOwnerFuzzCoverage(t *testing.T) {
+	assertSeededFuzzCoverage(t, []fuzzCoverageTarget{
+		{"internal/verification/app/native_inspection_fuzz_test.go", "FuzzAuditChainIntegrity"},
+		{"internal/verification/app/native_inspection_fuzz_test.go", "FuzzEvidenceCanonicalIntegrity"},
+		{"internal/verification/app/native_inspection_fuzz_test.go", "FuzzArtifactSignatureMetadata"},
+		{"internal/verification/app/native_inspection_fuzz_test.go", "FuzzBackupManifestRecordedChecks"},
+		{"internal/verification/app/checkpoint_fuzz_test.go", "FuzzMerkleCheckpointIntegrity"},
+		{"internal/verification/app/checkpoint_fuzz_test.go", "FuzzReleaseManifestCheckpointIntegrity"},
+		{"internal/verification/app/native_binding_fuzz_test.go", "FuzzDSSESnapshotBinding"},
+		{"internal/verification/app/native_binding_fuzz_test.go", "FuzzCosignSnapshotBinding"},
+		{"internal/verification/app/retention_fuzz_test.go", "FuzzRetentionObservation"},
+		{"internal/verification/app/subject_dispatch_fuzz_test.go", "FuzzSubjectVerificationDispatch"},
+	})
+}
+
 func assertSeededFuzzCoverage(t *testing.T, targets []fuzzCoverageTarget) {
 	t.Helper()
 	for _, target := range targets {
