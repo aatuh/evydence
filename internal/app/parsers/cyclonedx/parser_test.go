@@ -2,12 +2,14 @@ package cyclonedx
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func TestParseBoundedAcceptsStandardFieldsWithoutNormalizingThem(t *testing.T) {
@@ -164,6 +166,25 @@ func TestParseBoundedEnforcesResourceLimits(t *testing.T) {
 }
 
 func FuzzCycloneDX(f *testing.F) {
+	// Preserve the original fuzz profile, including its 256 KiB byte budget
+	// and default depth/string limits, while adding stronger properties.
+	limits := DefaultLimits(256 << 10)
+	limits.MaxComponents = 1024
+	limits.MaxDependencies = 2048
+	limits.MaxValues = 8192
+	escaped := []byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"` + strings.Repeat("<", 50000) + `"}]}`)
+	if _, err := ParseBounded(escaped, limits); err != nil {
+		f.Fatalf("positive escaping seed rejected: %v", err)
+	}
+	f.Add(escaped)
+	// Upstream bytes and their provenance stay in the existing fixture corpus.
+	for _, path := range []string{"testdata/official/valid-dependency-1.6.json", "testdata/official/valid-properties-1.6.json", "testdata/official/valid-standard-1.6.json"} {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(raw)
+	}
 	for _, seed := range [][]byte{
 		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6"}`),
 		[]byte(`{"bomFormat":"CycloneDX","specVersion":"1.6","components":[{"type":"library","name":"x"}]}`),
@@ -175,10 +196,9 @@ func FuzzCycloneDX(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, raw []byte) {
-		limits := DefaultLimits(256 << 10)
-		limits.MaxComponents = 1024
-		limits.MaxDependencies = 2048
-		limits.MaxValues = 8192
+		if int64(len(raw)) > limits.MaxBytes {
+			return
+		}
 		first, err := ParseBounded(raw, limits)
 		if err != nil {
 			if !errors.Is(err, ErrInvalid) {
@@ -192,6 +212,62 @@ func FuzzCycloneDX(f *testing.F) {
 		}
 		if !reflect.DeepEqual(first, second) {
 			t.Fatalf("non-deterministic parse:\nfirst=%#v\nsecond=%#v", first, second)
+		}
+		streamed, err := ParseBoundedReader(iotest.HalfReader(bytes.NewReader(raw)), limits)
+		if err != nil || !reflect.DeepEqual(first, streamed) {
+			t.Fatalf("partial-reader projection changed: %v", err)
+		}
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.UseNumber()
+		var value any
+		if err := decoder.Decode(&value); err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encodedLimits := limits
+		if int64(len(encoded)) > limits.MaxBytes {
+			if _, err := ParseBounded(encoded, limits); !errors.Is(err, ErrInvalid) {
+				t.Fatal("expanded serialization escaped the original byte budget")
+			}
+			encodedLimits.MaxBytes = int64(len(encoded))
+		}
+		roundTrip, err := ParseBounded(encoded, encodedLimits)
+		if err != nil || !reflect.DeepEqual(first, roundTrip) {
+			t.Fatalf("JSON serialization changed projection: %v", err)
+		}
+		duplicate := append([]byte(`{"bomFormat":null,`), bytes.TrimSpace(raw)[1:]...)
+		if _, err := ParseBounded(duplicate, limits); !errors.Is(err, ErrInvalid) {
+			t.Fatal("duplicate object key accepted")
+		}
+		for _, constrained := range []Limits{
+			func() Limits { v := limits; v.MaxBytes = int64(len(raw) - 1); return v }(),
+			func() Limits { v := limits; v.MaxStringBytes = 1; return v }(),
+			func() Limits { v := limits; v.MaxValues = 1; return v }(),
+		} {
+			if _, err := ParseBounded(raw, constrained); !errors.Is(err, ErrInvalid) {
+				t.Fatal("structural budget ignored")
+			}
+		}
+		deep := append([]byte(`{"x-fuzz-depth":`+strings.Repeat("[", limits.MaxDepth)+"null"+strings.Repeat("]", limits.MaxDepth)+","), bytes.TrimSpace(raw)[1:]...)
+		if _, err := ParseBounded(deep, limits); !errors.Is(err, ErrInvalid) {
+			t.Fatal("depth budget ignored")
+		}
+		if len(first.Components) > 1 {
+			constrained := limits
+			constrained.MaxComponents = len(first.Components) - 1
+			if _, err := ParseBounded(raw, constrained); !errors.Is(err, ErrInvalid) {
+				t.Fatal("component budget ignored")
+			}
+		}
+		if len(first.Dependencies) > 1 {
+			constrained := limits
+			constrained.MaxDependencies = len(first.Dependencies) - 1
+			if _, err := ParseBounded(raw, constrained); !errors.Is(err, ErrInvalid) {
+				t.Fatal("dependency budget ignored")
+			}
 		}
 		if first.SpecVersion != SupportedSpecVersion {
 			t.Fatalf("specVersion=%q", first.SpecVersion)

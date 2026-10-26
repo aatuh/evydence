@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1109-verification-fuzz",
+  "category": "fixed",
+  "summary": "Require explicit offline package evidence coverage and add verification properties",
+  "details": [
+    "Reject supplied evidence bundles without usable evidence IDs when the customer package declares evidence, even if the bundle hash and included signature verify.",
+    "Add eight seeded bounded targets for DSSE/in-toto, offline Sigstore bundles, native Merkle/release integrity, RFC6962-style public proofs, and CLI package manifests, ZIP archives and signed release files.",
+    "Retain pinned official trust/proof fixtures, real production verifier owners and aggregate compatibility tests; use deterministic synthetic keys, controlled tampering, bounded inflation and isolated files without archive extraction or provider access."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "The offline CLI now fails missing, null, empty, wrong-type or entirely unusable bundle evidence IDs when package coverage is required. Packages declaring no evidence IDs retain their previous behavior. Hashes, signatures, trust roots, stored evidence, schemas and runtime verification algorithms are unchanged."
+  },
+  "security": "Stop reporting verified package coverage when the supplied bundle cannot establish it. Retain signature/hash checks, path handling and bounded archive parsing; fuzz callbacks use local public fixtures and test-only keys, with no ambient credentials, extraction, databases or providers.",
+  "limitations": [
+    "Finite fuzz campaigns supplement cryptographic vectors and do not establish cryptographic assurance or complete attack coverage.",
+    "Included-key offline integrity checks do not establish external publisher identity, and local public-proof math does not establish public-log trust.",
+    "Complete scheduled campaign orchestration and artifact retention remain tracked by EVY-1110."
+  ]
+}

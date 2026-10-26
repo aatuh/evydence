@@ -31,6 +31,7 @@ import (
 	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/confighealth"
 	"github.com/aatuh/evydence/internal/platform/health"
+	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 	"github.com/aatuh/evydence/internal/platform/logging"
 	"github.com/aatuh/evydence/internal/platform/telemetry"
 	"github.com/aatuh/evydence/internal/platform/wiring"
@@ -1096,6 +1097,11 @@ type replayedOpenAPIContract struct {
 }
 
 func parseReplayedOpenAPIContract(ctx context.Context, raw []byte) (replayedOpenAPIContract, error) {
+	if json.Valid(raw) {
+		if err := jsonbounds.ValidateUniqueKeys(raw); err != nil {
+			return replayedOpenAPIContract{}, errors.New("replayed openapi contract payload is invalid")
+		}
+	}
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromData(raw)
 	if err != nil {

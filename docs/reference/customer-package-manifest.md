@@ -231,7 +231,17 @@ manifest hash alongside `manifest.json`, `package.json`, and
 `verification.json`.
 
 When an evidence bundle is supplied, the verifier also checks the bundle
-manifest hash, included signatures, and package evidence-id coverage:
+manifest hash, included signatures, and package evidence-id coverage.
+
+If the package declares evidence IDs, the bundle must supply a usable
+`evidence_ids` array containing every declared ID. Missing, null, empty,
+wrong-type or entirely unusable bundle IDs fail verification even when its
+manifest hash and included signature are valid. Previously these cases could
+report verified coverage. A package declaring no evidence IDs requires no
+coverage proof. This correction changes only the offline CLI decision; it does
+not rewrite packages, evidence or signatures.
+
+To require a particular included signing-key ID:
 
 ```sh
 go run ./cmd/evydence package verify \

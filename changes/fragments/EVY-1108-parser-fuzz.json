@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1108-parser-fuzz",
+  "category": "fixed",
+  "summary": "Reject ambiguous OpenAPI JSON and expand evidence parser properties",
+  "details": [
+    "Reject duplicate decoded JSON object keys at root and nested levels in focused OpenAPI ingestion and worker replay, including escaped spellings of the same key.",
+    "Add or strengthen seven bounded seeded parser fuzz targets for CycloneDX, SPDX, VEX, scanner normalization and scope probing, and both production OpenAPI owners.",
+    "Check repeated and serialized projections, partial-reader parity, applicable structural and result-count limits, and digest-bound OpenAPI source and durable replay checks while preserving fixture provenance."
+  ],
+  "compatibility": {
+    "api": "changed",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Reject ambiguous duplicate-key OpenAPI JSON while retaining valid projections and existing YAML loader compatibility. No parser-version, hash, durable schema or immutable raw-evidence changes. Historical duplicate-key payloads now fail replay; they are not rewritten. Fuzz workload budgets do not narrow production acceptance."
+  },
+  "security": "Reject ambiguous untrusted evidence before interpretation; retain generic errors, bounded digest-checked source reads, reader cleanup, and disabled external references. Fuzz callbacks use no provider, database, credentials or customer data.",
+  "limitations": [
+    "Short bounded campaigns supplement deterministic vectors and do not prove exhaustive standards conformance or security.",
+    "YAML characterization covers an existing valid OpenAPI fixture; it does not establish general YAML duplicate-key rejection or conformance.",
+    "Cryptographic/archive properties and complete scheduled campaign orchestration remain tracked by EVY-1109 and EVY-1110."
+  ]
+}

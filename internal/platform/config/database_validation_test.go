@@ -98,6 +98,9 @@ func FuzzDatabaseDSNNeverPanicsOrReturnsPartialSettings(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, raw string) {
+		if len(raw) > maxEnvironmentBytes {
+			return
+		}
 		parsed, err := parseDatabaseDSN(raw)
 		if err != nil {
 			if !errors.Is(err, ErrInvalidValue) || !reflect.DeepEqual(parsed, databaseSettings{}) {

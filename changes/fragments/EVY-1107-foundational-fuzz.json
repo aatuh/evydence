@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1107-foundational-fuzz",
+  "category": "added",
+  "summary": "Add bounded canonical JSON and scoped identity property tests",
+  "details": [
+    "Add seven seeded fuzz targets for normalized hash stability, bounded JSON and duplicate decoded keys, tenant object identities and idempotency record encodings.",
+    "Preserve the historical float64 hash profile and readable legacy keys while testing exact round trips, tenant prefix separation and changed-field detection.",
+    "Bound input work in the foundational targets and existing digest fuzzers, and add a source coverage floor alongside behavioral seed and campaign checks."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Test and documentation changes only; production parsing, authorization, hashing and key formats are unchanged."
+  },
+  "security": "Exercise ambiguous JSON rejection and scoped identity serialization without changing production trust boundaries or using credentials, providers or customer data.",
+  "limitations": [
+    "Bounded fuzz runs supplement existing deterministic regression vectors and do not prove complete parser, authorization or cryptographic assurance.",
+    "Complete target accounting, evidence parser and verifier campaigns, and scheduled fuzzing remain tracked by EVY-1104 and its remaining child tickets."
+  ]
+}

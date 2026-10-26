@@ -179,6 +179,9 @@ the complete source document. Standard or legal extension fields outside the
 normalized subset are accepted and reported as parser warnings and import
 report metadata rather than silently normalized or rejected.
 
+The checksum and external-reference count budgets apply to each package;
+package count, total JSON values and bytes bound aggregate document work.
+
 The upload transaction authorizes release and artifact targets before opening
 the raw source, bounds reader consumption to the declared size plus one
 overflow byte, verifies the source size and SHA-256, then stages the same source
@@ -193,6 +196,31 @@ Evidence: `internal/app/parsers/spdx`, `internal/app/spdx_ingestion.go`,
 `internal/app/spdx_upload.go`, `internal/app/spdx_replay.go`,
 `internal/app/parser_versions.go`, `cmd/evydence-worker/main.go`, and SPDX
 parser/upload/replay tests.
+
+### OpenAPI contract JSON
+
+The focused ingestion parser and worker replay reject duplicate object keys in
+syntactically valid OpenAPI JSON before the loader interprets it. This includes
+root fields, nested response statuses and equivalent escaped key spellings.
+Previously, the loader could accept these ambiguous documents using one value.
+This is a security/correctness rejection change; valid normalized projections,
+`openapi-json.v1.0.0`, payload digests and historical raw evidence are unchanged.
+An older ambiguous payload now fails replay rather than gaining a new trusted
+interpretation. No historical evidence is edited or automatically migrated.
+
+Ingestion retains the declared source size/SHA-256 check, bounded reads and
+reader cleanup. External references remain disabled. The duplicate-key pass
+uses the caller-bounded byte buffer and preserves numeric spelling; it does not
+apply the generic JSON validator's default structural limits to OpenAPI.
+Existing loader acceptance of a YAML-form OpenAPI 3.0.3 document is characterized
+and preserved, without making a broader YAML conformance promise. The new fuzz
+properties exercise bounded JSON inputs, not exhaustive YAML or OpenAPI support.
+
+Evidence: `internal/app/evidence_parser_adapter.go`,
+`internal/app/openapi_contract_parser_test.go`,
+`internal/app/openapi_fuzz_test.go`, `cmd/evydence-worker/main.go`,
+`cmd/evydence-worker/openapi_fuzz_test.go`, and
+`internal/platform/jsonbounds/unique_keys_test.go`.
 
 ### OpenVEX JSON
 
