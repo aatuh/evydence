@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	spdxparser "github.com/aatuh/evydence/internal/app/parsers/spdx"
 	vexparser "github.com/aatuh/evydence/internal/app/parsers/vex"
 	"github.com/aatuh/evydence/internal/domain"
+	"github.com/aatuh/evydence/internal/platform/jsonbounds"
 )
 
 type ParserReplayRequest struct {
@@ -240,6 +242,13 @@ func replayParserProjection(item domain.EvidenceItem, raw []byte, requestedVersi
 	case "openapi_contract":
 		if requestedVersion != ParserVersionOpenAPIJSON {
 			return ParserProvenance{}, nil, ErrValidation
+		}
+		// Preserve YAML compatibility, while rejecting ambiguous JSON before
+		// the map-based loader interprets the stored source payload.
+		if json.Valid(raw) {
+			if err := jsonbounds.ValidateUniqueKeys(raw); err != nil {
+				return ParserProvenance{}, nil, ErrValidation
+			}
 		}
 		doc, err := openapi3.NewLoader().LoadFromData(raw)
 		if err != nil || doc.Validate(context.Background()) != nil {

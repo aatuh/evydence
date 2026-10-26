@@ -30,7 +30,7 @@ func ValidateParserNormalizationRecord(tenantID string, item, source domain.Evid
 	if sourceID == "" || sourceID == item.ID || ref.Type != "evidence_item" || ref.ID != sourceID || ref.Relationship != "replayed_from" {
 		return projectionConflict("parser normalization source link")
 	}
-	if source.ID != sourceID || source.TenantID != tenantID || !replayableEvidenceType(source.Type) || item.PayloadRef != source.PayloadRef || item.PayloadHash != source.PayloadHash || item.PayloadMediaType != source.PayloadMediaType || item.PayloadSize != source.PayloadSize || item.TrustLevel != source.TrustLevel {
+	if item.TenantID != tenantID || source.ID != sourceID || source.TenantID != tenantID || !replayableEvidenceType(source.Type) || item.PayloadRef != source.PayloadRef || item.PayloadHash != source.PayloadHash || item.PayloadMediaType != source.PayloadMediaType || item.PayloadSize != source.PayloadSize || item.TrustLevel != source.TrustLevel {
 		return projectionConflict("parser normalization source relationship")
 	}
 	// Product/release/build/deployment columns on ordinary evidence are audited,

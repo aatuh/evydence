@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1111-parser-bindings",
+  "category": "fixed",
+  "summary": "Reject ambiguous parser inputs and enforce normalization record ownership",
+  "details": [
+    "Reject duplicate decoded JSON member names before stored OpenAPI replay, DSSE envelope decoding and worker attestation interpretation.",
+    "Require the native normalization record itself to belong to the requested tenant, independently of its canonical checksum and the source/audit records.",
+    "Add four bounded properties covering structural ingestion, focused source adapters, append-only stored replay, worker parsing/metadata/finalized object checks and the versioned backup JSON row stream; register all 39 targets."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Previously accepted ambiguous duplicate-key objects now fail interpretation. Valid JSON/YAML OpenAPI inputs, unambiguous DSSE profiles, parser versions and signing/hash formats remain unchanged. Existing raw evidence is not rewritten or migrated. All five backup commitment vocabularies and historical framing/hash vectors remain unchanged."
+  },
+  "security": "Use structured duplicate-key validation and explicit tenant ownership before accepting a derived record. Structural ingestion/replay and recorded worker metadata do not assign cryptographic trust. Current storage callers retain their own tenant filters; the verifier regression does not establish external data exposure.",
+  "limitations": [
+    "Synthetic fixtures and finite campaigns do not establish exhaustive coverage, live provider assurance or cryptographic security.",
+    "Bounded preview and lifecycle/object ports do not replace the required live persistence and protected hosted checks."
+  ]
+}

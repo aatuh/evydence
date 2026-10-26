@@ -70,6 +70,20 @@ func TestNativeVerificationOwnerFuzzCoverage(t *testing.T) {
 	})
 }
 
+func TestEvidenceParserOwnerBindingFuzzCoverage(t *testing.T) {
+	assertSeededFuzzCoverage(t, []fuzzCoverageTarget{
+		{"internal/adapters/verification/dsse/ingestion_fuzz_test.go", "FuzzBuildAttestationIngestion"},
+		{"internal/app/parser_replay_fuzz_test.go", "FuzzStoredParserReplay"},
+		{"cmd/evydence-worker/parser_bindings_fuzz_test.go", "FuzzWorkerEvidenceParsers"},
+	})
+}
+
+func TestBackupCommitmentStreamFuzzCoverage(t *testing.T) {
+	assertSeededFuzzCoverage(t, []fuzzCoverageTarget{
+		{"internal/verification/app/backup_commitment_fuzz_test.go", "FuzzBackupStateCommitment"},
+	})
+}
+
 func assertSeededFuzzCoverage(t *testing.T, targets []fuzzCoverageTarget) {
 	t.Helper()
 	for _, target := range targets {

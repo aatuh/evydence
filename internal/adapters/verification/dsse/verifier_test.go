@@ -166,12 +166,12 @@ func signedEnvelope(t *testing.T, payload []byte, privateKey ed25519.PrivateKey)
 	return signedEnvelopeWithMessage(t, payload, privateKey, securedsse.PAE(testPayloadType, payload))
 }
 
-func signedEnvelopeWithMessage(t *testing.T, payload []byte, privateKey ed25519.PrivateKey, message []byte) []byte {
+func signedEnvelopeWithMessage(t testing.TB, payload []byte, privateKey ed25519.PrivateKey, message []byte) []byte {
 	t.Helper()
 	return signedEnvelopeForType(t, payload, testPayloadType, privateKey, message)
 }
 
-func signedEnvelopeForType(t *testing.T, payload []byte, payloadType string, privateKey ed25519.PrivateKey, message []byte) []byte {
+func signedEnvelopeForType(t testing.TB, payload []byte, payloadType string, privateKey ed25519.PrivateKey, message []byte) []byte {
 	t.Helper()
 	return []byte(`{"payloadType":"` + payloadType + `","payload":"` + base64.StdEncoding.EncodeToString(payload) + `","signatures":[{"keyid":"root-1","sig":"` + base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, message)) + `"}]}`)
 }

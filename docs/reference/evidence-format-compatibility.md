@@ -199,7 +199,8 @@ parser/upload/replay tests.
 
 ### OpenAPI contract JSON
 
-The focused ingestion parser and worker replay reject duplicate object keys in
+The focused ingestion parser, worker replay and stored parser-normalization
+replay reject duplicate object keys in
 syntactically valid OpenAPI JSON before the loader interprets it. This includes
 root fields, nested response statuses and equivalent escaped key spellings.
 Previously, the loader could accept these ambiguous documents using one value.
@@ -219,6 +220,8 @@ properties exercise bounded JSON inputs, not exhaustive YAML or OpenAPI support.
 Evidence: `internal/app/evidence_parser_adapter.go`,
 `internal/app/openapi_contract_parser_test.go`,
 `internal/app/openapi_fuzz_test.go`, `cmd/evydence-worker/main.go`,
+`internal/app/parser_replay.go`, `internal/app/parser_replay_input_test.go`,
+`internal/app/parser_replay_fuzz_test.go`,
 `cmd/evydence-worker/openapi_fuzz_test.go`, and
 `internal/platform/jsonbounds/unique_keys_test.go`.
 
@@ -314,6 +317,13 @@ requires a DSSE `payloadType`, base64 payload, non-empty signatures, an in-toto
 Statement v1, and subjects with valid SHA-256 digests. Every uploaded subject
 must match a registered build output. The maintained DSSE and in-toto libraries
 parse the envelope and statement; the envelope rejects unknown fields.
+Structural ingestion, signature verification and worker attestation replay
+reject duplicate decoded JSON member names, including escaped spellings and
+nested signature/statement objects. This rejects ambiguous interpretations;
+valid envelope bytes, PAE inputs, parser version and stored raw evidence remain
+unchanged. An older ambiguous object fails a new interpretation rather than
+being rewritten or automatically migrated. Structural ingestion and replay do
+not establish cryptographic signature trust.
 
 `POST /v1/build-attestations/{id}/verify-signature` is an explicit offline
 assurance step. A passing receipt requires DSSE PAE and Ed25519 signature
