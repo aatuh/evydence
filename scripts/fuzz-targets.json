@@ -96,11 +96,51 @@
     },
     {
       "package": "./internal/verification/app",
+      "name": "FuzzArtifactSignatureMetadata"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzAuditChainIntegrity"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzBackupManifestRecordedChecks"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzCosignSnapshotBinding"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzDSSESnapshotBinding"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzEvidenceCanonicalIntegrity"
+    },
+    {
+      "package": "./internal/verification/app",
       "name": "FuzzMerkleBatchIntegrity"
     },
     {
       "package": "./internal/verification/app",
+      "name": "FuzzMerkleCheckpointIntegrity"
+    },
+    {
+      "package": "./internal/verification/app",
       "name": "FuzzReleaseBundleIntegrity"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzReleaseManifestCheckpointIntegrity"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzRetentionObservation"
+    },
+    {
+      "package": "./internal/verification/app",
+      "name": "FuzzSubjectVerificationDispatch"
     }
   ]
 }

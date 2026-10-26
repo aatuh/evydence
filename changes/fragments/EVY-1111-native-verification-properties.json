@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1111-native-verification-properties",
+  "category": "added",
+  "summary": "Exercise native evidence verification owners with bounded binding and receipt properties",
+  "details": [
+    "Add ten synthetic/public native properties covering paged audit chains, evidence lifecycle origins, artifact metadata, backup checks, signed checkpoints, DSSE/Cosign object binding, retention observations and closed subject dispatch.",
+    "Exercise actual native commands, authorization policies, canonical hashing and cryptographic adapters, with bounded snapshot ports and atomic receipt/audit capture.",
+    "Register all 35 targets and document the concrete parser/verifier owner census separately from lower-level signature and proof algorithms."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Tests and development documentation only; existing runtime acceptance, canonical hashes, signing formats and verification taxonomy remain unchanged."
+  },
+  "security": "Preserve tenant ownership, immutable source snapshots, append-only receipt binding and limited verdicts for metadata-only profiles. Synthetic observations establish no external provider proof.",
+  "limitations": [
+    "Finite campaigns supplement deterministic regressions and do not establish exhaustive coverage or cryptographic assurance.",
+    "Transaction port models do not replace live persistence gates; recorded backup checks do not prove restoration, and synthetic retention observations do not prove WORM enforcement."
+  ]
+}
