@@ -2377,6 +2377,9 @@ func equalStringSets(a, b []string) bool {
 }
 
 func strictDecodeWorker(raw []byte, out any) error {
+	if err := jsonbounds.ValidateUniqueKeys(raw); err != nil {
+		return err
+	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(out); err != nil {

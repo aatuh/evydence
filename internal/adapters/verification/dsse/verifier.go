@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aatuh/evydence/internal/platform/jsonbounds"
+
 	slsaprovenance "github.com/in-toto/attestation/go/predicates/provenance/v1"
 	intoto "github.com/in-toto/attestation/go/v1"
 	securedsse "github.com/secure-systems-lab/go-securesystemslib/dsse"
@@ -199,6 +201,9 @@ func inspect(raw []byte) (*securedsse.Envelope, *intoto.Statement, Result, error
 }
 
 func parseEnvelope(raw []byte) (*securedsse.Envelope, error) {
+	if err := jsonbounds.ValidateUniqueKeys(raw); err != nil {
+		return nil, ErrInvalidEnvelope
+	}
 	var envelope securedsse.Envelope
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
