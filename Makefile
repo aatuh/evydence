@@ -70,12 +70,13 @@ test: ## Run unit tests
 fuzz-driver-check: ## Check fuzz inventory, execution, cleanup and CI artifact contracts
 	@python3 scripts/test_fuzz_driver.py
 	@python3 scripts/test_fuzz_workflow.py
+	@python3 scripts/test_tooling_fuzz.py
 
 fuzz-smoke: ## Run and account for every registered Go fuzz seed corpus
 	@python3 scripts/fuzz_driver.py smoke --go '$(GO)'
 
-fuzz-campaign-short: ## Run every registered fuzz target serially for three seconds each
-	@python3 scripts/fuzz_driver.py campaign --go '$(GO)'
+fuzz-campaign-short: ## Run every registered fuzz target serially for ten seconds each
+	@python3 scripts/fuzz_driver.py campaign --go '$(GO)' --seconds 10
 
 test-race: ## Run race tests
 	@$(GO) test ./... -race -count=1 -timeout=30m

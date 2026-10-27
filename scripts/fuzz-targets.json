@@ -107,6 +107,26 @@
       "name": "FuzzDuplicateJSONKeys"
     },
     {
+      "package": "./internal/toolingfuzz",
+      "name": "FuzzPairedBackupManifest"
+    },
+    {
+      "package": "./internal/toolingfuzz",
+      "name": "FuzzReleaseArchiveSubjects"
+    },
+    {
+      "package": "./internal/toolingfuzz",
+      "name": "FuzzReleaseChecksums"
+    },
+    {
+      "package": "./internal/toolingfuzz",
+      "name": "FuzzReleaseEvidenceProfile"
+    },
+    {
+      "package": "./internal/toolingfuzz",
+      "name": "FuzzReleaseSigningPolicy"
+    },
+    {
       "package": "./internal/verification/app",
       "name": "FuzzArtifactSignatureMetadata"
     },
