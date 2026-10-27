@@ -112,6 +112,10 @@
     },
     {
       "package": "./internal/toolingfuzz",
+      "name": "FuzzPublicReleaseVerificationBinding"
+    },
+    {
+      "package": "./internal/toolingfuzz",
       "name": "FuzzReleaseArchiveSubjects"
     },
     {

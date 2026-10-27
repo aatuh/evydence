@@ -91,6 +91,7 @@ func TestReleaseAndBackupToolingFuzzCoverage(t *testing.T) {
 		{"internal/toolingfuzz/fuzz_test.go", "FuzzReleaseArchiveSubjects"},
 		{"internal/toolingfuzz/fuzz_test.go", "FuzzReleaseSigningPolicy"},
 		{"internal/toolingfuzz/fuzz_test.go", "FuzzPairedBackupManifest"},
+		{"internal/toolingfuzz/fuzz_test.go", "FuzzPublicReleaseVerificationBinding"},
 	})
 }
 

@@ -35,7 +35,7 @@ def main():
         raise ValueError('property assertions must be enabled')
     owners = {'evidence': properties.evidence, 'checksums': properties.checksums,
               'archives': properties.archives, 'signing': properties.signing,
-              'backup': properties.backup}
+              'backup': properties.backup, 'public-release': properties.public_release_binding}
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--owner', required=True, choices=sorted(owners))
     parser.add_argument('--stream', action='store_true')

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import tooling_fuzz_properties as properties
 
@@ -16,6 +17,28 @@ WORKER = Path(__file__).resolve().with_name('tooling_fuzz.py')
 
 
 class ToolingWorkerTests(unittest.TestCase):
+    def test_public_release_binding_executes_the_complete_owner(self):
+        signing = properties.release_signing
+        with mock.patch.object(signing, 'verify_public', wraps=signing.verify_public) as owner:
+            accepted, seed = properties.public_release_binding(b'null', 0)
+        self.assertFalse(accepted)
+        self.assertGreater(len(seed), 0)
+        self.assertLessEqual(len(seed), 4096)
+        self.assertEqual({call.kwargs.get('legacy', False) for call in owner.call_args_list}, {False, True})
+
+    def test_public_release_binding_rejects_a_false_verifier_pass(self):
+        signing = properties.release_signing
+        actual = signing.verify_public
+
+        def incorrectly_accept(*args, **kwargs):
+            if kwargs.get('legacy', False):
+                return actual(*args, **kwargs)
+            return None
+
+        with mock.patch.object(signing, 'verify_public', side_effect=incorrectly_accept):
+            with self.assertRaisesRegex(AssertionError, 'failed verifier'):
+                properties.public_release_binding(b'null', 0)
+
     def test_bounded_corrupt_deflate_reaches_the_real_archive_owner(self):
         raw = bytes.fromhex('1f8b08000000000002ff') + b'\xff' + bytes(8)
         self.assertTrue(properties.archive_within_budget(raw, False))
@@ -87,7 +110,7 @@ class ToolingWorkerTests(unittest.TestCase):
                 self.assertNotIn('SENSITIVE_CANARY', result.stderr)
 
     def test_every_owner_returns_a_bounded_synthetic_or_public_seed(self):
-        for owner in ('evidence', 'checksums', 'archives', 'signing', 'backup'):
+        for owner in ('evidence', 'checksums', 'archives', 'signing', 'backup', 'public-release'):
             with self.subTest(owner=owner):
                 result = self.invoke({'raw': '', 'mode': 0, 'seed': True}, owner=owner)
                 self.assertEqual(result.returncode, 0, result.stderr)

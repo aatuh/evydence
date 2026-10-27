@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import shutil
 import stat
+import subprocess
 import tarfile
 import tempfile
 from unittest import mock
@@ -412,4 +413,140 @@ def signing(raw, mode):
     assert policy == before
     # Context/argv/legacy pins are offline consistency checks. No gh command,
     # provider observation, publisher credential or signature trust is supplied.
+    return accepted, seed
+
+
+def public_release_binding(raw, mode):
+    policy = release_signing.load_policy()
+    original_policy = copy.deepcopy(policy)
+    legacy = policy['legacy'][0]
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary) / 'dist'
+        root.mkdir()
+        archive_name = 'evydence_' + legacy['tag'] + '_linux_amd64.tar.gz'
+        archive = b'synthetic release bytes, never executed'
+        files = {archive_name: archive,
+                 'SHA256SUMS': (hashlib.sha256(archive).hexdigest() + '  ' + archive_name + '\n').encode()}
+        records = []
+        for name, data in files.items():
+            records.append({'path': name, 'digest': 'sha256:' + hashlib.sha256(data).hexdigest(),
+                            'size': len(data)})
+        manifest = {'schema_version': 'evydence-release-artifacts.v1.0.0',
+                    'generated_at': 'synthetic', 'artifacts': records}
+        seed = profile.json_bytes(manifest)
+        files[release_signing.MANIFEST_NAME] = seed
+        fixture = ROOT / 'scripts/testdata/release-legacy-v0.1.0-rc.7'
+        files[release_signing.SIGNATURE_NAME] = (fixture / release_signing.SIGNATURE_NAME).read_bytes()
+        for name, data in files.items():
+            (root / name).write_bytes(data)
+        # This is an explicitly synthetic local pin, not the published legacy
+        # trust policy. The real owner verifies file/pin consistency only;
+        # signature verification is exercised separately and is not asserted here.
+        pinned = copy.deepcopy(policy)
+        pinned['legacy'][0]['manifest_sha256'] = hashlib.sha256(seed).hexdigest()
+        release_signing.validate_policy(pinned)
+
+        def snapshot():
+            return {path.name: path.read_bytes() for path in root.iterdir()}
+
+        def verify(candidate=pinned, repository=policy['repository'], directory=root):
+            before = snapshot()
+            before_policy = copy.deepcopy(candidate)
+            try:
+                release_signing.verify_public(candidate, directory, repository, legacy['tag'],
+                                              legacy['source_commit'], legacy=True)
+            finally:
+                assert snapshot() == before and candidate == before_policy
+
+        verify()
+        verify()
+        (root / release_signing.MANIFEST_NAME).write_bytes(raw)
+        accepted, result = observe(verify)
+        assert (accepted, result) == observe(verify)
+        if accepted:
+            assert raw == seed
+        (root / release_signing.MANIFEST_NAME).write_bytes(seed)
+        if mode % 8 == 0:
+            rejects(lambda: verify(repository='synthetic/foreign'))
+        elif mode % 8 == 1:
+            revoked = copy.deepcopy(pinned)
+            revoked['revoked_sources'].append(legacy['source_commit'])
+            rejects(lambda: verify(candidate=revoked))
+        elif mode % 8 == 2:
+            incomplete = copy.deepcopy(manifest)
+            incomplete['artifacts'] = [item for item in records if item['path'] != 'SHA256SUMS']
+            changed = profile.json_bytes(incomplete)
+            (root / release_signing.MANIFEST_NAME).write_bytes(changed)
+            matching_pin = copy.deepcopy(pinned)
+            matching_pin['legacy'][0]['manifest_sha256'] = hashlib.sha256(changed).hexdigest()
+            rejects(lambda: verify(candidate=matching_pin))
+        elif mode % 8 == 3:
+            alias = Path(temporary) / 'alias'
+            alias.symlink_to(root, target_is_directory=True)
+            rejects(lambda: verify(directory=alias))
+            assert alias.is_symlink() and alias.resolve() == root
+        elif mode % 8 == 4:
+            (root / archive_name).write_bytes(archive + b'changed')
+            rejects(verify)
+        elif mode % 8 == 5:
+            signature = profile.parse_json(files[release_signing.SIGNATURE_NAME])
+            signature['algorithm'] = 'unsupported'
+            (root / release_signing.SIGNATURE_NAME).write_bytes(profile.json_bytes(signature))
+            rejects(verify)
+        elif mode % 8 == 6:
+            foreign = copy.deepcopy(pinned)
+            foreign['legacy'][0]['public_key_sha256'] = '0' * 64
+            rejects(lambda: verify(candidate=foreign))
+        else:
+            (root / release_signing.MANIFEST_NAME).write_bytes(seed + b' ')
+            rejects(verify)
+        for name, data in files.items():
+            (root / name).write_bytes(data)
+
+        (root / release_signing.BUNDLE_NAME).write_bytes(b'synthetic bundle, never trusted')
+        environment = {'PATH': '/usr/bin:/bin', 'TMPDIR': temporary}
+        for failed_position in (0, 1):
+            calls = []
+
+            def failed_verifier(arguments, **options):
+                position = len(calls)
+                assert position <= failed_position
+                assert arguments[:3] == ['gh', 'attestation', 'verify']
+                name = [release_signing.MANIFEST_NAME, release_signing.SIGNATURE_NAME][position]
+                assert arguments[3] == str((root / name).resolve())
+                expected = {'--bundle': str((root / release_signing.BUNDLE_NAME).resolve()),
+                            '--hostname': 'github.com', '--repo': policy['repository'],
+                            '--cert-identity': release_signing.identity(policy, 'release'),
+                            '--cert-oidc-issuer': policy['issuer'], '--source-ref': policy['ref'],
+                            '--source-digest': legacy['source_commit'],
+                            '--signer-digest': legacy['source_commit'],
+                            '--predicate-type': 'https://slsa.dev/provenance/v1'}
+                assert arguments[-1] == '--deny-self-hosted-runners'
+                options_only = arguments[4:-1]
+                assert len(options_only) == 2 * len(expected)
+                assert len(set(options_only[::2])) == len(expected)
+                assert dict(zip(options_only[::2], options_only[1::2])) == expected
+                assert options == {'check': True, 'timeout': 120, 'stdin': subprocess.DEVNULL,
+                                   'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL,
+                                   'env': environment}
+                calls.append(name)
+                if position == failed_position:
+                    raise subprocess.CalledProcessError(1, arguments)
+                # An earlier coordination acknowledgement only. Every whole
+                # operation fails; this never supplies a cryptographic pass.
+                return subprocess.CompletedProcess(arguments, 0)
+
+            before = snapshot()
+            with mock.patch.dict(release_signing.os.environ, environment, clear=True), \
+                    mock.patch.object(release_signing.subprocess, 'run', side_effect=failed_verifier):
+                try:
+                    release_signing.verify_public(policy, root, policy['repository'], legacy['tag'],
+                                                  legacy['source_commit'])
+                except subprocess.CalledProcessError:
+                    pass
+                else:
+                    raise AssertionError('failed verifier acquired a pass')
+            assert len(calls) == failed_position + 1 and snapshot() == before
+        assert all((root / name).read_bytes() == data for name, data in files.items())
+    assert policy == original_policy
     return accepted, seed

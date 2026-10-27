@@ -249,6 +249,12 @@ func FuzzPairedBackupManifest(f *testing.F) {
 	f.Fuzz(func(t *testing.T, raw []byte, mode uint8) { toolingProperty(t, worker, raw, mode) })
 }
 
+func FuzzPublicReleaseVerificationBinding(f *testing.F) {
+	worker := newToolingWorker(f, "public-release")
+	f.Add(toolingSeed(f, worker), uint8(0))
+	f.Fuzz(func(t *testing.T, raw []byte, mode uint8) { toolingProperty(t, worker, raw, mode) })
+}
+
 func TestToolingOutputBudgetCoversCopyFallback(t *testing.T) {
 	var output toolingOutput
 	_, err := io.Copy(&output, struct{ io.Reader }{bytes.NewReader(make([]byte, 33<<10))})

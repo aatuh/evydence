@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1111-public-release-binding",
+  "category": "changed",
+  "summary": "Exercise the complete public release verification coordinator",
+  "details": [
+    "Add a bounded property for the actual public release coordinator, beyond its policy, argument and file helper coverage; register all 45 native targets.",
+    "Use actual synthetic file hashes and a private fixture pin to cover legacy file, repository, revoked-source, root and required-file joins without changing the committed trust policy.",
+    "Require both verifier failure positions to propagate with exact artifact and identity arguments, a credential-free environment and immutable inputs. No provider call or cryptographic success is supplied by a command-port acknowledgement."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Test tooling only. Production verification behavior, publisher policy, accepted release profiles and historical signing/hash commitments are unchanged."
+  },
+  "security": "Keep local artifact/pin binding separate from provider or cryptographic assurance; malformed and tampered inputs cannot acquire the declared consistency result.",
+  "limitations": [
+    "The positive fixture establishes consistency with a synthetic local pin, not official release trust.",
+    "The nonlegacy command model always fails the whole verification operation; it supplies no provider observation or accepted cryptographic result."
+  ]
+}
