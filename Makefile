@@ -757,7 +757,13 @@ docs-check: python-qa-check fixture-provenance-check dependency-updates-check de
 deployment-config-check: ## Verify rendered inputs through actual command startup paths; requires Helm and Compose
 	@$(GO) test -tags=deployment ./internal/platform/deploymentcheck ./cmd/evydence-api ./cmd/evydence-worker ./cmd/evydence-migrate ./cmd/evydence -run '^TestDeployment' -count=1 -timeout=10m
 
-deploy-check: ## Validate deployment assets, rendered Helm and shutdown budgets
+.PHONY: observability-check
+observability-check: ## Validate exporter contract, monitoring examples and diagnostic runbooks offline
+	@$(GO) test ./internal/adapters/telemetry/metrics -run '^TestObservabilityMetricContract$$' -count=1
+	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/observability-check -count=1
+	@GOWORK=off $(GO) -C tools run -mod=readonly ./cmd/observability-check --root ..
+
+deploy-check: observability-check ## Validate deployment assets, rendered Helm and shutdown budgets
 	@python3 scripts/test_local_dependency_images.py
 	@python3 scripts/test_deployment_lifecycle.py
 	@$(MAKE) deployment-config-check

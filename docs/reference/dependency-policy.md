@@ -34,6 +34,29 @@ Remove unused dependencies when their imports or build steps disappear. Recheck
 the graph and supported API/SDK behavior; do not retain a dependency solely for
 an obsolete fixture or silently break a published interface to remove it.
 
+## Monitoring query validation
+
+EVY-1212 adds `github.com/prometheus/prometheus` `v0.315.1` to the isolated
+`tools` module for its official PromQL parser and rule-format validator. The
+standard library and the existing exposition parser do not implement PromQL's
+grammar, type checks or rule templates. A hand-written query matcher would miss
+invalid expressions. The library is pinned through `tools/go.mod`/`go.sum`;
+the selected source corresponds to upstream Prometheus 3.15.1 and declares
+Apache-2.0 licensing with a Go 1.26 floor, within this project's compiler policy.
+This new direct selection and the checker are confined to QA; the production
+module manifests and SDK sources are unchanged. The inventory also records
+older Prometheus module versions in existing transitive graphs; those rows do
+not mean this checker or its new selection is linked into the application.
+
+The module graph also changes transitive selections used by QA tools; review
+the generated source inventory and advisory results rather than treating those
+updates as production runtime changes. `make observability-check` parses owned,
+bounded example files without contacting scrape targets, evaluating provider
+calls or reading credential files. The checker can be replaced independently
+of application behavior; keeping a real PromQL implementation remains the
+validation requirement. Source/licensing observations, advisory scans and
+maintenance metadata each retain their documented coverage limits.
+
 ## Update Review
 
 [`.github/dependabot.yml`](../../.github/dependabot.yml) configures weekly

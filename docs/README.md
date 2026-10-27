@@ -46,6 +46,7 @@ This documentation is organized by reader task. Implementation claims should be 
 - [Vulnerability decisions](reference/vulnerability-decisions.md): current VEX/decision model, buyer-facing gaps, and planned API changes.
 - [Customer package manifest](reference/customer-package-manifest.md): v2 package schema, included metadata, exclusions, and local viewer compatibility.
 - [Observability](reference/observability.md): readiness, admin metrics, Prometheus rules, and dashboard starter assets.
+- [Monitoring runbook](runbooks/observability.md): diagnose exporter, worker, database, object-store, provider and API alerts.
 - [Capacity and failure modes](reference/capacity-and-failures.md): supported concurrency profile, sizing inputs, and failure behavior.
 - [Benchmark results](reference/benchmark-results.md): current local benchmark command and interpretation.
 - [Production readiness](reference/production-readiness.md): self-hosted production profiles, production gates, and exit criteria.

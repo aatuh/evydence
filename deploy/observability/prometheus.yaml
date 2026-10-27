@@ -1,0 +1,33 @@
+# Local, same-network-namespace example for Prometheus 3.x. See the canonical
+# observability reference before adapting targets, TLS, credentials or retention.
+# The API file contains an explicit instance:admin credential. The worker file
+# contains its separate private metrics token. Never commit either file.
+global:
+  scrape_interval: 30s
+  scrape_timeout: 5s
+  evaluation_interval: 30s
+rule_files:
+  - prometheus-rules.yaml
+scrape_configs:
+  - job_name: evydence-api
+    metrics_path: /v1/metrics
+    scheme: http
+    scrape_protocols: [PrometheusText0.0.4]
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/evydence_api_metrics_token
+    static_configs:
+      - targets: [127.0.0.1:8080]
+        labels:
+          deployment: evydence-example
+  - job_name: evydence-worker
+    metrics_path: /metrics
+    scheme: http
+    scrape_protocols: [PrometheusText0.0.4]
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/evydence_worker_metrics_token
+    static_configs:
+      - targets: [127.0.0.1:9091]
+        labels:
+          deployment: evydence-example
