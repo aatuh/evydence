@@ -84,6 +84,17 @@ func TestBackupCommitmentStreamFuzzCoverage(t *testing.T) {
 	})
 }
 
+func TestReleaseAndBackupToolingFuzzCoverage(t *testing.T) {
+	assertSeededFuzzCoverage(t, []fuzzCoverageTarget{
+		{"internal/toolingfuzz/fuzz_test.go", "FuzzReleaseEvidenceProfile"},
+		{"internal/toolingfuzz/fuzz_test.go", "FuzzReleaseChecksums"},
+		{"internal/toolingfuzz/fuzz_test.go", "FuzzReleaseArchiveSubjects"},
+		{"internal/toolingfuzz/fuzz_test.go", "FuzzReleaseSigningPolicy"},
+		{"internal/toolingfuzz/fuzz_test.go", "FuzzPairedBackupManifest"},
+		{"internal/toolingfuzz/fuzz_test.go", "FuzzPublicReleaseVerificationBinding"},
+	})
+}
+
 func assertSeededFuzzCoverage(t *testing.T, targets []fuzzCoverageTarget) {
 	t.Helper()
 	for _, target := range targets {

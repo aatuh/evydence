@@ -85,15 +85,14 @@ jobs:
           retention-days: 14
 
   report:
-    name: Report Dependency Policy On PR Head
+    name: Dependency Policy
     needs: [evaluate]
-    if: ${{ always() && !cancelled() }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
-      checks: write
     steps:
       - name: Check out trusted reporter only
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -110,7 +109,7 @@ jobs:
           "$qa_venv/bin/python" -m pip --isolated --disable-pip-version-check install \
             --require-hashes --only-binary=:all: -r tools/requirements-qa.txt
           printf '%s\n' "$qa_venv/bin" >> "$GITHUB_PATH"
-      - name: Publish only the revalidated head check
+      - name: Require the revalidated evaluation result
         env:
           GH_TOKEN: ${{ github.token }}
           DEPENDENCY_PULL_REQUEST: ${{ github.event.pull_request.number }}
@@ -119,4 +118,4 @@ jobs:
           DEPENDENCY_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           DEPENDENCY_JOB_RESULT: ${{ needs.evaluate.result }}
           DEPENDENCY_ASSESSMENT_DAY: ${{ needs.evaluate.outputs.assessment_day }}
-        run: python3 scripts/dependency_check_publish.py
+        run: python3 scripts/dependency_check_publish.py --job-result

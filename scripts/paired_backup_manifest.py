@@ -104,7 +104,7 @@ def build_manifest(db: Path, objects: Path, migrations: Path, commit: str, check
 
 
 def require_manifest(manifest: dict[str, object]) -> None:
-    if manifest.get("schema_version") != SCHEMA_VERSION or not SHA256_RE.fullmatch(str(manifest.get("generation_id", ""))):
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != SCHEMA_VERSION or not SHA256_RE.fullmatch(str(manifest.get("generation_id", ""))):
         raise ValueError("invalid paired backup manifest header")
     for section, key in (("database", "sha256"), ("objects", "inventory_sha256"), ("schema", "migration_set_sha256"), ("consistency_checkpoint", "state_hash")):
         value = manifest.get(section)
@@ -172,7 +172,7 @@ def main() -> int:
             return 2
         print(f"paired backup preflight passed: {manifest['generation_id']}")
         return 0
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError, RecursionError) as exc:
         print(f"paired backup preflight error: {exc}", file=sys.stderr)
         return 2
 

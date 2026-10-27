@@ -121,26 +121,40 @@ available; private scratch and proposed source are not uploaded. Failure and
 missing-context exits remain failures. No path filters or manual input can
 skip admission while claiming success.
 
-`pull_request_target` uses the base-branch context, so a separate reporter job
-posts the fixed **Dependency Policy** check on the exact PR head. It has the
-additional `checks: write` permission, executes only target-base reporter code,
-and never consumes proposed artifacts or report bodies. The reporter validates
+The trusted reporter job is named **Dependency Policy**, so its native Actions
+result supplies the required context. It has only contents/PR read permissions,
+executes target-base reporter code, and never consumes proposed artifacts or
+report bodies. `python3 scripts/dependency_check_publish.py --job-result`
+validates the result without creating or editing a check through the API.
+The reporter validates
 the Actions event/repository/ref/base, run identity and actual evaluation job
 result, then rechecks the current PR/base/head/repository before writing.
-Only evaluation `success` produces check success; failure/skipped/cancelled
-outcomes map to failure. The trusted evaluation records its UTC day immediately
-before admission; missing/stale day metadata also produces failure, so reporter
-setup cannot carry an expiring waiver across midnight. The response must retain the exact head/check identity
-and GitHub Actions app binding. A cancelled workflow may leave no new head
-result and needs a normal rerun. See GitHub's
+Only evaluation `success` produces a successful job exit; failure/skipped/cancelled
+outcomes produce exit 2. The trusted evaluation records its UTC day immediately
+before admission. The reporter uses `always()` without a cancellation filter,
+so a cancelled evaluation reaches that failure check instead of intentionally
+skipping a required job. Missing/stale day metadata also produces failure, so reporter
+setup cannot carry an expiring waiver across midnight. Invalid, unavailable or
+changed PR coordinates also fail the job. GitHub owns the native check and its
+Actions app identity. A cancelled workflow needs a normal rerun. See GitHub's
 [trusted-event guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target)
 and [required-check SHA rules](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).
 
-The reporter is a provider mutation reserved for this trusted hosted path.
-Local qualification uses mocked write responses and does not publish checks.
-The hosted success and both policy-negative controls below are verified. The
-approved exact head check is required by master protection, preserving the
-existing three app-bound checks and strict enforcement; see
+The command without `--job-result` retains the previous checked head-publication
+interface for compatibility; it requires check-write authority, which the
+current workflow does not grant. Its response identity/app checks and previous
+hosted controls remain historical evidence for that interface. Local tests use
+mocked API reads/writes and do not publish checks.
+
+Native-job rollout is not yet hosted-qualified: PR #50 has successful head
+check records, but the normal merge API still reports `Dependency Policy` as
+expected. Rerunning the cancelled suite did not resolve that mismatch. The
+trusted base workflow must adopt this change, and a subsequent PR must prove
+that GitHub accepts the native job before this repair is called complete.
+No protection exception or manually supplied success is part of that rollout.
+
+The fixed context remains required by master protection, preserving the
+other three app-bound checks and strict enforcement; see
 [the dated provider record](repository-controls.md#verified-observation).
 
 ## Provider Findings And Source Observations

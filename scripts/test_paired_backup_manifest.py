@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 import paired_backup_manifest as paired
 
@@ -51,6 +55,43 @@ class PairedBackupManifestTests(unittest.TestCase):
         self.assertNotIn("payload\"", encoded)
         self.assertTrue(first["generation_id"].startswith("sha256:"))
         self.assertEqual(paired.verify_manifest(first, self.database, self.objects, self.migrations, self.commit), [])
+
+    def test_non_object_manifest_is_rejected_before_file_access(self) -> None:
+        for value in (None, [], "synthetic", 0, True):
+            with self.subTest(value=value), mock.patch.object(
+                paired, "file_identity", side_effect=AssertionError("invalid manifest reached backup files")
+            ):
+                with self.assertRaisesRegex(ValueError, "invalid paired backup manifest"):
+                    paired.verify_manifest(value, self.database, self.objects, self.migrations, self.commit)
+
+    def test_malformed_manifest_cli_returns_controlled_error(self) -> None:
+        path = self.root / 'manifest.json'
+        args = SimpleNamespace(command='verify', manifest=path, database_dump=self.database,
+                               objects_dir=self.objects, migrations_dir=self.migrations,
+                               release_commit=self.commit)
+        for raw in ('[]', 'null', '[' * 1100 + ']' * 1100):
+            with self.subTest(length=len(raw)):
+                path.write_text(raw)
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with mock.patch.object(paired, 'arguments', return_value=args), \
+                        contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr), \
+                        mock.patch.object(paired, 'file_identity', side_effect=AssertionError('invalid input reached backup files')):
+                    self.assertEqual(paired.main(), 2)
+                self.assertIn('paired backup preflight error:', stderr.getvalue())
+                self.assertNotIn('Traceback', stdout.getvalue() + stderr.getvalue())
+
+    def test_manifest_parser_recursion_error_returns_controlled_error(self) -> None:
+        path = self.root / 'manifest.json'
+        path.write_text('{}')
+        args = SimpleNamespace(command='verify', manifest=path, database_dump=self.database,
+                               objects_dir=self.objects, migrations_dir=self.migrations,
+                               release_commit=self.commit)
+        stderr = io.StringIO()
+        with mock.patch.object(paired, 'arguments', return_value=args), \
+                mock.patch.object(paired.json, 'loads', side_effect=RecursionError('synthetic JSON nesting limit')), \
+                contextlib.redirect_stderr(stderr):
+            self.assertEqual(paired.main(), 2)
+        self.assertIn('paired backup preflight error:', stderr.getvalue())
 
     def test_database_newer_than_object_generation_fails_preflight(self) -> None:
         manifest = self.manifest()
