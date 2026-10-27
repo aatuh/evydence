@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Only a trusted completed evaluation may publish the exact current PR head check."""
 import copy
+from contextlib import redirect_stderr,redirect_stdout
 from datetime import datetime,timezone
+import io
 import json
 import unittest
 from unittest.mock import Mock,patch
@@ -114,6 +116,41 @@ class PublishTests(unittest.TestCase):
         args=run.call_args.args;self.assertEqual(args[0][-1],'repos/aatuh/evydence/check-runs')
         self.assertIn('--input',args[0]);self.assertEqual(json.loads(run.call_args.kwargs['data'])['head_sha'],HEAD)
         self.assertNotIn('UNRELATED_SECRET',args[2]);self.assertNotIn('CANARY',str(args[0]))
+
+    def invoke_job_result(self,env,api):
+        output,error=io.StringIO(),io.StringIO()
+        with patch.dict(publish.os.environ,env,clear=True), \
+             patch.object(publish.sys,'argv',['dependency_check_publish.py','--job-result']), \
+             patch.object(publish.provider,'GitHub',return_value=api), \
+             patch.object(publish,'run',side_effect=AssertionError('native job must not publish a synthetic check')), \
+             patch.object(publish,'post_check',side_effect=AssertionError('native job must not write checks')), \
+             redirect_stdout(output),redirect_stderr(error):
+            status=publish.main()
+        self.assertNotIn('PRIVATE_CANARY',output.getvalue()+error.getvalue())
+        return status
+
+    def test_native_job_exit_status_requires_current_success_without_posting_a_check(self):
+        for outcome in ['success','failure','cancelled','skipped']:
+            env=environment();env.update(DEPENDENCY_JOB_RESULT=outcome,DEPENDENCY_ASSESSMENT_DAY='2026-10-22')
+            api=self.api()
+            with self.subTest(outcome=outcome):
+                self.assertEqual(self.invoke_job_result(env,api),0 if outcome=='success' else 2)
+                api.get.assert_called_once_with('pulls/30')
+
+    def test_native_job_rejects_stale_assessment_and_unavailable_or_changed_pr(self):
+        for reason in ['missing_day','past_day','future_day','base','head','repository','closed','unavailable']:
+            env=environment();env['DEPENDENCY_ASSESSMENT_DAY']='2026-10-22';api=self.api()
+            if reason=='missing_day':del env['DEPENDENCY_ASSESSMENT_DAY']
+            if reason=='past_day':env['DEPENDENCY_ASSESSMENT_DAY']='2026-10-21'
+            if reason=='future_day':env['DEPENDENCY_ASSESSMENT_DAY']='2026-10-23'
+            if reason=='base':api.get.return_value['base']['sha']='f'*40
+            if reason=='head':api.get.return_value['head']['sha']='f'*40
+            if reason=='repository':api.get.return_value['head']['repo']['full_name']='other/fork'
+            if reason=='closed':api.get.return_value['state']='closed';api.get.return_value['merged']=True
+            if reason=='unavailable':api.get.side_effect=OSError('PRIVATE_CANARY')
+            with self.subTest(reason=reason):
+                self.assertEqual(self.invoke_job_result(env,api),2)
+                api.get.assert_called_once_with('pulls/30')
 
 
 if __name__=='__main__':unittest.main()

@@ -40,12 +40,16 @@ class WorkflowTests(unittest.TestCase):
         for unsafe in ['git fetch','gh pr checkout','npm install','make tools','go run']:
             self.assertNotIn(unsafe,scripts)
 
-    def test_reporter_always_handles_failed_evaluation_with_only_narrow_write_authority(self):
+    def test_native_required_reporter_handles_failed_evaluation_without_check_write_authority(self):
         job=self.workflow['jobs']['report'];self.assertEqual(job['needs'],['evaluate'])
-        self.assertIn('always()',job['if'])
-        self.assertEqual(job['permissions'],{'contents':'read','pull-requests':'read','checks':'write'})
-        script=next(s for s in job['steps'] if s.get('run')=='python3 scripts/dependency_check_publish.py')
-        self.assertEqual(script['run'],'python3 scripts/dependency_check_publish.py')
+        self.assertEqual(job['name'],'Dependency Policy')
+        self.assertEqual(job['if'],'${{ always() }}')
+        self.assertNotIn('continue-on-error',job)
+        self.assertEqual(job['timeout-minutes'],'10')
+        self.assertEqual(job['permissions'],{'contents':'read','pull-requests':'read'})
+        script=next(s for s in job['steps'] if s.get('run')=='python3 scripts/dependency_check_publish.py --job-result')
+        self.assertEqual(script['run'],'python3 scripts/dependency_check_publish.py --job-result')
+        for step in job['steps']:self.assertNotIn('continue-on-error',step)
         self.assertEqual(script['env']['DEPENDENCY_JOB_RESULT'],'${{ needs.evaluate.result }}')
         self.assertEqual(script['env']['DEPENDENCY_ASSESSMENT_DAY'],'${{ needs.evaluate.outputs.assessment_day }}')
         self.assertNotIn('${{',script['run'])

@@ -33,7 +33,8 @@ def post_check(payload):
         data=json.dumps(payload,sort_keys=True,separators=(',',':')).encode(),timeout=30)
 
 
-def run(parent,api,*,post=post_check):
+def decision(parent,api):
+    """Bind the evaluation verdict to authenticated, current PR coordinates."""
     try:
         require(parent.get('GITHUB_ACTIONS')=='true' and parent.get('GITHUB_EVENT_NAME')=='pull_request_target'
             and parent.get('GITHUB_REPOSITORY')=='aatuh/evydence' and parent.get('GITHUB_REF')=='refs/heads/master')
@@ -54,6 +55,14 @@ def run(parent,api,*,post=post_check):
             'output':{'title':'Declared dependency admission '+('passed' if conclusion=='success' else 'did not pass'),
                 'summary':'Trusted target-base evaluation. Base: '+base+'. Head: '+head+'. Evaluation job: '+outcome
                     +'. Assessment UTC day: '+('current' if same_day else 'missing or stale')+'.'}}
+        return payload,base,head
+    except (OSError,ValueError,KeyError,TypeError,AttributeError,RecursionError):raise PublishError() from None
+
+
+def run(parent,api,*,post=post_check):
+    try:
+        payload,base,head=decision(parent,api)
+        conclusion=payload['conclusion']
         raw=post(payload);require(isinstance(raw,bytes) and len(raw)<=policy.MAX_DOCUMENT_BYTES)
         result=policy.parse_document(raw)
         require(isinstance(result,dict) and type(result.get('id')) is int and result['id']>0
@@ -71,7 +80,13 @@ def run(parent,api,*,post=post_check):
 
 def main():
     try:
-        require(not sys.argv[1:])
+        arguments=sys.argv[1:]
+        require(arguments in ([],['--job-result']))
+        if arguments:
+            payload,_base,_head=decision(os.environ,provider.GitHub())
+            passed=payload['conclusion']=='success'
+            print('dependency-check: trusted evaluation '+('passed' if passed else 'did not pass'))
+            return 0 if passed else 2
         result=run(os.environ,provider.GitHub())
         print('dependency-check: published check '+str(result['check_id'])+' ('+result['conclusion']+')')
         return 0

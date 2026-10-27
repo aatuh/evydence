@@ -91917,7 +91917,7 @@
     ".github/workflows/ci.yml": "74edd6bcee1257a8af2693003e10cbda3a4e3ad8282e4292e2389e453f4d0835",
     ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
     ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
-    ".github/workflows/dependency-review.yml": "f41e61244e621c4b3e14c8e29dc678a7557b4b25e3b36e2204220f3866cac1d2",
+    ".github/workflows/dependency-review.yml": "c779553cc767889ebbda048e6e98dda99cbce72638d63f80205f2711c769c60a",
     ".github/workflows/fuzz.yml": "23fa59c707ddc28a0d7487195a0dcb97c42d4778a29b6c291d2d47cc983d1d77",
     ".github/workflows/marketing-site-pages.yml": "356a4680ffd7f842448155f1977cc8b48d5b0350e308297739261d32a07f01f9",
     ".github/workflows/release-artifacts.yml": "e9c08517dc44a521006dfbccf532a6253e15d5fd2f2962b0020668e08db839b8",

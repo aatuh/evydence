@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1111-native-dependency-check",
+  "category": "fixed",
+  "summary": "Report dependency admission through the trusted native Actions job",
+  "details": [
+    "Name the trusted reporter job Dependency Policy and use a read-only job-result mode instead of creating a synthetic required check.",
+    "Require a successful evaluation, a current UTC assessment day and authenticated matching PR/base/head coordinates for a successful job exit; run the reporter on cancellation instead of conditionally skipping a required job.",
+    "Retain the previous publication command for compatibility while removing check-write permission from the current workflow."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "CI reporting only; dependency decisions, required context/app binding and strict branch protection are unchanged. The native job requires adoption by the trusted base workflow."
+  },
+  "security": "Failed, skipped, cancelled, stale or unavailable evaluations cannot produce a successful native job; proposed code and artifacts do not run in the trusted reporter.",
+  "limitations": [
+    "Local tests do not establish GitHub protection recognition; hosted qualification follows trusted-base adoption.",
+    "No branch protection change, manual success publication or check bypass is included."
+  ]
+}
