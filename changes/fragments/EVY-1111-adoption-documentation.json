@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1111-adoption-documentation",
+  "category": "changed",
+  "summary": "Record protected property-test adoption and current control ownership",
+  "details": [
+    "Record the normal adoption of the complete evidence-input property work while retaining incomplete status until the native dependency job is verified on a subsequent PR.",
+    "Reconcile structural, archive, report/template and graph budgets, central redaction and fixed diagnostics with their existing implementation evidence."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Documentation only; runtime behavior, evidence formats, signature/hash commitments and branch protection are unchanged."
+  },
+  "security": "Keep implemented repository controls distinct from operator-owned resource limits, sharing, access, retention and privacy review.",
+  "limitations": [
+    "Native required-job recognition remains unproven until actual hosted job/check correspondence and normal protected merge acceptance are verified.",
+    "Finite properties and campaigns do not establish exhaustive coverage, provider trust or cryptographic assurance."
+  ]
+}

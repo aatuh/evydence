@@ -34,6 +34,8 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ### Changed
 
+- Record protected property-test adoption and current control ownership (`EVY-1111-adoption-documentation`).
+  Record the normal adoption of the complete evidence-input property work while retaining incomplete status until the native dependency job is verified on a subsequent PR. Reconcile structural, archive, report/template and graph budgets, central redaction and fixed diagnostics with their existing implementation evidence.
 - Exercise the complete public release verification coordinator (`EVY-1111-public-release-binding`).
   Add a bounded property for the actual public release coordinator, beyond its policy, argument and file helper coverage; register all 45 native targets. Use actual synthetic file hashes and a private fixture pin to cover legacy file, repository, revoked-source, root and required-file joins without changing the committed trust policy. Require both verifier failure positions to propagate with exact artifact and identity arguments, a credential-free environment and immutable inputs. No provider call or cryptographic success is supplied by a command-port acknowledgement.
 - Automate source-linked release notes, changelog coverage and support policy (`EVY-1408-release-history`).

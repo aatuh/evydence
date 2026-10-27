@@ -146,11 +146,14 @@ current workflow does not grant. Its response identity/app checks and previous
 hosted controls remain historical evidence for that interface. Local tests use
 mocked API reads/writes and do not publish checks.
 
-Native-job rollout is not yet hosted-qualified: PR #50 has successful head
-check records, but the normal merge API still reports `Dependency Policy` as
-expected. Rerunning the cancelled suite did not resolve that mismatch. The
-trusted base workflow must adopt this change, and a subsequent PR must prove
-that GitHub accepts the native job before this repair is called complete.
+PR #51 normally adopted the native-job workflow at
+`0eb1b69fb4cbb2992bddca3419dd62acccf8d90d` after all required checks passed; its tested source tree and
+content match the normal merge. That PR still ran the historical reporter from
+its trusted base, so its passing dependency check does not qualify the new
+native producer. PR #50's earlier standard merge was rejected despite passing
+check records; rerunning its cancelled suite did not resolve the mismatch.
+A subsequent PR must prove the actual native job/check correspondence and
+ordinary protected merge acceptance before this repair is called complete.
 No protection exception or manually supplied success is part of that rollout.
 
 The fixed context remains required by master protection, preserving the
