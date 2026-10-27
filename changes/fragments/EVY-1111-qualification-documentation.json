@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1111-qualification-documentation",
+  "category": "changed",
+  "summary": "Align audit property references and record native dependency-gate qualification",
+  "details": [
+    "Replace the stale audit-integrity matrix gap with the existing executed audit-chain and checkpoint property references.",
+    "Record exact-source native producer correspondence and ordinary protected merge acceptance while preserving the original property evidence and its finite scope."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Documentation and generator reference data only; runtime behavior, evidence formats, hash/signing commitments and branch protection are unchanged."
+  },
+  "security": "Keep recorded repository control evidence distinct from operator responsibilities and external trust or cryptographic assurance.",
+  "limitations": [
+    "This change does not add fuzz callbacks, alter verification oracles, or establish exhaustive coverage.",
+    "No new hosted negative control, independent admission replay or hosted scheduled mutation campaign is claimed."
+  ]
+}

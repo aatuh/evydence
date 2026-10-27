@@ -147,14 +147,21 @@ hosted controls remain historical evidence for that interface. Local tests use
 mocked API reads/writes and do not publish checks.
 
 PR #51 normally adopted the native-job workflow at
-`0eb1b69fb4cbb2992bddca3419dd62acccf8d90d` after all required checks passed; its tested source tree and
-content match the normal merge. That PR still ran the historical reporter from
-its trusted base, so its passing dependency check does not qualify the new
-native producer. PR #50's earlier standard merge was rejected despite passing
-check records; rerunning its cancelled suite did not resolve the mismatch.
-A subsequent PR must prove the actual native job/check correspondence and
-ordinary protected merge acceptance before this repair is called complete.
-No protection exception or manually supplied success is part of that rollout.
+`0eb1b69fb4cbb2992bddca3419dd62acccf8d90d`. The actual native producer was then
+verified on [PR #52](https://github.com/aatuh/evydence/pull/52), exact head
+`ac28d914a77ce4a8dc693864d3e16b05394b8406`: Actions job and required check
+`122231804944` belong to the same trusted dependency workflow suite and Actions
+app `15368`. The read-only job used the target-base checkout and job-result mode;
+its sanitized passing decision names the current PR/base/head and UTC day.
+
+GitHub accepted the ordinary protected merge
+`8d56498913fbf1d1d0fe410571720e710a72d864` after all four required checks passed. Tested merge-ref and
+normal merge tree/content match. This qualifies native positive correspondence
+and protected acceptance; no new hosted negative control or independent
+admission replay is claimed. The older synthetic-interface controls remain
+historical evidence. PR #50's earlier standard merge was rejected despite passing
+check records; rerunning its cancelled suite did not resolve that mismatch.
+No protection exception or manually supplied success was used.
 
 The fixed context remains required by master protection, preserving the
 other three app-bound checks and strict enforcement; see
