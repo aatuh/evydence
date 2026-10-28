@@ -87,6 +87,7 @@ func runWorkerLoop(ctx context.Context, store workerQueue, processor workerProce
 // cause a late acknowledgement. Native storage/provider calls receive jobCtx.
 func drainableWorkerJob(root context.Context, store workerQueue, processor workerProcessor, job postgres.ClaimedJob, timeout time.Duration) error {
 	root = logging.WithCorrelation(root, job.Correlation)
+	root = telemetry.WithTraceContext(root, job.TraceContext)
 	started := time.Now()
 	fields := logging.Fields{TenantID: job.TenantID, ResourceID: job.SubjectID, JobID: job.ID, Attempt: job.Attempts, Result: logging.Started}
 	if logging.CorrelationFromContext(root).OperationID == "" {

@@ -67,6 +67,30 @@ these diagnostic fields. Apply migrations before starting the updated workers.
 Older binaries ignore the extra columns. Downgrading this migration loses
 correlation only; it preserves jobs and evidence.
 
+Migration `20261028000100_outbox_trace_context` adds operational `trace_id`,
+`trace_parent_span_id` and `trace_sampled` columns to `outbox_jobs`. Both enqueue
+paths save only an explicitly supplied internal trace carrier, in the job's
+transaction. Duplicate delivery retains the winning job's context; claims and
+lease reclaims restore that context after a process restart. Trace metadata
+does not grant tenant access or replace lease fencing. Jobs without metadata
+clear any previous job's trace from the worker context.
+
+Apply the migration before starting the updated binaries. Existing jobs and
+older writers default to empty identifiers and `false`; older readers ignore
+the columns. The down migration drops diagnostic context only. Evidence bytes,
+deduplication inputs and all five frozen backup commitment profiles remain
+unchanged; restored historical jobs may have no trace context. The persistence
+carrier has no HTTP-header, baggage or free-form attribute parser. This stage
+does not enable a collector or create spans; optional trace export and daemon
+entry-point spans remain part of EVY-1213.
+
+The migration takes an exclusive table lock to add columns and validate their
+shape. Both directions limit lock waits to three seconds and each statement to
+30 seconds within the migration transaction. Contention, validation timeout or
+cancellation rolls back the migration; schedule a quiet maintenance window and
+retry after resolving the contention. These budgets do not prove that a large
+production outbox can migrate within the window.
+
 Native command transactions emit audit receipt references only after a
 successful PostgreSQL commit. Rollback and uncertain commit outcomes never emit
 a successful audit receipt. Provider observations carry the request reference,
@@ -217,8 +241,9 @@ commands, including `reconcile`, do not serve a scrape endpoint or persist the
 new process counters. Existing tenant metrics still expose reconciliation
 receipt totals and last-run age; result and receipt interfaces remain
 authoritative.
-Dashboard/rule calibration belongs to EVY-1212; optional tracing and durable
-worker trace propagation belong to EVY-1213.
+The dashboard/rule examples require operator calibration. Optional trace export
+and daemon entry-point spans remain incomplete under EVY-1213; the operational
+worker carrier is described above.
 
 ### Worker scraping
 

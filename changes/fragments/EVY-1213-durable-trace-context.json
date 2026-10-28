@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1213-durable-trace-context",
+  "category": "added",
+  "summary": "Persist internal worker trace context separately from evidence.",
+  "details": [
+    "Validate bounded internal trace identifiers, retain the original context through job deduplication, restart and lease reclaim, and clear previous-job context for historical jobs.",
+    "Keep trace metadata outside evidence, deduplication inputs and frozen backup commitments. Optional OpenTelemetry export and daemon entry-point spans remain incomplete."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "required",
+    "notes": "Apply 20261028000100_outbox_trace_context before updated API or worker binaries. Existing jobs and older writers retain empty diagnostic context; older readers ignore the added columns. Downgrade discards trace metadata only."
+  },
+  "security": "Accept only bounded internal operational identifiers; preserve tenant ownership, transaction atomicity and lease fencing without adding a header or baggage parser.",
+  "limitations": [
+    "Optional trace export and daemon entry-point span creation remain incomplete under EVY-1213.",
+    "Trace context is diagnostic metadata and does not provide durable audit or evidence guarantees."
+  ]
+}
