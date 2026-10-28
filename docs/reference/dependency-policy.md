@@ -34,6 +34,34 @@ Remove unused dependencies when their imports or build steps disappear. Recheck
 the graph and supported API/SDK behavior; do not retain a dependency solely for
 an obsolete fixture or silently break a published interface to remove it.
 
+## Monitoring query validation
+
+EVY-1212 uses the official Prometheus editor grammar and type linter, pinned
+to `0.313.4` in the existing `site/marketing/package.json` and checksum-locked
+npm graph. Their direct sources declare Apache-2.0; all transitive sources
+remain subject to the same inventory and admission policy. This version keeps
+the existing compatible cache dependency without an override or policy waiver.
+The initial Go server-module selection was rejected by hosted dependency
+admission because it introduced a much larger server/cloud discovery graph.
+Its removal restores the prior QA Go module versions; production module
+manifests and SDK sources are unchanged.
+
+The standard library and exposition parser do not implement PromQL grammar or
+type checking. The owned Node bridge uses the official linter headlessly,
+rejects recovery nodes and returns bounded structured facts. Go supplements
+RE2/string, duration and disabled-feature validation. Rule templates use
+standard Go template syntax parsing with the explicit Prometheus function-name
+profile, without execution. See the [validation reference](observability.md#repository-validation)
+for prerequisites and comparison coverage limits.
+
+`make observability-check` parses bounded owned files without contacting scrape
+targets, evaluating queries or opening credential files. The child process
+receives no application credentials, ambient Node preloads or proxy settings;
+it has bounded input/output, heap and execution time. The checker can be replaced
+independently of application behavior; keeping a real PromQL implementation
+remains the validation requirement. Source/licensing observations, advisory
+scans and maintenance metadata retain their documented coverage limits.
+
 ## Update Review
 
 [`.github/dependabot.yml`](../../.github/dependabot.yml) configures weekly

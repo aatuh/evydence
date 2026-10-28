@@ -1,19 +1,27 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Select the Prometheus datasource scraping this deployment.",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
   "annotations": {
     "list": []
   },
   "editable": true,
   "panels": [
     {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Scrape availability",
+      "description": "One line per configured process; zero also covers authentication or snapshot failure. See docs/runbooks/observability.md#exporter.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -21,26 +29,29 @@
         "x": 0,
         "y": 0
       },
-      "id": 1,
-      "targets": [
-        {
-          "expr": "evydence_resource_count",
-          "legendFormat": "{{resource}}"
-        }
-      ],
-      "title": "Tenant Resource Counts",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
       "fieldConfig": {
         "defaults": {
           "unit": "short"
         },
         "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"evydence-api|evydence-worker\"}",
+          "legendFormat": "{{deployment}} {{job}} {{instance}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "API outcomes per second",
+      "description": "Reset-aware process rates before aggregation. Outcomes include rejected and uncertain requests; they are operational observations.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 8,
@@ -48,19 +59,392 @@
         "x": 12,
         "y": 0
       },
-      "id": 2,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
       "targets": [
         {
-          "expr": "increase(evydence_customer_portal_failed_access_count[1h])",
-          "legendFormat": "failed portal access"
+          "refId": "A",
+          "expr": "sum by (deployment, outcome) (rate(evydence_http_outcomes_total{job=\"evydence-api\",service=\"api\"}[5m]))",
+          "legendFormat": "{{deployment}} {{outcome}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "API observed duration p95",
+      "description": "Classic histogram estimate in seconds across recorded routes; idle windows can have no value. This is not an SLO.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (deployment, le) (rate(http_request_duration_seconds_bucket{job=\"evydence-api\",service=\"api\"}[5m])))",
+          "legendFormat": "{{deployment}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Retained queue states",
+      "description": "Shared database gauges repeat on API and workers. Maximum avoids duplicate counting; retention and restore can change terminal counts.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (deployment, state) (evydence_queue_jobs)",
+          "legendFormat": "{{deployment}} {{state}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Eligible and overdue work",
+      "description": "Eligible means run_after is due; overdue means at least five minutes late. Future retries are excluded. See docs/runbooks/observability.md#worker.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (deployment) (evydence_queue_eligible_jobs)",
+          "legendFormat": "{{deployment}} eligible",
+          "range": true
         },
         {
-          "expr": "evydence_customer_portal_revoked_access_count",
-          "legendFormat": "revoked portal access"
+          "refId": "B",
+          "expr": "max by (deployment) (evydence_queue_overdue_jobs)",
+          "legendFormat": "{{deployment}} overdue",
+          "range": true
         }
-      ],
-      "title": "Customer Portal Access Guardrails",
-      "type": "timeseries"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Oldest pending and eligible age",
+      "description": "Creation age, not scheduling delay. Pending includes future retries; compare eligible age with overdue counts.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (deployment) (evydence_queue_oldest_pending_age_seconds)",
+          "legendFormat": "{{deployment}} pending",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "max by (deployment) (evydence_queue_oldest_eligible_age_seconds)",
+          "legendFormat": "{{deployment}} eligible",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Expired or missing worker leases",
+      "description": "Shared running-work projection; a missing or expired five-minute lease needs lifecycle and database diagnosis. Do not edit lease rows.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (deployment) (evydence_queue_expired_leases)",
+          "legendFormat": "{{deployment}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Worker phases per second",
+      "description": "Claim success can be an empty poll. Complete, fail and defer acknowledge transitions; only worker_process describes the processing phase.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (deployment, operation, outcome) (rate(evydence_operations_total{service=\"worker\",operation=~\"worker_.*\"}[5m]))",
+          "legendFormat": "{{deployment}} {{operation}} {{outcome}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Operation duration p95",
+      "description": "Distinct nested operations are separate observations. Do not add their durations as wall time or treat a succeeded limited result as verified evidence.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (deployment, service, operation, le) (rate(evydence_operation_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{deployment}} {{service}} {{operation}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Process pool acquired fraction",
+      "description": "Each process and pool retains its own connection budget; ratio is acquired/maximum. See docs/runbooks/observability.md#database.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum without (state) (evydence_db_pool_connections{state=\"acquired\"}) / sum without (state) (evydence_db_pool_connections{state=\"maximum\"})",
+          "legendFormat": "{{deployment}} {{job}} {{instance}} {{pool}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Process pool wait seconds per second",
+      "description": "Reset-aware cumulative successful wait time; excludes canceled acquires. Inspect per process, not as a shared database capacity figure.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(evydence_db_pool_wait_seconds_total[5m])",
+          "legendFormat": "{{deployment}} {{job}} {{instance}} {{pool}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Object and provider failures per second",
+      "description": "Fixed operation labels only. Nested calls can contribute separately; no provider URL, object key or identity is exported. Use the linked diagnosis runbook.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (deployment, service, operation, outcome) (rate(evydence_operations_total{operation=~\"(object|provider)_.*\",outcome=~\"failed|uncertain\"}[5m]))",
+          "legendFormat": "{{deployment}} {{service}} {{operation}} {{outcome}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Active measured operations",
+      "description": "Admitted process work, summed by operation after the fixed-cardinality exporter boundary. Nested operations are distinct.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (deployment, service, operation) (evydence_active_operations)",
+          "legendFormat": "{{deployment}} {{service}} {{operation}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Detailed HTTP observations folded in fifteen minutes",
+      "description": "Process counter increases show observations folded after the fixed series budget; aggregate outcome counters remain independent. See docs/runbooks/observability.md#exporter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(evydence_telemetry_series_overflow_total[15m])",
+          "legendFormat": "{{deployment}} {{job}} {{instance}}",
+          "range": true
+        }
+      ]
     }
   ],
   "schemaVersion": 39,
@@ -78,5 +462,5 @@
   "timezone": "utc",
   "title": "Evydence Runtime",
   "uid": "evydence-runtime",
-  "version": 1
+  "version": 2
 }

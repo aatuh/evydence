@@ -44,7 +44,8 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    runs-on: ubuntu-latest
+    # Keep native recovery clients on the PostgreSQL 16 fixture profile.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229
@@ -95,6 +96,14 @@ jobs:
             --require-hashes --only-binary=:all: -r tools/requirements-qa.txt
           printf '%s\n' "$qa_venv/bin" >> "$GITHUB_PATH"
 
+      - name: Select PostgreSQL 16 recovery clients
+        run: |
+          set -euo pipefail
+          pg_client_dir=/usr/lib/postgresql/16/bin
+          "$pg_client_dir/pg_dump" --version | grep -E '^pg_dump \(PostgreSQL\) 16\.'
+          "$pg_client_dir/pg_restore" --version | grep -E '^pg_restore \(PostgreSQL\) 16\.'
+          printf '%s\n' "$pg_client_dir" >> "$GITHUB_PATH"
+
       - name: Install pinned Helm rendering tool
         env:
           HELM_VERSION: v4.3.0
@@ -137,6 +146,14 @@ jobs:
 
       - name: Install Go QA tools
         run: make tools
+
+      - name: Set up Node for offline observability validation
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Install locked observability QA dependencies
+        run: make observability-tools
 
       - name: Start isolated MinIO integration service
         run: |

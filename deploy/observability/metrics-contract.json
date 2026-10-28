@@ -1,0 +1,749 @@
+{
+  "schema": "evydence-observability-contract.v1",
+  "metrics": {
+    "evydence_active_operations": {
+      "type": "gauge",
+      "labels": [
+        "operation",
+        "service"
+      ],
+      "values": {
+        "operation": [
+          "database_acquire",
+          "object_delete",
+          "object_finalize",
+          "object_list",
+          "object_read",
+          "object_reconciliation",
+          "object_retention",
+          "object_stage",
+          "object_write",
+          "other",
+          "package_generation",
+          "package_sign",
+          "parse_openapi_contract",
+          "parse_sbom",
+          "parse_vex",
+          "parse_vulnerability_scan",
+          "provider_cosign_verify",
+          "provider_identity_validation",
+          "provider_oidc_discovery",
+          "provider_sign",
+          "provider_transparency_fetch",
+          "signing",
+          "verification",
+          "verify_attestation",
+          "worker_claim",
+          "worker_complete",
+          "worker_defer",
+          "worker_fail",
+          "worker_process"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_db_pool_acquire_duration_seconds_total": {
+      "type": "counter",
+      "labels": [
+        "pool",
+        "service"
+      ],
+      "values": {
+        "pool": [
+          "package_read",
+          "primary"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_db_pool_acquires_total": {
+      "type": "counter",
+      "labels": [
+        "pool",
+        "service"
+      ],
+      "values": {
+        "pool": [
+          "package_read",
+          "primary"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_db_pool_canceled_acquires_total": {
+      "type": "counter",
+      "labels": [
+        "pool",
+        "service"
+      ],
+      "values": {
+        "pool": [
+          "package_read",
+          "primary"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_db_pool_connections": {
+      "type": "gauge",
+      "labels": [
+        "pool",
+        "service",
+        "state"
+      ],
+      "values": {
+        "pool": [
+          "package_read",
+          "primary"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ],
+        "state": [
+          "acquired",
+          "constructing",
+          "idle",
+          "maximum"
+        ]
+      }
+    },
+    "evydence_db_pool_wait_seconds_total": {
+      "type": "counter",
+      "labels": [
+        "pool",
+        "service"
+      ],
+      "values": {
+        "pool": [
+          "package_read",
+          "primary"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_db_pool_waited_acquires_total": {
+      "type": "counter",
+      "labels": [
+        "pool",
+        "service"
+      ],
+      "values": {
+        "pool": [
+          "package_read",
+          "primary"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_http_outcomes_total": {
+      "type": "counter",
+      "labels": [
+        "outcome",
+        "service"
+      ],
+      "values": {
+        "outcome": [
+          "failed",
+          "rejected",
+          "succeeded",
+          "uncertain"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_operation_attempt_number_bucket": {
+      "type": "histogram_bucket",
+      "labels": [
+        "le",
+        "operation",
+        "outcome",
+        "service"
+      ],
+      "values": {
+        "le": [
+          "+Inf",
+          "1",
+          "10",
+          "2",
+          "3",
+          "5"
+        ],
+        "operation": [
+          "database_acquire",
+          "object_delete",
+          "object_finalize",
+          "object_list",
+          "object_read",
+          "object_reconciliation",
+          "object_retention",
+          "object_stage",
+          "object_write",
+          "other",
+          "package_generation",
+          "package_sign",
+          "parse_openapi_contract",
+          "parse_sbom",
+          "parse_vex",
+          "parse_vulnerability_scan",
+          "provider_cosign_verify",
+          "provider_identity_validation",
+          "provider_oidc_discovery",
+          "provider_sign",
+          "provider_transparency_fetch",
+          "signing",
+          "verification",
+          "verify_attestation",
+          "worker_claim",
+          "worker_complete",
+          "worker_defer",
+          "worker_fail",
+          "worker_process"
+        ],
+        "outcome": [
+          "canceled",
+          "failed",
+          "rejected",
+          "succeeded",
+          "uncertain",
+          "unknown"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_operation_attempt_number_count": {
+      "type": "histogram_count",
+      "labels": [
+        "operation",
+        "outcome",
+        "service"
+      ],
+      "values": {
+        "operation": [
+          "database_acquire",
+          "object_delete",
+          "object_finalize",
+          "object_list",
+          "object_read",
+          "object_reconciliation",
+          "object_retention",
+          "object_stage",
+          "object_write",
+          "other",
+          "package_generation",
+          "package_sign",
+          "parse_openapi_contract",
+          "parse_sbom",
+          "parse_vex",
+          "parse_vulnerability_scan",
+          "provider_cosign_verify",
+          "provider_identity_validation",
+          "provider_oidc_discovery",
+          "provider_sign",
+          "provider_transparency_fetch",
+          "signing",
+          "verification",
+          "verify_attestation",
+          "worker_claim",
+          "worker_complete",
+          "worker_defer",
+          "worker_fail",
+          "worker_process"
+        ],
+        "outcome": [
+          "canceled",
+          "failed",
+          "rejected",
+          "succeeded",
+          "uncertain",
+          "unknown"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_operation_attempt_number_sum": {
+      "type": "histogram_sum",
+      "labels": [
+        "operation",
+        "outcome",
+        "service"
+      ],
+      "values": {
+        "operation": [
+          "database_acquire",
+          "object_delete",
+          "object_finalize",
+          "object_list",
+          "object_read",
+          "object_reconciliation",
+          "object_retention",
+          "object_stage",
+          "object_write",
+          "other",
+          "package_generation",
+          "package_sign",
+          "parse_openapi_contract",
+          "parse_sbom",
+          "parse_vex",
+          "parse_vulnerability_scan",
+          "provider_cosign_verify",
+          "provider_identity_validation",
+          "provider_oidc_discovery",
+          "provider_sign",
+          "provider_transparency_fetch",
+          "signing",
+          "verification",
+          "verify_attestation",
+          "worker_claim",
+          "worker_complete",
+          "worker_defer",
+          "worker_fail",
+          "worker_process"
+        ],
+        "outcome": [
+          "canceled",
+          "failed",
+          "rejected",
+          "succeeded",
+          "uncertain",
+          "unknown"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_operation_duration_seconds_bucket": {
+      "type": "histogram_bucket",
+      "labels": [
+        "le",
+        "operation",
+        "outcome",
+        "service"
+      ],
+      "values": {
+        "le": [
+          "+Inf",
+          "0.001",
+          "0.01",
+          "0.1",
+          "0.5",
+          "1",
+          "15",
+          "5",
+          "60"
+        ],
+        "operation": [
+          "database_acquire",
+          "object_delete",
+          "object_finalize",
+          "object_list",
+          "object_read",
+          "object_reconciliation",
+          "object_retention",
+          "object_stage",
+          "object_write",
+          "other",
+          "package_generation",
+          "package_sign",
+          "parse_openapi_contract",
+          "parse_sbom",
+          "parse_vex",
+          "parse_vulnerability_scan",
+          "provider_cosign_verify",
+          "provider_identity_validation",
+          "provider_oidc_discovery",
+          "provider_sign",
+          "provider_transparency_fetch",
+          "signing",
+          "verification",
+          "verify_attestation",
+          "worker_claim",
+          "worker_complete",
+          "worker_defer",
+          "worker_fail",
+          "worker_process"
+        ],
+        "outcome": [
+          "canceled",
+          "failed",
+          "rejected",
+          "succeeded",
+          "uncertain",
+          "unknown"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_operation_duration_seconds_count": {
+      "type": "histogram_count",
+      "labels": [
+        "operation",
+        "outcome",
+        "service"
+      ],
+      "values": {
+        "operation": [
+          "database_acquire",
+          "object_delete",
+          "object_finalize",
+          "object_list",
+          "object_read",
+          "object_reconciliation",
+          "object_retention",
+          "object_stage",
+          "object_write",
+          "other",
+          "package_generation",
+          "package_sign",
+          "parse_openapi_contract",
+          "parse_sbom",
+          "parse_vex",
+          "parse_vulnerability_scan",
+          "provider_cosign_verify",
+          "provider_identity_validation",
+          "provider_oidc_discovery",
+          "provider_sign",
+          "provider_transparency_fetch",
+          "signing",
+          "verification",
+          "verify_attestation",
+          "worker_claim",
+          "worker_complete",
+          "worker_defer",
+          "worker_fail",
+          "worker_process"
+        ],
+        "outcome": [
+          "canceled",
+          "failed",
+          "rejected",
+          "succeeded",
+          "uncertain",
+          "unknown"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_operation_duration_seconds_sum": {
+      "type": "histogram_sum",
+      "labels": [
+        "operation",
+        "outcome",
+        "service"
+      ],
+      "values": {
+        "operation": [
+          "database_acquire",
+          "object_delete",
+          "object_finalize",
+          "object_list",
+          "object_read",
+          "object_reconciliation",
+          "object_retention",
+          "object_stage",
+          "object_write",
+          "other",
+          "package_generation",
+          "package_sign",
+          "parse_openapi_contract",
+          "parse_sbom",
+          "parse_vex",
+          "parse_vulnerability_scan",
+          "provider_cosign_verify",
+          "provider_identity_validation",
+          "provider_oidc_discovery",
+          "provider_sign",
+          "provider_transparency_fetch",
+          "signing",
+          "verification",
+          "verify_attestation",
+          "worker_claim",
+          "worker_complete",
+          "worker_defer",
+          "worker_fail",
+          "worker_process"
+        ],
+        "outcome": [
+          "canceled",
+          "failed",
+          "rejected",
+          "succeeded",
+          "uncertain",
+          "unknown"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_operations_total": {
+      "type": "counter",
+      "labels": [
+        "operation",
+        "outcome",
+        "service"
+      ],
+      "values": {
+        "operation": [
+          "database_acquire",
+          "object_delete",
+          "object_finalize",
+          "object_list",
+          "object_read",
+          "object_reconciliation",
+          "object_retention",
+          "object_stage",
+          "object_write",
+          "other",
+          "package_generation",
+          "package_sign",
+          "parse_openapi_contract",
+          "parse_sbom",
+          "parse_vex",
+          "parse_vulnerability_scan",
+          "provider_cosign_verify",
+          "provider_identity_validation",
+          "provider_oidc_discovery",
+          "provider_sign",
+          "provider_transparency_fetch",
+          "signing",
+          "verification",
+          "verify_attestation",
+          "worker_claim",
+          "worker_complete",
+          "worker_defer",
+          "worker_fail",
+          "worker_process"
+        ],
+        "outcome": [
+          "canceled",
+          "failed",
+          "rejected",
+          "succeeded",
+          "uncertain",
+          "unknown"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_queue_attempts": {
+      "type": "gauge",
+      "labels": [
+        "service"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_queue_eligible_jobs": {
+      "type": "gauge",
+      "labels": [
+        "service"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_queue_expired_leases": {
+      "type": "gauge",
+      "labels": [
+        "service"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_queue_jobs": {
+      "type": "gauge",
+      "labels": [
+        "service",
+        "state"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ],
+        "state": [
+          "dead_letter",
+          "queued",
+          "retrying",
+          "running",
+          "succeeded"
+        ]
+      }
+    },
+    "evydence_queue_oldest_eligible_age_seconds": {
+      "type": "gauge",
+      "labels": [
+        "service"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_queue_oldest_pending_age_seconds": {
+      "type": "gauge",
+      "labels": [
+        "service"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_queue_overdue_jobs": {
+      "type": "gauge",
+      "labels": [
+        "service"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_telemetry_series_overflow_total": {
+      "type": "counter",
+      "labels": [
+        "service"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "http_request_duration_seconds_bucket": {
+      "type": "histogram_bucket",
+      "labels": [
+        "le",
+        "method",
+        "route",
+        "service",
+        "status"
+      ],
+      "values": {
+        "le": [
+          "+Inf",
+          "0.001",
+          "0.005",
+          "0.01",
+          "0.025",
+          "0.05",
+          "0.1",
+          "0.25",
+          "0.5",
+          "1",
+          "10",
+          "2.5",
+          "5"
+        ],
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "http_request_duration_seconds_count": {
+      "type": "histogram_count",
+      "labels": [
+        "method",
+        "route",
+        "service",
+        "status"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "http_request_duration_seconds_sum": {
+      "type": "histogram_sum",
+      "labels": [
+        "method",
+        "route",
+        "service",
+        "status"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "http_requests_total": {
+      "type": "counter",
+      "labels": [
+        "method",
+        "route",
+        "service",
+        "status"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    }
+  }
+}

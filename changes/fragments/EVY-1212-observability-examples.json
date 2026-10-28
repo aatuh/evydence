@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1212-observability-examples",
+  "category": "changed",
+  "summary": "Replace placeholder monitoring with checked process metrics and diagnostic runbooks",
+  "details": [
+    "Provide separate authenticated API and worker scrape examples, actionable alert rules and an import-bound Grafana dashboard using emitted metrics.",
+    "Validate exporter metadata, PromQL, bounded labels, aggregation and runbook sections through make observability-check.",
+    "Document threshold calibration, counter resets, repeated shared queue gauges, retention and concrete dependency diagnosis.",
+    "Select PostgreSQL 16 native recovery clients in production CI to match the fixture and preserve paired-backup rehearsal compatibility."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Runtime metric names and scrape authorization are unchanged. Example alerts and dashboard queries replace the prior tenant-only placeholders; operators must review routing, topology and credential-file mounts. Offline validation requires Node 22 and make observability-tools for the pinned official Prometheus editor grammar/type linter; the Go server-module dependency has been removed."
+  },
+  "security": "Use distinct credential-file references without reading secrets; preserve instance authority, bounded labels and restricted operator diagnostics.",
+  "limitations": [
+    "Offline example validation does not prove deployed collection, Grafana import, notification delivery or capacity.",
+    "Thresholds require operator calibration and do not establish SLOs, evidence verification or compliance."
+  ]
+}

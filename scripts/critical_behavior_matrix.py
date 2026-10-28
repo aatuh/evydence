@@ -133,7 +133,11 @@ BEHAVIORS = (
         refs("internal/adapters/postgres/store_test.go::TestPostgresBackupRestoreRehearsalPreservesLedgerAndObjects"),
         refs("scripts/black_box_demo_check.sh"),
         RACE_GATE,
-        gap("canonical-entry mutations and truncation are structured negative vectors, not free-form parser inputs"),
+        refs(
+            "internal/verification/app/native_inspection_fuzz_test.go::FuzzAuditChainIntegrity",
+            "internal/verification/app/checkpoint_fuzz_test.go::FuzzMerkleCheckpointIntegrity",
+            "internal/verification/app/checkpoint_fuzz_test.go::FuzzReleaseManifestCheckpointIntegrity",
+        ),
     ),
     Behavior(
         "object-pairing",

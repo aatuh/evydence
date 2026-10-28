@@ -1,27 +1,113 @@
 groups:
   - name: evydence-runtime
     rules:
-      - alert: EvydenceAPIDown
-        expr: up{job="evydence-api"} == 0
+      - alert: EvydenceScrapeUnavailable
+        expr: up{job=~"evydence-api|evydence-worker"} == 0
         for: 2m
-        labels:
-          severity: page
-        annotations:
-          summary: Evydence API scrape target is down
-          description: The API target has not been reachable by Prometheus for at least two minutes.
-      - alert: EvydenceWorkerBacklogGrowing
-        expr: evydence_resource_count{resource="audit_chain_entries"} > 0 and absent(evydence_worker_last_success_timestamp_seconds)
-        for: 15m
         labels:
           severity: ticket
         annotations:
-          summary: Evydence worker success signal is missing
-          description: Configure worker success instrumentation or check the worker when API ledger activity is present without a worker success signal.
-      - alert: EvydencePortalAccessFailures
-        expr: increase(evydence_customer_portal_failed_access_count[15m]) > 10
+          summary: Evydence operational scrape is unavailable
+          description: Prometheus cannot collect the configured target; this alone does not establish application downtime.
+          action: Inspect the target scrape error, then check its listener, credential authority and bounded resource snapshot.
+          runbook_url: docs/runbooks/observability.md#exporter
+      - alert: EvydencePrivateMetricsMissing
+        expr: up{job=~"evydence-api|evydence-worker"} == 1 unless on (deployment, job, instance) evydence_telemetry_series_overflow_total
+        for: 2m
+        labels:
+          severity: ticket
+        annotations:
+          summary: A successful scrape lacks the private process registry
+          description: A tenant-only API scrape can succeed without the instance metrics required by these examples.
+          action: Confirm the API token has explicit instance:admin and that the text endpoint is scraped directly.
+          runbook_url: docs/runbooks/observability.md#exporter
+      - alert: EvydenceQueueOverdue
+        expr: max by (deployment) (evydence_queue_overdue_jobs) > 0
         for: 5m
         labels:
           severity: ticket
         annotations:
-          summary: Customer portal access failures increased
-          description: Failed customer portal access attempts increased for a tenant-scoped scrape target. Review access records and gateway rate limits.
+          summary: Eligible durable work remains overdue
+          description: Work is at least five minutes past run_after, across the shared database projection.
+          action: Check worker readiness, oldest eligible age and process outcomes before considering a fenced retry.
+          runbook_url: docs/runbooks/observability.md#worker
+      - alert: EvydenceWorkerLeaseExpired
+        expr: max by (deployment) (evydence_queue_expired_leases) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Running durable work lacks a current lease
+          description: The queue projection found a missing or expired five-minute worker lease.
+          action: Inspect worker lifecycle and database availability; do not edit lease or job rows manually.
+          runbook_url: docs/runbooks/observability.md#worker
+      - alert: EvydenceQueueDeadLetters
+        expr: max by (deployment) (evydence_queue_jobs{state="dead_letter"}) > 0
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Retained dead-letter work needs review
+          description: This is a retained-state gauge; an acknowledged historical failure can keep the alert active.
+          action: Review authorized durable job diagnostics and retain the disposition before an operator-scoped silence.
+          runbook_url: docs/runbooks/observability.md#worker
+      - alert: EvydenceWorkerProcessingFailures
+        expr: sum by (deployment) (increase(evydence_operations_total{service="worker",operation="worker_process",outcome=~"failed|uncertain"}[15m])) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Worker processing failures were observed
+          description: Process-local completed observations increased; a successful claim or acknowledgement does not establish successful processing.
+          action: Correlate safe worker outcomes with the shared queue and dependency readiness.
+          runbook_url: docs/runbooks/observability.md#worker
+      - alert: EvydenceDatabasePoolPressure
+        expr: (sum without (state) (evydence_db_pool_connections{state="acquired"}) / sum without (state) (evydence_db_pool_connections{state="maximum"}) > 0.9) and on (deployment, job, instance, service, pool) (rate(evydence_db_pool_waited_acquires_total[5m]) > 0)
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: A process pool is occupied and waiting
+          description: Acquired connections exceed ninety percent of that pool's maximum while waited acquisitions increase.
+          action: Inspect the named process and pool, query duration, database readiness and connection budget before changing limits.
+          runbook_url: docs/runbooks/observability.md#database
+      - alert: EvydenceProviderFailures
+        expr: sum by (deployment) (increase(evydence_operations_total{operation=~"provider_.*",outcome=~"failed|uncertain"}[15m])) >= 3
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Provider operations repeatedly failed
+          description: At least three failed or uncertain process observations occurred within fifteen minutes.
+          action: Identify the bounded operation, check provider readiness and credential or policy changes, and preserve limited verification states.
+          runbook_url: docs/runbooks/observability.md#provider
+      - alert: EvydenceObjectStoreFailures
+        expr: sum by (deployment) (increase(evydence_operations_total{operation=~"object_.*",outcome=~"failed|uncertain"}[15m])) >= 3
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Object operations repeatedly failed
+          description: At least three failed or uncertain object observations occurred within fifteen minutes; nested operations can contribute separately.
+          action: Check storage readiness and bounded operation outcomes, then follow object recovery without deleting evidence.
+          runbook_url: docs/runbooks/observability.md#object-store
+      - alert: EvydenceHTTPServerFailures
+        expr: sum by (deployment) (rate(evydence_http_outcomes_total{job="evydence-api",service="api",outcome="failed"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: API server failures persist in the observation window
+          description: Recorded HTTP server failures have a positive five-minute rate in the independent outcome counter, including when detailed series overflow.
+          action: Compare bounded route outcomes with dependency readiness and use internal request correlation for diagnosis.
+          runbook_url: docs/runbooks/observability.md#api
+      - alert: EvydenceTelemetryOverflow
+        expr: increase(evydence_telemetry_series_overflow_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Detailed HTTP observations reached the fixed series budget
+          description: Additional HTTP observations were folded into the bounded overflow series.
+          action: Inspect route-template instrumentation and rollout changes; do not add customer identifiers or raise limits without review.
+          runbook_url: docs/runbooks/observability.md#exporter
