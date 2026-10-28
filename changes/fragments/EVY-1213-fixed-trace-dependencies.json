@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1213-fixed-trace-dependencies",
+  "category": "fixed",
+  "summary": "Update owned tracing dependencies for the upstream diagnostic-logging fix",
+  "details": [
+    "Pin the owned OpenTelemetry SDK and OTLP base exporter to v1.45.0 for GO-2026-6505 while retaining the explicit diagnostic and export restrictions.",
+    "Resolve nine reviewed application module version changes without introducing module paths or changing the supported Go minimum.",
+    "Add a regression showing that upstream diagnostic representations omit client and exporter instance fields."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Public Evydence SDK wrappers and persistence formats are unchanged. Changed modules require Go 1.25.0, below the existing Go 1.26.10 minimum."
+  },
+  "security": "Use the upstream-fixed modules rather than relying on the application logging policy to satisfy vulnerability analysis. Existing attribute, resource, baggage and transport restrictions remain in place.",
+  "limitations": [
+    "Other dependency observations retain their own advisory and admission scope.",
+    "Unchanged upstream license bytes do not automatically admit a new exact dependency version."
+  ]
+}

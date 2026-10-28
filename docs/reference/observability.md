@@ -138,10 +138,11 @@ incoming baggage, so this profile uses the official SDK and OTLP conversion
 behind the project's neutral port. It registers no global tracer provider or
 propagator. Internal SDK diagnostics are disabled, errors are discarded rather
 than logged verbatim, and the owned client's diagnostic representation contains
-only its fixed type. This enforces the logging workaround for the currently
-selected SDK's [upstream advisory](https://github.com/open-telemetry/opentelemetry-go/security/advisories/GHSA-8wmf-6v46-5gfg);
-it does not claim the affected dependency has been upgraded or its advisory
-dismissed.
+only its fixed type. The owned SDK and OTLP base exporter are pinned to
+`v1.45.0`, which addresses the
+[upstream diagnostic-logging advisory](https://github.com/open-telemetry/opentelemetry-go/security/advisories/GHSA-8wmf-6v46-5gfg).
+This version selection does not establish that every dependency is free of
+advisories or admitted by the separate dependency policy.
 
 Root sampling defaults to 1%; workers preserve the stored parent sampling
 decision. The completed-span queue defaults to 128 and drops spans when full;

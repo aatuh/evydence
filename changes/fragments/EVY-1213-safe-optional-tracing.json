@@ -18,7 +18,6 @@
   "security": "Keep collector configuration and private input outside diagnostic output. Accept only internal trace parentage; preserve tenant ownership, immutable evidence, exact provider contexts and fenced worker acknowledgment.",
   "limitations": [
     "Sampling, queue pressure, unavailable collectors and bounded shutdown can drop spans; traces are not complete or durable evidence.",
-    "Migration counts compare recorded names with a discovered local catalog and do not verify schema contents or migration bytes.",
-    "The selected SDK retains its conditional upstream diagnostic-logging advisory; the owned adapter enforces the logging workaround without claiming an upgrade or advisory dismissal."
+    "Migration counts compare recorded names with a discovered local catalog and do not verify schema contents or migration bytes."
   ]
 }

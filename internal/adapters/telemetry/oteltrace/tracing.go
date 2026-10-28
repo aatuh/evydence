@@ -62,8 +62,7 @@ func New(ctx context.Context, cfg Config) (*Adapter, error) {
 	}
 	// SDK constructors inspect some OTEL variables before applying options.
 	// Disable their global diagnostic channel before any SDK construction, and
-	// never pass raw SDK/exporter errors to the application logger. This also
-	// enforces the upstream GO-2026-6505 logging workaround for selected versions.
+	// never pass raw SDK/exporter errors to the application logger.
 	otel.SetLogger(logr.Discard())
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(error) {}))
 	exporter, err := otlptrace.New(ctx, client)

@@ -69304,36 +69304,7 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel",
       "origins": [
-        "application"
-      ],
-      "source": {
-        "go_mod_sum": "h1:BMgjTHL9WPRlRjL2oZCBTL4whCGtXch2H4BhOPIAyYc=",
-        "sum": "h1:JjwHmHpA4iZ3wBxluu2fbbE7j4kqlE8jXyAyPXH7HqU=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.44.0",
-      "version_published_at": "2026-05-27T16:42:37Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0",
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
-          "status": "ambiguous"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "go.opentelemetry.io/otel",
-      "origins": [
+        "application",
         "qa"
       ],
       "source": {
@@ -69485,12 +69456,12 @@
         "application"
       ],
       "source": {
-        "go_mod_sum": "h1:Vl1/iaggsuRlrHf/hfPJPvVag77kKyvrLeD10kpMl+A=",
-        "sum": "h1:88Y4s2C8oTui1LGM6bTWkw0ICGcOLCAI5l6zsD1j20k=",
+        "go_mod_sum": "h1:Tiz03lTBVBrm7eWZBOidzEaYaJa8tjwGUGv6d8mlTyk=",
+        "sum": "h1:QRefszxJmfPdjXUUm3j6iDzY03mTPXMjqErFqQ67vUg=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.43.0",
-      "version_published_at": "2026-04-03T08:30:03Z"
+      "version": "v1.45.0",
+      "version_published_at": "2026-08-03T19:26:24Z"
     },
     {
       "ecosystem": "gomod",
@@ -69987,36 +69958,7 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/metric",
       "origins": [
-        "application"
-      ],
-      "source": {
-        "go_mod_sum": "h1:8O7hanEPBNgEMmybD3s2VBKcgWOCsA6tzHBPODAiquo=",
-        "sum": "h1:1w0gILTcHdr3YI+ixLyjemwrVnsMURbTZFrSYCdDdmc=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.44.0",
-      "version_published_at": "2026-05-27T16:42:37Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0",
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
-          "status": "ambiguous"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "go.opentelemetry.io/otel/metric",
-      "origins": [
+        "application",
         "qa"
       ],
       "source": {
@@ -70167,36 +70109,7 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/sdk",
       "origins": [
-        "application"
-      ],
-      "source": {
-        "go_mod_sum": "h1:Osuydd3Se74nqjAKxid74N5eC+jfEqfTegHRnq58oK0=",
-        "sum": "h1:nHYwb9lK+fJPU/dnT6s7W7Z8itMWyqrnVfbheVYrZ58=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.44.0",
-      "version_published_at": "2026-05-27T16:42:37Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0",
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
-          "status": "ambiguous"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "go.opentelemetry.io/otel/sdk",
-      "origins": [
+        "application",
         "qa"
       ],
       "source": {
@@ -70345,36 +70258,7 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/sdk/metric",
       "origins": [
-        "application"
-      ],
-      "source": {
-        "go_mod_sum": "h1:5B5pMARnXxKhltooO4xUuCBorl65a4EpnTalObqOigA=",
-        "sum": "h1:3LlKgI+VjbVsjNRFZJZAJ30WjXC5VkNRks6si09iEfI=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.44.0",
-      "version_published_at": "2026-05-27T16:42:37Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0",
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
-          "status": "ambiguous"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "go.opentelemetry.io/otel/sdk/metric",
-      "origins": [
+        "application",
         "qa"
       ],
       "source": {
@@ -70495,36 +70379,7 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/trace",
       "origins": [
-        "application"
-      ],
-      "source": {
-        "go_mod_sum": "h1:oLl1jrMQAVo6v3GAggN+1VH9VIz9iUSvW53sW1Q8PIE=",
-        "sum": "h1:jxF5CsGYCe74MCRx2X4g7WsY/VBKRqqpNvXlX/6gtIk=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.44.0",
-      "version_published_at": "2026-05-27T16:42:37Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0",
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
-          "status": "ambiguous"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "go.opentelemetry.io/otel/trace",
-      "origins": [
+        "application",
         "qa"
       ],
       "source": {
@@ -70584,35 +70439,7 @@
       "license_status": "candidate",
       "name": "go.opentelemetry.io/proto/otlp",
       "origins": [
-        "application"
-      ],
-      "source": {
-        "go_mod_sum": "h1:/CV4QoCR/S9yaPj8utp3lvQPoqMtxXdzn7ozvvozVqk=",
-        "sum": "h1:IQRWgT5srOCYfiWnpqUYz9CVmbO8bFmKcwYxpuCSL2g=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.10.0",
-      "version_published_at": "2026-03-09T19:21:30Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "go.opentelemetry.io/proto/otlp",
-      "origins": [
+        "application",
         "scanner"
       ],
       "source": {
@@ -74444,15 +74271,15 @@
       "license_status": "candidate",
       "name": "google.golang.org/genproto/googleapis/api",
       "origins": [
-        "application"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:q4lMZS6kskjT5HvCPrnnypcDPVJqT/f4nfxmkE7gryY=",
-        "sum": "h1:Kjn0N0tCrDgiAFW+lGO4JZ3ck44CehvJQMAwj9QF0G8=",
+        "go_mod_sum": "h1:WRrQ7/7N19PypuT0fxLOL5Lq0waoiRri4FbtHDEKrGE=",
+        "sum": "h1:QwnJwPte4XXAkhPu26LTDIahnsMSUV0kK8HkxbC+Pc4=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
-      "version_published_at": "2026-05-26T16:35:38Z"
+      "version": "v0.0.0-20260715232425-e75dac1f907d",
+      "version_published_at": "2026-07-15T23:24:25Z"
     },
     {
       "ecosystem": "gomod",
@@ -74473,15 +74300,15 @@
       "license_status": "candidate",
       "name": "google.golang.org/genproto/googleapis/api",
       "origins": [
-        "qa"
+        "application"
       ],
       "source": {
-        "go_mod_sum": "h1:WRrQ7/7N19PypuT0fxLOL5Lq0waoiRri4FbtHDEKrGE=",
-        "sum": "h1:QwnJwPte4XXAkhPu26LTDIahnsMSUV0kK8HkxbC+Pc4=",
+        "go_mod_sum": "h1:1brfde68Npq6+WA75c1EHWPijZEG1kMus61ygPZfn4A=",
+        "sum": "h1:97PfJ4tCxY5C7NzzgGqQEMZmXbISdvSArNNEOoUGKBg=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.0.0-20260715232425-e75dac1f907d",
-      "version_published_at": "2026-07-15T23:24:25Z"
+      "version": "v0.0.0-20260720211330-0afa2a65878a",
+      "version_published_at": "2026-07-20T21:13:30Z"
     },
     {
       "ecosystem": "gomod",
@@ -74738,11 +74565,11 @@
       ],
       "source": {
         "go_mod_sum": "h1:4Hqkh8ycfw05ld/3BWL7rJOSfebL2Q+DVDeRgYgxUU8=",
-        "sum": "h1:mZHHdPZl0dbGHCflZgAq/Q468DWVFcU2whhB2KAo8fk=",
+        "sum": "h1:qI/YMH1ep2qQtqcp00gMQyoU7mjvbhg88GJKCvfoLj0=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
-      "version_published_at": "2026-05-26T16:35:38Z"
+      "version": "v0.0.0-20260720211330-0afa2a65878a",
+      "version_published_at": "2026-07-20T21:13:30Z"
     },
     {
       "ecosystem": "gomod",
@@ -92499,8 +92326,8 @@
     "deploy/local-dependencies/Dockerfile": "8b576ed1c58a015da28d2651b26f8b812ffe57d2f4a95ff2965cec324d0b5dfd",
     "docs/github-actions/quickstart-release-evidence.yml": "eb8fd676581894080f16654539e1e18ef097961db0ea189cc7fc339836668b6b",
     "docs/github-actions/release-evidence-workflow.yml": "9d4d5178702e4089cfb4e01fc44877f5f692d5775a8b923eb6d04bf17f5b624b",
-    "go.mod": "7306944ce76f17306dcb511cda5e8f0af559fd4405dd0af25cdfbada945b838e",
-    "go.sum": "8d36d928a439a4df72f4a6567f331381733cb811b1c9bfd2ba6b39444cc18654",
+    "go.mod": "54c8db07f733cc703f20517cae157121e1efc26958383f5bbd6559be545e0389",
+    "go.sum": "d23ca644081a307542a4c77ed2803272b942309e30e4356c056d7060692e222e",
     "internal/adapters/verification/sigstore/testdata/official-othername.bundle.json": "e4d4db1b4cbd232fe2a021a7290345d24e6f07f447629cbff51c8cfc52492ed8",
     "internal/adapters/verification/sigstore/testdata/official-scaffolding.trusted-root.json": "503c669ede6b4416c39de5d48d5964141970d9881fc941370faac0f75789fecf",
     "internal/app/parsers/cyclonedx/schema/bom-1.6.part-001.fragment": "abb7cfae1b00138b2923b24e3d2d2ca472f3f4595366bb1dd3cf3489c6347584",
